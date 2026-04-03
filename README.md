@@ -79,13 +79,13 @@ The fastest way to get started — no local setup required. Get a fully managed,
 Try CloudCLI UI instantly with **npx** (requires **Node.js** v22+):
 
 ```
-npx @siteboon/claude-code-ui
+npx @cloudcli-ai/cloudcli
 ```
 
 Or install **globally** for regular use:
 
 ```
-npm install -g @siteboon/claude-code-ui
+npm install -g @cloudcli-ai/cloudcli
 cloudcli
 ```
 
@@ -104,7 +104,7 @@ CloudCLI UI is the open source UI layer that powers CloudCLI Cloud. You can self
 |---|---|---|
 | **Best for** | Developers who want a full UI for local agent sessions on their own machine | Teams and developers who want agents running in the cloud, accessible from anywhere |
 | **How you access it** | Browser via `[yourip]:port` | Browser, any IDE, REST API, n8n |
-| **Setup** | `npx @siteboon/claude-code-ui` | No setup required |
+| **Setup** | `npx @cloudcli-ai/cloudcli` | No setup required |
 | **Machine needs to stay on** | Yes | No |
 | **Mobile access** | Any browser on your network | Any device, native app coming |
 | **Sessions available** | All sessions auto-discovered from `~/.claude` | All sessions within your cloud environment |
