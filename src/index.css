@@ -182,7 +182,18 @@
     right: var(--safe-area-inset-right);
     bottom: 0;
   }
-  
+
+  /* User font settings (Settings → Appearance → Fonts): chat message text.
+     Defaults keep the current look (14px serif). */
+  .chat-messages-pane .chat-message .break-words,
+  .chat-messages-pane .chat-message .prose {
+    font-family: var(--ui-font-family, ui-serif, Georgia, Cambria, "Times New Roman", Times, serif);
+  }
+
+  .chat-messages-pane .chat-message .prose {
+    font-size: var(--ui-font-size, 14px);
+  }
+
   /* Global transition defaults */
   button, 
   a, 

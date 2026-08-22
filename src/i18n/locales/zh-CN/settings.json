@@ -179,6 +179,30 @@
         "label": "字体大小",
         "description": "编辑器字体大小（px）"
       }
+    },
+    "fontSettings": {
+      "title": "字体",
+      "uiFontSize": {
+        "label": "聊天 / 界面字号",
+        "description": "聊天消息与界面文字的字号"
+      },
+      "terminalFontSize": {
+        "label": "终端字号",
+        "description": "终端里的字号"
+      },
+      "fontFamily": {
+        "label": "字体族",
+        "description": "聊天消息使用的字体"
+      },
+      "fontFamilyOptions": {
+        "serif": "衬线",
+        "system": "系统",
+        "sans": "黑体",
+        "songti": "宋体",
+        "kaiti": "楷体",
+        "rounded": "圆体",
+        "monospace": "等宽"
+      }
     }
   },
   "mcpForm": {

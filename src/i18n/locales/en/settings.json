@@ -179,6 +179,30 @@
         "label": "Font Size",
         "description": "Editor font size in pixels"
       }
+    },
+    "fontSettings": {
+      "title": "Fonts",
+      "uiFontSize": {
+        "label": "Chat / Interface Font Size",
+        "description": "Font size of chat messages and interface text"
+      },
+      "terminalFontSize": {
+        "label": "Terminal Font Size",
+        "description": "Font size of the terminal"
+      },
+      "fontFamily": {
+        "label": "Font Family",
+        "description": "Font family for chat messages"
+      },
+      "fontFamilyOptions": {
+        "serif": "Serif",
+        "system": "System",
+        "sans": "Sans (Heiti)",
+        "songti": "Songti",
+        "kaiti": "Kaiti",
+        "rounded": "Rounded",
+        "monospace": "Monospace"
+      }
     }
   },
   "mcpForm": {
