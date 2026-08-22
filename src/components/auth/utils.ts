@@ -13,5 +13,10 @@ export function resolveApiErrorMessage(payload: ApiErrorPayload | null, fallback
     return fallback;
   }
 
-  return payload.error ?? payload.message ?? fallback;
+  if (typeof payload.error === 'string') {
+    return payload.error;
+  }
+
+  // Backend may nest the message inside `error` as an object (e.g. { code, message })
+  return payload.error?.message ?? payload.message ?? fallback;
 }

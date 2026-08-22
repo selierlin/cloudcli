@@ -172,6 +172,12 @@ function syncDesktopState() {
 
 function setActiveTarget(target) {
   activeTarget = target;
+  // Remember the last connected server so the app can reconnect on launch.
+  // Only local and custom servers are tracked (not cloud environments).
+  const serverId = target?.kind === 'local' ? 'local' : (target?.kind === 'server' ? target.id : null);
+  if (serverId && localServer) {
+    void localServer.updateDesktopSetting('lastActiveServerId', serverId).catch(() => {});
+  }
 }
 
 function getEnvironmentTarget(environment) {
@@ -546,8 +552,7 @@ async function runActiveEnvironmentAction(action) {
 }
 
 async function openLocalInDesktop() {
-  const existingTab = tabs.getTab('local');
-  if (existingTab && localServer.getLocalServerUrl()) {
+  if (localServer.getLocalServerUrl()) {
     await desktopWindow.showTarget(await localServer.getResolvedTarget());
     return getDesktopState();
   }
@@ -561,6 +566,79 @@ async function openLocalInDesktop() {
   const target = await localServer.getResolvedTarget();
   await desktopWindow.showTarget(target);
   return getDesktopState();
+}
+
+async function connectServerProfile(profileId) {
+  const profile = (localServer.getSettings().serverProfiles || []).find((p) => p.id === profileId);
+  if (!profile) throw new Error('Server profile not found.');
+
+  const target = { kind: 'server', id: profile.id, name: profile.name, url: profile.url };
+  const tabId = tabs.getTabIdForTarget(target);
+  const hadTab = Boolean(tabs.getTab(tabId));
+
+  try {
+    await desktopWindow.showTarget(target);
+  } catch (error) {
+    if (isExpectedNavigationAbort(error)) throw error;
+    // The failed BrowserView is still attached — clean it up before going back.
+    if (!hadTab) {
+      tabs.remove(tabId);
+      desktopWindow.destroyTabView(tabId);
+    }
+    await desktopWindow.showLauncher();
+    throw new Error(`Could not connect to ${profile.name}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  return getDesktopState();
+}
+
+async function stopLocalServerInDesktop() {
+  await localServer.stopLocalServer();
+  if (activeTarget?.kind === 'local') {
+    await desktopWindow.showLauncher();
+  }
+  syncDesktopState();
+  return getDesktopState();
+}
+
+async function saveServerProfile(profile) {
+  await localServer.saveServerProfile(profile);
+  syncDesktopState();
+  return getDesktopState();
+}
+
+async function deleteServerProfile(profileId) {
+  await localServer.deleteServerProfile(profileId);
+  syncDesktopState();
+  return getDesktopState();
+}
+
+async function restoreLastServerOnLaunch() {
+  try {
+    await localServer.detectLocalServer();
+    if (localServer.getSettings().autoStartLocalServer) {
+      try {
+        await localServer.ensureLocalServer();
+      } catch (error) {
+        await showError('Local CloudCLI failed to start', error);
+      }
+    }
+
+    const lastServerId = localServer.getSettings().lastActiveServerId;
+    if (!lastServerId) return;
+
+    if (lastServerId === 'local') {
+      if (!localServer.getLocalServerUrl()) return;
+      await openLocalInDesktop();
+      return;
+    }
+
+    const profile = (localServer.getSettings().serverProfiles || []).find((p) => p.id === lastServerId);
+    if (!profile) return;
+    await connectServerProfile(lastServerId);
+  } catch (error) {
+    // Never block startup — fall back to the launcher on any error.
+    console.warn('Could not restore last connected server:', error);
+  }
 }
 
 async function openEnvironmentInDesktop(environment) {
@@ -769,6 +847,10 @@ function registerIpcHandlers() {
   ipcMain.handle('cloudcli-desktop:switch-tab', async (_event, tabId) => desktopWindow.switchDesktopTab(tabId));
   ipcMain.handle('cloudcli-desktop:close-tab', async (_event, tabId) => desktopWindow.closeDesktopTab(tabId));
   ipcMain.handle('cloudcli-desktop:update-setting', async (_event, key, value) => updateDesktopSetting(key, value));
+  ipcMain.handle('cloudcli-desktop:stop-local-server', async () => stopLocalServerInDesktop());
+  ipcMain.handle('cloudcli-desktop:connect-server', async (_event, serverId) => connectServerProfile(serverId));
+  ipcMain.handle('cloudcli-desktop:save-server-profile', async (_event, profile) => saveServerProfile(profile));
+  ipcMain.handle('cloudcli-desktop:delete-server-profile', async (_event, profileId) => deleteServerProfile(profileId));
 }
 
 function registerAppEvents() {
@@ -934,6 +1016,7 @@ async function bootstrap() {
   registerAppEvents();
   await createDesktopWindow();
   void refreshCloudEnvironments({ showErrors: false });
+  void restoreLastServerOnLaunch();
 }
 
 if (registerSingleInstance()) {

@@ -392,6 +392,27 @@ svg {
   line-height: 1.45;
 }
 
+.cc-field-label {
+  color: var(--tx2);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.cc-input {
+  width: 100%;
+  padding: 9px 11px;
+  color: var(--tx);
+  background: var(--s1);
+  border: 1px solid var(--b-subtle);
+  border-radius: 10px;
+  font-size: 13px;
+  outline: none;
+}
+
+.cc-input:focus {
+  border-color: var(--brand);
+}
+
 .cc-toggle,
 .cc-choice {
   display: grid;

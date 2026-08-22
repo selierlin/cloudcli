@@ -4,12 +4,14 @@ import { ViewHost } from './viewHost.js';
 
 const TITLEBAR_HEIGHT = 44;
 const AUTH_TOKEN_STORAGE_KEY = 'auth-token';
-function isAllowedPermissionOrigin(sourceUrl, controlPlaneUrl) {
+function isAllowedPermissionOrigin(sourceUrl, controlPlaneUrl, allowedOrigins = new Set()) {
   try {
     const source = new URL(sourceUrl);
     if ((source.hostname === '127.0.0.1' || source.hostname === 'localhost') && source.protocol === 'http:') {
       return true;
     }
+    // User-configured remote servers are explicitly trusted by the user.
+    if (allowedOrigins.has(source.origin)) return true;
     if (source.protocol !== 'https:') {
       return false;
     }
@@ -681,7 +683,20 @@ export class DesktopWindowManager {
     const isAllowedPermission = (webContents, permission) => {
       const sourceUrl = webContents.getURL();
       const allowedPermissions = new Set(['clipboard-read', 'media', 'notifications']);
-      return isAllowedPermissionOrigin(sourceUrl, this.getCloudState().controlPlaneUrl) && allowedPermissions.has(permission);
+      // Recompute per request so profiles added after startup take effect immediately.
+      const profiles = this.getLocalState()?.desktopSettings?.serverProfiles || [];
+      const allowedOrigins = new Set(
+        profiles
+          .map((profile) => {
+            try {
+              return new URL(profile.url).origin;
+            } catch {
+              return null;
+            }
+          })
+          .filter(Boolean),
+      );
+      return isAllowedPermissionOrigin(sourceUrl, this.getCloudState().controlPlaneUrl, allowedOrigins) && allowedPermissions.has(permission);
     };
 
     session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
