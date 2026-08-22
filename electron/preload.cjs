@@ -52,6 +52,10 @@ if (window.location.protocol === 'file:') {
     switchTab: (tabId) => ipcRenderer.invoke('cloudcli-desktop:switch-tab', tabId),
     closeTab: (tabId) => ipcRenderer.invoke('cloudcli-desktop:close-tab', tabId),
     updateSetting: (key, value) => ipcRenderer.invoke('cloudcli-desktop:update-setting', key, value),
+    stopLocalServer: () => ipcRenderer.invoke('cloudcli-desktop:stop-local-server'),
+    connectServer: (serverId) => ipcRenderer.invoke('cloudcli-desktop:connect-server', serverId),
+    saveServerProfile: (profile) => ipcRenderer.invoke('cloudcli-desktop:save-server-profile', profile),
+    deleteServerProfile: (profileId) => ipcRenderer.invoke('cloudcli-desktop:delete-server-profile', profileId),
     onStateUpdated: onDesktopStateUpdated,
     onLauncherCommand: (callback) => {
       ipcRenderer.on('cloudcli-desktop:launcher-command', (_event, command) => callback(command));

@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import http from 'node:http';
 import net from 'node:net';
@@ -13,6 +14,7 @@ const DISPLAY_HOST = 'localhost';
 const HEALTH_TIMEOUT_MS = 1000;
 const SERVER_START_TIMEOUT_MS = 30000;
 const MAX_STARTUP_LOG_LINES = 300;
+const MAX_SERVER_PROFILES = 20;
 const SERVER_MARKER_PATH = path.join(os.homedir(), '.cloudcli', 'local-server.json');
 const LOCAL_SERVER_URL_ENV_KEYS = [
   'CLOUDCLI_DESKTOP_LOCAL_SERVER_URL',
@@ -127,6 +129,30 @@ function getNodeRuntime(usePackagedElectronRuntime) {
 
 function stripTrailingSlash(value) {
   return value.endsWith('/') ? value.slice(0, -1) : value;
+}
+
+/** Normalizes user-configured remote server profiles to { id, name, url }. */
+function sanitizeServerProfiles(list) {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  const result = [];
+  for (const item of list) {
+    if (!item || typeof item !== 'object') continue;
+    const id = typeof item.id === 'string' && item.id.trim() ? item.id.trim() : null;
+    const name = typeof item.name === 'string' && item.name.trim() ? item.name.trim() : null;
+    const url = typeof item.url === 'string' && item.url.trim() ? item.url.trim() : null;
+    if (!id || !name || !url || seen.has(id)) continue;
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') continue;
+    } catch {
+      continue;
+    }
+    seen.add(id);
+    result.push({ id, name, url: stripTrailingSlash(url) });
+    if (result.length >= MAX_SERVER_PROFILES) break;
+  }
+  return result;
 }
 
 function addCandidateUrl(urls, rawUrl) {
@@ -260,6 +286,9 @@ export class LocalServerController {
       keepLocalServerRunning: false,
       exposeLocalServerOnNetwork: false,
       themeMode: 'system',
+      autoStartLocalServer: false,
+      lastActiveServerId: '',
+      serverProfiles: [],
     };
   }
 
@@ -334,12 +363,18 @@ export class LocalServerController {
         keepLocalServerRunning: Boolean(stored.keepLocalServerRunning),
         exposeLocalServerOnNetwork: Boolean(stored.exposeLocalServerOnNetwork),
         themeMode: stored.themeMode === 'light' || stored.themeMode === 'dark' ? stored.themeMode : 'system',
+        autoStartLocalServer: Boolean(stored.autoStartLocalServer),
+        lastActiveServerId: typeof stored.lastActiveServerId === 'string' ? stored.lastActiveServerId : '',
+        serverProfiles: sanitizeServerProfiles(stored.serverProfiles),
       };
     } catch {
       this.desktopSettings = {
         keepLocalServerRunning: false,
         exposeLocalServerOnNetwork: false,
         themeMode: 'system',
+        autoStartLocalServer: false,
+        lastActiveServerId: '',
+        serverProfiles: [],
       };
     }
   }
@@ -349,6 +384,9 @@ export class LocalServerController {
       keepLocalServerRunning: Boolean(nextSettings.keepLocalServerRunning),
       exposeLocalServerOnNetwork: Boolean(nextSettings.exposeLocalServerOnNetwork),
       themeMode: nextSettings.themeMode === 'light' || nextSettings.themeMode === 'dark' ? nextSettings.themeMode : 'system',
+      autoStartLocalServer: Boolean(nextSettings.autoStartLocalServer),
+      lastActiveServerId: typeof nextSettings.lastActiveServerId === 'string' ? nextSettings.lastActiveServerId : '',
+      serverProfiles: sanitizeServerProfiles(nextSettings.serverProfiles),
     };
     await fs.mkdir(path.dirname(this.settingsPath), { recursive: true });
     await fs.writeFile(this.settingsPath, JSON.stringify(this.desktopSettings, null, 2), 'utf8');
@@ -362,7 +400,18 @@ export class LocalServerController {
 
     const wasExposeSetting = key === 'exposeLocalServerOnNetwork';
     const wasLocalRunning = Boolean(this.localServerUrl);
-    const nextValue = key === 'themeMode' ? value : Boolean(value);
+
+    let nextValue;
+    if (key === 'themeMode') {
+      nextValue = value;
+    } else if (key === 'lastActiveServerId') {
+      nextValue = String(value || '');
+    } else if (key === 'serverProfiles') {
+      nextValue = sanitizeServerProfiles(value);
+    } else {
+      nextValue = Boolean(value);
+    }
+
     await this.saveDesktopSettings({ ...this.desktopSettings, [key]: nextValue });
 
     return {
@@ -445,13 +494,34 @@ export class LocalServerController {
     });
   }
 
-  async resolveLocalServerUrl() {
+  /** Finds an already-running local CloudCLI server among discovery candidates. Never spawns. */
+  async findExistingLocalServer(defaultUrl) {
+    const forceOwnServer = process.env.ELECTRON_FORCE_OWN_SERVER === '1';
+    if (forceOwnServer) return null;
+
+    const candidateUrls = await getExistingServerCandidateUrls(defaultUrl);
+    for (const candidateUrl of candidateUrls) {
+      if (await isCloudCliServer(candidateUrl)) {
+        const displayUrl = getDisplayUrl(candidateUrl);
+        this.localServerPort = getPortFromUrl(candidateUrl);
+        this.appendStartupLog(`Using existing Local CloudCLI at ${displayUrl}`);
+        return displayUrl;
+      }
+    }
+    return null;
+  }
+
+  async resolveLocalServerUrl({ autoStart = true } = {}) {
     const defaultUrl = `http://${HOST}:${DEFAULT_PORT}`;
     const defaultDisplayUrl = `http://${DISPLAY_HOST}:${DEFAULT_PORT}`;
     const devUrl = process.env.ELECTRON_DEV_URL;
-    const forceOwnServer = process.env.ELECTRON_FORCE_OWN_SERVER === '1';
 
     if (devUrl) {
+      if (!autoStart) {
+        // Best-effort detection in dev mode: return immediately, the real load will surface failures.
+        this.localServerPort = DEFAULT_PORT;
+        return devUrl;
+      }
       const ready = await waitForCloudCliServer(defaultUrl, SERVER_START_TIMEOUT_MS);
       if (!ready) {
         throw new Error(`Development backend did not become ready at ${defaultDisplayUrl}`);
@@ -460,17 +530,10 @@ export class LocalServerController {
       return devUrl;
     }
 
-    if (!forceOwnServer) {
-      const candidateUrls = await getExistingServerCandidateUrls(defaultUrl);
-      for (const candidateUrl of candidateUrls) {
-        if (await isCloudCliServer(candidateUrl)) {
-          const displayUrl = getDisplayUrl(candidateUrl);
-          this.localServerPort = getPortFromUrl(candidateUrl);
-          this.appendStartupLog(`Using existing Local CloudCLI at ${displayUrl}`);
-          return displayUrl;
-        }
-      }
-    }
+    const existing = await this.findExistingLocalServer(defaultUrl);
+    if (existing) return existing;
+
+    if (!autoStart) return null;
 
     const serverEntry = await this.resolveServerEntry();
 
@@ -497,10 +560,20 @@ export class LocalServerController {
   }
 
   async ensureLocalServer() {
-    if (!this.localServerUrl) {
-      this.localServerUrl = await this.resolveLocalServerUrl();
+    if (this.localServerUrl) return this.localServerUrl;
+    if (this._ensurePromise) return this._ensurePromise;
+
+    const promise = (async () => {
+      const url = await this.resolveLocalServerUrl({ autoStart: true });
+      this.localServerUrl = url;
+      return url;
+    })();
+    this._ensurePromise = promise;
+    try {
+      return await promise;
+    } finally {
+      this._ensurePromise = null;
     }
-    return this.localServerUrl;
   }
 
   async getResolvedTarget() {
@@ -510,6 +583,47 @@ export class LocalServerController {
       name: 'Local CloudCLI',
       url: this.localServerUrl,
     };
+  }
+
+  /** Best-effort detection of an already-running local server. Never spawns. */
+  async detectLocalServer() {
+    if (this.localServerUrl) return this.localServerUrl;
+    const url = await this.resolveLocalServerUrl({ autoStart: false });
+    if (url) this.localServerUrl = url;
+    return url;
+  }
+
+  /** Stops the local server only if the desktop app owns it. */
+  async stopLocalServer() {
+    if (!this.hasOwnedServer()) return false;
+    await this.shutdownOwnedServer();
+    this.localServerUrl = null;
+    this.localServerPort = null;
+    return true;
+  }
+
+  /** Upserts a remote server profile. Returns the updated profile list. */
+  async saveServerProfile(profile) {
+    const incoming = { ...(profile || {}) };
+    const existing = this.desktopSettings.serverProfiles || [];
+    const hasId = typeof incoming.id === 'string' && existing.some((p) => p.id === incoming.id);
+    const id = hasId ? incoming.id : `server-${randomUUID().slice(0, 8)}`;
+    const nextList = [
+      ...existing.filter((p) => p.id !== id),
+      { id, name: incoming.name, url: incoming.url },
+    ];
+    await this.updateDesktopSetting('serverProfiles', nextList);
+    return this.desktopSettings.serverProfiles;
+  }
+
+  /** Removes a remote server profile. Returns the updated profile list. */
+  async deleteServerProfile(profileId) {
+    const nextList = (this.desktopSettings.serverProfiles || []).filter((p) => p.id !== profileId);
+    await this.updateDesktopSetting('serverProfiles', nextList);
+    if (this.desktopSettings.lastActiveServerId === profileId) {
+      await this.updateDesktopSetting('lastActiveServerId', '');
+    }
+    return this.desktopSettings.serverProfiles;
   }
 
   async loadLocalTarget() {

@@ -3,7 +3,7 @@ window.__MOCK_STATE__ = {
   account: { connected: true, email: 'you@cloudcli.ai' },
   activeTarget: { kind: 'launcher', name: 'Launcher', url: null },
   cloudLoading: false,
-  desktopSettings: { keepLocalServerRunning: false, exposeLocalServerOnNetwork: false, themeMode: 'system' },
+  desktopSettings: { keepLocalServerRunning: false, exposeLocalServerOnNetwork: false, themeMode: 'system', autoStartLocalServer: false, lastActiveServerId: '', serverProfiles: [{ id: 'server-home', name: 'Home workstation', url: 'https://home.example.com' }] },
   localWebUrl: 'http://localhost:3001',
   shareableWebUrl: 'http://localhost:3001',
   localServerRunning: false,
@@ -70,7 +70,36 @@ window.__MOCK_STATE__ = {
     },
     updateSetting: function (key, value) {
       mockState.desktopSettings = mockState.desktopSettings || {};
-      mockState.desktopSettings[key] = key === 'themeMode' ? value : !!value;
+      if (key === 'themeMode') mockState.desktopSettings[key] = value;
+      else if (key === 'lastActiveServerId') mockState.desktopSettings[key] = String(value || '');
+      else if (key === 'serverProfiles') mockState.desktopSettings[key] = value;
+      else mockState.desktopSettings[key] = !!value;
+      return Promise.resolve(clone(mockState));
+    },
+    stopLocalServer: function () {
+      mockState.localServerRunning = false;
+      mockState.localWebUrl = null;
+      mockState.activeTarget = { kind: 'launcher', name: 'Launcher', url: null };
+      return Promise.resolve(clone(mockState));
+    },
+    connectServer: function (id) {
+      var profile = ((mockState.desktopSettings || {}).serverProfiles || []).filter(function (p) { return p.id === id; })[0];
+      if (profile) mockState.activeTarget = { kind: 'server', id: profile.id, name: profile.name, url: profile.url };
+      return Promise.resolve(clone(mockState));
+    },
+    saveServerProfile: function (profile) {
+      mockState.desktopSettings = mockState.desktopSettings || {};
+      mockState.desktopSettings.serverProfiles = mockState.desktopSettings.serverProfiles || [];
+      profile = profile || {};
+      if (!profile.id) profile.id = 'server-' + Math.random().toString(36).slice(2, 8);
+      var list = mockState.desktopSettings.serverProfiles.filter(function (p) { return p.id !== profile.id; });
+      list.push({ id: profile.id, name: profile.name, url: profile.url });
+      mockState.desktopSettings.serverProfiles = list;
+      return Promise.resolve(clone(mockState));
+    },
+    deleteServerProfile: function (id) {
+      mockState.desktopSettings = mockState.desktopSettings || {};
+      mockState.desktopSettings.serverProfiles = (mockState.desktopSettings.serverProfiles || []).filter(function (p) { return p.id !== id; });
       return Promise.resolve(clone(mockState));
     },
     openEnvironment: function (id) {
@@ -329,6 +358,52 @@ window.__MOCK_STATE__ = {
         return CC.run('Opening environment actions...', function () { return bridge.showActiveEnvironmentActionsMenu(); });
       case 'env-row-menu':
         return CC.run('Opening environment actions...', function () { return bridge.showEnvironmentActionsMenu(node.getAttribute('data-cc-environment-id')); });
+      case 'connect-server':
+        return CC.run('Connecting...', function () { return bridge.connectServer(node.getAttribute('data-cc-profile-id')); });
+      case 'add-server':
+        CC.ui.serverProfile = null;
+        CC.openSheet('server-profile');
+        return;
+      case 'edit-server': {
+        var editId = node.getAttribute('data-cc-profile-id');
+        var editProfile = ((CC.state.desktopSettings || {}).serverProfiles || []).filter(function (p) { return p.id === editId; })[0] || null;
+        CC.ui.serverProfile = editProfile;
+        CC.openSheet('server-profile');
+        return;
+      }
+      case 'save-server-profile': {
+        var nameInput = document.getElementById('cc-server-name');
+        var urlInput = document.getElementById('cc-server-url');
+        var name = nameInput ? nameInput.value.trim() : '';
+        var url = urlInput ? urlInput.value.trim() : '';
+        if (!name || !url) {
+          CC._status = { msg: 'Name and URL are required', tone: 'error' };
+          CC.render(CC.state);
+          return;
+        }
+        if (!/^https?:\/\//i.test(url)) {
+          CC._status = { msg: 'URL must start with http:// or https://', tone: 'error' };
+          CC.render(CC.state);
+          return;
+        }
+        return CC.run('Saving server...', function () {
+          return bridge.saveServerProfile({ id: node.getAttribute('data-cc-profile-id') || null, name: name, url: url }).then(function () {
+            CC.closeSheet();
+          });
+        });
+      }
+      case 'delete-server-profile': {
+        var deleteId = node.getAttribute('data-cc-profile-id');
+        if (CC.ui.pendingDelete === deleteId) {
+          CC.ui.pendingDelete = null;
+          return CC.run('Deleting server...', function () { return bridge.deleteServerProfile(deleteId); });
+        }
+        CC.ui.pendingDelete = deleteId;
+        CC.render(CC.state);
+        return;
+      }
+      case 'stop-local':
+        return CC.run('Stopping local server...', function () { return bridge.stopLocalServer(); });
       default:
         return;
     }
@@ -354,7 +429,7 @@ window.__MOCK_STATE__ = {
     if (!activeEnvironmentId && activeTab && /^remote:/.test(activeTab.id || '')) {
       activeEnvironmentId = activeTab.id.replace(/^remote:/, '');
     }
-    var activeRefreshable = (state.activeTarget && (state.activeTarget.kind === 'remote' || state.activeTarget.kind === 'local')) ||
+    var activeRefreshable = (state.activeTarget && (state.activeTarget.kind === 'remote' || state.activeTarget.kind === 'local' || state.activeTarget.kind === 'server')) ||
       (activeTab && activeTab.id !== 'home');
     var envActions = activeEnvironmentId ? '<button class="btn sm tb-action no-drag" data-cc-action="env-row-menu" data-cc-environment-id="' + esc(activeEnvironmentId) + '" title="Open environment actions">Open environment in...</button>' : '';
     var refreshAction = activeRefreshable ? '<button class="icon-btn tb-action no-drag" data-cc-action="refresh-tab" title="Refresh tab">' + icon('refresh', 16) + '</button>' : '';
@@ -417,6 +492,8 @@ window.__MOCK_STATE__ = {
     options = options || {};
     if (sheet === 'desktop-settings') {
       CC.renderDesktopSettings();
+    } else if (sheet === 'server-profile') {
+      CC.renderServerFormSheet(CC.ui.serverProfile || null);
     } else {
       CC.renderLocalSettings();
     }
@@ -476,10 +553,28 @@ window.__MOCK_STATE__ = {
         '<div class="cc-surface">' +
         '<label class="cc-toggle"><input type="checkbox" data-cc-setting="keepLocalServerRunning"' + ((state.desktopSettings || {}).keepLocalServerRunning ? ' checked' : '') + '><span><b>Keep server running</b><br>Leave Local CloudCLI available after you quit the app.</span></label>' +
         '<label class="cc-toggle"><input type="checkbox" data-cc-setting="exposeLocalServerOnNetwork"' + ((state.desktopSettings || {}).exposeLocalServerOnNetwork ? ' checked' : '') + '><span><b>Allow LAN access</b><br>Use the copied URL from another device on this network.</span></label>' +
+        '<label class="cc-toggle"><input type="checkbox" data-cc-setting="autoStartLocalServer"' + ((state.desktopSettings || {}).autoStartLocalServer ? ' checked' : '') + '><span><b>Start local server when the app opens</b><br>Launch Local CloudCLI automatically on startup.</span></label>' +
         '</div>'
       ),
     ];
     CC.renderSheet('Local Settings', 'Manage how Local CloudCLI runs on this computer.', sections);
+  };
+
+  CC.renderServerFormSheet = function (profile) {
+    profile = profile || {};
+    var isEdit = !!profile.id;
+    var body = CC.renderSection('SERVER', isEdit ? 'Edit server' : 'Add server', '' +
+      '<div class="cc-surface">' +
+      '<label class="cc-field-label">Name</label>' +
+      '<input class="cc-input" id="cc-server-name" value="' + CC.esc(profile.name || '') + '" placeholder="e.g. Company workstation">' +
+      '<label class="cc-field-label">URL</label>' +
+      '<input class="cc-input" id="cc-server-url" value="' + CC.esc(profile.url || '') + '" placeholder="http://192.168.1.20:3001">' +
+      '</div>'
+    );
+    var footer =
+      '<button class="btn pri" data-cc-action="save-server-profile" data-cc-profile-id="' + CC.esc(profile.id || '') + '">Save</button>' +
+      '<button class="btn" data-cc-action="settings-close">Cancel</button>';
+    CC.renderSheet('Server', 'A CloudCLI server running on this or another computer.', [body], footer);
   };
 
   CC.renderDesktopSettings = function () {
@@ -626,10 +721,42 @@ window.__MOCK_STATE__ = {
       CC.icon(iconName, 16) + '<span>' + label + '</span><span class="sb-meta">' + CC.esc(meta) + '</span></button>';
   }
 
-  function localPane(state) {
-    return '<div class="pane-h"><div><h2 class="pane-title">Local servers</h2><p class="pane-sub">Manage Local CloudCLI on this machine. No account required.</p></div></div>' +
-      '<div class="card"><div class="card-head"><div><div class="card-t">Local server</div><div class="card-sub mono">' + CC.esc(CC.localUrl(state) || 'Starts on demand') + '</div></div><div class="card-tools"><span class="dot" style="background:' + (state.localServerRunning ? 'var(--ok)' : 'var(--tx3)') + '"></span><button class="icon-btn" data-cc-action="local-settings-toggle" title="Local settings">' + CC.icon('gear', 16) + '</button></div></div>' +
-      '<div class="card-actions"><button class="btn pri" data-cc-action="local">' + CC.icon('play', 15) + 'Open Local CloudCLI</button><button class="btn" data-cc-action="open-web">' + CC.icon('arrow', 14) + 'Open in browser</button><button class="btn" data-cc-action="copy-web">' + CC.icon('copy', 14) + 'Copy URL</button></div></div>';
+  function serverCard(state, profile) {
+    var isLocal = !profile;
+    var active = state.activeTarget || {};
+    var isActive = isLocal ? active.kind === 'local' : (active.kind === 'server' && active.id === profile.id);
+    var title = isLocal ? 'This computer' : profile.name;
+    var url = isLocal ? (CC.localUrl(state) || 'Starts on demand') : profile.url;
+    var runningDot = isLocal ? (state.localServerRunning ? 'var(--ok)' : 'var(--tx3)') : (isActive ? 'var(--ok)' : 'var(--tx3)');
+    var badge = isActive ? '<span class="badge ok">Connected</span>' : '';
+
+    var actions = '';
+    if (isLocal) {
+      actions = '<button class="btn pri" data-cc-action="local">' + CC.icon('play', 15) + 'Start &amp; open</button>' +
+        (state.localServerRunning ? '<button class="btn" data-cc-action="stop-local">' + CC.icon('x', 14) + 'Stop</button>' : '') +
+        '<button class="btn" data-cc-action="open-web">' + CC.icon('arrow', 14) + 'Open in browser</button>' +
+        '<button class="btn" data-cc-action="copy-web">' + CC.icon('copy', 14) + 'Copy URL</button>';
+    } else {
+      actions = '<button class="btn pri" data-cc-action="connect-server" data-cc-profile-id="' + CC.esc(profile.id) + '">' + CC.icon(isActive ? 'arrow' : 'play', 15) + (isActive ? 'Reconnect' : 'Connect') + '</button>' +
+        '<button class="btn" data-cc-action="edit-server" data-cc-profile-id="' + CC.esc(profile.id) + '">Edit</button>' +
+        '<button class="btn" data-cc-action="delete-server-profile" data-cc-profile-id="' + CC.esc(profile.id) + '">' + (CC.ui.pendingDelete === profile.id ? 'Confirm delete' : 'Delete') + '</button>';
+    }
+
+    return '<div class="card"><div class="card-head"><div><div class="card-t">' + CC.esc(title) + '</div><div class="card-sub mono">' + CC.esc(url) + '</div></div><div class="card-tools">' + badge +
+      '<span class="dot" style="background:' + runningDot + '"></span>' +
+      (isLocal ? '<button class="icon-btn" data-cc-action="local-settings-toggle" title="Local settings">' + CC.icon('gear', 16) + '</button>' : '<button class="icon-btn" data-cc-action="edit-server" data-cc-profile-id="' + CC.esc(profile.id) + '" title="Edit">' + CC.icon('gear', 16) + '</button>') +
+      '</div></div>' +
+      '<div class="card-actions">' + actions + '</div></div>';
+  }
+
+  function serversPane(state) {
+    var settings = state.desktopSettings || {};
+    var profiles = settings.serverProfiles || [];
+    var localCard = serverCard(state, null);
+    var remoteCards = profiles.map(function (profile) { return serverCard(state, profile); }).join('');
+    return '<div class="pane-h"><div><h2 class="pane-title">Servers</h2><p class="pane-sub">Connect to CloudCLI on this or another computer.</p></div>' +
+      '<button class="btn sm" data-cc-action="add-server">' + CC.icon('cloudPlus', 14) + 'Add server</button></div>' +
+      localCard + remoteCards;
   }
 
   function envRow(environment) {
@@ -664,10 +791,10 @@ window.__MOCK_STATE__ = {
     var section = CC.ui.section || ((CC.connected(state) || CC.authState(state) === 'expired') ? 'cloud' : 'local');
     CC.ui.section = section;
     var nav = '<div class="sb"><div class="sb-grp"><div class="lbl">Launcher</div>' +
-      navItem('local', 'terminal', 'Local servers', state.localServerRunning ? 'on' : 'idle', section) +
+      navItem('local', 'terminal', 'Servers', state.localServerRunning ? 'on' : 'idle', section) +
       navItem('cloud', 'cloud', 'Cloud environments', (state.environments || []).length, section) +
       '</div></div>';
-    return nav + '<div class="sb-main">' + (section === 'local' ? localPane(state) : cloudPane(state)) + '</div>';
+    return nav + '<div class="sb-main">' + (section === 'local' ? serversPane(state) : cloudPane(state)) + '</div>';
   }
 
   function onClick(event) {
