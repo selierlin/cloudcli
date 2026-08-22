@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0f1115" />
+    <title>CloudCLI 连接</title>
+    <link rel="stylesheet" href="./picker.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header class="header">
+        <img class="logo" src="./logo.png" alt="CloudCLI" />
+        <h1>CloudCLI</h1>
+        <p class="subtitle">选择要连接的服务器</p>
+      </header>
+
+      <!-- 已保存的服务器 -->
+      <section id="saved-section" class="section hidden">
+        <h2>已保存的服务器</h2>
+        <ul id="server-list" class="server-list"></ul>
+      </section>
+
+      <!-- 添加新服务器 -->
+      <section class="section">
+        <h2 id="add-title">添加服务器</h2>
+        <form id="add-form" autocomplete="off">
+          <label class="field">
+            <span>名称</span>
+            <input
+              id="server-name"
+              type="text"
+              placeholder="例如：家里电脑"
+              maxlength="40"
+            />
+          </label>
+          <label class="field">
+            <span>服务器地址</span>
+            <input
+              id="server-url"
+              type="url"
+              placeholder="http://192.168.1.5:3001"
+              inputmode="url"
+              autocapitalize="off"
+              autocorrect="off"
+            />
+          </label>
+          <button id="connect-btn" type="submit" class="btn-primary">连接</button>
+        </form>
+      </section>
+
+      <p class="hint">
+        在电脑上启动 CloudCLI 后，填它的地址。局域网内用
+        <code>http://电脑IP:3001</code>，外网用 <code>https://域名</code>。
+      </p>
+    </div>
+
+    <script src="./picker.js"></script>
+  </body>
+</html>
