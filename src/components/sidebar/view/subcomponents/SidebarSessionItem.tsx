@@ -289,6 +289,10 @@ export default function SidebarSessionItem({
             aria-describedby="mobile-session-options-description"
             wrapperClassName="md:hidden"
             animationClassName="animate-bottom-sheet-content-show motion-reduce:animate-none"
+            // This panel is portaled to <body>, outside the app container that
+            // AppContent lifts by --keyboard-height. Lift the sheet itself so it
+            // stays above the keyboard while the rename input is focused.
+            style={{ bottom: 'var(--keyboard-height, 0px)' }}
             className="bottom-0 left-0 top-auto max-w-none translate-x-0 translate-y-0 rounded-b-none rounded-t-2xl border-x-0 border-b-0 px-4 pb-safe-area-inset-bottom pt-3"
           >
             <DialogTitle>Session options</DialogTitle>

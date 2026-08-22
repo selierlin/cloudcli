@@ -244,7 +244,6 @@ export default function Shell({
           wsRef={wsRef}
           terminalRef={terminalRef}
           isConnected={isConnected}
-          bottomOffset="bottom-0"
         />
       </>
     );
