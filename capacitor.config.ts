@@ -18,6 +18,14 @@ const config: CapacitorConfig = {
   appId: 'ai.cloudcli.mobile',
   appName: 'CloudCLI',
   webDir: 'mobile/www',
+  plugins: {
+    Keyboard: {
+      // 键盘插件默认 ResizeNative 会自己缩放 WebView，与 App 内已有的
+      // --keyboard-height 位移机制冲突，导致输入框延迟升起。禁用插件侧
+      // 缩放，由前端统一处理键盘高度。
+      resize: 'none',
+    },
+  },
   server: {
     // 选择页会导航到用户输入的任意 CloudCLI 服务器主机（局域网 IP / 域名）。
     // 必须放行全部主机，否则 Capacitor 会把这些导航交给系统 Safari 打开。

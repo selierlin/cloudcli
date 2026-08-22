@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { Keyboard } from '@capacitor/keyboard';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
@@ -184,12 +185,41 @@ function AppContentInner() {
   // the `chat_subscribed` ack carries them on session open and on reconnect,
   // so no separate permission-recovery message is needed here.
 
-  // Adjust the app container to stay above the virtual keyboard on iOS Safari.
-  // On Chrome for Android the layout viewport already shrinks when the keyboard opens,
-  // so inset-0 adjusts automatically. On iOS the layout viewport stays full-height and
-  // the keyboard overlays it — we use the Visual Viewport API to track keyboard height
-  // and apply it as a CSS variable that shifts the container's bottom edge up.
+  // Adjust the app container to stay above the virtual keyboard.
+  // - In the Capacitor native shell, the @capacitor/keyboard plugin's
+  //   keyboardWillShow/Hide events fire synchronously with the keyboard and
+  //   carry the exact height, so we drive --keyboard-height from those.
+  // - In a plain browser / PWA we use the Visual Viewport API instead.
+  const isCapacitorShell = Boolean(
+    (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.(),
+  );
+
   useEffect(() => {
+    if (!isCapacitorShell) {
+      return;
+    }
+    const applyHeight = (px: number) => {
+      document.documentElement.style.setProperty('--keyboard-height', `${px}px`);
+    };
+    let disposed = false;
+    const handles: Array<{ remove: () => Promise<void> }> = [];
+    void Keyboard.addListener('keyboardWillShow', (info) => applyHeight(info.keyboardHeight)).then((h) => {
+      if (disposed) { void h.remove(); } else { handles.push(h); }
+    });
+    void Keyboard.addListener('keyboardWillHide', () => applyHeight(0)).then((h) => {
+      if (disposed) { void h.remove(); } else { handles.push(h); }
+    });
+    return () => {
+      disposed = true;
+      handles.forEach((h) => void h.remove());
+      applyHeight(0);
+    };
+  }, [isCapacitorShell]);
+
+  useEffect(() => {
+    if (isCapacitorShell) {
+      return;
+    }
     const vv = window.visualViewport;
     if (!vv) return;
     const update = () => {
@@ -202,7 +232,7 @@ function AppContentInner() {
     };
     vv.addEventListener('resize', update);
     return () => vv.removeEventListener('resize', update);
-  }, []);
+  }, [isCapacitorShell]);
 
   // Edge-swipe to open the mobile sidebar drawer: a touch starting within the
   // left edge and dragging rightward past a threshold opens the menu, mirroring

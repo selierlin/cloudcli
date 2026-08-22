@@ -141,7 +141,21 @@
     connect(url);
   });
 
+  /** 隐藏 iOS 系统表单工具条（上/下箭头 + 打勾）。@capacitor/keyboard 默认隐藏，
+   *  这里再显式调用一次，确保 WebView 加载完成后 swizzle 已生效。 */
+  async function hideKeyboardAccessoryBar() {
+    try {
+      if (window.Capacitor && typeof window.Capacitor.registerPlugin === 'function') {
+        var Keyboard = window.Capacitor.registerPlugin('Keyboard');
+        await Keyboard.setAccessoryBarVisible({ isVisible: false });
+      }
+    } catch (e) {
+      console.warn('[picker] failed to hide keyboard accessory bar:', e);
+    }
+  }
+
   (async function init() {
+    await hideKeyboardAccessoryBar();
     var list = await getServers();
     render(list);
   })();
