@@ -88,6 +88,7 @@ function getLocalState() {
   return {
     desktopSettings: localServer.getSettings(),
     localServerRunning: Boolean(localServer.getLocalServerUrl()),
+    localServerOwned: localServer.hasOwnedServer(),
     localWebUrl: localServer.getLocalServerUrl(),
     shareableWebUrl: localServer.getShareableWebUrl(),
   };
@@ -123,6 +124,7 @@ function getDesktopState() {
     localWebUrl: localState.localWebUrl,
     shareableWebUrl: localState.shareableWebUrl,
     localServerRunning: localState.localServerRunning,
+    localServerOwned: localState.localServerOwned,
     localStartupLogs: localServer.getStartupLogs(),
     cloudLoading: isRefreshingCloud,
     tabs: tabs.getSerializableTabs(),
@@ -572,6 +574,11 @@ async function connectServerProfile(profileId) {
   const profile = (localServer.getSettings().serverProfiles || []).find((p) => p.id === profileId);
   if (!profile) throw new Error('Server profile not found.');
 
+  // Remember the previously active server so a failed connect can be rolled
+  // back — setActiveTarget() records this profile, and a server that failed
+  // to connect should not be auto-restored on the next launch.
+  const previousLastActive = localServer.getSettings().lastActiveServerId;
+
   const target = { kind: 'server', id: profile.id, name: profile.name, url: profile.url };
   const tabId = tabs.getTabIdForTarget(target);
   const hadTab = Boolean(tabs.getTab(tabId));
@@ -586,6 +593,11 @@ async function connectServerProfile(profileId) {
       desktopWindow.destroyTabView(tabId);
     }
     await desktopWindow.showLauncher();
+    // Roll back lastActiveServerId if it now points at the failed profile.
+    if (localServer.getSettings().lastActiveServerId === profileId) {
+      const rollbackTo = previousLastActive !== profileId ? previousLastActive : '';
+      void localServer.updateDesktopSetting('lastActiveServerId', rollbackTo).catch(() => {});
+    }
     throw new Error(`Could not connect to ${profile.name}: ${error instanceof Error ? error.message : String(error)}`);
   }
   return getDesktopState();

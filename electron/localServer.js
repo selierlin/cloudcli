@@ -282,6 +282,7 @@ export class LocalServerController {
     this.localServerPort = null;
     this.ownedServerProcess = null;
     this.startupLogs = [];
+    this._settingsWriteQueue = Promise.resolve();
     this.desktopSettings = {
       keepLocalServerRunning: false,
       exposeLocalServerOnNetwork: false,
@@ -379,7 +380,7 @@ export class LocalServerController {
     }
   }
 
-  async saveDesktopSettings(nextSettings = this.desktopSettings) {
+  saveDesktopSettings(nextSettings = this.desktopSettings) {
     this.desktopSettings = {
       keepLocalServerRunning: Boolean(nextSettings.keepLocalServerRunning),
       exposeLocalServerOnNetwork: Boolean(nextSettings.exposeLocalServerOnNetwork),
@@ -388,9 +389,17 @@ export class LocalServerController {
       lastActiveServerId: typeof nextSettings.lastActiveServerId === 'string' ? nextSettings.lastActiveServerId : '',
       serverProfiles: sanitizeServerProfiles(nextSettings.serverProfiles),
     };
-    await fs.mkdir(path.dirname(this.settingsPath), { recursive: true });
-    await fs.writeFile(this.settingsPath, JSON.stringify(this.desktopSettings, null, 2), 'utf8');
-    this.onChange?.();
+    const serialized = JSON.stringify(this.desktopSettings, null, 2);
+    // Serialize writes so concurrent updateDesktopSetting() calls never race on
+    // the same settings file — the last queued write always wins.
+    this._settingsWriteQueue = this._settingsWriteQueue
+      .catch(() => {})
+      .then(async () => {
+        await fs.mkdir(path.dirname(this.settingsPath), { recursive: true });
+        await fs.writeFile(this.settingsPath, serialized, 'utf8');
+        this.onChange?.();
+      });
+    return this._settingsWriteQueue;
   }
 
   async updateDesktopSetting(key, value) {

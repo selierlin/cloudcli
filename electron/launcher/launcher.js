@@ -7,6 +7,7 @@ window.__MOCK_STATE__ = {
   localWebUrl: 'http://localhost:3001',
   shareableWebUrl: 'http://localhost:3001',
   localServerRunning: false,
+  localServerOwned: false,
   localStartupLogs: [],
   environments: [
     { id: 'env-api', name: 'api-gateway', subdomain: 'api-gateway', access_url: 'https://api-gateway.cloudcli.ai', status: 'running', region: 'fra1', agent: 'Claude Code' },
@@ -733,7 +734,7 @@ window.__MOCK_STATE__ = {
     var actions = '';
     if (isLocal) {
       actions = '<button class="btn pri" data-cc-action="local">' + CC.icon('play', 15) + 'Start &amp; open</button>' +
-        (state.localServerRunning ? '<button class="btn" data-cc-action="stop-local">' + CC.icon('x', 14) + 'Stop</button>' : '') +
+        (state.localServerOwned ? '<button class="btn" data-cc-action="stop-local">' + CC.icon('x', 14) + 'Stop</button>' : '') +
         '<button class="btn" data-cc-action="open-web">' + CC.icon('arrow', 14) + 'Open in browser</button>' +
         '<button class="btn" data-cc-action="copy-web">' + CC.icon('copy', 14) + 'Copy URL</button>';
     } else {
