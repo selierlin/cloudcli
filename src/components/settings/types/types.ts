@@ -52,6 +52,21 @@ export type CodeEditorSettingsState = {
   fontSize: string;
 };
 
+export type FontFamilyId =
+  | 'system'
+  | 'serif'
+  | 'sans'
+  | 'songti'
+  | 'kaiti'
+  | 'rounded'
+  | 'monospace';
+
+export type FontSettingsState = {
+  uiFontSize: string;
+  terminalFontSize: string;
+  fontFamily: FontFamilyId;
+};
+
 export type SettingsStoragePayload = {
   claude: ClaudePermissionsState & { projectSortOrder: ProjectSortOrder; lastUpdated: string };
   cursor: CursorPermissionsState & { lastUpdated: string };

@@ -7,6 +7,8 @@ import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuth
 import {
   DEFAULT_CODE_EDITOR_SETTINGS,
   DEFAULT_CURSOR_PERMISSIONS,
+  readFontSettings,
+  writeFontSettings,
 } from '../constants/constants';
 import type {
   AgentProvider,
@@ -14,6 +16,7 @@ import type {
   CodeEditorSettingsState,
   CodexPermissionMode,
   CursorPermissionsState,
+  FontSettingsState,
   NotificationPreferencesState,
   ProjectSortOrder,
   SettingsMainTab,
@@ -146,6 +149,9 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
   const [projectSortOrder, setProjectSortOrder] = useState<ProjectSortOrder>('name');
   const [codeEditorSettings, setCodeEditorSettings] = useState<CodeEditorSettingsState>(() => (
     readCodeEditorSettings()
+  ));
+  const [fontSettings, setFontSettings] = useState<FontSettingsState>(() => (
+    readFontSettings()
   ));
 
   const [claudePermissions, setClaudePermissions] = useState<ClaudePermissionsState>(() => (
@@ -300,6 +306,13 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     [],
   );
 
+  const updateFontSetting = useCallback(
+    <K extends keyof FontSettingsState>(key: K, value: FontSettingsState[K]) => {
+      setFontSettings((prev) => ({ ...prev, [key]: value }));
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!isOpen) {
       return;
@@ -321,6 +334,11 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     localStorage.setItem('codeEditorFontSize', codeEditorSettings.fontSize);
     window.dispatchEvent(new Event('codeEditorSettingsChanged'));
   }, [codeEditorSettings]);
+
+  useEffect(() => {
+    writeFontSettings(fontSettings);
+    window.dispatchEvent(new Event('fontSettingsChanged'));
+  }, [fontSettings]);
 
   // Auto-save permissions and sort order with debounce
   const autoSaveTimerRef = useRef<number | null>(null);
@@ -386,6 +404,8 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     setProjectSortOrder,
     codeEditorSettings,
     updateCodeEditorSetting,
+    fontSettings,
+    updateFontSetting,
     claudePermissions,
     setClaudePermissions,
     cursorPermissions,

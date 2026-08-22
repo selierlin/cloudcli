@@ -13,6 +13,7 @@ import {
   TERMINAL_OPTIONS,
   TERMINAL_RESIZE_DELAY_MS,
 } from '../constants/constants';
+import { readFontSettings } from '../../settings/constants/constants';
 import {
   installMobileTerminalSelection,
   type MobileTerminalSelectionManager,
@@ -124,7 +125,10 @@ export function useShellTerminal({
       return;
     }
 
-    const nextTerminal = new Terminal(TERMINAL_OPTIONS);
+    const nextTerminal = new Terminal({
+      ...TERMINAL_OPTIONS,
+      fontSize: Number(readFontSettings().terminalFontSize),
+    });
     terminalRef.current = nextTerminal;
 
     const nextFitAddon = new FitAddon();
@@ -308,6 +312,21 @@ export function useShellTerminal({
     terminalRef,
     wsRef,
   ]);
+
+  // Apply terminal font-size changes (Settings → Appearance → Fonts) live.
+  useEffect(() => {
+    const applyFontSize = () => {
+      const terminal = terminalRef.current;
+      if (!terminal) {
+        return;
+      }
+      terminal.options.fontSize = Number(readFontSettings().terminalFontSize);
+      terminal.refresh(0, terminal.rows - 1);
+    };
+
+    window.addEventListener('fontSettingsChanged', applyFontSize);
+    return () => window.removeEventListener('fontSettingsChanged', applyFontSize);
+  }, [terminalRef]);
 
   return {
     isInitialized,

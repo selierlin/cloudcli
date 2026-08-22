@@ -43,6 +43,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
     setProjectSortOrder,
     codeEditorSettings,
     updateCodeEditorSetting,
+    fontSettings,
+    updateFontSetting,
     claudePermissions,
     setClaudePermissions,
     notificationPreferences,
@@ -170,6 +172,10 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
                   onCodeEditorShowMinimapChange={(value) => updateCodeEditorSetting('showMinimap', value)}
                   onCodeEditorLineNumbersChange={(value) => updateCodeEditorSetting('lineNumbers', value)}
                   onCodeEditorFontSizeChange={(value) => updateCodeEditorSetting('fontSize', value)}
+                  fontSettings={fontSettings}
+                  onUiFontSizeChange={(value) => updateFontSetting('uiFontSize', value)}
+                  onTerminalFontSizeChange={(value) => updateFontSetting('terminalFontSize', value)}
+                  onFontFamilyChange={(value) => updateFontSetting('fontFamily', value)}
                 />
               )}
 
