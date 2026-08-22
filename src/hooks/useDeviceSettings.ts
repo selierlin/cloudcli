@@ -20,11 +20,16 @@ const getIsPWA = (): boolean => {
   }
 
   const navigatorWithStandalone = window.navigator as Navigator & { standalone?: boolean };
+  const capacitor = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } })
+    .Capacitor;
 
   return (
     window.matchMedia('(display-mode: standalone)').matches ||
     Boolean(navigatorWithStandalone.standalone) ||
-    document.referrer.includes('android-app://')
+    document.referrer.includes('android-app://') ||
+    // Capacitor native shell (mobile app): treat as standalone so the
+    // safe-area insets apply below the status bar / notch.
+    Boolean(capacitor?.isNativePlatform?.())
   );
 };
 
