@@ -15,6 +15,7 @@ import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
 import { useQueuedMessageAutoSend } from '../../hooks/useQueuedMessageAutoSend';
 import { api } from '../../utils/api';
+import { dismissSplash } from '../../utils/splash';
 
 type RunningSessionApiItem = {
   sessionId?: unknown;
@@ -90,6 +91,14 @@ function AppContentInner() {
     isMobile,
     activeSessions: processingSessions,
   });
+
+  // 主内容项目加载完成（无论是否有选中项目）即视为内容 ready，
+  // 移除贯穿启动的 splash，避免加载期间再闪现独立的 loading 页。
+  useEffect(() => {
+    if (!isLoadingProjects) {
+      dismissSplash();
+    }
+  }, [isLoadingProjects]);
 
   // Queued messages for sessions that finish while another session (or none)
   // is being viewed are sent from here; the viewed session's composer handles
