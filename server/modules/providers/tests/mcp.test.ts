@@ -313,8 +313,20 @@ test('providerMcpService global adder writes to all providers and rejects unsupp
       workspacePath,
     });
 
-    assert.equal(globalResult.length, 4);
-    assert.ok(globalResult.every((entry) => entry.created === true));
+    assert.equal(globalResult.length, 5);
+    // Every provider that actually persists MCP servers created the entry;
+    // DSH owns its MCP configuration inside the harness, so its write reports
+    // a failure instead of pretending the server was saved.
+    const dshEntry = globalResult.find((entry) => entry.provider === 'dsh');
+    if (!dshEntry) {
+      assert.fail('Expected a dsh entry in the global MCP add result.');
+    }
+    assert.equal(dshEntry.created, false);
+    assert.ok(
+      globalResult
+        .filter((entry) => entry.provider !== 'dsh')
+        .every((entry) => entry.created === true),
+    );
 
     const claudeProject = await readJson(path.join(workspacePath, '.mcp.json'));
     assert.ok((claudeProject.mcpServers as Record<string, unknown>)['global-http']);

@@ -75,6 +75,8 @@ function ChatInterface({
     currentProviderModelOptions,
     opencodeModel,
     setOpenCodeModel,
+    dshModel,
+    setDshModel,
     permissionMode,
     pendingPermissionRequests,
     setPendingPermissionRequests,
@@ -361,6 +363,8 @@ function ChatInterface({
           setCodexModel={setCodexModel}
           opencodeModel={opencodeModel}
           setOpenCodeModel={setOpenCodeModel}
+          dshModel={dshModel}
+          setDshModel={setDshModel}
           providerModelCatalog={providerModelCatalog}
           providerModelActions={providerModelActions}
           providerModelsLoading={providerModelsLoading}

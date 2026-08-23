@@ -8,6 +8,7 @@ const AGENT_NAMES: Record<AgentProvider, string> = {
   cursor: 'Cursor',
   codex: 'Codex',
   opencode: 'OpenCode',
+  dsh: 'DeepSeek Harness',
 };
 
 export default function AgentSelectorSection({

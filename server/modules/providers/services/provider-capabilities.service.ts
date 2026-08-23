@@ -81,6 +81,21 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsTokenUsage: true,
     supportsEffort: true,
   },
+  dsh: {
+    provider: 'dsh',
+    // The DSH ACP bridge answers one-shot permission requests programmatically;
+    // the gateway is not wired to the UI yet, so the runtime auto-declines and
+    // the composer offers no permission modes beyond the harness's own config.
+    permissionModes: ['default'],
+    defaultPermissionMode: 'default',
+    // Attachments are not passed through the ACP bridge yet.
+    supportsImages: false,
+    supportsFiles: false,
+    supportsAbort: true,
+    supportsPermissionRequests: false,
+    supportsTokenUsage: false,
+    supportsEffort: false,
+  },
 };
 
 /**

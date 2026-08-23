@@ -34,6 +34,7 @@ const PROVIDER_META: { id: LLMProvider; name: string }[] = [
   { id: "codex", name: "OpenAI" },
   { id: "cursor", name: "Cursor" },
   { id: "opencode", name: "OpenCode" },
+  { id: "dsh", name: "DeepSeek Harness" },
 ];
 
 const MOD_KEY =
@@ -64,6 +65,8 @@ type ProviderSelectionEmptyStateProps = {
   setCodexModel: (model: string) => void;
   opencodeModel: string;
   setOpenCodeModel: (model: string) => void;
+  dshModel: string;
+  setDshModel: (model: string) => void;
   providerModelCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>;
   providerModelActions: ProviderModelActions;
   providerModelsLoading: boolean;
@@ -93,10 +96,12 @@ function getCurrentModel(
   cu: string,
   co: string,
   o: string,
+  d: string,
 ) {
   if (p === "claude") return c;
   if (p === "codex") return co;
   if (p === "opencode") return o;
+  if (p === "dsh") return d;
   return cu;
 }
 
@@ -115,6 +120,7 @@ function getProviderDisplayName(p: LLMProvider) {
   if (p === "cursor") return "Cursor";
   if (p === "codex") return "Codex";
   if (p === "opencode") return "OpenCode";
+  if (p === "dsh") return "DeepSeek Harness";
   return "Claude";
 }
 
@@ -132,6 +138,8 @@ export default function ProviderSelectionEmptyState({
   setCodexModel,
   opencodeModel,
   setOpenCodeModel,
+  dshModel,
+  setDshModel,
   providerModelCatalog,
   providerModelActions,
   providerModelsLoading,
@@ -154,6 +162,7 @@ export default function ProviderSelectionEmptyState({
     cursorModel,
     codexModel,
     opencodeModel,
+    dshModel,
   );
 
   const currentModelLabel = getModelLabel(provider, currentModel, providerModelCatalog);
@@ -183,12 +192,15 @@ export default function ProviderSelectionEmptyState({
       } else if (providerId === "opencode") {
         setOpenCodeModel(modelValue);
         localStorage.setItem("opencode-model", modelValue);
+      } else if (providerId === "dsh") {
+        setDshModel(modelValue);
+        localStorage.setItem("dsh-model", modelValue);
       } else {
         setCursorModel(modelValue);
         localStorage.setItem("cursor-model", modelValue);
       }
     },
-    [setClaudeModel, setCursorModel, setCodexModel, setOpenCodeModel],
+    [setClaudeModel, setCursorModel, setCodexModel, setOpenCodeModel, setDshModel],
   );
 
   const handleToolSelect = useCallback(
@@ -247,6 +259,7 @@ export default function ProviderSelectionEmptyState({
                   cursorModel,
                   codexModel,
                   opencodeModel,
+                  dshModel,
                 );
                 const toolModelLabel = getModelLabel(p.id, toolModel, providerModelCatalog);
                 return (
@@ -446,6 +459,10 @@ export default function ProviderSelectionEmptyState({
                 opencode: t("providerSelection.readyPrompt.opencode", {
                   model: currentModelLabel,
                   defaultValue: "Ready with OpenCode {{model}}",
+                }),
+                dsh: t("providerSelection.readyPrompt.dsh", {
+                  model: currentModelLabel,
+                  defaultValue: "Ready with DeepSeek Harness {{model}}",
                 }),
               }[provider]
             }

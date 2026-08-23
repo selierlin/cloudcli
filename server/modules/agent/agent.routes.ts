@@ -896,8 +896,8 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
       return res.status(400).json({ error: 'message is required' });
     }
 
-    if (!['claude', 'cursor', 'codex', 'opencode'].includes(provider)) {
-      return res.status(400).json({ error: 'provider must be "claude", "cursor", "codex", or "opencode"' });
+    if (!['claude', 'cursor', 'codex', 'opencode', 'dsh'].includes(provider)) {
+      return res.status(400).json({ error: 'provider must be "claude", "cursor", "codex", "opencode", or "dsh"' });
     }
 
     // Validate GitHub branch/PR creation requirements

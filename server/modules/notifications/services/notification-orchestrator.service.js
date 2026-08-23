@@ -13,6 +13,7 @@ const PROVIDER_LABELS = {
   claude: 'Claude',
   cursor: 'Cursor',
   codex: 'Codex',
+  dsh: 'DeepSeek Harness',
   system: 'System'
 };
 
@@ -247,6 +248,15 @@ function notifyUserIfEnabled({ userId, event }) {
   }
 }
 
+/**
+ * Reports a stopped/completed provider run through the enabled notification channels.
+ * @param {object} options - Notification payload for the stopped run.
+ * @param {string | number | null} options.userId - Owning user id (may be null for anonymous).
+ * @param {string} options.provider - Provider id that produced the run.
+ * @param {string | null} [options.sessionId] - App-facing session id for the run.
+ * @param {string} [options.stopReason] - Why the run stopped (completed, aborted, ...).
+ * @param {string | null} [options.sessionName] - Session display name for the notification.
+ */
 function notifyRunStopped({ userId, provider, sessionId = null, stopReason = 'completed', sessionName = null }) {
   notifyUserIfEnabled({
     userId,
@@ -283,6 +293,15 @@ function notifyBackgroundWorkCompleted({ userId, provider, sessionId = null, ses
   });
 }
 
+/**
+ * Reports a failed provider run through the enabled notification channels.
+ * @param {object} options - Notification payload for the failed run.
+ * @param {string | number | null} options.userId - Owning user id (may be null for anonymous).
+ * @param {string} options.provider - Provider id that produced the run.
+ * @param {string | null} [options.sessionId] - App-facing session id for the run.
+ * @param {unknown} [options.error] - Error value describing the failure.
+ * @param {string | null} [options.sessionName] - Session display name for the notification.
+ */
 function notifyRunFailed({ userId, provider, sessionId = null, error, sessionName = null }) {
   const errorMessage = normalizeErrorMessage(error);
 
