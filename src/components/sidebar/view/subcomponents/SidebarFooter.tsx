@@ -2,6 +2,7 @@ import { Settings, ArrowUpCircle, AlertTriangle } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import type { ReleaseInfo } from '../../../../shared/types';
+import ReturnToServerList from './ReturnToServerList';
 
 type SidebarFooterProps = {
   updateAvailable: boolean;
@@ -87,6 +88,9 @@ export default function SidebarFooter({
           </div>
         </>
       )}
+
+      {/* 移动端：返回服务器列表（仅 Capacitor 壳里从选择页跳转来时渲染） */}
+      <ReturnToServerList />
 
       {/* Settings */}
       <div className="nav-divider" />

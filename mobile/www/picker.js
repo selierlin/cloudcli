@@ -10,6 +10,7 @@
 
   var STORAGE_KEY = 'cloudcli.servers';
   var LAST_KEY = 'cloudcli.lastServer';
+  var PICKER_URL_KEY = 'cloudcli.pickerUrl';
 
   var Preferences = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences) || null;
 
@@ -48,6 +49,15 @@
     await Preferences.set({ key: LAST_KEY, value: url });
   }
 
+  /**
+   * 记录选择页地址，供已连接页面「返回服务器列表」使用。
+   * Preferences 是原生存储，跨 origin 共享：远程服务器页面也能读到本值。
+   */
+  async function setPickerUrl() {
+    if (!Preferences) return;
+    await Preferences.set({ key: PICKER_URL_KEY, value: window.location.href });
+  }
+
   /** 规范化服务器地址：补协议、去尾部斜杠 */
   function normalizeUrl(input) {
     var url = input.trim();
@@ -67,6 +77,7 @@
 
   /** 进入行内编辑模式：把该条目的信息替换为输入框 + 保存/取消 */
   function startEdit(li, server, list) {
+    li.setAttribute('data-editing', 'true');
     li.innerHTML = '';
 
     var info = document.createElement('div');
@@ -158,6 +169,16 @@
     list.forEach(function (server, index) {
       var li = document.createElement('li');
       li.className = 'server-item';
+      // 点击整行连接该服务器；点击按钮或编辑输入框时不触发连接。
+      li.onclick = function (e) {
+        if (
+          li.dataset.editing === 'true' ||
+          (e.target && e.target.closest && e.target.closest('button, input'))
+        ) {
+          return;
+        }
+        connectServer(server, li);
+      };
 
       var info = document.createElement('div');
       info.className = 'info';
@@ -178,25 +199,6 @@
         startEdit(li, server, list);
       };
 
-      var go = document.createElement('button');
-      go.className = 'icon-btn';
-      go.textContent = '→';
-      go.setAttribute('aria-label', '连接 ' + server.name);
-      go.onclick = async function () {
-        go.disabled = true;
-        go.textContent = '…';
-        els.errorMsg.classList.add('hidden');
-        var reachable = await probe(server.url);
-        if (reachable) {
-          connect(server.url);
-        } else {
-          go.disabled = false;
-          go.textContent = '→';
-          showConnectError(server.url);
-          els.errorMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      };
-
       var del = document.createElement('button');
       del.className = 'icon-btn';
       del.textContent = '✕';
@@ -209,15 +211,35 @@
 
       li.appendChild(info);
       li.appendChild(edit);
-      li.appendChild(go);
       li.appendChild(del);
       els.serverList.appendChild(li);
     });
   }
 
-  function connect(url) {
-    setLastServer(url);
+  async function connect(url) {
+    await setLastServer(url);
+    await setPickerUrl();
     window.location.href = url;
+  }
+
+  /**
+   * 点击已保存服务器的一行进行连接：先探测可达性，可达则跳转；
+   * 不可达时恢复该行可点状态并显示错误提示。连接期间整行置为不可点。
+   */
+  async function connectServer(server, li) {
+    if (li.dataset.connecting === 'true') return;
+    li.dataset.connecting = 'true';
+    li.classList.add('connecting');
+    els.errorMsg.classList.add('hidden');
+    var reachable = await probe(server.url);
+    if (reachable) {
+      await connect(server.url);
+    } else {
+      li.removeAttribute('data-connecting');
+      li.classList.remove('connecting');
+      showConnectError(server.url);
+      els.errorMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   }
 
   /**
@@ -274,7 +296,7 @@
 
     var reachable = await probe(url);
     if (reachable) {
-      connect(url);
+      await connect(url);
     } else {
       els.connectBtn.disabled = false;
       els.connectBtn.textContent = '连接';
