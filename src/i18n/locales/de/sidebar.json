@@ -70,7 +70,8 @@
     "rename": "Umbenennen",
     "joinCommunity": "Community beitreten",
     "reportIssue": "Problem melden",
-    "starOnGithub": "Stern auf GitHub"
+    "starOnGithub": "Stern auf GitHub",
+    "backToServerList": "Zurück zur Serverliste"
   },
   "branding": {
     "openSource": "Open Source"

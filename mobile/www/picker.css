@@ -94,6 +94,34 @@ body {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px 12px;
+  /* 整行可点：点击即连接，给出可点击反馈 */
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.server-item:hover {
+  background: #282d37;
+}
+
+.server-item:active {
+  transform: scale(0.98);
+}
+
+/* 连接中：半透明并禁止重复点击 */
+.server-item.connecting {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* 行内编辑模式下整行不可点（只响应输入框与保存/取消按钮） */
+.server-item[data-editing='true'] {
+  cursor: default;
+}
+
+.server-item[data-editing='true']:active {
+  transform: none;
 }
 
 .server-item .info {

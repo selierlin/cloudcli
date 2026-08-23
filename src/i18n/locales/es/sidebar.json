@@ -70,7 +70,8 @@
     "rename": "Renombrar",
     "joinCommunity": "Unirse a la comunidad",
     "reportIssue": "Informar de un problema",
-    "starOnGithub": "Dar estrella en GitHub"
+    "starOnGithub": "Dar estrella en GitHub",
+    "backToServerList": "Volver a la lista de servidores"
   },
   "branding": {
     "openSource": "Código abierto"
