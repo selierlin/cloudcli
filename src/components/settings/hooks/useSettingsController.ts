@@ -146,6 +146,10 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
 
   const [activeTab, setActiveTab] = useState<SettingsMainTab>(() => normalizeMainTab(initialTab));
   const [saveStatus, setSaveStatus] = useState<'success' | 'error' | null>(null);
+  /** Whether the settings have finished hydrating from storage. Auto-save is
+   *  disabled until this is true so loadSettings' batched updates are not
+   *  mistaken for user edits. */
+  const [settingsHydrated, setSettingsHydrated] = useState(false);
   const [projectSortOrder, setProjectSortOrder] = useState<ProjectSortOrder>('date');
   const [codeEditorSettings, setCodeEditorSettings] = useState<CodeEditorSettingsState>(() => (
     readCodeEditorSettings()
@@ -225,6 +229,9 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
       setNotificationPreferences(createDefaultNotificationPreferences());
       setCodexPermissionMode('default');
       setProjectSortOrder('date');
+    } finally {
+      // Hydration is complete (success or failure) — auto-save may now run.
+      setSettingsHydrated(true);
     }
   }, []);
 
@@ -340,14 +347,39 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     window.dispatchEvent(new Event('fontSettingsChanged'));
   }, [fontSettings]);
 
-  // Auto-save permissions and sort order with debounce
+  // Auto-save permissions and sort order with debounce. Triggers only after the
+  // settings have hydrated AND the current values differ from the last saved
+  // snapshot — so merely opening the dialog (whose async loadSettings updates
+  // state in batches) never fires a save.
   const autoSaveTimerRef = useRef<number | null>(null);
-  const isInitialLoadRef = useRef(true);
+  /** Snapshot of the values last auto-saved, or the hydration baseline. */
+  const lastAutoSavedKeyRef = useRef<string | null>(null);
+
+  const autoSaveSnapshotKey = JSON.stringify([
+    claudePermissions.allowedTools,
+    claudePermissions.disallowedTools,
+    claudePermissions.skipPermissions,
+    cursorPermissions.allowedCommands,
+    cursorPermissions.disallowedCommands,
+    cursorPermissions.skipPermissions,
+    codexPermissionMode,
+    notificationPreferences,
+    projectSortOrder,
+  ]);
+
+  // When hydration completes, record the loaded values as the baseline so the
+  // batch of setState calls from loadSettings is not treated as a user edit.
+  useEffect(() => {
+    if (settingsHydrated && lastAutoSavedKeyRef.current === null) {
+      lastAutoSavedKeyRef.current = autoSaveSnapshotKey;
+    }
+  }, [settingsHydrated, autoSaveSnapshotKey]);
 
   useEffect(() => {
-    // Skip auto-save on initial load (settings are being loaded from localStorage)
-    if (isInitialLoadRef.current) {
-      isInitialLoadRef.current = false;
+    if (!settingsHydrated) {
+      return;
+    }
+    if (lastAutoSavedKeyRef.current === autoSaveSnapshotKey) {
       return;
     }
 
@@ -356,6 +388,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     }
 
     autoSaveTimerRef.current = window.setTimeout(() => {
+      lastAutoSavedKeyRef.current = autoSaveSnapshotKey;
       saveSettings();
     }, 500);
 
@@ -364,7 +397,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
         window.clearTimeout(autoSaveTimerRef.current);
       }
     };
-  }, [saveSettings]);
+  }, [autoSaveSnapshotKey, saveSettings, settingsHydrated]);
 
   // Clear save status after 2 seconds
   useEffect(() => {
@@ -375,13 +408,6 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     const timer = window.setTimeout(() => setSaveStatus(null), 2000);
     return () => window.clearTimeout(timer);
   }, [saveStatus]);
-
-  // Reset initial load flag when settings dialog opens
-  useEffect(() => {
-    if (isOpen) {
-      isInitialLoadRef.current = true;
-    }
-  }, [isOpen]);
 
   useEffect(() => () => {
     if (closeTimerRef.current !== null) {
