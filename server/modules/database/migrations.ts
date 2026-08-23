@@ -449,6 +449,40 @@ const ensureProjectsForSessionPaths = (db: Database): void => {
   `);
 };
 
+/**
+ * Widens the `provider_models.provider` CHECK constraint to accept the `dsh`
+ * provider.
+ *
+ * SQLite cannot alter a CHECK constraint in place, so an existing table is
+ * rebuilt: rename the old table, create the new schema (which already includes
+ * `dsh`), copy the rows, and drop the old table. Fresh databases are created
+ * with the widened schema and skip this migration.
+ */
+const migrateProviderModelsDshCheck = (db: Database): void => {
+  if (!tableExists(db, 'provider_models')) {
+    return;
+  }
+
+  const definition = db
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'provider_models'")
+    .get() as { sql?: string } | undefined;
+  if (!definition?.sql || definition.sql.includes("'dsh'")) {
+    return;
+  }
+
+  console.log('Running migration: widening provider_models provider CHECK to include dsh');
+  db.exec(`
+    BEGIN;
+    ALTER TABLE provider_models RENAME TO provider_models_legacy;
+    ${PROVIDER_MODELS_TABLE_SCHEMA_SQL}
+    INSERT INTO provider_models (id, provider, model_id, model_name, sort_order, created_at, updated_at)
+      SELECT id, provider, model_id, model_name, sort_order, created_at, updated_at
+      FROM provider_models_legacy;
+    DROP TABLE provider_models_legacy;
+    COMMIT;
+  `);
+};
+
 export const runMigrations = (db: Database) => {
   try {
     const usersTableInfo = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
@@ -477,6 +511,7 @@ export const runMigrations = (db: Database) => {
       CREATE INDEX IF NOT EXISTS idx_provider_models_provider_order
       ON provider_models(provider, sort_order, id)
     `);
+    migrateProviderModelsDshCheck(db);
 
     db.exec(PROJECTS_TABLE_SCHEMA_SQL);
     rebuildProjectsTableWithPrimaryKeySchema(db);

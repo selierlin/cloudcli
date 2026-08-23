@@ -1,7 +1,9 @@
 import type { LLMProvider } from '../../types/app';
+
 import ClaudeLogo from './ClaudeLogo';
 import CodexLogo from './CodexLogo';
 import CursorLogo from './CursorLogo';
+import DshLogo from './DshLogo';
 import OpenCodeLogo from './OpenCodeLogo';
 
 type LLMProviderLogoProps = {
@@ -23,6 +25,10 @@ export default function LLMProviderLogo({
 
   if (provider === 'opencode') {
     return <OpenCodeLogo className={className} />;
+  }
+
+  if (provider === 'dsh') {
+    return <DshLogo className={className} />;
   }
 
   return <ClaudeLogo className={className} />;
