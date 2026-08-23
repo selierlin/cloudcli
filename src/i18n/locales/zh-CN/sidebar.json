@@ -32,7 +32,19 @@
     "loadingSessions": "加载会话中...",
     "unnamed": "未命名",
     "loading": "加载中...",
-    "showMore": "显示更多会话"
+    "showMore": "显示更多会话",
+    "sessionOptions": "会话选项",
+    "sessionOptionsFor": "{{name}} 的会话选项",
+    "sessionName": "会话名称",
+    "archiveOrDeleteSession": "归档或删除会话",
+    "providerSession": "{{provider}} 会话",
+    "copySessionId": "复制 {{provider}} 会话 ID",
+    "loadingSessionId": "正在加载 {{provider}} 会话 ID…",
+    "sessionIdCopied": "{{provider}} 会话 ID 已复制",
+    "copySessionIdFailed": "无法复制 {{provider}} 会话 ID",
+    "sessionIdUnavailable": "{{provider}} 会话 ID 不可用",
+    "tapToTryAgain": "点击重试。",
+    "clickToTryAgain": "点击重试。"
   },
   "tooltips": {
     "viewEnvironments": "查看环境",
@@ -143,6 +155,14 @@
     "removeFromSidebar": "仅从侧边栏移除",
     "deleteAllData": "永久删除所有数据",
     "allConversationsDeleted": "项目将从侧边栏中移除。您的文件、记忆和会话数据将会保留。",
-    "cannotUndo": "您可以稍后重新添加此项目。"
+    "cannotUndo": "您可以稍后重新添加此项目。",
+    "archiveSession": "归档会话",
+    "deleteSessionPermanently": "永久删除",
+    "archiveSessionNotice": "归档会让会话从活动列表中移除，同时保留其历史记录。",
+    "archivedSessionNotice": "此会话已归档。您可以保持其隐藏，或永久删除。"
+  },
+  "archived": {
+    "restore": "恢复会话",
+    "deletePermanently": "永久删除"
   }
 }

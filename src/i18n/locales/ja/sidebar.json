@@ -32,7 +32,19 @@
     "loadingSessions": "セッションを読み込んでいます...",
     "unnamed": "名称未設定",
     "loading": "読み込み中...",
-    "showMore": "さらにセッションを表示"
+    "showMore": "さらにセッションを表示",
+    "sessionOptions": "セッションオプション",
+    "sessionOptionsFor": "{{name}} のセッションオプション",
+    "sessionName": "セッション名",
+    "archiveOrDeleteSession": "セッションをアーカイブまたは削除",
+    "providerSession": "{{provider}} セッション",
+    "copySessionId": "{{provider}} セッション ID をコピー",
+    "loadingSessionId": "{{provider}} セッション ID を読み込み中…",
+    "sessionIdCopied": "{{provider}} セッション ID をコピーしました",
+    "copySessionIdFailed": "{{provider}} セッション ID をコピーできませんでした",
+    "sessionIdUnavailable": "{{provider}} セッション ID を利用できません",
+    "tapToTryAgain": "タップして再試行",
+    "clickToTryAgain": "クリックして再試行"
   },
   "tooltips": {
     "viewEnvironments": "環境を表示",
@@ -127,6 +139,14 @@
     "removeFromSidebar": "サイドバーからのみ除去",
     "deleteAllData": "すべてのデータを完全に削除",
     "allConversationsDeleted": "プロジェクトはサイドバーから除去されます。ファイル、メモリ、セッションデータは保持されます。",
-    "cannotUndo": "後からプロジェクトを再追加できます。"
+    "cannotUndo": "後からプロジェクトを再追加できます。",
+    "archiveSession": "セッションをアーカイブ",
+    "deleteSessionPermanently": "完全に削除",
+    "archiveSessionNotice": "アーカイブすると、セッションはアクティブリストから外れますが、履歴は保持されます。",
+    "archivedSessionNotice": "このセッションは既にアーカイブされています。非表示のままにするか、完全に削除できます。"
+  },
+  "archived": {
+    "restore": "セッションを復元",
+    "deletePermanently": "完全に削除"
   }
 }

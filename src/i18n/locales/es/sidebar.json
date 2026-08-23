@@ -32,7 +32,19 @@
     "loadingSessions": "Cargando sesiones...",
     "unnamed": "Sin nombre",
     "loading": "Cargando...",
-    "showMore": "Mostrar más sesiones"
+    "showMore": "Mostrar más sesiones",
+    "sessionOptions": "Opciones de sesión",
+    "sessionOptionsFor": "Opciones de sesión para {{name}}",
+    "sessionName": "Nombre de la sesión",
+    "archiveOrDeleteSession": "Archivar o eliminar sesión",
+    "providerSession": "Sesión de {{provider}}",
+    "copySessionId": "Copiar ID de sesión de {{provider}}",
+    "loadingSessionId": "Cargando ID de sesión de {{provider}}…",
+    "sessionIdCopied": "ID de sesión de {{provider}} copiado",
+    "copySessionIdFailed": "No se pudo copiar el ID de sesión de {{provider}}",
+    "sessionIdUnavailable": "ID de sesión de {{provider}} no disponible",
+    "tapToTryAgain": "Toca para reintentar.",
+    "clickToTryAgain": "Haz clic para reintentar."
   },
   "tooltips": {
     "viewEnvironments": "Ver entornos",
@@ -143,6 +155,14 @@
     "removeFromSidebar": "Solo quitar de la barra lateral",
     "deleteAllData": "Eliminar todos los datos permanentemente",
     "allConversationsDeleted": "El proyecto se quitará de la barra lateral. Tus archivos, memorias y datos de sesión se conservarán.",
-    "cannotUndo": "Puedes volver a añadir el proyecto más tarde."
+    "cannotUndo": "Puedes volver a añadir el proyecto más tarde.",
+    "archiveSession": "Archivar sesión",
+    "deleteSessionPermanently": "Eliminar permanentemente",
+    "archiveSessionNotice": "Archivar quita la sesión de la lista activa y conserva su historial.",
+    "archivedSessionNotice": "Esta sesión ya está archivada. Puedes mantenerla oculta o eliminarla permanentemente."
+  },
+  "archived": {
+    "restore": "Restaurar sesión",
+    "deletePermanently": "Eliminar permanentemente"
   }
 }

@@ -32,7 +32,19 @@
     "loadingSessions": "Загрузка сеансов...",
     "unnamed": "Без имени",
     "loading": "Загрузка...",
-    "showMore": "Показать больше сеансов"
+    "showMore": "Показать больше сеансов",
+    "sessionOptions": "Параметры сеанса",
+    "sessionOptionsFor": "Параметры сеанса для {{name}}",
+    "sessionName": "Имя сеанса",
+    "archiveOrDeleteSession": "Архивировать или удалить сеанс",
+    "providerSession": "Сеанс {{provider}}",
+    "copySessionId": "Копировать ID сеанса {{provider}}",
+    "loadingSessionId": "Загрузка ID сеанса {{provider}}…",
+    "sessionIdCopied": "ID сеанса {{provider}} скопирован",
+    "copySessionIdFailed": "Не удалось скопировать ID сеанса {{provider}}",
+    "sessionIdUnavailable": "ID сеанса {{provider}} недоступен",
+    "tapToTryAgain": "Нажмите, чтобы повторить.",
+    "clickToTryAgain": "Нажмите, чтобы повторить."
   },
   "tooltips": {
     "viewEnvironments": "Просмотр окружений",
@@ -149,6 +161,14 @@
     "removeFromSidebar": "Убрать только из боковой панели",
     "deleteAllData": "Удалить все данные навсегда",
     "allConversationsDeleted": "Проект будет убран из боковой панели. Ваши файлы, воспоминания и данные сеансов сохранятся.",
-    "cannotUndo": "Вы сможете добавить проект позже."
+    "cannotUndo": "Вы сможете добавить проект позже.",
+    "archiveSession": "Архивировать сеанс",
+    "deleteSessionPermanently": "Удалить навсегда",
+    "archiveSessionNotice": "Архивирование убирает сеанс из активного списка, сохраняя его историю.",
+    "archivedSessionNotice": "Этот сеанс уже заархивирован. Вы можете оставить его скрытым или удалить навсегда."
+  },
+  "archived": {
+    "restore": "Восстановить сеанс",
+    "deletePermanently": "Удалить навсегда"
   }
 }

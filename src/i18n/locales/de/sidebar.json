@@ -32,7 +32,19 @@
     "loadingSessions": "Sitzungen werden geladen...",
     "unnamed": "Unbenannt",
     "loading": "Lädt...",
-    "showMore": "Weitere Sitzungen anzeigen"
+    "showMore": "Weitere Sitzungen anzeigen",
+    "sessionOptions": "Sitzungsoptionen",
+    "sessionOptionsFor": "Sitzungsoptionen für {{name}}",
+    "sessionName": "Sitzungsname",
+    "archiveOrDeleteSession": "Sitzung archivieren oder löschen",
+    "providerSession": "{{provider}}-Sitzung",
+    "copySessionId": "{{provider}}-Sitzungs-ID kopieren",
+    "loadingSessionId": "{{provider}}-Sitzungs-ID wird geladen…",
+    "sessionIdCopied": "{{provider}}-Sitzungs-ID kopiert",
+    "copySessionIdFailed": "{{provider}}-Sitzungs-ID konnte nicht kopiert werden",
+    "sessionIdUnavailable": "{{provider}}-Sitzungs-ID nicht verfügbar",
+    "tapToTryAgain": "Zum erneuten Versuchen tippen.",
+    "clickToTryAgain": "Zum erneuten Versuchen klicken."
   },
   "tooltips": {
     "viewEnvironments": "Umgebungen anzeigen",
@@ -143,6 +155,14 @@
     "removeFromSidebar": "Nur aus der Seitenleiste entfernen",
     "deleteAllData": "Alle Daten dauerhaft löschen",
     "allConversationsDeleted": "Das Projekt wird aus der Seitenleiste entfernt. Deine Dateien, Erinnerungen und Sitzungsdaten bleiben erhalten.",
-    "cannotUndo": "Du kannst das Projekt später erneut hinzufügen."
+    "cannotUndo": "Du kannst das Projekt später erneut hinzufügen.",
+    "archiveSession": "Sitzung archivieren",
+    "deleteSessionPermanently": "Dauerhaft löschen",
+    "archiveSessionNotice": "Durch Archivieren wird die Sitzung aus der aktiven Liste entfernt, während ihr Verlauf erhalten bleibt.",
+    "archivedSessionNotice": "Diese Sitzung ist bereits archiviert. Sie können sie ausgeblendet lassen oder dauerhaft löschen."
+  },
+  "archived": {
+    "restore": "Sitzung wiederherstellen",
+    "deletePermanently": "Dauerhaft löschen"
   }
 }
