@@ -265,7 +265,20 @@
     detectAllLatencies(list);
   }
 
+  /** 跳转前显示全屏"连接中"遮罩，避免点击后长时间无反馈；目标页的启动 splash 会衔接过渡。 */
+  function showConnectingOverlay(name) {
+    var overlay = document.createElement('div');
+    overlay.className = 'connect-overlay';
+    var label = name || '服务器';
+    overlay.innerHTML =
+      '<div class="connect-overlay-spinner"></div>' +
+      '<div class="connect-overlay-text">正在连接 ' + label + '…</div>' +
+      '<div class="connect-overlay-sub">首次加载可能需要一些时间</div>';
+    document.body.appendChild(overlay);
+  }
+
   async function connect(url, name) {
+    showConnectingOverlay(name);
     await setLastServer(url);
     await setPickerUrl();
     await setServerName(name);

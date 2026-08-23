@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Self-hosted Encode Sans (variable, latin subset). Replaces the Google Fonts
+   CDN so the UI font loads from the local server instead of a third-party
+   network that may be unreachable. Chinese text keeps using system fonts. */
+@font-face {
+  font-family: 'Encode Sans';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/encode-sans-latin.woff2') format('woff2');
+}
+
 /* Global spinner animation - defined early to ensure it loads */
 @keyframes spin {
   0% {
