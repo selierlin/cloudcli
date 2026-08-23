@@ -120,7 +120,8 @@
       render(list);
     };
 
-    /** 提交修改：校验地址，更新（或合并）对应条目后重新渲染 */
+    /** 提交修改：校验地址，更新（或合并）对应条目后重新渲染。
+     *  先在副本上应用修改，保存成功后再替换列表，避免保存失败时 UI 与存储不一致。 */
     async function commitEdit() {
       var url = normalizeUrl(urlInput.value);
       if (!url) {
@@ -135,16 +136,26 @@
       var other = list.findIndex(function (s, i) {
         return i !== idx && s.url === url;
       });
+      var next = list.slice();
       if (other >= 0) {
         // 地址已属其它条目：合并到该项
-        list[other].name = name;
-        list.splice(idx, 1);
+        next[other].name = name;
+        next.splice(idx, 1);
       } else {
-        list[idx].name = name;
-        list[idx].url = url;
+        next[idx].name = name;
+        next[idx].url = url;
       }
-      await saveServers(list);
-      render(list);
+      try {
+        await saveServers(next);
+        list.length = 0;
+        next.forEach(function (s) {
+          list.push(s);
+        });
+        render(list);
+      } catch (e) {
+        els.errorMsg.textContent = '保存修改失败，请重试';
+        els.errorMsg.classList.remove('hidden');
+      }
     }
 
     li.appendChild(info);
@@ -204,9 +215,19 @@
       del.textContent = '✕';
       del.setAttribute('aria-label', '删除 ' + server.name);
       del.onclick = async function () {
-        list.splice(index, 1);
-        await saveServers(list);
-        render(list);
+        var next = list.slice();
+        next.splice(index, 1);
+        try {
+          await saveServers(next);
+          list.length = 0;
+          next.forEach(function (s) {
+            list.push(s);
+          });
+          render(list);
+        } catch (e) {
+          els.errorMsg.textContent = '删除失败，请重试';
+          els.errorMsg.classList.remove('hidden');
+        }
       };
 
       li.appendChild(info);
@@ -264,8 +285,12 @@
 
   /** 在表单下方显示一条连接失败提示 */
   function showConnectError(url) {
+    var extra =
+      url.indexOf('https://') === 0
+        ? ' 若服务器使用自签 HTTPS 证书，请改用 http:// 或在设备上信任该证书。'
+        : '';
     els.errorMsg.textContent =
-      '无法连接 ' + url + '。请检查地址是否正确、目标电脑是否开机、以及当前网络是否可达。';
+      '无法连接 ' + url + '。请检查地址是否正确、目标电脑是否开机、以及当前网络是否可达。' + extra;
     els.errorMsg.classList.remove('hidden');
   }
 
@@ -323,7 +348,85 @@
     }
   }
 
+  /**
+   * 键盘弹出时把聚焦输入框抬到键盘上方。
+   *
+   * capacitor.config.ts 里 Keyboard.resize = 'none'，原生不缩放 WebView，
+   * 键盘弹起时前端必须自行处理。本实现用标准 DOM focusin/focusout 驱动
+   * （不依赖 Capacitor/visualViewport 事件，后者在本页实测不可靠）：临时
+   * 撑高 body 产生滚动空间，再 scrollTo 把聚焦输入框移到键盘上方。键盘高度
+   * 取 visualViewport 差值，拿不到时按「至少视口一半」保守估算，保证输入框
+   * 落在视口上半部，常见键盘高度都挡不住。
+   */
+  function setupKeyboardAvoidance() {
+    var body = document.body;
+
+    function keyboardHeight() {
+      var vv = window.visualViewport;
+      return vv ? Math.max(0, window.innerHeight - vv.height) : 0;
+    }
+
+    function isInput(el) {
+      return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+    }
+
+    /** 把当前聚焦输入框抬到键盘上方。幂等：目标用 scrollTo 绝对位置。 */
+    function shift() {
+      var el = document.activeElement;
+      if (!isInput(el)) return;
+      // 保守键盘高度：能拿到真实值就用，拿不到按「键盘至少占视口一半」估算，
+      // 保证输入框滚到视口上半部——常见键盘高度都挡不住。
+      var kh = keyboardHeight();
+      var effectiveKh = Math.max(kh, window.innerHeight * 0.5);
+      // 撑高 body 产生滚动空间
+      body.style.minHeight = window.innerHeight + effectiveKh + 'px';
+      // 目标滚动：输入框底部对齐（视口底部 - 键盘高度）上方留 16px
+      var elBottomDoc = el.getBoundingClientRect().bottom + window.scrollY;
+      var targetScroll = elBottomDoc - (window.innerHeight - effectiveKh) + 16;
+      var maxScroll = body.scrollHeight - window.innerHeight;
+      targetScroll = Math.max(0, Math.min(targetScroll, maxScroll));
+      if (targetScroll > window.scrollY) {
+        window.scrollTo(0, targetScroll);
+      }
+    }
+
+    function reset() {
+      body.style.minHeight = '';
+    }
+
+    // 主事件源：标准 DOM 事件，必然触发
+    document.addEventListener('focusin', function () {
+      // 键盘弹出动画期间重复尝试，覆盖动画时序
+      setTimeout(shift, 80);
+      setTimeout(shift, 250);
+      setTimeout(shift, 450);
+    });
+    document.addEventListener('focusout', reset);
+
+    // 辅助事件源：Capacitor 键盘事件（精确高度）与 visualViewport resize
+    if (window.Capacitor && typeof window.Capacitor.registerPlugin === 'function') {
+      try {
+        var Keyboard = window.Capacitor.registerPlugin('Keyboard');
+        Keyboard.addListener('keyboardWillShow', function () {
+          shift();
+        }).catch(function () {});
+        Keyboard.addListener('keyboardWillHide', reset).catch(function () {});
+      } catch (e) {
+        console.warn('[picker] keyboard plugin unavailable:', e);
+      }
+    }
+    var vv = window.visualViewport;
+    if (vv) {
+      vv.addEventListener('resize', function () {
+        if (keyboardHeight() > 0) {
+          shift();
+        }
+      });
+    }
+  }
+
   (async function init() {
+    setupKeyboardAvoidance();
     await hideKeyboardAccessoryBar();
     var list = await getServers();
     render(list);

@@ -23,6 +23,18 @@ export function useSessionOutlineData({ isOpen, selectedSession }: UseSessionOut
   useEffect(() => {
     if (!isOpen || !sessionId) return;
     let cancelled = false;
+    // Reuse the cached full transcript when it's already complete and fresh,
+    // so re-opening the panel doesn't re-download the whole conversation.
+    // Stale sessions (active within the last 30s) still re-fetch to stay current.
+    const cached = sessionStore.getSessionSlot(sessionId);
+    if (
+      cached &&
+      cached.serverMessages.length > 0 &&
+      !cached.hasMore &&
+      !sessionStore.isStale(sessionId)
+    ) {
+      return;
+    }
     setIsLoading(true);
     sessionStore.setActiveSession(sessionId);
     void sessionStore
