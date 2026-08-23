@@ -32,7 +32,19 @@
     "loadingSessions": "載入工作階段中...",
     "unnamed": "未命名",
     "loading": "載入中...",
-    "showMore": "顯示更多工作階段"
+    "showMore": "顯示更多工作階段",
+    "sessionOptions": "工作階段選項",
+    "sessionOptionsFor": "{{name}} 的工作階段選項",
+    "sessionName": "工作階段名稱",
+    "archiveOrDeleteSession": "封存或刪除工作階段",
+    "providerSession": "{{provider}} 工作階段",
+    "copySessionId": "複製 {{provider}} 工作階段 ID",
+    "loadingSessionId": "正在載入 {{provider}} 工作階段 ID…",
+    "sessionIdCopied": "{{provider}} 工作階段 ID 已複製",
+    "copySessionIdFailed": "無法複製 {{provider}} 工作階段 ID",
+    "sessionIdUnavailable": "{{provider}} 工作階段 ID 無法使用",
+    "tapToTryAgain": "點擊重試。",
+    "clickToTryAgain": "點擊重試。"
   },
   "tooltips": {
     "viewEnvironments": "查看環境",
@@ -142,6 +154,14 @@
     "removeFromSidebar": "僅從側邊欄移除",
     "deleteAllData": "永久刪除所有資料",
     "allConversationsDeleted": "專案將從側邊欄中移除。您的檔案、記憶和工作階段資料將會保留。",
-    "cannotUndo": "您可以稍後重新新增此專案。"
+    "cannotUndo": "您可以稍後重新新增此專案。",
+    "archiveSession": "封存工作階段",
+    "deleteSessionPermanently": "永久刪除",
+    "archiveSessionNotice": "封存會將工作階段從活動清單移除，同時保留其歷史記錄。",
+    "archivedSessionNotice": "此工作階段已封存。您可以保持其隱藏，或永久刪除。"
+  },
+  "archived": {
+    "restore": "還原工作階段",
+    "deletePermanently": "永久刪除"
   }
 }

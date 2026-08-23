@@ -32,7 +32,19 @@
     "loadingSessions": "Caricamento sessioni...",
     "unnamed": "Senza nome",
     "loading": "Caricamento...",
-    "showMore": "Mostra più sessioni"
+    "showMore": "Mostra più sessioni",
+    "sessionOptions": "Opzioni sessione",
+    "sessionOptionsFor": "Opzioni sessione per {{name}}",
+    "sessionName": "Nome sessione",
+    "archiveOrDeleteSession": "Archivia o elimina sessione",
+    "providerSession": "Sessione {{provider}}",
+    "copySessionId": "Copia ID sessione {{provider}}",
+    "loadingSessionId": "Caricamento ID sessione {{provider}}…",
+    "sessionIdCopied": "ID sessione {{provider}} copiato",
+    "copySessionIdFailed": "Impossibile copiare l'ID sessione {{provider}}",
+    "sessionIdUnavailable": "ID sessione {{provider}} non disponibile",
+    "tapToTryAgain": "Tocca per riprovare.",
+    "clickToTryAgain": "Fai clic per riprovare."
   },
   "tooltips": {
     "viewEnvironments": "Visualizza ambienti",
@@ -143,6 +155,14 @@
     "removeFromSidebar": "Rimuovi solo dalla barra laterale",
     "deleteAllData": "Elimina tutti i dati permanentemente",
     "allConversationsDeleted": "Il progetto verrà rimosso dalla barra laterale. I tuoi file, memorie e dati delle sessioni verranno preservati.",
-    "cannotUndo": "Puoi riaggiungerlo in seguito."
+    "cannotUndo": "Puoi riaggiungerlo in seguito.",
+    "archiveSession": "Archivia sessione",
+    "deleteSessionPermanently": "Elimina definitivamente",
+    "archiveSessionNotice": "L'archiviazione rimuove la sessione dall'elenco attivo conservandone la cronologia.",
+    "archivedSessionNotice": "Questa sessione è già archiviata. Puoi tenerla nascosta o eliminarla definitivamente."
+  },
+  "archived": {
+    "restore": "Ripristina sessione",
+    "deletePermanently": "Elimina definitivamente"
   }
 }

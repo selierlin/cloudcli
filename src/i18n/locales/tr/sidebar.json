@@ -32,7 +32,19 @@
     "loadingSessions": "Oturumlar yükleniyor...",
     "unnamed": "Adsız",
     "loading": "Yükleniyor...",
-    "showMore": "Daha fazla oturum göster"
+    "showMore": "Daha fazla oturum göster",
+    "sessionOptions": "Oturum seçenekleri",
+    "sessionOptionsFor": "{{name}} için oturum seçenekleri",
+    "sessionName": "Oturum adı",
+    "archiveOrDeleteSession": "Oturumu arşivle veya sil",
+    "providerSession": "{{provider}} oturumu",
+    "copySessionId": "{{provider}} oturum kimliğini kopyala",
+    "loadingSessionId": "{{provider}} oturum kimliği yükleniyor…",
+    "sessionIdCopied": "{{provider}} oturum kimliği kopyalandı",
+    "copySessionIdFailed": "{{provider}} oturum kimliği kopyalanamadı",
+    "sessionIdUnavailable": "{{provider}} oturum kimliği kullanılamıyor",
+    "tapToTryAgain": "Tekrar denemek için dokunun.",
+    "clickToTryAgain": "Tekrar denemek için tıklayın."
   },
   "tooltips": {
     "viewEnvironments": "Ortamları Görüntüle",
@@ -143,6 +155,14 @@
     "removeFromSidebar": "Yalnızca kenar çubuğundan kaldır",
     "deleteAllData": "Tüm veriyi kalıcı olarak sil",
     "allConversationsDeleted": "Proje kenar çubuğundan kaldırılacak. Dosyaların, bellek verilerin ve oturum verilerin korunacak.",
-    "cannotUndo": "Projeyi sonra tekrar ekleyebilirsin."
+    "cannotUndo": "Projeyi sonra tekrar ekleyebilirsin.",
+    "archiveSession": "Oturumu arşivle",
+    "deleteSessionPermanently": "Kalıcı olarak sil",
+    "archiveSessionNotice": "Arşivleme, oturumu etkin listeden kaldırır ve geçmişini korur.",
+    "archivedSessionNotice": "Bu oturum zaten arşivlendi. Gizli tutabilir veya kalıcı olarak silebilirsiniz."
+  },
+  "archived": {
+    "restore": "Oturumu geri yükle",
+    "deletePermanently": "Kalıcı olarak sil"
   }
 }
