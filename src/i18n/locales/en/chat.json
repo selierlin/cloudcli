@@ -148,8 +148,12 @@
   },
   "providerSelection": {
     "title": "Choose Your AI Assistant",
-    "description": "Select a provider to start a new conversation",
+    "description": "Pick a tool, then choose the model it is configured with",
     "selectModel": "Select Model",
+    "chooseTool": "1 · Choose your tool",
+    "chooseModelStep": "2 · Choose a model",
+    "clickToChooseModel": "Click to choose a model",
+    "chooseModelForTool": "{{tool}} models",
     "providerInfo": {
       "anthropic": "by Anthropic",
       "openai": "by OpenAI",

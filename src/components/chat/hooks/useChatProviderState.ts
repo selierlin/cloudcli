@@ -294,12 +294,18 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     storageKey: string,
     current: string,
     def: ProviderModelsDefinition,
+    fallbackDefault: string,
   ): string => {
     const stored = localStorage.getItem(storageKey);
     if (stored && def.OPTIONS.some((o) => o.value === stored)) {
       return stored;
     }
-    if (current && def.OPTIONS.some((o) => o.value === current)) {
+    // `current` only counts as an explicit choice once it differs from the
+    // static pre-catalog fallback. Otherwise the catalog's own DEFAULT wins
+    // for a fresh user — for Codex that DEFAULT mirrors the model configured
+    // in ~/.codex/config.toml, so a new chat starts on the tool's real model
+    // instead of the hard-coded UI fallback.
+    if (current && current !== fallbackDefault && def.OPTIONS.some((o) => o.value === current)) {
       return current;
     }
     return def.DEFAULT;
@@ -371,7 +377,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   useEffect(() => {
     const claude = providerModelCatalog.claude;
     if (claude) {
-      const next = pickStoredOrCurrent('claude-model', claudeModel, claude);
+      const next = pickStoredOrCurrent('claude-model', claudeModel, claude, FALLBACK_DEFAULT_MODEL.claude);
       if (next !== claudeModel) {
         setClaudeModel(next);
       }
@@ -384,7 +390,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   useEffect(() => {
     const cursor = providerModelCatalog.cursor;
     if (cursor) {
-      const next = pickStoredOrCurrent('cursor-model', cursorModel, cursor);
+      const next = pickStoredOrCurrent('cursor-model', cursorModel, cursor, FALLBACK_DEFAULT_MODEL.cursor);
       if (next !== cursorModel) {
         setCursorModel(next);
       }
@@ -397,7 +403,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   useEffect(() => {
     const codex = providerModelCatalog.codex;
     if (codex) {
-      const next = pickStoredOrCurrent('codex-model', codexModel, codex);
+      const next = pickStoredOrCurrent('codex-model', codexModel, codex, FALLBACK_DEFAULT_MODEL.codex);
       if (next !== codexModel) {
         setCodexModel(next);
       }
@@ -410,7 +416,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   useEffect(() => {
     const opencode = providerModelCatalog.opencode;
     if (opencode) {
-      const next = pickStoredOrCurrent('opencode-model', opencodeModel, opencode);
+      const next = pickStoredOrCurrent('opencode-model', opencodeModel, opencode, FALLBACK_DEFAULT_MODEL.opencode);
       if (next !== opencodeModel) {
         setOpenCodeModel(next);
       }

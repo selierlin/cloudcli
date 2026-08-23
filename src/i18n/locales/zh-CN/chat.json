@@ -140,8 +140,12 @@
   },
   "providerSelection": {
     "title": "选择您的 AI 助手",
-    "description": "选择一个供应商以开始新对话",
+    "description": "先选择工具，再选择该工具配置中使用的模型",
     "selectModel": "选择模型",
+    "chooseTool": "1 · 选择工具",
+    "chooseModelStep": "2 · 选择模型",
+    "clickToChooseModel": "点击选择模型",
+    "chooseModelForTool": "{{tool}} 的模型",
     "providerInfo": {
       "anthropic": "由 Anthropic 提供",
       "openai": "由 OpenAI 提供",
