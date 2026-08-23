@@ -1,6 +1,9 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+
 import App from './App.tsx'
+import { dismissSplash } from './utils/splash'
+
 import './index.css'
 import 'katex/dist/katex.min.css'
 
@@ -20,14 +23,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>,
 )
 
-// 启动 splash 只覆盖 JS bundle 下载/执行与首次渲染；React 挂载后淡出移除。
-// 双层 requestAnimationFrame 确保在浏览器完成首次绘制后才隐藏。
-requestAnimationFrame(() => {
-  requestAnimationFrame(() => {
-    const splash = document.getElementById('app-splash');
-    if (splash) {
-      splash.classList.add('splash-hidden');
-      window.setTimeout(() => splash.remove(), 300);
-    }
-  });
-});
+// 启动 splash 不再在 React 挂载后立即移除，而是贯穿认证验证与项目加载，
+// 由首次内容 ready（ProtectedRoute / AppContent）时调用 dismissSplash() 一次性淡出。
+// 兜底：15s 后仍未 ready（异常时序）则强制移除，避免 splash 永久遮挡界面。
+window.setTimeout(dismissSplash, 15000);
