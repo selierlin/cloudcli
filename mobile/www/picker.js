@@ -11,6 +11,7 @@
   var STORAGE_KEY = 'cloudcli.servers';
   var LAST_KEY = 'cloudcli.lastServer';
   var PICKER_URL_KEY = 'cloudcli.pickerUrl';
+  var SERVER_NAME_KEY = 'cloudcli.serverName';
 
   var Preferences = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences) || null;
 
@@ -23,10 +24,17 @@
     url: document.getElementById('server-url'),
     connectBtn: document.getElementById('connect-btn'),
     errorMsg: document.getElementById('error-msg'),
+    refreshBtn: document.getElementById('refresh-latency'),
   };
 
   /** 连接超时时间（毫秒），超过即认为服务器不可达 */
   var CONNECT_TIMEOUT_MS = 8000;
+
+  /** 延迟检测超时时间（毫秒），超过即认为服务器不可达 */
+  var LATENCY_TIMEOUT_MS = 3000;
+
+  /** 当前渲染中的服务器列表，供「重新检测」按钮使用 */
+  var currentList = [];
 
   /** 读取已保存的服务器列表 */
   async function getServers() {
@@ -56,6 +64,15 @@
   async function setPickerUrl() {
     if (!Preferences) return;
     await Preferences.set({ key: PICKER_URL_KEY, value: window.location.href });
+  }
+
+  /**
+   * 记录当前连接的服务器名称，供已连接页面的侧边栏头部展示。
+   * Preferences 是原生存储，跨 origin 共享：远程服务器页面也能读到本值。
+   */
+  async function setServerName(name) {
+    if (!Preferences) return;
+    await Preferences.set({ key: SERVER_NAME_KEY, value: name || '' });
   }
 
   /** 规范化服务器地址：补协议、去尾部斜杠 */
@@ -180,6 +197,8 @@
     list.forEach(function (server, index) {
       var li = document.createElement('li');
       li.className = 'server-item';
+      // 关联服务器对象，延迟检测按条目（而非列表下标）匹配
+      li._server = server;
       // 点击整行连接该服务器；点击按钮或编辑输入框时不触发连接。
       li.onclick = function (e) {
         if (
@@ -201,6 +220,12 @@
       url.textContent = server.url;
       info.appendChild(name);
       info.appendChild(url);
+
+      // 延迟徽标：条目右侧，渲染后由 detectAllLatencies 异步填充
+      var latency = document.createElement('span');
+      latency.className = 'latency';
+      latency.textContent = '…';
+      latency.setAttribute('aria-label', '检测延迟中');
 
       var edit = document.createElement('button');
       edit.className = 'icon-btn';
@@ -231,15 +256,19 @@
       };
 
       li.appendChild(info);
+      li.appendChild(latency);
       li.appendChild(edit);
       li.appendChild(del);
       els.serverList.appendChild(li);
     });
+
+    detectAllLatencies(list);
   }
 
-  async function connect(url) {
+  async function connect(url, name) {
     await setLastServer(url);
     await setPickerUrl();
+    await setServerName(name);
     window.location.href = url;
   }
 
@@ -254,7 +283,7 @@
     els.errorMsg.classList.add('hidden');
     var reachable = await probe(server.url);
     if (reachable) {
-      await connect(server.url);
+      await connect(server.url, server.name);
     } else {
       li.removeAttribute('data-connecting');
       li.classList.remove('connecting');
@@ -281,6 +310,60 @@
         clearTimeout(timer);
         return false;
       });
+  }
+
+  /**
+   * 测量服务器延迟（毫秒）：no-cors fetch 建立连接即计时结束；
+   * 超时或连不上返回 null（视为不可达）。
+   */
+  function measureLatency(url) {
+    var controller = new AbortController();
+    var timer = setTimeout(function () {
+      controller.abort();
+    }, LATENCY_TIMEOUT_MS);
+    var start = performance.now();
+    return fetch(url + '/', { mode: 'no-cors', signal: controller.signal, cache: 'no-store' })
+      .then(function () {
+        clearTimeout(timer);
+        return Math.round(performance.now() - start);
+      })
+      .catch(function () {
+        clearTimeout(timer);
+        return null;
+      });
+  }
+
+  /**
+   * 并发检测当前列表中全部服务器的延迟并更新各自徽标。
+   * 按条目自身匹配服务器（渲染时已把 server 挂到 li._server），
+   * 不依赖列表数组顺序与 DOM 顺序的一致性。
+   * 检测期间列表被重建（增删改/重新渲染）时，旧条目已脱离 DOM，直接丢弃过期结果。
+   */
+  async function detectAllLatencies(list) {
+    currentList = list;
+    var items = els.serverList.querySelectorAll('li');
+    items.forEach(function (li) {
+      var badge = li.querySelector('.latency');
+      if (badge) badge.textContent = '…';
+    });
+
+    await Promise.all(Array.prototype.map.call(items, async function (li) {
+      if (!document.body.contains(li)) return;
+      var server = li._server;
+      if (!server) return;
+      var badge = li.querySelector('.latency');
+      if (!badge) return;
+
+      var ms = await measureLatency(server.url);
+      if (!document.body.contains(li)) return; // 列表已重建，丢弃过期结果
+      if (ms === null) {
+        badge.textContent = '不可达';
+        badge.className = 'latency down';
+      } else {
+        badge.textContent = ms + ' ms';
+        badge.className = 'latency ok';
+      }
+    }));
   }
 
   /** 在表单下方显示一条连接失败提示 */
@@ -321,7 +404,7 @@
 
     var reachable = await probe(url);
     if (reachable) {
-      await connect(url);
+      await connect(url, name);
     } else {
       els.connectBtn.disabled = false;
       els.connectBtn.textContent = '连接';
@@ -334,6 +417,14 @@
   els.url.addEventListener('input', function () {
     els.errorMsg.classList.add('hidden');
   });
+
+  // 「重新检测」按钮：对当前列表重新测量延迟
+  if (els.refreshBtn) {
+    els.refreshBtn.addEventListener('click', function () {
+      if (currentList.length === 0) return;
+      detectAllLatencies(currentList);
+    });
+  }
 
   /** 隐藏 iOS 系统表单工具条（上/下箭头 + 打勾）。@capacitor/keyboard 默认隐藏，
    *  这里再显式调用一次，确保 WebView 加载完成后 swizzle 已生效。 */

@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import { Preferences } from '@capacitor/preferences';
 import { Activity, Archive, Folder, FolderPlus, MessageSquare, Plus, RefreshCw, Search, X, PanelLeftClose } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
@@ -49,6 +51,32 @@ export default function SidebarHeader({
   onCollapseSidebar,
   t,
 }: SidebarHeaderProps) {
+  // 移动端由服务器选择页跳转而来时，头部 Logo 旁显示当前服务器名称。
+  // 名称由选择页（mobile/www/picker.js）写入 Preferences，跨 origin 共享；
+  // 非 Capacitor 原生壳（桌面浏览器 / PWA）读取不到，回退显示 CloudCLI。
+  const [serverName, setServerName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const isCapacitorShell = Boolean(
+      (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.(),
+    );
+    if (!isCapacitorShell) return;
+
+    let disposed = false;
+    void Preferences.get({ key: 'cloudcli.serverName' })
+      .then((res) => {
+        const value = res?.value?.trim();
+        if (!disposed && value) setServerName(value);
+      })
+      .catch(() => {
+        // 读取失败时保持默认标题（CloudCLI）
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, []);
+
   const showSearchTools = (projectsCount > 0 || runningSessionsCount > 0 || archivedSessionsCount > 0 || isArchivedSessionsLoading) && !isLoading;
   const searchPlaceholder = searchMode === 'conversations'
     ? t('search.conversationsPlaceholder')
@@ -68,9 +96,10 @@ export default function SidebarHeader({
       </div>
       <h1
         className="truncate text-sm font-bold tracking-tight text-foreground"
+        title={serverName || undefined}
         style={{ fontFamily: CLOUDCLI_WORDMARK_FONT_FAMILY }}
       >
-        {t('app.title')}
+        {serverName ?? t('app.title')}
       </h1>
     </div>
   );
