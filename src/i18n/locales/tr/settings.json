@@ -56,6 +56,17 @@
       "toolDisplay": "Araç Gösterimi",
       "inputSettings": "Girdi Ayarları"
     },
+    "tabs": {
+      "settings": "Hızlı Ayarlar",
+      "outline": "Anahat"
+    },
+    "outline": {
+      "empty": "Henüz mesaj yok",
+      "untitled": "(içerik yok)"
+    },
+    "export": {
+      "title": "Dışa Aktar"
+    },
     "darkMode": "Koyu Mod",
     "showRawParameters": "Ham parametreleri göster",
     "showThinking": "Düşünmeyi göster",

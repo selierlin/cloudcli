@@ -987,6 +987,23 @@ export function useProjectsState({
     [activeTab, clearSessionAttention, isMobile, navigate, selectedProject?.projectId],
   );
 
+  const handleJumpToMessage = useCallback(
+    (timestamp: string, snippet: string) => {
+      // Tags the selected session with a search target; the chat's
+      // useChatSessionState reads these fields and scrolls to the message.
+      setSelectedSession((previousSession) =>
+        previousSession
+          ? {
+              ...previousSession,
+              __searchTargetTimestamp: timestamp,
+              __searchTargetSnippet: snippet,
+            }
+          : previousSession,
+      );
+    },
+    [],
+  );
+
   const handleNewSession = useCallback(
     (project: Project) => {
       setSelectedProject(project);
@@ -1197,6 +1214,7 @@ export function useProjectsState({
     sidebarSharedProps,
     handleProjectSelect,
     handleSessionSelect,
+    handleJumpToMessage,
     handleNewSession,
     handleSessionDelete,
     loadMoreProjectSessions,

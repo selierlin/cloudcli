@@ -72,6 +72,17 @@
       "toolDisplay": "工具显示",
       "inputSettings": "输入设置"
     },
+    "tabs": {
+      "settings": "快捷设置",
+      "outline": "会话大纲"
+    },
+    "outline": {
+      "empty": "暂无消息",
+      "untitled": "（无内容）"
+    },
+    "export": {
+      "title": "导出对话"
+    },
     "darkMode": "深色模式",
     "showRawParameters": "显示原始参数",
     "showThinking": "显示思考过程",

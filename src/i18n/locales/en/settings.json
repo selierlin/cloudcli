@@ -72,6 +72,17 @@
       "toolDisplay": "Tool Display",
       "inputSettings": "Input Settings"
     },
+    "tabs": {
+      "settings": "Quick Settings",
+      "outline": "Outline"
+    },
+    "outline": {
+      "empty": "No messages yet",
+      "untitled": "(no content)"
+    },
+    "export": {
+      "title": "Export"
+    },
     "darkMode": "Dark Mode",
     "showRawParameters": "Show raw parameters",
     "showThinking": "Show thinking",

@@ -82,6 +82,7 @@ function AppContentInner() {
     sidebarSharedProps,
     handleNewSession,
     handleProjectSelect,
+    handleJumpToMessage,
   } = useProjectsState({
     sessionId,
     navigate,
@@ -363,7 +364,10 @@ function AppContentInner() {
         onShowTab={setActiveTab}
       />
 
-      <QuickSettingsPanel />
+      <QuickSettingsPanel
+        selectedSession={selectedSession}
+        onJumpToMessage={handleJumpToMessage}
+      />
     </div>
   );
 }
