@@ -185,6 +185,17 @@ body {
   opacity: 0.5;
 }
 
+.error-msg {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid var(--danger);
+  color: #fca5a5;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-top: 12px;
+}
+
 .hint {
   color: var(--muted);
   font-size: 12.5px;
@@ -198,4 +209,28 @@ body {
   padding: 2px 6px;
   border-radius: 6px;
   font-size: 12px;
+}
+
+/* 行内编辑 */
+.server-item .edit-input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 14px;
+  width: 100%;
+  outline: none;
+}
+
+.server-item .edit-input:focus {
+  border-color: var(--accent);
+}
+
+.server-item .edit-input + .edit-input {
+  margin-top: 6px;
+}
+
+.icon-btn.save {
+  color: var(--accent);
 }
