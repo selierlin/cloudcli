@@ -56,6 +56,17 @@
       "toolDisplay": "Affichage des outils",
       "inputSettings": "Paramètres de saisie"
     },
+    "tabs": {
+      "settings": "Réglages rapides",
+      "outline": "Plan"
+    },
+    "outline": {
+      "empty": "Aucun message pour l'instant",
+      "untitled": "(aucun contenu)"
+    },
+    "export": {
+      "title": "Exporter"
+    },
     "darkMode": "Mode sombre",
     "showRawParameters": "Afficher les paramètres bruts",
     "showThinking": "Afficher la réflexion",

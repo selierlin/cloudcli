@@ -72,6 +72,17 @@
       "toolDisplay": "Visualización de herramientas",
       "inputSettings": "Ajustes de entrada"
     },
+    "tabs": {
+      "settings": "Ajustes rápidos",
+      "outline": "Esquema"
+    },
+    "outline": {
+      "empty": "Aún no hay mensajes",
+      "untitled": "(sin contenido)"
+    },
+    "export": {
+      "title": "Exportar"
+    },
     "darkMode": "Modo oscuro",
     "showRawParameters": "Mostrar parámetros sin procesar",
     "showThinking": "Mostrar razonamiento",

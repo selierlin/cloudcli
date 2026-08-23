@@ -56,6 +56,17 @@
       "toolDisplay": "ツール表示",
       "inputSettings": "入力設定"
     },
+    "tabs": {
+      "settings": "クイック設定",
+      "outline": "アウトライン"
+    },
+    "outline": {
+      "empty": "メッセージはまだありません",
+      "untitled": "（内容なし）"
+    },
+    "export": {
+      "title": "エクスポート"
+    },
     "darkMode": "ダークモード",
     "showRawParameters": "生パラメータを表示",
     "showThinking": "思考を表示",

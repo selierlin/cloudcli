@@ -72,6 +72,17 @@
       "toolDisplay": "도구 표시",
       "inputSettings": "입력 설정"
     },
+    "tabs": {
+      "settings": "빠른 설정",
+      "outline": "개요"
+    },
+    "outline": {
+      "empty": "아직 메시지가 없습니다",
+      "untitled": "(내용 없음)"
+    },
+    "export": {
+      "title": "내보내기"
+    },
     "darkMode": "다크 모드",
     "showRawParameters": "Raw 파라미터 표시",
     "showThinking": "생각 과정 표시",

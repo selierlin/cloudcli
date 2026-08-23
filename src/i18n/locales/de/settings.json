@@ -56,6 +56,17 @@
       "toolDisplay": "Werkzeuganzeige",
       "inputSettings": "Eingabeeinstellungen"
     },
+    "tabs": {
+      "settings": "Schnelleinstellungen",
+      "outline": "Gliederung"
+    },
+    "outline": {
+      "empty": "Noch keine Nachrichten",
+      "untitled": "(kein Inhalt)"
+    },
+    "export": {
+      "title": "Exportieren"
+    },
     "darkMode": "Darkmode",
     "showRawParameters": "Rohe Parameter anzeigen",
     "showThinking": "Denken anzeigen",

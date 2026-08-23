@@ -1,6 +1,15 @@
 import type { CSSProperties } from 'react';
 import type { LucideIcon } from 'lucide-react';
 
+import type { ProjectSession } from '../../types/app';
+
+export type QuickSettingsTab = 'settings' | 'outline';
+
+export type QuickSettingsPanelProps = {
+  selectedSession: ProjectSession | null;
+  onJumpToMessage: (timestamp: string, snippet: string) => void;
+};
+
 export type PreferenceToggleKey =
   | 'showRawParameters'
   | 'showThinking'

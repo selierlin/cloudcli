@@ -56,6 +56,17 @@
       "toolDisplay": "Visualizzazione strumenti",
       "inputSettings": "Impostazioni input"
     },
+    "tabs": {
+      "settings": "Impostazioni rapide",
+      "outline": "Schema"
+    },
+    "outline": {
+      "empty": "Nessun messaggio ancora",
+      "untitled": "(nessun contenuto)"
+    },
+    "export": {
+      "title": "Esporta"
+    },
     "darkMode": "Modalità scura",
     "showRawParameters": "Mostra parametri grezzi",
     "showThinking": "Mostra ragionamento",
