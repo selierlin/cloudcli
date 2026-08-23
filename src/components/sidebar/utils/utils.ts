@@ -24,13 +24,14 @@ export const readProjectSortOrder = (): ProjectSortOrder => {
   try {
     const rawSettings = localStorage.getItem('claude-settings');
     if (!rawSettings) {
-      return 'name';
+      return 'date';
     }
 
     const settings = JSON.parse(rawSettings) as { projectSortOrder?: ProjectSortOrder };
-    return settings.projectSortOrder === 'date' ? 'date' : 'name';
+    // 默认按最近活动排序；仅当用户显式选择字母顺序时才用 name。
+    return settings.projectSortOrder === 'name' ? 'name' : 'date';
   } catch {
-    return 'name';
+    return 'date';
   }
 };
 
