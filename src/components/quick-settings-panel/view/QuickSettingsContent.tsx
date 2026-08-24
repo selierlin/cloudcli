@@ -1,7 +1,7 @@
-import { Moon, Sun } from 'lucide-react';
+import { SunMoon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { DarkModeToggle } from '../../../shared/view/ui';
+import { ThemeModeSelector } from '../../../shared/view/ui';
 import LanguageSelector from '../../../shared/view/ui/LanguageSelector';
 import {
   INPUT_SETTING_TOGGLES,
@@ -18,13 +18,11 @@ import QuickSettingsSection from './QuickSettingsSection';
 import QuickSettingsToggleRow from './QuickSettingsToggleRow';
 
 type QuickSettingsContentProps = {
-  isDarkMode: boolean;
   preferences: QuickSettingsPreferences;
   onPreferenceChange: (key: PreferenceToggleKey, value: boolean) => void;
 };
 
 export default function QuickSettingsContent({
-  isDarkMode,
   preferences,
   onPreferenceChange,
 }: QuickSettingsContentProps) {
@@ -50,14 +48,10 @@ export default function QuickSettingsContent({
       <QuickSettingsSection title={t('quickSettings.sections.appearance')}>
         <div className={SETTING_ROW_CLASS}>
           <span className="flex items-center gap-2 text-sm text-foreground">
-            {isDarkMode ? (
-              <Moon className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <Sun className="h-4 w-4 text-muted-foreground" />
-            )}
-            {t('quickSettings.darkMode')}
+            <SunMoon className="h-4 w-4 text-muted-foreground" />
+            {t('quickSettings.theme')}
           </span>
-          <DarkModeToggle />
+          <ThemeModeSelector />
         </div>
         <LanguageSelector compact />
       </QuickSettingsSection>

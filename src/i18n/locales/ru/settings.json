@@ -67,7 +67,7 @@
     "export": {
       "title": "Экспорт"
     },
-    "darkMode": "Темная тема",
+    "theme": "Тема",
     "showRawParameters": "Показывать сырые параметры",
     "showThinking": "Показывать размышления",
     "sendByCtrlEnter": "Отправка по Ctrl+Enter",
@@ -131,11 +131,14 @@
       "error": "Запуск завершился с ошибкой"
     }
   },
+  "themeMode": {
+    "label": "Тема",
+    "description": "Выберите светлую, тёмную или системную тему",
+    "light": "Светлая",
+    "dark": "Тёмная",
+    "system": "Системная"
+  },
   "appearanceSettings": {
-    "darkMode": {
-      "label": "Темная тема",
-      "description": "Переключение между светлой и темной темами"
-    },
     "projectSorting": {
       "label": "Сортировка проектов",
       "description": "Как проекты упорядочены на боковой панели",

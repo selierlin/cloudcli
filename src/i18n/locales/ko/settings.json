@@ -83,7 +83,7 @@
     "export": {
       "title": "내보내기"
     },
-    "darkMode": "다크 모드",
+    "theme": "테마",
     "showRawParameters": "Raw 파라미터 표시",
     "showThinking": "생각 과정 표시",
     "sendByCtrlEnter": "Ctrl+Enter로 전송",
@@ -157,11 +157,14 @@
       "error": "실행 실패"
     }
   },
+  "themeMode": {
+    "label": "테마",
+    "description": "밝게, 어둡게 또는 시스템 설정을 따르는 테마를 선택합니다",
+    "light": "밝게",
+    "dark": "어둡게",
+    "system": "시스템"
+  },
   "appearanceSettings": {
-    "darkMode": {
-      "label": "다크 모드",
-      "description": "라이트/다크 테마 전환"
-    },
     "projectSorting": {
       "label": "프로젝트 정렬",
       "description": "사이드바에서 프로젝트 정렬 방식",

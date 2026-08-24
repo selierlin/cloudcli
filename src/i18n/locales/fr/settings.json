@@ -67,7 +67,7 @@
     "export": {
       "title": "Exporter"
     },
-    "darkMode": "Mode sombre",
+    "theme": "Thème",
     "showRawParameters": "Afficher les paramètres bruts",
     "showThinking": "Afficher la réflexion",
     "sendByCtrlEnter": "Envoyer avec Ctrl+Entrée",
@@ -131,11 +131,14 @@
       "error": "Exécution échouée"
     }
   },
+  "themeMode": {
+    "label": "Thème",
+    "description": "Choisir clair, sombre ou suivre le réglage système",
+    "light": "Clair",
+    "dark": "Sombre",
+    "system": "Système"
+  },
   "appearanceSettings": {
-    "darkMode": {
-      "label": "Mode sombre",
-      "description": "Basculer entre les thèmes clair et sombre"
-    },
     "projectSorting": {
       "label": "Tri des projets",
       "description": "Ordre d'affichage des projets dans la barre latérale",

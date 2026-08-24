@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
-import { DarkModeToggle } from '../../../../shared/view/ui';
+import { ThemeModeSelector } from '../../../../shared/view/ui';
 import type {
   CodeEditorSettingsState,
   FontFamilyId,
@@ -52,13 +52,13 @@ export default function AppearanceSettingsTab({
 
   return (
     <div className="space-y-8">
-      <SettingsSection title={t('appearanceSettings.darkMode.label')}>
+      <SettingsSection title={t('themeMode.label')}>
         <SettingsCard>
           <SettingsRow
-            label={t('appearanceSettings.darkMode.label')}
-            description={t('appearanceSettings.darkMode.description')}
+            label={t('themeMode.label')}
+            description={t('themeMode.description')}
           >
-            <DarkModeToggle ariaLabel={t('appearanceSettings.darkMode.label')} />
+            <ThemeModeSelector ariaLabel={t('themeMode.label')} />
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>

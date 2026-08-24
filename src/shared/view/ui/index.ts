@@ -7,7 +7,7 @@ export { Confirmation, ConfirmationTitle, ConfirmationRequest, ConfirmationAccep
 export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, CardAction } from './Card';
 export { Collapsible, CollapsibleTrigger, CollapsibleContent } from './Collapsible';
 export { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem, CommandSeparator } from './Command';
-export { default as DarkModeToggle } from './DarkModeToggle';
+export { default as ThemeModeSelector } from './ThemeModeSelector';
 export { Dialog, DialogTrigger, DialogContent, DialogTitle } from './Dialog';
 export { Input } from './Input';
 export { ScrollArea } from './ScrollArea';
