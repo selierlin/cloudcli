@@ -374,7 +374,12 @@ export function useSlashCommands({
       setFilteredCommands(slashCommands);
     }
 
-    textareaRef.current?.focus();
+    // 触摸设备（移动端）不聚焦输入框，避免 iOS 自动弹出软键盘遮挡命令菜单；
+    // 菜单在触摸设备上通过点选操作，键盘导航（方向键/回车）仅在桌面端有意义。
+    const isCoarsePointer = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+    if (!isCoarsePointer) {
+      textareaRef.current?.focus();
+    }
   }, [showCommandMenu, slashCommands, textareaRef]);
 
   const handleCommandInputChange = useCallback(

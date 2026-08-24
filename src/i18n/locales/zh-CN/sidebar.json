@@ -159,7 +159,8 @@
     "archiveSession": "归档会话",
     "deleteSessionPermanently": "永久删除",
     "archiveSessionNotice": "归档会让会话从活动列表中移除，同时保留其历史记录。",
-    "archivedSessionNotice": "此会话已归档。您可以保持其隐藏，或永久删除。"
+    "archivedSessionNotice": "此会话已归档。您可以保持其隐藏，或永久删除。",
+    "permanentDeleteWarning": "永久删除还会同时删除磁盘上的会话文件，桌面端工具（如 DeepSeek Harness、Claude Code、Codex）也会失去这个会话。此操作无法撤销。"
   },
   "archived": {
     "restore": "恢复会话",

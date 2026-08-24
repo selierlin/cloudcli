@@ -177,6 +177,9 @@ export default function SidebarModals({
                         ? t('deleteConfirmation.archivedSessionNotice', 'This session is already archived. You can keep it hidden or delete it permanently.')
                         : t('deleteConfirmation.archiveSessionNotice', 'Archive keeps the session out of the active list while preserving its history.')}
                     </p>
+                    <p className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">
+                      {t('deleteConfirmation.permanentDeleteWarning', 'Delete permanently also removes the session file from disk, so the desktop-side tools that own it (e.g. DeepSeek Harness, Claude Code, Codex) lose this session too. This cannot be undone.')}
+                    </p>
                   </div>
                 </div>
               </div>
