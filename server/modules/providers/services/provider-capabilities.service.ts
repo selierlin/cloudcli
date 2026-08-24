@@ -81,6 +81,22 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsTokenUsage: true,
     supportsEffort: true,
   },
+  workbuddy: {
+    provider: 'workbuddy',
+    // The embedded CodeBuddy engine shares the app's permission-mode
+    // vocabulary (default/acceptEdits/bypassPermissions/plan), passed through
+    // `--permission-mode` on every run.
+    permissionModes: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
+    defaultPermissionMode: 'default',
+    // Attachments are not passed through the print-mode CLI invocation yet,
+    // and no token-usage parser exists for WorkBuddy transcripts.
+    supportsImages: false,
+    supportsFiles: false,
+    supportsAbort: true,
+    supportsPermissionRequests: false,
+    supportsTokenUsage: false,
+    supportsEffort: false,
+  },
   dsh: {
     provider: 'dsh',
     // The DSH ACP bridge answers one-shot permission requests programmatically;

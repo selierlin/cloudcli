@@ -84,6 +84,18 @@ test('models command falls back to claude for unsupported providers', async () =
   assert.equal(data.current.provider, 'claude');
 });
 
+test('models command keeps the active workbuddy provider instead of falling back to claude', async () => {
+  const result = await executeCommand('/models', { provider: 'workbuddy', model: 'auto' });
+  const data = result.data as {
+    current: { provider: string; providerLabel: string; model: string };
+    available: Record<string, unknown>;
+  };
+  assert.equal(data.current.provider, 'workbuddy');
+  assert.equal(data.current.providerLabel, 'WorkBuddy');
+  assert.equal(data.current.model, 'auto');
+  assert.deepEqual(Object.keys(data.available), ['workbuddy']);
+});
+
 test('models command reports the model recorded for the session', async () => {
   const result = await executeCommand(
     '/models',

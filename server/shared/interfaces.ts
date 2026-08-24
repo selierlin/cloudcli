@@ -176,4 +176,11 @@ export interface IProviderSessionSynchronizer {
    * Parses and upserts one provider artifact file without running a full scan.
    */
   synchronizeFile(filePath: string): Promise<string | null>;
+
+  /**
+   * Resolves the on-disk transcript path for one provider session id, so a
+   * permanent delete can remove the file even when the DB row was never indexed
+   * (`jsonl_path` is NULL). Returns null when no transcript exists yet.
+   */
+  resolveTranscriptPath?(providerSessionId: string, projectPath: string): Promise<string | null>;
 }

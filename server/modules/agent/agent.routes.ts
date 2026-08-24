@@ -22,6 +22,8 @@ type AgentRouterDependencies = {
   queryCursor: ProviderRunFunction;
   queryCodex: ProviderRunFunction;
   queryOpenCode: ProviderRunFunction;
+  queryDsh: ProviderRunFunction;
+  queryWorkbuddy: ProviderRunFunction;
   GithubClient: typeof import('@octokit/rest').Octokit;
 };
 
@@ -44,6 +46,8 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
   const spawnCursor = dependencies.queryCursor;
   const queryCodex = dependencies.queryCodex;
   const spawnOpenCode = dependencies.queryOpenCode;
+  const queryDsh = dependencies.queryDsh;
+  const queryWorkbuddy = dependencies.queryWorkbuddy;
   const Octokit = dependencies.GithubClient;
   const router = express.Router();
 
@@ -896,8 +900,8 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
       return res.status(400).json({ error: 'message is required' });
     }
 
-    if (!['claude', 'cursor', 'codex', 'opencode', 'dsh'].includes(provider)) {
-      return res.status(400).json({ error: 'provider must be "claude", "cursor", "codex", "opencode", or "dsh"' });
+    if (!['claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy'].includes(provider)) {
+      return res.status(400).json({ error: 'provider must be "claude", "cursor", "codex", "opencode", "dsh", or "workbuddy"' });
     }
 
     // Validate GitHub branch/PR creation requirements
@@ -1025,6 +1029,26 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
           model: model || opencodeModels.DEFAULT,
           effort,
           permissionMode: 'bypassPermissions' // Agent runs are non-interactive, like the other providers above
+        }, writer);
+      } else if (provider === 'dsh') {
+        console.log('🤖 Starting DSH ACP session');
+
+        // DSH runtimes key their live state by an app session id; synthesize
+        // one for API callers that did not supply a session.
+        await queryDsh(message.trim(), {
+          projectPath: finalProjectPath,
+          cwd: finalProjectPath,
+          sessionId: sessionId || `api-${crypto.randomUUID()}`,
+          permissionMode: 'bypassPermissions'
+        }, writer);
+      } else if (provider === 'workbuddy') {
+        console.log('🤖 Starting WorkBuddy CLI session');
+
+        await queryWorkbuddy(message.trim(), {
+          projectPath: finalProjectPath,
+          cwd: finalProjectPath,
+          sessionId: sessionId || `api-${crypto.randomUUID()}`,
+          permissionMode: 'bypassPermissions'
         }, writer);
       }
 
