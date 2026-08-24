@@ -1,4 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 
 import { notifyRunFailed, notifyRunStopped } from '@/modules/notifications/index.js';
 import type { IProviderRuntime } from '@/shared/interfaces.js';
@@ -9,7 +11,7 @@ import type {
 } from '@/shared/types.js';
 import { createCompleteMessage, createNormalizedMessage } from '@/shared/utils.js';
 
-import { getDshHarnessRoot } from './dsh-models.provider.js';
+import { getDshHarnessRoot, getDshSessionsRoot } from './dsh-models.provider.js';
 
 // ---------- Minimal ACP (Agent Client Protocol) client over JSON-RPC stdio ----------
 //
@@ -24,12 +26,20 @@ type AcpPermissionOption = { optionId: string; kind: string; message?: string };
 type AcpClientHandlers = {
   onMessageChunk(sessionId: string, text: string): void;
   onRequestPermission(sessionId: string, options: AcpPermissionOption[]): void;
+  /** Invoked once the child exits or the client is closed, so the runtime can drop the cached server. */
+  onClose?(): void;
 };
 
 type PendingRequest = {
   resolve(value: unknown): void;
   reject(error: Error): void;
+  /** Optional timeout that rejects the request if the ACP child never responds. */
+  timer?: ReturnType<typeof setTimeout>;
 };
+
+/** Default bounds so a hung ACP child cannot wedge runs, aborts, or the WS handler forever. */
+const REQUEST_TIMEOUT_MS = 10_000;
+const PROMPT_TIMEOUT_MS = Number(process.env.DSH_PROMPT_TIMEOUT_MS) || 3_600_000;
 
 /** Minimal Agent Client Protocol client over newline-delimited JSON-RPC stdio. */
 class AcpClient {
@@ -84,6 +94,9 @@ class AcpClient {
         return;
       }
       this.pending.delete(message.id);
+      if (request.timer) {
+        clearTimeout(request.timer);
+      }
       if (message.error) {
         request.reject(new Error(String(message.error.message ?? 'DSH ACP request failed')));
       } else {
@@ -131,16 +144,21 @@ class AcpClient {
     this.child.stdin!.write(`${JSON.stringify({ jsonrpc: '2.0', id, result })}\n`);
   }
 
-  private request(method: string, params: AnyRecord): Promise<any> {
+  private request(method: string, params: AnyRecord, timeoutMs = REQUEST_TIMEOUT_MS): Promise<any> {
     if (this.closed) {
       return Promise.reject(new Error('DSH ACP server is not running.'));
     }
     const id = ++this.nextId;
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error(`DSH ACP request "${method}" timed out after ${timeoutMs}ms.`));
+      }, timeoutMs);
+      this.pending.set(id, { resolve, reject, timer });
       try {
         this.child.stdin!.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`);
       } catch (error) {
+        clearTimeout(timer);
         this.pending.delete(id);
         reject(error instanceof Error ? error : new Error(String(error)));
       }
@@ -153,9 +171,27 @@ class AcpClient {
     }
     this.closed = true;
     for (const request of this.pending.values()) {
+      if (request.timer) {
+        clearTimeout(request.timer);
+      }
       request.reject(error);
     }
     this.pending.clear();
+    this.handlers.onClose?.();
+  }
+
+  /** True once the child has exited or the client was closed. */
+  get isClosed(): boolean {
+    return this.closed;
+  }
+
+  /** Force-terminates the child synchronously (used on process exit to avoid orphans). */
+  killSync(): void {
+    try {
+      this.child.kill('SIGKILL');
+    } catch {
+      // Already exited.
+    }
   }
 
   async initialize(): Promise<void> {
@@ -171,15 +207,24 @@ class AcpClient {
   }
 
   async prompt(sessionId: string, text: string): Promise<{ stopReason: string }> {
+    // The turn can legitimately run for minutes; the timeout only guards
+    // against a hung child so the run cannot wedge forever.
     const result = await this.request('session/prompt', {
       sessionId,
       prompt: [{ type: 'text', text }],
-    }) as AnyRecord;
+    }, PROMPT_TIMEOUT_MS) as AnyRecord;
     return { stopReason: typeof result?.stopReason === 'string' ? result.stopReason : 'error' };
   }
 
   async cancel(sessionId: string): Promise<void> {
-    await this.request('session/cancel', { sessionId });
+    try {
+      await this.request('session/cancel', { sessionId });
+    } catch (error) {
+      // The ACP server is unresponsive; force it down so the hung prompt
+      // rejects and the caller's abort() unblocks instead of waiting forever.
+      this.close();
+      throw error;
+    }
   }
 
   close(): void {
@@ -231,14 +276,103 @@ type ActiveRun = {
 };
 
 let acpServer: AcpServerState | null = null;
+/** In-flight ACP spawn+initialize, so concurrent first runs share one child process. */
+let acpServerPromise: Promise<AcpServerState> | null = null;
 /** ACP session id → in-flight run, for routing agent_message_chunk to the right writer. */
 const activeRuns = new Map<string, ActiveRun>();
 
+let shutdownHooksRegistered = false;
+
+/**
+ * Registers a process-exit hook that force-kills the ACP child. Without it a
+ * server restart would leave the ACP process orphaned (reparented, still
+ * running). Registered once; the hook is synchronous because Node `exit`
+ * handlers must not be async.
+ */
+function registerProcessShutdownHook(): void {
+  if (shutdownHooksRegistered) {
+    return;
+  }
+  shutdownHooksRegistered = true;
+  process.on('exit', () => {
+    if (acpServer) {
+      try {
+        acpServer.client.killSync();
+      } catch {
+        // Best-effort cleanup during exit.
+      }
+      acpServer = null;
+    }
+  });
+}
+
+/**
+ * Registers a claudecodeui-created ACP session with the DSH Desktop workspace
+ * registry (`<harness>/storages/workspace.json`) so the Desktop UI groups it
+ * under the matching project instead of "ungrouped".
+ *
+ * The Desktop app only attaches sessions it created itself (session/create and
+ * session/fork); sessions created by external ACP processes land in its
+ * session directory but never in a workspace. This mirrors the Desktop's own
+ * attach rule — the session cwd must equal the workspace path — and writes
+ * atomically (temp file + rename). Any parse/format/mismatch failure is
+ * skipped so a future Desktop registry format upgrade can never break a run.
+ */
+function registerSessionWithDesktopWorkspace(acpSessionId: string, cwd: string): void {
+  try {
+    const workspaceFile = path.join(path.dirname(getDshSessionsRoot()), 'storages', 'workspace.json');
+    if (!fs.existsSync(workspaceFile)) {
+      return;
+    }
+    const parsed = JSON.parse(fs.readFileSync(workspaceFile, 'utf8')) as AnyRecord;
+    const workspaces = parsed?.tables?.workspaces as AnyRecord | undefined;
+    if (!workspaces) {
+      return;
+    }
+    const normalizePath = (value: string): string => value.replace(/[\\/]+$/, '');
+    const targetCwd = normalizePath(cwd);
+    for (const entry of Object.values(workspaces)) {
+      const workspace = entry as AnyRecord | undefined;
+      const workspacePath = typeof workspace?.path === 'string' ? workspace.path : '';
+      if (!workspace || !workspacePath || normalizePath(workspacePath) !== targetCwd) {
+        continue;
+      }
+      const sessionIds = Array.isArray(workspace.sessionIds)
+        ? (workspace.sessionIds as unknown[]).filter((id): id is string => typeof id === 'string')
+        : [];
+      if (sessionIds.includes(acpSessionId)) {
+        return;
+      }
+      workspace.sessionIds = [acpSessionId, ...sessionIds];
+      const temporaryFile = `${workspaceFile}.tmp`;
+      fs.writeFileSync(temporaryFile, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
+      fs.renameSync(temporaryFile, workspaceFile);
+      console.log(`[DSH] registered session ${acpSessionId} with desktop workspace "${workspacePath}"`);
+      return;
+    }
+  } catch (error) {
+    console.warn('[DSH] desktop workspace registration skipped:', error instanceof Error ? error.message : String(error));
+  }
+}
+
 /** Lazily spawns the DSH ACP server process and negotiates the protocol. */
 async function ensureAcpServer(): Promise<AcpServerState> {
+  // A dead server (crashed child / closed client) must never be handed out:
+  // drop the cache so the next call spawns a fresh ACP process.
+  if (acpServer && acpServer.client.isClosed) {
+    acpServer = null;
+  }
   if (acpServer) {
     return acpServer;
   }
+  // Reuse the in-flight spawn for concurrent first runs so only one ACP
+  // child is ever created; otherwise every caller spawns its own process and
+  // all but the last become unmanaged orphans.
+  if (acpServerPromise) {
+    return acpServerPromise;
+  }
+
+  registerProcessShutdownHook();
 
   const harnessRoot = getDshHarnessRoot();
   // The ACP server is a separate node process; do not leak the parent tsx
@@ -246,6 +380,10 @@ async function ensureAcpServer(): Promise<AcpServerState> {
   // break `node --import tsx` inside the child).
   const childEnv: NodeJS.ProcessEnv = { ...process.env };
   delete childEnv.TSX_TSCONFIG_PATH;
+  // The ACP composition reads this variable to override its persistence root
+  // (examples/acp-agent/cordis.yml), which is how claudecodeui sessions become
+  // visible in the DSH Desktop app.
+  childEnv.DSH_SNAPSHOT_SESSIONS_ROOT = getDshSessionsRoot();
   const child = spawn(
     process.execPath,
     ['--import', 'tsx', 'packages/examples/acp-demo/src/bin.ts', '--config', 'examples/acp-agent/cordis.yml'],
@@ -269,17 +407,32 @@ async function ensureAcpServer(): Promise<AcpServerState> {
     onRequestPermission: (acpSessionId) => {
       console.warn(`[DSH] auto-declining permission request for session ${acpSessionId}`);
     },
+    // The child crashed or was closed: drop the cached server so the next run
+    // spawns a fresh process instead of reusing a dead one.
+    onClose: () => {
+      if (acpServer?.client === client) {
+        acpServer = null;
+      }
+    },
   });
 
-  try {
-    await client.initialize();
-  } catch (error) {
-    client.close();
-    throw error;
-  }
+  acpServerPromise = (async () => {
+    try {
+      await client.initialize();
+    } catch (error) {
+      client.close();
+      throw error;
+    }
+    const state: AcpServerState = { client, sessionByApp: new Map() };
+    acpServer = state;
+    return state;
+  })();
 
-  acpServer = { client, sessionByApp: new Map() };
-  return acpServer;
+  try {
+    return await acpServerPromise;
+  } finally {
+    acpServerPromise = null;
+  }
 }
 
 /** Provider registry runtime adapter driving the DSH ACP server. */
@@ -303,7 +456,17 @@ export const dshRuntime: IProviderRuntime = {
     let acpSessionId: string | null = null;
     try {
       server = await ensureAcpServer();
-      const existing = server.sessionByApp.get(appSessionId);
+      let existing = server.sessionByApp.get(appSessionId);
+      if (!existing) {
+        // The in-memory mapping is lost when the ACP server restarts (crash or
+        // process restart). Rebuild it from the persisted provider session id so
+        // a resumed conversation continues its thread instead of starting fresh.
+        const persisted = context.resolveProviderSessionId(appSessionId);
+        if (persisted) {
+          server.sessionByApp.set(appSessionId, persisted);
+          existing = persisted;
+        }
+      }
       if (existing) {
         acpSessionId = existing;
       } else {
@@ -315,6 +478,9 @@ export const dshRuntime: IProviderRuntime = {
         acpSessionId = await server.client.newSession(cwd);
         server.sessionByApp.set(appSessionId, acpSessionId);
         trimSessionMappings(server.sessionByApp);
+        // Register the session with the DSH Desktop workspace registry so the
+        // Desktop UI groups it under the matching project instead of "ungrouped".
+        registerSessionWithDesktopWorkspace(acpSessionId, cwd);
         // Announce the provider-native (ACP) session id so the chat writer maps
         // it to the app session row. History reads later resolve the JSONL log
         // file through this id.

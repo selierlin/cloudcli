@@ -116,7 +116,7 @@ export const sessionsDb = {
              WHEN session_id <> provider_session_id AND custom_name IS NOT NULL THEN custom_name
              ELSE COALESCE(?, custom_name)
            END
-         WHERE session_id = ?`
+         WHERE session_id = ? AND isArchived = 0`
       ).run(
         provider,
         updatedAtValue,

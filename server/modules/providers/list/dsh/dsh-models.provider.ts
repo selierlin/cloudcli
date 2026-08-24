@@ -40,6 +40,25 @@ export const getDshHarnessRoot = (): string =>
   process.env.DSH_HARNESS_ROOT
   || path.join(os.homedir(), 'Projects', 'open_projects', 'deepseek-harness');
 
+/**
+ * Root where ACP sessions are persisted.
+ *
+ * Defaults to the DSH Desktop harness sessions directory so claudecodeui
+ * sessions land next to the Desktop app's own sessions (visible in the Desktop
+ * UI); override with `DSH_SESSIONS_ROOT` to isolate them elsewhere. The ACP
+ * composition reads this root via `DSH_SNAPSHOT_SESSIONS_ROOT`, so every
+ * reader (synchronizer / history / watcher) must use this same root.
+ */
+export const getDshSessionsRoot = (): string => {
+  const override = process.env.DSH_SESSIONS_ROOT?.trim();
+  if (override) {
+    return override;
+  }
+  const desktopHarness = process.env.DSH_HOME?.trim()
+    || path.join(os.homedir(), 'Library', 'Application Support', 'dsh-desktop', 'harness');
+  return path.join(desktopHarness, 'sessions');
+};
+
 /** Provider registry model adapter for DSH predefined models and active config. */
 export class DshProviderModels implements IProviderModels {
   async getSupportedModels(): Promise<ProviderModelsDefinition> {

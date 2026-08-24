@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import test from 'node:test';
+import test, { mock } from 'node:test';
 
 import { closeConnection, initializeDatabase, projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
 
 async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promise<void> {
@@ -123,5 +125,60 @@ test('recent sessions map project metadata and preserve database pagination', { 
       total: 2,
       hasMore: true,
     });
+  });
+});
+
+test('force delete removes the transcript via the provider path resolver when jsonl_path is null', { concurrency: false }, async (t) => {
+  await withIsolatedDatabase(async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'session-force-delete-'));
+    const transcriptPath = path.join(tempRoot, 'session.jsonl.zstd');
+    await writeFile(transcriptPath, 'placeholder');
+
+    try {
+      sessionsDb.createAppSession('app-dsh-force-delete', 'dsh', '/tmp/dsh-force-delete-project');
+      sessionsDb.assignProviderSessionId('app-dsh-force-delete', 'dsh-native-force-delete');
+
+      mock.method(providerRegistry, 'resolveProvider', (() => ({
+        sessionSynchronizer: {
+          resolveTranscriptPath: async () => transcriptPath,
+        },
+      })) as unknown as typeof providerRegistry.resolveProvider);
+      t.after(() => mock.reset());
+
+      const result = await sessionsService.deleteOrArchiveSessionById('app-dsh-force-delete', {
+        force: true,
+        deletedFromDisk: true,
+      });
+
+      assert.equal(result.action, 'deleted');
+      assert.equal(result.deletedFromDisk, true);
+      assert.equal(sessionsDb.getSessionById('app-dsh-force-delete'), null);
+      assert.equal(existsSync(transcriptPath), false);
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+test('force delete still removes the row when the provider cannot resolve a transcript', { concurrency: false }, async (t) => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('app-dsh-force-null', 'dsh', '/tmp/dsh-force-null-project');
+    sessionsDb.assignProviderSessionId('app-dsh-force-null', 'dsh-native-force-null');
+
+    mock.method(providerRegistry, 'resolveProvider', (() => ({
+      sessionSynchronizer: {
+        resolveTranscriptPath: async () => null,
+      },
+    })) as unknown as typeof providerRegistry.resolveProvider);
+    t.after(() => mock.reset());
+
+    const result = await sessionsService.deleteOrArchiveSessionById('app-dsh-force-null', {
+      force: true,
+      deletedFromDisk: true,
+    });
+
+    assert.equal(result.action, 'deleted');
+    assert.equal(result.deletedFromDisk, false);
+    assert.equal(sessionsDb.getSessionById('app-dsh-force-null'), null);
   });
 });
