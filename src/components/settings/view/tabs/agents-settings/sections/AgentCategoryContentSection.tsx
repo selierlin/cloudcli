@@ -17,6 +17,8 @@ export default function AgentCategoryContentSection({
   onCursorPermissionsChange,
   codexPermissionMode,
   onCodexPermissionModeChange,
+  workbuddyPermissionMode,
+  onWorkbuddyPermissionModeChange,
   projects,
 }: AgentCategoryContentSectionProps) {
   return (
@@ -70,6 +72,14 @@ export default function AgentCategoryContentSection({
           agent="codex"
           permissionMode={codexPermissionMode}
           onPermissionModeChange={onCodexPermissionModeChange}
+        />
+      )}
+
+      {selectedCategory === 'permissions' && selectedAgent === 'workbuddy' && (
+        <PermissionsContent
+          agent="workbuddy"
+          permissionMode={workbuddyPermissionMode}
+          onPermissionModeChange={onWorkbuddyPermissionModeChange}
         />
       )}
 

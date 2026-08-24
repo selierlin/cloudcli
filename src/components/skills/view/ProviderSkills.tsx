@@ -61,6 +61,7 @@ const PROVIDER_NAMES: Record<SkillsProvider, string> = {
   cursor: 'Cursor',
   opencode: 'OpenCode',
   dsh: 'DeepSeek Harness',
+  workbuddy: 'WorkBuddy',
 };
 
 const PROVIDER_SKILL_PATHS: Record<Exclude<SkillsProvider, 'opencode'>, string> = {
@@ -68,6 +69,7 @@ const PROVIDER_SKILL_PATHS: Record<Exclude<SkillsProvider, 'opencode'>, string> 
   codex: '~/.agents/skills/<skill-name>/SKILL.md',
   cursor: '~/.cursor/skills/<skill-name>/SKILL.md',
   dsh: 'managed by the DeepSeek Harness itself',
+  workbuddy: 'managed by WorkBuddy itself',
 };
 
 const SCOPE_LABELS: Record<SkillsScope, string> = {

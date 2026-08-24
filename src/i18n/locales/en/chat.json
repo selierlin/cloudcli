@@ -19,7 +19,8 @@
     "cursor": "Cursor",
     "codex": "Codex",
     "opencode": "OpenCode",
-    "dsh": "DeepSeek Harness"
+    "dsh": "DeepSeek Harness",
+    "workbuddy": "WorkBuddy"
   },
   "tools": {
     "settings": "Tool Settings",
@@ -147,6 +148,28 @@
     "modelMenu": "Select model and reasoning effort",
     "permissionHeading": "How should {{provider}} actions be approved?"
   },
+  "commandMenu": {
+    "namespace": {
+      "frequent": "Frequently Used",
+      "builtin": "Built-in Commands",
+      "skill": "Skills",
+      "project": "Project Commands",
+      "user": "User Commands",
+      "other": "Other Commands"
+    },
+    "empty": "No commands available",
+    "aria": {
+      "availableCommands": "Available commands"
+    },
+    "builtin": {
+      "help": "Show help documentation for Claude Code",
+      "models": "View available models for the current provider",
+      "cost": "Display token usage information",
+      "memory": "Open CLAUDE.md memory file for editing",
+      "config": "Open settings and configuration",
+      "status": "Show system status and version information"
+    }
+  },
   "providerSelection": {
     "title": "Choose Your AI Assistant",
     "description": "Pick a tool, then choose the model it is configured with",
@@ -155,6 +178,14 @@
     "chooseModelStep": "2 · Choose a model",
     "clickToChooseModel": "Click to choose a model",
     "chooseModelForTool": "{{tool}} models",
+    "chooseModelDescription": "Models available in this tool's config",
+    "addModel": "Add model",
+    "manageModels": "Manage models",
+    "searchModels": "Search models...",
+    "noModelsFound": "No models found.",
+    "loadingModels": "Loading models…",
+    "modelSelectorTitle": "Model Selector",
+    "custom": "Custom",
     "providerInfo": {
       "anthropic": "by Anthropic",
       "openai": "by OpenAI",
@@ -168,9 +199,127 @@
       "codex": "Ready to use Codex with {{model}}. Start typing your message below.",
       "opencode": "Ready to use OpenCode with {{model}}. Start typing your message below.",
       "default": "Select a provider above to begin",
-      "dsh": "Ready to use DeepSeek Harness with {{model}}. Start typing your message below."
+      "dsh": "Ready to use DeepSeek Harness with {{model}}. Start typing your message below.",
+      "workbuddy": "Ready to use WorkBuddy with {{model}}. Start typing your message below."
     },
     "pressToSearch": "Press <kbd>{{shortcut}}</kbd> to search sessions, files, and commits"
+  },
+  "commandResult": {
+    "title": "Command Result",
+    "common": {
+      "close": "Close",
+      "escCloses": "Esc closes the modal.",
+      "closeModalAria": "Close command result modal",
+      "unknown": "Unknown"
+    },
+    "help": {
+      "eyebrow": "Command center",
+      "title": "Help & Shortcuts",
+      "subtitle": "Search built-ins, syntax patterns, and command usage without leaving the chat.",
+      "filterPlaceholder": "Filter commands...",
+      "noDescription": "No description available.",
+      "noMatch": "No commands match that filter.",
+      "syntax": "Syntax",
+      "syntaxCommand": "/command arg1 arg2",
+      "syntaxArgs": "$ARGUMENTS passes all args.",
+      "syntaxPositional": "$1, $2 pass positional args.",
+      "syntaxFile": "@file includes file contents.",
+      "quickTip": "Quick tip",
+      "quickTipBody": "Type <code>/</code> in the composer to open the command palette, then use arrows and Enter to run a command.",
+      "builtin": "builtin",
+      "fallbackModels": "Browse available models for the active provider.",
+      "fallbackCost": "Review token usage for the active session.",
+      "fallbackStatus": "Inspect runtime, version, provider, and environment status.",
+      "fallbackMemory": "Open the project CLAUDE.md memory file.",
+      "fallbackConfig": "Open settings and configuration.",
+      "fallbackHelp": "Show command documentation and syntax."
+    },
+    "models": {
+      "eyebrow": "Model selection",
+      "title": "Choose a Model",
+      "subtitle": "Pick the model this provider should use.",
+      "activeModel": "Active model · {{provider}}",
+      "manageModels": "Manage models",
+      "searchPlaceholder": "Search {{provider}} models...",
+      "custom": "Custom",
+      "currentSelection": "Current selection",
+      "sessionModel": "Session model",
+      "pendingNext": "→ {{model}} next",
+      "noMatch": "No models match that search.",
+      "selectAria": "Select model {{model}}",
+      "sessionSavedNotice": "Your choice is saved for this session and becomes the default for new chats.",
+      "defaultSavedNotice": "Your choice becomes the default model for new chats.",
+      "sessionSetNotice": "This session now uses {{model}}.",
+      "defaultSetNotice": "Default {{provider}} model set to {{model}}.",
+      "changeFailed": "Unable to change the model right now."
+    },
+    "cost": {
+      "eyebrow": "Session telemetry",
+      "title": "Token Usage",
+      "subtitle": "Input, output, and total token counts for this session.",
+      "totalTokens": "Total tokens used",
+      "inputTokens": "Input tokens",
+      "outputTokens": "Output tokens",
+      "breakdown": "Breakdown",
+      "unavailable": "Unavailable",
+      "contextWindow": "Context window",
+      "provider": "Provider",
+      "model": "Model"
+    },
+    "status": {
+      "eyebrow": "Runtime health",
+      "title": "System Status",
+      "subtitle": "Version, provider, runtime, and environment details in one place.",
+      "package": "Package",
+      "version": "Version",
+      "uptime": "Uptime",
+      "provider": "Provider",
+      "model": "Model",
+      "nodejs": "Node.js",
+      "platform": "Platform",
+      "memory": "Memory",
+      "memoryValue": "{{mb}} MB RSS",
+      "runtimeOnline": "Runtime online",
+      "processResponding": "Process #{{pid}} is responding.",
+      "processStatus": "Process status is responding.",
+      "healthy": "Healthy"
+    }
+  },
+  "modelLibrary": {
+    "title": "Model library",
+    "description": "Add model IDs supported by your provider. Built-in models stay locked.",
+    "backToModels": "Back to models",
+    "addCustomModel": "Add a custom model",
+    "editCustomModel": "Edit custom model",
+    "idSentNote": "The ID is sent to {{provider}} exactly as written.",
+    "modelName": "Model name",
+    "modelNamePlaceholder": "e.g. GPT-5.5 Pro",
+    "modelId": "Model ID",
+    "modelIdPlaceholder": "e.g. gpt-5.5-pro",
+    "idHint": "Use the exact identifier accepted by the provider CLI. IDs cannot contain spaces.",
+    "enterBothError": "Enter both a model name and model ID.",
+    "noSpacesError": "Model IDs cannot contain spaces.",
+    "saveFailedError": "Unable to save this model.",
+    "deleteFailedError": "Unable to delete this model.",
+    "updatedNotice": "{{model}} was updated.",
+    "addedNotice": "{{model}} was added.",
+    "deletedNotice": "{{model}} was deleted.",
+    "saving": "Saving…",
+    "saveChanges": "Save changes",
+    "addModel": "Add model",
+    "yourModels": "Your models",
+    "storedInAuthDb": "Editable and stored in auth.db",
+    "noCustomModels": "No custom models yet",
+    "noCustomModelsHint": "Add one with the form and it will appear in every model picker.",
+    "deleteConfirm": "Delete this model from all pickers?",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "custom": "Custom",
+    "builtInModels": "Built-in models",
+    "maintainedByCloudCLI": "Maintained by CloudCLI and read-only",
+    "cancelEditingAria": "Cancel editing",
+    "editAria": "Edit {{model}}",
+    "deleteAria": "Delete {{model}}"
   },
   "session": {
     "continue": {

@@ -36,6 +36,10 @@ const agentConfig: Record<AgentProvider, AgentConfig> = {
     name: 'DeepSeek Harness',
     color: 'zinc',
   },
+  workbuddy: {
+    name: 'WorkBuddy',
+    color: 'zinc',
+  },
 };
 
 const colorClasses = {

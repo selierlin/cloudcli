@@ -35,6 +35,7 @@ const PROVIDER_META: { id: LLMProvider; name: string }[] = [
   { id: "cursor", name: "Cursor" },
   { id: "opencode", name: "OpenCode" },
   { id: "dsh", name: "DeepSeek Harness" },
+  { id: "workbuddy", name: "Tencent WorkBuddy" },
 ];
 
 const MOD_KEY =
@@ -67,6 +68,8 @@ type ProviderSelectionEmptyStateProps = {
   setOpenCodeModel: (model: string) => void;
   dshModel: string;
   setDshModel: (model: string) => void;
+  workbuddyModel: string;
+  setWorkbuddyModel: (model: string) => void;
   providerModelCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>;
   providerModelActions: ProviderModelActions;
   providerModelsLoading: boolean;
@@ -97,11 +100,13 @@ function getCurrentModel(
   co: string,
   o: string,
   d: string,
+  w: string,
 ) {
   if (p === "claude") return c;
   if (p === "codex") return co;
   if (p === "opencode") return o;
   if (p === "dsh") return d;
+  if (p === "workbuddy") return w;
   return cu;
 }
 
@@ -121,6 +126,7 @@ function getProviderDisplayName(p: LLMProvider) {
   if (p === "codex") return "Codex";
   if (p === "opencode") return "OpenCode";
   if (p === "dsh") return "DeepSeek Harness";
+  if (p === "workbuddy") return "WorkBuddy";
   return "Claude";
 }
 
@@ -140,6 +146,8 @@ export default function ProviderSelectionEmptyState({
   setOpenCodeModel,
   dshModel,
   setDshModel,
+  workbuddyModel,
+  setWorkbuddyModel,
   providerModelCatalog,
   providerModelActions,
   providerModelsLoading,
@@ -163,6 +171,7 @@ export default function ProviderSelectionEmptyState({
     codexModel,
     opencodeModel,
     dshModel,
+    workbuddyModel,
   );
 
   const currentModelLabel = getModelLabel(provider, currentModel, providerModelCatalog);
@@ -195,12 +204,15 @@ export default function ProviderSelectionEmptyState({
       } else if (providerId === "dsh") {
         setDshModel(modelValue);
         localStorage.setItem("dsh-model", modelValue);
+      } else if (providerId === "workbuddy") {
+        setWorkbuddyModel(modelValue);
+        localStorage.setItem("workbuddy-model", modelValue);
       } else {
         setCursorModel(modelValue);
         localStorage.setItem("cursor-model", modelValue);
       }
     },
-    [setClaudeModel, setCursorModel, setCodexModel, setOpenCodeModel, setDshModel],
+    [setClaudeModel, setCursorModel, setCodexModel, setOpenCodeModel, setDshModel, setWorkbuddyModel],
   );
 
   const handleToolSelect = useCallback(
@@ -260,6 +272,7 @@ export default function ProviderSelectionEmptyState({
                   codexModel,
                   opencodeModel,
                   dshModel,
+                  workbuddyModel,
                 );
                 const toolModelLabel = getModelLabel(p.id, toolModel, providerModelCatalog);
                 return (
@@ -335,7 +348,9 @@ export default function ProviderSelectionEmptyState({
               </DialogTrigger>
 
               <DialogContent className="max-w-md overflow-hidden p-0">
-                <DialogTitle>Model Selector</DialogTitle>
+                <DialogTitle>
+                  {t("providerSelection.modelSelectorTitle", { defaultValue: "Model Selector" })}
+                </DialogTitle>
                 <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-muted/20 px-4 py-3">
                   <div className="flex min-w-0 items-center gap-2.5">
                     <LLMProviderLogo provider={provider} className="h-5 w-5 shrink-0" />
@@ -396,7 +411,9 @@ export default function ProviderSelectionEmptyState({
                                 <div className="flex min-w-0 items-center gap-2">
                                   <span className="truncate">{model.label}</span>
                                   {model.isCustom && (
-                                    <Badge className="h-4 shrink-0 rounded-full px-1.5 text-[8px]">Custom</Badge>
+                                    <Badge className="h-4 shrink-0 rounded-full px-1.5 text-[8px]">
+                                      {t("providerSelection.custom", { defaultValue: "Custom" })}
+                                    </Badge>
                                   )}
                                 </div>
                                 {model.label !== model.value && (
@@ -463,6 +480,10 @@ export default function ProviderSelectionEmptyState({
                 dsh: t("providerSelection.readyPrompt.dsh", {
                   model: currentModelLabel,
                   defaultValue: "Ready with DeepSeek Harness {{model}}",
+                }),
+                workbuddy: t("providerSelection.readyPrompt.workbuddy", {
+                  model: currentModelLabel,
+                  defaultValue: "Ready with WorkBuddy {{model}}",
                 }),
               }[provider]
             }

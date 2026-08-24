@@ -418,6 +418,15 @@
         "overrideNote": "Du kannst dies pro Sitzung über die Modusschaltfläche in der Chat-Oberfläche überschreiben."
       }
     },
+    "workbuddy": {
+      "description": "Steuert, wie WorkBuddy Dateiänderungen und Befehlsausführung handhabt",
+      "modes": {
+        "plan": {
+          "title": "Nur planen",
+          "description": "Analysiert und erstellt einen Ausführungsplan, ohne Dateien zu ändern oder Befehle auszuführen."
+        }
+      }
+    },
     "actions": {
       "add": "Hinzufügen"
     }

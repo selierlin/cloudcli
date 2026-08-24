@@ -43,6 +43,8 @@ interface ChatMessagesPaneProps {
   setOpenCodeModel: (model: string) => void;
   dshModel: string;
   setDshModel: (model: string) => void;
+  workbuddyModel: string;
+  setWorkbuddyModel: (model: string) => void;
   providerModelCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>;
   providerModelActions: ProviderModelActions;
   providerModelsLoading: boolean;
@@ -94,6 +96,8 @@ function ChatMessagesPane({
   setOpenCodeModel,
   dshModel,
   setDshModel,
+  workbuddyModel,
+  setWorkbuddyModel,
   providerModelCatalog,
   providerModelActions,
   providerModelsLoading,
@@ -196,6 +200,8 @@ function ChatMessagesPane({
           setOpenCodeModel={setOpenCodeModel}
           dshModel={dshModel}
           setDshModel={setDshModel}
+          workbuddyModel={workbuddyModel}
+          setWorkbuddyModel={setWorkbuddyModel}
           providerModelCatalog={providerModelCatalog}
           providerModelActions={providerModelActions}
           providerModelsLoading={providerModelsLoading}

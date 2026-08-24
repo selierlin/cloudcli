@@ -77,6 +77,8 @@ function ChatInterface({
     setOpenCodeModel,
     dshModel,
     setDshModel,
+    workbuddyModel,
+    setWorkbuddyModel,
     permissionMode,
     pendingPermissionRequests,
     setPendingPermissionRequests,
@@ -321,8 +323,12 @@ function ChatInterface({
       : provider === 'codex'
         ? t('messageTypes.codex')
         : provider === 'opencode'
-            ? t('messageTypes.opencode', { defaultValue: 'OpenCode' })
-          : t('messageTypes.claude');
+          ? t('messageTypes.opencode', { defaultValue: 'OpenCode' })
+          : provider === 'dsh'
+            ? t('messageTypes.dsh', { defaultValue: 'DeepSeek Harness' })
+            : provider === 'workbuddy'
+              ? t('messageTypes.workbuddy', { defaultValue: 'WorkBuddy' })
+              : t('messageTypes.claude');
 
   if (!selectedProject) {
     return (
@@ -365,6 +371,8 @@ function ChatInterface({
           setOpenCodeModel={setOpenCodeModel}
           dshModel={dshModel}
           setDshModel={setDshModel}
+          workbuddyModel={workbuddyModel}
+          setWorkbuddyModel={setWorkbuddyModel}
           providerModelCatalog={providerModelCatalog}
           providerModelActions={providerModelActions}
           providerModelsLoading={providerModelsLoading}

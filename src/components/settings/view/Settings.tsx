@@ -53,6 +53,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
     setCursorPermissions,
     codexPermissionMode,
     setCodexPermissionMode,
+    workbuddyPermissionMode,
+    setWorkbuddyPermissionMode,
     providerAuthStatus,
     openLoginForProvider,
     showLoginModal,
@@ -191,6 +193,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
                   onCursorPermissionsChange={setCursorPermissions}
                   codexPermissionMode={codexPermissionMode}
                   onCodexPermissionModeChange={setCodexPermissionMode}
+                  workbuddyPermissionMode={workbuddyPermissionMode}
+                  onWorkbuddyPermissionModeChange={setWorkbuddyPermissionMode}
                   projects={projects}
                 />
               )}

@@ -419,6 +419,15 @@
         "overrideNote": "Sohbet arayüzündeki mod düğmesini kullanarak bunu oturum başına geçersiz kılabilirsin."
       }
     },
+    "workbuddy": {
+      "description": "WorkBuddy'nin dosya değişikliklerini ve komut yürütmeyi nasıl işlediğini kontrol eder",
+      "modes": {
+        "plan": {
+          "title": "Sadece planla",
+          "description": "Dosyaları değiştirmeden veya komut çalıştırmadan analiz eder ve bir yürütme planı üretir."
+        }
+      }
+    },
     "actions": {
       "add": "Ekle"
     }

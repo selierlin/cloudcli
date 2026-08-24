@@ -389,6 +389,10 @@
       }
     },
     "connectionStatus": "连接状态",
+    "externalAuth": {
+      "title": "外部管理",
+      "description": "{{agent}} 的认证由外部管理，请在对应的桌面应用或配置文件中登录。"
+    },
     "login": {
       "title": "登录",
       "reAuthenticate": "重新认证",
@@ -469,6 +473,15 @@
         "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never。所有命令在项目目录内自动执行。",
         "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never。完全系统访问权限，仅在可信环境中使用。",
         "overrideNote": "您可以使用聊天界面中的模式按钮按会话覆盖此设置。"
+      }
+    },
+    "workbuddy": {
+      "description": "控制 WorkBuddy 如何处理文件修改和命令执行",
+      "modes": {
+        "plan": {
+          "title": "仅计划",
+          "description": "只分析并生成执行计划，不实际修改文件或运行命令。"
+        }
       }
     },
     "actions": {

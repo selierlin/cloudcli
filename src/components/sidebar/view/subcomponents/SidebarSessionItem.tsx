@@ -41,6 +41,7 @@ const PROVIDER_LABELS: Record<LLMProvider, string> = {
   cursor: 'Cursor',
   opencode: 'OpenCode',
   dsh: 'DeepSeek Harness',
+  workbuddy: 'WorkBuddy',
 };
 
 type CopyState = 'loading' | 'idle' | 'copying' | 'copied' | 'error';
