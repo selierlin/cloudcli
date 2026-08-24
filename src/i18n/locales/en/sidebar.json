@@ -167,7 +167,8 @@
     "archiveSession": "Archive session",
     "deleteSessionPermanently": "Delete permanently",
     "archiveSessionNotice": "Archive keeps the session out of the active list while preserving its history.",
-    "archivedSessionNotice": "This session is already archived. You can keep it hidden or delete it permanently."
+    "archivedSessionNotice": "This session is already archived. You can keep it hidden or delete it permanently.",
+    "permanentDeleteWarning": "Delete permanently also removes the session file from disk, so the desktop-side tools that own it (e.g. DeepSeek Harness, Claude Code, Codex) lose this session too. This cannot be undone."
   },
   "archived": {
     "restore": "Restore session",

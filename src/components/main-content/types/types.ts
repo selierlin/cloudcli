@@ -41,6 +41,8 @@ export type PrdFile = {
 export type MainContentProps = {
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
+  /** Full project list — used by the mobile empty state to render quick-access project cards. */
+  projects: Project[];
   activeTab: AppTab;
   setActiveTab: Dispatch<SetStateAction<AppTab>>;
   ws: WebSocket | null;
@@ -78,6 +80,9 @@ export type MainContentStateViewProps = {
   mode: 'loading' | 'empty';
   isMobile: boolean;
   onMenuClick: () => void;
+  /** Projects available for quick access on the empty state. */
+  projects: Project[];
+  onProjectSelect: (project: Project) => void;
 };
 
 export type MobileMenuButtonProps = {

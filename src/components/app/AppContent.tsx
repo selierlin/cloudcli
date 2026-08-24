@@ -67,6 +67,7 @@ function AppContentInner() {
   } = useSessionProtection();
 
   const {
+    projects,
     selectedProject,
     selectedSession,
     activeTab,
@@ -341,6 +342,7 @@ function AppContentInner() {
         <MainContent
           selectedProject={selectedProject}
           selectedSession={selectedSession}
+          projects={projects}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           ws={ws}

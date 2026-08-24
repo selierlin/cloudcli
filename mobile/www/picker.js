@@ -306,18 +306,20 @@
   }
 
   /**
-   * 探测服务器是否可达：跨域只能用 no-cors fetch（读不到响应体），
-   * 只要 TCP/HTTP 能建立连接即视为可达；超时或连不上则返回 false。
+   * 探测服务器是否真实可达：通过 cors 请求后端 /health 端点，
+   * 拿到 2xx 响应才视为可达。frp 等场景下 TCP 层可能连通
+   * （frps 能 accept），但后端服务挂掉 / 反代 5xx 时 /health
+   * 不会返回 2xx，从而避免「有延迟但服务不可达」的误判。
    */
   function probe(url) {
     var controller = new AbortController();
     var timer = setTimeout(function () {
       controller.abort();
     }, CONNECT_TIMEOUT_MS);
-    return fetch(url + '/', { mode: 'no-cors', signal: controller.signal, cache: 'no-store' })
-      .then(function () {
+    return fetch(url + '/health', { mode: 'cors', signal: controller.signal, cache: 'no-store' })
+      .then(function (res) {
         clearTimeout(timer);
-        return true;
+        return res.ok;
       })
       .catch(function () {
         clearTimeout(timer);
@@ -326,8 +328,8 @@
   }
 
   /**
-   * 测量服务器延迟（毫秒）：no-cors fetch 建立连接即计时结束；
-   * 超时或连不上返回 null（视为不可达）。
+   * 测量服务器延迟（毫秒）：cors 请求 /health，收到 2xx 响应才计时结束；
+   * 超时、连不上或后端返回非 2xx 均返回 null（视为不可达）。
    */
   function measureLatency(url) {
     var controller = new AbortController();
@@ -335,10 +337,10 @@
       controller.abort();
     }, LATENCY_TIMEOUT_MS);
     var start = performance.now();
-    return fetch(url + '/', { mode: 'no-cors', signal: controller.signal, cache: 'no-store' })
-      .then(function () {
+    return fetch(url + '/health', { mode: 'cors', signal: controller.signal, cache: 'no-store' })
+      .then(function (res) {
         clearTimeout(timer);
-        return Math.round(performance.now() - start);
+        return res.ok ? Math.round(performance.now() - start) : null;
       })
       .catch(function () {
         clearTimeout(timer);

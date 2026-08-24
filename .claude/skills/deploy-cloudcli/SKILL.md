@@ -35,18 +35,29 @@ npm run build:client        # 只改了 src/ 时
 cloudclictl restart
 ```
 
-4. 验证：
+4. 验证（先确认进程与端口，再看资源与日志。`curl` 必须带 `--noproxy '*'`，
+   否则本机代理 127.0.0.1:7890 会劫持 localhost、返回 502 误判服务故障）：
 
 ```bash
-curl -s http://localhost:3001/ | grep -o 'assets/index-[^"]*'   # 确认新 asset 指纹
-cloudclictl logs 500                                             # 启动日志无异常
+launchctl list | grep cloudcli                                  # ① job 已加载（有 PID 即正常）
+nc -z -w 2 127.0.0.1 3001 && echo "3001 open"                   # ② 端口在监听
+curl -s --noproxy '*' http://localhost:3001/ | grep -o 'assets/index-[^"]*'  # ③ 新 asset 指纹
+tail -n 500 ~/Library/Logs/CloudCLI/cloudcli.out.log            # ④ 启动日志（out）
+tail -n 500 ~/Library/Logs/CloudCLI/cloudcli.err.log            # ⑤ 启动日志（err）
 ```
 
 5. 移动端如需测试：`npx cap sync ios` 后交给 `build-cloudcli-ipa`。
 
 ## Failure handling
 
-- `cloudclictl restart` 失败：`cloudclictl status` 看进程状态、`cloudclictl logs 500` 看错误。
+- `cloudclictl restart` 报告成功但服务未起：`launchctl list | grep cloudcli` 确认 job 是否加载；
+  若为空，是 bootout→bootstrap 的偶发竞态，手动加载兜底：
+  `launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.selier.cloudcli.plist`
+  再 `launchctl list | grep cloudcli` 确认 PID、`nc -z 127.0.0.1 3001` 确认端口。
+- curl 返回 502：先排除代理劫持——shell 有 `http_proxy=http://127.0.0.1:7890`，
+  curl 必须带 `--noproxy '*'`（见验证步骤）。
+- 日志用 `tail -n 500 ~/Library/Logs/CloudCLI/cloudcli.{out,err}.log` 直接读文件；
+  不要用 `cloudclictl logs`（它是 `tail -f`，会挂起）。
 - 日志报 `No .env file found`：launchd 环境 PATH 干净、不会自动加载 nvm，路径由 plist
   `EnvironmentVariables` 注入；确认 `cloudclictl install --app-root` 的 `APP_ROOT` 正确
   （默认 `/Users/selier/Projects/open_projects/claudecodeui`）。
