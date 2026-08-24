@@ -4,6 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
+import Database from 'better-sqlite3';
+
 import {
   closeConnection,
   getConnection,
@@ -12,6 +14,19 @@ import {
   sessionsDb,
 } from '@/modules/database/index.js';
 import { runMigrations } from '@/modules/database/migrations.js';
+
+const LEGACY_PROVIDER_MODELS_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS provider_models (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider TEXT NOT NULL CHECK (provider IN ('claude', 'cursor', 'codex', 'opencode')),
+    model_id TEXT NOT NULL,
+    model_name TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(provider, model_id)
+);
+`;
 
 test('provider model repository stores custom rows only and maintains session references', async () => {
   const previousDatabasePath = process.env.DATABASE_PATH;
@@ -108,6 +123,77 @@ test('migrations create the provider model index on an install that lacks it', a
 
     runMigrations(db);
 
+    const indexedColumns = (db
+      .prepare('PRAGMA index_info(idx_provider_models_provider_order)')
+      .all() as Array<{ name: string }>)
+      .map((column) => column.name);
+    assert.deepEqual(indexedColumns, ['provider', 'sort_order', 'id']);
+  } finally {
+    closeConnection();
+    if (previousDatabasePath === undefined) {
+      delete process.env.DATABASE_PATH;
+    } else {
+      process.env.DATABASE_PATH = previousDatabasePath;
+    }
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+});
+
+test('migration widens the provider_models CHECK constraint and preserves existing rows', async () => {
+  const previousDatabasePath = process.env.DATABASE_PATH;
+  const tempDirectory = await mkdtemp(path.join(os.tmpdir(), 'provider-model-check-'));
+  const databasePath = path.join(tempDirectory, 'auth.db');
+
+  // Simulate an upgraded install: provider_models exists with the old CHECK
+  // (missing dsh/workbuddy) and holds real user data.
+  const legacy = new Database(databasePath);
+  legacy.exec(LEGACY_PROVIDER_MODELS_SCHEMA_SQL);
+  legacy
+    .prepare(
+      `INSERT INTO provider_models (provider, model_id, model_name)
+       VALUES ('codex', 'gateway/model-v1', 'Legacy Custom Model')`
+    )
+    .run();
+  legacy.close();
+
+  closeConnection();
+  process.env.DATABASE_PATH = databasePath;
+  await initializeDatabase();
+
+  try {
+    const db = getConnection();
+    const definition = db
+      .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'provider_models'")
+      .get() as { sql: string };
+
+    // The CHECK constraint now accepts every provider from the target schema.
+    for (const provider of ['claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy']) {
+      assert.match(definition.sql, new RegExp(`'${provider}'`));
+    }
+
+    // Rows survived the table rebuild.
+    const row = db
+      .prepare("SELECT provider, model_id FROM provider_models WHERE model_id = 'gateway/model-v1'")
+      .get() as { provider: string; model_id: string };
+    assert.deepEqual(row, { provider: 'codex', model_id: 'gateway/model-v1' });
+
+    // The legacy table is gone and the widened table can accept dsh rows.
+    const legacyTable = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'provider_models_legacy'")
+      .get();
+    assert.equal(legacyTable, undefined);
+    db.prepare(
+      `INSERT INTO provider_models (provider, model_id, model_name)
+       VALUES ('dsh', 'deepseek-v3', 'DeepSeek V3')`
+    ).run();
+    assert.equal(
+      (db.prepare("SELECT COUNT(*) AS count FROM provider_models WHERE provider = 'dsh'").get() as {
+        count: number;
+      }).count,
+      1,
+    );
+
+    // The index is recreated after the rebuild that would have dropped it.
     const indexedColumns = (db
       .prepare('PRAGMA index_info(idx_provider_models_provider_order)')
       .all() as Array<{ name: string }>)

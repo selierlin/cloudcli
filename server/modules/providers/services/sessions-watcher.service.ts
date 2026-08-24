@@ -1,35 +1,71 @@
 import os from 'node:os';
 import path from 'node:path';
-import { promises as fsPromises } from 'node:fs';
+import { existsSync, promises as fsPromises } from 'node:fs';
 
 import chokidar, { type FSWatcher } from 'chokidar';
 
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { sessionSynchronizerService } from '@/modules/providers/services/session-synchronizer.service.js';
+import { getDshSessionsRoot } from '@/modules/providers/list/dsh/dsh-models.provider.js';
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
 import type { LLMProvider } from '@/shared/types.js';
 import { generateDisplayName } from '@/modules/projects/index.js';
 
 type WatcherEventType = 'add' | 'change';
 
-const PROVIDER_WATCH_PATHS: Array<{ provider: LLMProvider; rootPath: string }> = [
-  {
-    provider: 'claude',
-    rootPath: path.join(os.homedir(), '.claude', 'projects'),
-  },
-  {
-    provider: 'cursor',
-    rootPath: path.join(os.homedir(), '.cursor', 'projects'),
-  },
-  {
-    provider: 'codex',
-    rootPath: path.join(os.homedir(), '.codex', 'sessions'),
-  },
-  {
-    provider: 'opencode',
-    rootPath: path.join(os.homedir(), '.local', 'share', 'opencode'),
-  },
-];
+/**
+ * Provider session roots to watch.
+ *
+ * Resolved lazily (not at module load) so environment overrides like
+ * `DSH_SESSIONS_ROOT` are honored whenever the watcher starts.
+ */
+function getProviderWatchPaths(): Array<{ provider: LLMProvider; rootPath: string }> {
+  return [
+    {
+      provider: 'claude',
+      rootPath: path.join(os.homedir(), '.claude', 'projects'),
+    },
+    {
+      provider: 'cursor',
+      rootPath: path.join(os.homedir(), '.cursor', 'projects'),
+    },
+    {
+      provider: 'codex',
+      rootPath: path.join(os.homedir(), '.codex', 'sessions'),
+    },
+    {
+      provider: 'opencode',
+      rootPath: path.join(os.homedir(), '.local', 'share', 'opencode'),
+    },
+    {
+      provider: 'dsh',
+      rootPath: getDshSessionsRoot(),
+    },
+    {
+      provider: 'workbuddy',
+      rootPath: path.join(os.homedir(), '.codebuddy', 'projects'),
+    },
+    {
+      provider: 'workbuddy',
+      rootPath: path.join(os.homedir(), '.workbuddy', 'projects'),
+    },
+  ];
+}
+
+/**
+ * True when a provider's engine looks installed on this machine. Guards the
+ * watcher's `mkdir` so a missing engine (e.g. no dsh-desktop) does not get a
+ * phantom directory tree created under the user's home.
+ */
+function isProviderEnginePresent(provider: LLMProvider, rootPath: string): boolean {
+  if (provider === 'dsh') {
+    return existsSync(path.dirname(rootPath));
+  }
+  // The remaining providers store transcripts under home-dir config folders
+  // owned by the engine; watching an empty-but-created folder is harmless and
+  // keeps the watcher ready for a first session.
+  return true;
+}
 
 const WATCHER_IGNORED_PATTERNS = [
   '**/node_modules/**',
@@ -71,6 +107,10 @@ let watcherRescheduleAfterRefresh = false;
 function isWatcherTargetFile(provider: LLMProvider, filePath: string): boolean {
   if (provider === 'opencode') {
     return path.basename(filePath) === 'opencode.db';
+  }
+
+  if (provider === 'dsh') {
+    return path.basename(filePath) === 'session.jsonl.zstd';
   }
 
   return filePath.endsWith('.jsonl');
@@ -265,7 +305,11 @@ export async function initializeSessionsWatcher(): Promise<void> {
     failures: initialSync.failures,
   });
 
-  for (const { provider, rootPath } of PROVIDER_WATCH_PATHS) {
+  for (const { provider, rootPath } of getProviderWatchPaths()) {
+    if (!isProviderEnginePresent(provider, rootPath)) {
+      console.log(`Skipping session watcher for provider "${provider}": engine not present`);
+      continue;
+    }
     try {
       await fsPromises.mkdir(rootPath, { recursive: true });
 

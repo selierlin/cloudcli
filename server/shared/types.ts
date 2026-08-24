@@ -66,7 +66,7 @@ export type AuthenticatedWebSocketRequest = IncomingMessage & {
  * Use this as the source of truth whenever a function or payload needs to identify
  * a specific LLM integration.
  */
-export type LLMProvider = 'claude' | 'codex' | 'cursor' | 'opencode' | 'dsh';
+export type LLMProvider = 'claude' | 'codex' | 'cursor' | 'opencode' | 'dsh' | 'workbuddy';
 
 /**
  * One selectable model row in a provider model catalog.
@@ -315,6 +315,13 @@ export type ProviderRuntimePermissionGateway = {
  */
 export type ProviderRuntimeContext = {
   resolveProviderSessionId(sessionId: string | null | undefined): string | null;
+  /**
+   * Resolves the engine data root that owns the session's on-disk transcript
+   * (e.g. `~/.workbuddy` for WorkBuddy-created sessions vs `~/.codebuddy`).
+   * Runtimes use it to launch the engine against the matching config dir.
+   * Returns null when the session has no indexed transcript.
+   */
+  resolveProviderConfigDir(sessionId: string | null | undefined): string | null;
   resolveResumeModel(
     sessionId: string | undefined,
     requestedModel?: string | null,
