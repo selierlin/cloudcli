@@ -389,6 +389,10 @@
       }
     },
     "connectionStatus": "Connection Status",
+    "externalAuth": {
+      "title": "Managed externally",
+      "description": "{{agent}} authentication is managed outside this app. Sign in within the agent's own desktop application or configuration."
+    },
     "login": {
       "title": "Login",
       "reAuthenticate": "Re-authenticate",
@@ -469,6 +473,15 @@
         "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. All commands auto-execute within project directory.",
         "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never. Full system access, use only in trusted environments.",
         "overrideNote": "You can override this per-session using the mode button in the chat interface."
+      }
+    },
+    "workbuddy": {
+      "description": "Controls how WorkBuddy handles file modifications and command execution",
+      "modes": {
+        "plan": {
+          "title": "Plan",
+          "description": "Analyzes and produces an execution plan without modifying files or running commands."
+        }
       }
     },
     "actions": {

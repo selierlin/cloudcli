@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { AlertTriangle, Plus, Shield, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button, Input } from '../../../../../../../shared/view/ui';
-import type { CodexPermissionMode } from '../../../../../types/types';
+import type { CodexPermissionMode, WorkbuddyPermissionMode } from '../../../../../types/types';
 
 const COMMON_CLAUDE_TOOLS = [
   'Bash(git log:*)',
@@ -579,7 +579,118 @@ function CodexPermissions({ permissionMode, onPermissionModeChange }: Omit<Codex
   );
 }
 
-type PermissionsContentProps = ClaudePermissionsProps | CursorPermissionsProps | CodexPermissionsProps;
+type WorkbuddyPermissionsProps = {
+  agent: 'workbuddy';
+  permissionMode: WorkbuddyPermissionMode;
+  onPermissionModeChange: (value: WorkbuddyPermissionMode) => void;
+};
+
+type WorkbuddyModeOption = {
+  value: WorkbuddyPermissionMode;
+  titleKey: string;
+  descriptionKey: string;
+  /** Classes applied to the card while this mode is selected. */
+  selectedClass: string;
+  radioClass: string;
+  titleClass: string;
+  descClass: string;
+  icon?: 'warning';
+};
+
+// Reuses the shared mode labels from the Codex block (the two engines share
+// the --permission-mode vocabulary); `plan` is WorkBuddy-specific.
+const WORKBUDDY_PERMISSION_OPTIONS: WorkbuddyModeOption[] = [
+  {
+    value: 'default',
+    titleKey: 'permissions.codex.modes.default.title',
+    descriptionKey: 'permissions.codex.modes.default.description',
+    selectedClass: 'border-border bg-accent',
+    radioClass: 'text-green-600',
+    titleClass: 'text-foreground',
+    descClass: 'text-muted-foreground',
+  },
+  {
+    value: 'acceptEdits',
+    titleKey: 'permissions.codex.modes.acceptEdits.title',
+    descriptionKey: 'permissions.codex.modes.acceptEdits.description',
+    selectedClass: 'border-green-400 bg-green-50 dark:border-green-600 dark:bg-green-900/20',
+    radioClass: 'text-green-600',
+    titleClass: 'text-green-900 dark:text-green-100',
+    descClass: 'text-green-700 dark:text-green-300',
+  },
+  {
+    value: 'bypassPermissions',
+    titleKey: 'permissions.codex.modes.bypassPermissions.title',
+    descriptionKey: 'permissions.codex.modes.bypassPermissions.description',
+    selectedClass: 'border-orange-400 bg-orange-50 dark:border-orange-600 dark:bg-orange-900/20',
+    radioClass: 'text-orange-600',
+    titleClass: 'text-orange-900 dark:text-orange-100',
+    descClass: 'text-orange-700 dark:text-orange-300',
+    icon: 'warning',
+  },
+  {
+    value: 'plan',
+    titleKey: 'permissions.workbuddy.modes.plan.title',
+    descriptionKey: 'permissions.workbuddy.modes.plan.description',
+    selectedClass: 'border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-900/20',
+    radioClass: 'text-blue-600',
+    titleClass: 'text-blue-900 dark:text-blue-100',
+    descClass: 'text-blue-700 dark:text-blue-300',
+  },
+];
+
+function WorkbuddyPermissions({ permissionMode, onPermissionModeChange }: Omit<WorkbuddyPermissionsProps, 'agent'>) {
+  const { t } = useTranslation('settings');
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Shield className="h-5 w-5 text-green-500" />
+          <h3 className="text-lg font-medium text-foreground">{t('permissions.codex.permissionMode')}</h3>
+        </div>
+        <p className="text-sm text-muted-foreground">{t('permissions.workbuddy.description')}</p>
+
+        {WORKBUDDY_PERMISSION_OPTIONS.map((option) => {
+          const selected = permissionMode === option.value;
+
+          return (
+            <div
+              key={option.value}
+              className={`cursor-pointer rounded-lg border p-4 transition-all ${
+                selected
+                  ? option.selectedClass
+                  : 'border-border bg-card/50 active:border-border active:bg-accent/50'
+              }`}
+              onClick={() => onPermissionModeChange(option.value)}
+            >
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="radio"
+                  name="workbuddyPermissionMode"
+                  checked={selected}
+                  onChange={() => onPermissionModeChange(option.value)}
+                  className={`mt-1 h-4 w-4 ${option.radioClass}`}
+                />
+                <div>
+                  <div className={`flex items-center gap-2 font-medium ${selected ? option.titleClass : 'text-foreground'}`}>
+                    {t(option.titleKey)}
+                    {option.icon === 'warning' && <AlertTriangle className="h-4 w-4" />}
+                  </div>
+                  <div className={`text-sm ${selected ? option.descClass : 'text-muted-foreground'}`}>
+                    {t(option.descriptionKey)}
+                  </div>
+                </div>
+              </label>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+type PermissionsContentProps = ClaudePermissionsProps | CursorPermissionsProps | CodexPermissionsProps | WorkbuddyPermissionsProps;
 
 export default function PermissionsContent(props: PermissionsContentProps) {
   if (props.agent === 'claude') {
@@ -588,6 +699,10 @@ export default function PermissionsContent(props: PermissionsContentProps) {
 
   if (props.agent === 'cursor') {
     return <CursorPermissions {...props} />;
+  }
+
+  if (props.agent === 'workbuddy') {
+    return <WorkbuddyPermissions {...props} />;
   }
 
   return <CodexPermissions {...props} />;

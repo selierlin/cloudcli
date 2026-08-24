@@ -64,11 +64,25 @@ const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
     subtextClass: 'text-zinc-700 dark:text-zinc-300',
     buttonClass: 'bg-zinc-900 hover:bg-zinc-800 active:bg-zinc-950 dark:bg-zinc-700 dark:hover:bg-zinc-600',
   },
+  workbuddy: {
+    name: 'WorkBuddy',
+    description: 'Tencent WorkBuddy agent',
+    bgClass: 'bg-zinc-50 dark:bg-zinc-900/20',
+    borderClass: 'border-zinc-200 dark:border-zinc-700',
+    textClass: 'text-zinc-900 dark:text-zinc-100',
+    subtextClass: 'text-zinc-700 dark:text-zinc-300',
+    buttonClass: 'bg-zinc-900 hover:bg-zinc-800 active:bg-zinc-950 dark:bg-zinc-700 dark:hover:bg-zinc-600',
+  },
 };
 
 export default function AccountContent({ agent, authStatus, onLogin }: AccountContentProps) {
   const { t } = useTranslation('settings');
   const config = agentConfig[agent];
+
+  // dsh (harness .env API key) and workbuddy (embedded CodeBuddy engine) have
+  // no interactive terminal login flow — auth is configured outside this app,
+  // so the login button must not fall back to running `claude /login`.
+  const isExternallyManagedAuth = agent === 'dsh' || agent === 'workbuddy';
 
   return (
     <div className="space-y-6">
@@ -120,7 +134,20 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
             </div>
           </div>
 
-          {authStatus.method !== 'api_key' && (
+          {isExternallyManagedAuth ? (
+            <div className="border-t border-border/50 pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className={`font-medium ${config.textClass}`}>
+                    {t('agents.externalAuth.title')}
+                  </div>
+                  <div className={`text-sm ${config.subtextClass}`}>
+                    {t('agents.externalAuth.description', { agent: config.name })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : authStatus.method !== 'api_key' && (
             <div className="border-t border-border/50 pt-4">
               <div className="flex items-center justify-between">
                 <div>

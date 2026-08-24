@@ -19,7 +19,8 @@
     "cursor": "Cursor",
     "codex": "Codex",
     "opencode": "OpenCode",
-    "dsh": "DeepSeek Harness"
+    "dsh": "DeepSeek Harness",
+    "workbuddy": "WorkBuddy"
   },
   "tools": {
     "settings": "工具设置",
@@ -139,6 +140,28 @@
       "delete": "删除排队消息"
     }
   },
+  "commandMenu": {
+    "namespace": {
+      "frequent": "常用命令",
+      "builtin": "内置命令",
+      "skill": "技能",
+      "project": "项目命令",
+      "user": "用户命令",
+      "other": "其他命令"
+    },
+    "empty": "没有可用命令",
+    "aria": {
+      "availableCommands": "可用命令"
+    },
+    "builtin": {
+      "help": "显示 Claude Code 帮助文档",
+      "models": "查看当前提供商的可用模型",
+      "cost": "显示 Token 用量信息",
+      "memory": "打开 CLAUDE.md 记忆文件进行编辑",
+      "config": "打开设置与配置",
+      "status": "显示系统状态与版本信息"
+    }
+  },
   "providerSelection": {
     "title": "选择您的 AI 助手",
     "description": "先选择工具，再选择该工具配置中使用的模型",
@@ -147,6 +170,14 @@
     "chooseModelStep": "2 · 选择模型",
     "clickToChooseModel": "点击选择模型",
     "chooseModelForTool": "{{tool}} 的模型",
+    "chooseModelDescription": "此工具的配置中可用的模型",
+    "addModel": "添加模型",
+    "manageModels": "管理模型",
+    "searchModels": "搜索模型...",
+    "noModelsFound": "未找到模型。",
+    "loadingModels": "正在加载模型…",
+    "modelSelectorTitle": "模型选择器",
+    "custom": "自定义",
     "providerInfo": {
       "anthropic": "由 Anthropic 提供",
       "openai": "由 OpenAI 提供",
@@ -160,9 +191,127 @@
       "codex": "准备好使用带有 {{model}} 的 Codex。请在下方开始输入您的消息。",
       "opencode": "准备好使用带有 {{model}} 的 OpenCode。请在下方开始输入您的消息。",
       "default": "请在上方选择一个提供者以开始",
-      "dsh": "准备好使用带有 {{model}} 的 DeepSeek Harness。请在下方开始输入您的消息。"
+      "dsh": "准备好使用带有 {{model}} 的 DeepSeek Harness。请在下方开始输入您的消息。",
+      "workbuddy": "准备好使用带有 {{model}} 的 WorkBuddy。请在下方开始输入您的消息。"
     },
     "pressToSearch": "按 <kbd>{{shortcut}}</kbd> 搜索会话、文件和提交"
+  },
+  "commandResult": {
+    "title": "命令结果",
+    "common": {
+      "close": "关闭",
+      "escCloses": "按 Esc 关闭弹窗。",
+      "closeModalAria": "关闭命令结果弹窗",
+      "unknown": "未知"
+    },
+    "help": {
+      "eyebrow": "命令中心",
+      "title": "帮助与快捷键",
+      "subtitle": "无需离开聊天即可搜索内置命令、语法模式和命令用法。",
+      "filterPlaceholder": "过滤命令...",
+      "noDescription": "暂无描述。",
+      "noMatch": "没有匹配该过滤条件的命令。",
+      "syntax": "语法",
+      "syntaxCommand": "/command arg1 arg2",
+      "syntaxArgs": "$ARGUMENTS 传递所有参数。",
+      "syntaxPositional": "$1、$2 传递位置参数。",
+      "syntaxFile": "@file 包含文件内容。",
+      "quickTip": "小贴士",
+      "quickTipBody": "在输入框中输入 <code>/</code> 打开命令面板，然后使用方向键和 Enter 执行命令。",
+      "builtin": "内置",
+      "fallbackModels": "浏览当前提供者可用的模型。",
+      "fallbackCost": "查看当前会话的 Token 用量。",
+      "fallbackStatus": "查看运行时、版本、提供者和环境状态。",
+      "fallbackMemory": "打开项目的 CLAUDE.md 记忆文件。",
+      "fallbackConfig": "打开设置和配置。",
+      "fallbackHelp": "显示命令文档和语法。"
+    },
+    "models": {
+      "eyebrow": "模型选择",
+      "title": "选择模型",
+      "subtitle": "选择该提供者应使用的模型。",
+      "activeModel": "当前模型 · {{provider}}",
+      "manageModels": "管理模型",
+      "searchPlaceholder": "搜索 {{provider}} 模型...",
+      "custom": "自定义",
+      "currentSelection": "当前选择",
+      "sessionModel": "会话模型",
+      "pendingNext": "→ 下一个：{{model}}",
+      "noMatch": "没有匹配该搜索的模型。",
+      "selectAria": "选择模型 {{model}}",
+      "sessionSavedNotice": "您的选择已保存到本次会话，并将成为新聊天的默认模型。",
+      "defaultSavedNotice": "您的选择将成为新聊天的默认模型。",
+      "sessionSetNotice": "本次会话现在使用 {{model}}。",
+      "defaultSetNotice": "已将默认 {{provider}} 模型设置为 {{model}}。",
+      "changeFailed": "当前无法更改模型。"
+    },
+    "cost": {
+      "eyebrow": "会话遥测",
+      "title": "Token 用量",
+      "subtitle": "本次会话的输入、输出和总 Token 数量。",
+      "totalTokens": "Token 总用量",
+      "inputTokens": "输入 Token",
+      "outputTokens": "输出 Token",
+      "breakdown": "明细",
+      "unavailable": "不可用",
+      "contextWindow": "上下文窗口",
+      "provider": "提供者",
+      "model": "模型"
+    },
+    "status": {
+      "eyebrow": "运行时状态",
+      "title": "系统状态",
+      "subtitle": "版本、提供者、运行时和环境信息一览。",
+      "package": "包名",
+      "version": "版本",
+      "uptime": "运行时长",
+      "provider": "提供者",
+      "model": "模型",
+      "nodejs": "Node.js",
+      "platform": "平台",
+      "memory": "内存",
+      "memoryValue": "{{mb}} MB RSS",
+      "runtimeOnline": "运行时在线",
+      "processResponding": "进程 #{{pid}} 正在响应。",
+      "processStatus": "进程状态正在响应。",
+      "healthy": "健康"
+    }
+  },
+  "modelLibrary": {
+    "title": "模型库",
+    "description": "添加您的提供者支持的模型 ID。内置模型保持锁定。",
+    "backToModels": "返回模型列表",
+    "addCustomModel": "添加自定义模型",
+    "editCustomModel": "编辑自定义模型",
+    "idSentNote": "ID 将完全按输入原样发送给 {{provider}}。",
+    "modelName": "模型名称",
+    "modelNamePlaceholder": "例如 GPT-5.5 Pro",
+    "modelId": "模型 ID",
+    "modelIdPlaceholder": "例如 gpt-5.5-pro",
+    "idHint": "请使用提供者 CLI 接受的准确标识符。ID 不能包含空格。",
+    "enterBothError": "请输入模型名称和模型 ID。",
+    "noSpacesError": "模型 ID 不能包含空格。",
+    "saveFailedError": "无法保存此模型。",
+    "deleteFailedError": "无法删除此模型。",
+    "updatedNotice": "{{model}} 已更新。",
+    "addedNotice": "{{model}} 已添加。",
+    "deletedNotice": "{{model}} 已删除。",
+    "saving": "保存中…",
+    "saveChanges": "保存更改",
+    "addModel": "添加模型",
+    "yourModels": "您的模型",
+    "storedInAuthDb": "可编辑，存储于 auth.db",
+    "noCustomModels": "暂无自定义模型",
+    "noCustomModelsHint": "使用表单添加一个，它将出现在所有模型选择器中。",
+    "deleteConfirm": "从所有选择器中删除此模型？",
+    "cancel": "取消",
+    "delete": "删除",
+    "custom": "自定义",
+    "builtInModels": "内置模型",
+    "maintainedByCloudCLI": "由 CloudCLI 维护，只读",
+    "cancelEditingAria": "取消编辑",
+    "editAria": "编辑 {{model}}",
+    "deleteAria": "删除 {{model}}"
   },
   "session": {
     "continue": {

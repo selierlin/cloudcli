@@ -3,9 +3,10 @@ import type {
   AuthStatus,
   AgentCategory,
   ClaudePermissionsState,
-  CursorPermissionsState,
   CodexPermissionMode,
+  CursorPermissionsState,
   SettingsProject,
+  WorkbuddyPermissionMode,
 } from '../../../types/types';
 
 export type AgentContext = {
@@ -25,6 +26,8 @@ export type AgentsSettingsTabProps = {
   onCursorPermissionsChange: (value: CursorPermissionsState) => void;
   codexPermissionMode: CodexPermissionMode;
   onCodexPermissionModeChange: (value: CodexPermissionMode) => void;
+  workbuddyPermissionMode: WorkbuddyPermissionMode;
+  onWorkbuddyPermissionModeChange: (value: WorkbuddyPermissionMode) => void;
   projects: SettingsProject[];
 };
 
@@ -52,5 +55,7 @@ export type AgentCategoryContentSectionProps = {
   onCursorPermissionsChange: (value: CursorPermissionsState) => void;
   codexPermissionMode: CodexPermissionMode;
   onCodexPermissionModeChange: (value: CodexPermissionMode) => void;
+  workbuddyPermissionMode: WorkbuddyPermissionMode;
+  onWorkbuddyPermissionModeChange: (value: WorkbuddyPermissionMode) => void;
   projects: SettingsProject[];
 };

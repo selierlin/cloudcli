@@ -421,6 +421,15 @@
         "overrideNote": "Vous pouvez remplacer ce mode par session via le bouton de mode dans l'interface de chat."
       }
     },
+    "workbuddy": {
+      "description": "Contrôle comment WorkBuddy gère les modifications de fichiers et l'exécution de commandes",
+      "modes": {
+        "plan": {
+          "title": "Planifier",
+          "description": "Analyse et produit un plan d'exécution sans modifier les fichiers ni exécuter de commandes."
+        }
+      }
+    },
     "actions": {
       "add": "Ajouter"
     }

@@ -20,6 +20,7 @@ import type {
   NotificationPreferencesState,
   ProjectSortOrder,
   SettingsMainTab,
+  WorkbuddyPermissionMode,
 } from '../types/types';
 
 type ThemeContextValue = {
@@ -47,6 +48,10 @@ type CursorSettingsStorage = {
 
 type CodexSettingsStorage = {
   permissionMode?: CodexPermissionMode;
+};
+
+type WorkbuddySettingsStorage = {
+  permissionMode?: WorkbuddyPermissionMode;
 };
 
 type NotificationPreferencesResponse = {
@@ -81,6 +86,14 @@ const parseJson = <T>(value: string | null, fallback: T): T => {
 
 const toCodexPermissionMode = (value: unknown): CodexPermissionMode => {
   if (value === 'acceptEdits' || value === 'bypassPermissions') {
+    return value;
+  }
+
+  return 'default';
+};
+
+const toWorkbuddyPermissionMode = (value: unknown): WorkbuddyPermissionMode => {
+  if (value === 'acceptEdits' || value === 'bypassPermissions' || value === 'plan') {
     return value;
   }
 
@@ -168,6 +181,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     createDefaultNotificationPreferences()
   ));
   const [codexPermissionMode, setCodexPermissionMode] = useState<CodexPermissionMode>('default');
+  const [workbuddyPermissionMode, setWorkbuddyPermissionMode] = useState<WorkbuddyPermissionMode>('default');
 
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginProvider, setLoginProvider] = useState<ActiveLoginProvider>('');
@@ -206,6 +220,12 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
       );
       setCodexPermissionMode(toCodexPermissionMode(savedCodexSettings.permissionMode));
 
+      const savedWorkbuddySettings = parseJson<WorkbuddySettingsStorage>(
+        localStorage.getItem('workbuddy-settings'),
+        {},
+      );
+      setWorkbuddyPermissionMode(toWorkbuddyPermissionMode(savedWorkbuddySettings.permissionMode));
+
       try {
         const notificationResponse = await authenticatedFetch('/api/settings/notification-preferences');
         if (notificationResponse.ok) {
@@ -228,6 +248,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
       setCursorPermissions(createEmptyCursorPermissions());
       setNotificationPreferences(createDefaultNotificationPreferences());
       setCodexPermissionMode('default');
+      setWorkbuddyPermissionMode('default');
       setProjectSortOrder('date');
     } finally {
       // Hydration is complete (success or failure) — auto-save may now run.
@@ -281,6 +302,11 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
         lastUpdated: now,
       }));
 
+      localStorage.setItem('workbuddy-settings', JSON.stringify({
+        permissionMode: workbuddyPermissionMode,
+        lastUpdated: now,
+      }));
+
       const notificationResponse = await authenticatedFetch('/api/settings/notification-preferences', {
         method: 'PUT',
         body: JSON.stringify(notificationPreferences),
@@ -299,6 +325,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     claudePermissions.disallowedTools,
     claudePermissions.skipPermissions,
     codexPermissionMode,
+    workbuddyPermissionMode,
     cursorPermissions.allowedCommands,
     cursorPermissions.disallowedCommands,
     cursorPermissions.skipPermissions,
@@ -363,6 +390,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     cursorPermissions.disallowedCommands,
     cursorPermissions.skipPermissions,
     codexPermissionMode,
+    workbuddyPermissionMode,
     notificationPreferences,
     projectSortOrder,
   ]);
@@ -440,6 +468,8 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     setNotificationPreferences,
     codexPermissionMode,
     setCodexPermissionMode,
+    workbuddyPermissionMode,
+    setWorkbuddyPermissionMode,
     providerAuthStatus,
     openLoginForProvider,
     showLoginModal,

@@ -172,7 +172,9 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                             ? t('messageTypes.opencode', { defaultValue: 'OpenCode' })
                             : provider === 'dsh'
                               ? t('messageTypes.dsh', { defaultValue: 'DeepSeek Harness' })
-                              : t('messageTypes.claude'))}
+                              : provider === 'workbuddy'
+                                ? t('messageTypes.workbuddy', { defaultValue: 'WorkBuddy' })
+                                : t('messageTypes.claude'))}
               </div>
             </div>
           )}

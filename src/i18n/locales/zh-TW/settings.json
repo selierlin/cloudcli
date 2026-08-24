@@ -419,6 +419,15 @@
         "overrideNote": "您可以使用聊天介面中的模式按鈕按工作階段覆蓋此設定。"
       }
     },
+    "workbuddy": {
+      "description": "控制 WorkBuddy 如何處理檔案修改和指令執行",
+      "modes": {
+        "plan": {
+          "title": "僅計畫",
+          "description": "僅分析並產生執行計畫，不實際修改檔案或執行指令。"
+        }
+      }
+    },
     "actions": {
       "add": "新增"
     }

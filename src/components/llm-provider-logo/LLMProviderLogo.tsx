@@ -5,6 +5,7 @@ import CodexLogo from './CodexLogo';
 import CursorLogo from './CursorLogo';
 import DshLogo from './DshLogo';
 import OpenCodeLogo from './OpenCodeLogo';
+import WorkbuddyLogo from './WorkbuddyLogo';
 
 type LLMProviderLogoProps = {
   provider?: LLMProvider | string | null;
@@ -29,6 +30,10 @@ export default function LLMProviderLogo({
 
   if (provider === 'dsh') {
     return <DshLogo className={className} />;
+  }
+
+  if (provider === 'workbuddy') {
+    return <WorkbuddyLogo className={className} />;
   }
 
   return <ClaudeLogo className={className} />;

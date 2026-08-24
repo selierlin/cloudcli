@@ -16,6 +16,8 @@ export default function AgentsSettingsTab({
   onCursorPermissionsChange,
   codexPermissionMode,
   onCodexPermissionModeChange,
+  workbuddyPermissionMode,
+  onWorkbuddyPermissionModeChange,
   projects,
 }: AgentsSettingsTabProps) {
   const [selectedAgent, setSelectedAgent] = useState<AgentProvider>('claude');
@@ -27,7 +29,7 @@ export default function AgentsSettingsTab({
   ), [selectedAgent]);
 
   const visibleAgents = useMemo<AgentProvider[]>(() => {
-    return ['claude', 'cursor', 'codex', 'opencode', 'dsh'];
+    return ['claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy'];
   }, []);
 
   const agentContextById = useMemo<Record<AgentProvider, AgentContext>>(() => ({
@@ -51,6 +53,10 @@ export default function AgentsSettingsTab({
       authStatus: providerAuthStatus.dsh,
       onLogin: () => onProviderLogin('dsh'),
     },
+    workbuddy: {
+      authStatus: providerAuthStatus.workbuddy,
+      onLogin: () => onProviderLogin('workbuddy'),
+    },
   }), [
     onProviderLogin,
     providerAuthStatus.claude,
@@ -58,6 +64,7 @@ export default function AgentsSettingsTab({
     providerAuthStatus.cursor,
     providerAuthStatus.opencode,
     providerAuthStatus.dsh,
+    providerAuthStatus.workbuddy,
   ]);
 
   useEffect(() => {
@@ -93,6 +100,8 @@ export default function AgentsSettingsTab({
           onCursorPermissionsChange={onCursorPermissionsChange}
           codexPermissionMode={codexPermissionMode}
           onCodexPermissionModeChange={onCodexPermissionModeChange}
+          workbuddyPermissionMode={workbuddyPermissionMode}
+          onWorkbuddyPermissionModeChange={onWorkbuddyPermissionModeChange}
           projects={projects}
         />
       </div>

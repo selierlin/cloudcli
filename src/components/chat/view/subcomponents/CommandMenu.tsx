@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import type { CSSProperties, ReactElement } from 'react';
 import {
   CornerDownLeft,
@@ -49,13 +50,13 @@ const menuBaseStyle: CSSProperties = {
   backdropFilter: 'blur(12px)',
 };
 
-const namespaceLabels: Record<string, string> = {
-  frequent: 'Frequently Used',
-  builtin: 'Built-in Commands',
-  skill: 'Skills',
-  project: 'Project Commands',
-  user: 'User Commands',
-  other: 'Other Commands',
+const namespaceLabelKeys: Record<string, string> = {
+  frequent: 'commandMenu.namespace.frequent',
+  builtin: 'commandMenu.namespace.builtin',
+  skill: 'commandMenu.namespace.skill',
+  project: 'commandMenu.namespace.project',
+  user: 'commandMenu.namespace.user',
+  other: 'commandMenu.namespace.other',
 };
 
 const namespaceIcons: Record<string, LucideIcon> = {
@@ -132,6 +133,19 @@ export default function CommandMenu({
   isOpen = false,
   frequentCommands = [],
 }: CommandMenuProps) {
+  const { t } = useTranslation('chat');
+
+  const localizeDescription = (command: CommandMenuCommand): string | undefined => {
+    if (command.type === 'built-in' || command.metadata?.type === 'built-in') {
+      const key = `commandMenu.builtin.${(command.name || '').replace(/^\//, '')}`;
+      const translated = t(key);
+      if (translated && translated !== key) {
+        return translated;
+      }
+    }
+    return command.description;
+  };
+
   const menuRef = useRef<HTMLDivElement | null>(null);
   const selectedItemRef = useRef<HTMLDivElement | null>(null);
   const menuPosition = getMenuPosition(position);
@@ -237,7 +251,7 @@ export default function CommandMenu({
           textAlign: 'center',
         }}
       >
-        No commands available
+        {t('commandMenu.empty')}
       </div>
     );
   }
@@ -246,7 +260,7 @@ export default function CommandMenu({
     <div
       ref={menuRef}
       role="listbox"
-      aria-label="Available commands"
+      aria-label={t('commandMenu.aria.availableCommands')}
       className="command-menu border border-border bg-popover/95 text-popover-foreground"
       style={{ ...menuBaseStyle, ...menuPosition, opacity: 1, transform: 'translateY(0)' }}
     >
@@ -254,7 +268,7 @@ export default function CommandMenu({
         <div key={namespace} className="command-group">
           {orderedNamespaces.length > 1 && (
             <div className="flex items-center justify-between px-2 pb-1.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              <span>{namespaceLabels[namespace] || namespace}</span>
+              <span>{t(namespaceLabelKeys[namespace] || namespace)}</span>
               <span className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                 {(groupedCommands[namespace] || []).length}
               </span>
@@ -265,6 +279,7 @@ export default function CommandMenu({
             const isSelected = commandIndex === selectedIndex;
             const NamespaceIcon = getNamespaceIcon(namespace);
             const accentClass = getNamespaceAccentClass(namespace);
+            const description = localizeDescription(command);
             return (
               <div
                 key={renderKey}
@@ -300,12 +315,12 @@ export default function CommandMenu({
                       </span>
                     )}
                   </div>
-                  {command.description && (
+                  {description && (
                     <div
                       className="truncate whitespace-nowrap text-[12px] leading-4 text-muted-foreground"
-                      title={command.description}
+                      title={description}
                     >
-                      {command.description}
+                      {description}
                     </div>
                   )}
                 </div>

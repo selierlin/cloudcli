@@ -23,9 +23,10 @@ const FALLBACK_DEFAULT_MODEL: Record<LLMProvider, string> = {
   codex: 'gpt-5.4',
   opencode: 'anthropic/claude-sonnet-4-5',
   dsh: 'deepseek-v4-pro',
+  workbuddy: 'auto',
 };
 
-const PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'opencode', 'dsh'];
+const PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy'];
 
 const readStoredProvider = (): LLMProvider => {
   const storedProvider = localStorage.getItem('selected-provider');
@@ -46,6 +47,7 @@ const FALLBACK_PERMISSION_MODES: Record<LLMProvider, PermissionMode[]> = {
   codex: ['default', 'acceptEdits', 'bypassPermissions'],
   opencode: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
   dsh: ['default'],
+  workbuddy: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
 };
 
 type ProviderCapabilities = {
@@ -142,6 +144,9 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   const [dshModel, setDshModel] = useState<string>(() => {
     return localStorage.getItem('dsh-model') || FALLBACK_DEFAULT_MODEL.dsh;
   });
+  const [workbuddyModel, setWorkbuddyModel] = useState<string>(() => {
+    return localStorage.getItem('workbuddy-model') || FALLBACK_DEFAULT_MODEL.workbuddy;
+  });
 
   /**
    * Backend-owned capability matrix keyed by provider. Drives the permission
@@ -189,8 +194,14 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
       return;
     }
 
-    setDshModel(model);
-    localStorage.setItem('dsh-model', model);
+    if (targetProvider === 'dsh') {
+      setDshModel(model);
+      localStorage.setItem('dsh-model', model);
+      return;
+    }
+
+    setWorkbuddyModel(model);
+    localStorage.setItem('workbuddy-model', model);
   }, []);
 
   const setStoredProviderEffort = useCallback((targetProvider: LLMProvider, effort: string) => {
@@ -384,7 +395,8 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     codex: codexModel,
     opencode: opencodeModel,
     dsh: dshModel,
-  }), [claudeModel, cursorModel, codexModel, opencodeModel, dshModel]);
+    workbuddy: workbuddyModel,
+  }), [claudeModel, cursorModel, codexModel, opencodeModel, dshModel, workbuddyModel]);
 
   useEffect(() => {
     const claude = providerModelCatalog.claude;
@@ -452,6 +464,19 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   }, [providerModelCatalog.dsh, dshModel]);
 
   useEffect(() => {
+    const workbuddy = providerModelCatalog.workbuddy;
+    if (workbuddy) {
+      const next = pickStoredOrCurrent('workbuddy-model', workbuddyModel, workbuddy, FALLBACK_DEFAULT_MODEL.workbuddy);
+      if (next !== workbuddyModel) {
+        setWorkbuddyModel(next);
+      }
+      if (localStorage.getItem('workbuddy-model') !== next) {
+        localStorage.setItem('workbuddy-model', next);
+      }
+    }
+  }, [providerModelCatalog.workbuddy, workbuddyModel]);
+
+  useEffect(() => {
     const nextEfforts: Partial<Record<LLMProvider, string>> = {};
     let hasUpdates = false;
 
@@ -485,7 +510,22 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     const savedMode = [sessionSavedMode, providerSavedMode].find(
       (mode): mode is PermissionMode => Boolean(mode && validModes.includes(mode)),
     );
-    setPermissionMode(savedMode ?? getDefaultPermissionModeForProvider(provider));
+
+    let defaultMode = getDefaultPermissionModeForProvider(provider);
+    // WorkBuddy's settings page persists a permission mode; use it as the
+    // default for a chat that has not been explicitly switched via the composer.
+    if (!savedMode && provider === 'workbuddy') {
+      try {
+        const saved = JSON.parse(localStorage.getItem('workbuddy-settings') ?? '{}') as { permissionMode?: PermissionMode };
+        if (saved.permissionMode && validModes.includes(saved.permissionMode)) {
+          defaultMode = saved.permissionMode;
+        }
+      } catch {
+        // Ignore malformed settings; fall back to the capability default.
+      }
+    }
+
+    setPermissionMode(savedMode ?? defaultMode);
   }, [selectedSession?.id, provider, getDefaultPermissionModeForProvider, getPermissionModesForProvider]);
 
   useEffect(() => {
@@ -900,6 +940,8 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     setOpenCodeModel,
     dshModel,
     setDshModel,
+    workbuddyModel,
+    setWorkbuddyModel,
     permissionMode,
     setPermissionMode,
     pendingPermissionRequests,
