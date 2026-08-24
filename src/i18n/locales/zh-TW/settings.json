@@ -67,7 +67,7 @@
     "export": {
       "title": "匯出對話"
     },
-    "darkMode": "深色模式",
+    "theme": "主題",
     "showRawParameters": "顯示原始參數",
     "showThinking": "顯示思考過程",
     "sendByCtrlEnter": "使用 Ctrl+Enter 傳送",
@@ -132,11 +132,14 @@
       "error": "執行失敗"
     }
   },
+  "themeMode": {
+    "label": "主題",
+    "description": "選擇淺色、深色或跟隨系統設定",
+    "light": "淺色",
+    "dark": "深色",
+    "system": "跟隨系統"
+  },
   "appearanceSettings": {
-    "darkMode": {
-      "label": "深色模式",
-      "description": "切換淺色和深色佈景主題"
-    },
     "projectSorting": {
       "label": "專案排序",
       "description": "專案在側邊欄中的排列方式",

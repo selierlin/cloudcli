@@ -67,7 +67,7 @@
     "export": {
       "title": "Dışa Aktar"
     },
-    "darkMode": "Koyu Mod",
+    "theme": "Tema",
     "showRawParameters": "Ham parametreleri göster",
     "showThinking": "Düşünmeyi göster",
     "sendByCtrlEnter": "Ctrl+Enter ile gönder",
@@ -132,11 +132,14 @@
       "error": "Çalıştırma başarısız"
     }
   },
+  "themeMode": {
+    "label": "Tema",
+    "description": "Açık, koyu veya sistem ayarını seç",
+    "light": "Açık",
+    "dark": "Koyu",
+    "system": "Sistem"
+  },
   "appearanceSettings": {
-    "darkMode": {
-      "label": "Koyu Mod",
-      "description": "Açık ve koyu temalar arasında geçiş yap"
-    },
     "projectSorting": {
       "label": "Proje Sıralama",
       "description": "Projelerin kenar çubuğunda nasıl sıralanacağı",

@@ -67,7 +67,7 @@
     "export": {
       "title": "Exportieren"
     },
-    "darkMode": "Darkmode",
+    "theme": "Design",
     "showRawParameters": "Rohe Parameter anzeigen",
     "showThinking": "Denken anzeigen",
     "sendByCtrlEnter": "Mit Strg+Enter senden",
@@ -131,11 +131,14 @@
       "error": "Lauf fehlgeschlagen"
     }
   },
+  "themeMode": {
+    "label": "Design",
+    "description": "Hell, dunkel oder Systemeinstellung wählen",
+    "light": "Hell",
+    "dark": "Dunkel",
+    "system": "System"
+  },
   "appearanceSettings": {
-    "darkMode": {
-      "label": "Darkmode",
-      "description": "Zwischen hellem und dunklem Design wechseln"
-    },
     "projectSorting": {
       "label": "Projektsortierung",
       "description": "Wie Projekte in der Seitenleiste angeordnet werden",

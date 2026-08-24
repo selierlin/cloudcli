@@ -1,10 +1,9 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
-import { useTheme } from '../../../contexts/ThemeContext';
 import { useQuickSettingsDrag } from '../hooks/useQuickSettingsDrag';
 import { useSessionOutlineData } from '../hooks/useSessionOutlineData';
 import type {
@@ -27,8 +26,9 @@ export default function QuickSettingsPanelView({
   const { t } = useTranslation('settings');
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<QuickSettingsTab>('outline');
+  const panelRef = useRef<HTMLDivElement>(null);
+  const handleRef = useRef<HTMLDivElement>(null);
   const { isMobile } = useDeviceSettings({ trackPWA: false });
-  const { isDarkMode } = useTheme();
   const { preferences, setPreference } = useUiPreferences();
   const {
     isDragging,
@@ -76,6 +76,30 @@ export default function QuickSettingsPanelView({
     [consumeSuppressedClick],
   );
 
+  // Collapse the panel when clicking outside or pressing Escape
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePointerDown = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (panelRef.current?.contains(target)) return;
+      if (handleRef.current?.contains(target)) return;
+      setIsOpen(false);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
+
   const tabButtonClass = (tab: QuickSettingsTab) =>
     `flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
       activeTab === tab
@@ -85,16 +109,19 @@ export default function QuickSettingsPanelView({
 
   return (
     <>
-      <QuickSettingsHandle
-        isOpen={isOpen}
-        isDragging={isDragging}
-        style={handleStyle}
-        onClick={handleToggleFromHandle}
-        onMouseDown={startDrag}
-        onTouchStart={startDrag}
-      />
+      <div ref={handleRef} style={{ display: 'contents' }}>
+        <QuickSettingsHandle
+          isOpen={isOpen}
+          isDragging={isDragging}
+          style={handleStyle}
+          onClick={handleToggleFromHandle}
+          onMouseDown={startDrag}
+          onTouchStart={startDrag}
+        />
+      </div>
 
       <div
+        ref={panelRef}
         className={`fixed right-0 top-0 z-[9999] flex h-full w-80 transform flex-col border-l border-border bg-background shadow-xl transition-transform duration-150 ease-out ${isOpen ? 'translate-x-0' : 'translate-x-full'} ${isMobile ? 'h-screen' : ''}`}
         style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
       >
@@ -119,7 +146,6 @@ export default function QuickSettingsPanelView({
 
         {activeTab === 'settings' ? (
           <QuickSettingsContent
-            isDarkMode={isDarkMode}
             preferences={quickSettingsPreferences}
             onPreferenceChange={handlePreferenceChange}
           />

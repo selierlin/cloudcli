@@ -4,6 +4,7 @@ import { Activity, Archive, Folder, FolderPlus, MessageSquare, Plus, RefreshCw, 
 import type { TFunction } from 'i18next';
 
 import { Button, Input, Tooltip } from '../../../../shared/view/ui';
+import CloudLogo from '../../../../shared/view/ui/CloudLogo';
 import { CLOUDCLI_WORDMARK_FONT_FAMILY } from '../../../../shared/constants';
 import { IS_PLATFORM } from '../../../../shared/utils';
 import { cn } from '../../../../lib/utils';
@@ -90,9 +91,7 @@ export default function SidebarHeader({
   const LogoBlock = () => (
     <div className="flex min-w-0 items-center gap-2.5">
       <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-primary/90 shadow-sm">
-        <svg className="h-3.5 w-3.5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
+        <CloudLogo className="h-4 w-4 text-primary-foreground" />
       </div>
       <h1
         className="truncate text-sm font-bold tracking-tight text-foreground"

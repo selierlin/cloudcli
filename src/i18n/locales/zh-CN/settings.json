@@ -83,7 +83,7 @@
     "export": {
       "title": "导出对话"
     },
-    "darkMode": "深色模式",
+    "theme": "主题",
     "showRawParameters": "显示原始参数",
     "showThinking": "显示思考过程",
     "sendByCtrlEnter": "使用 Ctrl+Enter 发送",
@@ -157,11 +157,14 @@
       "error": "运行失败"
     }
   },
+  "themeMode": {
+    "label": "主题",
+    "description": "选择浅色、深色或跟随系统设置",
+    "light": "浅色",
+    "dark": "深色",
+    "system": "跟随系统"
+  },
   "appearanceSettings": {
-    "darkMode": {
-      "label": "深色模式",
-      "description": "切换浅色和深色主题"
-    },
     "projectSorting": {
       "label": "项目排序",
       "description": "项目在侧边栏中的排列方式",

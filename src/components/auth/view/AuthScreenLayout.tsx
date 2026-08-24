@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { IS_PLATFORM } from '../../../shared/utils';
+import CloudLogo from '../../../shared/view/ui/CloudLogo';
 
 type AuthScreenLayoutProps = {
   title: string;
@@ -34,7 +35,7 @@ export default function AuthScreenLayout({
             <div className="mb-5 flex justify-center">
               {logo ?? (
                 <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-lg shadow-primary/25 ring-1 ring-inset ring-white/20">
-                  <img src="/logo.svg" alt="CloudCLI" className="h-9 w-9" />
+                  <CloudLogo className="h-9 w-9 text-primary-foreground" />
                 </div>
               )}
             </div>

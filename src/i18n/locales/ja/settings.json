@@ -67,7 +67,7 @@
     "export": {
       "title": "エクスポート"
     },
-    "darkMode": "ダークモード",
+    "theme": "テーマ",
     "showRawParameters": "生パラメータを表示",
     "showThinking": "思考を表示",
     "sendByCtrlEnter": "Ctrl+Enterで送信",
@@ -131,11 +131,14 @@
       "error": "実行失敗"
     }
   },
+  "themeMode": {
+    "label": "テーマ",
+    "description": "ライト・ダーク・システム設定に従うテーマを選択します",
+    "light": "ライト",
+    "dark": "ダーク",
+    "system": "システム"
+  },
   "appearanceSettings": {
-    "darkMode": {
-      "label": "ダークモード",
-      "description": "ライトテーマとダークテーマを切り替えます"
-    },
     "projectSorting": {
       "label": "プロジェクトの並び順",
       "description": "サイドバーでのプロジェクトの並び順を設定します",
