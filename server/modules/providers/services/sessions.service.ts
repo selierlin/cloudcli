@@ -190,6 +190,28 @@ export const sessionsService = {
   },
 
   /**
+   * Resolves the provider data root that owns a session's on-disk transcript,
+   * so runtimes can launch the engine against the same config dir the session
+   * was written from. WorkBuddy/CodeBuddy transcripts live under
+   * `{configDir}/projects/{encodedCwd}/{id}.jsonl`; this strips those three
+   * trailing segments to recover the config dir. Returns null when the session
+   * has no indexed transcript (fresh sessions fall back to the engine default).
+   */
+  resolveProviderConfigDir(sessionId: string | null | undefined): string | null {
+    if (!sessionId) {
+      return null;
+    }
+
+    const session = sessionsDb.getSessionById(sessionId);
+    if (!session?.jsonl_path) {
+      return null;
+    }
+
+    const match = session.jsonl_path.match(/^(.+)[/\\]projects[/\\][^/\\]+[/\\][^/\\]+\.jsonl$/);
+    return match ? match[1] : null;
+  },
+
+  /**
    * Normalizes one provider-native event into frontend session message events.
    */
   normalizeMessage(
@@ -418,8 +440,25 @@ export const sessionsService = {
     }
 
     let removedFromDisk = false;
-    if (options.deletedFromDisk && session.jsonl_path) {
-      removedFromDisk = await removeFileIfExists(session.jsonl_path);
+    if (options.deletedFromDisk) {
+      let transcriptPath = session.jsonl_path;
+      if (!transcriptPath && session.provider_session_id && session.project_path) {
+        // Rows that were never indexed carry no jsonl_path; ask the provider's
+        // synchronizer to resolve the on-disk transcript so a permanent delete
+        // still removes the file instead of letting the next scan resurrect it.
+        try {
+          const synchronizer = providerRegistry.resolveProvider(session.provider).sessionSynchronizer;
+          transcriptPath = (await synchronizer.resolveTranscriptPath?.(
+            session.provider_session_id,
+            session.project_path,
+          )) ?? null;
+        } catch {
+          // Unknown provider or no path resolver: fall back to removing the row only.
+        }
+      }
+      if (transcriptPath) {
+        removedFromDisk = await removeFileIfExists(transcriptPath);
+      }
     }
 
     const deleted = sessionsDb.deleteSessionById(sessionId);

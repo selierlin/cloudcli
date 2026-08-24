@@ -53,22 +53,28 @@ test('session archive queries hide archived rows from active project views', asy
   });
 });
 
-test('createSession reactivates archived rows when the session becomes active again', async () => {
+test('createSession does not resurrect archived rows; restore stays explicit', async () => {
   await withIsolatedDatabase(() => {
     sessionsDb.createSession('session-reused', 'claude', '/workspace/demo-project', 'First Name');
     sessionsDb.updateSessionIsArchived('session-reused', true);
 
+    // A re-indexed transcript (e.g. a synchronizer full re-scan) must not
+    // resurrect the archived row: the row keeps its archived flag, existing
+    // name, and stays out of the active lists.
     sessionsDb.createSession('session-reused', 'claude', '/workspace/demo-project', 'Updated Name');
 
-    const activeSessions = sessionsDb.getAllSessions();
-    const archivedSessions = sessionsDb.getArchivedSessions();
-    const restoredSession = sessionsDb.getSessionById('session-reused');
+    assert.equal(sessionsDb.getAllSessions().length, 0);
+    assert.deepEqual(sessionsDb.getArchivedSessions().map((session) => session.session_id), ['session-reused']);
+    const stillArchived = sessionsDb.getSessionById('session-reused');
+    assert.equal(stillArchived?.isArchived, 1);
+    assert.equal(stillArchived?.custom_name, 'First Name');
 
+    // Restoring is the only path back into the active lists.
+    sessionsDb.updateSessionIsArchived('session-reused', false);
+    const activeSessions = sessionsDb.getAllSessions();
     assert.equal(activeSessions.length, 1);
     assert.equal(activeSessions[0]?.session_id, 'session-reused');
-    assert.equal(activeSessions[0]?.custom_name, 'Updated Name');
-    assert.equal(archivedSessions.length, 0);
-    assert.equal(restoredSession?.isArchived, 0);
+    assert.equal(activeSessions[0]?.isArchived, 0);
   });
 });
 

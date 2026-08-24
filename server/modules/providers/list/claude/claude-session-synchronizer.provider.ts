@@ -151,6 +151,13 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
     if (!sessionName) {
       sessionName = await this.extractSessionAiTitleFromEnd(filePath, parsed.sessionId);
     }
+    if (!sessionName) {
+      // Last-resort title source. A transcript that was `/clear`ed and then
+      // closed without further input has no ai-title/last-prompt/custom-title
+      // event, so fall back to the first real user prompt instead of leaving
+      // the session labelled "Untitled Claude Session".
+      sessionName = await this.extractFirstUserMessage(filePath, parsed.sessionId);
+    }
 
     return {
       ...parsed,
@@ -200,4 +207,95 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
 
     return undefined;
   }
+
+  /**
+   * Fallback title source: the first usable user prompt in the transcript.
+   *
+   * `extractSessionAiTitleFromEnd` only honours Claude's own title metadata
+   * events. When those are absent (e.g. a session cleared with `/clear` and
+   * closed before any new message), the opening user prompt still yields a
+   * meaningful title. Slash commands are skipped because they make poor
+   * titles; the next genuine prompt is used instead.
+   */
+  private async extractFirstUserMessage(
+    filePath: string,
+    sessionId: string
+  ): Promise<string | undefined> {
+    try {
+      const content = await readFile(filePath, 'utf8');
+      return findFirstUserMessageText(content.split(/\r?\n/), sessionId);
+    } catch {
+      // Ignore missing/unreadable files so sync can continue.
+      return undefined;
+    }
+  }
+}
+
+/**
+ * Returns the first usable user prompt found in a Claude session transcript's
+ * lines, or `undefined` when none exists.
+ *
+ * Pure helper for `ClaudeSessionSynchronizer#extractFirstUserMessage`; kept
+ * side-effect free so it can be unit tested without file I/O. Selection rules:
+ * the event must be a `user` message for `sessionId` whose `message.role` is
+ * `user`, with non-empty text content that is not a bare slash command.
+ */
+function findFirstUserMessageText(lines: string[], sessionId: string): string | undefined {
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      continue;
+    }
+
+    const data = parsed as Record<string, unknown>;
+    if (data.type !== 'user' || data.sessionId !== sessionId) {
+      continue;
+    }
+
+    const message = data.message as Record<string, unknown> | undefined;
+    if (!message || message.role !== 'user') {
+      continue;
+    }
+
+    const text = extractMessageText(message.content);
+    if (text && !text.trimStart().startsWith('/')) {
+      return text.trim();
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Pulls plain text out of a Claude message `content` value.
+ *
+ * Claude serialises message content either as a bare string or as an array of
+ * content blocks; only `text` blocks carry human-readable content. Returns
+ * `undefined` when no text is present (e.g. a message made only of tool
+ * results), so callers can skip it in favour of the next message.
+ */
+function extractMessageText(content: unknown): string | undefined {
+  if (typeof content === 'string') {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    for (const block of content) {
+      if (
+        block &&
+        typeof block === 'object' &&
+        (block as Record<string, unknown>).type === 'text' &&
+        typeof (block as Record<string, unknown>).text === 'string'
+      ) {
+        return (block as Record<string, unknown>).text as string;
+      }
+    }
+  }
+  return undefined;
 }

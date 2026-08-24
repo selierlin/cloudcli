@@ -313,18 +313,21 @@ test('providerMcpService global adder writes to all providers and rejects unsupp
       workspacePath,
     });
 
-    assert.equal(globalResult.length, 5);
+    assert.equal(globalResult.length, 6);
     // Every provider that actually persists MCP servers created the entry;
-    // DSH owns its MCP configuration inside the harness, so its write reports
-    // a failure instead of pretending the server was saved.
-    const dshEntry = globalResult.find((entry) => entry.provider === 'dsh');
-    if (!dshEntry) {
-      assert.fail('Expected a dsh entry in the global MCP add result.');
+    // DSH and WorkBuddy own their MCP configuration inside their own engine /
+    // desktop app, so their writes report failure instead of pretending the
+    // server was saved.
+    for (const failingProvider of ['dsh', 'workbuddy'] as const) {
+      const failingEntry = globalResult.find((entry) => entry.provider === failingProvider);
+      if (!failingEntry) {
+        assert.fail(`Expected a ${failingProvider} entry in the global MCP add result.`);
+      }
+      assert.equal(failingEntry.created, false);
     }
-    assert.equal(dshEntry.created, false);
     assert.ok(
       globalResult
-        .filter((entry) => entry.provider !== 'dsh')
+        .filter((entry) => entry.provider !== 'dsh' && entry.provider !== 'workbuddy')
         .every((entry) => entry.created === true),
     );
 

@@ -11,19 +11,19 @@ import type {
   FetchHistoryResult,
   NormalizedMessage,
 } from '@/shared/types.js';
-import { createNormalizedMessage } from '@/shared/utils.js';
+import { createNormalizedMessage, sliceTailPage } from '@/shared/utils.js';
 
-import { getDshHarnessRoot } from './dsh-models.provider.js';
+import { getDshSessionsRoot } from './dsh-models.provider.js';
 
 // ---------- DSH JSONL session-log decoding ----------
 //
-// The DSH ACP server persists one session as `<root>/--<project-key>--/<session-id>/
-// session.jsonl.zstd`: a concatenation of independent Zstandard frames (one header
+// The DSH ACP server persists one session as `<sessions-root>/--<project-key>--/
+// <session-id>/session.jsonl.zstd`: a concatenation of independent Zstandard frames (one header
 // frame plus one frame per append batch). Directory naming mirrors
 // `@deepseek-ai/dsh-session-persistence-jsonl/src/format.ts`.
 
 const ZSTD_FRAME_MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd]);
-const SESSION_LOG_FILE = 'session.jsonl.zstd';
+export const SESSION_LOG_FILE = 'session.jsonl.zstd';
 
 /** Escapes one raw session id into a single safe path segment (`~XXXX` for unsafe code units). */
 export function encodeSessionSegment(raw: string): string {
@@ -69,7 +69,7 @@ export function projectKey(cwd: string): string {
 }
 
 /** Decodes a concatenated-zstd session log into its logical JSONL lines. */
-function decodeZstdFrames(buffer: Buffer): string {
+export function decodeZstdFrames(buffer: Buffer): string {
   let text = '';
   let index = buffer.indexOf(ZSTD_FRAME_MAGIC);
   while (index !== -1) {
@@ -86,7 +86,7 @@ function decodeZstdFrames(buffer: Buffer): string {
 }
 
 /** Concatenates the text of every text block in a DSH content-block array. */
-function extractText(content: unknown): string {
+export function extractText(content: unknown): string {
   if (!Array.isArray(content)) {
     return '';
   }
@@ -102,8 +102,7 @@ function extractText(content: unknown): string {
 /** Resolves the session-log path for one ACP session id under a project cwd. */
 function resolveSessionLogPath(acpSessionId: string, cwd: string): string | null {
   const candidate = path.join(
-    getDshHarnessRoot(),
-    '.sessions',
+    getDshSessionsRoot(),
     projectKey(cwd),
     encodeSessionSegment(acpSessionId),
     SESSION_LOG_FILE,
@@ -119,7 +118,7 @@ function resolveSessionLogPath(acpSessionId: string, cwd: string): string | null
  * misattributing another session's log as this one's.
  */
 function findNewestSessionLog(cwd: string): string | null {
-  const projectDir = path.join(getDshHarnessRoot(), '.sessions', projectKey(cwd));
+  const projectDir = path.join(getDshSessionsRoot(), projectKey(cwd));
   let entries: string[];
   try {
     entries = readdirSync(projectDir, { withFileTypes: true })
@@ -163,6 +162,14 @@ function decodeSessionLog(text: string, appSessionId: string): NormalizedMessage
       : undefined;
 
     if (event.type === 'user/message') {
+      // The harness interleaves injected context (workspace instructions,
+      // runtime snapshots, skill catalogs) as additional user/message events
+      // whose `source.kind` differs from 'user'. Only the real prompt should
+      // surface in history.
+      const source = data.source as AnyRecord | null;
+      if (source?.kind && source.kind !== 'user') {
+        continue;
+      }
       const content = extractText(data.content);
       if (content) {
         messages.push(createNormalizedMessage({
@@ -222,7 +229,8 @@ export class DshSessionsProvider implements IProviderSessions {
     return [];
   }
 
-  async fetchHistory(sessionId: string, _options?: FetchHistoryOptions): Promise<FetchHistoryResult> {
+  async fetchHistory(sessionId: string, options: FetchHistoryOptions = {}): Promise<FetchHistoryResult> {
+    const { limit = null, offset = 0 } = options;
     const row = sessionsDb.getSessionById(sessionId);
     if (!row?.project_path) {
       return EMPTY_HISTORY;
@@ -246,13 +254,17 @@ export class DshSessionsProvider implements IProviderSessions {
       return EMPTY_HISTORY;
     }
 
-    const messages = decodeSessionLog(decodeZstdFrames(buffer), sessionId);
+    const allMessages = decodeSessionLog(decodeZstdFrames(buffer), sessionId);
+    const normalizedOffset = Math.max(0, offset);
+    const normalizedLimit = limit === null ? null : Math.max(0, limit);
+    const { page, hasMore } = sliceTailPage(allMessages, normalizedLimit, normalizedOffset);
+
     return {
-      messages,
-      total: messages.length,
-      hasMore: false,
-      offset: 0,
-      limit: null,
+      messages: page,
+      total: allMessages.length,
+      hasMore,
+      offset: normalizedOffset,
+      limit: normalizedLimit,
     };
   }
 }
