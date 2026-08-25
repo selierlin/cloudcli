@@ -42,8 +42,13 @@ function resolveCommandUncached(): CommandResolution {
   }
 
   try {
-    execFileSync('which', ['codebuddy'], { stdio: 'ignore' });
-    return { command: 'codebuddy', source: 'path' };
+    // Use the absolute path from `which` so callers (PTY spawn, runtime spawn)
+    // don't need `codebuddy` to be on their own PATH — the backend process's
+    // PATH is sufficient for resolution.
+    const resolved = execFileSync('which', ['codebuddy'], { encoding: 'utf8' }).trim();
+    if (resolved) {
+      return { command: resolved, source: 'path' };
+    }
   } catch {
     // Fall through to the embedded engine.
   }

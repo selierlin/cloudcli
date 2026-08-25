@@ -6,6 +6,7 @@ import pty, { type IPty } from 'node-pty';
 import { WebSocket, type RawData } from 'ws';
 
 import { parseIncomingJsonObject } from '@/shared/utils.js';
+import { getWorkbuddyCommand } from '@/modules/providers/index.js';
 
 type ShellIncomingMessage = {
   type?: string;
@@ -214,6 +215,20 @@ function buildShellCommand(
       return `opencode --session "${resumeSessionId}"`;
     }
     return initialCommand || 'opencode';
+  }
+
+  if (provider === 'workbuddy') {
+    // Resolve the absolute path (e.g. /Users/.../.local/bin/codebuddy or the
+    // embedded .app path) so the PTY's bash does not need `codebuddy` on its
+    // own PATH — the backend process's PATH is sufficient for resolution.
+    const codebuddyBin = getWorkbuddyCommand();
+    if (resumeSessionId) {
+      if (os.platform() === 'win32') {
+        return `${codebuddyBin} --resume "${resumeSessionId}"; if ($LASTEXITCODE -ne 0) { ${codebuddyBin} }`;
+      }
+      return `${codebuddyBin} --resume "${resumeSessionId}" || ${codebuddyBin}`;
+    }
+    return initialCommand || codebuddyBin;
   }
 
   const command = initialCommand || 'claude';
@@ -536,7 +551,9 @@ export function handleShellConnection(
                 ? 'Codex'
                 : provider === 'opencode'
                     ? 'OpenCode'
-                  : 'Claude';
+                  : provider === 'workbuddy'
+                      ? 'WorkBuddy'
+                    : 'Claude';
           welcomeMsg = hasSession && resumeSessionId
             ? `\x1b[36mResuming ${providerName} session ${resumeSessionId} in: ${projectPath}\x1b[0m\r\n`
             : `\x1b[36mStarting new ${providerName} session in: ${projectPath}\x1b[0m\r\n`;
