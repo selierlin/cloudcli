@@ -88,10 +88,10 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     // `--permission-mode` on every run.
     permissionModes: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
     defaultPermissionMode: 'default',
-    // Attachments are not passed through the print-mode CLI invocation yet,
-    // and no token-usage parser exists for WorkBuddy transcripts.
-    supportsImages: false,
-    supportsFiles: false,
+    // Images and files reach the engine as stream-json input blocks; no
+    // token-usage parser exists for WorkBuddy transcripts yet.
+    supportsImages: true,
+    supportsFiles: true,
     supportsAbort: true,
     supportsPermissionRequests: false,
     supportsTokenUsage: false,
