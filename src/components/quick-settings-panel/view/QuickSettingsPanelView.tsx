@@ -14,7 +14,6 @@ import type {
 } from '../types';
 
 import QuickSettingsContent from './QuickSettingsContent';
-import QuickSettingsExportBar from './QuickSettingsExportBar';
 import QuickSettingsHandle from './QuickSettingsHandle';
 import QuickSettingsOutline from './QuickSettingsOutline';
 import QuickSettingsPanelHeader from './QuickSettingsPanelHeader';
@@ -148,6 +147,8 @@ export default function QuickSettingsPanelView({
           <QuickSettingsContent
             preferences={quickSettingsPreferences}
             onPreferenceChange={handlePreferenceChange}
+            messages={chatMessages}
+            sessionTitle={selectedSession?.title}
           />
         ) : (
           <QuickSettingsOutline
@@ -156,11 +157,6 @@ export default function QuickSettingsPanelView({
             onJumpToMessage={onJumpToMessage}
           />
         )}
-
-        <QuickSettingsExportBar
-          messages={chatMessages}
-          sessionTitle={selectedSession?.title}
-        />
       </div>
     </>
   );
