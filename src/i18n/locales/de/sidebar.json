@@ -139,6 +139,8 @@
     "searching": "Sucht...",
     "sessionTitles": "Sitzungstitel",
     "conversationContents": "Unterhaltungsinhalte",
+    "expandAll": "Alle erweitern",
+    "collapseAll": "Alle einklappen",
     "noResults": "Keine Ergebnisse gefunden",
     "tryDifferentQuery": "Versuch eine andere Suchanfrage",
     "matches_one": "{{count}} Treffer",

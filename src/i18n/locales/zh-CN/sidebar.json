@@ -139,6 +139,8 @@
     "searching": "搜索中...",
     "sessionTitles": "会话标题",
     "conversationContents": "对话内容",
+    "expandAll": "全部展开",
+    "collapseAll": "全部收起",
     "noResults": "未找到结果",
     "tryDifferentQuery": "尝试不同的搜索词",
     "matches_one": "{{count}} 个匹配",

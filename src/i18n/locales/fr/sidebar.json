@@ -139,6 +139,8 @@
     "searching": "Recherche en cours...",
     "sessionTitles": "Titres des sessions",
     "conversationContents": "Contenu des conversations",
+    "expandAll": "Tout développer",
+    "collapseAll": "Tout réduire",
     "noResults": "Aucun résultat trouvé",
     "tryDifferentQuery": "Essayez une autre requête de recherche",
     "matches_one": "{{count}} résultat",

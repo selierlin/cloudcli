@@ -139,6 +139,8 @@
     "searching": "검색 중...",
     "sessionTitles": "세션 제목",
     "conversationContents": "대화 내용",
+    "expandAll": "모두 펼치기",
+    "collapseAll": "모두 접기",
     "noResults": "결과를 찾을 수 없습니다",
     "tryDifferentQuery": "다른 검색어로 시도해보세요",
     "matches_one": "{{count}}개 일치",

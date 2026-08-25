@@ -139,6 +139,8 @@
     "searching": "Searching...",
     "sessionTitles": "Session",
     "conversationContents": "Conversation contents",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
     "noResults": "No results found",
     "tryDifferentQuery": "Try a different search query",
     "matches_one": "{{count}} match",

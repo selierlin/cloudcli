@@ -139,6 +139,8 @@
     "searching": "Поиск...",
     "sessionTitles": "Названия сеансов",
     "conversationContents": "Содержимое разговоров",
+    "expandAll": "Развернуть все",
+    "collapseAll": "Свернуть все",
     "noResults": "Результаты не найдены",
     "tryDifferentQuery": "Попробуйте другой поисковый запрос",
     "matches_one": "{{count}} совпадение",

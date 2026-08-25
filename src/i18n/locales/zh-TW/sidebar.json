@@ -138,6 +138,8 @@
     "searching": "搜尋中...",
     "sessionTitles": "工作階段標題",
     "conversationContents": "對話內容",
+    "expandAll": "全部展開",
+    "collapseAll": "全部收合",
     "noResults": "找不到結果",
     "tryDifferentQuery": "嘗試不同的搜尋詞",
     "matches_one": "{{count}} 個符合",
