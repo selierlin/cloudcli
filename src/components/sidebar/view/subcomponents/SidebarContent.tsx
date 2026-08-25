@@ -1,5 +1,5 @@
-import { type ReactNode } from 'react';
-import { Activity, Archive, Folder, MessageSquare, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Activity, Archive, ChevronDown, ChevronRight, Folder, MessageSquare, RotateCcw, Search, Trash2 } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { ScrollArea } from '../../../../shared/view/ui';
@@ -177,6 +177,55 @@ export default function SidebarContent({
   projectListProps,
   t,
 }: SidebarContentProps) {
+  // ---------------------------------------------------------------------------
+  // 搜索结果"项目组"的展开/收起
+  // ---------------------------------------------------------------------------
+  // 搜索命中结果按项目分组展示。当前需求：默认收起，只显示项目名和命中会话数，
+  // 点击项目行再展开显示该项目下命中的会话。
+  // 若以后要改成默认全部展开，只需把 DEFAULT_SEARCH_GROUPS_EXPANDED 改为 true，
+  // 其余展开/收起/一键全部逻辑都会自动跟随该默认值。
+  const DEFAULT_SEARCH_GROUPS_EXPANDED = false;
+
+  // 记录"与默认状态相反"的项目（即用户手动展开/收起过的），新搜索开始时清空。
+  const [searchGroupOverrides, setSearchGroupOverrides] = useState<Set<string>>(new Set());
+
+  const isSearchGroupExpanded = (projectKey: string): boolean =>
+    DEFAULT_SEARCH_GROUPS_EXPANDED
+      ? !searchGroupOverrides.has(projectKey)
+      : searchGroupOverrides.has(projectKey);
+
+  const toggleSearchGroup = (projectKey: string) => {
+    setSearchGroupOverrides((previous) => {
+      const next = new Set(previous);
+      if (next.has(projectKey)) {
+        next.delete(projectKey);
+      } else {
+        next.add(projectKey);
+      }
+      return next;
+    });
+  };
+
+  const expandAllSearchGroups = (projectKeys: string[]) => {
+    setSearchGroupOverrides(DEFAULT_SEARCH_GROUPS_EXPANDED ? new Set() : new Set(projectKeys));
+  };
+
+  const collapseAllSearchGroups = (projectKeys: string[]) => {
+    setSearchGroupOverrides(DEFAULT_SEARCH_GROUPS_EXPANDED ? new Set(projectKeys) : new Set());
+  };
+
+  // 项目分组用 projectId（缺失时退回 projectName）作为稳定标识。
+  const searchProjectKeys = (conversationResults?.results ?? []).map(
+    (projectResult) => projectResult.projectId ?? projectResult.projectName,
+  );
+  const allSearchGroupsExpanded =
+    searchProjectKeys.length > 0 && searchProjectKeys.every((key) => isSearchGroupExpanded(key));
+
+  // 新的搜索词或离开搜索模式时，重置为默认展开/收起状态。
+  useEffect(() => {
+    setSearchGroupOverrides(new Set());
+  }, [conversationResults?.query, searchMode]);
+
   const showConversationSearch = searchMode === 'conversations' && searchFilter.trim().length >= 2;
   const hasSearchResults = Boolean(
     conversationResults
@@ -292,16 +341,33 @@ export default function SidebarContent({
 
               {(conversationResults.results.length > 0 || isSearching) && (
                 <section className="space-y-3" aria-labelledby="conversation-content-results-heading">
-                  <div className="flex items-center justify-between px-1 py-0.5">
+                  <div className="flex items-center justify-between gap-2 px-1 py-0.5">
                     <h3
                       id="conversation-content-results-heading"
                       className="text-[11px] font-medium text-muted-foreground"
                     >
                       {t('search.conversationContents', 'Conversation contents')}
                     </h3>
-                    <span className="text-[10px] tabular-nums text-muted-foreground/70">
-                      {t('search.matches', { count: conversationResults.totalMatches })}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {searchProjectKeys.length > 0 && (
+                        <button
+                          type="button"
+                          className="text-[10px] text-muted-foreground/70 transition-colors hover:text-foreground"
+                          onClick={() =>
+                            allSearchGroupsExpanded
+                              ? collapseAllSearchGroups(searchProjectKeys)
+                              : expandAllSearchGroups(searchProjectKeys)
+                          }
+                        >
+                          {allSearchGroupsExpanded
+                            ? t('search.collapseAll', 'Collapse all')
+                            : t('search.expandAll', 'Expand all')}
+                        </button>
+                      )}
+                      <span className="text-[10px] tabular-nums text-muted-foreground/70">
+                        {t('search.matches', { count: conversationResults.totalMatches })}
+                      </span>
+                    </div>
                   </div>
 
                   {isSearching && searchProgress && (
@@ -325,56 +391,75 @@ export default function SidebarContent({
                     </div>
                   )}
 
-                  {conversationResults.results.map((projectResult) => (
-                    <div key={projectResult.projectName} className="space-y-1">
-                      <div className="flex items-center gap-1.5 px-1 py-1">
-                        <Folder className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
-                        <span className="truncate text-xs font-normal text-foreground">
-                          {projectResult.projectDisplayName}
-                        </span>
-                      </div>
-                      {projectResult.sessions.map((session) => (
+                  {conversationResults.results.map((projectResult) => {
+                    const projectKey = projectResult.projectId ?? projectResult.projectName;
+                    const groupExpanded = isSearchGroupExpanded(projectKey);
+
+                    return (
+                      <div key={projectResult.projectName} className="space-y-1">
                         <button
-                          key={`${projectResult.projectId ?? projectResult.projectName}-${session.sessionId}`}
-                          className="w-full rounded-md px-2 py-2 text-left transition-colors hover:bg-accent/50"
-                          onClick={() => onConversationResultClick(
-                            // Pass the DB projectId (preferred) so the parent can
-                            // cross-reference with the loaded projects list.
-                            projectResult.projectId,
-                            session.sessionId,
-                            session.provider || session.matches[0]?.provider || 'claude',
-                            session.matches[0]?.timestamp,
-                            session.matches[0]?.snippet
-                          )}
+                          type="button"
+                          className="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left transition-colors hover:bg-accent/40"
+                          onClick={() => toggleSearchGroup(projectKey)}
+                          aria-expanded={groupExpanded}
                         >
-                          <div className="mb-1 flex items-center gap-1.5">
-                            <MessageSquare className="h-3 w-3 flex-shrink-0 text-primary" />
-                            <span className="truncate text-xs font-normal text-foreground">
-                              {session.sessionSummary}
-                            </span>
-                            {session.provider && session.provider !== 'claude' && (
-                              <span className="flex-shrink-0 rounded bg-muted px-1 py-0.5 text-[9px] uppercase text-muted-foreground">
-                                {session.provider}
-                              </span>
-                            )}
-                          </div>
-                          <div className="space-y-1 pl-4">
-                            {session.matches.map((match, idx) => (
-                              <div key={idx} className="flex items-start gap-1">
-                                <span className="mt-0.5 flex-shrink-0 text-[10px] font-normal uppercase text-muted-foreground/60">
-                                  {match.role === 'user' ? 'U' : 'A'}
-                                </span>
-                                <HighlightedSnippet
-                                  snippet={match.snippet}
-                                  highlights={match.highlights}
-                                />
-                              </div>
-                            ))}
-                          </div>
+                          {groupExpanded ? (
+                            <ChevronDown className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+                          )}
+                          <Folder className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+                          <span className="truncate text-xs font-normal text-foreground">
+                            {projectResult.projectDisplayName}
+                          </span>
+                          <span className="ml-auto flex-shrink-0 text-[10px] tabular-nums text-muted-foreground/70">
+                            {projectResult.sessions.length}
+                          </span>
                         </button>
-                      ))}
-                    </div>
-                  ))}
+
+                        {groupExpanded && projectResult.sessions.map((session) => (
+                          <button
+                            key={`${projectResult.projectId ?? projectResult.projectName}-${session.sessionId}`}
+                            className="w-full rounded-md px-2 py-2 text-left transition-colors hover:bg-accent/50"
+                            onClick={() => onConversationResultClick(
+                              // Pass the DB projectId (preferred) so the parent can
+                              // cross-reference with the loaded projects list.
+                              projectResult.projectId,
+                              session.sessionId,
+                              session.provider || session.matches[0]?.provider || 'claude',
+                              session.matches[0]?.timestamp,
+                              session.matches[0]?.snippet
+                            )}
+                          >
+                            <div className="mb-1 flex items-center gap-1.5">
+                              <MessageSquare className="h-3 w-3 flex-shrink-0 text-primary" />
+                              <span className="truncate text-xs font-normal text-foreground">
+                                {session.sessionSummary}
+                              </span>
+                              {session.provider && session.provider !== 'claude' && (
+                                <span className="flex-shrink-0 rounded bg-muted px-1 py-0.5 text-[9px] uppercase text-muted-foreground">
+                                  {session.provider}
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-1 pl-4">
+                              {session.matches.map((match, idx) => (
+                                <div key={idx} className="flex items-start gap-1">
+                                  <span className="mt-0.5 flex-shrink-0 text-[10px] font-normal uppercase text-muted-foreground/60">
+                                    {match.role === 'user' ? 'U' : 'A'}
+                                  </span>
+                                  <HighlightedSnippet
+                                    snippet={match.snippet}
+                                    highlights={match.highlights}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })}
                 </section>
               )}
             </div>

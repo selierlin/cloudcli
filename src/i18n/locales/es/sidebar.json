@@ -139,6 +139,8 @@
     "searching": "Buscando...",
     "sessionTitles": "Títulos de sesiones",
     "conversationContents": "Contenido de conversaciones",
+    "expandAll": "Expandir todo",
+    "collapseAll": "Contraer todo",
     "noResults": "No se encontraron resultados",
     "tryDifferentQuery": "Prueba con otra búsqueda",
     "matches_one": "{{count}} coincidencia",

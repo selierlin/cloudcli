@@ -139,6 +139,8 @@
     "searching": "Aranıyor...",
     "sessionTitles": "Oturum başlıkları",
     "conversationContents": "Konuşma içerikleri",
+    "expandAll": "Tümünü genişlet",
+    "collapseAll": "Tümünü daralt",
     "noResults": "Sonuç bulunamadı",
     "tryDifferentQuery": "Farklı bir arama sorgusu dene",
     "matches_one": "{{count}} eşleşme",
