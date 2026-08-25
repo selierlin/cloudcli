@@ -307,7 +307,7 @@ function registerProcessShutdownHook(): void {
 }
 
 /**
- * Registers a claudecodeui-created ACP session with the DSH Desktop workspace
+ * Registers a cloudcli-created ACP session with the DSH Desktop workspace
  * registry (`<harness>/storages/workspace.json`) so the Desktop UI groups it
  * under the matching project instead of "ungrouped".
  *
@@ -381,7 +381,7 @@ async function ensureAcpServer(): Promise<AcpServerState> {
   const childEnv: NodeJS.ProcessEnv = { ...process.env };
   delete childEnv.TSX_TSCONFIG_PATH;
   // The ACP composition reads this variable to override its persistence root
-  // (examples/acp-agent/cordis.yml), which is how claudecodeui sessions become
+  // (examples/acp-agent/cordis.yml), which is how cloudcli sessions become
   // visible in the DSH Desktop app.
   childEnv.DSH_SNAPSHOT_SESSIONS_ROOT = getDshSessionsRoot();
   const child = spawn(

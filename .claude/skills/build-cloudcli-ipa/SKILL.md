@@ -27,8 +27,8 @@ description: Build an AltStore-installable CloudCLI IPA from the local Capacitor
 1. 先检查状态，绝不丢弃用户改动：
 
 ```bash
-git -C /Users/selier/Projects/open_projects/claudecodeui status --short --branch
-git -C /Users/selier/Projects/open_projects/claudecodeui branch --show-current
+git -C /Users/selier/Projects/open_projects/cloudcli status --short --branch
+git -C /Users/selier/Projects/open_projects/cloudcli branch --show-current
 ```
 
 若工作区不干净，先停下询问，再决定是否切换/暂存。
@@ -37,7 +37,7 @@ git -C /Users/selier/Projects/open_projects/claudecodeui branch --show-current
    （AltStore 导入目录），与 Remodex 惯例一致：
 
 ```bash
-cd /Users/selier/Projects/open_projects/claudecodeui
+cd /Users/selier/Projects/open_projects/cloudcli
 ./.claude/skills/build-cloudcli-ipa/build-cloudcli-ipa.sh
 ```
 
@@ -50,7 +50,7 @@ CLOUDCLI_IOS_SIGN=1 ./.claude/skills/build-cloudcli-ipa/build-cloudcli-ipa.sh
 3. 校验产物（本地 + iCloud 副本）：
 
 ```bash
-IPA="/Users/selier/Projects/open_projects/claudecodeui/ios/App/build/CloudCLI-AltStore.ipa"
+IPA="/Users/selier/Projects/open_projects/cloudcli/ios/App/build/CloudCLI-AltStore.ipa"
 stat -f 'path=%N size=%z modified=%Sm' "$IPA"
 unzip -l "$IPA" | rg 'Payload/CloudCLI.app/?$|Payload/CloudCLI.app/Info.plist'
 ls -lt "$HOME/Library/Mobile Documents/com~apple~CloudDocs/工具/" | head -3
