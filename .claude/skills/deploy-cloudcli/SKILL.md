@@ -60,5 +60,5 @@ tail -n 500 ~/Library/Logs/CloudCLI/cloudcli.err.log            # ⑤ 启动日�
   不要用 `cloudclictl logs`（它是 `tail -f`，会挂起）。
 - 日志报 `No .env file found`：launchd 环境 PATH 干净、不会自动加载 nvm，路径由 plist
   `EnvironmentVariables` 注入；确认 `cloudclictl install --app-root` 的 `APP_ROOT` 正确
-  （默认 `/Users/selier/Projects/open_projects/claudecodeui`）。
+  （默认 `/Users/selier/Projects/open_projects/cloudcli`）。
 - 构建报 ENOENT / 找不到依赖：确认分支与依赖（`npm install`），不要在错误分支构建。

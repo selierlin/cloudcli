@@ -27,8 +27,8 @@ iOS project change.
 1. Inspect state first; never discard user changes:
 
 ```bash
-git -C /Users/selier/Projects/open_projects/claudecodeui status --short --branch
-git -C /Users/selier/Projects/open_projects/claudecodeui branch --show-current
+git -C /Users/selier/Projects/open_projects/cloudcli status --short --branch
+git -C /Users/selier/Projects/open_projects/cloudcli branch --show-current
 ```
 
 If the working tree is dirty, stop and ask before switching/stashing.
@@ -37,7 +37,7 @@ If the working tree is dirty, stop and ask before switching/stashing.
    iCloud Drive `工具` (AltStore import dir), same convention as Remodex:
 
 ```bash
-cd /Users/selier/Projects/open_projects/claudecodeui
+cd /Users/selier/Projects/open_projects/cloudcli
 ./.codex/skills/build-cloudcli-ipa/build-cloudcli-ipa.sh
 ```
 
@@ -50,7 +50,7 @@ CLOUDCLI_IOS_SIGN=1 ./.codex/skills/build-cloudcli-ipa/build-cloudcli-ipa.sh
 3. Verify the artifact (local + iCloud copy):
 
 ```bash
-IPA="/Users/selier/Projects/open_projects/claudecodeui/ios/App/build/CloudCLI-AltStore.ipa"
+IPA="/Users/selier/Projects/open_projects/cloudcli/ios/App/build/CloudCLI-AltStore.ipa"
 stat -f 'path=%N size=%z modified=%Sm' "$IPA"
 unzip -l "$IPA" | rg 'Payload/CloudCLI.app/?$|Payload/CloudCLI.app/Info.plist'
 ls -lt "$HOME/Library/Mobile Documents/com~apple~CloudDocs/工具/" | head -3

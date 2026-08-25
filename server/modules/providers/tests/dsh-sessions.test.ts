@@ -100,8 +100,8 @@ const assistantMessage = (text: string, seq: number, time: number) => ({
 
 test('projectKey mirrors the DSH JSONL directory encoding', () => {
   assert.equal(
-    projectKey('/Users/selier/Projects/open_projects/claudecodeui'),
-    '--Users-selier-Projects-open_projects-claudecodeui--',
+    projectKey('/Users/selier/Projects/open_projects/cloudcli'),
+    '--Users-selier-Projects-open_projects-cloudcli--',
   );
   assert.equal(projectKey('C:\\Users\\me\\proj'), '--C-Users-me-proj--');
   assert.equal(encodeSessionSegment('a-b_c.d'), 'a-b_c.d');

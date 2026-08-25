@@ -43,7 +43,7 @@ export const getDshHarnessRoot = (): string =>
 /**
  * Root where ACP sessions are persisted.
  *
- * Defaults to the DSH Desktop harness sessions directory so claudecodeui
+ * Defaults to the DSH Desktop harness sessions directory so cloudcli
  * sessions land next to the Desktop app's own sessions (visible in the Desktop
  * UI); override with `DSH_SESSIONS_ROOT` to isolate them elsewhere. The ACP
  * composition reads this root via `DSH_SNAPSHOT_SESSIONS_ROOT`, so every
