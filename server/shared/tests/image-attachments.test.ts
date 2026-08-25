@@ -9,6 +9,7 @@ import {
   appendImagesInputTag,
   buildClaudeUserContent,
   buildCodexInputItems,
+  buildWorkbuddyStreamJsonInput,
   isImageAttachmentDescriptor,
   normalizeAttachmentDescriptors,
   isAllowedImageSourcePath,
@@ -350,4 +351,49 @@ test('provider builders refuse descriptors outside the allowed roots', async () 
     cwd,
   );
   assert.deepEqual(claudeContent, [{ type: 'text', text: 'prompt' }]);
+});
+
+test('buildWorkbuddyStreamJsonInput serializes images and documents into one user message', async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'image-attachments-'));
+  try {
+    await writeFile(path.join(tempDir, 'shot.png'), PNG_BYTES);
+    await writeFile(path.join(tempDir, 'notes.txt'), 'hello file');
+
+    const line = await buildWorkbuddyStreamJsonInput(
+      'look at this',
+      [
+        { path: 'shot.png', name: 'shot.png', mimeType: 'image/png' },
+        { path: 'notes.txt', name: 'notes.txt' },
+      ],
+      tempDir,
+    );
+
+    const parsed = JSON.parse(line);
+    assert.equal(parsed.type, 'user');
+    assert.equal(parsed.message.role, 'user');
+    assert.equal(parsed.message.content.length, 3);
+
+    const imageBlock = parsed.message.content.find((block: any) => block.type === 'image');
+    assert.equal(imageBlock.source.type, 'base64');
+    assert.equal(imageBlock.source.media_type, 'image/png');
+    assert.equal(imageBlock.source.data, PNG_BYTES.toString('base64'));
+    assert.equal(imageBlock.original_filename, 'shot.png');
+
+    const documentBlock = parsed.message.content.find((block: any) => block.type === 'document');
+    assert.equal(documentBlock.source.type, 'base64');
+    assert.equal(documentBlock.source.media_type, 'application/octet-stream');
+    assert.equal(Buffer.from(documentBlock.source.data, 'base64').toString('utf8'), 'hello file');
+    assert.equal(documentBlock.original_filename, 'notes.txt');
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('buildWorkbuddyStreamJsonInput skips attachments outside the allowed roots', async () => {
+  const cwd = path.join(os.tmpdir(), 'wb-project');
+  const outsidePath = path.join(os.homedir(), '.ssh', 'id_rsa.png');
+
+  const line = await buildWorkbuddyStreamJsonInput('prompt', [{ path: outsidePath }], cwd);
+
+  assert.deepEqual(JSON.parse(line).message.content, [{ type: 'text', text: 'prompt' }]);
 });

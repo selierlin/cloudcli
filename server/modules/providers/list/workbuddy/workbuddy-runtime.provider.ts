@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 
 import { notifyRunFailed, notifyRunStopped } from '@/modules/notifications/index.js';
+import { buildWorkbuddyStreamJsonInput } from '@/shared/image-attachments.js';
 import type { IProviderRuntime } from '@/shared/interfaces.js';
 import type { AnyRecord } from '@/shared/types.js';
 import { createCompleteMessage, createNormalizedMessage } from '@/shared/utils.js';
@@ -41,9 +42,6 @@ export const workbuddyRuntime: IProviderRuntime = {
     // Prefer the model recorded on the session row when resuming; fall back to
     // the model selected in the composer for new sessions.
     const resolvedModel = await context.resolveResumeModel(appSessionId, options.model);
-    return new Promise<void>((resolveRun) => {
-    // A stale flag from a superseded run must not mark this run aborted.
-    abortedSessionIds.delete(appSessionId);
 
     const workingDir = typeof options.cwd === 'string' && options.cwd
       ? options.cwd
@@ -53,7 +51,26 @@ export const workbuddyRuntime: IProviderRuntime = {
 
     const providerSessionId = context.resolveProviderSessionId(appSessionId);
 
-    const args = ['-p', command, '--output-format', 'stream-json'];
+    // Attachments travel as a stream-json user message on stdin — the only
+    // input path that can carry image/document content blocks to the engine.
+    // Without attachments the proven plain-text `-p` prompt is kept unchanged.
+    const hasAttachments = Array.isArray(options.attachments) && options.attachments.length > 0;
+    const streamInput = hasAttachments
+      ? await buildWorkbuddyStreamJsonInput(command, options.attachments, workingDir)
+      : null;
+
+    return new Promise<void>((resolveRun) => {
+    // A stale flag from a superseded run must not mark this run aborted.
+    abortedSessionIds.delete(appSessionId);
+
+    const args: string[] = ['-p'];
+    if (streamInput !== null) {
+      // Stream-json input carries the prompt and attachments on stdin; there
+      // is no positional prompt argument.
+      args.push('--output-format', 'stream-json', '--input-format', 'stream-json');
+    } else {
+      args.push(command, '--output-format', 'stream-json');
+    }
     if (providerSessionId) {
       args.push('--resume', providerSessionId);
     }
@@ -82,8 +99,12 @@ export const workbuddyRuntime: IProviderRuntime = {
       stdio: ['pipe', 'pipe', 'pipe'],
       env,
     });
-    // Print mode is non-interactive: close stdin so the engine does not wait
-    // for input before executing the prompt.
+    // Print mode is non-interactive: write the stream-json user message (when
+    // present) then close stdin so the engine does not wait for input before
+    // executing the prompt.
+    if (streamInput !== null) {
+      child.stdin.write(streamInput + '\n');
+    }
     child.stdin.end();
     activeProcesses.set(appSessionId, child);
 

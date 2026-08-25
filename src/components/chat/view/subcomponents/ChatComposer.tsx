@@ -103,6 +103,8 @@ interface ChatComposerProps {
   getRootProps: (...args: unknown[]) => Record<string, unknown>;
   getInputProps: (...args: unknown[]) => Record<string, unknown>;
   openAttachmentPicker: () => void;
+  /** Whether the active provider runtime consumes file/image attachments. */
+  canAttachFiles?: boolean;
   inputHighlightRef: RefObject<HTMLDivElement>;
   renderInputWithMentions: (text: string) => ReactNode;
   textareaRef: RefObject<HTMLTextAreaElement>;
@@ -167,6 +169,7 @@ export default function ChatComposer({
   getRootProps,
   getInputProps,
   openAttachmentPicker,
+  canAttachFiles = true,
   inputHighlightRef,
   renderInputWithMentions,
   textareaRef,
@@ -406,13 +409,15 @@ export default function ChatComposer({
 
         <PromptInputFooter>
           <PromptInputTools className="min-w-0">
-            <PromptInputButton
-              tooltip={{ content: t('input.attachFiles') }}
-              onClick={openAttachmentPicker}
-              aria-label={t('input.attachFiles')}
-            >
-              <PaperclipIcon />
-            </PromptInputButton>
+            {canAttachFiles && (
+              <PromptInputButton
+                tooltip={{ content: t('input.attachFiles') }}
+                onClick={openAttachmentPicker}
+                aria-label={t('input.attachFiles')}
+              >
+                <PaperclipIcon />
+              </PromptInputButton>
+            )}
 
             {onVoiceTranscript && voiceAvailable && (
               <VoiceInputButton state={voiceState} onToggle={voiceToggle} errorMsg={voiceError} />

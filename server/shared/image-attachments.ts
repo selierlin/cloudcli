@@ -407,6 +407,74 @@ export async function buildClaudeUserContent(
   return blocks;
 }
 
+type WorkbuddyStreamContentBlock =
+  | { type: 'text'; text: string }
+  | {
+      type: 'image';
+      source: { type: 'base64'; media_type: string; data: string };
+      original_filename?: string;
+    }
+  | {
+      type: 'document';
+      source: { type: 'base64'; media_type: string; data: string };
+      original_filename?: string;
+    };
+
+/**
+ * Builds the WorkBuddy `--input-format stream-json` user turn carrying the
+ * prompt plus every validated attachment.
+ *
+ * The WorkBuddy engine reads one JSON user message per stdin line. Images
+ * become `image` content blocks (base64, same source shape the Claude builder
+ * produces); non-image files become `document` blocks the engine materializes
+ * as input files — content is embedded rather than path-referenced, so the
+ * engine never needs filesystem access outside its working directory.
+ *
+ * Applies the same trust boundary as the other builders: every path must sit
+ * under the global upload store or the run's working directory, or it is
+ * skipped with a warning.
+ */
+export async function buildWorkbuddyStreamJsonInput(
+  prompt: string,
+  attachments: unknown,
+  cwd?: string,
+): Promise<string> {
+  const descriptors = normalizeAttachmentDescriptors(attachments);
+  const blocks: WorkbuddyStreamContentBlock[] = [{ type: 'text', text: prompt }];
+
+  for (const descriptor of descriptors) {
+    const resolvedPath = resolveImageAbsolutePath(cwd, descriptor.path);
+    if (!isAllowedImageSourcePath(resolvedPath, cwd)) {
+      console.warn(`[WorkBuddy] Refusing to attach file outside allowed roots: ${descriptor.path}`);
+      continue;
+    }
+
+    try {
+      const canonicalPath = await fs.realpath(resolvedPath);
+      if (!isAllowedImageSourcePath(canonicalPath, cwd)) {
+        console.warn(`[WorkBuddy] Refusing to attach symlinked file outside allowed roots: ${descriptor.path}`);
+        continue;
+      }
+
+      const bytes = await fs.readFile(canonicalPath);
+      const mediaType = descriptor.mimeType ?? resolveImageMediaType(descriptor) ?? 'application/octet-stream';
+      blocks.push({
+        type: isImageAttachmentDescriptor(descriptor) ? 'image' : 'document',
+        source: { type: 'base64', media_type: mediaType, data: bytes.toString('base64') },
+        ...(descriptor.name ? { original_filename: descriptor.name } : {}),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[WorkBuddy] Failed to read attachment ${descriptor.path}: ${message}`);
+    }
+  }
+
+  return JSON.stringify({
+    type: 'user',
+    message: { role: 'user', content: blocks },
+  });
+}
+
 type CodexInputItem =
   | { type: 'text'; text: string }
   | { type: 'local_image'; path: string };

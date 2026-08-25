@@ -91,10 +91,17 @@ function ChatInterface({
     selectProviderModel,
     selectProviderEffort,
     resolvePermissionModeForProvider,
+    providerCapabilities,
   } = useChatProviderState({
     selectedSession,
     selectedProject,
   });
+
+  // The composer shows the attachment button only for providers whose runtime
+  // actually consumes attachments (mirrors the backend capability matrix).
+  const canAttachFiles = providerCapabilities?.[provider]
+    ? providerCapabilities[provider]!.supportsImages || providerCapabilities[provider]!.supportsFiles
+    : true;
 
   const {
     chatMessages,
@@ -466,6 +473,7 @@ function ChatInterface({
           getRootProps={getRootProps as (...args: unknown[]) => Record<string, unknown>}
           getInputProps={getInputProps as (...args: unknown[]) => Record<string, unknown>}
           openAttachmentPicker={openAttachmentPicker}
+          canAttachFiles={canAttachFiles}
           inputHighlightRef={inputHighlightRef}
           renderInputWithMentions={renderInputWithMentions}
           textareaRef={textareaRef}

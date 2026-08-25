@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test, { beforeEach } from 'node:test';
@@ -106,6 +108,73 @@ test('workbuddy run resumes an existing session id', async () => {
   assert.equal(text?.content, 'RESUMED:previous-session-id:continue work');
   // A resumed session must not announce a fresh session id.
   assert.equal(captured.some((entry) => entry.kind === 'session_created'), false);
+});
+
+test('workbuddy run sends image and file attachments as stream-json stdin', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'success';
+  const captured: Captured[] = [];
+
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'wb-attach-'));
+  const imagePath = path.join(tempDir, 'photo.png');
+  const filePath = path.join(tempDir, 'notes.txt');
+  await writeFile(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]));
+  await writeFile(filePath, 'hello file');
+
+  try {
+    await workbuddyRuntime.run(
+      'look at this',
+      {
+        sessionId: 'wb-attach',
+        cwd: tempDir,
+        attachments: [
+          { path: imagePath, name: 'photo.png', mimeType: 'image/png' },
+          { path: filePath, name: 'notes.txt' },
+        ],
+      },
+      makeWriter(captured),
+      makeContext(new Map()),
+    );
+
+    // The mock echoes the prompt plus a count of the stdin content blocks, so
+    // this asserts the runtime switched to stream-json and serialized one
+    // image block and one document block.
+    const text = captured.find((entry) => entry.kind === 'text');
+    assert.equal(text?.content, 'OK:look at this:perm=none STDIN:1img:1file');
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('workbuddy run keeps attachments working when resuming a session', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'success';
+  const captured: Captured[] = [];
+  const providerSessionIds = new Map<string, string | null>([
+    ['wb-attach-resume', 'previous-session-id'],
+  ]);
+
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'wb-attach-resume-'));
+  const imagePath = path.join(tempDir, 'photo.png');
+  await writeFile(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]));
+
+  try {
+    await workbuddyRuntime.run(
+      'still looking',
+      {
+        sessionId: 'wb-attach-resume',
+        cwd: tempDir,
+        attachments: [{ path: imagePath, name: 'photo.png', mimeType: 'image/png' }],
+      },
+      makeWriter(captured),
+      makeContext(providerSessionIds),
+    );
+
+    const text = captured.find((entry) => entry.kind === 'text');
+    assert.equal(text?.content, 'RESUMED:previous-session-id:still looking STDIN:1img:0file');
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 });
 
 test('workbuddy run forwards the permission mode flag', async () => {

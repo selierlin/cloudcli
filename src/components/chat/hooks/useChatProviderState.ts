@@ -926,6 +926,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   return {
     provider,
     setProvider,
+    providerCapabilities,
     cursorModel,
     setCursorModel,
     claudeModel,
