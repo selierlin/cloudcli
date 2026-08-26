@@ -34,6 +34,11 @@ type QuickSettingsContentProps = {
   onPreferenceChange: (key: PreferenceToggleKey, value: boolean) => void;
   messages: ChatMessage[];
   sessionTitle?: string;
+  /** Controlled expand state of the export section (loads the full transcript). */
+  exportExpanded: boolean;
+  onExportToggle: () => void;
+  /** True while the full transcript is being fetched for export. */
+  isLoading: boolean;
 };
 
 export default function QuickSettingsContent({
@@ -41,6 +46,9 @@ export default function QuickSettingsContent({
   onPreferenceChange,
   messages,
   sessionTitle,
+  exportExpanded,
+  onExportToggle,
+  isLoading,
 }: QuickSettingsContentProps) {
   const { t } = useTranslation('settings');
   const {
@@ -142,7 +150,13 @@ export default function QuickSettingsContent({
         </p>
       </QuickSettingsSection>
 
-      <QuickSettingsExportSection messages={messages} sessionTitle={sessionTitle} />
+      <QuickSettingsExportSection
+        messages={messages}
+        sessionTitle={sessionTitle}
+        isOpen={exportExpanded}
+        onToggle={onExportToggle}
+        isLoading={isLoading}
+      />
     </div>
   );
 }

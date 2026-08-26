@@ -10,6 +10,7 @@ import type {
   FetchHistoryResult,
   LLMProvider,
   NormalizedMessage,
+  SessionOutlineItem,
 } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 
@@ -68,6 +69,41 @@ const MAX_CLOUDCLI_SESSION_NAME_WORDS = 4;
 function buildCloudCliSessionName(initialMessage: string): string {
   const words = initialMessage.trim().split(/\s+/).filter(Boolean);
   return words.slice(0, MAX_CLOUDCLI_SESSION_NAME_WORDS).join(' ') || 'Untitled Session';
+}
+
+const MAX_OUTLINE_SNIPPET_LENGTH = 80;
+
+/** First non-empty line of a message, trimmed. */
+function firstNonEmptyLine(value: string): string {
+  return (value.split('\n').find((part) => part.trim().length > 0) ?? '').trim();
+}
+
+/**
+ * Builds the lightweight outline from normalized history.
+ *
+ * Keeps `kind === 'text' && role === 'user'` rows only, mirroring what
+ * `normalizedToChatMessages` would surface as `type: 'user'` chat messages.
+ */
+function buildOutlineItems(messages: NormalizedMessage[]): SessionOutlineItem[] {
+  const items: SessionOutlineItem[] = [];
+
+  for (const message of messages) {
+    if (message.kind !== 'text' || message.role !== 'user') continue;
+
+    const content = typeof message.content === 'string' ? message.content : '';
+    const displayText = typeof message.displayText === 'string' ? message.displayText : '';
+    const raw = content.trim().length > 0 ? content : displayText;
+    const snippet = firstNonEmptyLine(raw).slice(0, MAX_OUTLINE_SNIPPET_LENGTH);
+
+    // Claude wraps background-agent results in a synthetic user-role row; the
+    // chat renderer shows it as an assistant notification, so keep it out of
+    // the outline for parity.
+    if (snippet.startsWith('<task-notification>')) continue;
+
+    items.push({ timestamp: message.timestamp, snippet });
+  }
+
+  return items;
 }
 
 /**
@@ -329,6 +365,20 @@ export const sessionsService = {
         sessionId,
       })),
     };
+  },
+
+  /**
+   * Returns a lightweight outline of a session's user turns for the QuickSettings
+   * outline panel.
+   *
+   * Only `{ timestamp, snippet }` pairs are returned instead of the full
+   * transcript, so opening the outline panel never pays the cost of downloading
+   * and re-normalizing entire conversations. History is still read server-side
+   * via `fetchHistory`, but the heavy payload never crosses the wire.
+   */
+  async fetchOutline(sessionId: string): Promise<SessionOutlineItem[]> {
+    const history = await sessionsService.fetchHistory(sessionId, { limit: null, offset: 0 });
+    return buildOutlineItems(history.messages);
   },
 
   /**

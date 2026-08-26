@@ -370,6 +370,18 @@ export type FetchHistoryResult = {
   tokenUsage?: unknown;
 };
 
+/**
+ * One user turn's lightweight summary used by the QuickSettings outline panel.
+ *
+ * Snippet is the first non-empty line of the user message content, trimmed and
+ * capped to a fixed length server-side so the outline list stays small even for
+ * transcripts whose underlying messages are large.
+ */
+export type SessionOutlineItem = {
+  timestamp: string;
+  snippet: string;
+};
+
 // ---------------------------
 //----------------- PROVIDER SKILL TYPES ------------
 /**

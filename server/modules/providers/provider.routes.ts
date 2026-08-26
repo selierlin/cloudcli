@@ -819,6 +819,15 @@ router.get(
   }),
 );
 
+router.get(
+  '/sessions/:sessionId/outline',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    const result = await sessionsService.fetchOutline(sessionId);
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
 router.get('/search/sessions', asyncHandler(async (req: Request, res: Response) => {
   const query = parseSessionSearchQuery(req.query.q);
   const limit = parseSessionSearchLimit(req.query.limit);

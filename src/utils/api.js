@@ -169,6 +169,9 @@ export const api = {
     const queryString = params.toString();
     return authenticatedFetch(`/api/providers/sessions/${encodeURIComponent(sessionId)}/messages${queryString ? `?${queryString}` : ''}`);
   },
+  // Lightweight user-turn outline for the QuickSettings panel (no full transcript).
+  sessionOutline: (sessionId) =>
+    authenticatedFetch(`/api/providers/sessions/${encodeURIComponent(sessionId)}/outline`),
   renameProject: (projectId, displayName) =>
     authenticatedFetch(`/api/projects/${projectId}/rename`, {
       method: 'PUT',

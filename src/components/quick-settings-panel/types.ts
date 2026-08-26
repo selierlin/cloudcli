@@ -5,6 +5,12 @@ import type { ProjectSession } from '../../types/app';
 
 export type QuickSettingsTab = 'settings' | 'outline';
 
+/** One lightweight user-turn entry in the QuickSettings outline list. */
+export type SessionOutlineItem = {
+  timestamp: string;
+  snippet: string;
+};
+
 export type QuickSettingsPanelProps = {
   selectedSession: ProjectSession | null;
   onJumpToMessage: (timestamp: string, snippet: string) => void;

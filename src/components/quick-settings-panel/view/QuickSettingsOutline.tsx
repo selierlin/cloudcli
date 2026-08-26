@@ -2,19 +2,13 @@ import { useMemo } from 'react';
 import { Loader2, MessageSquare } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import type { ChatMessage } from '../../chat/types/types';
+import type { SessionOutlineItem } from '../types';
 
 type QuickSettingsOutlineProps = {
-  userMessages: ChatMessage[];
+  items: SessionOutlineItem[];
   isLoading: boolean;
   onJumpToMessage: (timestamp: string, snippet: string) => void;
 };
-
-/** First non-empty line of a message's content. */
-function getFirstLine(content: unknown): string {
-  if (typeof content !== 'string') return '';
-  return (content.split('\n').find((part) => part.trim().length > 0) ?? '').trim();
-}
 
 function formatTime(date: Date): string {
   if (Number.isNaN(date.getTime())) return '';
@@ -22,14 +16,14 @@ function formatTime(date: Date): string {
 }
 
 export default function QuickSettingsOutline({
-  userMessages,
+  items,
   isLoading,
   onJumpToMessage,
 }: QuickSettingsOutlineProps) {
   const { t } = useTranslation('settings');
 
   // Newest first, so recent questions are immediately visible.
-  const items = useMemo(() => [...userMessages].reverse(), [userMessages]);
+  const rows = useMemo(() => [...items].reverse(), [items]);
 
   if (isLoading) {
     return (
@@ -39,7 +33,7 @@ export default function QuickSettingsOutline({
     );
   }
 
-  if (items.length === 0) {
+  if (rows.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
         <MessageSquare className="h-6 w-6 text-muted-foreground" />
@@ -50,11 +44,14 @@ export default function QuickSettingsOutline({
 
   return (
     <div className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden p-2">
-      {items.map((message, index) => {
-        const firstLine = getFirstLine(message.content);
-        const label = firstLine.length > 80 ? `${firstLine.slice(0, 80)}…` : firstLine;
-        const snippet = firstLine.slice(0, 80);
-        const date = new Date(message.timestamp);
+      {rows.map((item, index) => {
+        // Server snippet is already capped at 80 chars; this slice is a
+        // defensive safety net preserving the old jump contract exactly.
+        const label = item.snippet.length > 80
+          ? `${item.snippet.slice(0, 80)}…`
+          : item.snippet || t('quickSettings.outline.untitled');
+        const snippet = item.snippet.slice(0, 80);
+        const date = new Date(item.timestamp);
         const time = formatTime(date);
         const timestamp = Number.isNaN(date.getTime()) ? '' : date.toISOString();
         return (
@@ -71,7 +68,7 @@ export default function QuickSettingsOutline({
             title={label}
             className="flex w-full flex-col gap-0.5 rounded-lg border border-transparent px-3 py-2 text-left transition-colors hover:border-border hover:bg-accent"
           >
-            <span className="text-sm text-foreground">{label || t('quickSettings.outline.untitled')}</span>
+            <span className="text-sm text-foreground">{label}</span>
             {time && <span className="text-xs text-muted-foreground">{time}</span>}
           </button>
         );

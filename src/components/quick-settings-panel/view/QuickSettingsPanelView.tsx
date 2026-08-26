@@ -36,12 +36,14 @@ export default function QuickSettingsPanelView({
     consumeSuppressedClick,
   } = useQuickSettingsDrag({ isMobile });
 
-  const { chatMessages, isLoading } = useSessionOutlineData({ isOpen, selectedSession });
+  const [exportExpanded, setExportExpanded] = useState(false);
 
-  const userMessages = useMemo(
-    () => chatMessages.filter((message) => message.type === 'user'),
-    [chatMessages],
-  );
+  const { outlineItems, chatMessages, isLoading } = useSessionOutlineData({
+    isOpen,
+    selectedSession,
+    activeTab,
+    exportExpanded,
+  });
 
   const quickSettingsPreferences = useMemo<QuickSettingsPreferences>(() => ({
     showRawParameters: preferences.showRawParameters,
@@ -149,10 +151,13 @@ export default function QuickSettingsPanelView({
             onPreferenceChange={handlePreferenceChange}
             messages={chatMessages}
             sessionTitle={selectedSession?.title}
+            exportExpanded={exportExpanded}
+            onExportToggle={() => setExportExpanded((previous) => !previous)}
+            isLoading={isLoading}
           />
         ) : (
           <QuickSettingsOutline
-            userMessages={userMessages}
+            items={outlineItems}
             isLoading={isLoading}
             onJumpToMessage={onJumpToMessage}
           />

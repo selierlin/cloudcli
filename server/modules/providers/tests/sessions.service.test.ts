@@ -182,3 +182,80 @@ test('force delete still removes the row when the provider cannot resolve a tran
     assert.equal(sessionsDb.getSessionById('app-dsh-force-null'), null);
   });
 });
+
+test('fetchOutline returns user-turn snippets and filters assistant/non-text rows', { concurrency: false }, async (t) => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('app-outline-session', 'claude', '/tmp/outline-project');
+    sessionsDb.assignProviderSessionId('app-outline-session', 'claude-native-outline');
+
+    mock.method(providerRegistry, 'resolveProvider', (() => ({
+      sessions: {
+        fetchHistory: async () => ({
+          messages: [
+            { id: 'm1', sessionId: 'app-outline-session', timestamp: '2026-08-26T10:00:00.000Z', provider: 'claude', kind: 'text', role: 'user', content: 'First question\nmore text' },
+            { id: 'm2', sessionId: 'app-outline-session', timestamp: '2026-08-26T10:01:00.000Z', provider: 'claude', kind: 'text', role: 'assistant', content: 'First answer' },
+            { id: 'm3', sessionId: 'app-outline-session', timestamp: '2026-08-26T10:02:00.000Z', provider: 'claude', kind: 'text', role: 'user', content: '' },
+            { id: 'm4', sessionId: 'app-outline-session', timestamp: '2026-08-26T10:03:00.000Z', provider: 'claude', kind: 'tool_use', role: 'user', content: 'tool text' },
+          ],
+          total: 4, hasMore: false, offset: 0, limit: null,
+        }),
+      },
+    })) as unknown as typeof providerRegistry.resolveProvider);
+    t.after(() => mock.reset());
+
+    const outline = await sessionsService.fetchOutline('app-outline-session');
+    assert.deepEqual(outline, [
+      { timestamp: '2026-08-26T10:00:00.000Z', snippet: 'First question' },
+      { timestamp: '2026-08-26T10:02:00.000Z', snippet: '' },
+    ]);
+  });
+});
+
+test('fetchOutline caps snippets to 80 chars and falls back to displayText', { concurrency: false }, async (t) => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('app-outline-cap', 'claude', '/tmp/outline-cap-project');
+    sessionsDb.assignProviderSessionId('app-outline-cap', 'claude-native-cap');
+
+    const longLine = 'x'.repeat(120);
+    mock.method(providerRegistry, 'resolveProvider', (() => ({
+      sessions: {
+        fetchHistory: async () => ({
+          messages: [
+            { id: 'c1', sessionId: 'app-outline-cap', timestamp: '2026-08-26T10:00:00.000Z', provider: 'claude', kind: 'text', role: 'user', content: longLine },
+            { id: 'c2', sessionId: 'app-outline-cap', timestamp: '2026-08-26T10:01:00.000Z', provider: 'claude', kind: 'text', role: 'user', content: '', displayText: 'Fallback line' },
+            { id: 'c3', sessionId: 'app-outline-cap', timestamp: '2026-08-26T10:02:00.000Z', provider: 'claude', kind: 'text', role: 'user', content: '<task-notification>\n<status>done</status>\n</task-notification>' },
+          ],
+          total: 3, hasMore: false, offset: 0, limit: null,
+        }),
+      },
+    })) as unknown as typeof providerRegistry.resolveProvider);
+    t.after(() => mock.reset());
+
+    const outline = await sessionsService.fetchOutline('app-outline-cap');
+    assert.deepEqual(outline, [
+      { timestamp: '2026-08-26T10:00:00.000Z', snippet: 'x'.repeat(80) },
+      { timestamp: '2026-08-26T10:01:00.000Z', snippet: 'Fallback line' },
+    ]);
+  });
+});
+
+test('fetchOutline returns an empty outline for sessions without a provider transcript', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('app-outline-pending', 'claude', '/tmp/outline-pending-project');
+
+    const outline = await sessionsService.fetchOutline('app-outline-pending');
+    assert.deepEqual(outline, []);
+  });
+});
+
+test('fetchOutline reports a missing session', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    await assert.rejects(
+      () => sessionsService.fetchOutline('missing-outline-session'),
+      (error: unknown) => {
+        const typedError = error as { code?: string; statusCode?: number };
+        return typedError.code === 'SESSION_NOT_FOUND' && typedError.statusCode === 404;
+      },
+    );
+  });
+});

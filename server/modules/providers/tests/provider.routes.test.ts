@@ -4,12 +4,13 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import test from 'node:test';
+import test, { mock } from 'node:test';
 
 import express, { type NextFunction, type Request, type Response } from 'express';
 
 import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
 import providerRouter from '@/modules/providers/provider.routes.js';
+import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import { AppError } from '@/shared/utils.js';
 
 async function withProviderServer(
@@ -240,5 +241,41 @@ test('model routes expose immutable defaults and full custom model CRUD', async 
       deletePayload.data.models.OPTIONS.some((option) => option.recordId === customRecordId),
       false,
     );
+  });
+});
+
+test('session outline route returns lightweight user summaries', async (t) => {
+  await withProviderServer(async (baseUrl, workspacePath) => {
+    sessionsDb.createAppSession('outline-route-session', 'claude', workspacePath);
+    sessionsDb.assignProviderSessionId('outline-route-session', 'claude-native-outline');
+
+    mock.method(providerRegistry, 'resolveProvider', (() => ({
+      sessions: {
+        fetchHistory: async () => ({
+          messages: [
+            { id: 'r1', sessionId: 'outline-route-session', timestamp: '2026-08-26T10:00:00.000Z', provider: 'claude', kind: 'text', role: 'user', content: 'Outline first question\nline two' },
+            { id: 'r2', sessionId: 'outline-route-session', timestamp: '2026-08-26T10:01:00.000Z', provider: 'claude', kind: 'text', role: 'assistant', content: 'A reply' },
+          ],
+          total: 2, hasMore: false, offset: 0, limit: null,
+        }),
+      },
+    })) as unknown as typeof providerRegistry.resolveProvider);
+    t.after(() => mock.reset());
+
+    const response = await fetch(`${baseUrl}/api/providers/sessions/outline-route-session/outline`);
+    assert.equal(response.status, 200);
+    const payload = await response.json() as {
+      data: Array<{ timestamp: string; snippet: string }>;
+    };
+    assert.deepEqual(payload.data, [
+      { timestamp: '2026-08-26T10:00:00.000Z', snippet: 'Outline first question' },
+    ]);
+  });
+});
+
+test('session outline route reports unknown sessions as 404', async () => {
+  await withProviderServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/providers/sessions/nope/outline`);
+    assert.equal(response.status, 404);
   });
 });
