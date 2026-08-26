@@ -146,7 +146,26 @@
     "matches_one": "{{count}} 个匹配",
     "matches_other": "{{count}} 个匹配",
     "projectsScanned_one": "{{count}} 个项目已扫描",
-    "projectsScanned_other": "{{count}} 个项目已扫描"
+    "projectsScanned_other": "{{count}} 个项目已扫描",
+    "runningPlaceholder": "搜索正在运行的会话...",
+    "archivedPlaceholder": "搜索已归档的会话...",
+    "runningTooltip": "正在运行的会话",
+    "archiveOnlyTooltip": "仅归档",
+    "modeRunning": "运行中"
+  },
+  "running": {
+    "title": "运行中",
+    "emptyTitle": "没有正在运行的会话",
+    "emptyDescription": "provider 处理期间，进行中的工作将显示在此处。",
+    "noMatchingSessions": "没有正在运行的会话匹配此搜索。"
+  },
+  "recent": {
+    "title": "最近的对话",
+    "emptyTitle": "还没有对话",
+    "emptyDescription": "你最近更新的对话将显示在此处。",
+    "loadFailed": "无法加载最近的对话",
+    "loadMore": "加载更早的对话",
+    "loadingMore": "加载中..."
   },
   "deleteConfirmation": {
     "deleteProject": "移除项目",
@@ -166,6 +185,16 @@
   },
   "archived": {
     "restore": "恢复会话",
-    "deletePermanently": "永久删除"
+    "deletePermanently": "永久删除",
+    "loadingTitle": "正在加载归档...",
+    "loadingDescription": "正在获取你之后可以恢复的隐藏工作区和会话。",
+    "title": "归档",
+    "restoreHint": "随时恢复你需要的项目",
+    "emptyTitle": "暂无归档项目",
+    "emptyDescription": "将工作区和会话从活跃列表中隐藏后，它们会显示在此处。",
+    "noMatchingSessions": "没有匹配的归档项目",
+    "tryDifferentSearch": "尝试不同的搜索词。",
+    "restoreProject": "恢复工作区",
+    "restoreAction": "恢复"
   }
 }
