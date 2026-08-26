@@ -110,6 +110,40 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
   }
 
   /**
+   * Resolves the on-disk transcript path for one Claude provider session id.
+   *
+   * Claude stores top-level transcripts as
+   * `~/.claude/projects/<encoded-cwd>/<session-id>.jsonl`, where `<encoded-cwd>`
+   * is an opaque transform of the working directory. The transform is not a
+   * simple slash-substitution for non-ASCII paths, so rather than re-derive it
+   * this scans the projects tree for the uniquely-named transcript, skipping
+   * subagent/tool-result sidecar files. Used by permanent deletes and by
+   * session branching to attach a freshly forked transcript to an app row.
+   */
+  async resolveTranscriptPath(
+    providerSessionId: string,
+    _projectPath: string,
+  ): Promise<string | null> {
+    const targetName = `${providerSessionId}.jsonl`;
+    const files = await findFilesRecursivelyCreatedAfter(
+      path.join(this.claudeHome, 'projects'),
+      '.jsonl',
+      null
+    );
+
+    for (const filePath of files) {
+      if (this.isSubagentTranscript(filePath)) {
+        continue;
+      }
+      if (path.basename(filePath) === targetName) {
+        return filePath;
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Extracts session metadata from one Claude JSONL session file.
    */
   private async processSessionFile(

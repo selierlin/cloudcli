@@ -259,3 +259,137 @@ test('fetchOutline reports a missing session', { concurrency: false }, async () 
     );
   });
 });
+
+// ----------------- Claude session branching -----------------
+
+test('createClaudeBranch rejects a missing source session', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    await assert.rejects(
+      () => sessionsService.createClaudeBranch('missing-branch-session', 'msg-uuid_text_0'),
+      (error: unknown) => {
+        const typedError = error as { code?: string; statusCode?: number };
+        return typedError.code === 'SESSION_NOT_FOUND' && typedError.statusCode === 404;
+      },
+    );
+  });
+});
+
+test('createClaudeBranch rejects non-Claude providers', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('app-branch-codex', 'codex', '/tmp/branch-codex-project');
+    sessionsDb.assignProviderSessionId('app-branch-codex', 'codex-native-session');
+
+    await assert.rejects(
+      () => sessionsService.createClaudeBranch('app-branch-codex', 'msg-uuid_text_0'),
+      (error: unknown) => {
+        const typedError = error as { code?: string; statusCode?: number };
+        return typedError.code === 'BRANCH_UNSUPPORTED_PROVIDER' && typedError.statusCode === 400;
+      },
+    );
+  });
+});
+
+test('createClaudeBranch requires a provider session id first', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('app-branch-pending', 'claude', '/tmp/branch-pending-project');
+
+    await assert.rejects(
+      () => sessionsService.createClaudeBranch('app-branch-pending', 'msg-uuid_text_0'),
+      (error: unknown) => {
+        const typedError = error as { code?: string; statusCode?: number };
+        return typedError.code === 'PROVIDER_SESSION_ID_NOT_AVAILABLE' && typedError.statusCode === 409;
+      },
+    );
+  });
+});
+
+test('createClaudeBranch rejects an invalid message id', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('app-branch-msg', 'claude', '/tmp/branch-msg-project');
+    sessionsDb.assignProviderSessionId('app-branch-msg', 'claude-native-msg');
+
+    await assert.rejects(
+      () => sessionsService.createClaudeBranch('app-branch-msg', '   '),
+      (error: unknown) => {
+        const typedError = error as { code?: string; statusCode?: number };
+        return typedError.code === 'INVALID_MESSAGE_ID' && typedError.statusCode === 400;
+      },
+    );
+  });
+});
+
+test('createClaudeBranch surfaces a failed SDK fork', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('app-branch-fail', 'claude', '/tmp/branch-fail-project');
+    sessionsDb.assignProviderSessionId('app-branch-fail', 'claude-native-fail');
+
+    await assert.rejects(
+      () => sessionsService.createClaudeBranch('app-branch-fail', 'msg-uuid_text_0', {
+        forkSession: async () => {
+          throw new Error('SDK boom');
+        },
+      }),
+      (error: unknown) => {
+        const typedError = error as { code?: string; statusCode?: number; message?: string };
+        return typedError.code === 'SESSION_BRANCH_FAILED'
+          && typedError.statusCode === 500
+          && typedError.message?.includes('SDK boom');
+      },
+    );
+  });
+});
+
+test('createClaudeBranch forks at the native message uuid and registers the new app session', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'session-branch-'));
+
+    try {
+      sessionsDb.createAppSession('app-branch-source', 'claude', '/tmp/branch-project');
+      sessionsDb.assignProviderSessionId('app-branch-source', 'claude-native-source');
+
+      const sourceJsonl = path.join(tempRoot, 'claude-native-source.jsonl');
+      const forkedJsonl = path.join(tempRoot, 'claude-forked-id.jsonl');
+      await writeFile(sourceJsonl, '{}');
+      await writeFile(forkedJsonl, '{}');
+      sessionsDb.createSession(
+        'claude-native-source',
+        'claude',
+        '/tmp/branch-project',
+        'Source Session',
+        undefined,
+        undefined,
+        sourceJsonl,
+      );
+
+      let receivedSessionId: string | undefined;
+      let receivedUpToMessageId: string | undefined;
+      let receivedTitle: string | undefined;
+      const result = await sessionsService.createClaudeBranch('app-branch-source', '019f75cd-1234_text_0', {
+        forkSession: async (sessionId, options) => {
+          receivedSessionId = sessionId;
+          receivedUpToMessageId = options?.upToMessageId;
+          receivedTitle = options?.title;
+          return { sessionId: 'claude-forked-id' };
+        },
+      });
+
+      // The SDK fork is asked to slice at the leading segment of the message id.
+      assert.equal(receivedSessionId, 'claude-native-source');
+      assert.equal(receivedUpToMessageId, '019f75cd-1234');
+      assert.equal(receivedTitle, 'Source Session (fork)');
+
+      // The new app session row is mapped to the forked provider id and carries
+      // the forked transcript path so history resolves immediately.
+      const branchRow = sessionsDb.getSessionById(result.sessionId);
+      assert.ok(branchRow, 'branch session row exists');
+      assert.equal(branchRow?.provider, 'claude');
+      assert.equal(branchRow?.provider_session_id, 'claude-forked-id');
+      assert.equal(branchRow?.jsonl_path, forkedJsonl);
+      assert.equal(branchRow?.custom_name, 'Source Session (fork)');
+      assert.equal(result.providerSessionId, 'claude-forked-id');
+    } finally {
+      mock.reset();
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+});

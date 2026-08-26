@@ -1,5 +1,6 @@
 import { memo, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { GitBranch } from 'lucide-react';
 
 import LLMProviderLogo from '../../../llm-provider-logo/LLMProviderLogo';
 import type {
@@ -32,6 +33,7 @@ type MessageComponentProps = {
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
   onShowSettings?: () => void;
   onGrantToolPermission?: (suggestion: ClaudePermissionSuggestion) => PermissionGrantResult | null | undefined;
+  onCreateBranch?: (messageId: string) => void;
   showRawParameters?: boolean;
   showThinking?: boolean;
   selectedProject?: Project | null;
@@ -46,7 +48,7 @@ type InteractiveOption = {
 
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
 
-const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, onCreateBranch, showRawParameters, showThinking, selectedProject, provider }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -75,6 +77,31 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     assistantCopyContent.trim().length > 0 &&
     !isCommandOrFileEditToolResponse &&
     !message.isThinking;
+
+  // "Branch from this message" only makes sense for Claude user/assistant text
+  // turns — tool rows would fork into the middle of a tool_use/tool_result pair.
+  const branchEnabled = Boolean(
+    onCreateBranch
+    && provider === 'claude'
+    && message.id
+    && !message.isToolUse
+    && !message.isThinking
+    && (message.type === 'user' || message.type === 'assistant')
+  );
+  const branchToneClass = message.type === 'user'
+    ? 'text-muted-foreground hover:text-foreground'
+    : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300';
+  const renderBranchButton = branchEnabled ? (
+    <button
+      type="button"
+      onClick={() => onCreateBranch?.(String(message.id))}
+      title={t('message.branchFromHere', { defaultValue: 'Branch from this message' })}
+      aria-label={t('message.branchFromHere', { defaultValue: 'Branch from this message' })}
+      className={`inline-flex items-center rounded px-1 py-0.5 transition-colors ${branchToneClass}`}
+    >
+      <GitBranch className="h-3.5 w-3.5" />
+    </button>
+  ) : null;
 
 
   const formattedTime = useMemo(() => new Date(message.timestamp).toLocaleTimeString(), [message.timestamp]);
@@ -114,6 +141,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                   </Markdown>
                 </div>
                 <div className="mt-1 flex items-center justify-end gap-1 text-xs text-muted-foreground">
+                  {renderBranchButton}
                   {shouldShowUserCopyControl && (
                     <MessageCopyControl content={userCopyContent} messageType="user" />
                   )}
@@ -392,6 +420,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
 
             {(shouldShowAssistantCopyControl || !isGrouped) && (
               <div className="mt-1 flex w-full items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500">
+                {renderBranchButton}
                 {shouldShowAssistantCopyControl && (
                   <MessageCopyControl content={assistantCopyContent} messageType="assistant" />
                 )}

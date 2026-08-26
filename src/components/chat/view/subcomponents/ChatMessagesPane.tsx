@@ -68,6 +68,7 @@ interface ChatMessagesPaneProps {
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
   onShowSettings?: () => void;
   onGrantToolPermission: (suggestion: { entry: string; toolName: string }) => { success: boolean };
+  onCreateBranch?: (messageId: string) => void;
   showRawParameters?: boolean;
   showThinking?: boolean;
   selectedProject: Project;
@@ -121,6 +122,7 @@ function ChatMessagesPane({
   onFileOpen,
   onShowSettings,
   onGrantToolPermission,
+  onCreateBranch,
   showRawParameters,
   showThinking,
   selectedProject,
@@ -297,6 +299,7 @@ function ChatMessagesPane({
                   onFileOpen={onFileOpen}
                   onShowSettings={onShowSettings}
                   onGrantToolPermission={onGrantToolPermission}
+                  onCreateBranch={onCreateBranch}
                   showRawParameters={showRawParameters}
                   showThinking={showThinking}
                   selectedProject={selectedProject}

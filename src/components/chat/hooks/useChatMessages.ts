@@ -81,6 +81,9 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
 
   for (const msg of messages) {
     const sharedMetadata = {
+      // Keep the provider-native message id on the chat message so actions like
+      // "branch from this message" can locate the exact transcript row.
+      id: msg.id,
       displayText: msg.displayText,
       commandName: msg.commandName,
       commandMessage: msg.commandMessage,

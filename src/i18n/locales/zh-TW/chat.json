@@ -11,6 +11,9 @@
     "copyAsMarkdown": "複製為 Markdown",
     "copyAsText": "複製為純文字"
   },
+  "message": {
+    "branchFromHere": "從此訊息建立分支"
+  },
   "messageTypes": {
     "user": "U",
     "error": "錯誤",

@@ -11,6 +11,9 @@
     "copyAsMarkdown": "Markdown olarak kopyala",
     "copyAsText": "Metin olarak kopyala"
   },
+  "message": {
+    "branchFromHere": "Bu mesajdan dal oluştur"
+  },
   "messageTypes": {
     "user": "S",
     "error": "Hata",

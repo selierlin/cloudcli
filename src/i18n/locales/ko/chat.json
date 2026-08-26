@@ -11,6 +11,9 @@
     "copyAsMarkdown": "마크다운으로 복사",
     "copyAsText": "텍스트로 복사"
   },
+  "message": {
+    "branchFromHere": "이 메시지에서 브랜치 만들기"
+  },
   "messageTypes": {
     "user": "U",
     "error": "오류",

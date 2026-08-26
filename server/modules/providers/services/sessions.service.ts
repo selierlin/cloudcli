@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 
+import { forkSession as sdkForkSession } from '@anthropic-ai/claude-agent-sdk';
+
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { chatRunRegistry } from '@/modules/websocket/index.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
@@ -20,6 +22,15 @@ type CreateAppSessionResult = {
   projectPath: string;
   sessionName: string;
 };
+
+/**
+ * Minimal shape of the claude-agent-sdk `forkSession` call used for branching,
+ * kept loose so tests can inject a fake without importing the SDK namespace.
+ */
+type ClaudeBranchForkFn = (
+  sessionId: string,
+  options?: { dir?: string; upToMessageId?: string; title?: string },
+) => Promise<{ sessionId: string }>;
 
 type ArchivedSessionListItem = {
   sessionId: string;
@@ -290,6 +301,126 @@ export const sessionsService = {
       sessionId,
       provider,
       projectPath: normalizedProjectPath,
+      sessionName,
+    };
+  },
+
+  /**
+   * Forks a Claude session at the message identified by `messageId`.
+   *
+   * Uses the Claude Agent SDK's native `forkSession`, which copies the source
+   * transcript into a brand-new JSONL, remapping every message UUID and slicing
+   * at `upToMessageId` (inclusive). The forked provider session is then
+   * registered as a fresh app session: a new app-allocated id, the provider
+   * mapping, and — once the transcript path is known — the `jsonl_path` that
+   * history fetches depend on. Only Claude supports branching today; other
+   * providers reject the call.
+   */
+  async createClaudeBranch(
+    sourceSessionId: string,
+    messageId: string,
+    deps: { forkSession: ClaudeBranchForkFn } = { forkSession: sdkForkSession },
+  ): Promise<{ sessionId: string; providerSessionId: string; sessionName: string }> {
+    const source = sessionsDb.getSessionById(sourceSessionId);
+    if (!source) {
+      throw new AppError(`Session "${sourceSessionId}" was not found.`, {
+        code: 'SESSION_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+    if (source.provider !== 'claude') {
+      throw new AppError('Branching is only supported for Claude sessions.', {
+        code: 'BRANCH_UNSUPPORTED_PROVIDER',
+        statusCode: 400,
+      });
+    }
+    if (!source.provider_session_id) {
+      throw new AppError('This session ID is not available yet.', {
+        code: 'PROVIDER_SESSION_ID_NOT_AVAILABLE',
+        statusCode: 409,
+      });
+    }
+    if (!source.project_path) {
+      throw new AppError('projectPath is required.', {
+        code: 'PROJECT_PATH_REQUIRED',
+        statusCode: 400,
+      });
+    }
+
+    // Frontend message ids are `<native-uuid>_text_<index>` (or `_tr_<toolUseId>`
+    // for tool results); the native message UUID is always the leading segment.
+    const branchUuid = messageId.trim().split('_')[0];
+    if (!branchUuid) {
+      throw new AppError('messageId is invalid.', {
+        code: 'INVALID_MESSAGE_ID',
+        statusCode: 400,
+      });
+    }
+
+    const sourceName = source.custom_name?.trim() || '';
+    const forkedTitle = sourceName ? `${sourceName} (fork)` : undefined;
+
+    const { forkSession } = deps;
+    let forkedProviderSessionId: string;
+    try {
+      const result = await forkSession(source.provider_session_id, {
+        dir: source.project_path,
+        upToMessageId: branchUuid,
+        title: forkedTitle,
+      });
+      forkedProviderSessionId = result.sessionId;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new AppError(`Failed to fork Claude session: ${message}`, {
+        code: 'SESSION_BRANCH_FAILED',
+        statusCode: 500,
+      });
+    }
+
+    const newAppSessionId = randomUUID();
+    const sessionName = forkedTitle ?? sourceName;
+    sessionsDb.createAppSession(newAppSessionId, 'claude', source.project_path, sessionName);
+    sessionsDb.assignProviderSessionId(newAppSessionId, forkedProviderSessionId);
+
+    // Attach the forked transcript path so history fetches resolve immediately.
+    // The fork lands in the same project directory as the source transcript, so
+    // derive it from the source's jsonl_path first; fall back to scanning.
+    let forkedJsonlPath: string | null = null;
+    if (source.jsonl_path) {
+      const candidate = path.join(path.dirname(source.jsonl_path), `${forkedProviderSessionId}.jsonl`);
+      try {
+        await fsp.access(candidate);
+        forkedJsonlPath = candidate;
+      } catch {
+        forkedJsonlPath = null;
+      }
+    }
+    if (!forkedJsonlPath) {
+      try {
+        const synchronizer = providerRegistry.resolveProvider('claude').sessionSynchronizer;
+        forkedJsonlPath = (await synchronizer.resolveTranscriptPath?.(
+          forkedProviderSessionId,
+          source.project_path,
+        )) ?? null;
+      } catch {
+        forkedJsonlPath = null;
+      }
+    }
+    if (forkedJsonlPath) {
+      sessionsDb.createSession(
+        forkedProviderSessionId,
+        'claude',
+        source.project_path,
+        sessionName,
+        undefined,
+        undefined,
+        forkedJsonlPath,
+      );
+    }
+
+    return {
+      sessionId: newAppSessionId,
+      providerSessionId: forkedProviderSessionId,
       sessionName,
     };
   },

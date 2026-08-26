@@ -11,6 +11,9 @@
     "copyAsMarkdown": "Als Markdown kopieren",
     "copyAsText": "Als Text kopieren"
   },
+  "message": {
+    "branchFromHere": "Von dieser Nachricht abzweigen"
+  },
   "messageTypes": {
     "user": "Benutzer:in",
     "error": "Fehler",

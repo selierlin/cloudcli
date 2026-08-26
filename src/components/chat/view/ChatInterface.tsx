@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowDownIcon } from 'lucide-react';
 
+import { authenticatedFetch } from '../../../utils/api';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
 import PermissionContext from '../../../contexts/PermissionContext';
@@ -301,6 +302,34 @@ function ChatInterface({
     handlePermissionDecision,
   }), [pendingPermissionRequests, handlePermissionDecision]);
 
+  // Forks the current Claude session at the given message and navigates to the
+  // new branch conversation. The backend calls claude-agent-sdk's forkSession,
+  // so the branch keeps the full tool-execution context up to that message.
+  const handleCreateBranch = useCallback(async (messageId: string) => {
+    const sourceSessionId = currentSessionId || selectedSession?.id || null;
+    if (!sourceSessionId || provider !== 'claude') return;
+
+    try {
+      const response = await authenticatedFetch(
+        `/api/providers/claude/sessions/${encodeURIComponent(sourceSessionId)}/branch`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messageId }),
+        },
+      );
+      const payload = (await response.json().catch(() => ({}))) as { data?: { sessionId?: string } };
+      const newAppSessionId = payload?.data?.sessionId;
+      if (!newAppSessionId) {
+        console.error('[Chat] Branch response is missing sessionId');
+        return;
+      }
+      onNavigateToSession?.(newAppSessionId);
+    } catch (error) {
+      console.error('Error creating branch from message:', error);
+    }
+  }, [currentSessionId, provider, selectedSession?.id, onNavigateToSession]);
+
   // A composer pick becomes the default for new chats and, when a session is
   // open, is recorded against that session so reopening it restores this model.
   const handleSelectComposerModel = useCallback(async (model: string) => {
@@ -403,6 +432,7 @@ function ChatInterface({
           onFileOpen={onFileOpen}
           onShowSettings={onShowSettings}
           onGrantToolPermission={handleGrantToolPermission}
+          onCreateBranch={handleCreateBranch}
           showRawParameters={showRawParameters}
           showThinking={showThinking}
           selectedProject={selectedProject}
