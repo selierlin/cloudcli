@@ -5,20 +5,11 @@ import type { TFunction } from 'i18next';
 
 import { ActionMenu, Button, Dialog, DialogContent, DialogTitle } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
-import type { ProjectSession, LLMProvider } from '../../../../types/app';
+import { PROVIDER_LABELS, type LLMProvider, type ProjectSession } from '../../../../types/app';
 import type { RecentConversationListItem } from '../../types/types';
 import { formatCompactAge } from '../../utils/utils';
 import { useCopyProviderSessionId } from '../../hooks/useCopyProviderSessionId';
 import LLMProviderLogo from '../../../llm-provider-logo/LLMProviderLogo';
-
-const PROVIDER_LABELS: Record<LLMProvider, string> = {
-  claude: 'Claude',
-  codex: 'Codex',
-  cursor: 'Cursor',
-  opencode: 'OpenCode',
-  dsh: 'DeepSeek Harness',
-  workbuddy: 'WorkBuddy',
-};
 
 type SidebarRecentConversationsProps = {
   conversations: RecentConversationListItem[];

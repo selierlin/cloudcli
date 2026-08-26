@@ -4,7 +4,7 @@ import type { TFunction } from 'i18next';
 
 import { ActionMenu, Badge, Dialog, DialogContent, DialogTitle, Tooltip, buttonVariants } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
-import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
+import { PROVIDER_LABELS, type LLMProvider, type Project, type ProjectSession } from '../../../../types/app';
 import { useCopyProviderSessionId } from '../../hooks/useCopyProviderSessionId';
 import type { SessionWithProvider } from '../../types/types';
 import { createSessionViewModel, formatCompactAge } from '../../utils/utils';
@@ -32,15 +32,6 @@ type SidebarSessionItemProps = {
     provider: LLMProvider,
   ) => void;
   t: TFunction;
-};
-
-const PROVIDER_LABELS: Record<LLMProvider, string> = {
-  claude: 'Claude',
-  codex: 'Codex',
-  cursor: 'Cursor',
-  opencode: 'OpenCode',
-  dsh: 'DeepSeek Harness',
-  workbuddy: 'WorkBuddy',
 };
 
 export default function SidebarSessionItem({

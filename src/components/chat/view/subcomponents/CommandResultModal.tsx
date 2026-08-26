@@ -19,11 +19,12 @@ import {
 } from 'lucide-react';
 
 import { Badge, Button, Dialog, DialogContent, DialogTitle, Input } from '../../../../shared/view/ui';
-import type {
-  LLMProvider,
-  ProviderModelActions,
-  ProviderModelOption,
-  ProviderModelsDefinition,
+import {
+  PROVIDER_LABELS,
+  type LLMProvider,
+  type ProviderModelActions,
+  type ProviderModelOption,
+  type ProviderModelsDefinition,
 } from '../../../../types/app';
 import type {
   CommandModalPayload,
@@ -57,15 +58,6 @@ type CommandEntry = {
   name: string;
   description?: string;
   namespace?: string;
-};
-
-const PROVIDER_LABELS: Record<string, string> = {
-  claude: 'Claude',
-  cursor: 'Cursor',
-  codex: 'Codex',
-  opencode: 'OpenCode',
-  dsh: 'DeepSeek Harness',
-  workbuddy: 'WorkBuddy',
 };
 
 const getProviderLabel = (provider: string | undefined, fallback = 'Unknown') => {

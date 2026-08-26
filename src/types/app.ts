@@ -1,5 +1,16 @@
 export type LLMProvider = 'claude' | 'cursor' | 'codex' | 'opencode' | 'dsh' | 'workbuddy';
 
+// Provider key → display label shared across the app (sidebar session menus,
+// command result modal, etc.). Unknown keys are left to the caller to fall back.
+export const PROVIDER_LABELS: Record<string, string> = {
+  claude: 'Claude',
+  cursor: 'Cursor',
+  codex: 'Codex',
+  opencode: 'OpenCode',
+  dsh: 'DeepSeek Harness',
+  workbuddy: 'WorkBuddy',
+};
+
 export type ProviderModelOption = {
   value: string;
   label: string;
