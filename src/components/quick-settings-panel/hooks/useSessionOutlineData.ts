@@ -1,31 +1,55 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { ProjectSession } from '../../../types/app';
 import { useSessionStore } from '../../../stores/useSessionStore';
+import { api } from '../../../utils/api';
 import { normalizedToChatMessages } from '../../chat/hooks/useChatMessages';
 import type { ChatMessage } from '../../chat/types/types';
+import type { QuickSettingsTab, SessionOutlineItem } from '../types';
 
 type UseSessionOutlineDataOptions = {
   isOpen: boolean;
   selectedSession: ProjectSession | null;
+  activeTab: QuickSettingsTab;
+  /** Whether the "Export conversation" section is expanded (needs the full transcript). */
+  exportExpanded: boolean;
 };
 
-/**
- * Loads the selected session's full transcript for the QuickSettings panel
- * (outline + export) using a panel-local store instance. Kept deliberately
- * isolated from the chat's own store so no chat data flow is disturbed.
- */
-export function useSessionOutlineData({ isOpen, selectedSession }: UseSessionOutlineDataOptions) {
-  const sessionStore = useSessionStore();
-  const [isLoading, setIsLoading] = useState(false);
-  const sessionId = selectedSession?.id ?? null;
+/** Outline cache freshness window; mirrors the session store's stale threshold. */
+const OUTLINE_STALE_MS = 30_000;
 
+/**
+ * Loads the selected session's data for the QuickSettings panel.
+ *
+ * - Outline tab: a lightweight `{ timestamp, snippet }` list from the outline
+ *   endpoint. Opening the panel never downloads the full transcript just to
+ *   show the outline.
+ * - Export section expanded: the full transcript via the session store, reused
+ *   from the existing per-session cache when complete and fresh.
+ */
+export function useSessionOutlineData({
+  isOpen,
+  selectedSession,
+  activeTab,
+  exportExpanded,
+}: UseSessionOutlineDataOptions) {
+  const sessionStore = useSessionStore();
+  const [outlineItems, setOutlineItems] = useState<SessionOutlineItem[]>([]);
+  const [isOutlineLoading, setIsOutlineLoading] = useState(false);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const outlineCacheRef = useRef(new Map<string, { items: SessionOutlineItem[]; fetchedAt: number }>());
+  const sessionId = selectedSession?.id ?? null;
+  const needsFullTranscript = isOpen && exportExpanded;
+
+  // Full transcript — only fetched when the export section is expanded.
   useEffect(() => {
-    if (!isOpen || !sessionId) return;
+    if (!needsFullTranscript || !sessionId) {
+      setIsChatLoading(false);
+      return;
+    }
     let cancelled = false;
     // Reuse the cached full transcript when it's already complete and fresh,
-    // so re-opening the panel doesn't re-download the whole conversation.
-    // Stale sessions (active within the last 30s) still re-fetch to stay current.
+    // so re-expanding export doesn't re-download the whole conversation.
     const cached = sessionStore.getSessionSlot(sessionId);
     if (
       cached &&
@@ -33,9 +57,10 @@ export function useSessionOutlineData({ isOpen, selectedSession }: UseSessionOut
       !cached.hasMore &&
       !sessionStore.isStale(sessionId)
     ) {
+      setIsChatLoading(false);
       return;
     }
-    setIsLoading(true);
+    setIsChatLoading(true);
     sessionStore.setActiveSession(sessionId);
     void sessionStore
       .fetchFromServer(sessionId, {
@@ -44,16 +69,58 @@ export function useSessionOutlineData({ isOpen, selectedSession }: UseSessionOut
         canRequest: () => !cancelled,
       })
       .finally(() => {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) setIsChatLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [isOpen, sessionId, sessionStore]);
+  }, [needsFullTranscript, sessionId, sessionStore]);
+
+  // Lightweight outline — fetched on the outline tab, cached per sessionId for
+  // OUTLINE_STALE_MS so tab switches stay instant.
+  useEffect(() => {
+    if (!isOpen || !sessionId || activeTab !== 'outline') {
+      setIsOutlineLoading(false);
+      return;
+    }
+    let cancelled = false;
+    const cached = outlineCacheRef.current.get(sessionId);
+    if (cached && Date.now() - cached.fetchedAt < OUTLINE_STALE_MS) {
+      setOutlineItems(cached.items);
+      setIsOutlineLoading(false);
+      return;
+    }
+    setOutlineItems([]);
+    setIsOutlineLoading(true);
+    void api
+      .sessionOutline(sessionId)
+      .then((response) => (cancelled || !response.ok ? undefined : response.json()))
+      .then((payload) => {
+        if (cancelled) return;
+        const items = payload?.data;
+        if (Array.isArray(items)) {
+          outlineCacheRef.current.set(sessionId, { items, fetchedAt: Date.now() });
+          setOutlineItems(items);
+        }
+      })
+      .catch(() => {
+        // Keep the previous outline (or the empty state) on network errors.
+      })
+      .finally(() => {
+        if (!cancelled) setIsOutlineLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, sessionId, activeTab]);
 
   const chatMessages: ChatMessage[] = sessionId
     ? normalizedToChatMessages(sessionStore.getMessages(sessionId))
     : [];
 
-  return { chatMessages, isLoading };
+  return {
+    outlineItems,
+    chatMessages,
+    isLoading: activeTab === 'outline' ? isOutlineLoading : isChatLoading,
+  };
 }

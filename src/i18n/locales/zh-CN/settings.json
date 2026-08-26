@@ -81,7 +81,8 @@
       "untitled": "（无内容）"
     },
     "export": {
-      "title": "导出对话"
+      "title": "导出对话",
+      "loading": "正在加载聊天记录…"
     },
     "theme": "主题",
     "showRawParameters": "显示原始参数",

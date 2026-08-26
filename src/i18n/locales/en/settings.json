@@ -81,7 +81,8 @@
       "untitled": "(no content)"
     },
     "export": {
-      "title": "Export"
+      "title": "Export",
+      "loading": "Loading conversation…"
     },
     "theme": "Theme",
     "showRawParameters": "Show raw parameters",
