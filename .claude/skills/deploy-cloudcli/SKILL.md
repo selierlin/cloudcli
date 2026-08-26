@@ -56,8 +56,10 @@ tail -n 500 ~/Library/Logs/CloudCLI/cloudcli.err.log            # ⑤ 启动日�
   再 `launchctl list | grep cloudcli` 确认 PID、`nc -z 127.0.0.1 3001` 确认端口。
 - curl 返回 502：先排除代理劫持——shell 有 `http_proxy=http://127.0.0.1:7890`，
   curl 必须带 `--noproxy '*'`（见验证步骤）。
-- 日志用 `tail -n 500 ~/Library/Logs/CloudCLI/cloudcli.{out,err}.log` 直接读文件；
-  不要用 `cloudclictl logs`（它是 `tail -f`，会挂起）。
+- 看最近日志：`cloudclictl logs [N]`（out+err 一起打印，默认 20 行，不会挂起；
+  等价于 `tail -n N ~/Library/Logs/CloudCLI/cloudcli.{out,err}.log`）；
+  实时跟随：`cloudclictl logs -f [N]`（tail -f 语义，Ctrl-C 退出；也可直接
+  `tail -f ~/Library/Logs/CloudCLI/cloudcli.out.log`）。
 - 日志报 `No .env file found`：launchd 环境 PATH 干净、不会自动加载 nvm，路径由 plist
   `EnvironmentVariables` 注入；确认 `cloudclictl install --app-root` 的 `APP_ROOT` 正确
   （默认 `/Users/selier/Projects/open_projects/cloudcli`）。

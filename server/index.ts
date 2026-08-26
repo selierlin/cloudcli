@@ -77,6 +77,8 @@ const systemRoutes = createSystemModule({
 console.log('SERVER_PORT from env:', process.env.SERVER_PORT);
 
 const app = express();
+// 反代（home211 nginx）透传 X-Forwarded-For；信任 192.168.0.0/16 私有网段的 XFF，其余来源忽略该头防伪造。
+app.set('trust proxy', (ip: string) => ip.startsWith('192.168.'));
 const server = http.createServer(app);
 const queryClaude = providerRuntimeService.getRunner('claude');
 const queryCursor = providerRuntimeService.getRunner('cursor');
@@ -121,6 +123,26 @@ const wss = createWebSocketServer(server, {
 
 // Make WebSocket server available to routes
 app.locals.wss = wss;
+
+// 请求日志：仅记录 /api/* 业务请求（HTTP 层 method/path/status/耗时，不含 body；
+// WebSocket 是 upgrade 长连接，不走 res.on('finish')，不在此列）。
+app.use((req: Request, res: Response, next: NextFunction) => {
+    if (!req.originalUrl.startsWith('/api')) {
+        next();
+        return;
+    }
+    const start = process.hrtime.bigint();
+    const clientIp = req.ip ?? req.socket.remoteAddress ?? '-';
+    res.on('finish', () => {
+        const ms = Number(process.hrtime.bigint() - start) / 1e6;
+        const now = new Date();
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const time = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+            + ` ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${String(now.getMilliseconds()).padStart(3, '0')}`;
+        console.log(`[REQ] ${time}\t${clientIp}\t${req.method} ${req.originalUrl} ${res.statusCode} ${ms.toFixed(1)}ms`);
+    });
+    next();
+});
 
 app.use(cors({ exposedHeaders: ['X-Refreshed-Token', 'X-Auth-Error'] }));
 app.use(express.json({
