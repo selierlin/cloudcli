@@ -1,10 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { copyTextToClipboard } from '../../../../utils/clipboard';
 
 const COPY_SUCCESS_TIMEOUT_MS = 2000;
+
+// Keep the portaled menu inside the viewport (8px gutter each side).
+const MENU_GUTTER = 8;
+// Width is only an estimate for the initial position; the layout effect below
+// re-clamps with the menu's real width once it has rendered.
+const ESTIMATED_MENU_WIDTH = 176;
 
 type CopyFormat = 'text' | 'markdown';
 
@@ -64,10 +70,16 @@ const MessageCopyControl = ({
     const rect = triggerRef.current?.getBoundingClientRect();
     if (rect) {
       const ESTIMATED_MENU_HEIGHT = 84;
-      const openUp = rect.bottom + ESTIMATED_MENU_HEIGHT + 8 > window.innerHeight;
+      const openUp = rect.bottom + ESTIMATED_MENU_HEIGHT + MENU_GUTTER > window.innerHeight;
+      // Right-align the menu with the trigger by default, then clamp it so it
+      // can't hang off the left edge of the viewport (the trigger sits near
+      // the left side on mobile). The real width is re-measured below.
+      const defaultLeft = rect.right - ESTIMATED_MENU_WIDTH;
+      const maxLeft = Math.max(MENU_GUTTER, window.innerWidth - ESTIMATED_MENU_WIDTH - MENU_GUTTER);
+      const left = Math.max(MENU_GUTTER, Math.min(defaultLeft, maxLeft));
       setMenuStyle({
         position: 'fixed',
-        right: Math.max(8, window.innerWidth - rect.right),
+        left,
         zIndex: 1000,
         ...(openUp
           ? { bottom: window.innerHeight - rect.top + 4 }
@@ -76,6 +88,19 @@ const MessageCopyControl = ({
     }
     setIsDropdownOpen(true);
   };
+
+  // The menu's real width depends on its (localized) labels, so after it
+  // mounts, re-clamp its horizontal position against the viewport.
+  useLayoutEffect(() => {
+    if (!isDropdownOpen) return;
+    const menu = menuRef.current;
+    if (!menu) return;
+    const menuRect = menu.getBoundingClientRect();
+    if (menuRect.left >= MENU_GUTTER && menuRect.right <= window.innerWidth - MENU_GUTTER) return;
+    const maxLeft = Math.max(MENU_GUTTER, window.innerWidth - menuRect.width - MENU_GUTTER);
+    const nextLeft = Math.max(MENU_GUTTER, Math.min(menuRect.left, maxLeft));
+    setMenuStyle((prev) => (prev.left === nextLeft ? prev : { ...prev, left: nextLeft }));
+  }, [isDropdownOpen]);
 
   const copyFormatOptions: CopyFormatOption[] = useMemo(
     () => [
@@ -226,7 +251,7 @@ const MessageCopyControl = ({
             <div
               ref={menuRef}
               style={menuStyle}
-              className="min-w-36 rounded-md border border-border bg-popover p-1 shadow-lg"
+              className="min-w-36 max-w-[calc(100vw_-_1rem)] rounded-md border border-border bg-popover p-1 shadow-lg"
             >
               {copyFormatOptions.map((option) => {
                 const isSelected = option.format === selectedFormat;
