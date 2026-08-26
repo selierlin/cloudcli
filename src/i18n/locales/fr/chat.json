@@ -11,6 +11,9 @@
     "copyAsMarkdown": "Copier en markdown",
     "copyAsText": "Copier en texte brut"
   },
+  "message": {
+    "branchFromHere": "Créer une branche à partir de ce message"
+  },
   "messageTypes": {
     "user": "U",
     "error": "Erreur",

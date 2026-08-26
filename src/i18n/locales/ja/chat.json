@@ -11,6 +11,9 @@
     "copyAsMarkdown": "Markdownとしてコピー",
     "copyAsText": "テキストとしてコピー"
   },
+  "message": {
+    "branchFromHere": "このメッセージからブランチを作成"
+  },
   "messageTypes": {
     "user": "U",
     "error": "エラー",

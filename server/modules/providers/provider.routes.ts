@@ -326,6 +326,26 @@ const parseSessionRenameSummary = (payload: unknown): string => {
   return summary;
 };
 
+const parseBranchMessageId = (payload: unknown): string => {
+  if (!payload || typeof payload !== 'object') {
+    throw new AppError('Request body must be an object.', {
+      code: 'INVALID_REQUEST_BODY',
+      statusCode: 400,
+    });
+  }
+
+  const body = payload as Record<string, unknown>;
+  const messageId = typeof body.messageId === 'string' ? body.messageId.trim() : '';
+  if (!messageId) {
+    throw new AppError('messageId is required.', {
+      code: 'INVALID_MESSAGE_ID',
+      statusCode: 400,
+    });
+  }
+
+  return messageId;
+};
+
 const parseSessionSearchQuery = (value: unknown): string => {
   const query = readOptionalQueryString(value) ?? '';
   if (query.length < 2) {
@@ -580,6 +600,18 @@ router.post(
     res.json(createApiSuccessResponse(
       stored ?? { provider, sessionId, effort, source: 'session' as const },
     ));
+  }),
+);
+
+/** Forks a Claude session at the message identified by `messageId`. */
+router.post(
+  '/:provider/sessions/:sessionId/branch',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const sessionId = parseSessionId(req.params.sessionId);
+    const messageId = parseBranchMessageId(req.body);
+    const result = await sessionsService.createClaudeBranch(sessionId, messageId);
+    res.status(201).json(createApiSuccessResponse({ provider, ...result }));
   }),
 );
 

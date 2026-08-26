@@ -11,6 +11,9 @@
     "copyAsMarkdown": "Копировать как Markdown",
     "copyAsText": "Копировать как текст"
   },
+  "message": {
+    "branchFromHere": "Создать ветку из этого сообщения"
+  },
   "messageTypes": {
     "user": "П",
     "error": "Ошибка",
