@@ -870,6 +870,7 @@ export function useSidebarController({
       if (response.ok) {
         onSessionDelete?.(sessionId);
         await fetchArchivedSessions();
+        void reloadRecentConversations();
       } else {
         const errorText = await response.text();
         console.error('[Sidebar] Failed to delete session:', {
@@ -882,7 +883,7 @@ export function useSidebarController({
       console.error('[Sidebar] Error deleting session:', error);
       alert(t('messages.deleteSessionError'));
     }
-  }, [fetchArchivedSessions, onSessionDelete, sessionDeleteConfirmation, t]);
+  }, [fetchArchivedSessions, onSessionDelete, reloadRecentConversations, sessionDeleteConfirmation, t]);
 
   const requestProjectDelete = useCallback(
     (project: Project) => {
@@ -1027,7 +1028,7 @@ export function useSidebarController({
   const updateSessionSummary = useCallback(
     // `_projectId` and `_provider` are preserved for compatibility with
     // existing sidebar callback signatures; backend rename only needs sessionId.
-    async (_projectId: string, sessionId: string, summary: string, _provider: LLMProvider) => {
+    async (_projectId: string | null, sessionId: string, summary: string, _provider: LLMProvider) => {
       const trimmed = summary.trim();
       if (!trimmed) {
         setEditingSession(null);
@@ -1038,6 +1039,7 @@ export function useSidebarController({
         const response = await api.renameSession(sessionId, trimmed);
         if (response.ok) {
           await onRefresh();
+          void reloadRecentConversations();
         } else {
           console.error('[Sidebar] Failed to rename session:', response.status);
           alert(t('messages.renameSessionFailed'));
@@ -1050,7 +1052,7 @@ export function useSidebarController({
         setEditingSessionName('');
       }
     },
-    [onRefresh, t],
+    [onRefresh, reloadRecentConversations, t],
   );
 
   const collapseSidebar = useCallback(() => {

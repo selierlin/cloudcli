@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy, Edit2, Loader2, MoreHorizontal, Trash2, X } from 'lucide-react';
+import { Check, Edit2, Loader2, MoreHorizontal, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { ActionMenu, Badge, Dialog, DialogContent, DialogTitle, Tooltip, buttonVariants } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
-import { api } from '../../../../utils/api';
-import { copyTextToClipboard } from '../../../../utils/clipboard';
+import { useCopyProviderSessionId } from '../../hooks/useCopyProviderSessionId';
 import type { SessionWithProvider } from '../../types/types';
 import { createSessionViewModel, formatCompactAge } from '../../utils/utils';
 import LLMProviderLogo from '../../../llm-provider-logo/LLMProviderLogo';
@@ -44,7 +43,6 @@ const PROVIDER_LABELS: Record<LLMProvider, string> = {
   workbuddy: 'WorkBuddy',
 };
 
-type CopyState = 'loading' | 'idle' | 'copying' | 'copied' | 'error';
 export default function SidebarSessionItem({
   project,
   session,
@@ -69,12 +67,17 @@ export default function SidebarSessionItem({
   const compactSessionAge = formatCompactAge(sessionView.sessionTime, currentTime);
   const editingContainerRef = useRef<HTMLDivElement>(null);
   const [isMobileOptionsOpen, setIsMobileOptionsOpen] = useState(false);
-  const [copyState, setCopyState] = useState<CopyState>('idle');
-  const [providerSessionId, setProviderSessionId] = useState<string | null>(null);
-  const providerIdRequestRef = useRef(0);
   const showAttentionIndicator = needsAttention && !isSelected;
   const showRecentIndicator = !showAttentionIndicator && !isProcessing && sessionView.isActive;
   const providerLabel = PROVIDER_LABELS[session.__provider];
+  const {
+    copyState,
+    copyLabel,
+    isCopyPending,
+    CopyStateIcon,
+    handleCopyAction,
+    onOptionsOpen,
+  } = useCopyProviderSessionId({ sessionId: session.id, providerLabel, t });
 
   // While editing, dismiss only when the user clicks outside the inline rename panel
   // (matches Escape / cancel-button behaviour). The mobile rename lives inside the
@@ -110,45 +113,9 @@ export default function SidebarSessionItem({
     onDeleteSession(project.projectId, session.id, sessionView.sessionName, session.__provider);
   };
 
-  const loadProviderSessionId = async () => {
-    const requestId = ++providerIdRequestRef.current;
-    setCopyState('loading');
-    try {
-      const response = await api.providerSessionId(session.id);
-      const payload = await response.json();
-      const loadedSessionId = payload?.data?.sessionId;
-      if (!response.ok || typeof loadedSessionId !== 'string' || !loadedSessionId) {
-        throw new Error('Provider session ID is unavailable');
-      }
-
-      if (requestId !== providerIdRequestRef.current) return;
-      setProviderSessionId(loadedSessionId);
-      setCopyState('idle');
-    } catch {
-      if (requestId !== providerIdRequestRef.current) return;
-      setProviderSessionId(null);
-      setCopyState('error');
-    }
-  };
-
-  const resetCopyState = () => {
-    providerIdRequestRef.current += 1;
-    setCopyState('idle');
-    setProviderSessionId(null);
-  };
-
-  const setOptionsOpen = (open: boolean) => {
-    if (open) {
-      setProviderSessionId(null);
-      void loadProviderSessionId();
-    } else {
-      resetCopyState();
-    }
-  };
-
   const setMobileOptionsOpen = (open: boolean) => {
     setIsMobileOptionsOpen(open);
-    setOptionsOpen(open);
+    onOptionsOpen(open);
     if (!open && isEditing) {
       onCancelEditingSession();
     }
@@ -162,37 +129,6 @@ export default function SidebarSessionItem({
     saveEditedSession();
     setMobileOptionsOpen(false);
   };
-
-  const copyProviderSessionId = async () => {
-    if (!providerSessionId) {
-      setCopyState('error');
-      return;
-    }
-
-    setCopyState('copying');
-    const didCopy = await copyTextToClipboard(providerSessionId);
-    setCopyState(didCopy ? 'copied' : 'error');
-  };
-
-  const handleCopyAction = () => {
-    if (copyState === 'error' && !providerSessionId) {
-      void loadProviderSessionId();
-    } else {
-      void copyProviderSessionId();
-    }
-  };
-
-  const isCopyPending = copyState === 'loading' || copyState === 'copying';
-  const CopyStateIcon = copyState === 'copied' ? Check : Copy;
-  const copyLabel = copyState === 'loading'
-    ? t('sessions.loadingSessionId', { provider: providerLabel })
-    : copyState === 'copied'
-      ? t('sessions.sessionIdCopied', { provider: providerLabel })
-      : copyState === 'error'
-        ? providerSessionId
-          ? t('sessions.copySessionIdFailed', { provider: providerLabel })
-          : t('sessions.sessionIdUnavailable', { provider: providerLabel })
-        : t('sessions.copySessionId', { provider: providerLabel });
 
   return (
     <div className="group relative">
@@ -542,7 +478,7 @@ export default function SidebarSessionItem({
                 portal
                 variant="ghost"
                 size="icon"
-                onOpenChange={setOptionsOpen}
+                onOpenChange={onOptionsOpen}
                 triggerClassName="h-7 w-7 text-muted-foreground opacity-70 hover:bg-muted hover:opacity-100"
                 menuClassName="w-[260px] rounded-xl p-1.5 shadow-xl"
                 header={(

@@ -3,7 +3,7 @@ import { Activity, Archive, ChevronDown, ChevronRight, Folder, MessageSquare, Ro
 import type { TFunction } from 'i18next';
 
 import { ScrollArea } from '../../../../shared/view/ui';
-import type { Project } from '../../../../types/app';
+import type { Project, LLMProvider } from '../../../../types/app';
 import type { ReleaseInfo } from '../../../../shared/types';
 import type { ConversationSearchResults, SearchProgress } from '../../hooks/useSidebarController';
 import type { ArchivedProjectListItem, ArchivedSessionListItem, RecentConversationListItem, SidebarSearchMode } from '../../types/types';
@@ -113,6 +113,13 @@ type SidebarContentProps = {
   onRestoreArchivedProject: (projectId: string) => void;
   onLoadMoreRecentConversations: () => void;
   onRetryRecentConversations: () => void;
+  onRenameSession: (sessionId: string, summary: string, provider: LLMProvider) => void;
+  onDeleteSession: (
+    projectId: string | null,
+    sessionId: string,
+    sessionTitle: string,
+    provider: LLMProvider,
+  ) => void;
   onArchivedSessionClick: (session: ArchivedSessionListItem) => void;
   onRestoreArchivedSession: (sessionId: string) => void;
   onDeleteArchivedSession: (session: ArchivedSessionListItem) => void;
@@ -160,6 +167,8 @@ export default function SidebarContent({
   onRestoreArchivedProject,
   onLoadMoreRecentConversations,
   onRetryRecentConversations,
+  onRenameSession,
+  onDeleteSession,
   onArchivedSessionClick,
   onRestoreArchivedSession,
   onDeleteArchivedSession,
@@ -477,6 +486,8 @@ export default function SidebarContent({
             onConversationSelect={onConversationResultClick}
             onLoadMore={onLoadMoreRecentConversations}
             onRetry={onRetryRecentConversations}
+            onRenameSession={onRenameSession}
+            onDeleteSession={onDeleteSession}
             t={t}
           />
         ) : searchMode === 'running' ? (
