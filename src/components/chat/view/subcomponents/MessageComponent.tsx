@@ -418,16 +418,21 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
               </div>
             )}
 
-            {(shouldShowAssistantCopyControl || !isGrouped) && (
+            {!message.isThinking && (shouldShowAssistantCopyControl || !isGrouped) && (
               <div className="mt-1 flex w-full items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500">
                 {renderBranchButton}
                 {shouldShowAssistantCopyControl && (
-                  <MessageCopyControl content={assistantCopyContent} messageType="assistant" />
+                  // The copy control stretches with flex-1 on mobile for a larger
+                  // tap target; pin it to its content width so the timestamp stays
+                  // adjacent instead of being pushed to the far right.
+                  <div className="flex-none">
+                    <MessageCopyControl content={assistantCopyContent} messageType="assistant" />
+                  </div>
                 )}
                 {shouldShowAssistantCopyControl && (
                   <MessageSpeakControl content={assistantCopyContent} />
                 )}
-                {!isGrouped && <span>{formattedTime}</span>}
+                {(shouldShowAssistantCopyControl || !isGrouped) && <span>{formattedTime}</span>}
               </div>
             )}
           </div>
