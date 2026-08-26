@@ -146,7 +146,18 @@
     "matches_one": "{{count}} match",
     "matches_other": "{{count}} matches",
     "projectsScanned_one": "{{count}} project scanned",
-    "projectsScanned_other": "{{count}} projects scanned"
+    "projectsScanned_other": "{{count}} projects scanned",
+    "runningPlaceholder": "Search running sessions...",
+    "archivedPlaceholder": "Search archived sessions...",
+    "runningTooltip": "Running sessions",
+    "archiveOnlyTooltip": "Archive only",
+    "modeRunning": "Running"
+  },
+  "running": {
+    "title": "Running now",
+    "emptyTitle": "No sessions running",
+    "emptyDescription": "Active work will appear here while a provider is processing.",
+    "noMatchingSessions": "No running sessions match this search."
   },
   "recent": {
     "title": "Recent conversations",
@@ -174,6 +185,16 @@
   },
   "archived": {
     "restore": "Restore session",
-    "deletePermanently": "Delete permanently"
+    "deletePermanently": "Delete permanently",
+    "loadingTitle": "Loading archive...",
+    "loadingDescription": "Fetching hidden workspaces and sessions you can restore later.",
+    "title": "Archive",
+    "restoreHint": "Restore items whenever you need them",
+    "emptyTitle": "No archived items",
+    "emptyDescription": "Archived workspaces and sessions will appear here when you hide them from the active list.",
+    "noMatchingSessions": "No matching archived items",
+    "tryDifferentSearch": "Try a different search term.",
+    "restoreProject": "Restore workspace",
+    "restoreAction": "Restore"
   }
 }
