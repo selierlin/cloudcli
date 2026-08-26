@@ -11,6 +11,17 @@ import {
 
 const router = express.Router();
 
+/**
+ * Busboy parses multipart header params as Latin-1 (multer never overrides
+ * `defParamCharset`), so UTF-8 filenames arrive in `file.originalname` as
+ * mojibake. Re-decode the bytes to recover the real name; names that were not
+ * valid UTF-8 to begin with (e.g. genuine Latin-1) are left untouched.
+ */
+function fixGarbledOriginalName(name: string): string {
+  const utf8 = Buffer.from(name, 'latin1').toString('utf8');
+  return utf8.includes('\uFFFD') ? name : utf8;
+}
+
 // Multer writes uploads straight into the global assets folder; the service
 // owns the folder location and the response record shape.
 const storage = multer.diskStorage({
@@ -20,8 +31,11 @@ const storage = multer.diskStorage({
       .catch((error) => cb(error as Error, ''));
   },
   filename: (req, file, cb) => {
+    file.originalname = fixGarbledOriginalName(file.originalname);
     const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+    // Preserve Unicode letters/digits so Chinese names stay readable while
+    // still blocking separators, quotes, and control characters.
+    const sanitizedName = file.originalname.replace(/[^\p{L}\p{N}._-]/gu, '_');
     cb(null, `${uniqueSuffix}-${sanitizedName}`);
   },
 });
@@ -137,7 +151,14 @@ router.get('/files/:filename', async (req, res) => {
 
   res.setHeader('Content-Type', asset.contentType);
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Content-Disposition', `attachment; filename="${req.params.filename.replace(/["\r\n]/g, '_')}"`);
+  const downloadName = req.params.filename.replace(/["\r\n]/g, '_');
+  // Non-ASCII filenames need the RFC 5987 `filename*` form; the plain
+  // `filename` fallback keeps strictly ASCII for legacy clients.
+  const asciiFallback = downloadName.replace(/[^\x20-\x7e]/g, '_');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(downloadName)}`,
+  );
   asset.stream.pipe(res);
   asset.stream.on('error', (error) => {
     console.error('Error streaming attachment asset:', error);
