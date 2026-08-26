@@ -270,6 +270,12 @@ function Sidebar({
             onRestoreArchivedProject={restoreArchivedProject}
             onLoadMoreRecentConversations={loadMoreRecentConversations}
             onRetryRecentConversations={reloadRecentConversations}
+            onRenameSession={(sessionId, summary, provider) => {
+              void updateSessionSummary(null, sessionId, summary, provider);
+            }}
+            onDeleteSession={(projectId, sessionId, sessionTitle, provider) => {
+              showDeleteSessionConfirmation(projectId, sessionId, sessionTitle, provider);
+            }}
             onArchivedSessionClick={openArchivedSession}
             onRestoreArchivedSession={restoreArchivedSession}
             onDeleteArchivedSession={(session) => {
