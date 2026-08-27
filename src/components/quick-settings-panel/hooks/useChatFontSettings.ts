@@ -4,7 +4,7 @@ import {
   readFontSettings,
   writeFontSettings,
 } from '../../settings/constants/constants';
-import type { FontFamilyId, FontSettingsState } from '../../settings/types/types';
+import type { CodeFontFamilyId, FontFamilyId, FontSettingsState } from '../../settings/types/types';
 
 const FONT_SETTINGS_CHANGED_EVENT = 'fontSettingsChanged';
 
@@ -47,12 +47,30 @@ export function useChatFontSettings() {
     window.dispatchEvent(new Event(FONT_SETTINGS_CHANGED_EVENT));
   };
 
+  const setCodeFontSize = (value: string) => {
+    const next: FontSettingsState = { ...state, codeFontSize: value };
+    setState(next);
+    writeFontSettings(next);
+    window.dispatchEvent(new Event(FONT_SETTINGS_CHANGED_EVENT));
+  };
+
+  const setCodeFontFamily = (value: CodeFontFamilyId) => {
+    const next: FontSettingsState = { ...state, codeFontFamily: value };
+    setState(next);
+    writeFontSettings(next);
+    window.dispatchEvent(new Event(FONT_SETTINGS_CHANGED_EVENT));
+  };
+
   return {
     uiFontSize: state.uiFontSize,
     terminalFontSize: state.terminalFontSize,
     fontFamily: state.fontFamily,
+    codeFontSize: state.codeFontSize,
+    codeFontFamily: state.codeFontFamily,
     setUiFontSize,
     setTerminalFontSize,
     setFontFamily,
+    setCodeFontSize,
+    setCodeFontFamily,
   };
 }

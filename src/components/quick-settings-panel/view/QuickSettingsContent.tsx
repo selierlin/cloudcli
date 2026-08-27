@@ -1,13 +1,15 @@
-import { CaseSensitive, SunMoon, Terminal, Type } from 'lucide-react';
+import { Braces, CaseSensitive, SunMoon, Terminal, Type } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import type { ChatMessage } from '../../chat/types/types';
 import {
+  CODE_FONT_FAMILY_OPTIONS,
+  CODE_FONT_SIZE_OPTIONS,
   FONT_FAMILY_OPTIONS,
   TERMINAL_FONT_SIZE_OPTIONS,
   UI_FONT_SIZE_OPTIONS,
 } from '../../settings/constants/constants';
-import type { FontFamilyId } from '../../settings/types/types';
+import type { CodeFontFamilyId, FontFamilyId } from '../../settings/types/types';
 import { ThemeModeSelector } from '../../../shared/view/ui';
 import LanguageSelector from '../../../shared/view/ui/LanguageSelector';
 import {
@@ -55,9 +57,13 @@ export default function QuickSettingsContent({
     uiFontSize,
     terminalFontSize,
     fontFamily,
+    codeFontSize,
+    codeFontFamily,
     setUiFontSize,
     setTerminalFontSize,
     setFontFamily,
+    setCodeFontSize,
+    setCodeFontFamily,
   } = useChatFontSettings();
   const inputSettingToggles = preferences.voiceEnabled
     ? INPUT_SETTING_TOGGLES
@@ -133,6 +139,40 @@ export default function QuickSettingsContent({
             {TERMINAL_FONT_SIZE_OPTIONS.map((size) => (
               <option key={size} value={size}>
                 {size}px
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className={SETTING_ROW_CLASS}>
+          <span className="flex items-center gap-2 text-sm text-foreground">
+            <Braces className="h-4 w-4 text-muted-foreground" />
+            {t('appearanceSettings.fontSettings.codeFontSize.label')}
+          </span>
+          <select
+            value={codeFontSize}
+            onChange={(event) => setCodeFontSize(event.target.value)}
+            className={FONT_SELECT_CLASS}
+          >
+            {CODE_FONT_SIZE_OPTIONS.map((size) => (
+              <option key={size} value={size}>
+                {size}px
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className={SETTING_ROW_CLASS}>
+          <span className="flex items-center gap-2 text-sm text-foreground">
+            <Braces className="h-4 w-4 text-muted-foreground" />
+            {t('appearanceSettings.fontSettings.codeFontFamily.label')}
+          </span>
+          <select
+            value={codeFontFamily}
+            onChange={(event) => setCodeFontFamily(event.target.value as CodeFontFamilyId)}
+            className={FONT_SELECT_CLASS}
+          >
+            {CODE_FONT_FAMILY_OPTIONS.map((option) => (
+              <option key={option.id} value={option.id}>
+                {t(`appearanceSettings.fontSettings.codeFontFamilyOptions.${option.id}`)}
               </option>
             ))}
           </select>

@@ -3,11 +3,14 @@ import { useTranslation } from 'react-i18next';
 import { ThemeModeSelector } from '../../../../shared/view/ui';
 import type {
   CodeEditorSettingsState,
+  CodeFontFamilyId,
   FontFamilyId,
   FontSettingsState,
   ProjectSortOrder,
 } from '../../types/types';
 import {
+  CODE_FONT_FAMILY_OPTIONS,
+  CODE_FONT_SIZE_OPTIONS,
   FONT_FAMILY_OPTIONS,
   TERMINAL_FONT_SIZE_OPTIONS,
   UI_FONT_SIZE_OPTIONS,
@@ -30,6 +33,8 @@ type AppearanceSettingsTabProps = {
   onUiFontSizeChange: (value: string) => void;
   onTerminalFontSizeChange: (value: string) => void;
   onFontFamilyChange: (value: FontFamilyId) => void;
+  onCodeFontSizeChange: (value: string) => void;
+  onCodeFontFamilyChange: (value: CodeFontFamilyId) => void;
 };
 
 const SELECT_CLASS =
@@ -47,6 +52,8 @@ export default function AppearanceSettingsTab({
   onUiFontSizeChange,
   onTerminalFontSizeChange,
   onFontFamilyChange,
+  onCodeFontSizeChange,
+  onCodeFontFamilyChange,
 }: AppearanceSettingsTabProps) {
   const { t } = useTranslation('settings');
 
@@ -193,6 +200,40 @@ export default function AppearanceSettingsTab({
               {FONT_FAMILY_OPTIONS.map((option) => (
                 <option key={option.id} value={option.id}>
                   {t(`appearanceSettings.fontSettings.fontFamilyOptions.${option.id}`)}
+                </option>
+              ))}
+            </select>
+          </SettingsRow>
+
+          <SettingsRow
+            label={t('appearanceSettings.fontSettings.codeFontSize.label')}
+            description={t('appearanceSettings.fontSettings.codeFontSize.description')}
+          >
+            <select
+              value={fontSettings.codeFontSize}
+              onChange={(event) => onCodeFontSizeChange(event.target.value)}
+              className={SELECT_CLASS}
+            >
+              {CODE_FONT_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>
+                  {size}px
+                </option>
+              ))}
+            </select>
+          </SettingsRow>
+
+          <SettingsRow
+            label={t('appearanceSettings.fontSettings.codeFontFamily.label')}
+            description={t('appearanceSettings.fontSettings.codeFontFamily.description')}
+          >
+            <select
+              value={fontSettings.codeFontFamily}
+              onChange={(event) => onCodeFontFamilyChange(event.target.value as CodeFontFamilyId)}
+              className={`${SELECT_CLASS} sm:w-36`}
+            >
+              {CODE_FONT_FAMILY_OPTIONS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {t(`appearanceSettings.fontSettings.codeFontFamilyOptions.${option.id}`)}
                 </option>
               ))}
             </select>

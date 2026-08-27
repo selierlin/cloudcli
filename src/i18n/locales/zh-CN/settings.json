@@ -215,8 +215,26 @@
         "sans": "黑体",
         "songti": "宋体",
         "kaiti": "楷体",
+        "jetbrains-mono": "JetBrains Mono",
         "rounded": "圆体",
         "monospace": "等宽"
+      },
+      "codeFontSize": {
+        "label": "代码字号",
+        "description": "行内代码与代码块的文字大小"
+      },
+      "codeFontFamily": {
+        "label": "代码字体",
+        "description": "行内代码与代码块使用的等宽字体"
+      },
+      "codeFontFamilyOptions": {
+        "system": "系统等宽",
+        "jetbrains-mono": "JetBrains Mono",
+        "fira-code": "Fira Code",
+        "cascadia-code": "Cascadia Code",
+        "source-code-pro": "Source Code Pro",
+        "hack": "Hack",
+        "ibm-plex-mono": "IBM Plex Mono"
       }
     }
   },

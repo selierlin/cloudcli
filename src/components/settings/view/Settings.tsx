@@ -178,6 +178,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
                   onUiFontSizeChange={(value) => updateFontSetting('uiFontSize', value)}
                   onTerminalFontSizeChange={(value) => updateFontSetting('terminalFontSize', value)}
                   onFontFamilyChange={(value) => updateFontSetting('fontFamily', value)}
+                  onCodeFontSizeChange={(value) => updateFontSetting('codeFontSize', value)}
+                  onCodeFontFamilyChange={(value) => updateFontSetting('codeFontFamily', value)}
                 />
               )}
 

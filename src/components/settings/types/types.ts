@@ -60,12 +60,25 @@ export type FontFamilyId =
   | 'songti'
   | 'kaiti'
   | 'rounded'
-  | 'monospace';
+  | 'monospace'
+  | 'jetbrains-mono';
+
+/** Monospace font choices for inline code and code blocks. */
+export type CodeFontFamilyId =
+  | 'system'
+  | 'jetbrains-mono'
+  | 'fira-code'
+  | 'cascadia-code'
+  | 'source-code-pro'
+  | 'hack'
+  | 'ibm-plex-mono';
 
 export type FontSettingsState = {
   uiFontSize: string;
   terminalFontSize: string;
   fontFamily: FontFamilyId;
+  codeFontSize: string;
+  codeFontFamily: CodeFontFamilyId;
 };
 
 export type SettingsStoragePayload = {
