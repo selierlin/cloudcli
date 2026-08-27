@@ -14,12 +14,18 @@ const MOCK_CLI = path.resolve(
   path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'wb-mock-cli.mjs'),
 );
 
+// New workbuddy sessions point the engine at the WorkBuddy desktop config root
+// (where the user's skills and plugins live) instead of the embedded CLI's
+// default ~/.codebuddy.
+const DEFAULT_CONFIG_DIR = path.join(os.homedir(), '.workbuddy');
+
 type Captured = { kind: string; role?: string; content?: unknown; newSessionId?: string; exitCode?: number; aborted?: boolean };
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-// The runtime inherits the parent env and only overrides the config-dir vars
-// when a session config dir is resolved. Developers' shells often export
+// The runtime inherits the parent env and always overrides the config-dir
+// vars with the resolved session config dir (defaulting to ~/.workbuddy for
+// new sessions). Developers' shells often export
 // CODEBUDDY_CONFIG_DIR/WORKBUDDY_CONFIG_DIR, which would otherwise leak into
 // the spawned mock CLI and corrupt the CFG suffix assertions. The command
 // resolution cache is cleared too so each test re-resolves CODEBUDDY_COMMAND.
@@ -83,7 +89,7 @@ test('workbuddy run drives a new session and emits thinking/text/complete', asyn
   assert.equal(sessionCreated?.newSessionId, 'mock-session-123');
 
   const text = captured.find((entry) => entry.kind === 'text');
-  assert.equal(text?.content, 'OK:hello:perm=none');
+  assert.equal(text?.content, `OK:hello:perm=none CFG:${DEFAULT_CONFIG_DIR}`);
 
   const complete = captured.find((entry) => entry.kind === 'complete');
   assert.equal(complete?.exitCode, 0);
@@ -105,7 +111,7 @@ test('workbuddy run resumes an existing session id', async () => {
   );
 
   const text = captured.find((entry) => entry.kind === 'text');
-  assert.equal(text?.content, 'RESUMED:previous-session-id:continue work');
+  assert.equal(text?.content, `RESUMED:previous-session-id:continue work CFG:${DEFAULT_CONFIG_DIR}`);
   // A resumed session must not announce a fresh session id.
   assert.equal(captured.some((entry) => entry.kind === 'session_created'), false);
 });
@@ -140,7 +146,7 @@ test('workbuddy run sends image and file attachments as stream-json stdin', asyn
     // this asserts the runtime switched to stream-json and serialized one
     // image block and one document block.
     const text = captured.find((entry) => entry.kind === 'text');
-    assert.equal(text?.content, 'OK:look at this:perm=none STDIN:1img:1file');
+    assert.equal(text?.content, `OK:look at this:perm=none CFG:${DEFAULT_CONFIG_DIR} STDIN:1img:1file`);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -171,7 +177,7 @@ test('workbuddy run keeps attachments working when resuming a session', async ()
     );
 
     const text = captured.find((entry) => entry.kind === 'text');
-    assert.equal(text?.content, 'RESUMED:previous-session-id:still looking STDIN:1img:0file');
+    assert.equal(text?.content, `RESUMED:previous-session-id:still looking CFG:${DEFAULT_CONFIG_DIR} STDIN:1img:0file`);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -190,7 +196,7 @@ test('workbuddy run forwards the permission mode flag', async () => {
   );
 
   const text = captured.find((entry) => entry.kind === 'text');
-  assert.equal(text?.content, 'OK:edit the file:perm=acceptEdits');
+  assert.equal(text?.content, `OK:edit the file:perm=acceptEdits CFG:${DEFAULT_CONFIG_DIR}`);
 });
 
 test('workbuddy run forwards the selected model to a new session', async () => {
@@ -206,7 +212,7 @@ test('workbuddy run forwards the selected model to a new session', async () => {
   );
 
   const text = captured.find((entry) => entry.kind === 'text');
-  assert.equal(text?.content, 'OK:hello:perm=none MODEL:glm-5.1');
+  assert.equal(text?.content, `OK:hello:perm=none MODEL:glm-5.1 CFG:${DEFAULT_CONFIG_DIR}`);
 });
 
 test('workbuddy run forwards the recorded model when resuming a session', async () => {
@@ -225,7 +231,7 @@ test('workbuddy run forwards the recorded model when resuming a session', async 
   );
 
   const text = captured.find((entry) => entry.kind === 'text');
-  assert.equal(text?.content, 'RESUMED:previous-session-id:continue work MODEL:glm-4.7');
+  assert.equal(text?.content, `RESUMED:previous-session-id:continue work MODEL:glm-4.7 CFG:${DEFAULT_CONFIG_DIR}`);
 });
 
 test('workbuddy run reports a failed task with exit code 1', async () => {
@@ -277,6 +283,25 @@ test('workbuddy run points the engine at the session config dir', async () => {
 
   const text = captured.find((entry) => entry.kind === 'text');
   assert.equal(text?.content, 'OK:hello:perm=none CFG:/Users/test/.workbuddy');
+});
+
+test('workbuddy run defaults the engine config dir to ~/.workbuddy for new sessions', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'success';
+  const captured: Captured[] = [];
+
+  // No session-row config dir exists for a brand-new session, so the runtime
+  // must still point the engine at the WorkBuddy desktop config root — where
+  // the user's skills and plugins live — instead of the embedded CLI default.
+  await workbuddyRuntime.run(
+    'hello',
+    { sessionId: 'wb-default-cfg', cwd: '/tmp' },
+    makeWriter(captured),
+    makeContext(new Map()),
+  );
+
+  const text = captured.find((entry) => entry.kind === 'text');
+  assert.equal(text?.content, `OK:hello:perm=none CFG:${DEFAULT_CONFIG_DIR}`);
 });
 
 test('workbuddy run flushes a final event that lacks a trailing newline', async () => {

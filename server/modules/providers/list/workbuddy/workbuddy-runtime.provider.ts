@@ -1,4 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import os from 'node:os';
+import path from 'node:path';
 
 import { notifyRunFailed, notifyRunStopped } from '@/modules/notifications/index.js';
 import { buildWorkbuddyStreamJsonInput } from '@/shared/image-attachments.js';
@@ -84,15 +86,17 @@ export const workbuddyRuntime: IProviderRuntime = {
       args.push('--model', resolvedModel);
     }
 
-    const configDir = context.resolveProviderConfigDir(appSessionId);
+    // The embedded engine defaults its config root to ~/.codebuddy, but the
+    // WorkBuddy desktop app runs it against ~/.workbuddy — where the user's
+    // skills, plugins, and sessions live. Resumed sessions use the config dir
+    // recorded on the session row (so --resume finds the same transcript);
+    // brand-new sessions fall back to ~/.workbuddy so the engine reads the
+    // same skills/plugins as the desktop app.
+    const configDir = context.resolveProviderConfigDir(appSessionId)
+      ?? path.join(os.homedir(), '.workbuddy');
     const env: NodeJS.ProcessEnv = { ...process.env };
-    if (configDir) {
-      // WorkBuddy's engine writes sessions under its own config dir
-      // (e.g. ~/.workbuddy). The CLI must be pointed at the same root the
-      // resumed session was written from, otherwise --resume cannot find it.
-      env.CODEBUDDY_CONFIG_DIR = configDir;
-      env.WORKBUDDY_CONFIG_DIR = configDir;
-    }
+    env.CODEBUDDY_CONFIG_DIR = configDir;
+    env.WORKBUDDY_CONFIG_DIR = configDir;
 
     const child = spawn(getWorkbuddyCommand(), args, {
       cwd: workingDir,
