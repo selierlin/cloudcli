@@ -499,6 +499,46 @@ test('providerSkillsService lists cursor skills from its configured directories'
 });
 
 /**
+ * This test covers WorkBuddy user skill lookup. The engine reads only its own
+ * config dir (`~/.workbuddy/skills`); project-level `.agents/skills` folders
+ * are intentionally ignored.
+ */
+test('providerSkillsService lists workbuddy user skills from ~/.workbuddy/skills', { concurrency: false }, async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-skills-workbuddy-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await fs.mkdir(workspacePath, { recursive: true });
+
+  const restoreHomeDir = patchHomeDir(tempRoot);
+  try {
+    await writeSkill(
+      path.join(tempRoot, '.workbuddy', 'skills'),
+      'workbuddy-user-dir',
+      'workbuddy-user',
+      'WorkBuddy user skill',
+    );
+    await writeSkill(
+      path.join(workspacePath, '.agents', 'skills'),
+      'workbuddy-project-dir',
+      'workbuddy-project',
+      'WorkBuddy project skill',
+    );
+
+    const skills = await providerSkillsService.listProviderSkills('workbuddy', { workspacePath });
+    const byName = new Map(skills.map((skill) => [skill.name, skill]));
+
+    assert.equal(byName.get('workbuddy-user')?.scope, 'user');
+    assert.equal(byName.get('workbuddy-user')?.command, '/workbuddy-user');
+    assert.equal(byName.get('workbuddy-user')?.sourcePath.endsWith(
+      path.join('.workbuddy', 'skills', 'workbuddy-user-dir', 'SKILL.md'),
+    ), true);
+    assert.equal(byName.has('workbuddy-project'), false);
+  } finally {
+    restoreHomeDir();
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+/**
  * This test covers managed global skill creation for providers that own a
  * writable user skill directory.
  */
