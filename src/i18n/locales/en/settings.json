@@ -215,8 +215,26 @@
         "sans": "Sans (Heiti)",
         "songti": "Songti",
         "kaiti": "Kaiti",
+        "jetbrains-mono": "JetBrains Mono",
         "rounded": "Rounded",
         "monospace": "Monospace"
+      },
+      "codeFontSize": {
+        "label": "Code Font Size",
+        "description": "Font size of inline code and code blocks"
+      },
+      "codeFontFamily": {
+        "label": "Code Font Family",
+        "description": "Monospace font for inline code and code blocks"
+      },
+      "codeFontFamilyOptions": {
+        "system": "System Mono",
+        "jetbrains-mono": "JetBrains Mono",
+        "fira-code": "Fira Code",
+        "cascadia-code": "Cascadia Code",
+        "source-code-pro": "Source Code Pro",
+        "hack": "Hack",
+        "ibm-plex-mono": "IBM Plex Mono"
       }
     }
   },

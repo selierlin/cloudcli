@@ -79,8 +79,13 @@ const CodeBlock = ({ node: _node, className, children, forceBlock, ...props }: C
   if (shouldInline) {
     return (
       <code
-        className={`whitespace-pre-wrap break-words rounded-md border border-border/70 bg-muted px-1.5 py-0.5 font-mono text-[0.875em] text-foreground ${className || ''
+        className={`whitespace-pre-wrap break-words rounded-md border border-border/70 bg-muted px-1.5 py-0.5 text-foreground ${className || ''
           }`}
+        style={{
+          // Code font is user-configurable; falls back to the system mono stack.
+          fontFamily: 'var(--ui-code-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)',
+          fontSize: 'var(--ui-code-font-size, 0.875em)',
+        }}
         {...props}
       >
         {children}
@@ -149,7 +154,7 @@ const CodeBlock = ({ node: _node, className, children, forceBlock, ...props }: C
         customStyle={{
           margin: 0,
           borderRadius: 0,
-          fontSize: '0.8125rem',
+          fontSize: 'var(--ui-code-font-size, 0.8125rem)',
           lineHeight: 1.6,
           padding: '0.5rem 1rem 1rem',
           // The container owns the background so the label row and code read as one panel.
@@ -158,7 +163,7 @@ const CodeBlock = ({ node: _node, className, children, forceBlock, ...props }: C
         codeTagProps={{
           style: {
             fontFamily:
-              'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+              'var(--ui-code-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace)',
             background: 'transparent',
           },
         }}

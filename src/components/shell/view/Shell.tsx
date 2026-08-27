@@ -155,6 +155,15 @@ export default function Shell({
     }
   }, [isConnected]);
 
+  // The auto-focus effect only fires on state transitions. Anything that
+  // steals focus from the xterm textarea after that — most commonly clicking
+  // the terminal tab pill in the workspace header — leaves the cursor on an
+  // unfocused button and keystrokes vanish into the void. A mousedown on the
+  // container redirects focus back into xterm unconditionally.
+  const focusTerminalFromMouseDown = useCallback(() => {
+    terminalRef.current?.focus();
+  }, [terminalRef]);
+
   useEffect(() => {
     if (!isActive || !isInitialized || !isConnected) {
       return;
@@ -239,7 +248,10 @@ export default function Shell({
   if (minimal) {
     return (
       <>
-        <ShellMinimalView terminalContainerRef={terminalContainerRef} />
+        <ShellMinimalView
+          terminalContainerRef={terminalContainerRef}
+          onContainerMouseDown={focusTerminalFromMouseDown}
+        />
         <TerminalShortcutsPanel
           wsRef={wsRef}
           terminalRef={terminalRef}
@@ -291,6 +303,8 @@ export default function Shell({
       <div className="relative flex-1 overflow-hidden p-2">
         <div
           ref={terminalContainerRef}
+          tabIndex={0}
+          onMouseDown={focusTerminalFromMouseDown}
           className="h-full w-full focus:outline-none"
           style={{ outline: 'none' }}
         />
