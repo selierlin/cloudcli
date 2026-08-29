@@ -53,3 +53,19 @@ test('notification payload uses the app session id for a provider session id', a
     assert.match(payload.data.tag, /app-session-1/);
   });
 });
+
+test('notification payload names WorkBuddy runs instead of falling back to Assistant', () => {
+  const payload = buildNotificationPayload({
+    provider: 'workbuddy',
+    sessionId: null,
+    kind: 'stop',
+    code: 'run.stopped',
+    meta: { stopReason: 'completed' },
+    severity: 'info',
+    requiresUserAction: false,
+    dedupeKey: null,
+    createdAt: '2026-08-29T01:00:00.000Z',
+  });
+
+  assert.match(payload.body, /^WorkBuddy:/);
+});
