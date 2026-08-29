@@ -4,6 +4,7 @@
     "account": "アカウント",
     "permissions": "権限",
     "mcpServers": "MCPサーバー",
+    "skills": "スキル",
     "appearance": "外観"
   },
   "account": {
@@ -339,6 +340,12 @@
       }
     },
     "connectionStatus": "接続状態",
+    "externalAuth": {
+      "title": "外部管理",
+      "description": "{{agent}}の認証はこのアプリ外で管理されています。エージェントのデスクトップアプリまたは設定でログインしてください。",
+      "managedByDesktop": "WorkBuddy Desktopで管理",
+      "available": "利用可能"
+    },
     "login": {
       "title": "ログイン",
       "reAuthenticate": "再認証",
@@ -347,7 +354,10 @@
       "button": "ログイン",
       "reLoginButton": "再ログイン"
     },
-    "error": "エラー: {{error}}"
+    "error": "エラー: {{error}}",
+    "errors": {
+      "cursorCliNotFound": "Cursor CLIがインストールされていないか、見つかりません。"
+    }
   },
   "permissions": {
     "title": "権限設定",
@@ -415,7 +425,7 @@
       },
       "technicalDetails": "技術的な詳細",
       "technicalInfo": {
-        "default": "sandboxMode=workspace-write, approvalPolicy=untrusted。信頼されたコマンド: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find（-execなし）など。",
+        "default": "sandboxMode=workspace-write, approvalPolicy=on-request。信頼されたコマンド: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find（-execなし）など。",
         "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never。すべてのコマンドがプロジェクトディレクトリ内で自動実行。",
         "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never。完全なシステムアクセス。信頼された環境でのみ使用してください。",
         "overrideNote": "チャットインターフェースのモードボタンを使用してセッションごとに上書きできます。"

@@ -1,6 +1,6 @@
-import { promises as fsp } from 'node:fs';
-import os from 'node:os';
+import { createReadStream, promises as fsp } from 'node:fs';
 import path from 'node:path';
+import { createInterface } from 'node:readline';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
@@ -12,12 +12,16 @@ import {
   readFileTimestamps,
 } from '@/shared/utils.js';
 
+import { getWorkbuddySessionRoots } from './workbuddy-storage.provider.js';
+
 const FALLBACK_SESSION_NAME = 'Untitled WorkBuddy Session';
+const TITLE_TAIL_BYTES = 64 * 1024;
 
 type ParsedSession = {
   sessionId: string;
   projectPath: string;
   sessionName?: string;
+  sessionNameIsExplicit?: boolean;
 };
 
 /**
@@ -32,38 +36,41 @@ type ParsedSession = {
  */
 export class WorkbuddySessionSynchronizer implements IProviderSessionSynchronizer {
   private readonly provider = 'workbuddy' as const;
+  private hasCompletedInitialScan = false;
 
   private get sessionRoots(): string[] {
-    return [
-      path.join(os.homedir(), '.codebuddy', 'projects'),
-      path.join(os.homedir(), '.workbuddy', 'projects'),
-    ];
+    return getWorkbuddySessionRoots();
   }
 
   /**
    * Scans both WorkBuddy engine projects roots and upserts discovered sessions
    * into the DB.
    *
-   * The scan is intentionally full every time (`since` is ignored): WorkBuddy
-   * is a newer provider whose historical transcripts predate any `scan_state`
-   * cursor, so an incremental filter would silently hide them. The engine
-   * keeps one small JSONL per session, so a full scan stays cheap and
-   * `createSession` upserts are idempotent.
+   * The first scan is full because WorkBuddy transcripts can predate the
+   * persisted global scan cursor. Once that backfill succeeds, later scans use
+   * the orchestration cursor and avoid walking unchanged transcripts again.
+   * The flag is set only after both roots complete successfully, so a partial
+   * first scan is retried as a full scan on the next attempt.
    */
-  async synchronize(_since?: Date): Promise<number> {
+  async synchronize(since?: Date): Promise<number> {
     let processed = 0;
+    const scanSince = this.hasCompletedInitialScan ? (since ?? null) : null;
     for (const rootPath of this.sessionRoots) {
-      const files = await findFilesRecursivelyCreatedAfter(rootPath, '.jsonl', null);
+      const files = await findFilesRecursivelyCreatedAfter(rootPath, '.jsonl', scanSince);
       for (const filePath of files) {
         if (this.isSubagentTranscript(filePath)) {
           continue;
         }
-        const parsed = await this.processSessionFile(filePath);
+        const sessionId = path.basename(filePath, '.jsonl');
+        const existing = sessionsDb.getSessionByProviderSessionId(sessionId)
+          ?? sessionsDb.getSessionById(sessionId);
+        const parsed = await this.processSessionFile(
+          filePath,
+          !existing?.custom_name || existing.custom_name === FALLBACK_SESSION_NAME,
+        );
         if (!parsed) {
           continue;
         }
-        const existing = sessionsDb.getSessionByProviderSessionId(parsed.sessionId)
-          ?? sessionsDb.getSessionById(parsed.sessionId);
         // Archive is the user's explicit "hide" choice; a full re-scan must not
         // resurrect an archived session while its transcript still sits on disk.
         if (existing?.isArchived) {
@@ -74,7 +81,7 @@ export class WorkbuddySessionSynchronizer implements IProviderSessionSynchronize
           parsed.sessionId,
           this.provider,
           parsed.projectPath,
-          this.resolveSessionName(existing?.custom_name ?? null, parsed.sessionName),
+          this.resolveSessionName(existing?.custom_name ?? null, parsed.sessionName, parsed.sessionNameIsExplicit),
           timestamps.createdAt,
           timestamps.updatedAt,
           filePath,
@@ -83,6 +90,7 @@ export class WorkbuddySessionSynchronizer implements IProviderSessionSynchronize
       }
     }
 
+    this.hasCompletedInitialScan = true;
     return processed;
   }
 
@@ -94,12 +102,16 @@ export class WorkbuddySessionSynchronizer implements IProviderSessionSynchronize
       return null;
     }
 
-    const parsed = await this.processSessionFile(filePath);
+    const sessionId = path.basename(filePath, '.jsonl');
+    const existing = sessionsDb.getSessionByProviderSessionId(sessionId)
+      ?? sessionsDb.getSessionById(sessionId);
+    const parsed = await this.processSessionFile(
+      filePath,
+      !existing?.custom_name || existing.custom_name === FALLBACK_SESSION_NAME,
+    );
     if (!parsed) {
       return null;
     }
-    const existing = sessionsDb.getSessionByProviderSessionId(parsed.sessionId)
-      ?? sessionsDb.getSessionById(parsed.sessionId);
     // Archive is the user's explicit "hide" choice; a watcher-triggered sync
     // must not resurrect an archived session while its transcript is on disk.
     if (existing?.isArchived) {
@@ -110,7 +122,7 @@ export class WorkbuddySessionSynchronizer implements IProviderSessionSynchronize
       parsed.sessionId,
       this.provider,
       parsed.projectPath,
-      this.resolveSessionName(existing?.custom_name ?? null, parsed.sessionName),
+      this.resolveSessionName(existing?.custom_name ?? null, parsed.sessionName, parsed.sessionNameIsExplicit),
       timestamps.createdAt,
       timestamps.updatedAt,
       filePath,
@@ -142,23 +154,6 @@ export class WorkbuddySessionSynchronizer implements IProviderSessionSynchronize
   }
 
   /**
-   * Chooses the name to store: keeps the existing real title when the
-   * freshly-derived one fell back to the placeholder, so a transient parse
-   * failure never renames a known session to "Untitled …".
-   */
-  private resolveSessionName(existingName: string | null, rawName: string | undefined): string {
-    const derivedName = normalizeSessionName(rawName, FALLBACK_SESSION_NAME);
-    if (
-      existingName
-      && existingName !== FALLBACK_SESSION_NAME
-      && derivedName === FALLBACK_SESSION_NAME
-    ) {
-      return existingName;
-    }
-    return derivedName;
-  }
-
-  /**
    * Skips subagent transcripts and tool results that repeat the parent
    * session's id and would otherwise overwrite the main row's jsonl path.
    */
@@ -177,7 +172,10 @@ export class WorkbuddySessionSynchronizer implements IProviderSessionSynchronize
     return /\/WorkBuddy\/\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}$/.test(cwd);
   }
 
-  private async processSessionFile(filePath: string): Promise<ParsedSession | null> {
+  private async processSessionFile(
+    filePath: string,
+    shouldReadFullName: boolean,
+  ): Promise<ParsedSession | null> {
     const sessionId = path.basename(filePath, '.jsonl');
     const parsed = await extractFirstValidJsonlData(filePath, (raw) => {
       const data = raw as AnyRecord | null;
@@ -197,20 +195,35 @@ export class WorkbuddySessionSynchronizer implements IProviderSessionSynchronize
       return null;
     }
 
-    const sessionName = await this.extractSessionName(filePath, sessionId);
-    return { sessionId, projectPath: parsed.cwd, sessionName };
+    const extractedName = await this.extractSessionName(filePath, sessionId, shouldReadFullName);
+    return {
+      sessionId,
+      projectPath: parsed.cwd,
+      sessionName: extractedName?.name,
+      sessionNameIsExplicit: extractedName?.isExplicit,
+    };
   }
 
   /**
-   * Reads the newest `ai-title` event from a transcript for its title.
+   * Reads the newest `ai-title` event from a transcript for its title and falls
+   * back to the first real user prompt for older/interrupted transcripts.
    */
-  private async extractSessionName(filePath: string, sessionId: string): Promise<string | undefined> {
-    try {
-      const content = await fsp.readFile(filePath, 'utf8');
-      const lines = content.split(/\r?\n/);
+  private async extractSessionName(
+    filePath: string,
+    sessionId: string,
+    shouldReadFullName: boolean,
+  ): Promise<{ name: string; isExplicit: boolean } | undefined> {
+    if (!shouldReadFullName) {
+      return this.extractNewestTitleFromTail(filePath, sessionId);
+    }
 
-      for (let index = lines.length - 1; index >= 0; index -= 1) {
-        const line = lines[index]?.trim();
+    let firstUserPrompt: string | undefined;
+    let latestTitle: string | undefined;
+    const fileStream = createReadStream(filePath, { encoding: 'utf8' });
+    const lineReader = createInterface({ input: fileStream, crlfDelay: Infinity });
+    try {
+      for await (const rawLine of lineReader) {
+        const line = rawLine.trim();
         if (!line) {
           continue;
         }
@@ -222,18 +235,95 @@ export class WorkbuddySessionSynchronizer implements IProviderSessionSynchronize
         }
         const data = parsed as AnyRecord;
         if (
+          data.type === 'message'
+          && data.role === 'user'
+          && Array.isArray(data.content)
+        ) {
+          const inputText = data.content.find((block: unknown) => (
+            block && typeof block === 'object' && (block as AnyRecord).type === 'input_text'
+            && typeof (block as AnyRecord).text === 'string'
+          )) as AnyRecord | undefined;
+          if (typeof inputText?.text === 'string') {
+            const promptMatch = inputText.text.match(/<user_query>([\s\S]*?)<\/user_query>/);
+            const prompt = promptMatch?.[1]?.trim() || inputText.text.trim();
+          if (prompt && !firstUserPrompt) {
+            firstUserPrompt = prompt;
+          }
+        }
+        }
+        if (
           data.type === 'ai-title'
           && data.sessionId === sessionId
           && typeof data.aiTitle === 'string'
           && data.aiTitle.trim()
         ) {
-          return data.aiTitle;
+          latestTitle = data.aiTitle;
         }
       }
     } catch {
       // Unreadable transcripts produce no title; the fallback is used.
+    } finally {
+      lineReader.close();
+      fileStream.destroy();
+    }
+
+    if (latestTitle) {
+      return { name: latestTitle, isExplicit: true };
+    }
+    return firstUserPrompt ? { name: firstUserPrompt, isExplicit: false } : undefined;
+  }
+
+  /** Reads only the active transcript tail when its existing title can be retained. */
+  private async extractNewestTitleFromTail(
+    filePath: string,
+    sessionId: string,
+  ): Promise<{ name: string; isExplicit: boolean } | undefined> {
+    let handle: Awaited<ReturnType<typeof fsp.open>> | undefined;
+    try {
+      handle = await fsp.open(filePath, 'r');
+      const { size } = await handle.stat();
+      const length = Math.min(size, TITLE_TAIL_BYTES);
+      const start = Math.max(0, size - length);
+      const buffer = Buffer.alloc(length);
+      const { bytesRead } = await handle.read(buffer, 0, length, start);
+      const lines = buffer.subarray(0, bytesRead).toString('utf8').split(/\r?\n/);
+
+      for (let index = lines.length - 1; index >= (start > 0 ? 1 : 0); index -= 1) {
+        const line = lines[index]?.trim();
+        if (!line) {
+          continue;
+        }
+        try {
+          const data = JSON.parse(line) as AnyRecord;
+          if (
+            data.type === 'ai-title'
+            && data.sessionId === sessionId
+            && typeof data.aiTitle === 'string'
+            && data.aiTitle.trim()
+          ) {
+            return { name: data.aiTitle, isExplicit: true };
+          }
+        } catch {
+          // The first tail fragment may start in the middle of one JSON line.
+        }
+      }
+    } catch {
+      // A concurrent writer can briefly make a transcript unreadable.
+    } finally {
+      await handle?.close();
     }
 
     return undefined;
+  }
+
+  private resolveSessionName(
+    existingName: string | null,
+    rawName: string | undefined,
+    isExplicit = false,
+  ): string {
+    if (existingName && existingName !== FALLBACK_SESSION_NAME && !isExplicit) {
+      return existingName;
+    }
+    return normalizeSessionName(rawName, FALLBACK_SESSION_NAME);
   }
 }

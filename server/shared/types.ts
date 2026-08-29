@@ -575,6 +575,8 @@ export type ProviderAuthStatus = {
   installed: boolean;
   provider: LLMProvider;
   authenticated: boolean;
+  /** Whether credentials were positively verified by the provider. Desktop-managed providers may be unknown. */
+  authVerified?: boolean;
   email: string | null;
   method: string | null;
   error?: string;

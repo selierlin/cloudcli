@@ -27,6 +27,33 @@ type ChatSessionWriterOptions = {
   decorateOutboundEvent: (message: NormalizedMessage) => NormalizedMessage | null;
 };
 
+const SENSITIVE_TRANSPORT_FIELDS = new Set([
+  'env',
+  'headers',
+  'envHttpHeaders',
+  'authorization',
+  'apiKey',
+  'api_key',
+  'accessToken',
+  'access_token',
+  'refreshToken',
+  'refresh_token',
+  'secret',
+  'password',
+  'token',
+]);
+
+/**
+ * Removes accidental top-level transport credentials before a normalized
+ * message leaves the backend. User-facing text and structured tool output are
+ * intentionally preserved because they may be legitimate command results.
+ */
+function sanitizeOutboundMessage(message: NormalizedMessage): NormalizedMessage {
+  return Object.fromEntries(
+    Object.entries(message).filter(([key]) => !SENSITIVE_TRANSPORT_FIELDS.has(key)),
+  ) as NormalizedMessage;
+}
+
 /**
  * Gateway writer handed to provider runtimes instead of a raw websocket writer.
  *
@@ -74,7 +101,10 @@ export class ChatSessionWriter {
       // Provider runtimes only emit kind-based normalized messages. Anything
       // else indicates a programming error; drop it rather than leaking an
       // un-remapped payload to the client.
-      console.error('[ChatSessionWriter] Dropping non-normalized outbound payload', data);
+      console.error('[ChatSessionWriter] Dropping non-normalized outbound payload', {
+        payloadType: data === null ? 'null' : Array.isArray(data) ? 'array' : typeof data,
+        keys: record ? Object.keys(record).slice(0, 20) : [],
+      });
       return;
     }
 
@@ -95,7 +125,7 @@ export class ChatSessionWriter {
 
     const outbound = this.options.decorateOutboundEvent(message);
     if (outbound) {
-      this.forward(outbound);
+      this.forward(sanitizeOutboundMessage(outbound));
     }
   }
 
@@ -112,7 +142,7 @@ export class ChatSessionWriter {
     });
     const outbound = this.options.decorateOutboundEvent(message);
     if (outbound) {
-      this.forward(outbound);
+      this.forward(sanitizeOutboundMessage(outbound));
     }
   }
 

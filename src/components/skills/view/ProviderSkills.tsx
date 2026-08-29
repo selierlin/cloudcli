@@ -64,21 +64,11 @@ const PROVIDER_NAMES: Record<SkillsProvider, string> = {
   workbuddy: 'WorkBuddy',
 };
 
-const PROVIDER_SKILL_PATHS: Record<Exclude<SkillsProvider, 'opencode'>, string> = {
+const PROVIDER_SKILL_PATHS: Record<Exclude<SkillsProvider, 'opencode' | 'dsh'>, string> = {
   claude: '~/.claude/skills/<skill-name>/SKILL.md',
   codex: '~/.agents/skills/<skill-name>/SKILL.md',
   cursor: '~/.cursor/skills/<skill-name>/SKILL.md',
-  dsh: 'managed by the DeepSeek Harness itself',
-  workbuddy: 'managed by WorkBuddy itself',
-};
-
-const SCOPE_LABELS: Record<SkillsScope, string> = {
-  user: 'User',
-  plugin: 'Plugin',
-  repo: 'Repo',
-  project: 'Project',
-  admin: 'Admin',
-  system: 'System',
+  workbuddy: '~/.workbuddy/skills/<skill-name>/SKILL.md',
 };
 
 const SCOPE_BADGE_CLASSES: Record<SkillsScope, string> = {
@@ -224,7 +214,52 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
   const folderInputRef = useRef<HTMLInputElement | null>(null);
 
   const providerName = PROVIDER_NAMES[selectedProvider];
-  const providerPath = selectedProvider === 'opencode' ? null : PROVIDER_SKILL_PATHS[selectedProvider];
+  const providerPath = selectedProvider === 'opencode'
+    ? null
+    : selectedProvider === 'dsh'
+      ? t('skills.managedByProvider', { provider: providerName })
+      : PROVIDER_SKILL_PATHS[selectedProvider];
+  const getSkillErrorMessage = useCallback((error: unknown): string => {
+    const message = error instanceof Error ? error.message : '';
+    const folderFileLimit = message.match(/^A skill folder can contain up to (\d+) files\.$/);
+    const unreadableSkill = message.match(/^Could not read SKILL\.md from (.+)\.$/);
+    const unreadableFile = message.match(/^Failed to read (.+)$/);
+
+    if (folderFileLimit?.[1]) {
+      return t('skills.errors.folderFileLimit', { count: Number(folderFileLimit[1]) });
+    }
+    if (message === 'Selected skill folders must be smaller than 30 MB in total.') {
+      return t('skills.errors.folderSizeLimit');
+    }
+    if (message === 'The selected folder does not contain a SKILL.md file.') {
+      return t('skills.errors.noSkillFile');
+    }
+    if (unreadableSkill?.[1]) {
+      return t('skills.errors.readSkillFile', { name: unreadableSkill[1] });
+    }
+    if (unreadableFile?.[1]) {
+      return t('skills.errors.readFile', { name: unreadableFile[1] });
+    }
+    if (message === 'Drop one or more markdown files or a folder containing SKILL.md.') {
+      return t('skills.errors.dropFiles');
+    }
+    if (message === 'Add one or more markdown files first.') {
+      return t('skills.errors.addFileFirst');
+    }
+    if (message === 'Failed to read skill folder') {
+      return t('skills.errors.readFolder');
+    }
+    if (message === 'Failed to import skills') {
+      return t('skills.errors.import');
+    }
+    if (message === 'Failed to save skills') {
+      return t('skills.errors.save');
+    }
+    if (/^Failed to load(?: .*?)? skills$/i.test(message)) {
+      return t('skills.errors.load', { provider: providerName });
+    }
+    return message || t('skills.errors.unknown');
+  }, [providerName, t]);
 
   useEffect(() => {
     setQueuedFiles([]);
@@ -285,7 +320,7 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
         queueSkillFolders(files);
         setSubmitError(null);
       } catch (error) {
-        setSubmitError(error instanceof Error ? error.message : 'Failed to read skill folder');
+        setSubmitError(getSkillErrorMessage(error));
       }
       return;
     }
@@ -295,7 +330,7 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
       .slice(0, 20);
 
     if (acceptedFiles.length === 0) {
-      setSubmitError('Drop one or more markdown files or a folder containing SKILL.md.');
+      setSubmitError(t('skills.errors.dropFiles'));
       return;
     }
 
@@ -316,7 +351,7 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
       return [...nextMap.values()].slice(0, 20);
     });
     setSubmitError(null);
-  }, [queueSkillFolders]);
+  }, [getSkillErrorMessage, queueSkillFolders, t]);
 
   const handleFolderSelection = useCallback((selectedFiles: File[]) => {
     if (selectedFiles.length === 0) {
@@ -327,9 +362,9 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
       queueSkillFolders(selectedFiles);
       setSubmitError(null);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Failed to read skill folder');
+      setSubmitError(getSkillErrorMessage(error));
     }
-  }, [queueSkillFolders]);
+  }, [getSkillErrorMessage, queueSkillFolders]);
 
   const { getRootProps, isDragActive } = useDropzone({
     maxFiles: MAX_SKILL_FOLDER_FILES,
@@ -340,7 +375,7 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
 
   const handleUploadInstall = useCallback(async () => {
     if (queuedFiles.length === 0) {
-      setSubmitError('Add one or more markdown files first.');
+      setSubmitError(t('skills.errors.addFileFirst'));
       return;
     }
 
@@ -369,11 +404,11 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
       setJustInstalled(true);
       setIsAddDialogOpen(false);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Failed to import skills');
+      setSubmitError(getSkillErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
-  }, [addSkills, queuedFiles]);
+  }, [addSkills, getSkillErrorMessage, queuedFiles, t]);
 
   const handleAddDialogOpenChange = useCallback((open: boolean) => {
     if (open) {
@@ -426,9 +461,9 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
         <div className="flex flex-col items-center justify-center gap-3 py-4 text-center">
           <FileUp className="h-7 w-7 text-muted-foreground" strokeWidth={1.5} />
           <div className="space-y-1">
-            <div className="text-sm font-medium text-foreground">Drop a skill folder or SKILL.md</div>
+            <div className="text-sm font-medium text-foreground">{t('skills.dropTitle')}</div>
             <div className="text-sm text-muted-foreground">
-              Folders can include scripts, references, and assets.
+              {t('skills.dropDescription')}
             </div>
           </div>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
@@ -440,7 +475,7 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
               className="w-full sm:w-auto"
             >
               <FileUp className="h-4 w-4" />
-              Choose Files
+              {t('skills.chooseFiles')}
             </Button>
             <Button
               type="button"
@@ -450,7 +485,7 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
               className="w-full sm:w-auto"
             >
               <FolderUp className="h-4 w-4" />
-              Choose Folder
+              {t('skills.chooseFolder')}
             </Button>
           </div>
         </div>
@@ -458,7 +493,7 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
 
       {queuedFiles.length > 0 && (
         <div className="space-y-2">
-          <div className="text-sm font-medium text-foreground">Ready to install</div>
+          <div className="text-sm font-medium text-foreground">{t('skills.readyToInstall')}</div>
           <div className="grid gap-2">
             {queuedFiles.map((queuedFile) => (
               <div
@@ -472,8 +507,8 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
                   <div className="truncate text-sm font-medium text-foreground">{queuedFile.name}</div>
                   <div className="text-xs text-muted-foreground">
                     {queuedFile.kind === 'folder'
-                      ? `${queuedFile.files.length} files`
-                      : 'Markdown file'}
+                      ? t('skills.fileCount', { count: queuedFile.files.length })
+                      : t('skills.markdownFile')}
                     {' · '}
                     {formatFileSize(queuedFile.size)}
                   </div>
@@ -483,7 +518,7 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
                   variant="ghost"
                   size="sm"
                   className="h-8 w-8 flex-shrink-0 p-0 text-muted-foreground hover:text-foreground"
-                  aria-label={`Remove ${queuedFile.name}`}
+                  aria-label={t('skills.removeAriaLabel', { name: queuedFile.name })}
                   onClick={() => {
                     setQueuedFiles((previous) => previous.filter((file) => file.id !== queuedFile.id));
                   }}
@@ -503,7 +538,7 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
             className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
             onClick={() => setShowInstallPath((current) => !current)}
           >
-            {showInstallPath ? 'Hide install location' : 'Where will this install?'}
+            {showInstallPath ? t('skills.hideInstallLocation') : t('skills.showInstallLocation')}
           </button>
           {showInstallPath && (
             <div className="rounded-lg border border-border/60 bg-muted/15 p-3">
@@ -523,9 +558,9 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
           <FileCode2 className="h-4 w-4" strokeWidth={1.7} />
         </div>
         <div className="min-w-0 space-y-1">
-          <h3 className="text-lg font-medium text-foreground">{t('tabs.skills', { defaultValue: 'Skills' })}</h3>
+          <h3 className="text-lg font-medium text-foreground">{t('skills.title')}</h3>
           <p className="text-sm text-muted-foreground">
-            Manage {providerName} skills from local files, complete folders, and project-aware locations.
+            {t('skills.description', { provider: providerName })}
           </p>
         </div>
       </div>
@@ -538,15 +573,15 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
               type="text"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search skills..."
-              aria-label="Search skills"
+              placeholder={t('skills.searchPlaceholder')}
+              aria-label={t('skills.searchAriaLabel')}
               className="h-9 w-full pl-9 pr-9"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                aria-label="Clear skill search"
+                aria-label={t('skills.clearSearchAriaLabel')}
                 className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <X className="h-3.5 w-3.5" />
@@ -560,7 +595,7 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
             onClick={() => handleAddDialogOpenChange(true)}
           >
             <Plus className="h-4 w-4" />
-            Add Skill
+            {t('skills.addSkill')}
           </Button>
           <Button
             onClick={() => void refreshSkills({ force: true })}
@@ -570,13 +605,13 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
             disabled={isLoading || isLoadingProjectScopes}
           >
             <RefreshCw className={cn('h-4 w-4', (isLoading || isLoadingProjectScopes) && 'animate-spin')} />
-            Refresh
+            {t('skills.refresh')}
           </Button>
         </div>
         {isLoadingProjectScopes && (
           <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Scanning project skills...
+            {t('skills.scanningProjectSkills')}
           </div>
         )}
       </div>
@@ -586,16 +621,16 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
           wrapperClassName="z-[10000]"
           className="flex h-[calc(100vh-2rem)] max-h-[760px] w-[calc(100vw-2rem)] max-w-4xl flex-col overflow-hidden p-0 sm:h-[720px]"
         >
-          <DialogTitle>Add {providerName} Skill</DialogTitle>
+          <DialogTitle>{t('skills.addSkillTitle', { provider: providerName })}</DialogTitle>
           <div className="flex-shrink-0 border-b border-border/60 px-4 py-4">
             <div className="flex items-start gap-3">
               <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-muted/20 text-muted-foreground">
                 <FileUp className="h-4 w-4" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-base font-medium text-foreground">Add {providerName} Skill</div>
+                <div className="text-base font-medium text-foreground">{t('skills.addSkillTitle', { provider: providerName })}</div>
                 <div className="mt-1 text-sm text-muted-foreground">
-                  Upload a SKILL.md file or a complete skill folder.
+                  {t('skills.dialogDescription')}
                 </div>
               </div>
               <Button
@@ -603,7 +638,7 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
                 variant="ghost"
                 size="sm"
                 className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                aria-label="Close add skill dialog"
+                aria-label={t('skills.closeDialogAriaLabel')}
                 disabled={isSubmitting}
                 onClick={() => handleAddDialogOpenChange(false)}
               >
@@ -625,11 +660,11 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
                     ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800/60 dark:bg-red-900/20 dark:text-red-200'
                     : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
                 )}>
-                  {submitError || loadError || 'Skills saved successfully.'}
+                  {submitError || (loadError ? getSkillErrorMessage(loadError) : null) || t('skills.savedSuccessfully')}
                 </div>
               ) : (
                 <span className="text-xs text-muted-foreground">
-                  Folder uploads keep the selected folder name; standalone files use the `name` in `SKILL.md`.
+                  {t('skills.installHint')}
                 </span>
               )}
             </div>
@@ -642,7 +677,7 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
                 disabled={isSubmitting}
                 onClick={() => handleAddDialogOpenChange(false)}
               >
-                Cancel
+                {t('skills.cancel')}
               </Button>
               <Button
                 type="button"
@@ -652,7 +687,7 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
                 disabled={isSubmitting || queuedFiles.length === 0}
               >
                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                Install {queuedFiles.length > 0 ? `${queuedFiles.length} Skill${queuedFiles.length === 1 ? '' : 's'}` : 'Skill'}
+                {t('skills.install', { count: queuedFiles.length })}
               </Button>
             </div>
           </div>
@@ -661,21 +696,21 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
 
       {!isAddDialogOpen && (submitError || loadError) && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800/60 dark:bg-red-900/20 dark:text-red-200">
-          {submitError || loadError}
+          {submitError || getSkillErrorMessage(loadError)}
         </div>
       )}
 
       {justInstalled && saveStatus === 'success' && !isAddDialogOpen && (
         <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
           <CheckCircle2 className="h-4 w-4" />
-          Skills saved successfully.
+          {t('skills.savedSuccessfully')}
         </div>
       )}
 
       <div className="space-y-5">
         {isLoading && skills.length === 0 && (
           <div className="flex min-h-[180px] items-center justify-center text-sm text-muted-foreground">
-            Loading {providerName} skills…
+            {t('skills.loadingProvider', { provider: providerName })}
           </div>
         )}
 
@@ -684,9 +719,9 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-lg border border-border/60 bg-background/80 text-muted-foreground">
               <FileText className="h-6 w-6" />
             </div>
-            <div className="mt-4 text-sm font-medium text-foreground">No skills discovered yet</div>
+            <div className="mt-4 text-sm font-medium text-foreground">{t('skills.emptyTitle')}</div>
             <div className="mt-1 text-sm text-muted-foreground">
-              Add a global skill above or create project-specific skill folders in your workspace.
+              {t('skills.emptyDescription')}
             </div>
           </div>
         )}
@@ -694,9 +729,9 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
         {!isLoading && skills.length > 0 && filteredSkills.length === 0 && (
           <div className="rounded-lg border border-dashed border-border/70 bg-muted/15 px-4 py-10 text-center">
             <Search className="mx-auto h-6 w-6 text-muted-foreground" />
-            <div className="mt-3 text-sm font-medium text-foreground">No matching skills</div>
+            <div className="mt-3 text-sm font-medium text-foreground">{t('skills.noMatchingTitle')}</div>
             <div className="mt-1 text-sm text-muted-foreground">
-              Try a different command, name, scope, project, or source path.
+              {t('skills.noMatchingDescription')}
             </div>
           </div>
         )}
@@ -705,10 +740,10 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
           <section key={group.scope} className="min-w-0 space-y-3">
             <div className="flex items-center gap-2">
               <Badge variant="outline" className={cn('rounded-full px-2.5 py-1 text-xs', SCOPE_BADGE_CLASSES[group.scope])}>
-                {SCOPE_LABELS[group.scope]}
+                {t(`skills.scopes.${group.scope}`)}
               </Badge>
               <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                {group.skills.length} skill{group.skills.length === 1 ? '' : 's'}
+                {t('skills.skillCount', { count: group.skills.length })}
               </span>
             </div>
 
@@ -724,24 +759,24 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
                   </div>
 
                   <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                    {skill.description || 'No description provided in the skill front matter.'}
+                    {skill.description || t('skills.noDescription')}
                   </p>
 
                   <div className="mt-4 flex flex-wrap items-center gap-2">
                     {skill.pluginName && (
                       <Badge variant="outline" className="rounded-full bg-background/70">
-                        Plugin: {skill.pluginName}
+                        {t('skills.plugin')}: {skill.pluginName}
                       </Badge>
                     )}
                     {skill.projectDisplayName && (
                       <Badge variant="outline" className="rounded-full bg-background/70">
-                        Project: {skill.projectDisplayName}
+                        {t('skills.project')}: {skill.projectDisplayName}
                       </Badge>
                     )}
                   </div>
 
                   <div className="mt-4 min-w-0 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
-                    <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Source</div>
+                    <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{t('skills.source')}</div>
                     <code className="mt-1 block whitespace-normal break-all text-xs text-foreground">{skill.sourcePath}</code>
                   </div>
                 </div>

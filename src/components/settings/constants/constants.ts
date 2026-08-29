@@ -43,7 +43,7 @@ export const SETTINGS_MAIN_TABS: SettingsMainTabMeta[] = [
 ];
 
 export const AGENT_PROVIDERS: AgentProvider[] = ['claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy'];
-export const AGENT_CATEGORIES: AgentCategory[] = ['account', 'permissions', 'mcp'];
+export const AGENT_CATEGORIES: AgentCategory[] = ['account', 'permissions', 'mcp', 'skills'];
 
 export const DEFAULT_PROJECT_SORT_ORDER: ProjectSortOrder = 'date';
 export const DEFAULT_SAVE_STATUS = null;

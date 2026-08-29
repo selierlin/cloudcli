@@ -7,6 +7,7 @@ import chokidar, { type FSWatcher } from 'chokidar';
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { sessionSynchronizerService } from '@/modules/providers/services/session-synchronizer.service.js';
 import { getDshSessionsRoot } from '@/modules/providers/list/dsh/dsh-models.provider.js';
+import { getWorkbuddySessionRoots } from '@/modules/providers/list/workbuddy/workbuddy-storage.provider.js';
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
 import type { LLMProvider } from '@/shared/types.js';
 import { generateDisplayName } from '@/modules/projects/index.js';
@@ -41,14 +42,7 @@ function getProviderWatchPaths(): Array<{ provider: LLMProvider; rootPath: strin
       provider: 'dsh',
       rootPath: getDshSessionsRoot(),
     },
-    {
-      provider: 'workbuddy',
-      rootPath: path.join(os.homedir(), '.codebuddy', 'projects'),
-    },
-    {
-      provider: 'workbuddy',
-      rootPath: path.join(os.homedir(), '.workbuddy', 'projects'),
-    },
+    ...getWorkbuddySessionRoots().map((rootPath) => ({ provider: 'workbuddy' as const, rootPath })),
   ];
 }
 

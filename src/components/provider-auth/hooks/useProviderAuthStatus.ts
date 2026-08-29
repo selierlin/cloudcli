@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+
 import { authenticatedFetch } from '../../../utils/api';
 import type { LLMProvider } from '../../../types/app';
 import {
@@ -12,7 +13,9 @@ import type {
 } from '../types';
 
 type ProviderAuthStatusPayload = {
+  installed?: boolean;
   authenticated?: boolean;
+  authVerified?: boolean;
   email?: string | null;
   method?: string | null;
   error?: string | null;
@@ -34,7 +37,9 @@ const toProviderAuthStatus = (
   payload: ProviderAuthStatusPayload,
   fallbackError: string | null = null,
 ): ProviderAuthStatus => ({
+  installed: payload.installed ?? false,
   authenticated: Boolean(payload.authenticated),
+  authVerified: payload.authVerified ?? true,
   email: payload.email ?? null,
   method: payload.method ?? null,
   error: payload.error ?? fallbackError,
@@ -78,7 +83,9 @@ export function useProviderAuthStatus(
 
       if (!response.ok) {
         const status: ProviderAuthStatus = {
+          installed: false,
           authenticated: false,
+          authVerified: true,
           email: null,
           method: null,
           loading: false,
@@ -95,7 +102,9 @@ export function useProviderAuthStatus(
     } catch (caughtError) {
       console.error(`Error checking ${provider} auth status:`, caughtError);
       const status: ProviderAuthStatus = {
+        installed: false,
         authenticated: false,
+        authVerified: true,
         email: null,
         method: null,
         loading: false,

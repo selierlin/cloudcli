@@ -107,8 +107,8 @@ async function checkVersion(command: string): Promise<boolean> {
 /** Provider registry auth adapter for the WorkBuddy (embedded CodeBuddy) CLI. */
 export class WorkbuddyProviderAuth implements IProviderAuth {
   /**
-   * The CLI resolves its own login state (the WorkBuddy desktop app signs in),
-   * so `authenticated` mirrors whether the executable actually runs.
+   * WorkBuddy owns login state in its desktop app. A working CLI proves the
+   * engine is available, but it cannot prove the user's account session.
    */
   async getStatus(): Promise<ProviderAuthStatus> {
     const { command } = resolveCommand();
@@ -119,9 +119,10 @@ export class WorkbuddyProviderAuth implements IProviderAuth {
     return {
       installed,
       provider: 'workbuddy',
-      authenticated: versionOk,
+      authenticated: false,
+      authVerified: false,
       email: null,
-      method: versionOk ? 'workbuddy_login' : null,
+      method: versionOk ? 'workbuddy_desktop' : null,
       error: installed
         ? (versionOk ? undefined : 'codebuddy CLI is present but failed to run')
         : 'codebuddy CLI not found (install WorkBuddy.app or add codebuddy to PATH)',

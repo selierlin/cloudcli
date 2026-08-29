@@ -7,6 +7,37 @@ import { AppError } from '@/shared/utils.js';
 const resolveWorkspacePath = (workspacePath?: string): string =>
   path.resolve(workspacePath ?? process.cwd());
 
+const REDACTED_MCP_VALUE = '<redacted>';
+
+const redactMcpValues = (values?: Record<string, string>): Record<string, string> | undefined => {
+  if (!values || Object.keys(values).length === 0) {
+    return undefined;
+  }
+
+  return Object.fromEntries(Object.keys(values).map((key) => [key, REDACTED_MCP_VALUE]));
+};
+
+/**
+ * Preserves one persisted secret when the edit form submits its response-only
+ * redaction marker. Omitting a key still removes it, while replacing a value
+ * with any non-marker string intentionally updates it.
+ */
+const restoreRedactedMcpValues = (
+  requested?: Record<string, string>,
+  persisted?: Record<string, string>,
+): Record<string, string> | undefined => {
+  if (!requested || !persisted) {
+    return requested;
+  }
+
+  return Object.fromEntries(Object.entries(requested).map(([key, value]) => [
+    key,
+    value === REDACTED_MCP_VALUE && Object.prototype.hasOwnProperty.call(persisted, key)
+      ? persisted[key]
+      : value,
+  ]));
+};
+
 const normalizeServerName = (name: string): string => {
   const normalized = name.trim();
   if (!normalized) {
@@ -63,7 +94,8 @@ export abstract class McpProvider implements IProviderMcp {
     const scopedServers = await this.readScopedServers(scope, workspacePath);
     return Object.entries(scopedServers)
       .map(([name, rawConfig]) => this.normalizeServerConfig(scope, name, rawConfig))
-      .filter((entry): entry is ProviderMcpServer => entry !== null);
+      .filter((entry): entry is ProviderMcpServer => entry !== null)
+      .map((entry) => this.sanitizeServerForResponse(entry));
   }
 
   async upsertServer(input: UpsertProviderMcpServerInput): Promise<ProviderMcpServer> {
@@ -73,23 +105,40 @@ export abstract class McpProvider implements IProviderMcp {
     const workspacePath = resolveWorkspacePath(input.workspacePath);
     const normalizedName = normalizeServerName(input.name);
     const scopedServers = await this.readScopedServers(scope, workspacePath);
-    scopedServers[normalizedName] = this.buildServerConfig(input);
+    const persistedServer = this.normalizeServerConfig(scope, normalizedName, scopedServers[normalizedName]);
+    const restoredInput: UpsertProviderMcpServerInput = {
+      ...input,
+      env: restoreRedactedMcpValues(input.env, persistedServer?.env),
+      headers: restoreRedactedMcpValues(input.headers, persistedServer?.headers),
+      envHttpHeaders: restoreRedactedMcpValues(input.envHttpHeaders, persistedServer?.envHttpHeaders),
+    };
+    scopedServers[normalizedName] = this.buildServerConfig(restoredInput);
     await this.writeScopedServers(scope, workspacePath, scopedServers);
 
-    return {
+    return this.sanitizeServerForResponse({
       provider: this.provider,
       name: normalizedName,
       scope,
       transport: input.transport,
-      command: input.command,
-      args: input.args,
-      env: input.env,
-      cwd: input.cwd,
-      url: input.url,
-      headers: input.headers,
-      envVars: input.envVars,
-      bearerTokenEnvVar: input.bearerTokenEnvVar,
-      envHttpHeaders: input.envHttpHeaders,
+      command: restoredInput.command,
+      args: restoredInput.args,
+      env: restoredInput.env,
+      cwd: restoredInput.cwd,
+      url: restoredInput.url,
+      headers: restoredInput.headers,
+      envVars: restoredInput.envVars,
+      bearerTokenEnvVar: restoredInput.bearerTokenEnvVar,
+      envHttpHeaders: restoredInput.envHttpHeaders,
+    });
+  }
+
+  /** Allows providers to remove sensitive values from mutation responses. */
+  protected sanitizeServerForResponse(server: ProviderMcpServer): ProviderMcpServer {
+    return {
+      ...server,
+      env: redactMcpValues(server.env),
+      headers: redactMcpValues(server.headers),
+      envHttpHeaders: redactMcpValues(server.envHttpHeaders),
     };
   }
 

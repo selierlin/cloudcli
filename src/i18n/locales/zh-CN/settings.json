@@ -253,7 +253,18 @@
       "projectLocal": "项目（本地）",
       "userDescription": "用户范围：在您机器上的所有项目中可用",
       "projectDescription": "本地范围：仅在选定项目中可用",
-      "cannotChange": "编辑现有服务器时无法更改范围"
+      "cannotChange": "编辑现有服务器时无法更改范围",
+      "claudeLocal": "Claude 本地",
+      "localProvider": "本地",
+      "projectAllProviders": "项目（所有 Provider）",
+      "projectProvider": "项目",
+      "userAllProviders": "用户（所有 Provider）",
+      "userAllProvidersDescription": "写入每个 Provider 的用户配置，在本机的所有项目中可用",
+      "userProviderDescription": "在您机器上的所有项目中可用",
+      "localDescription": "存储在 Claude 用户设置中，仅对所选项目生效",
+      "localProviderDescription": "存储在 {{provider}} 设置中，仅对所选项目生效",
+      "projectAllProvidersDescription": "为每个 Provider 写入所选项目的工作区",
+      "projectProviderDescription": "存储在所选项目的工作区中"
     },
     "fields": {
       "serverName": "服务器名称",
@@ -264,7 +275,10 @@
       "url": "URL",
       "envVars": "环境变量（KEY=值，每行一个）",
       "headers": "请求头（KEY=值，每行一个）",
-      "selectProject": "选择项目..."
+      "selectProject": "选择项目...",
+      "workingDirectory": "工作目录",
+      "envVarNames": "环境变量名称",
+      "bearerTokenEnvVar": "Bearer Token 环境变量"
     },
     "placeholders": {
       "serverName": "我的服务"
@@ -284,7 +298,8 @@
       "cancel": "取消",
       "saving": "保存中...",
       "addServer": "添加服务器",
-      "updateServer": "更新服务器"
+      "updateServer": "更新服务器",
+      "addServerTo": "添加服务器到 {{provider}}"
     }
   },
   "saveStatus": {
@@ -408,12 +423,20 @@
       },
       "opencode": {
         "description": "OpenCode CLI 助手"
+      },
+      "dsh": {
+        "description": "DeepSeek Harness 智能体"
+      },
+      "workbuddy": {
+        "description": "腾讯 WorkBuddy 智能体"
       }
     },
     "connectionStatus": "连接状态",
     "externalAuth": {
       "title": "外部管理",
-      "description": "{{agent}} 的认证由外部管理，请在对应的桌面应用或配置文件中登录。"
+      "description": "{{agent}} 的认证由外部管理，请在对应的桌面应用或配置文件中登录。",
+      "managedByDesktop": "由 WorkBuddy 桌面端管理",
+      "available": "可用"
     },
     "login": {
       "title": "登录",
@@ -423,7 +446,73 @@
       "button": "登录",
       "reLoginButton": "重新登录"
     },
-    "error": "错误：{{error}}"
+    "error": "错误：{{error}}",
+    "errors": {
+      "cursorCliNotFound": "未找到 Cursor CLI，或 Cursor CLI 尚未安装。"
+    }
+  },
+  "skills": {
+    "title": "技能",
+    "description": "从本地文件、完整技能目录和项目相关位置管理 {{provider}} 技能。",
+    "searchPlaceholder": "搜索技能...",
+    "searchAriaLabel": "搜索技能",
+    "clearSearchAriaLabel": "清除技能搜索",
+    "addSkill": "添加技能",
+    "refresh": "刷新",
+    "dropTitle": "拖入技能目录或 SKILL.md",
+    "dropDescription": "目录可以包含脚本、参考资料和资源文件。",
+    "chooseFiles": "选择文件",
+    "chooseFolder": "选择目录",
+    "readyToInstall": "准备安装",
+    "fileCount_one": "{{count}} 个文件",
+    "fileCount_other": "{{count}} 个文件",
+    "markdownFile": "Markdown 文件",
+    "removeAriaLabel": "移除 {{name}}",
+    "showInstallLocation": "安装到哪里？",
+    "hideInstallLocation": "隐藏安装位置",
+    "managedByProvider": "由 {{provider}} 管理",
+    "scanningProjectSkills": "正在扫描项目技能...",
+    "addSkillTitle": "添加 {{provider}} 技能",
+    "dialogDescription": "上传 SKILL.md 文件或完整的技能目录。",
+    "closeDialogAriaLabel": "关闭添加技能对话框",
+    "savedSuccessfully": "技能保存成功。",
+    "installHint": "上传目录会保留所选目录名；单独上传的文件使用 SKILL.md 中的 `name`。",
+    "cancel": "取消",
+    "install_one": "安装 {{count}} 个技能",
+    "install_other": "安装 {{count}} 个技能",
+    "loadingProvider": "正在加载 {{provider}} 技能…",
+    "emptyTitle": "尚未发现技能",
+    "emptyDescription": "添加上方的全局技能，或在工作区中创建项目专属的技能目录。",
+    "noMatchingTitle": "没有匹配的技能",
+    "noMatchingDescription": "请尝试其他命令、名称、范围、项目或来源路径。",
+    "skillCount_one": "{{count}} 个技能",
+    "skillCount_other": "{{count}} 个技能",
+    "noDescription": "技能 front matter 中未提供描述。",
+    "plugin": "插件",
+    "project": "项目",
+    "source": "来源",
+    "scopes": {
+      "user": "用户",
+      "plugin": "插件",
+      "repo": "仓库",
+      "project": "项目",
+      "admin": "管理员",
+      "system": "系统"
+    },
+    "errors": {
+      "folderFileLimit": "技能目录最多包含 {{count}} 个文件。",
+      "folderSizeLimit": "所选技能目录总大小必须小于 30 MB。",
+      "noSkillFile": "所选目录中不包含 SKILL.md 文件。",
+      "readSkillFile": "无法读取 {{name}} 中的 SKILL.md。",
+      "readFile": "无法读取 {{name}}。",
+      "dropFiles": "请拖入一个或多个 Markdown 文件，或包含 SKILL.md 的目录。",
+      "addFileFirst": "请先添加一个或多个 Markdown 文件。",
+      "readFolder": "读取技能目录失败。",
+      "import": "导入技能失败。",
+      "load": "加载 {{provider}} 技能失败。",
+      "save": "保存技能失败。",
+      "unknown": "未知错误。"
+    }
   },
   "permissions": {
     "title": "权限设置",
@@ -491,7 +580,7 @@
       },
       "technicalDetails": "技术详情",
       "technicalInfo": {
-        "default": "sandboxMode=workspace-write, approvalPolicy=untrusted。受信任的命令：cat、cd、grep、head、ls、pwd、tail、git status/log/diff/show、find（不带 -exec）等。",
+        "default": "sandboxMode=workspace-write, approvalPolicy=on-request。受信任的命令：cat、cd、grep、head、ls、pwd、tail、git status/log/diff/show、find（不带 -exec）等。",
         "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never。所有命令在项目目录内自动执行。",
         "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never。完全系统访问权限，仅在可信环境中使用。",
         "overrideNote": "您可以使用聊天界面中的模式按钮按会话覆盖此设置。"
@@ -516,20 +605,25 @@
       "claude": "Model Context Protocol 服务器为 Claude 提供额外的工具和数据源",
       "cursor": "Model Context Protocol 服务器为 Cursor 提供额外的工具和数据源",
       "codex": "Model Context Protocol 服务器为 Codex 提供额外的工具和数据源",
-      "opencode": "Model Context Protocol 服务器为 OpenCode 提供额外的工具和数据源"
+      "opencode": "Model Context Protocol 服务器为 OpenCode 提供额外的工具和数据源",
+      "dsh": "Model Context Protocol 服务器为 DeepSeek Harness 提供额外的工具和数据源",
+      "workbuddy": "Model Context Protocol 服务器为 WorkBuddy 提供额外的工具和数据源"
     },
     "addButton": "添加 MCP 服务器",
     "empty": "未配置 MCP 服务器",
     "serverType": "类型",
     "scope": {
       "local": "本地",
-      "user": "用户"
+      "user": "用户",
+      "project": "项目"
     },
     "config": {
       "command": "命令",
       "url": "URL",
       "args": "参数",
-      "environment": "环境变量"
+      "environment": "环境变量",
+      "cwd": "工作目录",
+      "envVars": "环境变量"
     },
     "tools": {
       "title": "工具",
@@ -547,6 +641,32 @@
     "help": {
       "title": "关于 Codex MCP",
       "description": "Codex 支持基于 stdio 的 MCP 服务器。您可以添加服务器，通过额外的工具和资源来扩展 Codex 的功能。"
+    },
+    "addGlobalButton": "添加全局 MCP 服务器",
+    "addProviderButton": "添加 {{provider}} MCP 服务器",
+    "addGlobalDescription": "添加全局 MCP 服务器会为 Claude、Cursor、Codex 和 OpenCode 写入一个通用的 stdio 或 HTTP 服务器。",
+    "addProviderDescription": "添加 {{provider}} MCP 服务器仅更改 {{provider}}。",
+    "globalModalDescription": "将此 MCP 服务器添加到每个 Provider：Claude、Cursor、Codex 和 OpenCode。由于同一份配置需要兼容所有 Provider，因此仅支持 stdio 和 HTTP 传输方式。",
+    "errors": {
+      "loadFailed": "加载 {{provider}} MCP 服务器失败",
+      "deleteFailed": "删除 MCP 服务器失败",
+      "saveFailed": "保存 MCP 服务器失败",
+      "globalSaveFailed": "保存 MCP 服务器到所有 Provider 失败",
+      "unknown": "未知错误",
+      "errorAlert": "错误：{{message}}",
+      "selectProject": "请为项目级 MCP 服务器选择一个项目",
+      "globalScopeUnsupported": "添加 MCP 服务器跨所有 Provider 仅支持用户或项目范围。",
+      "globalTransportUnsupported": "添加 MCP 服务器跨所有 Provider 仅支持 stdio 和 http，不支持 {{transport}}。",
+      "providerTransportUnsupported": "{{provider}} 不支持 {{transport}} MCP 服务器",
+      "deleteConfirm": "确定要删除这个 MCP 服务器吗？",
+      "globalAddFailed": "添加 MCP 服务器到所有 Provider 失败。{{details}}"
+    },
+    "loading": "正在加载 MCP 服务器...",
+    "refreshingProjectScopes": "正在刷新项目范围...",
+    "team": {
+      "title": "团队 MCP 配置",
+      "description": "在您的团队中共享 MCP 服务器配置，每个人自动保持同步。",
+      "cta": "CloudCLI Pro 可用"
     }
   },
   "pluginSettings": {

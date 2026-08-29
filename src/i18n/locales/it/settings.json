@@ -4,6 +4,7 @@
     "account": "Account",
     "permissions": "Permessi",
     "mcpServers": "Server MCP",
+    "skills": "Competenze",
     "appearance": "Aspetto"
   },
   "account": {
@@ -339,6 +340,12 @@
       }
     },
     "connectionStatus": "Stato connessione",
+    "externalAuth": {
+      "title": "Gestito esternamente",
+      "description": "L'autenticazione di {{agent}} è gestita al di fuori di questa app. Accedi dall'app desktop o dalla configurazione dell'agente.",
+      "managedByDesktop": "Gestito da WorkBuddy Desktop",
+      "available": "Disponibile"
+    },
     "login": {
       "title": "Accedi",
       "reAuthenticate": "Ri-autenticati",
@@ -347,7 +354,10 @@
       "button": "Accedi",
       "reLoginButton": "Ri-accedi"
     },
-    "error": "Errore: {{error}}"
+    "error": "Errore: {{error}}",
+    "errors": {
+      "cursorCliNotFound": "Cursor CLI non è installato o non è stato trovato."
+    }
   },
   "permissions": {
     "title": "Impostazioni permessi",
@@ -415,7 +425,7 @@
       },
       "technicalDetails": "Dettagli tecnici",
       "technicalInfo": {
-        "default": "sandboxMode=workspace-write, approvalPolicy=untrusted. Comandi attendibili: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find (senza -exec), ecc.",
+        "default": "sandboxMode=workspace-write, approvalPolicy=on-request. Comandi attendibili: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find (senza -exec), ecc.",
         "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. Tutti i comandi vengono auto-eseguiti nella directory del progetto.",
         "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never. Accesso completo al sistema, usa solo in ambienti attendibili.",
         "overrideNote": "Puoi sovrascrivere questa impostazione per sessione usando il pulsante modalità nell'interfaccia chat."

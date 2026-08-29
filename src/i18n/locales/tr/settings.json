@@ -4,6 +4,7 @@
     "account": "Hesap",
     "permissions": "İzinler",
     "mcpServers": "MCP Sunucuları",
+    "skills": "Beceriler",
     "appearance": "Görünüm"
   },
   "account": {
@@ -340,6 +341,12 @@
       }
     },
     "connectionStatus": "Bağlantı Durumu",
+    "externalAuth": {
+      "title": "Harici olarak yönetiliyor",
+      "description": "{{agent}} kimlik doğrulaması bu uygulama dışında yönetilir. Ajanın masaüstü uygulamasında veya yapılandırmasında giriş yapın.",
+      "managedByDesktop": "WorkBuddy Desktop tarafından yönetiliyor",
+      "available": "Kullanılabilir"
+    },
     "login": {
       "title": "Giriş Yap",
       "reAuthenticate": "Yeniden Kimlik Doğrula",
@@ -348,7 +355,10 @@
       "button": "Giriş Yap",
       "reLoginButton": "Tekrar Giriş Yap"
     },
-    "error": "Hata: {{error}}"
+    "error": "Hata: {{error}}",
+    "errors": {
+      "cursorCliNotFound": "Cursor CLI yüklü değil veya bulunamadı."
+    }
   },
   "permissions": {
     "title": "İzin Ayarları",
@@ -416,7 +426,7 @@
       },
       "technicalDetails": "Teknik ayrıntılar",
       "technicalInfo": {
-        "default": "sandboxMode=workspace-write, approvalPolicy=untrusted. Güvenilir komutlar: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find (-exec olmadan), vb.",
+        "default": "sandboxMode=workspace-write, approvalPolicy=on-request. Güvenilir komutlar: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find (-exec olmadan), vb.",
         "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. Tüm komutlar proje dizini içinde otomatik çalışır.",
         "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never. Tam sistem erişimi, yalnızca güvenilir ortamlarda kullan.",
         "overrideNote": "Sohbet arayüzündeki mod düğmesini kullanarak bunu oturum başına geçersiz kılabilirsin."

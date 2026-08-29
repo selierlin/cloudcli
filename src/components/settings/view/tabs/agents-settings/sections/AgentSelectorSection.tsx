@@ -36,7 +36,10 @@ export default function AgentSelectorSection({
             >
               <LLMProviderLogo provider={agent} className="h-4 w-4 flex-shrink-0" />
               <span className="truncate">{AGENT_NAMES[agent]}</span>
-              {agentContextById[agent].authStatus.authenticated && (
+              {(agentContextById[agent].authStatus.authenticated
+                || (agentContextById[agent].authStatus.authVerified === false
+                  && agentContextById[agent].authStatus.installed === true
+                  && agentContextById[agent].authStatus.method === 'workbuddy_desktop')) && (
                 <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${dotColor}`} />
               )}
             </Pill>
