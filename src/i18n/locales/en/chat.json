@@ -118,7 +118,7 @@
   },
   "input": {
     "placeholder": "Type / for commands, @ for files, or ask {{provider}} anything...",
-    "placeholderDefault": "Type your message...",
+    "placeholderDefault": "Ask anything...",
     "disabled": "Input disabled",
     "attachFiles": "Attach files",
     "attachImages": "Attach images",
@@ -331,7 +331,7 @@
     },
     "loading": {
       "olderMessages": "Loading older messages...",
-      "sessionMessages": "Loading session messages..."
+      "sessionMessages": "Loading chat history..."
     },
     "messages": {
       "showingOf": "Showing {{shown}} of {{total}} messages",
