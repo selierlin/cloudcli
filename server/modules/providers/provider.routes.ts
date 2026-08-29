@@ -608,6 +608,12 @@ router.post(
   '/:provider/sessions/:sessionId/branch',
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
+    if (provider !== 'claude') {
+      throw new AppError('Branching is only supported for Claude sessions.', {
+        code: 'BRANCH_UNSUPPORTED_PROVIDER',
+        statusCode: 400,
+      });
+    }
     const sessionId = parseSessionId(req.params.sessionId);
     const messageId = parseBranchMessageId(req.body);
     const result = await sessionsService.createClaudeBranch(sessionId, messageId);
