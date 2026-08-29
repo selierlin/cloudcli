@@ -279,3 +279,22 @@ test('session outline route reports unknown sessions as 404', async () => {
     assert.equal(response.status, 404);
   });
 });
+
+test('session branch route rejects a URL provider other than Claude', async () => {
+  await withProviderServer(async (baseUrl, workspacePath) => {
+    sessionsDb.createAppSession('claude-branch-session', 'claude', workspacePath);
+
+    const response = await fetch(
+      `${baseUrl}/api/providers/codex/sessions/claude-branch-session/branch`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ messageId: 'message-1_text_0' }),
+      },
+    );
+    const payload = await response.json() as { error: { code: string } };
+
+    assert.equal(response.status, 400);
+    assert.equal(payload.error.code, 'BRANCH_UNSUPPORTED_PROVIDER');
+  });
+});
