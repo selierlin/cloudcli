@@ -102,7 +102,7 @@ const CodeBlock = ({ node: _node, className, children, forceBlock, ...props }: C
   }
 
   return (
-    <div className="group my-3 overflow-hidden rounded-xl border border-border bg-muted/50 shadow-sm dark:bg-zinc-900">
+    <div className="markdown-code-block group my-3 overflow-hidden rounded-xl border border-border bg-muted/50 shadow-sm dark:bg-zinc-900">
       {/* Label row shares the block's background — no divider, ChatGPT-style */}
       <div className="flex items-center justify-between px-4 pt-2">
         <span className="select-none text-xs text-muted-foreground">{languageLabel}</span>
@@ -157,6 +157,7 @@ const CodeBlock = ({ node: _node, className, children, forceBlock, ...props }: C
           fontSize: 'var(--ui-code-font-size, 0.8125rem)',
           lineHeight: 1.6,
           padding: '0.5rem 1rem 1rem',
+          overflowX: 'auto',
           // The container owns the background so the label row and code read as one panel.
           background: 'transparent',
         }}
@@ -202,9 +203,9 @@ const markdownComponents = {
   ),
   li: ({ children }: { children?: React.ReactNode }) => <li className="[&>div:last-child]:mb-0 [&>div]:mb-1">{children}</li>,
   table: ({ children }: { children?: React.ReactNode }) => (
-    <div className="my-3 overflow-x-auto rounded-lg border border-border">
+    <div className="markdown-table-wrapper my-3 overflow-x-auto rounded-lg border border-border">
       {/* my-0 cancels Tailwind Typography's table margin, which would show as blank bands inside the border */}
-      <table className="my-0 min-w-full border-collapse text-sm">{children}</table>
+      <table className="markdown-table my-0 min-w-full border-collapse text-sm">{children}</table>
     </div>
   ),
   thead: ({ children }: { children?: React.ReactNode }) => <thead className="bg-muted/60">{children}</thead>,

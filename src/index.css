@@ -807,6 +807,31 @@
     overflow-wrap: break-word;
   }
 
+  /* Preserve fenced code formatting; the code block itself handles horizontal scrolling. */
+  .chat-message .markdown-code-block pre {
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: pre !important;
+    word-break: normal;
+    overflow-wrap: normal;
+  }
+
+  .chat-message .markdown-code-block pre code {
+    max-width: none;
+    white-space: inherit !important;
+    word-break: inherit;
+    overflow-wrap: inherit;
+  }
+
+  /* Give mobile tables enough room to preserve readable column widths. */
+  @media screen and (max-width: 768px) {
+    .chat-message .markdown-table {
+      width: 100%;
+      min-width: 36rem;
+      max-width: none;
+    }
+  }
+
   /* Prevent horizontal scroll in chat area */
   .chat-message * {
     max-width: 100%;
