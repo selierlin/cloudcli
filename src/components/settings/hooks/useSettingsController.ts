@@ -354,8 +354,15 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
 
     setActiveTab(normalizeMainTab(initialTab));
     void loadSettings();
+  }, [initialTab, isOpen, loadSettings]);
+
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'agents') {
+      return;
+    }
+
     void refreshProviderAuthStatuses();
-  }, [initialTab, isOpen, loadSettings, refreshProviderAuthStatuses]);
+  }, [activeTab, isOpen, refreshProviderAuthStatuses]);
 
   useEffect(() => {
     setNotificationSoundEnabled(notificationPreferences.channels.sound);
