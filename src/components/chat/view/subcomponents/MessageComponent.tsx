@@ -114,6 +114,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
   return (
     <div
       ref={messageRef}
+      data-message-id={typeof message.id === 'string' ? message.id : undefined}
       data-message-timestamp={message.timestamp || undefined}
       className={`chat-message ${message.type} ${isGrouped ? 'grouped' : ''} ${message.type === 'user' ? 'flex justify-end px-3 sm:px-0' : 'px-3 sm:px-0'}`}
     >
@@ -349,7 +350,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
               /* Thinking messages — Reasoning component (ai-elements pattern) */
               <Reasoning defaultOpen={false}>
                 <ReasoningTrigger />
-                <ReasoningContent>
+                <ReasoningContent lazyMount>
                   <Markdown className="prose prose-sm prose-gray max-w-none font-serif dark:prose-invert">
                     {message.content}
                   </Markdown>
@@ -364,7 +365,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
                 {showThinking && message.reasoning && (
                   <Reasoning className="mb-3" defaultOpen={false}>
                     <ReasoningTrigger />
-                    <ReasoningContent>
+                    <ReasoningContent lazyMount>
                       <div className="whitespace-pre-wrap">
                         {message.reasoning}
                       </div>
