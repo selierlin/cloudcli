@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -63,6 +63,100 @@ const writeCodexTranscript = async (
   await writeFile(filePath, `${lines.join('\n')}\n`, 'utf8');
   return filePath;
 };
+
+test('Codex todo_list carries the completed lifecycle state from live events', () => {
+  const [message] = new CodexSessionsProvider().normalizeMessage({
+    type: 'item',
+    itemType: 'todo_list',
+    id: 'todo-live-1',
+    eventType: 'item.completed',
+    items: [{ text: 'Verify the finished changes', completed: true }],
+  }, 'codex-todo-1');
+
+  assert.equal(message?.id, 'todo-live-1');
+  assert.equal(message?.kind, 'tool_use');
+  assert.equal(message?.toolName, 'TodoList');
+  assert.equal(message?.status, 'completed');
+  assert.deepEqual(message?.toolInput, {
+    items: [{ text: 'Verify the finished changes', completed: true }],
+  });
+});
+
+test('Codex command item updates keep the native id and terminal output', () => {
+  const provider = new CodexSessionsProvider();
+  const [running] = provider.normalizeMessage({
+    type: 'item',
+    itemType: 'command_execution',
+    id: 'command-live-1',
+    command: 'npm test',
+    output: '',
+    status: 'in_progress',
+  }, 'codex-command-1');
+  const [completed] = provider.normalizeMessage({
+    type: 'item',
+    itemType: 'command_execution',
+    id: 'command-live-1',
+    command: 'npm test',
+    output: 'all tests passed',
+    status: 'completed',
+  }, 'codex-command-1');
+
+  assert.equal(running?.id, 'command-live-1');
+  assert.equal(running?.status, 'in_progress');
+  assert.equal(running?.toolResult, undefined);
+  assert.equal(completed?.id, 'command-live-1');
+  assert.deepEqual(completed?.toolResult, {
+    content: 'all tests passed',
+    isError: false,
+  });
+});
+
+test('Codex history restores persisted todo_list response items', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-todo-history-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    const transcriptPath = await writeCodexTranscript(tempRoot, 'codex-todo-history-1', workspacePath);
+    await appendFile(transcriptPath, [
+      {
+        type: 'response_item',
+        timestamp: '2026-07-07T00:00:00.000Z',
+        payload: {
+          type: 'todo_list',
+          id: 'todo-history-1',
+          items: [{ text: 'Restore the task list', completed: false }],
+        },
+      },
+      {
+        type: 'response_item',
+        timestamp: '2026-07-07T00:00:01.000Z',
+        payload: {
+          type: 'todo_list',
+          id: 'todo-history-1',
+          items: [{ text: 'Restore the task list', completed: true }],
+        },
+      },
+    ].map((event) => JSON.stringify(event)).join('\n') + '\n', 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createAppSession('app-todo-history-1', 'codex', workspacePath);
+      sessionsDb.assignProviderSessionId('app-todo-history-1', 'codex-todo-history-1');
+      await new CodexSessionSynchronizer().synchronize();
+
+      const result = await new CodexSessionsProvider().fetchHistory('app-todo-history-1');
+      assert.equal(result.messages.length, 1);
+      assert.equal(result.messages[0]?.toolName, 'TodoList');
+      assert.deepEqual(result.messages[0]?.toolInput, {
+        items: [{ text: 'Restore the task list', completed: true }],
+      });
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
 
 test('Codex synchronizer preserves the title assigned when CloudCLI creates a session', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-session-sync-app-'));
@@ -145,6 +239,179 @@ test('Codex synchronizer leaves indexed sessions untitled when no name is availa
       await synchronizer.synchronize();
 
       assert.equal(sessionsDb.getSessionById('codex-indexed-1')?.custom_name, 'Untitled Codex Session');
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('Codex history restores UserMessage items written by Codex >=0.150', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-user-message-history-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    // Codex >=0.150 writes user prompts as `item_completed` + `UserMessage`
+    // items instead of `event_msg`/`user_message` events. The transcript also
+    // carries a system-injected AGENTS.md user message that must not surface.
+    const providerSessionId = 'codex-modern-1';
+    const sessionsDir = path.join(tempRoot, '.codex', 'sessions', '2026', '07', '07');
+    await mkdir(sessionsDir, { recursive: true });
+    const transcriptLines = [
+      JSON.stringify({ type: 'session_meta', payload: { id: providerSessionId, cwd: workspacePath } }),
+      JSON.stringify({
+        type: 'event_msg',
+        timestamp: '2026-07-07T00:00:00.000Z',
+        payload: {
+          type: 'item_completed',
+          item: {
+            type: 'UserMessage',
+            id: 'um-1',
+            content: [{ type: 'text', text: 'Explain the rollout format', text_elements: [] }],
+          },
+        },
+      }),
+      JSON.stringify({
+        type: 'event_msg',
+        timestamp: '2026-07-07T00:00:01.000Z',
+        payload: {
+          type: 'item_completed',
+          item: {
+            type: 'UserMessage',
+            id: 'um-2',
+            content: [{ type: 'text', text: 'Then fix the parser', text_elements: [] }],
+          },
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T00:00:02.000Z',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'text', text: '# AGENTS.md instructions for /tmp/workspace' }],
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T00:00:03.000Z',
+        payload: {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'Here is the analysis.' }],
+        },
+      }),
+    ];
+    await writeFile(
+      path.join(sessionsDir, `rollout-${providerSessionId}.jsonl`),
+      `${transcriptLines.join('\n')}\n`,
+      'utf8',
+    );
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createAppSession('app-modern-1', 'codex', workspacePath);
+      sessionsDb.assignProviderSessionId('app-modern-1', providerSessionId);
+      await new CodexSessionSynchronizer().synchronize();
+
+      const history = await new CodexSessionsProvider().fetchHistory('app-modern-1');
+      const userMessages = history.messages.filter((message) => message.role === 'user');
+      const assistantMessages = history.messages.filter((message) => message.role === 'assistant');
+
+      assert.deepEqual(
+        userMessages.map((message) => message.content),
+        ['Explain the rollout format', 'Then fix the parser'],
+      );
+      // The system-injected AGENTS.md message is not surfaced as a user turn.
+      assert.ok(!userMessages.some((message) => message.content?.includes('AGENTS.md')));
+      assert.equal(assistantMessages.length, 1);
+      assert.equal(assistantMessages[0]?.content, 'Here is the analysis.');
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('Codex history links SubAgentActivity items to spawned sub-agents in Codex >=0.150', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-subagent-activity-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    // Codex >=0.150 persists sub-agent lifecycle as `item_completed` +
+    // `SubAgentActivity` items instead of `event_msg`/`sub_agent_activity`.
+    // The item id matches the spawn call id, so the spawned Task tool result
+    // must still link to the right sub-agent via the activity-provided path.
+    const providerSessionId = 'codex-subagent-modern-1';
+    const callId = 'call_subagent_spawn_1';
+    const agentPath = '/root/security_review';
+    const sessionsDir = path.join(tempRoot, '.codex', 'sessions', '2026', '07', '07');
+    await mkdir(sessionsDir, { recursive: true });
+    const transcriptLines = [
+      JSON.stringify({ type: 'session_meta', payload: { id: providerSessionId, cwd: workspacePath } }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T00:00:00.000Z',
+        payload: {
+          type: 'function_call',
+          name: 'spawn_agent',
+          call_id: callId,
+          arguments: JSON.stringify({ task_name: 'security_review' }),
+        },
+      }),
+      JSON.stringify({
+        type: 'event_msg',
+        timestamp: '2026-07-07T00:00:01.000Z',
+        payload: {
+          type: 'item_completed',
+          item: {
+            type: 'SubAgentActivity',
+            id: callId,
+            kind: 'started',
+            agent_thread_id: 'thread-1',
+            agent_path: agentPath,
+          },
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T00:00:02.000Z',
+        payload: {
+          type: 'agent_message',
+          id: 'agent-msg-1',
+          author: agentPath,
+          recipient: '/root',
+          content: [{
+            type: 'input_text',
+            text: `Message Type: FINAL_ANSWER\nSender: ${agentPath}\nPayload:\n审查完成，未发现问题`,
+          }],
+        },
+      }),
+    ];
+    await writeFile(
+      path.join(sessionsDir, `rollout-${providerSessionId}.jsonl`),
+      `${transcriptLines.join('\n')}\n`,
+      'utf8',
+    );
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createAppSession('app-subagent-modern-1', 'codex', workspacePath);
+      sessionsDb.assignProviderSessionId('app-subagent-modern-1', providerSessionId);
+      await new CodexSessionSynchronizer().synchronize();
+
+      const history = await new CodexSessionsProvider().fetchHistory('app-subagent-modern-1');
+      const taskUses = history.messages.filter((message) => message.kind === 'tool_use' && message.toolName === 'Task');
+      const results = history.messages.filter((message) => message.kind === 'tool_result');
+
+      // Exactly one spawned Task and one linked result, sharing the spawn call id.
+      assert.equal(taskUses.length, 1);
+      assert.equal(results.length, 1);
+      assert.equal(taskUses[0]?.toolId, callId);
+      assert.equal(results[0]?.toolId, callId);
+      assert.equal(results[0]?.content, '审查完成，未发现问题');
     });
   } finally {
     restoreHomeDir();

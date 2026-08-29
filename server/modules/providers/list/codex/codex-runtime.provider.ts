@@ -13,8 +13,10 @@
  * - getActiveCodexSessions() - List all active sessions
  */
 
-import { Codex } from '@openai/codex-sdk';
+import { Codex, type ThreadOptions } from '@openai/codex-sdk';
 
+import type { IProviderRuntime } from '@/shared/interfaces.js';
+import type { AnyRecord, ProviderRuntimeContext, ProviderRuntimeWriter } from '@/shared/types.js';
 import {
   appendFilesInputTag,
   buildCodexInputItems,
@@ -23,32 +25,46 @@ import {
 import { notifyRunFailed, notifyRunStopped } from '@/modules/notifications/index.js';
 import { createCompleteMessage, createNormalizedMessage } from '@/shared/utils.js';
 
-const activeCodexSessions = new Map();
+type ActiveCodexSession = {
+  thread: any;
+  codex: Codex;
+  status: 'running' | 'aborted' | 'completed';
+  abortController: AbortController;
+  startedAt: string;
+};
 
-function readUsageNumber(value) {
+const activeCodexSessions = new Map<string, ActiveCodexSession>();
+
+function readUsageNumber(value: unknown): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function extractCodexTokenBudget(event) {
-  const info = event?.info || event?.payload?.info || event?.usage?.info;
-  const usage = info?.total_token_usage || event?.usage?.total_token_usage || event?.usage;
+export function extractCodexTokenBudget(event: AnyRecord): AnyRecord | null {
+  const info = (event.info || (event.payload as AnyRecord | undefined)?.info || (event.usage as AnyRecord | undefined)?.info) as AnyRecord | undefined;
+  const usage = info?.total_token_usage || (event.usage as AnyRecord | undefined)?.total_token_usage || event.usage;
   if (!usage || typeof usage !== 'object') {
     return null;
   }
 
-  const inputTokens = readUsageNumber(usage.input_tokens);
-  const outputTokens = readUsageNumber(usage.output_tokens);
-  const used = readUsageNumber(usage.total_tokens) || inputTokens + outputTokens;
+  const usageRecord = usage as AnyRecord;
+
+  const inputTokens = readUsageNumber(usageRecord.input_tokens);
+  const outputTokens = readUsageNumber(usageRecord.output_tokens);
+  const reasoningTokens = readUsageNumber(usageRecord.reasoning_output_tokens);
+  const totalTokens = readUsageNumber(usageRecord.total_tokens);
+  const used = totalTokens || inputTokens + outputTokens + reasoningTokens;
 
   return {
     used,
     total: readUsageNumber(info?.model_context_window || event?.usage?.model_context_window) || 200000,
     inputTokens,
     outputTokens,
+    reasoningTokens,
     breakdown: {
       input: inputTokens,
       output: outputTokens,
+      reasoning: reasoningTokens,
     },
   };
 }
@@ -58,13 +74,13 @@ function extractCodexTokenBudget(event) {
  * @param {object} event - SDK event
  * @returns {object} - Transformed event for WebSocket
  */
-function transformCodexEvent(event) {
+export function transformCodexEvent(event: AnyRecord): AnyRecord {
   // Map SDK event types to a consistent format
   switch (event.type) {
     case 'item.started':
     case 'item.updated':
     case 'item.completed':
-      const item = event.item;
+      const item = event.item as AnyRecord | undefined;
       if (!item) {
         return { type: event.type, item: null };
       }
@@ -75,6 +91,7 @@ function transformCodexEvent(event) {
           return {
             type: 'item',
             itemType: 'agent_message',
+            id: item.id,
             message: {
               role: 'assistant',
               content: item.text
@@ -85,6 +102,7 @@ function transformCodexEvent(event) {
           return {
             type: 'item',
             itemType: 'reasoning',
+            id: item.id,
             message: {
               role: 'assistant',
               content: item.text,
@@ -96,6 +114,7 @@ function transformCodexEvent(event) {
           return {
             type: 'item',
             itemType: 'command_execution',
+            id: item.id,
             command: item.command,
             output: item.aggregated_output,
             exitCode: item.exit_code,
@@ -106,6 +125,7 @@ function transformCodexEvent(event) {
           return {
             type: 'item',
             itemType: 'file_change',
+            id: item.id,
             changes: item.changes,
             status: item.status
           };
@@ -114,6 +134,7 @@ function transformCodexEvent(event) {
           return {
             type: 'item',
             itemType: 'mcp_tool_call',
+            id: item.id,
             server: item.server,
             tool: item.tool,
             arguments: item.arguments,
@@ -126,6 +147,7 @@ function transformCodexEvent(event) {
           return {
             type: 'item',
             itemType: 'web_search',
+            id: item.id,
             query: item.query
           };
 
@@ -133,13 +155,16 @@ function transformCodexEvent(event) {
           return {
             type: 'item',
             itemType: 'todo_list',
-            items: item.items
+            id: item.id,
+            items: item.items,
+            eventType: event.type,
           };
 
         case 'error':
           return {
             type: 'item',
             itemType: 'error',
+            id: item.id,
             message: {
               role: 'error',
               content: item.message
@@ -150,6 +175,7 @@ function transformCodexEvent(event) {
           return {
             type: 'item',
             itemType: item.type,
+            id: item.id,
             item: item
           };
       }
@@ -196,7 +222,9 @@ function transformCodexEvent(event) {
  * @param {string} permissionMode - 'default', 'acceptEdits', or 'bypassPermissions'
  * @returns {object} - { sandboxMode, approvalPolicy }
  */
-function mapPermissionModeToCodexOptions(permissionMode) {
+function mapPermissionModeToCodexOptions(
+  permissionMode: string,
+): Pick<ThreadOptions, 'sandboxMode' | 'approvalPolicy'> {
   switch (permissionMode) {
     case 'acceptEdits':
       return {
@@ -212,7 +240,7 @@ function mapPermissionModeToCodexOptions(permissionMode) {
     default:
       return {
         sandboxMode: 'workspace-write',
-        approvalPolicy: 'untrusted'
+        approvalPolicy: 'on-request'
       };
   }
 }
@@ -223,7 +251,12 @@ function mapPermissionModeToCodexOptions(permissionMode) {
  * @param {object} options - Options including cwd, sessionId, model, permissionMode
  * @param {WebSocket|object} ws - WebSocket connection or response writer
  */
-export async function queryCodex(command, options = {}, ws, context) {
+export async function queryCodex(
+  command: string,
+  options: AnyRecord = {},
+  ws: ProviderRuntimeWriter,
+  context: ProviderRuntimeContext,
+): Promise<void> {
   const {
     sessionId,
     sessionSummary,
@@ -247,12 +280,12 @@ export async function queryCodex(command, options = {}, ws, context) {
   const catalog = await context.getProviderModels();
   const selectedModel = catalog.OPTIONS.find((option) => option.value === resolvedModel) || null;
   const allowedEfforts = selectedModel?.effort?.values?.map((value) => value.value) || [];
-  const resolvedEffort = typeof effort === 'string' && effort !== 'default' && allowedEfforts.includes(effort)
-    ? effort
+  const resolvedEffort: ThreadOptions['modelReasoningEffort'] = typeof effort === 'string' && effort !== 'default' && allowedEfforts.includes(effort)
+    ? effort as ThreadOptions['modelReasoningEffort']
     : undefined;
 
-  let codex;
-  let thread;
+  let codex: Codex;
+  let thread: any;
   // Provider-native thread id (starts as the resume id, or is captured from
   // the stream for brand-new sessions).
   let capturedSessionId = providerSessionId;
@@ -281,7 +314,7 @@ export async function queryCodex(command, options = {}, ws, context) {
       thread = codex.startThread(threadOptions);
     }
 
-    const registerSession = (id) => {
+    const registerSession = (id: string | null) => {
       if (!id) {
         return;
       }
@@ -317,7 +350,7 @@ export async function queryCodex(command, options = {}, ws, context) {
           registerSession(sessionKey());
 
           if (ws.setSessionId && typeof ws.setSessionId === 'function') {
-            ws.setSessionId(capturedSessionId);
+            ws.setSessionId(discoveredSessionId);
           }
 
           if (!providerSessionId && !sessionCreatedSent) {
@@ -336,10 +369,6 @@ export async function queryCodex(command, options = {}, ws, context) {
         if (session?.status === 'aborted') {
           break;
         }
-      }
-
-      if (event.type === 'item.started' || event.type === 'item.updated') {
-        continue;
       }
 
       const transformed = transformCodexEvent(event);
@@ -393,7 +422,7 @@ export async function queryCodex(command, options = {}, ws, context) {
       }
     }
 
-  } catch (error) {
+  } catch (error: any) {
     const session = sessionKey() ? activeCodexSessions.get(sessionKey()) : null;
     const wasAborted =
       session?.status === 'aborted' ||
@@ -442,7 +471,7 @@ export async function queryCodex(command, options = {}, ws, context) {
  * @param {string} sessionId - Session ID to abort
  * @returns {boolean} - Whether abort was successful
  */
-export function abortCodexSession(sessionId) {
+export function abortCodexSession(sessionId: string): boolean {
   const session = activeCodexSessions.get(sessionId);
 
   if (!session) {
@@ -464,7 +493,7 @@ export function abortCodexSession(sessionId) {
  * @param {string} sessionId - Session ID to check
  * @returns {boolean} - Whether session is active
  */
-export function isCodexSessionActive(sessionId) {
+export function isCodexSessionActive(sessionId: string): boolean {
   const session = activeCodexSessions.get(sessionId);
   return session?.status === 'running';
 }
@@ -473,8 +502,8 @@ export function isCodexSessionActive(sessionId) {
  * Get all active sessions
  * @returns {Array} - Array of active session info
  */
-export function getActiveCodexSessions() {
-  const sessions = [];
+export function getActiveCodexSessions(): Array<{ id: string; status: 'running'; startedAt: string }> {
+  const sessions: Array<{ id: string; status: 'running'; startedAt: string }> = [];
 
   for (const [id, session] of activeCodexSessions.entries()) {
     if (session.status === 'running') {
@@ -489,7 +518,7 @@ export function getActiveCodexSessions() {
   return sessions;
 }
 
-export const codexRuntime = {
+export const codexRuntime: IProviderRuntime = {
   run: queryCodex,
   abort: abortCodexSession,
 };
@@ -499,7 +528,7 @@ export const codexRuntime = {
  * @param {WebSocket|object} ws - WebSocket or response writer
  * @param {object} data - Data to send
  */
-function sendMessage(ws, data) {
+function sendMessage(ws: ProviderRuntimeWriter, data: unknown): void {
   try {
     if (ws.isSSEStreamWriter || ws.isWebSocketWriter) {
       // Writer handles stringification (SSEStreamWriter or WebSocketWriter)

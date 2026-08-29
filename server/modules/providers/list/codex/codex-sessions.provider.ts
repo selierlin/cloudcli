@@ -111,6 +111,35 @@ function extractCodexToolOutput(output: unknown): string {
     .join('');
 }
 
+function normalizeCodexMcpResult(
+  result: unknown,
+  error: unknown,
+): NormalizedMessage['toolResult'] | undefined {
+  const errorRecord = readObjectRecord(error);
+  if (errorRecord) {
+    return {
+      content: typeof errorRecord.message === 'string'
+        ? errorRecord.message
+        : JSON.stringify(errorRecord),
+      isError: true,
+    };
+  }
+
+  const resultRecord = readObjectRecord(result);
+  if (!resultRecord) {
+    return undefined;
+  }
+
+  return {
+    content: extractCodexToolOutput(resultRecord.content)
+      || (resultRecord.structured_content == null
+        ? ''
+        : JSON.stringify(resultRecord.structured_content)),
+    isError: false,
+    toolUseResult: resultRecord.structured_content,
+  };
+}
+
 function readRunningExecOutput(output: string): { cellId: string; content: string } | null {
   const runningCell = /Script running with cell ID\s+(\S+)/i.exec(output);
   if (!runningCell) {
@@ -231,6 +260,22 @@ function readNonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
+function upsertHistoryMessage(
+  messages: NormalizedMessage[],
+  messageIndexes: Map<string, number>,
+  message: NormalizedMessage,
+): void {
+  const key = `${message.id}\u0000${message.kind}`;
+  const index = messageIndexes.get(key);
+  if (index === undefined) {
+    messageIndexes.set(key, messages.length);
+    messages.push(message);
+    return;
+  }
+
+  messages[index] = { ...messages[index], ...message };
+}
+
 async function getCodexSessionMessages(
   sessionId: string,
   limit: number | null = null,
@@ -292,6 +337,24 @@ async function getCodexSessionMessages(
           }
         }
 
+        // Codex >=0.150 persists sub-agent lifecycle as `item_completed` +
+        // `SubAgentActivity` items; the item id is the spawn call id, so the
+        // path linking above stays intact.
+        if (
+          entry.type === 'event_msg'
+          && entry.payload?.type === 'item_completed'
+          && entry.payload.item?.type === 'SubAgentActivity'
+          && entry.payload.item?.kind === 'started'
+        ) {
+          const callId = readNonEmptyString(entry.payload.item.id);
+          const agentPath = readNonEmptyString(entry.payload.item.agent_path);
+          const subagent = callId ? subagentsByCallId.get(callId) : undefined;
+          if (subagent && agentPath) {
+            subagent.agentPath = agentPath;
+            subagentsByPath.set(agentPath, subagent);
+          }
+        }
+
         if (entry.type === 'event_msg' && isVisibleCodexUserMessage(entry.payload as AnyRecord)) {
           messages.push({
             type: 'user',
@@ -302,6 +365,21 @@ async function getCodexSessionMessages(
             },
             images: extractCodexUserImages(entry.payload as AnyRecord),
           });
+        }
+
+        if (
+          entry.type === 'event_msg'
+          && entry.payload?.type === 'item_completed'
+          && entry.payload.item?.type === 'UserMessage'
+        ) {
+          const content = extractCodexTextContent(entry.payload.item.content);
+          if (content.trim()) {
+            messages.push({
+              type: 'user',
+              timestamp: entry.timestamp,
+              message: { role: 'user', content },
+            });
+          }
         }
 
         if (
@@ -340,6 +418,16 @@ async function getCodexSessionMessages(
               },
             });
           }
+        }
+
+        if (entry.type === 'response_item' && entry.payload?.type === 'todo_list') {
+          messages.push({
+            type: 'item',
+            itemType: 'todo_list',
+            timestamp: entry.timestamp,
+            uuid: entry.payload.id,
+            items: entry.payload.items,
+          });
         }
 
         if (entry.type === 'response_item' && entry.payload?.type === 'agent_message') {
@@ -627,7 +715,7 @@ export class CodexSessionsProvider implements IProviderSessions {
    */
   private normalizeHistoryEntry(raw: AnyRecord, sessionId: string | null): NormalizedMessage[] {
     const ts = raw.timestamp || new Date().toISOString();
-    const baseId = raw.uuid || generateMessageId('codex');
+    const baseId = raw.id || raw.uuid || generateMessageId('codex');
 
     if (raw.type === 'thinking' || raw.isReasoning) {
       const thinkingContent = typeof raw.message?.content === 'string'
@@ -697,6 +785,19 @@ export class CodexSessionsProvider implements IProviderSessions {
       })];
     }
 
+    if (raw.type === 'item' && raw.itemType === 'todo_list') {
+      return [createNormalizedMessage({
+        id: baseId,
+        sessionId,
+        timestamp: ts,
+        provider: PROVIDER,
+        kind: 'tool_use',
+        toolName: 'TodoList',
+        toolInput: { items: raw.items },
+        toolId: baseId,
+      })];
+    }
+
     if (raw.type === 'tool_use' || raw.toolName) {
       return [createNormalizedMessage({
         id: baseId,
@@ -740,7 +841,7 @@ export class CodexSessionsProvider implements IProviderSessions {
     }
 
     const ts = raw.timestamp || new Date().toISOString();
-    const baseId = raw.uuid || generateMessageId('codex');
+    const baseId = raw.id || raw.uuid || generateMessageId('codex');
 
     if (raw.type === 'item') {
       switch (raw.itemType) {
@@ -764,6 +865,7 @@ export class CodexSessionsProvider implements IProviderSessions {
             content: raw.message?.content || '',
           })];
         case 'command_execution':
+          const commandCompleted = raw.status === 'completed' || raw.status === 'failed';
           return [createNormalizedMessage({
             id: baseId,
             sessionId,
@@ -776,6 +878,14 @@ export class CodexSessionsProvider implements IProviderSessions {
             output: raw.output,
             exitCode: raw.exitCode,
             status: raw.status,
+            ...(commandCompleted
+              ? {
+                toolResult: {
+                  content: extractCodexToolOutput(raw.output),
+                  isError: raw.status === 'failed',
+                },
+              }
+              : {}),
           })];
         case 'file_change':
           return [createNormalizedMessage({
@@ -790,6 +900,7 @@ export class CodexSessionsProvider implements IProviderSessions {
             status: raw.status,
           })];
         case 'mcp_tool_call':
+          const mcpToolResult = normalizeCodexMcpResult(raw.result, raw.error);
           return [createNormalizedMessage({
             id: baseId,
             sessionId,
@@ -803,6 +914,7 @@ export class CodexSessionsProvider implements IProviderSessions {
             result: raw.result,
             error: raw.error,
             status: raw.status,
+            ...(mcpToolResult ? { toolResult: mcpToolResult } : {}),
           })];
         case 'web_search':
           return [createNormalizedMessage({
@@ -815,7 +927,12 @@ export class CodexSessionsProvider implements IProviderSessions {
             toolInput: { query: raw.query },
             toolId: baseId,
           })];
-        case 'todo_list':
+        case 'todo_list': {
+          const todoStatus = raw.eventType === 'item.completed'
+            ? 'completed'
+            : raw.eventType === 'item.started' || raw.eventType === 'item.updated'
+              ? 'in_progress'
+              : undefined;
           return [createNormalizedMessage({
             id: baseId,
             sessionId,
@@ -825,7 +942,9 @@ export class CodexSessionsProvider implements IProviderSessions {
             toolName: 'TodoList',
             toolInput: { items: raw.items },
             toolId: baseId,
+            ...(todoStatus ? { status: todoStatus } : {}),
           })];
+        }
         case 'error':
           return [createNormalizedMessage({
             id: baseId,
@@ -897,8 +1016,18 @@ export class CodexSessionsProvider implements IProviderSessions {
     const tokenUsage = Array.isArray(result) ? undefined : result.tokenUsage;
 
     const normalized: NormalizedMessage[] = [];
+    const historyMessageIndexes = new Map<string, number>();
     for (const raw of rawMessages) {
-      normalized.push(...this.normalizeHistoryEntry(raw, sessionId));
+      const historyMessages = this.normalizeHistoryEntry(raw, sessionId);
+      for (const message of historyMessages) {
+        // Codex persists several lifecycle snapshots for one native item. Keep
+        // the latest snapshot so history matches the realtime stable-id update.
+        if (raw.type === 'item' && message.kind === 'tool_use') {
+          upsertHistoryMessage(normalized, historyMessageIndexes, message);
+        } else {
+          normalized.push(message);
+        }
+      }
     }
 
     const toolResultMap = new Map<string, NormalizedMessage>();

@@ -19,6 +19,31 @@ type ParsedTaskNotification = {
   result: string;
 };
 
+function normalizeToolStatus(status: unknown): ChatMessage['toolStatus'] | undefined {
+  switch (status) {
+    case 'in_progress':
+    case 'running':
+      return 'running';
+    case 'completed':
+    case 'complete':
+    case 'success':
+    case 'succeeded':
+      return 'completed';
+    case 'failed':
+    case 'error':
+      return 'error';
+    case 'denied':
+      return 'denied';
+    case 'stopped':
+    case 'cancelled':
+    case 'canceled':
+    case 'killed':
+      return 'stopped';
+    default:
+      return undefined;
+  }
+}
+
 /**
  * Parses a background-agent `<task-notification>` block.
  *
@@ -162,10 +187,12 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
           }
         }
 
+        const resultStatus = (tr as { status?: unknown } | null)?.status;
         const toolResult = tr
           ? {
               content: formatToolResultContent(tr.content),
               isError: Boolean(tr.isError),
+              status: typeof resultStatus === 'string' ? resultStatus : undefined,
               toolUseResult: (tr as any).toolUseResult,
             }
           : null;
@@ -179,6 +206,8 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
           toolInput: typeof msg.toolInput === 'string' ? msg.toolInput : JSON.stringify(msg.toolInput ?? '', null, 2),
           toolId: msg.toolId,
           toolResult,
+          toolStatus: normalizeToolStatus(msg.status)
+            || normalizeToolStatus(resultStatus),
           isSubagentContainer,
           subagentState: isSubagentContainer
             ? {

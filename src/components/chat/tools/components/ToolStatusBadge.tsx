@@ -1,6 +1,6 @@
 import { cn } from '../../../../lib/utils';
 
-export type ToolStatus = 'running' | 'completed' | 'error' | 'denied';
+export type ToolStatus = 'running' | 'completed' | 'error' | 'denied' | 'stopped';
 
 const STATUS_CONFIG: Record<ToolStatus, { label: string; className: string }> = {
   running: {
@@ -18,6 +18,10 @@ const STATUS_CONFIG: Record<ToolStatus, { label: string; className: string }> = 
   denied: {
     label: 'Denied',
     className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+  },
+  stopped: {
+    label: 'Stopped',
+    className: 'bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-300',
   },
 };
 

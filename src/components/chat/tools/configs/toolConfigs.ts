@@ -251,6 +251,23 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
     }
   },
 
+  TodoList: {
+    input: {
+      type: 'collapsible',
+      title: 'Todo list',
+      defaultOpen: false,
+      contentType: 'todo-list',
+      getContentProps: (input) => ({
+        todos: input.items,
+      }),
+    },
+    // Codex emits the todo snapshot as a completed thread item rather than a
+    // separate tool result. The input snapshot is the complete display.
+    result: {
+      hidden: true,
+    },
+  },
+
   TodoRead: {
     input: {
       type: 'one-line',
