@@ -1,3 +1,4 @@
+import compression from 'compression';
 import express, { type Request, type Response } from 'express';
 
 import { providerAuthService } from '@/modules/providers/services/provider-auth.service.js';
@@ -20,6 +21,7 @@ import type {
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
 
 const router = express.Router();
+const sessionMessagesCompression = compression({ threshold: 1024 });
 
 const readPathParam = (value: unknown, name: string): string => {
   if (typeof value === 'string') {
@@ -844,6 +846,7 @@ router.put(
 
 router.get(
   '/sessions/:sessionId/messages',
+  sessionMessagesCompression,
   asyncHandler(async (req: Request, res: Response) => {
     const sessionId = parseSessionId(req.params.sessionId);
     const limit = parseBoundedIntegerQuery(req.query.limit, 'limit', null, 0);

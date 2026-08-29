@@ -273,6 +273,49 @@ test('session outline route returns lightweight user summaries', async (t) => {
   });
 });
 
+test('session messages route compresses large history responses', async (t) => {
+  await withProviderServer(async (baseUrl, workspacePath) => {
+    sessionsDb.createAppSession('compressed-history-session', 'claude', workspacePath);
+    sessionsDb.assignProviderSessionId('compressed-history-session', 'claude-native-history');
+
+    const content = 'large history payload '.repeat(300);
+    mock.method(providerRegistry, 'resolveProvider', (() => ({
+      sessions: {
+        fetchHistory: async () => ({
+          messages: [
+            {
+              id: 'history-message',
+              sessionId: 'claude-native-history',
+              timestamp: '2026-08-26T10:00:00.000Z',
+              provider: 'claude',
+              kind: 'text',
+              role: 'assistant',
+              content,
+            },
+          ],
+          total: 1,
+          hasMore: false,
+          offset: 0,
+          limit: null,
+        }),
+      },
+    })) as unknown as typeof providerRegistry.resolveProvider);
+    t.after(() => mock.reset());
+
+    const response = await fetch(
+      `${baseUrl}/api/providers/sessions/compressed-history-session/messages`,
+      { headers: { 'accept-encoding': 'gzip' } },
+    );
+    const payload = await response.json() as {
+      data: { messages: Array<{ content: string }> };
+    };
+
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-encoding'), 'gzip');
+    assert.equal(payload.data.messages[0]?.content, content);
+  });
+});
+
 test('session outline route reports unknown sessions as 404', async () => {
   await withProviderServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/api/providers/sessions/nope/outline`);

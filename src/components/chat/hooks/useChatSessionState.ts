@@ -8,6 +8,12 @@ import type { SessionStore, NormalizedMessage } from '../../../stores/useSession
 import { SESSION_MESSAGES_PAGE_SIZE } from '../../../stores/sessionMessagePagination';
 import type { ChatMessage } from '../types/types';
 import { createMessageHistoryRefreshCoordinator } from '../utils/messageHistoryRefreshCoordinator';
+import {
+  canApplyMessageSearchHistoryLoad,
+  keepMessageSearchTargetCentered,
+  resolveMessageSearchTarget,
+  type MessageSearchTarget,
+} from '../utils/messageSearchNavigation';
 import { createCachedDiffCalculator, type DiffCalculator } from '../utils/messageTransforms';
 
 import { normalizedToChatMessages } from './useChatMessages';
@@ -145,8 +151,9 @@ export function useChatSessionState({
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const wasNearTopRef = useRef(false);
-  const [searchTarget, setSearchTarget] = useState<{ timestamp?: string; uuid?: string; snippet?: string } | null>(null);
+  const [searchTarget, setSearchTarget] = useState<MessageSearchTarget | null>(null);
   const searchScrollActiveRef = useRef(false);
+  const searchHistoryLoadRef = useRef<{ sessionId: string; promise: Promise<unknown> } | null>(null);
   const isLoadingSessionRef = useRef(false);
   const isLoadingMoreRef = useRef(false);
   const allMessagesLoadedRef = useRef(false);
@@ -751,89 +758,112 @@ export function useChatSessionState({
 
   // Scroll to search target
   useEffect(() => {
-    if (!isActive || !searchTarget || chatMessages.length === 0 || isLoadingSessionMessages) return;
+    if (
+      !isActive
+      || !searchTarget
+      || isLoadingSessionMessages
+      || !selectedSession
+      || !selectedProject
+    ) {
+      return;
+    }
 
-    const target = searchTarget;
-    setSearchTarget(null);
-
-    const scrollToTarget = async () => {
-      if (!allMessagesLoadedRef.current && selectedSession && selectedProject) {
-          try {
-            // Load all messages into the store for search navigation
-            const slot = await sessionStore.fetchFromServer(selectedSession.id, {
-              limit: null,
-              offset: 0,
-              canRequest: () => (
-                isActiveRef.current
-                && activeSessionIdRef.current === selectedSession.id
-              ),
-            });
-            if (slot) {
-              setHasMoreMessages(false);
-              setTotalMessages(slot.total);
-              messagesOffsetRef.current = slot.offset;
-              setVisibleMessageCount(Infinity);
-              setAllMessagesLoaded(true);
-              allMessagesLoadedRef.current = true;
-              await new Promise(resolve => setTimeout(resolve, 300));
-            } else if (!isActiveRef.current) {
-              setSearchTarget(target);
-              return;
-            }
-          } catch {
-            // Fall through and scroll in current messages
-          }
+    const resolution = resolveMessageSearchTarget(chatMessages, searchTarget);
+    if (resolution.message) {
+      const messageIndex = chatMessages.indexOf(resolution.message);
+      const visibleStart = Math.max(0, chatMessages.length - visibleMessageCount);
+      if (messageIndex < visibleStart) {
+        setVisibleMessageCount(Infinity);
       }
-      setVisibleMessageCount(Infinity);
+      return;
+    }
 
-      const findAndScroll = (retriesLeft: number) => {
-        const container = scrollContainerRef.current;
-        if (!container) return;
+    if (allMessagesLoadedRef.current) {
+      searchScrollActiveRef.current = false;
+      setSearchTarget(null);
+      return;
+    }
 
-        let targetElement: Element | null = null;
+    const requestSessionId = selectedSession.id;
+    if (searchHistoryLoadRef.current?.sessionId === requestSessionId) {
+      return;
+    }
 
-        if (target.snippet) {
-          const cleanSnippet = target.snippet.replace(/^\.{3}/, '').replace(/\.{3}$/, '').trim();
-          const searchPhrase = cleanSnippet.slice(0, 80).toLowerCase().trim();
-          if (searchPhrase.length >= 10) {
-            const messageElements = container.querySelectorAll('.chat-message');
-            for (const el of messageElements) {
-              const text = (el.textContent || '').toLowerCase();
-              if (text.includes(searchPhrase)) { targetElement = el; break; }
-            }
+    const promise = sessionStore.fetchFromServer(requestSessionId, {
+      limit: null,
+      offset: 0,
+      canRequest: () => (
+        isActiveRef.current
+        && activeSessionIdRef.current === requestSessionId
+      ),
+    });
+    searchHistoryLoadRef.current = { sessionId: requestSessionId, promise };
+
+    void promise
+      .then((slot) => {
+        const historyLoadFailed = slot?.status === 'error';
+        if (!canApplyMessageSearchHistoryLoad(
+          slot,
+          requestSessionId,
+          activeSessionIdRef.current,
+        )) {
+          if (historyLoadFailed && activeSessionIdRef.current === requestSessionId) {
+            searchScrollActiveRef.current = false;
+            setSearchTarget(null);
           }
+          return;
         }
-
-        if (!targetElement && target.timestamp) {
-          const targetDate = new Date(target.timestamp).getTime();
-          const messageElements = container.querySelectorAll('[data-message-timestamp]');
-          let closestDiff = Infinity;
-          for (const el of messageElements) {
-            const ts = el.getAttribute('data-message-timestamp');
-            if (!ts) continue;
-            const diff = Math.abs(new Date(ts).getTime() - targetDate);
-            if (diff < closestDiff) { closestDiff = diff; targetElement = el; }
-          }
+        setHasMoreMessages(false);
+        setTotalMessages(slot.total);
+        messagesOffsetRef.current = slot.offset;
+        setVisibleMessageCount(Infinity);
+        setAllMessagesLoaded(true);
+        allMessagesLoadedRef.current = true;
+      })
+      .catch(() => {
+        searchScrollActiveRef.current = false;
+        setSearchTarget(null);
+      })
+      .finally(() => {
+        if (searchHistoryLoadRef.current?.promise === promise) {
+          searchHistoryLoadRef.current = null;
         }
+      });
+  }, [
+    chatMessages,
+    isActive,
+    isLoadingSessionMessages,
+    searchTarget,
+    selectedProject,
+    selectedSession,
+    sessionStore,
+    visibleMessageCount,
+  ]);
 
-        if (targetElement) {
-          targetElement.scrollIntoView({ block: 'center', behavior: 'smooth' });
-          targetElement.classList.add('search-highlight-flash');
-          setTimeout(() => targetElement?.classList.remove('search-highlight-flash'), 4000);
-          searchScrollActiveRef.current = false;
-        } else if (retriesLeft > 0) {
-          setTimeout(() => findAndScroll(retriesLeft - 1), 200);
-        } else {
-          searchScrollActiveRef.current = false;
-        }
-      };
+  useLayoutEffect(() => {
+    if (!isActive || !searchTarget) return;
 
-      setTimeout(() => findAndScroll(15), 150);
-    };
+    const resolution = resolveMessageSearchTarget(chatMessages, searchTarget);
+    const targetId = resolution.message?.id;
+    const container = scrollContainerRef.current;
+    if (!targetId || !container) return;
 
-    scrollToTarget();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatMessages.length, isActive, isLoadingSessionMessages, searchTarget]);
+    const targetElement = Array.from(
+      container.querySelectorAll<HTMLElement>('[data-message-id]'),
+    ).find((element) => element.dataset.messageId === targetId);
+    if (!targetElement) return;
+
+    targetElement.classList.add('search-highlight-flash');
+    return keepMessageSearchTargetCentered({
+      container,
+      target: targetElement,
+      onSettled: () => {
+        setTimeout(() => targetElement.classList.remove('search-highlight-flash'), 4000);
+        searchScrollActiveRef.current = false;
+        setSearchTarget((current) => current === searchTarget ? null : current);
+      },
+    });
+  }, [chatMessages, isActive, searchTarget, visibleMessageCount]);
 
   // Initial token usage fetch for providers with file-backed usage data.
   useEffect(() => {

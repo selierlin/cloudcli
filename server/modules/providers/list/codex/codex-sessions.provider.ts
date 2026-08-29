@@ -1036,24 +1036,29 @@ export class CodexSessionsProvider implements IProviderSessions {
         toolResultMap.set(msg.toolId, msg);
       }
     }
+    const pairedToolResultIds = new Set<string>();
     for (const msg of normalized) {
       if (msg.kind === 'tool_use' && msg.toolId && toolResultMap.has(msg.toolId)) {
         const toolResult = toolResultMap.get(msg.toolId);
         if (toolResult) {
           msg.toolResult = { content: toolResult.content, isError: toolResult.isError };
+          pairedToolResultIds.add(msg.toolId);
         }
       }
     }
 
-    let total = 0;
-    for (const msg of normalized) {
-      if (msg.kind !== 'tool_result') {
-        total += 1;
-      }
-    }
+    // Live events keep standalone outputs for lifecycle updates. Completed
+    // history has already attached those outputs to tool_use, so remove only
+    // successfully paired duplicates before calculating pagination.
+    const historyMessages = normalized.filter((message) => (
+      message.kind !== 'tool_result'
+      || !message.toolId
+      || !pairedToolResultIds.has(message.toolId)
+    ));
+    const total = historyMessages.length;
     const normalizedOffset = Math.max(0, offset);
     const normalizedLimit = limit === null ? null : Math.max(0, limit);
-    const { page, hasMore } = sliceTailPage(normalized, normalizedLimit, normalizedOffset);
+    const { page, hasMore } = sliceTailPage(historyMessages, normalizedLimit, normalizedOffset);
 
     return {
       messages: page,

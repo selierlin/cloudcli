@@ -406,12 +406,12 @@ test('Codex history links SubAgentActivity items to spawned sub-agents in Codex 
       const taskUses = history.messages.filter((message) => message.kind === 'tool_use' && message.toolName === 'Task');
       const results = history.messages.filter((message) => message.kind === 'tool_result');
 
-      // Exactly one spawned Task and one linked result, sharing the spawn call id.
+      // Persisted history embeds the completed result on the Task tool instead
+      // of returning a second standalone tool_result row.
       assert.equal(taskUses.length, 1);
-      assert.equal(results.length, 1);
+      assert.equal(results.length, 0);
       assert.equal(taskUses[0]?.toolId, callId);
-      assert.equal(results[0]?.toolId, callId);
-      assert.equal(results[0]?.content, '审查完成，未发现问题');
+      assert.equal(taskUses[0]?.toolResult?.content, '审查完成，未发现问题');
     });
   } finally {
     restoreHomeDir();
@@ -478,17 +478,17 @@ test('Codex history preserves wrapped exec tool calls and results', { concurrenc
       const toolUses = history.messages.filter((message) => message.kind === 'tool_use');
       const toolResults = history.messages.filter((message) => message.kind === 'tool_result');
       const toolUsesById = new Map(toolUses.map((message) => [message.toolId, message]));
-      const toolResultsById = new Map(toolResults.map((message) => [message.toolId, message]));
 
       assert.equal(toolUses.length, wrappedCalls.length);
-      assert.equal(toolResults.length, wrappedCalls.length);
+      assert.equal(toolResults.length, 0);
+      assert.equal(history.total, wrappedCalls.length);
+      assert.equal(history.messages.length, wrappedCalls.length);
       for (const call of wrappedCalls) {
         const toolUse = toolUsesById.get(call.callId);
         assert.ok(toolUse);
         assert.equal(toolUse.toolName, call.expectedToolName || 'exec');
         assert.equal(toolUse.toolInput, call.expectedToolInput || call.input);
         assert.equal(toolUse.toolResult?.content, `result:${call.callId}`);
-        assert.equal(toolResultsById.get(call.callId)?.content, `result:${call.callId}`);
       }
     });
   } finally {
