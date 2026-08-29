@@ -25,6 +25,7 @@ export interface ChatImage extends ChatAttachment {
 export interface ToolResult {
   content?: unknown;
   isError?: boolean;
+  status?: string;
   timestamp?: string | number | Date;
   toolUseResult?: unknown;
   [key: string]: unknown;
@@ -54,6 +55,7 @@ export interface ChatMessage {
   toolInput?: unknown;
   toolResult?: ToolResult | null;
   toolId?: string;
+  toolStatus?: 'running' | 'completed' | 'error' | 'denied' | 'stopped';
   toolCallId?: string;
   commandName?: string;
   commandMessage?: string;

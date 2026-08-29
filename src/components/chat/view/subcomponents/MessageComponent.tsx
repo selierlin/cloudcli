@@ -225,6 +225,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
                     toolInput={message.toolInput}
                     toolResult={message.toolResult}
                     toolId={message.toolId}
+                    toolStatus={message.toolStatus}
                     mode="input"
                     onFileOpen={onFileOpen}
                     createDiff={createDiff}
@@ -443,4 +444,3 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
 });
 
 export default MessageComponent;
-

@@ -20,6 +20,7 @@ interface ToolRendererProps {
   toolInput: any;
   toolResult?: any;
   toolId?: string;
+  toolStatus?: ToolStatus;
   mode: 'input' | 'result';
   onFileOpen?: (filePath: string, diffInfo?: any) => void;
   createDiff?: (oldStr: string, newStr: string) => DiffLine[];
@@ -38,7 +39,7 @@ function getToolCategory(toolName: string): string {
   if (['Edit', 'Write', 'ApplyPatch'].includes(toolName)) return 'edit';
   if (['Grep', 'Glob'].includes(toolName)) return 'search';
   if (toolName === 'Bash') return 'bash';
-  if (['TodoWrite', 'TodoRead'].includes(toolName)) return 'todo';
+  if (['TodoWrite', 'TodoRead', 'TodoList'].includes(toolName)) return 'todo';
   if (['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet'].includes(toolName)) return 'task';
   if (toolName === 'Task') return 'agent';
   if (toolName === 'exit_plan_mode' || toolName === 'ExitPlanMode') return 'plan';
@@ -75,6 +76,7 @@ export const ToolRenderer: React.FC<ToolRendererProps> = memo(({
   toolInput,
   toolResult,
   toolId,
+  toolStatus,
   mode,
   onFileOpen,
   createDiff,
@@ -97,9 +99,11 @@ export const ToolRenderer: React.FC<ToolRendererProps> = memo(({
   }, [mode, toolInput, toolResult]);
 
   // Only derive and show status badge on input renders
-  const toolStatus = useMemo(
-    () => mode === 'input' ? deriveToolStatus(toolResult) : undefined,
-    [mode, toolResult],
+  const resolvedToolStatus = useMemo(
+    () => mode === 'input'
+      ? toolStatus || (toolName !== 'TodoList' ? deriveToolStatus(toolResult) : undefined)
+      : undefined,
+    [mode, toolName, toolResult, toolStatus],
   );
 
   const handleAction = useCallback(() => {
@@ -148,7 +152,7 @@ export const ToolRenderer: React.FC<ToolRendererProps> = memo(({
         description={description}
         output={output}
         isError={Boolean(toolResult?.isError)}
-        status={toolStatus !== 'completed' ? toolStatus : undefined}
+        status={resolvedToolStatus !== 'completed' ? resolvedToolStatus : undefined}
         // Commands stay collapsed by default — including failures; the status
         // badge marks errors and the output expands via the chevron.
         defaultOpen={false}
@@ -175,7 +179,7 @@ export const ToolRenderer: React.FC<ToolRendererProps> = memo(({
         wrapText={displayConfig.wrapText}
         colorScheme={displayConfig.colorScheme}
         resultId={mode === 'input' ? `tool-result-${toolId}` : undefined}
-        status={toolStatus !== 'completed' ? toolStatus : undefined}
+        status={resolvedToolStatus !== 'completed' ? resolvedToolStatus : undefined}
       />
     );
   }
@@ -305,7 +309,9 @@ export const ToolRenderer: React.FC<ToolRendererProps> = memo(({
         })
       : undefined;
 
-    const badgeElement = toolStatus && toolStatus !== 'completed' ? <ToolStatusBadge status={toolStatus} /> : undefined;
+    const badgeElement = resolvedToolStatus && resolvedToolStatus !== 'completed'
+      ? <ToolStatusBadge status={resolvedToolStatus} />
+      : undefined;
 
     return (
       <CollapsibleDisplay
