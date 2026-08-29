@@ -47,6 +47,14 @@ const flattenFileTree = (files: ProjectFileNode[], basePath = ''): MentionableFi
   return flattened;
 };
 
+/**
+ * Whether a mention candidate lives under a hidden top-level entry (one whose
+ * name starts with `.`, e.g. `.claude`, `.agents`). Hidden entries sort last so
+ * they cannot crowd out real source files from the @ dropdown's first results.
+ */
+const isHiddenMentionPath = (file: MentionableFile): boolean =>
+  file.path.split('/')[0].startsWith('.');
+
 export function useFileMentions({ selectedProject, input, setInput, textareaRef }: UseFileMentionsOptions) {
   const [fileList, setFileList] = useState<MentionableFile[]>([]);
   const [fileMentions, setFileMentions] = useState<string[]>([]);
@@ -79,7 +87,13 @@ export function useFileMentions({ selectedProject, input, setInput, textareaRef 
         }
 
         const files = (await response.json()) as ProjectFileNode[];
-        setFileList(flattenFileTree(files));
+        const flattenedFiles = flattenFileTree(files);
+        // Hidden top-level paths (e.g. .claude, .agents) sort last so they do
+        // not monopolize the @ dropdown's first ten entries.
+        flattenedFiles.sort((left, right) =>
+          Number(isHiddenMentionPath(left)) - Number(isHiddenMentionPath(right)),
+        );
+        setFileList(flattenedFiles);
       } catch (error) {
         // Ignore aborts from rapid project switches; we only care about the latest request.
         if ((error as { name?: string })?.name === 'AbortError') {
