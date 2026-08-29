@@ -1,0 +1,3 @@
+interface:
+  display_name: "Provider 适配验证"
+  short_description: "验证 Provider 事件适配与工具任务展示"

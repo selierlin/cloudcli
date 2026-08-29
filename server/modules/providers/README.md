@@ -45,6 +45,8 @@ Current provider ids in this repo are:
 - `codex`
 - `cursor`
 - `opencode`
+- `dsh`
+- `workbuddy`
 
 Those ids are mirrored in backend unions and frontend provider constants. If
 adding a new provider, update every place that hardcodes this list.
@@ -56,7 +58,7 @@ Each provider lives under its own folder in `server/modules/providers/list/`:
 ```text
 server/modules/providers/list/<provider>/
   <provider>.provider.ts
-  <provider>-runtime.provider.js
+  <provider>-runtime.provider.ts/js
   <provider>-auth.provider.ts
   <provider>-models.provider.ts
   <provider>-mcp.provider.ts
@@ -65,7 +67,7 @@ server/modules/providers/list/<provider>/
   <provider>-session-synchronizer.provider.ts
 ```
 
-The existing provider folders are `claude`, `codex`, `cursor`, and `opencode`.
+The existing provider folders are `claude`, `codex`, `cursor`, `opencode`, `dsh`, and `workbuddy`.
 
 Each provider wrapper owns its SDK/CLI runtime alongside its auth, model, and
 session facets. Runtime adapters receive registry-backed model and session
@@ -110,7 +112,7 @@ import the service from `server/modules/providers/index.ts`.
 2. Create the wrapper class.
 
 - Add `server/modules/providers/list/<provider>/<provider>.provider.ts`.
-- Add `server/modules/providers/list/<provider>/<provider>-runtime.provider.js`
+- Add `server/modules/providers/list/<provider>/<provider>-runtime.provider.ts/js`
   when the provider supports live SDK/CLI execution.
 - Extend `AbstractProvider`.
 - Expose readonly `auth`, `mcp`, `skills`, `sessions`, and `sessionSynchronizer`.
@@ -143,6 +145,15 @@ Current MCP formats in this repo are:
 | Codex | `.codex/config.toml` | `user`, `project` | `stdio`, `http` |
 | Cursor | `.cursor/mcp.json` | `user`, `project` | `stdio`, `http` |
 | OpenCode | `~/.config/opencode/opencode.json` or `<workspace>/opencode.json` (`.jsonc` is read when present) | `user`, `project` | `stdio`, `http` |
+| DSH | Harness-managed MCP configuration | `user`, `project` | `stdio`, `http`, `sse` |
+| WorkBuddy | `~/.codebuddy.json` / `~/.workbuddy/.mcp.json` and `<workspace>/.mcp.json` | `user`, `local`, `project` | `stdio`, `http`, `sse` |
+
+WorkBuddy authentication is owned by the WorkBuddy desktop app. CloudCLI only
+checks that the configured `codebuddy` executable (PATH, `CODEBUDDY_COMMAND`,
+or the embedded WorkBuddy app CLI) is available; it must not present a fake
+CloudCLI login flow. `CODEBUDDY_CONFIG_DIR` and `WORKBUDDY_CONFIG_DIR` relocate
+the provider state, while `WORKBUDDY_RUN_TIMEOUT_MS` controls the live-run
+timeout (one hour by default).
 
 5. Implement skills.
 
@@ -163,6 +174,8 @@ Current skill discovery roots are:
 | Codex | `~/.agents/skills`, `~/.codex/skills/.system`, `/etc/codex/skills` | `<workspace>/.agents/skills`, `path.dirname(workspacePath)/.agents/skills`, topmost git root `.agents/skills` | `$` | Overlapping roots are deduplicated before scanning. |
 | Cursor | `~/.cursor/skills` | `<workspace>/.cursor/skills`, `<workspace>/.agents/skills` | `/` | Uses slash-style commands. |
 | OpenCode | `~/.config/opencode/skills`, `~/.claude/skills`, `~/.agents/skills` | Cwd-to-topmost-git-root `.opencode/skills`, `.claude/skills`, and `.agents/skills` | `/` | Reuses OpenCode, Claude, and Agents skill locations. Overlapping roots are deduplicated before scanning. |
+| DSH | Harness-managed skills | Harness-managed project roots | `/` | The adapter exposes only roots supported by the DSH bridge. |
+| WorkBuddy | `~/.workbuddy/skills` (or the configured WorkBuddy state directory) | None | `/` | WorkBuddy currently loads user skills only; the adapter does not invent project-level discovery. |
 
 Command forms currently used by the providers are:
 
@@ -208,6 +221,8 @@ Current session sync roots are:
 | Codex | `~/.codex/sessions/**/*.jsonl` | Uses `~/.codex/session_index.jsonl` for title lookup and the last `task_complete` message for a fallback title. |
 | Cursor | `~/.cursor/projects/**/*.jsonl` | Uses sibling `worker.log` to recover `workspacePath`, then derives the session title from the first user prompt. |
 | OpenCode | `~/.local/share/opencode/opencode.db` | Reads active sessions/messages/parts from OpenCode's shared SQLite database and stores `jsonl_path` as `null` so deleting one app session cannot remove the shared DB. |
+| DSH | Provider-owned session storage | The adapter is only required to implement synchronization when the bridge exposes durable session artifacts. |
+| WorkBuddy | `~/.codebuddy/projects/**/*.jsonl` and `~/.workbuddy/projects/**/*.jsonl` | The first process scan backfills both roots; later scans honor the orchestration cursor. `ai-title`, user prompts, Task events, and `rawResponse.todos` are normalized without indexing `subagents` or transient desktop workspaces. |
 
 8. Register the provider.
 
@@ -219,7 +234,7 @@ Current session sync roots are:
 
 If the provider can run live chat sessions, update the runtime entrypoints too:
 
-- `server/modules/providers/list/<provider>/<provider>-runtime.provider.js`
+- `server/modules/providers/list/<provider>/<provider>-runtime.provider.ts/js`
 - `server/modules/providers/list/<provider>/<provider>.provider.ts`
 - `server/modules/agent/agent.routes.ts`
 - `server/index.ts`
@@ -320,7 +335,7 @@ Add a new provider "<provider>" using the current provider module architecture.
 Requirements:
 1) Create:
     - server/modules/providers/list/<provider>/<provider>.provider.ts
-    - server/modules/providers/list/<provider>/<provider>-runtime.provider.js
+    - server/modules/providers/list/<provider>/<provider>-runtime.provider.ts/js
    - server/modules/providers/list/<provider>/<provider>-auth.provider.ts
    - server/modules/providers/list/<provider>/<provider>-models.provider.ts
    - server/modules/providers/list/<provider>/<provider>-mcp.provider.ts
@@ -376,5 +391,3 @@ alongside the implementation.
 - Forgetting that Claude plugin skills are discovered differently from normal
   user/project skill folders.
 - Assuming one provider's MCP config file format works for the others.
-
-

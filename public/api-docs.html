@@ -523,7 +523,7 @@
                                         <td><code>provider</code></td>
                                         <td>string</td>
                                         <td><span class="badge badge-optional">Optional</span></td>
-                                        <td><code>claude</code>, <code>cursor</code>, <code>codex</code>, or <code>opencode</code> (default: <code>claude</code>)</td>
+                                        <td><code>claude</code>, <code>cursor</code>, <code>codex</code>, <code>opencode</code>, <code>dsh</code>, or <code>workbuddy</code> (default: <code>claude</code>)</td>
                                     </tr>
                                     <tr>
                                         <td><code>stream</code></td>
@@ -543,7 +543,7 @@
                                         <td><code>effort</code></td>
                                         <td>string</td>
                                         <td><span class="badge badge-optional">Optional</span></td>
-                                        <td>Reasoning effort for Claude, Codex, and OpenCode models that expose effort metadata. Use <code>default</code> or omit it to let the provider decide.</td>
+                                        <td>Reasoning effort for Claude, Codex, OpenCode, and WorkBuddy models that expose effort metadata. Use <code>default</code> or omit it to let the provider decide.</td>
                                     </tr>
                                     <tr>
                                         <td><code>cleanup</code></td>
@@ -838,6 +838,8 @@ data: {"type":"done"}</code></pre>
             { id: 'codex',    name: 'OpenAI' },
             { id: 'cursor',   name: 'Cursor' },
             { id: 'opencode', name: 'OpenCode' },
+            { id: 'dsh',      name: 'DeepSeek Harness' },
+            { id: 'workbuddy', name: 'WorkBuddy' },
         ];
 
         async function populateModels() {
