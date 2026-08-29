@@ -1,6 +1,4 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import os from 'node:os';
-import path from 'node:path';
 
 import { notifyRunFailed, notifyRunStopped } from '@/modules/notifications/index.js';
 import { buildWorkbuddyStreamJsonInput } from '@/shared/image-attachments.js';
@@ -9,6 +7,7 @@ import type { AnyRecord } from '@/shared/types.js';
 import { createCompleteMessage, createNormalizedMessage } from '@/shared/utils.js';
 
 import { getWorkbuddyCommand } from './workbuddy-auth.provider.js';
+import { resolveWorkbuddyConfigDir } from './workbuddy-storage.provider.js';
 
 /**
  * Maps the app permission mode onto CodeBuddy's `--permission-mode` choices.
@@ -28,6 +27,44 @@ const activeProcesses = new Map<string, ChildProcess>();
 // The `close` handler consumes the flag so the terminal event reports the run
 // as aborted instead of a failed exit code.
 const abortedSessionIds = new Set<string>();
+const DEFAULT_WORKBUDDY_RUN_TIMEOUT_MS = 60 * 60 * 1000;
+
+function resolveWorkbuddyRunTimeoutMs(): number {
+  const configured = Number(process.env.WORKBUDDY_RUN_TIMEOUT_MS);
+  return Number.isFinite(configured) && configured > 0
+    ? configured
+    : DEFAULT_WORKBUDDY_RUN_TIMEOUT_MS;
+}
+
+function redactDiagnosticText(value: string): string {
+  return value
+    .replace(/(authorization\s*[:=]\s*Bearer\s+)[^\s,;}]+/gi, '$1[REDACTED]')
+    .replace(
+      /((?:authorization|cookie|x-api-key|api[-_ ]?key|access[-_ ]?token|refresh[-_ ]?token|secret|password)\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;}]+)/gi,
+      '$1[REDACTED]',
+    )
+    .slice(0, 2000);
+}
+
+/**
+ * Validates an optional reasoning effort against the selected WorkBuddy model.
+ * The runtime and composer both use the model catalog, so unsupported values
+ * are omitted instead of being forwarded as a provider-specific no-op.
+ */
+async function resolveWorkbuddyEffort(
+  requestedEffort: unknown,
+  model: string | undefined,
+  context: Parameters<IProviderRuntime['run']>[3],
+): Promise<string | undefined> {
+  if (typeof requestedEffort !== 'string' || requestedEffort === 'default' || !model) {
+    return undefined;
+  }
+
+  const models = await context.getProviderModels();
+  const allowedEfforts = models.OPTIONS.find((option) => option.value === model)?.effort?.values
+    .map((entry) => entry.value) ?? [];
+  return allowedEfforts.includes(requestedEffort) ? requestedEffort : undefined;
+}
 
 /**
  * Provider registry runtime adapter driving the WorkBuddy CLI in print mode
@@ -41,38 +78,57 @@ export const workbuddyRuntime: IProviderRuntime = {
       writer.send(createCompleteMessage({ provider: 'workbuddy', sessionId: null, exitCode: 1 }));
       return;
     }
-    // Prefer the model recorded on the session row when resuming; fall back to
-    // the model selected in the composer for new sessions.
-    const resolvedModel = await context.resolveResumeModel(appSessionId, options.model);
+    let resolvedModel: string | undefined;
+    let resolvedEffort: string | undefined;
+    let workingDir: string;
+    let providerSessionId: string | null;
+    let streamInput: string;
+    let configDir: string;
+    try {
+      // Prefer the model recorded on the session row when resuming; fall back to
+      // the model selected in the composer for new sessions.
+      resolvedModel = await context.resolveResumeModel(appSessionId, options.model);
+      resolvedEffort = await resolveWorkbuddyEffort(options.effort, resolvedModel, context);
+      workingDir = typeof options.cwd === 'string' && options.cwd
+        ? options.cwd
+        : typeof options.projectPath === 'string' && options.projectPath
+          ? options.projectPath
+          : process.cwd();
+      providerSessionId = context.resolveProviderSessionId(appSessionId);
 
-    const workingDir = typeof options.cwd === 'string' && options.cwd
-      ? options.cwd
-      : typeof options.projectPath === 'string' && options.projectPath
-        ? options.projectPath
-        : process.cwd();
-
-    const providerSessionId = context.resolveProviderSessionId(appSessionId);
-
-    // Attachments travel as a stream-json user message on stdin — the only
-    // input path that can carry image/document content blocks to the engine.
-    // Without attachments the proven plain-text `-p` prompt is kept unchanged.
-    const hasAttachments = Array.isArray(options.attachments) && options.attachments.length > 0;
-    const streamInput = hasAttachments
-      ? await buildWorkbuddyStreamJsonInput(command, options.attachments, workingDir)
-      : null;
+      // Always use the stream-json input protocol. Besides carrying image and
+      // document blocks, it keeps stdin available for the official interrupt
+      // control request while a task or workflow is still running.
+      streamInput = await buildWorkbuddyStreamJsonInput(command, options.attachments, workingDir);
+      configDir = resolveWorkbuddyConfigDir(context.resolveProviderConfigDir(appSessionId));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      writer.send(createNormalizedMessage({
+        kind: 'error',
+        provider: 'workbuddy',
+        sessionId: appSessionId,
+        content: message,
+      }));
+      writer.send(createCompleteMessage({ provider: 'workbuddy', sessionId: appSessionId, exitCode: 1 }));
+      return;
+    }
 
     return new Promise<void>((resolveRun) => {
-    // A stale flag from a superseded run must not mark this run aborted.
-    abortedSessionIds.delete(appSessionId);
+      if (activeProcesses.has(appSessionId)) {
+      writer.send(createNormalizedMessage({
+        kind: 'error',
+        provider: 'workbuddy',
+        sessionId: appSessionId,
+        content: 'This WorkBuddy session already has a running task.',
+      }));
+      writer.send(createCompleteMessage({ provider: 'workbuddy', sessionId: appSessionId, exitCode: 1 }));
+      resolveRun();
+        return;
+      }
+      // A stale flag from a superseded run must not mark this run aborted.
+      abortedSessionIds.delete(appSessionId);
 
-    const args: string[] = ['-p'];
-    if (streamInput !== null) {
-      // Stream-json input carries the prompt and attachments on stdin; there
-      // is no positional prompt argument.
-      args.push('--output-format', 'stream-json', '--input-format', 'stream-json');
-    } else {
-      args.push(command, '--output-format', 'stream-json');
-    }
+    const args: string[] = ['-p', '--output-format', 'stream-json', '--input-format', 'stream-json'];
     if (providerSessionId) {
       args.push('--resume', providerSessionId);
     }
@@ -85,6 +141,9 @@ export const workbuddyRuntime: IProviderRuntime = {
     if (resolvedModel) {
       args.push('--model', resolvedModel);
     }
+    if (resolvedEffort) {
+      args.push('--effort', resolvedEffort);
+    }
 
     // The embedded engine defaults its config root to ~/.codebuddy, but the
     // WorkBuddy desktop app runs it against ~/.workbuddy — where the user's
@@ -92,8 +151,6 @@ export const workbuddyRuntime: IProviderRuntime = {
     // recorded on the session row (so --resume finds the same transcript);
     // brand-new sessions fall back to ~/.workbuddy so the engine reads the
     // same skills/plugins as the desktop app.
-    const configDir = context.resolveProviderConfigDir(appSessionId)
-      ?? path.join(os.homedir(), '.workbuddy');
     const env: NodeJS.ProcessEnv = { ...process.env };
     env.CODEBUDDY_CONFIG_DIR = configDir;
     env.WORKBUDDY_CONFIG_DIR = configDir;
@@ -103,13 +160,6 @@ export const workbuddyRuntime: IProviderRuntime = {
       stdio: ['pipe', 'pipe', 'pipe'],
       env,
     });
-    // Print mode is non-interactive: write the stream-json user message (when
-    // present) then close stdin so the engine does not wait for input before
-    // executing the prompt.
-    if (streamInput !== null) {
-      child.stdin.write(streamInput + '\n');
-    }
-    child.stdin.end();
     activeProcesses.set(appSessionId, child);
 
     const sessionName = typeof options.sessionSummary === 'string'
@@ -121,12 +171,23 @@ export const workbuddyRuntime: IProviderRuntime = {
     let capturedSessionId: string | null = null;
     let sessionCreatedSent = false;
     let completeSent = false;
+    let pendingFinish: { exitCode: number; aborted?: boolean; error?: string } | null = null;
+    let timedOut = false;
+    let terminationRequested = false;
+    let timeoutId: NodeJS.Timeout | undefined;
+    let forceKillTimer: NodeJS.Timeout | undefined;
 
     const finish = (payload: { exitCode: number; aborted?: boolean; error?: string }) => {
       if (completeSent) {
         return;
       }
       completeSent = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (forceKillTimer) {
+        clearTimeout(forceKillTimer);
+      }
       resolveRun();
       writer.send(createCompleteMessage({
         provider: 'workbuddy',
@@ -150,6 +211,82 @@ export const workbuddyRuntime: IProviderRuntime = {
       }
     };
 
+    const terminateChild = () => {
+      if (terminationRequested) {
+        return;
+      }
+      terminationRequested = true;
+      try {
+        child.kill('SIGTERM');
+      } catch {
+        // The process may have exited between a terminal stream event and the signal.
+      }
+      forceKillTimer = setTimeout(() => {
+        if (!completeSent) {
+          try {
+            child.kill('SIGKILL');
+          } catch {
+            // Already gone.
+          }
+        }
+      }, 3000);
+      forceKillTimer.unref();
+    };
+
+    const failAndTerminate = (error: string) => {
+      if (completeSent || terminationRequested) {
+        return;
+      }
+      pendingFinish = { exitCode: 1, error };
+      writer.send(createNormalizedMessage({
+        kind: 'error',
+        provider: 'workbuddy',
+        sessionId: appSessionId,
+        content: error,
+      }));
+      terminateChild();
+    };
+
+    // A CloudCLI chat send is one WorkBuddy CLI invocation, so EOF must follow
+    // its only stream-json input message. Otherwise the CLI can wait forever
+    // for another input and never emit its terminal `result` event. A CLI can
+    // still close that pipe before its process exits; without this listener
+    // Node treats the asynchronous EPIPE as an unhandled EventEmitter error.
+    child.stdin.on('error', (error) => {
+      if (completeSent) {
+        return;
+      }
+      console.error('[WorkBuddy] CLI stdin error', {
+        sessionId: appSessionId,
+        code: (error as NodeJS.ErrnoException).code,
+      });
+      if (abortedSessionIds.has(appSessionId)) {
+        terminateChild();
+        return;
+      }
+      failAndTerminate('WorkBuddy input channel closed unexpectedly.');
+    });
+    child.stdin.end(streamInput + '\n');
+
+    timeoutId = setTimeout(() => {
+      if (completeSent || terminationRequested) {
+        return;
+      }
+      timedOut = true;
+      const timeoutMs = resolveWorkbuddyRunTimeoutMs();
+      const error = `WorkBuddy run timed out after ${timeoutMs}ms`;
+      console.error('[WorkBuddy] CLI run timed out', {
+        sessionId: appSessionId,
+        timeoutMs,
+      });
+      // A terminal result is recorded before the process actually exits so
+      // trailing workflow notifications remain deliverable. If the CLI hangs
+      // after that result, the run timeout must still replace the pending
+      // outcome and reap the process.
+      failAndTerminate(error);
+    }, resolveWorkbuddyRunTimeoutMs());
+    timeoutId.unref();
+
     const announceSession = () => {
       // Resumed sessions already carry a provider id; only brand-new sessions
       // announce their id for persistence.
@@ -169,10 +306,17 @@ export const workbuddyRuntime: IProviderRuntime = {
       if (!line.trim()) {
         return;
       }
+      if (pendingFinish?.exitCode === 1) {
+        return;
+      }
       let event: AnyRecord;
       try {
         event = JSON.parse(line) as AnyRecord;
       } catch {
+        console.warn('[WorkBuddy] Ignoring invalid stream-json line', {
+          sessionId: appSessionId,
+          lineLength: line.length,
+        });
         return;
       }
 
@@ -181,23 +325,25 @@ export const workbuddyRuntime: IProviderRuntime = {
         // arrives as a single error event with no assistant/result follow-up.
         // Surface it to the frontend instead of dropping it silently.
         const errorText = typeof event.error === 'string' && event.error.trim()
-          ? event.error
+          ? redactDiagnosticText(event.error)
           : typeof event.message === 'string' && event.message.trim()
-            ? event.message
+            ? redactDiagnosticText(event.message)
             : 'WorkBuddy 运行失败';
-        writer.send(createNormalizedMessage({
-          kind: 'error',
-          provider: 'workbuddy',
-          sessionId: appSessionId,
-          content: errorText,
-        }));
-        finish({ exitCode: 1, error: errorText });
+        failAndTerminate(errorText);
         return;
       }
 
       if (event.type === 'system' && event.subtype === 'init') {
         if (typeof event.session_id === 'string' && event.session_id) {
           capturedSessionId = event.session_id;
+          announceSession();
+        }
+        return;
+      }
+
+      if (event.type === 'system' && typeof event.subtype === 'string' && event.subtype.startsWith('task_')) {
+        for (const message of context.normalizeMessage(event, appSessionId)) {
+          writer.send(message);
         }
         return;
       }
@@ -217,22 +363,46 @@ export const workbuddyRuntime: IProviderRuntime = {
         return;
       }
 
+      if (event.type === 'function_call' || event.type === 'function_call_result') {
+        for (const message of context.normalizeMessage(event, appSessionId)) {
+          writer.send(message);
+        }
+        return;
+      }
+
+      if (event.type === 'control_response') {
+        return;
+      }
+
       if (event.type === 'result') {
+        if (timedOut) {
+          return;
+        }
         if (!capturedSessionId && typeof event.session_id === 'string' && event.session_id) {
           capturedSessionId = event.session_id;
         }
         announceSession();
         if (event.subtype === 'success' && !event.is_error) {
-          finish({ exitCode: 0 });
+          // Workflows can emit task_notification after the ordinary result.
+          // Keep the run open until the child closes so those final events are
+          // still sequenced and delivered to the websocket client.
+          pendingFinish = { exitCode: 0 };
         } else {
           const message = typeof event.result === 'string'
-            ? event.result
+            ? redactDiagnosticText(event.result)
             : event.error && typeof event.error === 'string'
-              ? event.error
+              ? redactDiagnosticText(event.error)
               : 'WorkBuddy task failed';
-          finish({ exitCode: 1, error: message });
+          pendingFinish = { exitCode: 1, error: message };
         }
+        return;
       }
+
+      console.warn('[WorkBuddy] Ignoring unsupported stream-json event', {
+        sessionId: appSessionId,
+        eventType: typeof event.type === 'string' ? event.type : 'missing',
+        subtype: typeof event.subtype === 'string' ? event.subtype : undefined,
+      });
     };
 
     child.stdout.setEncoding('utf8');
@@ -249,14 +419,22 @@ export const workbuddyRuntime: IProviderRuntime = {
     child.stderr.on('data', (chunk: Buffer | string) => {
       const text = chunk.toString().trim();
       if (text) {
-        console.error(`[WorkBuddy] ${text}`);
+        console.error('[WorkBuddy] CLI stderr', {
+          sessionId: appSessionId,
+          message: redactDiagnosticText(text),
+        });
       }
     });
     child.on('error', (error) => {
+      if (activeProcesses.get(appSessionId) === child) {
+        activeProcesses.delete(appSessionId);
+      }
       finish({ exitCode: 1, error: error.message });
     });
     child.on('close', (code) => {
-      activeProcesses.delete(appSessionId);
+      if (activeProcesses.get(appSessionId) === child) {
+        activeProcesses.delete(appSessionId);
+      }
       const wasAborted = abortedSessionIds.delete(appSessionId);
       // The engine may emit its final JSON event (usually `result`) without a
       // trailing newline, leaving it stranded in the split buffer. Flush it
@@ -268,9 +446,17 @@ export const workbuddyRuntime: IProviderRuntime = {
         processLine(remainingLine);
       }
       if (!completeSent) {
+        if (!wasAborted && code !== 0 && !pendingFinish) {
+          console.error('[WorkBuddy] CLI exited before a terminal result', {
+            sessionId: appSessionId,
+            exitCode: code ?? 'unknown',
+          });
+        }
         finish(wasAborted
           ? { exitCode: 0, aborted: true }
-          : { exitCode: code === 0 ? 0 : 1, error: code === 0 ? undefined : `WorkBuddy exited with code ${code ?? 'unknown'}` });
+          : timedOut
+            ? pendingFinish ?? { exitCode: 1, error: 'WorkBuddy run timed out' }
+            : pendingFinish ?? { exitCode: code === 0 ? 0 : 1, error: code === 0 ? undefined : `WorkBuddy exited with code ${code ?? 'unknown'}` });
       } else {
         resolveRun();
       }
@@ -285,7 +471,15 @@ export const workbuddyRuntime: IProviderRuntime = {
     }
     abortedSessionIds.add(sessionId);
     try {
-      child.kill('SIGTERM');
+      if (child.stdin && child.stdin.writable && !child.stdin.destroyed) {
+        child.stdin.write(`${JSON.stringify({
+          type: 'control_request',
+          request_id: `cloudcli-interrupt-${Date.now()}`,
+          request: { subtype: 'interrupt' },
+        })}\n`);
+      } else {
+        child.kill('SIGTERM');
+      }
     } catch {
       abortedSessionIds.delete(sessionId);
       return false;

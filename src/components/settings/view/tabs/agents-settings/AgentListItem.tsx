@@ -66,6 +66,10 @@ export default function AgentListItem({
 }: AgentListItemProps) {
   const config = agentConfig[agentId];
   const colors = colorClasses[config.color];
+  const isAvailable = authStatus.authenticated
+    || (authStatus.authVerified === false
+      && authStatus.installed === true
+      && authStatus.method === 'workbuddy_desktop');
 
   if (isMobile) {
     return (
@@ -81,7 +85,7 @@ export default function AgentListItem({
         <div className="flex items-center justify-center gap-1.5">
           <LLMProviderLogo provider={agentId} className="h-4 w-4 flex-shrink-0" />
           <span className="truncate text-xs font-medium">{config.name}</span>
-          {authStatus.authenticated && (
+          {isAvailable && (
             <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${colors.dot}`} />
           )}
         </div>
@@ -101,7 +105,7 @@ export default function AgentListItem({
     >
       <LLMProviderLogo provider={agentId} className="h-4 w-4 flex-shrink-0" />
       <span>{config.name}</span>
-      {authStatus.authenticated ? (
+      {isAvailable ? (
         <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${colors.dot}`} />
       ) : authStatus.loading ? (
         <span className="h-1.5 w-1.5 flex-shrink-0 animate-pulse rounded-full bg-muted-foreground/30" />

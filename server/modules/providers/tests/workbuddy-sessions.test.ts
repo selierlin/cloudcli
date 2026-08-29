@@ -173,3 +173,123 @@ test('fetchHistory returns empty history when no transcript exists', async () =>
     assert.deepEqual(result.messages, []);
   });
 });
+
+test('fetchHistory coalesces WorkBuddy task lifecycle snapshots', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const engineSessionId = 'wb-task-history';
+    const appSessionId = 'app-wb-task-history';
+    await writeTranscript(sessionsRoot, cwd, engineSessionId, [
+      {
+        type: 'system',
+        subtype: 'task_started',
+        task_id: 'task-history-1',
+        uuid: 'task-history-started',
+        timestamp: 1_700_000_000_000,
+        description: '历史任务开始',
+      },
+      {
+        type: 'system',
+        subtype: 'task_notification',
+        task_id: 'task-history-1',
+        uuid: 'task-history-finished',
+        timestamp: 1_700_000_100_000,
+        status: 'completed',
+        summary: '历史任务完成',
+      },
+    ]);
+
+    sessionsDb.createAppSession(appSessionId, 'workbuddy', cwd, 'Task history');
+    sessionsDb.assignProviderSessionId(appSessionId, engineSessionId);
+
+    const result = await new WorkbuddySessionsProvider().fetchHistory(appSessionId);
+    const taskMessages = result.messages.filter((message) => message.kind === 'task_notification');
+
+    assert.equal(taskMessages.length, 1);
+    assert.equal(taskMessages[0]?.status, 'completed');
+    assert.equal(taskMessages[0]?.summary, '历史任务完成');
+    assert.equal(taskMessages[0]?.timestamp, new Date(1_700_000_100_000).toISOString());
+  });
+});
+
+test('fetchHistory keeps a finite task-event page bounded to its requested tail', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const engineSessionId = 'wb-history-task-tail';
+    const appSessionId = 'app-wb-task-tail';
+    const events = Array.from({ length: 100 }, (_, index) => ({
+      type: 'system',
+      subtype: 'task_notification',
+      task_id: `task-tail-${index}`,
+      uuid: `task-tail-event-${index}`,
+      timestamp: 1_700_000_000_000 + index,
+      status: 'completed',
+      summary: `Task ${index}`,
+    }));
+    await writeTranscript(sessionsRoot, cwd, engineSessionId, events);
+
+    sessionsDb.createAppSession(appSessionId, 'workbuddy', cwd, 'Task tail');
+    sessionsDb.assignProviderSessionId(appSessionId, engineSessionId);
+
+    const result = await new WorkbuddySessionsProvider().fetchHistory(appSessionId, { limit: 2 });
+
+    assert.equal(result.total, 100);
+    assert.equal(result.messages.length, 2);
+    assert.deepEqual(result.messages.map((message) => message.summary), ['Task 98', 'Task 99']);
+  });
+});
+
+test('normalizeMessage converts WorkBuddy task metadata into a TodoList snapshot', () => {
+  const messages = new WorkbuddySessionsProvider().normalizeMessage({
+    type: 'user',
+    message: {
+      role: 'user',
+      content: [{
+        type: 'tool_result',
+        tool_use_id: 'call-task-create',
+        content: [{ type: 'text', text: 'Task #1 created successfully: 验证任务显示' }],
+        is_error: false,
+        _meta: {
+          rawResponse: {
+            task: {
+              id: '1',
+              subject: '验证任务显示',
+              status: 'pending',
+            },
+            todos: [{
+              id: '1',
+              content: '验证任务显示',
+              status: 'pending',
+            }],
+          },
+          renderer: { type: 'todo' },
+        },
+      }],
+    },
+  }, 'app-wb-task-meta');
+
+  assert.deepEqual(messages.map((message) => message.kind), ['tool_result', 'tool_use']);
+  assert.equal(messages[0]?.content, 'Task #1 created successfully: 验证任务显示');
+  assert.equal(messages[1]?.toolName, 'TodoList');
+  assert.equal(messages[1]?.id, 'workbuddy-todo-app-wb-task-meta');
+  assert.deepEqual(messages[1]?.toolInput, {
+    items: [{
+      id: '1',
+      content: '验证任务显示',
+      status: 'pending',
+    }],
+  });
+});
+
+test('normalizeMessage keeps cancelled tool results distinct from ordinary errors', () => {
+  const [message] = new WorkbuddySessionsProvider().normalizeMessage({
+    type: 'function_call_result',
+    id: 'function-result-cancelled',
+    callId: 'call-cancelled',
+    name: 'Bash',
+    status: 'cancelled',
+    output: { type: 'text', text: 'cancelled by user' },
+  }, 'app-wb-cancelled');
+
+  assert.equal(message?.kind, 'tool_result');
+  assert.equal(message?.isError, true);
+  assert.equal(message?.status, 'cancelled');
+});

@@ -4,6 +4,7 @@
     "account": "帳戶",
     "permissions": "權限",
     "mcpServers": "MCP 伺服器",
+    "skills": "技能",
     "appearance": "外觀"
   },
   "account": {
@@ -340,6 +341,12 @@
       }
     },
     "connectionStatus": "連線狀態",
+    "externalAuth": {
+      "title": "外部管理",
+      "description": "{{agent}} 的驗證由此應用程式之外管理。請在該代理的桌面應用程式或設定中登入。",
+      "managedByDesktop": "由 WorkBuddy Desktop 管理",
+      "available": "可用"
+    },
     "login": {
       "title": "登入",
       "reAuthenticate": "重新驗證",
@@ -348,7 +355,10 @@
       "button": "登入",
       "reLoginButton": "重新登入"
     },
-    "error": "錯誤：{{error}}"
+    "error": "錯誤：{{error}}",
+    "errors": {
+      "cursorCliNotFound": "找不到 Cursor CLI，或尚未安裝 Cursor CLI。"
+    }
   },
   "permissions": {
     "title": "權限設定",
@@ -416,7 +426,7 @@
       },
       "technicalDetails": "技術詳情",
       "technicalInfo": {
-        "default": "sandboxMode=workspace-write, approvalPolicy=untrusted。受信任的指令：cat、cd、grep、head、ls、pwd、tail、git status/log/diff/show、find（不帶 -exec）等。",
+        "default": "sandboxMode=workspace-write, approvalPolicy=on-request。受信任的指令：cat、cd、grep、head、ls、pwd、tail、git status/log/diff/show、find（不帶 -exec）等。",
         "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never。所有指令在專案目錄內自動執行。",
         "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never。完全系統存取權限，僅在可信環境中使用。",
         "overrideNote": "您可以使用聊天介面中的模式按鈕按工作階段覆蓋此設定。"

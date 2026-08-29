@@ -666,7 +666,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
    *                          - Source for auto-generated branch names (if createBranch=true and no branchName)
    *                          - Fallback for PR title if no commits are made
    *
-   * @param {string} provider - (Optional) AI provider to use. Options: 'claude' | 'cursor' | 'codex' | 'opencode'
+   * @param {string} provider - (Optional) AI provider to use. Options: 'claude' | 'cursor' | 'codex' | 'opencode' | 'dsh' | 'workbuddy'
    *                           Default: 'claude'
    *
    * @param {boolean} stream - (Optional) Enable Server-Sent Events (SSE) streaming for real-time updates.
@@ -789,7 +789,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
    * Input Validations (400 Bad Request):
    *   - Either githubUrl OR projectPath must be provided (not neither)
    *   - message must be non-empty string
-   *   - provider must be 'claude', 'cursor', 'codex', or 'opencode'
+   *   - provider must be 'claude', 'cursor', 'codex', 'opencode', 'dsh', or 'workbuddy'
    *   - createBranch/createPR requires githubUrl OR projectPath (not neither)
    *   - branchName must pass Git naming rules (if provided)
    *
@@ -1048,6 +1048,8 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
           projectPath: finalProjectPath,
           cwd: finalProjectPath,
           sessionId: sessionId || `api-${crypto.randomUUID()}`,
+          model: model || undefined,
+          effort,
           permissionMode: 'bypassPermissions'
         }, writer);
       }

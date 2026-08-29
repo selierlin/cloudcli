@@ -4,6 +4,7 @@
     "account": "Konto",
     "permissions": "Berechtigungen",
     "mcpServers": "MCP-Server",
+    "skills": "Skills",
     "appearance": "Darstellung"
   },
   "account": {
@@ -339,6 +340,12 @@
       }
     },
     "connectionStatus": "Verbindungsstatus",
+    "externalAuth": {
+      "title": "Extern verwaltet",
+      "description": "Die Authentifizierung von {{agent}} wird außerhalb dieser App verwaltet. Melde dich in der Desktop-App oder Konfiguration des Agents an.",
+      "managedByDesktop": "Von WorkBuddy Desktop verwaltet",
+      "available": "Verfügbar"
+    },
     "login": {
       "title": "Anmelden",
       "reAuthenticate": "Erneut authentifizieren",
@@ -347,7 +354,10 @@
       "button": "Anmelden",
       "reLoginButton": "Erneut anmelden"
     },
-    "error": "Fehler: {{error}}"
+    "error": "Fehler: {{error}}",
+    "errors": {
+      "cursorCliNotFound": "Cursor CLI ist nicht installiert oder wurde nicht gefunden."
+    }
   },
   "permissions": {
     "title": "Berechtigungseinstellungen",
@@ -415,7 +425,7 @@
       },
       "technicalDetails": "Technische Details",
       "technicalInfo": {
-        "default": "sandboxMode=workspace-write, approvalPolicy=untrusted. Vertrauenswürdige Befehle: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find (ohne -exec) usw.",
+        "default": "sandboxMode=workspace-write, approvalPolicy=on-request. Vertrauenswürdige Befehle: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find (ohne -exec) usw.",
         "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. Alle Befehle werden automatisch innerhalb des Projektverzeichnisses ausgeführt.",
         "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never. Vollständiger Systemzugriff, nur in vertrauenswürdigen Umgebungen verwenden.",
         "overrideNote": "Du kannst dies pro Sitzung über die Modusschaltfläche in der Chat-Oberfläche überschreiben."

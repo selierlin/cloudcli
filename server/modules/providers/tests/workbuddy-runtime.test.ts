@@ -3,12 +3,12 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import test, { beforeEach } from 'node:test';
+import test, { afterEach, beforeEach } from 'node:test';
 
 import { workbuddyRuntime, resetWorkbuddyRuntimeForTests } from '@/modules/providers/list/workbuddy/workbuddy-runtime.provider.js';
 import { WorkbuddySessionsProvider } from '@/modules/providers/list/workbuddy/workbuddy-sessions.provider.js';
 import { resetWorkbuddyCommandForTests } from '@/modules/providers/list/workbuddy/workbuddy-auth.provider.js';
-import type { ProviderRuntimeContext, ProviderRuntimeWriter } from '@/shared/types.js';
+import type { ProviderModelsDefinition, ProviderRuntimeContext, ProviderRuntimeWriter } from '@/shared/types.js';
 
 const MOCK_CLI = path.resolve(
   path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'wb-mock-cli.mjs'),
@@ -18,8 +18,22 @@ const MOCK_CLI = path.resolve(
 // (where the user's skills and plugins live) instead of the embedded CLI's
 // default ~/.codebuddy.
 const DEFAULT_CONFIG_DIR = path.join(os.homedir(), '.workbuddy');
+const ORIGINAL_PATH = process.env.PATH;
 
-type Captured = { kind: string; role?: string; content?: unknown; newSessionId?: string; exitCode?: number; aborted?: boolean };
+type Captured = {
+  kind: string;
+  id?: string;
+  role?: string;
+  content?: unknown;
+  toolName?: string;
+  toolId?: string;
+  newSessionId?: string;
+  exitCode?: number;
+  aborted?: boolean;
+  status?: string;
+  summary?: string;
+  taskId?: string;
+};
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -35,16 +49,30 @@ beforeEach(() => {
   resetWorkbuddyCommandForTests();
 });
 
+afterEach(() => {
+  resetWorkbuddyRuntimeForTests();
+  resetWorkbuddyCommandForTests();
+  delete process.env.CODEBUDDY_COMMAND;
+  delete process.env.MOCK_MODE;
+  delete process.env.CODEBUDDY_CONFIG_DIR;
+  delete process.env.WORKBUDDY_CONFIG_DIR;
+  delete process.env.WORKBUDDY_PROJECTS_ROOT;
+  delete process.env.WORKBUDDY_RUN_TIMEOUT_MS;
+  if (ORIGINAL_PATH === undefined) delete process.env.PATH;
+  else process.env.PATH = ORIGINAL_PATH;
+});
+
 function makeContext(
   providerSessionIds: Map<string, string | null>,
   configDir?: string,
   resumeModel?: string,
+  models: ProviderModelsDefinition = { OPTIONS: [], DEFAULT: 'auto' },
 ): ProviderRuntimeContext {
   return {
     resolveProviderSessionId: (sessionId) => providerSessionIds.get(sessionId ?? '') ?? null,
     resolveProviderConfigDir: (sessionId) => (sessionId && configDir ? configDir : null),
     resolveResumeModel: async () => resumeModel,
-    getProviderModels: async () => ({ OPTIONS: [], DEFAULT: 'auto' }),
+    getProviderModels: async () => models,
     normalizeMessage: (raw, sessionId) => new WorkbuddySessionsProvider().normalizeMessage(raw, sessionId),
     isProviderInstalled: async () => true,
   };
@@ -55,11 +83,17 @@ function makeWriter(captured: Captured[]): ProviderRuntimeWriter {
     send(message: any) {
       captured.push({
         kind: message.kind,
+        id: message.id,
         role: message.role,
         content: message.content,
+        toolName: message.toolName,
+        toolId: message.toolId,
         newSessionId: message.newSessionId,
         exitCode: message.exitCode,
         aborted: message.aborted,
+        status: message.status,
+        summary: message.summary,
+        taskId: message.taskId,
       });
     },
     userId: null,
@@ -93,6 +127,24 @@ test('workbuddy run drives a new session and emits thinking/text/complete', asyn
 
   const complete = captured.find((entry) => entry.kind === 'complete');
   assert.equal(complete?.exitCode, 0);
+});
+
+test('workbuddy run closes one-shot stdin so a completed CLI can emit its terminal result', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'assistant-complete-await-eof';
+  process.env.WORKBUDDY_RUN_TIMEOUT_MS = '50';
+  const captured: Captured[] = [];
+
+  await workbuddyRuntime.run(
+    'finish after EOF',
+    { sessionId: 'wb-eof-terminal', cwd: '/tmp' },
+    makeWriter(captured),
+    makeContext(new Map()),
+  );
+
+  assert.equal(captured.find((entry) => entry.kind === 'text')?.content, 'assistant response finished');
+  assert.equal(captured.find((entry) => entry.kind === 'complete')?.exitCode, 0);
+  assert.equal(captured.some((entry) => entry.kind === 'error'), false);
 });
 
 test('workbuddy run resumes an existing session id', async () => {
@@ -215,6 +267,24 @@ test('workbuddy run forwards the selected model to a new session', async () => {
   assert.equal(text?.content, `OK:hello:perm=none MODEL:glm-5.1 CFG:${DEFAULT_CONFIG_DIR}`);
 });
 
+test('workbuddy run forwards a model-supported reasoning effort', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'success';
+  const captured: Captured[] = [];
+
+  await workbuddyRuntime.run(
+    'reason carefully',
+    { sessionId: 'wb-effort', cwd: '/tmp', model: 'glm-5.3', effort: 'xhigh' },
+    makeWriter(captured),
+    makeContext(new Map(), undefined, 'glm-5.3', {
+      OPTIONS: [{ value: 'glm-5.3', label: 'GLM-5.3', effort: { values: [{ value: 'low' }, { value: 'xhigh' }] } }],
+      DEFAULT: 'glm-5.3',
+    }),
+  );
+
+  assert.equal(captured.find((entry) => entry.kind === 'text')?.content, `OK:reason carefully:perm=none MODEL:glm-5.3 EFFORT:xhigh CFG:${DEFAULT_CONFIG_DIR}`);
+});
+
 test('workbuddy run forwards the recorded model when resuming a session', async () => {
   process.env.CODEBUDDY_COMMAND = MOCK_CLI;
   process.env.MOCK_MODE = 'success';
@@ -269,6 +339,153 @@ test('workbuddy run surfaces a fatal engine error event to the frontend', async 
   assert.equal(complete?.exitCode, 1);
 });
 
+test('workbuddy run redacts credentials from fatal engine error events', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'error-sensitive';
+  const captured: Captured[] = [];
+
+  await workbuddyRuntime.run(
+    'continue work',
+    { sessionId: 'wb-error-sensitive', cwd: '/tmp' },
+    makeWriter(captured),
+    makeContext(new Map()),
+  );
+
+  const error = captured.find((entry) => entry.kind === 'error');
+  assert.match(String(error?.content), /\[REDACTED\]/);
+  assert.doesNotMatch(String(error?.content), /secret-value|another-secret/);
+});
+
+test('workbuddy run forwards top-level function call events to the frontend', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'function-events';
+  const captured: Captured[] = [];
+
+  await workbuddyRuntime.run(
+    'search tools',
+    { sessionId: 'wb-function-events', cwd: '/tmp' },
+    makeWriter(captured),
+    makeContext(new Map()),
+  );
+
+  const toolUse = captured.find((entry) => entry.kind === 'tool_use');
+  assert.equal(toolUse?.toolName, 'ToolSearch');
+  assert.equal(toolUse?.toolId, 'call-tool-search');
+
+  const toolResult = captured.find((entry) => entry.kind === 'tool_result');
+  assert.equal(toolResult?.toolId, 'call-tool-search');
+  assert.equal(toolResult?.content, 'No matching tools found');
+});
+
+test('workbuddy run preserves task lifecycle events with one stable task id', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'task-events';
+  const captured: Captured[] = [];
+
+  await workbuddyRuntime.run(
+    'run a background task',
+    { sessionId: 'wb-task-events', cwd: '/tmp' },
+    makeWriter(captured),
+    makeContext(new Map()),
+  );
+
+  const taskEvents = captured.filter((entry) => entry.kind === 'task_notification');
+  assert.deepEqual(taskEvents.map((entry) => entry.status), ['running', 'running', 'completed', 'completed', 'completed']);
+  assert.deepEqual(new Set(taskEvents.map((entry) => entry.id)).size, 1);
+  assert.equal(taskEvents[0]?.taskId, 'task-1');
+  assert.equal(taskEvents.at(-1)?.summary, 'Background task final notification');
+  assert.equal(
+    captured.findIndex((entry) => entry.kind === 'complete'),
+    captured.length - 1,
+  );
+});
+
+test('workbuddy run preserves failed task lifecycle events and fails the run', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'task-failure';
+  const captured: Captured[] = [];
+
+  await workbuddyRuntime.run(
+    'run a failing background task',
+    { sessionId: 'wb-task-failure', cwd: '/tmp' },
+    makeWriter(captured),
+    makeContext(new Map()),
+  );
+
+  const taskEvents = captured.filter((entry) => entry.kind === 'task_notification');
+  assert.deepEqual(taskEvents.map((entry) => entry.status), ['running', 'failed', 'failed']);
+  assert.equal(new Set(taskEvents.map((entry) => entry.id)).size, 1);
+  assert.equal(captured.find((entry) => entry.kind === 'complete')?.exitCode, 1);
+});
+
+test('workbuddy run ignores invalid JSON and unknown events without dropping valid output', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'unknown-invalid';
+  const captured: Captured[] = [];
+  const diagnostics: unknown[][] = [];
+  const originalConsoleWarn = console.warn;
+  console.warn = (...args: unknown[]) => diagnostics.push(args);
+
+  try {
+    await workbuddyRuntime.run(
+      'ignore unknown protocol data',
+      { sessionId: 'wb-unknown-invalid', cwd: '/tmp' },
+      makeWriter(captured),
+      makeContext(new Map()),
+    );
+  } finally {
+    console.warn = originalConsoleWarn;
+  }
+
+  assert.equal(captured.find((entry) => entry.kind === 'text')?.content, 'unknown event ignored');
+  assert.equal(captured.some((entry) => entry.kind === 'error'), false);
+  assert.equal(captured.find((entry) => entry.kind === 'complete')?.exitCode, 0);
+  const diagnosticText = JSON.stringify(diagnostics);
+  assert.match(diagnosticText, /invalid stream-json|unsupported stream-json/);
+  assert.match(diagnosticText, /wb-unknown-invalid/);
+  assert.doesNotMatch(diagnosticText, /not valid json/);
+});
+
+test('workbuddy run reports a non-zero CLI exit when no terminal result exists', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'exit-nonzero';
+  const captured: Captured[] = [];
+
+  await workbuddyRuntime.run(
+    'exit abnormally',
+    { sessionId: 'wb-exit-nonzero', cwd: '/tmp' },
+    makeWriter(captured),
+    makeContext(new Map()),
+  );
+
+  assert.equal(captured.find((entry) => entry.kind === 'complete')?.exitCode, 1);
+});
+
+test('workbuddy runtime redacts sensitive values from CLI stderr diagnostics', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'stderr-sensitive';
+  const captured: Captured[] = [];
+  const diagnostics: unknown[][] = [];
+  const originalConsoleError = console.error;
+  console.error = (...args: unknown[]) => diagnostics.push(args);
+
+  try {
+    await workbuddyRuntime.run(
+      'emit diagnostic',
+      { sessionId: 'wb-stderr-sensitive', cwd: '/tmp' },
+      makeWriter(captured),
+      makeContext(new Map()),
+    );
+  } finally {
+    console.error = originalConsoleError;
+  }
+
+  const diagnosticText = JSON.stringify(diagnostics);
+  assert.match(diagnosticText, /wb-stderr-sensitive/);
+  assert.doesNotMatch(diagnosticText, /secret-value|another-secret/);
+  assert.equal(captured.find((entry) => entry.kind === 'complete')?.exitCode, 0);
+});
+
 test('workbuddy run points the engine at the session config dir', async () => {
   process.env.CODEBUDDY_COMMAND = MOCK_CLI;
   process.env.MOCK_MODE = 'success';
@@ -283,6 +500,22 @@ test('workbuddy run points the engine at the session config dir', async () => {
 
   const text = captured.find((entry) => entry.kind === 'text');
   assert.equal(text?.content, 'OK:hello:perm=none CFG:/Users/test/.workbuddy');
+});
+
+test('workbuddy run preserves an explicit config-root override for new sessions', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'success';
+  process.env.CODEBUDDY_CONFIG_DIR = '/custom/workbuddy-root';
+  const captured: Captured[] = [];
+
+  await workbuddyRuntime.run(
+    'hello',
+    { sessionId: 'wb-env-cfg', cwd: '/tmp' },
+    makeWriter(captured),
+    makeContext(new Map()),
+  );
+
+  assert.equal(captured.find((entry) => entry.kind === 'text')?.content, 'OK:hello:perm=none CFG:/custom/workbuddy-root');
 });
 
 test('workbuddy run defaults the engine config dir to ~/.workbuddy for new sessions', async () => {
@@ -363,6 +596,149 @@ test('workbuddy abort kills a running process and reports an aborted complete', 
   assert.equal(complete?.aborted, true);
 });
 
+test('workbuddy run handles a closed stdin pipe without crashing the server', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'stdin-closed';
+  const captured: Captured[] = [];
+
+  const runPromise = workbuddyRuntime.run(
+    'close stdin before interrupt',
+    { sessionId: 'wb-stdin-closed', cwd: '/tmp' },
+    makeWriter(captured),
+    makeContext(new Map()),
+  );
+  await sleep(100);
+
+  assert.equal(await workbuddyRuntime.abort('wb-stdin-closed'), true);
+  await runPromise;
+
+  const complete = captured.find((entry) => entry.kind === 'complete');
+  assert.equal(complete?.exitCode, 0);
+  assert.equal(complete?.aborted, true);
+});
+
+test('workbuddy reaps a process after a fatal stream error before allowing another run', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'error-event-hang';
+  const captured: Captured[] = [];
+
+  await workbuddyRuntime.run(
+    'fatal engine error',
+    { sessionId: 'wb-error-event-hang', cwd: '/tmp' },
+    makeWriter(captured),
+    makeContext(new Map()),
+  );
+
+  assert.equal(captured.find((entry) => entry.kind === 'complete')?.exitCode, 1);
+  assert.equal(captured.some((entry) => entry.content === 'must be ignored after fatal error'), false);
+  assert.equal(await workbuddyRuntime.abort('wb-error-event-hang'), false);
+});
+
+test('workbuddy run times out a silent CLI and cleans up the process', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'hang';
+  process.env.WORKBUDDY_RUN_TIMEOUT_MS = '50';
+  const captured: Captured[] = [];
+
+  await workbuddyRuntime.run(
+    'hang until timeout',
+    { sessionId: 'wb-timeout', cwd: '/tmp' },
+    makeWriter(captured),
+    makeContext(new Map()),
+  );
+
+  const complete = captured.find((entry) => entry.kind === 'complete');
+  assert.equal(complete?.exitCode, 1);
+  assert.equal(captured.find((entry) => entry.kind === 'error')?.content, 'WorkBuddy run timed out after 50ms');
+  assert.equal(await workbuddyRuntime.abort('wb-timeout'), false);
+});
+
+for (const mode of ['success-result-hang', 'error-result-hang']) {
+  test(`workbuddy run still times out after ${mode}`, async () => {
+    process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+    process.env.MOCK_MODE = mode;
+    process.env.WORKBUDDY_RUN_TIMEOUT_MS = '50';
+    const captured: Captured[] = [];
+    const sessionId = `wb-${mode}`;
+
+    await workbuddyRuntime.run(
+      'emit a result and hang',
+      { sessionId, cwd: '/tmp' },
+      makeWriter(captured),
+      makeContext(new Map()),
+    );
+
+    const complete = captured.find((entry) => entry.kind === 'complete');
+    const lastError = captured.filter((entry) => entry.kind === 'error').at(-1);
+    assert.equal(complete?.exitCode, 1);
+    assert.equal(lastError?.content, 'WorkBuddy run timed out after 50ms');
+    assert.equal(await workbuddyRuntime.abort(sessionId), false);
+  });
+}
+
+test('workbuddy fatal error overrides a pending successful result', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'result-then-error-hang';
+  process.env.WORKBUDDY_RUN_TIMEOUT_MS = '200';
+  const captured: Captured[] = [];
+
+  await workbuddyRuntime.run(
+    'fail after a result',
+    { sessionId: 'wb-result-then-error', cwd: '/tmp' },
+    makeWriter(captured),
+    makeContext(new Map()),
+  );
+
+  assert.equal(captured.find((entry) => entry.kind === 'error')?.content, 'fatal error after terminal result');
+  assert.equal(captured.find((entry) => entry.kind === 'complete')?.exitCode, 1);
+  assert.equal(await workbuddyRuntime.abort('wb-result-then-error'), false);
+});
+
+test('workbuddy abort terminates a one-shot stdin run and reports completion as aborted', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'interruptible';
+  const captured: Captured[] = [];
+
+  const runPromise = workbuddyRuntime.run(
+    'interrupt this task',
+    { sessionId: 'wb-interrupt', cwd: '/tmp' },
+    makeWriter(captured),
+    makeContext(new Map()),
+  );
+  await sleep(100);
+
+  assert.equal(await workbuddyRuntime.abort('wb-interrupt'), true);
+  await runPromise;
+
+  assert.equal(captured.find((entry) => entry.kind === 'complete')?.aborted, true);
+});
+
+test('workbuddy rejects a concurrent run for the same app session', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'hang';
+  const firstCaptured: Captured[] = [];
+  const secondCaptured: Captured[] = [];
+  const firstRun = workbuddyRuntime.run(
+    'first task',
+    { sessionId: 'wb-concurrent', cwd: '/tmp' },
+    makeWriter(firstCaptured),
+    makeContext(new Map()),
+  );
+
+  await sleep(100);
+  await workbuddyRuntime.run(
+    'second task',
+    { sessionId: 'wb-concurrent', cwd: '/tmp' },
+    makeWriter(secondCaptured),
+    makeContext(new Map()),
+  );
+  assert.equal(secondCaptured.find((entry) => entry.kind === 'complete')?.exitCode, 1);
+  assert.match(String(secondCaptured.find((entry) => entry.kind === 'error')?.content), /already has a running task/);
+
+  assert.equal(await workbuddyRuntime.abort('wb-concurrent'), true);
+  await firstRun;
+});
+
 test('workbuddy run reports a spawn failure as exit code 1', async () => {
   resetWorkbuddyCommandForTests();
   process.env.CODEBUDDY_COMMAND = path.join('/nonexistent', 'codebuddy-missing');
@@ -390,7 +766,7 @@ test('workbuddy normalizeMessage ignores non-assistant events', () => {
   assert.deepEqual(provider.normalizeMessage(null, 's'), []);
 });
 
-test('workbuddy normalizeMessage converts thinking and text blocks only', () => {
+test('workbuddy normalizeMessage preserves thinking, text, and tool blocks', () => {
   const provider = new WorkbuddySessionsProvider();
   const event = {
     type: 'assistant',
@@ -401,7 +777,8 @@ test('workbuddy normalizeMessage converts thinking and text blocks only', () => 
         { type: 'thinking', thinking: '  ' },
         { type: 'thinking', thinking: 'real thought' },
         { type: 'text', text: 'hello world' },
-        { type: 'tool_use', name: 'Bash' },
+        { type: 'tool_use', id: 'tool-1', name: 'Bash', input: { command: 'pwd' } },
+        { type: 'tool_result', tool_use_id: 'tool-1', content: 'ok' },
         { type: 'text', text: '' },
       ],
     },
@@ -409,9 +786,65 @@ test('workbuddy normalizeMessage converts thinking and text blocks only', () => 
 
   const messages = provider.normalizeMessage(event, 'app-session');
 
-  assert.deepEqual(messages.map((message) => message.kind), ['thinking', 'text']);
+  assert.deepEqual(messages.map((message) => message.kind), ['thinking', 'text', 'tool_use', 'tool_result']);
   assert.equal(messages[0]?.content, 'real thought');
   assert.equal(messages[0]?.provider, 'workbuddy');
   assert.equal(messages[1]?.content, 'hello world');
   assert.equal(messages[1]?.sessionId, 'app-session');
+  assert.equal(messages[2]?.toolName, 'Bash');
+  assert.deepEqual(messages[2]?.toolInput, { command: 'pwd' });
+  assert.equal(messages[3]?.toolId, 'tool-1');
+  assert.equal(messages[3]?.content, 'ok');
+
+  assert.deepEqual(
+    provider.normalizeMessage({
+      type: 'user',
+      message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tool-2', content: 'failed', is_error: true }] },
+    }, 'app-session').map((message) => ({ kind: message.kind, toolId: message.toolId, isError: message.isError })),
+    [{ kind: 'tool_result', toolId: 'tool-2', isError: true }],
+  );
+
+  const functionCall = provider.normalizeMessage({
+    type: 'function_call',
+    id: 'function-event-1',
+    callId: 'call-search-1',
+    name: 'ToolSearch',
+    arguments: '{"queries":["smoke"]}',
+  }, 'app-session');
+  const functionResult = provider.normalizeMessage({
+    type: 'function_call_result',
+    id: 'function-result-1',
+    callId: 'call-search-1',
+    name: 'ToolSearch',
+    status: 'completed',
+    output: { type: 'text', text: 'No matching tools found' },
+  }, 'app-session');
+  assert.equal(functionCall[0]?.kind, 'tool_use');
+  assert.equal(functionCall[0]?.toolId, 'call-search-1');
+  assert.equal(functionResult[0]?.kind, 'tool_result');
+  assert.equal(functionResult[0]?.toolId, 'call-search-1');
+  assert.equal(functionResult[0]?.content, 'No matching tools found');
+
+  const deniedResult = provider.normalizeMessage({
+    type: 'function_call_result',
+    id: 'function-result-denied',
+    callId: 'call-search-denied',
+    name: 'ToolSearch',
+    status: 'denied',
+    output: { type: 'text', text: 'permission denied' },
+  }, 'app-session');
+  assert.equal(deniedResult[0]?.kind, 'tool_result');
+  assert.equal(deniedResult[0]?.isError, true);
+  assert.equal(deniedResult[0]?.status, 'denied');
+
+  const failedTask = provider.normalizeMessage({
+    type: 'system',
+    subtype: 'task_updated',
+    task_id: 'task-failed',
+    status: 'failed',
+    description: 'failed task',
+  }, 'app-session');
+  assert.equal(failedTask[0]?.kind, 'task_notification');
+  assert.equal(failedTask[0]?.status, 'failed');
+  assert.equal(failedTask[0]?.isFinal, true);
 });

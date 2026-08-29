@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -198,6 +198,44 @@ test('synchronizer does not resurrect archived sessions on a full re-scan', asyn
   });
 });
 
+test('synchronizer uses a full scan once, then honors the incremental cursor', async () => {
+  await withIsolatedEnvironment(async (homeDir) => {
+    const cwd = path.join(homeDir, 'workspace', 'incremental-project');
+    const sessionId = 'wb-session-incremental';
+    await writeSessionFile(homeDir, '.codebuddy', cwd, sessionId, [
+      makeUserMessage(sessionId, cwd, 'Backfill this session', 1_700_000_000_000),
+    ]);
+
+    const synchronizer = new WorkbuddySessionSynchronizer();
+    assert.equal(await synchronizer.synchronize(), 1);
+
+    // A cursor after the file's creation time must not cause a second full
+    // scan to process the same transcript again.
+    assert.equal(await synchronizer.synchronize(new Date(Date.now() + 60_000)), 0);
+    assert.ok(sessionsDb.getSessionById(sessionId));
+  });
+});
+
+test('synchronizer indexes appended transcript updates after the initial scan', async () => {
+  await withIsolatedEnvironment(async (homeDir) => {
+    const cwd = path.join(homeDir, 'workspace', 'incremental-update-project');
+    const sessionId = 'wb-session-incremental-update';
+    await writeSessionFile(homeDir, '.codebuddy', cwd, sessionId, [
+      makeUserMessage(sessionId, cwd, 'Add a title later', 1_700_000_000_000),
+    ]);
+
+    const synchronizer = new WorkbuddySessionSynchronizer();
+    await synchronizer.synchronize();
+    const scanSince = new Date();
+    const transcriptPath = path.join(homeDir, '.codebuddy', 'projects', encodeCwd(cwd), `${sessionId}.jsonl`);
+    await appendFile(transcriptPath, `\n${JSON.stringify(makeAiTitle(sessionId, cwd, 'Added after the initial scan'))}`);
+    await utimes(transcriptPath, new Date(), new Date(scanSince.getTime() + 1_000));
+
+    assert.equal(await synchronizer.synchronize(scanSince), 1);
+    assert.equal(sessionsDb.getSessionById(sessionId)?.custom_name, 'Added after the initial scan');
+  });
+});
+
 test('synchronizer keeps a real title when a later re-scan cannot derive a name', async () => {
   await withIsolatedEnvironment(async (homeDir) => {
     const cwd = path.join(homeDir, 'workspace', 'project-name');
@@ -339,6 +377,52 @@ test('fetchHistory decodes the engine transcript into user and assistant message
     assert.equal(result.messages[2]?.role, 'assistant');
     assert.equal(result.messages[2]?.content, 'The codebase is structured around providers.');
     assert.equal(result.messages[2]?.provider, 'workbuddy');
+  });
+});
+
+test('fetchHistory pairs WorkBuddy function calls with function results by callId', async () => {
+  await withIsolatedEnvironment(async (homeDir) => {
+    const cwd = path.join(homeDir, 'workspace', 'function-call-history');
+    const engineSessionId = 'wb-function-history';
+    await writeSessionFile(homeDir, '.workbuddy', cwd, engineSessionId, [
+      makeUserMessage(engineSessionId, cwd, 'Search the configured tools', 1_700_000_000_000),
+      {
+        id: 'function-call-event',
+        timestamp: 1_700_000_100_000,
+        type: 'function_call',
+        name: 'ToolSearch',
+        callId: 'call-tool-search',
+        arguments: '{"queries":["smoke"]}',
+        sessionId: engineSessionId,
+        cwd,
+      },
+      {
+        id: 'function-result-event',
+        timestamp: 1_700_000_200_000,
+        type: 'function_call_result',
+        name: 'ToolSearch',
+        callId: 'call-tool-search',
+        status: 'completed',
+        output: { type: 'text', text: 'No matching tools found' },
+        sessionId: engineSessionId,
+        cwd,
+      },
+      makeAssistantMessage(engineSessionId, cwd, [
+        { type: 'output_text', text: '没有找到可用工具。' },
+      ], 1_700_000_300_000),
+    ]);
+
+    sessionsDb.createAppSession('app-wb-function-history', 'workbuddy', cwd, 'CloudCLI');
+    sessionsDb.assignProviderSessionId('app-wb-function-history', engineSessionId);
+
+    const result = await new WorkbuddySessionsProvider().fetchHistory('app-wb-function-history');
+    assert.equal(result.total, 4);
+    assert.equal(result.messages[1]?.kind, 'tool_use');
+    assert.equal(result.messages[1]?.toolName, 'ToolSearch');
+    assert.equal(result.messages[1]?.toolId, 'call-tool-search');
+    assert.equal(result.messages[2]?.kind, 'tool_result');
+    assert.equal(result.messages[2]?.toolId, 'call-tool-search');
+    assert.equal(result.messages[2]?.content, 'No matching tools found');
   });
 });
 

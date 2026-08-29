@@ -83,6 +83,14 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
   // no interactive terminal login flow — auth is configured outside this app,
   // so the login button must not fall back to running `claude /login`.
   const isExternallyManagedAuth = agent === 'dsh' || agent === 'workbuddy';
+  const isWorkbuddyAvailable = agent === 'workbuddy'
+    && authStatus.authVerified === false
+    && authStatus.installed === true
+    && authStatus.method === 'workbuddy_desktop';
+  const authError = authStatus.error === 'Cursor CLI not found or not installed'
+    || authStatus.error === 'Cursor CLI is not installed'
+    ? t('agents.errors.cursorCliNotFound')
+    : authStatus.error;
 
   return (
     <div className="space-y-6">
@@ -112,6 +120,8 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
                   t('agents.authStatus.loggedInAs', {
                     email: authStatus.email || t('agents.authStatus.authenticatedUser'),
                   })
+                ) : isWorkbuddyAvailable ? (
+                  t('agents.externalAuth.managedByDesktop')
                 ) : (
                   t('agents.authStatus.notConnected')
                 )}
@@ -125,6 +135,10 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
               ) : authStatus.authenticated ? (
                 <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
                   {t('agents.authStatus.connected')}
+                </Badge>
+              ) : isWorkbuddyAvailable ? (
+                <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                  {t('agents.externalAuth.available')}
                 </Badge>
               ) : (
                 <Badge variant="secondary" className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300">
@@ -172,10 +186,10 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
             </div>
           )}
 
-          {authStatus.error && (
+          {authError && (
             <div className="border-t border-border/50 pt-4">
               <div className="text-sm text-red-600 dark:text-red-400">
-                {t('agents.error', { error: authStatus.error })}
+                {t('agents.error', { error: authError })}
               </div>
             </div>
           )}

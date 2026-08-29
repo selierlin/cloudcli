@@ -4,6 +4,7 @@
     "account": "Аккаунт",
     "permissions": "Разрешения",
     "mcpServers": "MCP серверы",
+    "skills": "Навыки",
     "appearance": "Внешний вид"
   },
   "account": {
@@ -339,6 +340,12 @@
       }
     },
     "connectionStatus": "Статус подключения",
+    "externalAuth": {
+      "title": "Управляется извне",
+      "description": "Аутентификация {{agent}} управляется вне этого приложения. Войдите в настольном приложении или конфигурации агента.",
+      "managedByDesktop": "Управляется WorkBuddy Desktop",
+      "available": "Доступен"
+    },
     "login": {
       "title": "Вход",
       "reAuthenticate": "Повторная аутентификация",
@@ -347,7 +354,10 @@
       "button": "Войти",
       "reLoginButton": "Войти снова"
     },
-    "error": "Ошибка: {{error}}"
+    "error": "Ошибка: {{error}}",
+    "errors": {
+      "cursorCliNotFound": "Cursor CLI не установлен или не найден."
+    }
   },
   "permissions": {
     "title": "Настройки разрешений",
@@ -415,7 +425,7 @@
       },
       "technicalDetails": "Технические детали",
       "technicalInfo": {
-        "default": "sandboxMode=workspace-write, approvalPolicy=untrusted. Доверенные команды: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find (без -exec) и т.д.",
+        "default": "sandboxMode=workspace-write, approvalPolicy=on-request. Доверенные команды: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find (без -exec) и т.д.",
         "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. Все команды автоматически выполняются в каталоге проекта.",
         "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never. Полный системный доступ, используйте только в доверенных средах.",
         "overrideNote": "Вы можете переопределить это для каждого сеанса, используя кнопку режима в интерфейсе чата."

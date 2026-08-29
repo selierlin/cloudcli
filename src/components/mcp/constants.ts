@@ -15,7 +15,7 @@ export const MCP_SUPPORTED_SCOPES: Record<McpProvider, McpScope[]> = {
   codex: ['user', 'project'],
   opencode: ['user', 'project'],
   dsh: ['user', 'project'],
-  workbuddy: ['user', 'project'],
+  workbuddy: ['user', 'local', 'project'],
 };
 
 export const MCP_SUPPORTED_TRANSPORTS: Record<McpProvider, McpTransport[]> = {

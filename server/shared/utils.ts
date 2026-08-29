@@ -926,8 +926,10 @@ export function sanitizeLeafDirectoryName(inputName: string, label = 'directory 
  *
  * Provider synchronizers call this to find transcript artifacts under provider
  * home directories. Pass `lastScanAt` to include only files created after the
- * previous scan, or pass `null` to perform a full rescan. Missing directories
- * are treated as empty because not every provider exists on every machine.
+ * previous scan, or pass `null` to perform a full rescan. Transcript files are
+ * included when created or modified after the cursor, since engines append to
+ * existing JSONL files as a session progresses. Missing directories are treated
+ * as empty because not every provider exists on every machine.
  */
 export async function findFilesRecursivelyCreatedAfter(
   rootDir: string,
@@ -955,7 +957,7 @@ export async function findFilesRecursivelyCreatedAfter(
       }
 
       const fileStat = await stat(fullPath);
-      if (fileStat.birthtime > lastScanAt) {
+      if (fileStat.birthtime > lastScanAt || fileStat.mtime > lastScanAt) {
         fileList.push(fullPath);
       }
     }

@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { DEFAULT_MCP_FORM, MCP_SUPPORTED_SCOPES, MCP_SUPPORTED_TRANSPORTS } from '../constants';
+import { DEFAULT_MCP_FORM, MCP_PROVIDER_NAMES, MCP_SUPPORTED_SCOPES, MCP_SUPPORTED_TRANSPORTS } from '../constants';
 import type { McpFormState, McpProject, McpProvider, McpScope, McpTransport, ProviderMcpServer } from '../types';
 import {
   formatKeyValueLines,
@@ -163,7 +163,11 @@ export function useMcpServerForm({
         setJsonValidationError(t('mcpForm.validation.missingType'));
       } else if (!supportedTransports.includes(transportInput)) {
         setJsonValidationError(
-          unsupportedTransportMessage?.(transportInput) ?? `${provider} does not support ${transportInput} MCP servers`,
+          unsupportedTransportMessage?.(transportInput)
+            ?? t('mcpServers.errors.providerTransportUnsupported', {
+              provider: MCP_PROVIDER_NAMES[provider],
+              transport: transportInput,
+            }),
         );
       } else if (transportInput === 'stdio' && !parsed.command) {
         setJsonValidationError(t('mcpForm.validation.stdioRequiresCommand'));
@@ -224,7 +228,7 @@ export function useMcpServerForm({
       // lines or partial KEY=value entries without the form rewriting them.
       await onSubmit(createSubmitFormData(), editingServer);
     } catch (error) {
-      alert(`Error: ${getErrorMessage(error)}`);
+      alert(t('mcpServers.errors.errorAlert', { message: getErrorMessage(error) }));
     } finally {
       setIsSubmitting(false);
     }

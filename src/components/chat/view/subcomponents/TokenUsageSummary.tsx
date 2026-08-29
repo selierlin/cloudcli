@@ -31,6 +31,10 @@ const readUsageNumber = (value: unknown) => {
 };
 
 export default function TokenUsageSummary({ usage, onClick }: TokenUsageSummaryProps) {
+  if (usage?.unsupported === true) {
+    return null;
+  }
+
   const breakdown =
     usage?.breakdown && typeof usage.breakdown === 'object'
       ? usage.breakdown as Record<string, unknown>

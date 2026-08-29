@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import test, { beforeEach } from 'node:test';
+import test, { afterEach, beforeEach } from 'node:test';
 
 import {
   WorkbuddyProviderAuth,
@@ -14,6 +14,7 @@ const MOCK_CLI = path.resolve(
   path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'wb-mock-cli.mjs'),
 );
 const MISSING_CLI = path.join('/nonexistent', 'codebuddy-missing');
+const ORIGINAL_PATH = process.env.PATH;
 
 // Resolution and version-probe results are cached, so every test starts from
 // a clean slate; the env overrides are removed so tests control exactly which
@@ -24,14 +25,23 @@ beforeEach(() => {
   delete process.env.WORKBUDDY_EMBEDDED_CLI;
 });
 
-test('getStatus reports installed and authenticated when CODEBUDDY_COMMAND runs', async () => {
+afterEach(() => {
+  resetWorkbuddyCommandForTests();
+  delete process.env.CODEBUDDY_COMMAND;
+  delete process.env.WORKBUDDY_EMBEDDED_CLI;
+  if (ORIGINAL_PATH === undefined) delete process.env.PATH;
+  else process.env.PATH = ORIGINAL_PATH;
+});
+
+test('getStatus reports an installed but desktop-managed WorkBuddy engine', async () => {
   process.env.CODEBUDDY_COMMAND = MOCK_CLI;
 
   const status = await new WorkbuddyProviderAuth().getStatus();
 
   assert.equal(status.installed, true);
-  assert.equal(status.authenticated, true);
-  assert.equal(status.method, 'workbuddy_login');
+  assert.equal(status.authenticated, false);
+  assert.equal(status.authVerified, false);
+  assert.equal(status.method, 'workbuddy_desktop');
   assert.equal(status.error, undefined);
 });
 
@@ -76,7 +86,8 @@ test('getStatus detects a codebuddy executable on PATH', async () => {
     const status = await new WorkbuddyProviderAuth().getStatus();
 
     assert.equal(status.installed, true);
-    assert.equal(status.authenticated, true);
+    assert.equal(status.authenticated, false);
+    assert.equal(status.authVerified, false);
   } finally {
     fs.rmSync(binDir, { recursive: true, force: true });
   }
@@ -96,7 +107,8 @@ test('getStatus detects the CLI embedded in WorkBuddy.app', async () => {
     const status = await new WorkbuddyProviderAuth().getStatus();
 
     assert.equal(status.installed, true);
-    assert.equal(status.authenticated, true);
+    assert.equal(status.authenticated, false);
+    assert.equal(status.authVerified, false);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

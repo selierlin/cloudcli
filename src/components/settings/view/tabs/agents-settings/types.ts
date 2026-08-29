@@ -33,7 +33,6 @@ export type AgentsSettingsTabProps = {
 
 export type AgentCategoryTabsSectionProps = {
   categories: AgentCategory[];
-  selectedAgent: AgentProvider;
   selectedCategory: AgentCategory;
   onSelectCategory: (category: AgentCategory) => void;
 };

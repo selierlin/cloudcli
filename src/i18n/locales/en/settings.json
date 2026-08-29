@@ -253,7 +253,18 @@
       "projectLocal": "Project (Local)",
       "userDescription": "User scope: Available across all projects on your machine",
       "projectDescription": "Local scope: Only available in the selected project",
-      "cannotChange": "Scope cannot be changed when editing an existing server"
+      "cannotChange": "Scope cannot be changed when editing an existing server",
+      "claudeLocal": "Claude Local",
+      "localProvider": "Local",
+      "projectAllProviders": "Project (All Providers)",
+      "projectProvider": "Project",
+      "userAllProviders": "User (All Providers)",
+      "userAllProvidersDescription": "Writes to each provider's user config and is available across projects on this machine",
+      "userProviderDescription": "Available across all projects on your machine",
+      "localDescription": "Stored in Claude user settings for the selected project",
+      "localProviderDescription": "Stored in {{provider}} settings for the selected project",
+      "projectAllProvidersDescription": "Writes to the selected project workspace for every provider",
+      "projectProviderDescription": "Stored in the selected project workspace"
     },
     "fields": {
       "serverName": "Server Name",
@@ -264,7 +275,10 @@
       "url": "URL",
       "envVars": "Environment Variables (KEY=value, one per line)",
       "headers": "Headers (KEY=value, one per line)",
-      "selectProject": "Select a project..."
+      "selectProject": "Select a project...",
+      "workingDirectory": "Working Directory",
+      "envVarNames": "Environment Variable Names",
+      "bearerTokenEnvVar": "Bearer Token Environment Variable"
     },
     "placeholders": {
       "serverName": "my-server"
@@ -284,7 +298,8 @@
       "cancel": "Cancel",
       "saving": "Saving...",
       "addServer": "Add Server",
-      "updateServer": "Update Server"
+      "updateServer": "Update Server",
+      "addServerTo": "Add Server to {{provider}}"
     }
   },
   "saveStatus": {
@@ -408,12 +423,20 @@
       },
       "opencode": {
         "description": "OpenCode CLI assistant"
+      },
+      "dsh": {
+        "description": "DeepSeek Harness agent"
+      },
+      "workbuddy": {
+        "description": "Tencent WorkBuddy agent"
       }
     },
     "connectionStatus": "Connection Status",
     "externalAuth": {
       "title": "Managed externally",
-      "description": "{{agent}} authentication is managed outside this app. Sign in within the agent's own desktop application or configuration."
+      "description": "{{agent}} authentication is managed outside this app. Sign in within the agent's own desktop application or configuration.",
+      "managedByDesktop": "Managed by WorkBuddy Desktop",
+      "available": "Available"
     },
     "login": {
       "title": "Login",
@@ -423,7 +446,73 @@
       "button": "Login",
       "reLoginButton": "Re-login"
     },
-    "error": "Error: {{error}}"
+    "error": "Error: {{error}}",
+    "errors": {
+      "cursorCliNotFound": "Cursor CLI is not installed or could not be found."
+    }
+  },
+  "skills": {
+    "title": "Skills",
+    "description": "Manage {{provider}} skills from local files, complete folders, and project-aware locations.",
+    "searchPlaceholder": "Search skills...",
+    "searchAriaLabel": "Search skills",
+    "clearSearchAriaLabel": "Clear skill search",
+    "addSkill": "Add Skill",
+    "refresh": "Refresh",
+    "dropTitle": "Drop a skill folder or SKILL.md",
+    "dropDescription": "Folders can include scripts, references, and assets.",
+    "chooseFiles": "Choose Files",
+    "chooseFolder": "Choose Folder",
+    "readyToInstall": "Ready to install",
+    "fileCount_one": "{{count}} file",
+    "fileCount_other": "{{count}} files",
+    "markdownFile": "Markdown file",
+    "removeAriaLabel": "Remove {{name}}",
+    "showInstallLocation": "Where will this install?",
+    "hideInstallLocation": "Hide install location",
+    "managedByProvider": "Managed by {{provider}}",
+    "scanningProjectSkills": "Scanning project skills...",
+    "addSkillTitle": "Add {{provider}} Skill",
+    "dialogDescription": "Upload a SKILL.md file or a complete skill folder.",
+    "closeDialogAriaLabel": "Close add skill dialog",
+    "savedSuccessfully": "Skills saved successfully.",
+    "installHint": "Folder uploads keep the selected folder name; standalone files use the `name` in SKILL.md.",
+    "cancel": "Cancel",
+    "install_one": "Install {{count}} Skill",
+    "install_other": "Install {{count}} Skills",
+    "loadingProvider": "Loading {{provider}} skills…",
+    "emptyTitle": "No skills discovered yet",
+    "emptyDescription": "Add a global skill above or create project-specific skill folders in your workspace.",
+    "noMatchingTitle": "No matching skills",
+    "noMatchingDescription": "Try a different command, name, scope, project, or source path.",
+    "skillCount_one": "{{count}} skill",
+    "skillCount_other": "{{count}} skills",
+    "noDescription": "No description provided in the skill front matter.",
+    "plugin": "Plugin",
+    "project": "Project",
+    "source": "Source",
+    "scopes": {
+      "user": "User",
+      "plugin": "Plugin",
+      "repo": "Repo",
+      "project": "Project",
+      "admin": "Admin",
+      "system": "System"
+    },
+    "errors": {
+      "folderFileLimit": "A skill folder can contain up to {{count}} files.",
+      "folderSizeLimit": "Selected skill folders must be smaller than 30 MB in total.",
+      "noSkillFile": "The selected folder does not contain a SKILL.md file.",
+      "readSkillFile": "Could not read SKILL.md from {{name}}.",
+      "readFile": "Failed to read {{name}}.",
+      "dropFiles": "Drop one or more markdown files or a folder containing SKILL.md.",
+      "addFileFirst": "Add one or more markdown files first.",
+      "readFolder": "Failed to read skill folder.",
+      "import": "Failed to import skills.",
+      "load": "Failed to load {{provider}} skills.",
+      "save": "Failed to save skills.",
+      "unknown": "Unknown error."
+    }
   },
   "permissions": {
     "title": "Permission Settings",
@@ -491,7 +580,7 @@
       },
       "technicalDetails": "Technical details",
       "technicalInfo": {
-        "default": "sandboxMode=workspace-write, approvalPolicy=untrusted. Trusted commands: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find (without -exec), etc.",
+        "default": "sandboxMode=workspace-write, approvalPolicy=on-request. Trusted commands: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find (without -exec), etc.",
         "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. All commands auto-execute within project directory.",
         "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never. Full system access, use only in trusted environments.",
         "overrideNote": "You can override this per-session using the mode button in the chat interface."
@@ -516,20 +605,25 @@
       "claude": "Model Context Protocol servers provide additional tools and data sources to Claude",
       "cursor": "Model Context Protocol servers provide additional tools and data sources to Cursor",
       "codex": "Model Context Protocol servers provide additional tools and data sources to Codex",
-      "opencode": "Model Context Protocol servers provide additional tools and data sources to OpenCode"
+      "opencode": "Model Context Protocol servers provide additional tools and data sources to OpenCode",
+      "dsh": "Model Context Protocol servers provide additional tools and data sources to DeepSeek Harness",
+      "workbuddy": "Model Context Protocol servers provide additional tools and data sources to WorkBuddy"
     },
     "addButton": "Add MCP Server",
     "empty": "No MCP servers configured",
     "serverType": "Type",
     "scope": {
       "local": "local",
-      "user": "user"
+      "user": "user",
+      "project": "project"
     },
     "config": {
       "command": "Command",
       "url": "URL",
       "args": "Args",
-      "environment": "Environment"
+      "environment": "Environment",
+      "cwd": "Cwd",
+      "envVars": "Env Vars"
     },
     "tools": {
       "title": "Tools",
@@ -547,6 +641,32 @@
     "help": {
       "title": "About Codex MCP",
       "description": "Codex supports stdio-based MCP servers. You can add servers that extend Codex's capabilities with additional tools and resources."
+    },
+    "addGlobalButton": "Add Global MCP Server",
+    "addProviderButton": "Add {{provider}} MCP Server",
+    "addGlobalDescription": "Add Global MCP Server writes one common stdio or HTTP server to Claude, Cursor, Codex, and OpenCode.",
+    "addProviderDescription": "Add {{provider}} MCP Server only changes {{provider}}.",
+    "globalModalDescription": "Adds this MCP server to every provider: Claude, Cursor, Codex, and OpenCode. Only stdio and HTTP transports are supported because the same config must work across all providers.",
+    "errors": {
+      "loadFailed": "Failed to load {{provider}} MCP servers",
+      "deleteFailed": "Failed to delete MCP server",
+      "saveFailed": "Failed to save MCP server",
+      "globalSaveFailed": "Failed to save MCP server to all providers",
+      "unknown": "Unknown error",
+      "errorAlert": "Error: {{message}}",
+      "selectProject": "Select a project for project-scoped MCP servers",
+      "globalScopeUnsupported": "Add MCP Server supports only user or project scope across all providers.",
+      "globalTransportUnsupported": "Add MCP Server supports only stdio and http across all providers, not {{transport}}.",
+      "providerTransportUnsupported": "{{provider}} does not support {{transport}} MCP servers",
+      "deleteConfirm": "Are you sure you want to delete this MCP server?",
+      "globalAddFailed": "Failed to add MCP server to all providers. {{details}}"
+    },
+    "loading": "Loading MCP servers...",
+    "refreshingProjectScopes": "Refreshing project scopes...",
+    "team": {
+      "title": "Team MCP Configs",
+      "description": "Share MCP server configurations across your team. Everyone stays in sync automatically.",
+      "cta": "Available with CloudCLI Pro"
     }
   },
   "pluginSettings": {
