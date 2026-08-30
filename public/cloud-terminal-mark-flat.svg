@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">CloudCLI flat cloud terminal mark</title>
+  <path
+    d="M15.1 50.5C7.9 50.5 2 44.7 2 37.5c0-6.1 4.2-11.3 10-12.7C13.5 15 21.8 8 31.6 8c9.9 0 18.2 7 19.7 16.9 6.2.9 11 6.2 11 12.7 0 7.2-5.9 13-13.1 13Z"
+    fill="#F8FAFC"
+    stroke="#CBD5E1"
+    stroke-width="1.5"
+    stroke-linejoin="round"
+  />
+  <g transform="translate(-4 0)">
+    <path
+      d="m25.1 30.8 8.4 7.2-8.4 7.2M39.8 45.2h7.1"
+      fill="none"
+      stroke="#3182F6"
+      stroke-width="5.3"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
+</svg>

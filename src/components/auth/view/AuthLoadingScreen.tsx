@@ -1,5 +1,4 @@
 import { CLOUDCLI_WORDMARK_FONT_FAMILY } from '../../../shared/constants';
-import CloudLogo from '../../../shared/view/ui/CloudLogo';
 
 const loadingDotAnimationDelays = ['0s', '0.15s', '0.3s'];
 
@@ -12,8 +11,8 @@ export default function AuthLoadingScreen() {
 
       <div className="relative text-center" role="status" aria-live="polite">
         <div className="mb-5 flex justify-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-lg shadow-primary/25 ring-1 ring-inset ring-white/20">
-            <CloudLogo className="h-9 w-9 text-primary-foreground" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border/70 bg-muted/70 shadow-sm ring-1 ring-inset ring-foreground/5">
+            <img src="/cloud-terminal-mark-flat.svg" alt="CloudCLI" className="h-11 w-11" />
           </div>
         </div>
 

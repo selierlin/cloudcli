@@ -5,20 +5,14 @@ const size = 1024;
 const assetsDir = 'electron/assets';
 const iconPath = 'electron/assets/logo-macos.png';
 const icnsPath = 'electron/assets/logo-macos.icns';
+const markPath = new URL('../../public/cloud-terminal-mark-flat.svg', import.meta.url);
+const markDataUri = `data:image/svg+xml;base64,${(await fs.readFile(markPath)).toString('base64')}`;
 
 function renderSvg(entrySize) {
-  const scale = entrySize / 32;
   return `
 <svg xmlns="http://www.w3.org/2000/svg" width="${entrySize}" height="${entrySize}" viewBox="0 0 ${entrySize} ${entrySize}">
-  <rect width="${entrySize}" height="${entrySize}" fill="#2563eb"/>
-  <path
-    d="M${8 * scale} ${9 * scale}C${8 * scale} ${8.44772 * scale} ${8.44772 * scale} ${8 * scale} ${9 * scale} ${8 * scale}H${23 * scale}C${23.5523 * scale} ${8 * scale} ${24 * scale} ${8.44772 * scale} ${24 * scale} ${9 * scale}V${18 * scale}C${24 * scale} ${18.5523 * scale} ${23.5523 * scale} ${19 * scale} ${23 * scale} ${19 * scale}H${12 * scale}L${8 * scale} ${23 * scale}V${9 * scale}Z"
-    stroke="white"
-    stroke-width="${2 * scale}"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    fill="none"
-  />
+  <rect width="${entrySize}" height="${entrySize}" rx="${entrySize * 0.22}" fill="#EAF2FF"/>
+  <image href="${markDataUri}" x="${entrySize * 0.09}" y="${entrySize * 0.125}" width="${entrySize * 0.82}" height="${entrySize * 0.75}" preserveAspectRatio="xMidYMid meet"/>
 </svg>`;
 }
 

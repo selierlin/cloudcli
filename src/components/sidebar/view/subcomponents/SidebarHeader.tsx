@@ -89,9 +89,7 @@ export default function SidebarHeader({
 
   const LogoBlock = () => (
     <div className="flex min-w-0 items-center gap-2.5">
-      <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[#141414] shadow-sm">
-        <img src="/logo-small.png" alt="CloudCLI" className="h-6 w-6 object-contain" />
-      </div>
+      <img src="/cloud-terminal-mark-flat.svg" alt="CloudCLI" className="h-7 w-7 flex-shrink-0" />
       <h1
         className="truncate text-sm font-bold tracking-tight text-foreground"
         title={serverName || undefined}

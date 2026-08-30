@@ -1,6 +1,6 @@
 # Convert SVG Icons to PNG
 
-I've created SVG versions of the app icons that match the MessageSquare design from the sidebar. To convert them to PNG format, you can use one of these methods:
+PWA 图标以 `../cloud-terminal-mark-flat.svg` 为品牌源图；`icons/` 下的 SVG/PNG 是面向不同平台尺寸的派生资源。更新源图时，需要重新导出对应 PNG，且实际像素尺寸必须与文件名和 `manifest.json` 一致。
 
 ## Method 1: Online Converter (Easiest)
 1. Go to https://cloudconvert.com/svg-to-png
@@ -43,11 +43,7 @@ done
 ```
 
 ## Icon Design
-The new icons feature:
-- Clean MessageSquare (chat bubble) design matching the sidebar
-- Primary color background with rounded corners
-- White stroke icon that's clearly visible
-- Consistent sizing and proportions across all sizes
-- Proper PWA-compliant format
 
-Once converted, the PNG files will replace the existing ones and provide a consistent icon experience across all platforms.
+- 浅蓝色圆角底
+- 扁平云朵与蓝色 `>_` 标记
+- 为 maskable PWA 图标预留安全边距
