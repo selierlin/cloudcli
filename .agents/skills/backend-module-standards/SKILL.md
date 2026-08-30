@@ -1,6 +1,6 @@
 ---
 name: backend-module-standards
-description: Enforce this repository's TypeScript backend module architecture standards. Use whenever creating, modifying, refactoring, or reviewing backend code under `server/`, including routes, services, modules, repositories, shared backend code, and backend tests. Do not apply these rules to frontend code or non-backend scaffolding.
+description: 约束本仓库 `server/` 下 TypeScript 后端模块的架构规范。创建、修改、重构或审查路由、服务、模块、仓储、共享后端代码及其测试时使用；不适用于前端或非后端脚手架。
 ---
 
 # Backend Module Standards

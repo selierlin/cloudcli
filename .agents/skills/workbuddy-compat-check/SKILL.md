@@ -1,6 +1,6 @@
 ---
 name: workbuddy-compat-check
-description: Check that cloudcli's WorkBuddy/CodeBuddy session parser still matches the JSONL transcript format the WorkBuddy engine actually writes, after a WorkBuddy/CodeBuddy upgrade. Parses the latest transcript from ~/.codebuddy/projects and ~/.workbuddy/projects, diffs top-level types / content blocks / <user_query> extraction / function-call fields against the project's read logic, and flags structures that would render wrong, show injected context instead of user input, or vanish. Use when WorkBuddy updates, when WorkBuddy sessions show injected context instead of user prompts, missing messages, blank tool events, or to re-verify workbuddy-sessions compatibility — 触发词：workbuddy 升级、workbuddy 兼容、workbuddy 格式、codebuddy 升级、workbuddy 会话异常、workbuddy 适配检查。Do NOT use for adding a new AI provider (see providers/README.md) or for CodeX/Claude format issues (use codex-compat-check / claude-compat-check).
+description: 检查 WorkBuddy 或 CodeBuddy 升级后，CloudCLI 的会话解析器是否仍与实际写入的 JSONL transcript 格式一致。解析最新会话并与项目读取逻辑比对，识别会错误渲染、展示注入上下文或丢失的新结构。用于 WorkBuddy/CodeBuddy 升级、用户提示被注入上下文替代、消息或工具事件缺失/空白，或兼容性复核；不用于新增 AI Provider（见 providers/README.md）或 CodeX、Claude 格式问题。
 ---
 
 # WorkBuddy / CodeBuddy transcript 格式兼容性检查
