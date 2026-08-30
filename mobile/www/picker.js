@@ -14,6 +14,9 @@
   var SERVER_NAME_KEY = 'cloudcli.serverName';
 
   var Preferences = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences) || null;
+  var WebCache = (window.Capacitor && typeof window.Capacitor.registerPlugin === 'function')
+    ? window.Capacitor.registerPlugin('WebCache')
+    : null;
 
   var els = {
     savedSection: document.getElementById('saved-section'),
@@ -25,6 +28,8 @@
     connectBtn: document.getElementById('connect-btn'),
     errorMsg: document.getElementById('error-msg'),
     refreshBtn: document.getElementById('refresh-latency'),
+    clearWebCache: document.getElementById('clear-web-cache'),
+    cacheHint: document.getElementById('cache-hint'),
   };
 
   /** 连接超时时间（毫秒），超过即认为服务器不可达 */
@@ -439,6 +444,32 @@
       if (currentList.length === 0) return;
       detectAllLatencies(currentList);
     });
+  }
+
+  if (els.clearWebCache) {
+    if (!WebCache) {
+      els.clearWebCache.classList.add('hidden');
+      if (els.cacheHint) els.cacheHint.classList.add('hidden');
+    } else {
+      els.clearWebCache.addEventListener('click', async function () {
+        var confirmed = window.confirm(
+          '将清除已连接服务器的网页缓存和登录状态，服务器列表会保留。是否继续？',
+        );
+        if (!confirmed) return;
+
+        els.clearWebCache.disabled = true;
+        els.clearWebCache.textContent = '正在清除…';
+        try {
+          await WebCache.clear();
+          window.alert('应用缓存已清除，请重新连接服务器。');
+          window.location.reload();
+        } catch (e) {
+          els.clearWebCache.disabled = false;
+          els.clearWebCache.textContent = '清除应用缓存';
+          window.alert('缓存清除失败，请重试。');
+        }
+      });
+    }
   }
 
   /** 隐藏 iOS 系统表单工具条（上/下箭头 + 打勾）。@capacitor/keyboard 默认隐藏，

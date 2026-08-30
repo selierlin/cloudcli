@@ -28,6 +28,7 @@ import {
 } from "../../../../shared/view/ui";
 
 import ModelLibraryPanel from "./ModelLibraryPanel";
+import { shouldShowProviderSelection } from './providerSelectionState';
 
 const PROVIDER_META: { id: LLMProvider; name: string }[] = [
   { id: "claude", name: "Anthropic" },
@@ -244,7 +245,7 @@ export default function ProviderSelectionEmptyState({
     setDialogOpen(true);
   };
 
-  if (!selectedSession && !currentSessionId) {
+  if (shouldShowProviderSelection(selectedSession, currentSessionId)) {
     return (
       <div className="flex h-full items-center justify-center px-4">
         <div className="w-full max-w-[34.25rem]">

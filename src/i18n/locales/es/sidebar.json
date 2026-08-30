@@ -83,6 +83,9 @@
     "joinCommunity": "Unirse a la comunidad",
     "reportIssue": "Informar de un problema",
     "starOnGithub": "Dar estrella en GitHub",
+    "clearCache": "Borrar caché de la aplicación",
+    "clearCacheConfirm": "¿Borrar los datos en caché y el estado de inicio de sesión de este servidor? Se conservará la lista de servidores.",
+    "clearCacheFailed": "No se pudo borrar la caché de la aplicación. Inténtalo de nuevo.",
     "backToServerList": "Volver a la lista de servidores"
   },
   "branding": {

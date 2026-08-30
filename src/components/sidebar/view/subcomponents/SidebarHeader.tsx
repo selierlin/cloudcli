@@ -9,6 +9,8 @@ import { IS_PLATFORM } from '../../../../shared/utils';
 import { cn } from '../../../../lib/utils';
 import type { SidebarSearchMode } from '../../types/types';
 
+import SidebarServerMenu from './SidebarServerMenu';
+
 const MOD_KEY =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
 
@@ -29,6 +31,7 @@ type SidebarHeaderProps = {
   isRefreshing: boolean;
   onCreateProject: () => void;
   onCollapseSidebar: () => void;
+  onShowSettings: () => void;
   t: TFunction;
 };
 
@@ -49,6 +52,7 @@ export default function SidebarHeader({
   isRefreshing,
   onCreateProject,
   onCollapseSidebar,
+  onShowSettings,
   t,
 }: SidebarHeaderProps) {
   // 移动端由服务器选择页跳转而来时，头部 Logo 旁显示当前服务器名称。
@@ -89,14 +93,20 @@ export default function SidebarHeader({
 
   const LogoBlock = () => (
     <div className="flex min-w-0 items-center gap-2.5">
-      <img src="/cloud-terminal-mark-flat.svg" alt="CloudCLI" className="h-7 w-7 flex-shrink-0" />
-      <h1
-        className="truncate text-sm font-bold tracking-tight text-foreground"
-        title={serverName || undefined}
-        style={{ fontFamily: CLOUDCLI_WORDMARK_FONT_FAMILY }}
-      >
-        {serverName ?? t('app.title')}
-      </h1>
+      {IS_PLATFORM ? (
+        <a
+          href="https://cloudcli.ai/dashboard"
+          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md transition-opacity hover:opacity-80"
+          title={t('tooltips.viewEnvironments')}
+        >
+          <img src="/cloud-terminal-mark-flat.svg" alt="CloudCLI" className="h-7 w-7" />
+        </a>
+      ) : (
+        <img src="/cloud-terminal-mark-flat.svg" alt="CloudCLI" className="h-7 w-7 flex-shrink-0" />
+      )}
+      <div style={{ fontFamily: CLOUDCLI_WORDMARK_FONT_FAMILY }} className="min-w-0">
+        <SidebarServerMenu serverName={serverName} onShowSettings={onShowSettings} />
+      </div>
     </div>
   );
 
@@ -108,17 +118,7 @@ export default function SidebarHeader({
         style={{}}
       >
         <div className="flex items-center justify-between gap-2">
-          {IS_PLATFORM ? (
-            <a
-              href="https://cloudcli.ai/dashboard"
-              className="flex min-w-0 items-center gap-2.5 transition-opacity hover:opacity-80"
-              title={t('tooltips.viewEnvironments')}
-            >
-              <LogoBlock />
-            </a>
-          ) : (
-            <LogoBlock />
-          )}
+          <LogoBlock />
 
           <div className="flex flex-shrink-0 items-center gap-0.5">
             <Button
@@ -268,17 +268,7 @@ export default function SidebarHeader({
         style={isPWA && isMobile ? { paddingTop: '16px' } : {}}
       >
         <div className="flex items-center justify-between">
-          {IS_PLATFORM ? (
-            <a
-              href="https://cloudcli.ai/dashboard"
-              className="flex min-w-0 items-center gap-2.5 transition-opacity active:opacity-70"
-              title={t('tooltips.viewEnvironments')}
-            >
-              <LogoBlock />
-            </a>
-          ) : (
-            <LogoBlock />
-          )}
+          <LogoBlock />
 
           <div className="flex flex-shrink-0 gap-1.5">
             <button

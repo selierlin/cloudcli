@@ -266,6 +266,37 @@ body {
   font-size: 12px;
 }
 
+.cache-btn {
+  display: block;
+  width: 100%;
+  margin-top: 24px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.cache-btn:active {
+  background: var(--surface-hover);
+}
+
+.cache-btn:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.cache-hint {
+  margin: 8px 8px 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
 /* 行内编辑 */
 .server-item .edit-input {
   background: var(--bg);

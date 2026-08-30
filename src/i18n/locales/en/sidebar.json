@@ -83,6 +83,9 @@
     "joinCommunity": "Join Community",
     "reportIssue": "Report Issue",
     "starOnGithub": "Star on GitHub",
+    "clearCache": "Clear app cache",
+    "clearCacheConfirm": "Clear cached data and login state for this server? Your server list will be kept.",
+    "clearCacheFailed": "Unable to clear the app cache. Please try again.",
     "backToServerList": "Back to server list"
   },
   "branding": {

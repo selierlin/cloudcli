@@ -82,6 +82,9 @@
     "joinCommunity": "加入社群",
     "reportIssue": "回報問題",
     "starOnGithub": "在 GitHub 上加星",
+    "clearCache": "清除應用程式快取",
+    "clearCacheConfirm": "要清除目前伺服器的快取和登入狀態嗎？伺服器列表會保留。",
+    "clearCacheFailed": "無法清除應用程式快取，請再試一次。",
     "backToServerList": "返回伺服器列表"
   },
   "branding": {

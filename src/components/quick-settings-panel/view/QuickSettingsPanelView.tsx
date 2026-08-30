@@ -33,6 +33,8 @@ export default function QuickSettingsPanelView({
     isDragging,
     handleStyle,
     startDrag,
+    handlePointerMove,
+    endDrag,
     consumeSuppressedClick,
   } = useQuickSettingsDrag({ isMobile });
 
@@ -116,8 +118,11 @@ export default function QuickSettingsPanelView({
           isDragging={isDragging}
           style={handleStyle}
           onClick={handleToggleFromHandle}
-          onMouseDown={startDrag}
-          onTouchStart={startDrag}
+          onPointerDown={startDrag}
+          onPointerMove={handlePointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onLostPointerCapture={endDrag}
         />
       </div>
 

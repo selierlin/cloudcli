@@ -83,6 +83,9 @@
     "joinCommunity": "Rejoindre la communauté",
     "reportIssue": "Signaler un problème",
     "starOnGithub": "Étoile sur GitHub",
+    "clearCache": "Vider le cache de l’application",
+    "clearCacheConfirm": "Effacer les données en cache et l’état de connexion de ce serveur ? La liste des serveurs sera conservée.",
+    "clearCacheFailed": "Impossible de vider le cache de l’application. Veuillez réessayer.",
     "backToServerList": "Retour à la liste des serveurs"
   },
   "branding": {

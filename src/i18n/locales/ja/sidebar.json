@@ -82,6 +82,9 @@
     "joinCommunity": "コミュニティに参加",
     "reportIssue": "問題を報告",
     "starOnGithub": "GitHubでスター",
+    "clearCache": "アプリのキャッシュを消去",
+    "clearCacheConfirm": "このサーバーのキャッシュとログイン状態を消去しますか？サーバー一覧は保持されます。",
+    "clearCacheFailed": "アプリのキャッシュを消去できませんでした。もう一度お試しください。",
     "backToServerList": "サーバー一覧に戻る"
   },
   "branding": {

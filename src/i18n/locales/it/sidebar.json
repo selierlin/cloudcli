@@ -83,6 +83,9 @@
     "joinCommunity": "Unisciti alla community",
     "reportIssue": "Segnala problema",
     "starOnGithub": "Metti stella su GitHub",
+    "clearCache": "Cancella cache dell’app",
+    "clearCacheConfirm": "Cancellare i dati memorizzati nella cache e lo stato di accesso per questo server? L’elenco dei server verrà mantenuto.",
+    "clearCacheFailed": "Impossibile cancellare la cache dell’app. Riprova.",
     "backToServerList": "Torna all'elenco dei server"
   },
   "branding": {
