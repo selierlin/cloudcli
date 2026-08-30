@@ -1,6 +1,6 @@
 ---
 name: claude-compat-check
-description: Check that cloudcli's Claude Code session parser still matches the transcript JSONL format Claude Code actually writes, after a Claude Code upgrade. Parses the latest session, diffs top-level types / content blocks / injected prefixes against the project's normalizeMessage baseline, and flags new structures that would render wrong or vanish (like a new content-block type). Use when Claude Code updates, when Claude sessions show missing/blank messages, unknown raw text bubbles, or to re-verify claude-sessions compatibility — 触发词：claude 升级、claude 兼容、claude 格式、claude 会话异常、claude 适配检查。Do NOT use for adding a new AI provider (see providers/README.md) or for CodeX/WorkBuddy format issues (use codex-compat-check).
+description: 检查 Claude Code 升级后，CloudCLI 的会话解析器是否仍与实际写入的 JSONL 格式一致。解析最新会话并与项目的 normalizeMessage 基线比对，识别会错误渲染或丢失的新结构。用于 Claude 升级、Claude 会话消息缺失/空白、出现未知原始文本气泡或兼容性复核；不用于新增 AI Provider（见 providers/README.md）或 CodeX、WorkBuddy 格式问题。
 ---
 
 # Claude Code 会话格式兼容性检查

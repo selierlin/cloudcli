@@ -1,6 +1,6 @@
 ---
 name: codex-compat-check
-description: Check that cloudcli's CodeX session parser still matches the rollout JSONL format CodeX actually writes, after a CodeX CLI upgrade. Parses the latest rollout, diffs event structures against the project's read logic, and flags format migrations that would silently drop messages (like the 0.150 user_message→UserMessage change). Use when CodeX updates, when CodeX sessions show missing/blank user or sub-agent messages, or to re-verify codex-sessions compatibility — 触发词：codex 升级、codex 兼容、codex 格式、会话消息缺失、codex 适配检查。Do NOT use for adding a new AI provider (see providers/README.md) or for WorkBuddy/Claude format issues.
+description: 检查 CodeX CLI 升级后，CloudCLI 的会话解析器是否仍与实际写入的 rollout JSONL 格式一致。解析最新 rollout 并与项目读取逻辑比对，识别会静默丢失消息的格式迁移。用于 CodeX 升级、用户或子代理消息缺失/空白，或兼容性复核；不用于新增 AI Provider（见 providers/README.md）或 WorkBuddy、Claude 格式问题。
 ---
 
 # CodeX rollout 格式兼容性检查
