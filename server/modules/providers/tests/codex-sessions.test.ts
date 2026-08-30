@@ -274,14 +274,32 @@ test('Codex history restores UserMessage items written by Codex >=0.150', { conc
         },
       }),
       JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T00:00:00.500Z',
+        payload: {
+          type: 'message',
+          role: 'user',
+          internal_chat_message_metadata_passthrough: { turn_id: 'turn-2' },
+          content: [
+            { type: 'input_text', text: 'system context' },
+            { type: 'input_image', image_url: 'data:image/png;base64,QUJD' },
+            { type: 'input_text', text: 'Then fix the parser' },
+          ],
+        },
+      }),
+      JSON.stringify({
         type: 'event_msg',
         timestamp: '2026-07-07T00:00:01.000Z',
         payload: {
+          turn_id: 'turn-2',
           type: 'item_completed',
           item: {
             type: 'UserMessage',
             id: 'um-2',
-            content: [{ type: 'text', text: 'Then fix the parser', text_elements: [] }],
+            content: [
+              { type: 'local_image', path: '/private/tmp/attached.png' },
+              { type: 'text', text: 'Then fix the parser', text_elements: [] },
+            ],
           },
         },
       }),
@@ -323,6 +341,7 @@ test('Codex history restores UserMessage items written by Codex >=0.150', { conc
         userMessages.map((message) => message.content),
         ['Explain the rollout format', 'Then fix the parser'],
       );
+      assert.deepEqual(userMessages[1]?.images, [{ data: 'data:image/png;base64,QUJD' }]);
       // The system-injected AGENTS.md message is not surfaced as a user turn.
       assert.ok(!userMessages.some((message) => message.content?.includes('AGENTS.md')));
       assert.equal(assistantMessages.length, 1);
@@ -446,6 +465,12 @@ test('Codex history preserves wrapped exec tool calls and results', { concurrenc
         input: 'await tools.exec_command({"command":"echo current"});',
         expectedToolName: 'Bash',
         expectedToolInput: JSON.stringify({ command: 'echo current' }),
+      },
+      {
+        callId: 'direct-exec-command-1',
+        input: JSON.stringify({ cmd: 'git status --short', workdir: '/workspace' }),
+        expectedToolName: 'Bash',
+        expectedToolInput: JSON.stringify({ command: 'git status --short' }),
       },
       { callId: 'apply-patch-1', input: 'await tools.apply_patch("*** Begin Patch\\n*** End Patch");' },
       { callId: 'web-run-1', input: 'await tools.web__run({ search_query: [{ q: "Codex" }] });' },
