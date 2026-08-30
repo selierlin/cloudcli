@@ -93,6 +93,26 @@ function extractCodexTextContent(content: unknown): string {
     .join('\n');
 }
 
+function extractCodexInlineImages(content: unknown): Array<{ data: string }> | undefined {
+  if (!Array.isArray(content)) {
+    return undefined;
+  }
+
+  const images = content
+    .map((item) => readObjectRecord(item))
+    .map((item) => {
+      if (item?.type !== 'input_image') {
+        return undefined;
+      }
+
+      const imageUrl = readNonEmptyString(item.image_url);
+      return imageUrl?.startsWith('data:image/') ? { data: imageUrl } : undefined;
+    })
+    .filter((image): image is { data: string } => Boolean(image));
+
+  return images.length > 0 ? images : undefined;
+}
+
 function extractCodexToolOutput(output: unknown): string {
   if (typeof output === 'string') {
     return output;
@@ -212,6 +232,19 @@ function translateCodexExecInput(input: unknown): { toolName: string; toolInput:
     }
   }
 
+  try {
+    const parsed = JSON.parse(source) as AnyRecord;
+    const command = readNonEmptyString(parsed.cmd) || readNonEmptyString(parsed.command);
+    if (command) {
+      return {
+        toolName: 'Bash',
+        toolInput: JSON.stringify({ command }),
+      };
+    }
+  } catch {
+    // Wrapper-style inputs are handled above; malformed direct inputs keep the generic fallback.
+  }
+
   return null;
 }
 
@@ -299,6 +332,7 @@ async function getCodexSessionMessages(
     const completedExecCalls = new Set<string>();
     const subagentsByCallId = new Map<string, CodexSubagentRecord>();
     const subagentsByPath = new Map<string, CodexSubagentRecord>();
+    const pendingUserImagesByTurnId = new Map<string, Array<{ data: string }>>();
     const fileStream = fsSync.createReadStream(sessionFilePath);
     const rl = readline.createInterface({
       input: fileStream,
@@ -368,16 +402,40 @@ async function getCodexSessionMessages(
         }
 
         if (
+          entry.type === 'response_item'
+          && entry.payload?.type === 'message'
+          && entry.payload.role === 'user'
+        ) {
+          // Codex records a user turn twice: this response item holds the
+          // inline image data, while the completed UserMessage below has the
+          // displayable user text. Keep the data by turn without surfacing
+          // system-injected user messages as chat bubbles.
+          const metadata = readObjectRecord(entry.payload.internal_chat_message_metadata_passthrough);
+          const turnId = readNonEmptyString(metadata?.turn_id);
+          const images = extractCodexInlineImages(entry.payload.content);
+          if (turnId && images) {
+            pendingUserImagesByTurnId.set(turnId, images);
+          }
+        }
+
+        if (
           entry.type === 'event_msg'
           && entry.payload?.type === 'item_completed'
           && entry.payload.item?.type === 'UserMessage'
         ) {
           const content = extractCodexTextContent(entry.payload.item.content);
-          if (content.trim()) {
+          const turnId = readNonEmptyString(entry.payload.turn_id);
+          const images = turnId ? pendingUserImagesByTurnId.get(turnId) : undefined;
+          if (turnId) {
+            pendingUserImagesByTurnId.delete(turnId);
+          }
+
+          if (content.trim() || images) {
             messages.push({
               type: 'user',
               timestamp: entry.timestamp,
               message: { role: 'user', content },
+              images,
             });
           }
         }
