@@ -83,6 +83,9 @@
     "joinCommunity": "커뮤니티 참여",
     "reportIssue": "문제 신고",
     "starOnGithub": "GitHub에서 스타",
+    "clearCache": "앱 캐시 지우기",
+    "clearCacheConfirm": "이 서버의 캐시 데이터와 로그인 상태를 지울까요? 서버 목록은 유지됩니다.",
+    "clearCacheFailed": "앱 캐시를 지울 수 없습니다. 다시 시도해 주세요.",
     "backToServerList": "서버 목록으로 돌아가기"
   },
   "branding": {

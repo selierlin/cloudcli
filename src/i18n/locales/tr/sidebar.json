@@ -83,6 +83,9 @@
     "joinCommunity": "Topluluğa Katıl",
     "reportIssue": "Sorun Bildir",
     "starOnGithub": "GitHub'da Yıldızla",
+    "clearCache": "Uygulama önbelleğini temizle",
+    "clearCacheConfirm": "Bu sunucunun önbelleğe alınmış verileri ve oturum durumu temizlensin mi? Sunucu listesi korunur.",
+    "clearCacheFailed": "Uygulama önbelleği temizlenemedi. Lütfen tekrar deneyin.",
     "backToServerList": "Sunucu listesine dön"
   },
   "branding": {

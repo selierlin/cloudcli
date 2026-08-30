@@ -83,6 +83,9 @@
     "joinCommunity": "Community beitreten",
     "reportIssue": "Problem melden",
     "starOnGithub": "Stern auf GitHub",
+    "clearCache": "App-Cache leeren",
+    "clearCacheConfirm": "Zwischengespeicherte Daten und den Anmeldestatus dieses Servers löschen? Die Serverliste bleibt erhalten.",
+    "clearCacheFailed": "Der App-Cache konnte nicht geleert werden. Bitte versuche es erneut.",
     "backToServerList": "Zurück zur Serverliste"
   },
   "branding": {

@@ -83,6 +83,9 @@
     "joinCommunity": "加入社区",
     "reportIssue": "报告问题",
     "starOnGithub": "在GitHub上加星",
+    "clearCache": "清除应用缓存",
+    "clearCacheConfirm": "要清除当前服务器的缓存和登录状态吗？服务器列表会保留。",
+    "clearCacheFailed": "无法清除应用缓存，请重试。",
     "backToServerList": "返回服务器列表"
   },
   "branding": {

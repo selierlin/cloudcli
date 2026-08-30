@@ -268,6 +268,7 @@ export default function SidebarContent({
         isRefreshing={isRefreshing}
         onCreateProject={onCreateProject}
         onCollapseSidebar={onCollapseSidebar}
+        onShowSettings={onShowSettings}
         t={t}
       />
 
@@ -791,7 +792,6 @@ export default function SidebarContent({
           releaseInfo={releaseInfo}
           latestVersion={latestVersion}
           onShowVersionModal={onShowVersionModal}
-          onShowSettings={onShowSettings}
           t={t}
         />
       )}
