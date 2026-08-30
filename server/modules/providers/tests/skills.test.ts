@@ -509,6 +509,14 @@ test('providerSkillsService lists workbuddy user skills from ~/.workbuddy/skills
   await fs.mkdir(workspacePath, { recursive: true });
 
   const restoreHomeDir = patchHomeDir(tempRoot);
+  // The skills root prefers explicit config-dir overrides over the patched
+  // home directory. Developers' shells often export
+  // WORKBUDDY_CONFIG_DIR/CODEBUDDY_CONFIG_DIR, which would otherwise redirect
+  // the lookup to the real ~/.workbuddy/skills.
+  const previousWorkbuddyConfigDir = process.env.WORKBUDDY_CONFIG_DIR;
+  const previousCodebuddyConfigDir = process.env.CODEBUDDY_CONFIG_DIR;
+  delete process.env.WORKBUDDY_CONFIG_DIR;
+  delete process.env.CODEBUDDY_CONFIG_DIR;
   try {
     await writeSkill(
       path.join(tempRoot, '.workbuddy', 'skills'),
@@ -534,6 +542,16 @@ test('providerSkillsService lists workbuddy user skills from ~/.workbuddy/skills
     assert.equal(byName.has('workbuddy-project'), false);
   } finally {
     restoreHomeDir();
+    if (previousWorkbuddyConfigDir === undefined) {
+      delete process.env.WORKBUDDY_CONFIG_DIR;
+    } else {
+      process.env.WORKBUDDY_CONFIG_DIR = previousWorkbuddyConfigDir;
+    }
+    if (previousCodebuddyConfigDir === undefined) {
+      delete process.env.CODEBUDDY_CONFIG_DIR;
+    } else {
+      process.env.CODEBUDDY_CONFIG_DIR = previousCodebuddyConfigDir;
+    }
     await fs.rm(tempRoot, { recursive: true, force: true });
   }
 });
