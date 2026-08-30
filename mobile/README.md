@@ -52,7 +52,7 @@ npm run mobile:build
 ## iOS 原生配置要点
 
 - `ios/App/App/Info.plist`：已配置 ATS（`NSAllowsArbitraryLoadsInWebContent` + `NSAllowsLocalNetworking`，允许 WKWebView 加载明文 HTTP）与本地网络权限描述（`NSLocalNetworkUsageDescription`）
-- App 图标：`ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png`（1024×1024，由 `public/logo-512.png` 生成）
+- App 图标：`ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png`（1024×1024，当前独立维护；不随 Web Logo 更新）
 
 ## 注意
 
