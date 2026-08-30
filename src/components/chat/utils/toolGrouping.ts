@@ -2,6 +2,14 @@ import type { ChatMessage } from '../types/types';
 
 export const TOOL_GROUP_THRESHOLD = 2;
 
+const NON_GROUPABLE_TOOL_NAMES = new Set([
+  'AskUserQuestion',
+  'TodoList',
+  'Task',
+  'exit_plan_mode',
+  'ExitPlanMode',
+]);
+
 export interface ToolGroupItem {
   _isGroup: true;
   toolName: string;
@@ -16,7 +24,12 @@ export function isToolGroupItem(item: MessageListItem): item is ToolGroupItem {
 }
 
 function isGroupableToolMessage(message: ChatMessage): message is ChatMessage & { toolName: string } {
-  return Boolean(message.isToolUse && message.toolName && !message.isSubagentContainer);
+  return Boolean(
+    message.isToolUse
+    && message.toolName
+    && !message.isSubagentContainer
+    && !NON_GROUPABLE_TOOL_NAMES.has(message.toolName),
+  );
 }
 
 // Messages that render nothing (e.g. reasoning hidden when showThinking is off)
@@ -54,7 +67,7 @@ export function groupConsecutiveTools(
         continue;
       }
 
-      if (isGroupableToolMessage(candidate) && candidate.toolName === message.toolName) {
+      if (isGroupableToolMessage(candidate)) {
         run.push(candidate);
         nextIndex += 1;
         continue;

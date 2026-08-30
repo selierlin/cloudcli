@@ -1,10 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import type { ChatMessage, ClaudePermissionSuggestion, PermissionGrantResult, Provider } from '../../types/types';
 import type { Project } from '../../../../types/app';
 import type { ToolGroupItem } from '../../utils/toolGrouping';
 import { getToolConfig } from '../../tools';
+import { ToolStatusBadge } from '../../tools/components/ToolStatusBadge';
+import type { ToolStatus } from '../../tools/components/ToolStatusBadge';
 
 import MessageComponent from './MessageComponent';
 
@@ -70,12 +73,39 @@ export default function ToolGroupContainer({
   selectedProject,
   provider,
 }: ToolGroupContainerProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const { t } = useTranslation('chat');
+  const toolNames = useMemo(
+    () => new Set(group.messages.map((message) => message.toolName || group.toolName)),
+    [group.messages, group.toolName],
+  );
+  const hasMixedTools = toolNames.size > 1;
+  const groupIssueStatus = useMemo<ToolStatus | undefined>(() => {
+    for (const message of group.messages) {
+      if (message.toolResult?.isError) {
+        return 'error';
+      }
+      if (
+        message.toolStatus === 'error'
+        || message.toolStatus === 'denied'
+        || message.toolStatus === 'stopped'
+      ) {
+        return message.toolStatus;
+      }
+    }
+    return undefined;
+  }, [group.messages]);
+  const [isExpanded, setIsExpanded] = useState(Boolean(groupIssueStatus));
   const config = getToolConfig(group.toolName).input;
-  const label = config.label || group.toolName;
+  const label = hasMixedTools ? t('messageTypes.tool') : config.label || group.toolName;
   const borderClass = config.colorScheme?.border || 'border-border';
   const iconClass = config.colorScheme?.icon || 'text-muted-foreground';
-  const icon = getToolGroupIcon(config.icon, group.toolName);
+  const icon = hasMixedTools ? '…' : getToolGroupIcon(config.icon, group.toolName);
+
+  useEffect(() => {
+    if (groupIssueStatus) {
+      setIsExpanded(true);
+    }
+  }, [groupIssueStatus]);
 
   const preview = useMemo(() => {
     const visiblePreviews = group.messages
@@ -112,6 +142,7 @@ export default function ToolGroupContainer({
         <span className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
           x{group.messages.length}
         </span>
+        {groupIssueStatus && <ToolStatusBadge status={groupIssueStatus} />}
         {preview && (
           <>
             <span className="text-[10px] text-muted-foreground/40">/</span>
