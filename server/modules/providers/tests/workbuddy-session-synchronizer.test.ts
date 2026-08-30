@@ -20,12 +20,22 @@ async function withIsolatedEnvironment(
   runTest: (homeDir: string) => void | Promise<void>,
 ): Promise<void> {
   const previousDatabasePath = process.env.DATABASE_PATH;
+  // The root resolution prefers explicit overrides over the patched home
+  // directory. Developers' shells often export WORKBUDDY_CONFIG_DIR /
+  // CODEBUDDY_CONFIG_DIR, which would otherwise redirect the scan to the real
+  // user data and break the isolated fixtures.
+  const previousProjectsRoot = process.env.WORKBUDDY_PROJECTS_ROOT;
+  const previousWorkbuddyConfigDir = process.env.WORKBUDDY_CONFIG_DIR;
+  const previousCodebuddyConfigDir = process.env.CODEBUDDY_CONFIG_DIR;
   const tempDirectory = await mkdtemp(path.join(os.tmpdir(), 'workbuddy-session-sync-'));
   const databasePath = path.join(tempDirectory, 'auth.db');
   const restoreHomeDir = patchHomeDir(tempDirectory);
 
   closeConnection();
   process.env.DATABASE_PATH = databasePath;
+  delete process.env.WORKBUDDY_PROJECTS_ROOT;
+  delete process.env.WORKBUDDY_CONFIG_DIR;
+  delete process.env.CODEBUDDY_CONFIG_DIR;
   await initializeDatabase();
 
   try {
@@ -37,6 +47,21 @@ async function withIsolatedEnvironment(
       delete process.env.DATABASE_PATH;
     } else {
       process.env.DATABASE_PATH = previousDatabasePath;
+    }
+    if (previousProjectsRoot === undefined) {
+      delete process.env.WORKBUDDY_PROJECTS_ROOT;
+    } else {
+      process.env.WORKBUDDY_PROJECTS_ROOT = previousProjectsRoot;
+    }
+    if (previousWorkbuddyConfigDir === undefined) {
+      delete process.env.WORKBUDDY_CONFIG_DIR;
+    } else {
+      process.env.WORKBUDDY_CONFIG_DIR = previousWorkbuddyConfigDir;
+    }
+    if (previousCodebuddyConfigDir === undefined) {
+      delete process.env.CODEBUDDY_CONFIG_DIR;
+    } else {
+      process.env.CODEBUDDY_CONFIG_DIR = previousCodebuddyConfigDir;
     }
     await rm(tempDirectory, { recursive: true, force: true });
   }
