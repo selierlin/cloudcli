@@ -9,7 +9,7 @@ CloudCLI 只读 DeepSeek Harness（DSH）写入的会话日志。Harness 升级�
 
 ## 范围与不变量
 
-- 数据源为 `DSH_SESSIONS_ROOT`；未设置时为 `${DSH_HOME:-~/Library/Application Support/dsh-desktop/harness}/sessions`。只读，绝不修改日志。
+- 数据源为 `DSH_SESSIONS_ROOT`；未设置时为 `${DSH_HOME:-~/.dsh}/sessions`。npm 版 `dsh --profile acp` 把会话写在 `~/.dsh/sessions`（旧的 dsh-desktop 桌面版 harness 目录已被取代），CloudCLI 的 `getDshHome()` 默认 `~/.dsh`，与此一致。只读，绝不修改日志。
 - 当前 CloudCLI 读取固定路径：`<root>/--<project-key>--/<encoded-session-id>/session.jsonl.zstd`。
 - 日志由多个独立 Zstandard 帧顺序拼接；每帧解压后合为逻辑 JSONL。部分写入或损坏的末帧只应丢弃该帧，保留此前可读内容。
 - 检查目标：
@@ -30,7 +30,7 @@ CloudCLI 历史渲染的唯一事件是：
 
 `user/message` 的 `data.source.kind === "user"` 才是真实用户输入。`plugin`、`agent-instructions`、`skill-catalog` 等非 user 来源是 Harness 注入上下文，CloudCLI 会跳过。`source.kind` 缺失仍会被当前代码当作用户消息渲染，是最高优先级的兼容性信号。
 
-已知但不渲染的内容块为 `reasoning`、`tool-call`、`image`；当前历史读取只展示 `text`。日志中常见的生命周期、工具、压缩行和标题事件也仅作元数据处理。出现未分类事件或 block 时，不要猜测格式，以真实样本确认其是否携带需要展示的历史内容。
+已知但不渲染的内容块为 `reasoning`、`tool-call`、`image`；当前历史读取只展示 `text`。日志中常见的生命周期、工具、压缩行和标题事件也仅作元数据处理。已在真实日志中确认的无害元数据事件：`session/end-seed`（种子阶段结束，`data: {}`）、`session/title-llm-request`（内部标题生成请求）、`model/selection`（模型选择），三者均不携带需展示的历史内容。出现未分类事件或 block 时，不要猜测格式，以真实样本确认其是否携带需要展示的历史内容。
 
 ## 工作流
 

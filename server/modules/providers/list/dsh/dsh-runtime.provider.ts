@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -11,12 +11,12 @@ import type {
 } from '@/shared/types.js';
 import { createCompleteMessage, createNormalizedMessage } from '@/shared/utils.js';
 
-import { getDshHarnessRoot, getDshSessionsRoot } from './dsh-models.provider.js';
+import { getDshHome, getDshSessionsRoot } from './dsh-models.provider.js';
 
 // ---------- Minimal ACP (Agent Client Protocol) client over JSON-RPC stdio ----------
 //
 // Mirrors the automation wire contract the DSH ACP server speaks
-// (`@agentclientprotocol/sdk` 0.25.1 + the `examples/acp-agent` composition):
+// (the installed `dsh --profile acp` server, built on `@agentclientprotocol/sdk`):
 // newline-delimited JSON-RPC on stdio with initialize / session/new /
 // session/prompt / session/cancel plus session/update and
 // session/request_permission server requests. Kept dependency-free.
@@ -355,6 +355,58 @@ function registerSessionWithDesktopWorkspace(acpSessionId: string, cwd: string):
   }
 }
 
+/**
+ * Injects the macOS system proxy into the child env when no proxy variable is
+ * already set, so the ACP server's LLM requests reach gateways that the direct
+ * path blocks. Node only honors proxy environment variables when
+ * `NODE_USE_ENV_PROXY=1` is set. Non-macOS hosts and machines without a system
+ * proxy leave the env untouched (direct connections).
+ */
+function applySystemProxy(childEnv: NodeJS.ProcessEnv): void {
+  if (childEnv.HTTP_PROXY || childEnv.HTTPS_PROXY || childEnv.http_proxy || childEnv.https_proxy) {
+    return;
+  }
+  if (process.platform !== 'darwin') {
+    return;
+  }
+  try {
+    const output = execFileSync('scutil', ['--proxy'], { encoding: 'utf8', timeout: 3000 });
+    const value = (key: string): string | undefined => {
+      const match = new RegExp(`^\\s*${key} : (.*)$`, 'm').exec(output);
+      return match?.[1];
+    };
+    if (value('HTTPEnable') === '1' && value('HTTPProxy')) {
+      const proxyUrl = `http://${value('HTTPProxy')}:${value('HTTPPort') || '80'}`;
+      childEnv.HTTP_PROXY = proxyUrl;
+      childEnv.HTTPS_PROXY = proxyUrl;
+      childEnv.NODE_USE_ENV_PROXY = '1';
+    }
+  } catch {
+    // No system proxy configured; leave the environment untouched.
+  }
+}
+
+/**
+ * Creates an ACP session, retrying across the settings-driven adapter
+ * registration race: pi-ai registers provider routes from `$DSH_HOME/settings.yaml`
+ * a moment after the ACP server starts serving, so a `session/new` sent in that
+ * window fails with "no adapter registered" for the selected provider.
+ */
+async function createAcpSession(client: AcpClient, cwd: string, attempts = 8): Promise<string> {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await client.newSession(cwd);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes('no adapter registered') || attempt === attempts) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+  throw new Error('DSH ACP session creation failed');
+}
+
 /** Lazily spawns the DSH ACP server process and negotiates the protocol. */
 async function ensureAcpServer(): Promise<AcpServerState> {
   // A dead server (crashed child / closed client) must never be handed out:
@@ -374,25 +426,17 @@ async function ensureAcpServer(): Promise<AcpServerState> {
 
   registerProcessShutdownHook();
 
-  const harnessRoot = getDshHarnessRoot();
-  // The ACP server is a separate node process; do not leak the parent tsx
-  // loader's tsconfig hint (it resolves relative to the harness root and would
-  // break `node --import tsx` inside the child).
+  // The ACP server is the installed `dsh` CLI's official automation profile,
+  // which mounts the user's own harness home (settings, credentials, skills,
+  // global AGENTS.md). Pin DSH_HOME so the child and the session readers in
+  // `getDshSessionsRoot()` agree on where sessions are persisted.
   const childEnv: NodeJS.ProcessEnv = { ...process.env };
-  delete childEnv.TSX_TSCONFIG_PATH;
-  // The ACP composition reads this variable to override its persistence root
-  // (examples/acp-agent/cordis.yml), which is how cloudcli sessions become
-  // visible in the DSH Desktop app.
-  childEnv.DSH_SNAPSHOT_SESSIONS_ROOT = getDshSessionsRoot();
-  const child = spawn(
-    process.execPath,
-    ['--import', 'tsx', 'packages/examples/acp-demo/src/bin.ts', '--config', 'examples/acp-agent/cordis.yml'],
-    {
-      cwd: harnessRoot,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: childEnv,
-    },
-  );
+  childEnv.DSH_HOME = getDshHome();
+  applySystemProxy(childEnv);
+  const child = spawn('dsh', ['--profile', 'acp'], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: childEnv,
+  });
 
   const client = new AcpClient(child, {
     onMessageChunk: (acpSessionId, text) => {
@@ -475,7 +519,7 @@ export const dshRuntime: IProviderRuntime = {
           : typeof options.projectPath === 'string' && options.projectPath
             ? options.projectPath
             : process.cwd();
-        acpSessionId = await server.client.newSession(cwd);
+        acpSessionId = await createAcpSession(server.client, cwd);
         server.sessionByApp.set(appSessionId, acpSessionId);
         trimSessionMappings(server.sessionByApp);
         // Register the session with the DSH Desktop workspace registry so the

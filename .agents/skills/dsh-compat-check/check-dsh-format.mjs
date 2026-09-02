@@ -24,6 +24,8 @@ const KNOWN_NOT_READ_TYPES = new Map([
   ['request/header', '请求元数据'], ['request/context', '请求上下文'],
   ['sandbox/mode', '执行环境元数据'], ['approval/policy', '审批策略元数据'],
   ['permission/preset', '权限预设元数据'], ['session/title', '会话标题元数据'],
+  ['session/title-llm-request', '标题生成 LLM 请求元数据'],
+  ['session/end-seed', '种子阶段结束生命周期'], ['model/selection', '模型选择元数据'],
   ['reasoning-chunks', '压缩后的推理增量'], ['text-chunks', '压缩后的文本增量'],
   ['tool-call-chunks', '压缩后的工具调用增量'],
   ['hook/invoked', 'Hook 生命周期'], ['hook/result', 'Hook 生命周期'],
@@ -41,7 +43,7 @@ function sessionsRoot() {
   const explicit = process.env.DSH_SESSIONS_ROOT?.trim();
   if (explicit) return explicit;
   const harnessHome = process.env.DSH_HOME?.trim()
-    || path.join(os.homedir(), 'Library', 'Application Support', 'dsh-desktop', 'harness');
+    || path.join(os.homedir(), '.dsh');
   return path.join(harnessHome, 'sessions');
 }
 
