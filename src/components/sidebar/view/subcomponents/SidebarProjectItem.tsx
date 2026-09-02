@@ -44,6 +44,7 @@ type SidebarProjectItemProps = {
     sessionTitle: string,
     provider: LLMProvider,
   ) => void;
+  onRequestBatchArchive: (sessionIds: string[], onCompleted: (archivedSessionIds: string[]) => void) => void;
   onLoadMoreSessions: (projectId: string) => void;
   activeSessions: SessionActivityMap;
   attentionSessionIds: ReadonlySet<string>;
@@ -52,6 +53,7 @@ type SidebarProjectItemProps = {
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
+  onTogglePinned: (sessionId: string, isPinned: boolean) => void;
   t: TFunction;
 };
 
@@ -87,6 +89,7 @@ export default function SidebarProjectItem({
   onDeleteProject,
   onSessionSelect,
   onDeleteSession,
+  onRequestBatchArchive,
   onLoadMoreSessions,
   activeSessions,
   attentionSessionIds,
@@ -95,6 +98,7 @@ export default function SidebarProjectItem({
   onStartEditingSession,
   onCancelEditingSession,
   onSaveEditingSession,
+  onTogglePinned,
   t,
 }: SidebarProjectItemProps) {
   // Project identity is tracked by the DB-assigned `projectId` everywhere
@@ -438,9 +442,11 @@ export default function SidebarProjectItem({
         onStartEditingSession={onStartEditingSession}
         onCancelEditingSession={onCancelEditingSession}
         onSaveEditingSession={onSaveEditingSession}
+        onTogglePinned={onTogglePinned}
         onProjectSelect={onProjectSelect}
         onSessionSelect={onSessionSelect}
         onDeleteSession={onDeleteSession}
+        onRequestBatchArchive={onRequestBatchArchive}
         onLoadMoreSessions={onLoadMoreSessions}
         onNewSession={onNewSession}
         t={t}

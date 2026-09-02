@@ -13,10 +13,14 @@ type WebCachePlugin = {
   clear: () => Promise<void>;
 };
 
+type ServerSessionPlugin = {
+  showPicker: () => Promise<void>;
+};
+
 type CapacitorWindow = {
   Capacitor?: {
     isNativePlatform?: () => boolean;
-    registerPlugin?: (name: string) => WebCachePlugin;
+    registerPlugin?: (name: string) => unknown;
   };
 };
 
@@ -59,6 +63,16 @@ export default function SidebarServerMenu({ serverName, onShowSettings }: Sideba
   }, [isNativeShell]);
 
   const returnToServerList = () => {
+    const serverSession = capacitor?.registerPlugin?.('ServerSession') as ServerSessionPlugin | undefined;
+    if (serverSession) {
+      void serverSession.showPicker().catch(() => {
+        if (pickerUrl) {
+          window.location.href = pickerUrl;
+        }
+      });
+      return;
+    }
+
     if (pickerUrl) {
       window.location.href = pickerUrl;
     }
@@ -66,7 +80,7 @@ export default function SidebarServerMenu({ serverName, onShowSettings }: Sideba
 
   const clearCache = async () => {
     try {
-      const webCache = capacitor?.registerPlugin?.('WebCache');
+      const webCache = capacitor?.registerPlugin?.('WebCache') as WebCachePlugin | undefined;
       if (!webCache) {
         throw new Error('WebCache plugin is unavailable');
       }

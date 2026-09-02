@@ -36,6 +36,17 @@
     "sessionOptions": "Options de session",
     "sessionOptionsFor": "Options de session pour {{name}}",
     "sessionName": "Nom de la session",
+    "pinSession": "Épingler la session",
+    "unpinSession": "Désépingler la session",
+    "pinnedSession": "Session épinglée",
+    "manageSessions": "Gérer",
+    "selectAll": "Tout sélectionner",
+    "deselectAll": "Tout désélectionner",
+    "selectSession": "Sélectionner la session : {{name}}",
+    "selectedCount": "{{count}} sélectionnées",
+    "archiveSelected": "Archiver {{count}}",
+    "deleteSelectedPermanently": "Supprimer définitivement {{count}}",
+    "runningSessionCannotBeArchived": "Les sessions en cours ne peuvent pas être archivées en lot",
     "archiveOrDeleteSession": "Archiver ou supprimer la session",
     "providerSession": "Session {{provider}}",
     "copySessionId": "Copier l'ID de session {{provider}}",
@@ -120,6 +131,12 @@
     "deleteSessionError": "Erreur lors de la suppression de la session. Veuillez réessayer.",
     "renameSessionFailed": "Échec du renommage de la session. Veuillez réessayer.",
     "renameSessionError": "Erreur lors du renommage de la session. Veuillez réessayer.",
+    "updateSessionPinFailed": "Échec de la mise à jour de l'épinglage de la session. Veuillez réessayer.",
+    "updateSessionPinError": "Erreur lors de la mise à jour de l'épinglage de la session. Veuillez réessayer.",
+    "batchArchivePartialFailure": "{{archived}} sessions sur {{total}} ont été archivées. Réessayez pour les autres.",
+    "batchArchiveNoLongerAvailable": "Les sessions sélectionnées sont en cours et ne peuvent pas être archivées en lot.",
+    "batchPermanentDeleteFailed": "Échec de la suppression définitive des sessions sélectionnées. Veuillez réessayer.",
+    "batchPermanentDeleteError": "Une erreur s'est produite lors de la suppression définitive des sessions sélectionnées. Veuillez réessayer.",
     "deleteProjectFailed": "Échec de la suppression du projet. Veuillez réessayer.",
     "deleteProjectError": "Erreur lors de la suppression du projet. Veuillez réessayer.",
     "createProjectFailed": "Échec de la création du projet. Veuillez réessayer.",
@@ -134,6 +151,10 @@
   "version": {
     "updateAvailable": "Mise à jour disponible",
     "restartRequired": "Mise à jour installée — redémarrez le serveur pour l'appliquer"
+  },
+  "recent": {
+    "pinnedTitle": "Conversations épinglées",
+    "unpinnedTitle": "Conversations récentes"
   },
   "search": {
     "modeProjects": "Projets",
@@ -161,12 +182,24 @@
     "deleteAllData": "Supprimer toutes les données définitivement",
     "allConversationsDeleted": "Le projet sera retiré de la barre latérale. Vos fichiers, mémoires et données de session seront conservés.",
     "cannotUndo": "Vous pourrez rajouter le projet ultérieurement.",
+    "archiveProject": "Archiver le projet",
     "archiveSession": "Archiver la session",
+    "archiveSessionsTitle": "Archiver {{count}} sessions",
+    "archiveSessionsAction": "Archiver {{count}} sessions",
+    "archiveSessionsNotice": "Ces sessions seront masquées des listes actives, mais leur historique sera conservé et pourra être restauré depuis les archives.",
+    "permanentlyDeleteArchivedSessionsTitle": "Supprimer définitivement {{count}} sessions archivées",
+    "permanentlyDeleteArchivedSessionsAction": "Supprimer définitivement {{count}} sessions",
+    "permanentlyDeleteArchivedSessionsNotice": "Les enregistrements de session sélectionnés et leurs fichiers d'historique sur disque seront supprimés définitivement. Les projets archivés ne sont pas affectés.",
     "deleteSessionPermanently": "Supprimer définitivement",
     "archiveSessionNotice": "L'archivage retire la session de la liste active tout en conservant son historique.",
     "archivedSessionNotice": "Cette session est déjà archivée. Vous pouvez la garder masquée ou la supprimer définitivement."
   },
   "archived": {
+    "manageSessions": "Gérer les sessions",
+    "expandSessions": "Développer les sessions",
+    "collapseSessions": "Réduire les sessions",
+    "expandAll": "Tout développer",
+    "collapseAll": "Tout réduire",
     "restore": "Restaurer la session",
     "deletePermanently": "Supprimer définitivement"
   }

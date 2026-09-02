@@ -120,3 +120,35 @@ test('recent sessions are globally ordered, paginated, and limited to visible co
     );
   });
 });
+
+test('pinned sessions persist and precede newer unpinned conversations', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createSession(
+      'pinned-session',
+      'claude',
+      '/workspace/project-a',
+      'Pinned',
+      '2026-07-18T09:00:00.000Z',
+      '2026-07-18T10:00:00.000Z',
+    );
+    sessionsDb.createSession(
+      'newer-session',
+      'codex',
+      '/workspace/project-a',
+      'Newer',
+      '2026-07-18T11:00:00.000Z',
+      '2026-07-18T12:00:00.000Z',
+    );
+
+    sessionsDb.updateSessionIsPinned('pinned-session', true);
+
+    assert.equal(sessionsDb.getSessionById('pinned-session')?.isPinned, 1);
+    assert.deepEqual(
+      sessionsDb.getRecentSessionsPage(10, 0).sessions.map((session) => session.session_id),
+      ['pinned-session', 'newer-session'],
+    );
+
+    sessionsDb.updateSessionIsPinned('pinned-session', false);
+    assert.equal(sessionsDb.getSessionById('pinned-session')?.isPinned, 0);
+  });
+});

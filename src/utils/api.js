@@ -196,6 +196,11 @@ export const api = {
   },
   getArchivedSessions: () =>
     authenticatedFetch('/api/providers/sessions/archived'),
+  permanentlyDeleteArchivedSessions: (sessionIds) =>
+    authenticatedFetch('/api/providers/sessions/archived', {
+      method: 'DELETE',
+      body: JSON.stringify({ sessionIds }),
+    }),
   // Resolves one session (by app id or provider-native id) to its metadata and
   // owning project — used when a /session/<id> URL isn't in loaded payloads.
   sessionDetails: (sessionId) =>
@@ -219,6 +224,11 @@ export const api = {
     authenticatedFetch(`/api/providers/sessions/${sessionId}`, {
       method: 'PUT',
       body: JSON.stringify({ summary }),
+    }),
+  setSessionPinned: (sessionId, isPinned) =>
+    authenticatedFetch(`/api/providers/sessions/${sessionId}/pinned`, {
+      method: 'PUT',
+      body: JSON.stringify({ isPinned }),
     }),
   // `hardDelete` => server `?force=true` (remove DB row + Claude *.jsonl + sessions rows for path).
   deleteProject: (projectId, hardDelete = false) => {

@@ -8,7 +8,7 @@ import test, { mock } from 'node:test';
 
 import express, { type NextFunction, type Request, type Response } from 'express';
 
-import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
+import { closeConnection, initializeDatabase, projectsDb, sessionsDb } from '@/modules/database/index.js';
 import providerRouter from '@/modules/providers/provider.routes.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import { AppError } from '@/shared/utils.js';
@@ -76,6 +76,96 @@ test('session creation route names a CloudCLI session from the initial message',
       sessionsDb.getSessionById(payload.data.sessionId)?.custom_name,
       'abcd efg hij klm',
     );
+  });
+});
+
+test('session pin route persists the requested state and validates its body', async () => {
+  await withProviderServer(async (baseUrl, workspacePath) => {
+    sessionsDb.createAppSession('pinned-session', 'codex', workspacePath, 'Pin me');
+
+    const pinResponse = await fetch(`${baseUrl}/api/providers/sessions/pinned-session/pinned`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ isPinned: true }),
+    });
+    const pinPayload = await pinResponse.json() as { data: { sessionId: string; isPinned: boolean } };
+
+    assert.equal(pinResponse.status, 200);
+    assert.deepEqual(pinPayload.data, { sessionId: 'pinned-session', isPinned: true });
+    assert.equal(sessionsDb.getSessionById('pinned-session')?.isPinned, 1);
+
+    const invalidResponse = await fetch(`${baseUrl}/api/providers/sessions/pinned-session/pinned`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ isPinned: 'true' }),
+    });
+    const invalidPayload = await invalidResponse.json() as { error: { code: string } };
+
+    assert.equal(invalidResponse.status, 400);
+    assert.equal(invalidPayload.error.code, 'INVALID_SESSION_PINNED');
+  });
+});
+
+test('archived session batch delete permanently removes only archived sessions', async () => {
+  await withProviderServer(async (baseUrl, workspacePath) => {
+    sessionsDb.createAppSession('archived-first', 'codex', workspacePath, 'First archived');
+    sessionsDb.createAppSession('archived-second', 'codex', workspacePath, 'Second archived');
+    sessionsDb.createAppSession('active-session', 'codex', workspacePath, 'Active');
+    sessionsDb.updateSessionIsArchived('archived-first', true);
+    sessionsDb.updateSessionIsArchived('archived-second', true);
+
+    const response = await fetch(`${baseUrl}/api/providers/sessions/archived`, {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionIds: ['archived-first', 'archived-second'] }),
+    });
+    const payload = await response.json() as { data: { sessionIds: string[] } };
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(payload.data.sessionIds, ['archived-first', 'archived-second']);
+    assert.equal(sessionsDb.getSessionById('archived-first'), null);
+    assert.equal(sessionsDb.getSessionById('archived-second'), null);
+    assert.ok(sessionsDb.getSessionById('active-session'));
+  });
+});
+
+test('archived session batch delete rejects active sessions before deleting the batch', async () => {
+  await withProviderServer(async (baseUrl, workspacePath) => {
+    sessionsDb.createAppSession('archived-session', 'codex', workspacePath, 'Archived');
+    sessionsDb.createAppSession('active-session', 'codex', workspacePath, 'Active');
+    sessionsDb.updateSessionIsArchived('archived-session', true);
+
+    const response = await fetch(`${baseUrl}/api/providers/sessions/archived`, {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionIds: ['archived-session', 'active-session'] }),
+    });
+    const payload = await response.json() as { error: { code: string } };
+
+    assert.equal(response.status, 409);
+    assert.equal(payload.error.code, 'SESSION_NOT_ARCHIVED');
+    assert.ok(sessionsDb.getSessionById('archived-session'));
+    assert.ok(sessionsDb.getSessionById('active-session'));
+  });
+});
+
+test('archived session batch delete leaves archived projects and their sessions untouched', async () => {
+  await withProviderServer(async (baseUrl, workspacePath) => {
+    sessionsDb.createAppSession('project-archived-session', 'codex', workspacePath, 'Archived session');
+    sessionsDb.updateSessionIsArchived('project-archived-session', true);
+    projectsDb.updateProjectIsArchived(workspacePath, true);
+
+    const response = await fetch(`${baseUrl}/api/providers/sessions/archived`, {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionIds: ['project-archived-session'] }),
+    });
+    const payload = await response.json() as { error: { code: string } };
+
+    assert.equal(response.status, 409);
+    assert.equal(payload.error.code, 'SESSION_PROJECT_ARCHIVED');
+    assert.ok(sessionsDb.getSessionById('project-archived-session'));
+    assert.equal(projectsDb.getProjectPath(workspacePath)?.isArchived, 1);
   });
 });
 

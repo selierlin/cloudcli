@@ -36,6 +36,17 @@
     "sessionOptions": "Oturum seçenekleri",
     "sessionOptionsFor": "{{name}} için oturum seçenekleri",
     "sessionName": "Oturum adı",
+    "pinSession": "Oturumu sabitle",
+    "unpinSession": "Oturum sabitlemesini kaldır",
+    "pinnedSession": "Sabitlenmiş oturum",
+    "manageSessions": "Yönet",
+    "selectAll": "Tümünü seç",
+    "deselectAll": "Tüm seçimi kaldır",
+    "selectSession": "Oturumu seç: {{name}}",
+    "selectedCount": "{{count}} seçildi",
+    "archiveSelected": "{{count}} oturumu arşivle",
+    "deleteSelectedPermanently": "{{count}} oturumu kalıcı olarak sil",
+    "runningSessionCannotBeArchived": "Çalışan oturumlar toplu olarak arşivlenemez",
     "archiveOrDeleteSession": "Oturumu arşivle veya sil",
     "providerSession": "{{provider}} oturumu",
     "copySessionId": "{{provider}} oturum kimliğini kopyala",
@@ -120,6 +131,12 @@
     "deleteSessionError": "Oturum silinirken hata oluştu. Lütfen tekrar dene.",
     "renameSessionFailed": "Oturum yeniden adlandırılamadı. Lütfen tekrar dene.",
     "renameSessionError": "Oturum yeniden adlandırılırken hata oluştu. Lütfen tekrar dene.",
+    "updateSessionPinFailed": "Oturum sabitlemesi güncellenemedi. Lütfen tekrar dene.",
+    "updateSessionPinError": "Oturum sabitlemesi güncellenirken hata oluştu. Lütfen tekrar dene.",
+    "batchArchivePartialFailure": "{{total}} oturumdan {{archived}} tanesi arşivlendi. Kalanlar için tekrar dene.",
+    "batchArchiveNoLongerAvailable": "Seçili oturumlar çalışıyor ve toplu olarak arşivlenemez.",
+    "batchPermanentDeleteFailed": "Seçili oturumlar kalıcı olarak silinemedi. Lütfen tekrar dene.",
+    "batchPermanentDeleteError": "Seçili oturumlar kalıcı olarak silinirken hata oluştu. Lütfen tekrar dene.",
     "deleteProjectFailed": "Proje kaldırılamadı. Lütfen tekrar dene.",
     "deleteProjectError": "Proje kaldırılırken hata oluştu. Lütfen tekrar dene.",
     "createProjectFailed": "Proje oluşturulamadı. Lütfen tekrar dene.",
@@ -134,6 +151,10 @@
   "version": {
     "updateAvailable": "Güncelleme mevcut",
     "restartRequired": "Güncelleme yüklendi — uygulamak için sunucuyu yeniden başlatın"
+  },
+  "recent": {
+    "pinnedTitle": "Sabitlenmiş konuşmalar",
+    "unpinnedTitle": "Son konuşmalar"
   },
   "search": {
     "modeProjects": "Projeler",
@@ -161,12 +182,24 @@
     "deleteAllData": "Tüm veriyi kalıcı olarak sil",
     "allConversationsDeleted": "Proje kenar çubuğundan kaldırılacak. Dosyaların, bellek verilerin ve oturum verilerin korunacak.",
     "cannotUndo": "Projeyi sonra tekrar ekleyebilirsin.",
+    "archiveProject": "Projeyi arşivle",
     "archiveSession": "Oturumu arşivle",
+    "archiveSessionsTitle": "{{count}} oturumu arşivle",
+    "archiveSessionsAction": "{{count}} oturumu arşivle",
+    "archiveSessionsNotice": "Bu oturumlar etkin listelerden gizlenir; geçmişleri korunur ve arşivden geri yüklenebilir.",
+    "permanentlyDeleteArchivedSessionsTitle": "{{count}} arşivlenmiş oturumu kalıcı olarak sil",
+    "permanentlyDeleteArchivedSessionsAction": "{{count}} oturumu kalıcı olarak sil",
+    "permanentlyDeleteArchivedSessionsNotice": "Seçili oturum kayıtları ve diskteki geçmiş dosyaları kalıcı olarak silinir. Arşivlenmiş projeler etkilenmez.",
     "deleteSessionPermanently": "Kalıcı olarak sil",
     "archiveSessionNotice": "Arşivleme, oturumu etkin listeden kaldırır ve geçmişini korur.",
     "archivedSessionNotice": "Bu oturum zaten arşivlendi. Gizli tutabilir veya kalıcı olarak silebilirsiniz."
   },
   "archived": {
+    "manageSessions": "Oturumları yönet",
+    "expandSessions": "Oturumları genişlet",
+    "collapseSessions": "Oturumları daralt",
+    "expandAll": "Tümünü genişlet",
+    "collapseAll": "Tümünü daralt",
     "restore": "Oturumu geri yükle",
     "deletePermanently": "Kalıcı olarak sil"
   }

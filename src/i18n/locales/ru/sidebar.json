@@ -36,6 +36,17 @@
     "sessionOptions": "Параметры сеанса",
     "sessionOptionsFor": "Параметры сеанса для {{name}}",
     "sessionName": "Имя сеанса",
+    "pinSession": "Закрепить сеанс",
+    "unpinSession": "Открепить сеанс",
+    "pinnedSession": "Закреплённый сеанс",
+    "manageSessions": "Управлять",
+    "selectAll": "Выбрать все",
+    "deselectAll": "Снять выделение",
+    "selectSession": "Выбрать сеанс: {{name}}",
+    "selectedCount": "Выбрано: {{count}}",
+    "archiveSelected": "Архивировать: {{count}}",
+    "deleteSelectedPermanently": "Удалить навсегда: {{count}}",
+    "runningSessionCannotBeArchived": "Запущенные сеансы нельзя архивировать пакетно",
     "archiveOrDeleteSession": "Архивировать или удалить сеанс",
     "providerSession": "Сеанс {{provider}}",
     "copySessionId": "Копировать ID сеанса {{provider}}",
@@ -120,6 +131,12 @@
     "deleteSessionError": "Ошибка при удалении сеанса. Попробуйте снова.",
     "renameSessionFailed": "Не удалось переименовать сеанс. Попробуйте снова.",
     "renameSessionError": "Ошибка при переименовании сеанса. Попробуйте снова.",
+    "updateSessionPinFailed": "Не удалось обновить закрепление сеанса. Попробуйте снова.",
+    "updateSessionPinError": "Ошибка при обновлении закрепления сеанса. Попробуйте снова.",
+    "batchArchivePartialFailure": "Архивировано {{archived}} из {{total}} сеансов. Повторите попытку для остальных.",
+    "batchArchiveNoLongerAvailable": "Выбранные сеансы выполняются и не могут быть архивированы пакетно.",
+    "batchPermanentDeleteFailed": "Не удалось навсегда удалить выбранные сеансы. Попробуйте снова.",
+    "batchPermanentDeleteError": "При окончательном удалении выбранных сеансов произошла ошибка. Попробуйте снова.",
     "deleteProjectFailed": "Не удалось убрать проект. Попробуйте снова.",
     "deleteProjectError": "Ошибка при удалении проекта из списка. Попробуйте снова.",
     "createProjectFailed": "Не удалось создать проект. Попробуйте снова.",
@@ -134,6 +151,10 @@
   "version": {
     "updateAvailable": "Доступно обновление",
     "restartRequired": "Обновление установлено — перезапустите сервер для применения"
+  },
+  "recent": {
+    "pinnedTitle": "Закреплённые разговоры",
+    "unpinnedTitle": "Недавние разговоры"
   },
   "search": {
     "modeProjects": "Проекты",
@@ -167,12 +188,24 @@
     "deleteAllData": "Удалить все данные навсегда",
     "allConversationsDeleted": "Проект будет убран из боковой панели. Ваши файлы, воспоминания и данные сеансов сохранятся.",
     "cannotUndo": "Вы сможете добавить проект позже.",
+    "archiveProject": "Архивировать проект",
     "archiveSession": "Архивировать сеанс",
+    "archiveSessionsTitle": "Архивировать {{count}} сеансов",
+    "archiveSessionsAction": "Архивировать {{count}} сеансов",
+    "archiveSessionsNotice": "Эти сеансы будут скрыты из активных списков, но их история сохранится и будет доступна для восстановления из архива.",
+    "permanentlyDeleteArchivedSessionsTitle": "Навсегда удалить {{count}} архивных сеансов",
+    "permanentlyDeleteArchivedSessionsAction": "Навсегда удалить {{count}} сеансов",
+    "permanentlyDeleteArchivedSessionsNotice": "Выбранные записи сеансов и файлы истории на диске будут удалены навсегда. Архивные проекты не затрагиваются.",
     "deleteSessionPermanently": "Удалить навсегда",
     "archiveSessionNotice": "Архивирование убирает сеанс из активного списка, сохраняя его историю.",
     "archivedSessionNotice": "Этот сеанс уже заархивирован. Вы можете оставить его скрытым или удалить навсегда."
   },
   "archived": {
+    "manageSessions": "Управлять сеансами",
+    "expandSessions": "Развернуть сеансы",
+    "collapseSessions": "Свернуть сеансы",
+    "expandAll": "Развернуть все",
+    "collapseAll": "Свернуть все",
     "restore": "Восстановить сеанс",
     "deletePermanently": "Удалить навсегда"
   }
