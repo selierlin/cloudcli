@@ -1,0 +1,449 @@
+{
+  "codeBlock": {
+    "copy": "复制",
+    "copied": "已复制",
+    "copyCode": "复制代码"
+  },
+  "table": {
+    "scrollHint": "左右滑动查看完整表格"
+  },
+  "copyMessage": {
+    "copy": "复制消息",
+    "copied": "消息已复制",
+    "selectFormat": "选择复制格式",
+    "copyAsMarkdown": "复制为 Markdown",
+    "copyAsText": "复制为纯文本"
+  },
+  "message": {
+    "branchFromHere": "从此消息创建分支"
+  },
+  "messageTypes": {
+    "user": "U",
+    "error": "错误",
+    "tool": "工具",
+    "claude": "Claude",
+    "cursor": "Cursor",
+    "codex": "Codex",
+    "opencode": "OpenCode",
+    "dsh": "DeepSeek Harness",
+    "workbuddy": "WorkBuddy"
+  },
+  "tools": {
+    "settings": "工具设置",
+    "error": "工具错误",
+    "result": "工具结果",
+    "viewParams": "查看输入参数",
+    "viewRawParams": "查看原始参数",
+    "viewDiff": "查看编辑差异",
+    "creatingFile": "创建新文件：",
+    "updatingTodo": "更新待办事项",
+    "read": "读取",
+    "readFile": "读取文件",
+    "updateTodo": "更新待办列表",
+    "readTodo": "读取待办列表",
+    "searchResults": "结果"
+  },
+  "search": {
+    "found": "找到 {{count}} 个{{type}}",
+    "file": "文件",
+    "files": "文件",
+    "pattern": "模式：",
+    "in": "在："
+  },
+  "fileOperations": {
+    "updated": "文件更新成功",
+    "created": "文件创建成功",
+    "written": "文件写入成功",
+    "diff": "差异",
+    "newFile": "新文件",
+    "viewContent": "查看文件内容",
+    "viewFullOutput": "查看完整输出（{{count}} 个字符）",
+    "contentDisplayed": "文件内容显示在上面的差异视图中"
+  },
+  "thinking": {
+    "title": "思考中...",
+    "emoji": "💭 思考中..."
+  },
+  "json": {
+    "response": "JSON 响应"
+  },
+  "permissions": {
+    "grant": "授予 {{tool}} 权限",
+    "added": "权限已添加",
+    "addTo": "将 {{entry}} 添加到允许的工具。",
+    "retry": "权限已保存。重试请求以使用该工具。",
+    "error": "无法更新权限。请重试。",
+    "openSettings": "打开设置"
+  },
+  "todo": {
+    "updated": "待办列表已成功更新",
+    "current": "当前待办列表"
+  },
+  "plan": {
+    "viewPlan": "📋 查看实施计划",
+    "title": "实施计划"
+  },
+  "usageLimit": {
+    "resetAt": "Claude 使用限制已达到。您的限制将在 **{{time}} {{timezone}}** - {{date}} 重置"
+  },
+  "codex": {
+    "permissionMode": "权限模式",
+    "modes": {
+      "default": "默认模式",
+      "auto": "自动模式",
+      "acceptEdits": "编辑模式",
+      "bypassPermissions": "无限制模式",
+      "plan": "计划模式"
+    },
+    "descriptions": {
+      "default": "只有受信任的命令（ls、cat、grep、git status 等）自动运行。其他命令将被跳过。可以写入工作区。",
+      "auto": "由模型分类器针对每次工具调用决定批准或拒绝。无需手动操作，但比无限制模式更安全——仍可能发生拒绝。",
+      "acceptEdits": "工作区内的所有命令自动运行。完全自动模式，具有沙盒执行功能。",
+      "bypassPermissions": "完全的系统访问，无限制。所有命令自动运行，具有完整的磁盘和网络访问权限。请谨慎使用。",
+      "plan": "计划模式 - 不执行任何命令"
+    },
+    "technicalDetails": "技术细节"
+  },
+  "voice": {
+    "input": "语音输入",
+    "stopRecording": "停止录音",
+    "transcribing": "转写中…",
+    "speak": "朗读",
+    "stopSpeaking": "停止",
+    "loading": "加载中…"
+  },
+  "input": {
+    "placeholder": "输入 / 调用命令，@ 选择文件，或向 {{provider}} 提问...",
+    "placeholderDefault": "输入您的消息...",
+    "disabled": "输入已禁用",
+    "attachFiles": "附加文件",
+    "attachImages": "附加图片",
+    "send": "发送",
+    "stop": "停止",
+    "hintText": {
+      "ctrlEnter": "Ctrl+Enter 发送 • Shift+Enter 换行 • Tab 切换模式 • / 斜杠命令",
+      "enter": "Enter 发送 • Shift+Enter 换行 • Tab 切换模式 • / 斜杠命令",
+      "queue": "Enter 排队发送下一条消息",
+      "updateQueued": "Enter 更新排队消息"
+    },
+    "clickToChangeMode": "点击更改权限模式（或在输入框中按 Tab）",
+    "showAllCommands": "显示所有命令",
+    "clearInput": "清空输入",
+    "scrollToBottom": "滚动到底部",
+    "queue": {
+      "sendNext": "排队发送下一条消息",
+      "update": "更新排队消息",
+      "label": "已排队",
+      "willSend": "将在当前完成后发送",
+      "edit": "编辑排队消息",
+      "delete": "删除排队消息"
+    }
+  },
+  "composer": {
+    "reasoning": "思考",
+    "model": "模型",
+    "effortDefault": "默认",
+    "loadingModels": "正在加载模型…",
+    "modelMenu": "选择模型和思考强度",
+    "permissionHeading": "{{provider}} 的操作应如何获得批准？"
+  },
+  "commandMenu": {
+    "namespace": {
+      "frequent": "常用命令",
+      "builtin": "内置命令",
+      "skill": "技能",
+      "project": "项目命令",
+      "user": "用户命令",
+      "other": "其他命令"
+    },
+    "empty": "没有可用命令",
+    "aria": {
+      "availableCommands": "可用命令"
+    },
+    "builtin": {
+      "help": "显示 Claude Code 帮助文档",
+      "models": "查看当前提供商的可用模型",
+      "cost": "显示 Token 用量信息",
+      "memory": "打开 CLAUDE.md 记忆文件进行编辑",
+      "config": "打开设置与配置",
+      "status": "显示系统状态与版本信息"
+    }
+  },
+  "providerSelection": {
+    "title": "选择您的 AI 助手",
+    "description": "先选择工具，再选择该工具配置中使用的模型",
+    "selectModel": "选择模型",
+    "chooseTool": "1 · 选择工具",
+    "chooseModelStep": "2 · 选择模型",
+    "clickToChooseModel": "点击选择模型",
+    "chooseModelForTool": "{{tool}} 的模型",
+    "chooseModelDescription": "此工具的配置中可用的模型",
+    "addModel": "添加模型",
+    "manageModels": "管理模型",
+    "searchModels": "搜索模型...",
+    "noModelsFound": "未找到模型。",
+    "loadingModels": "正在加载模型…",
+    "modelSelectorTitle": "模型选择器",
+    "custom": "自定义",
+    "providerInfo": {
+      "anthropic": "由 Anthropic 提供",
+      "openai": "由 OpenAI 提供",
+      "cursorEditor": "AI 代码编辑器",
+      "google": "由 Google 提供",
+      "deepseek": "by DeepSeek"
+    },
+    "readyPrompt": {
+      "claude": "准备好使用带有 {{model}} 的 Claude。请在下方开始输入您的消息。",
+      "cursor": "准备好使用带有 {{model}} 的 Cursor。请在下方开始输入您的消息。",
+      "codex": "准备好使用带有 {{model}} 的 Codex。请在下方开始输入您的消息。",
+      "opencode": "准备好使用带有 {{model}} 的 OpenCode。请在下方开始输入您的消息。",
+      "default": "请在上方选择一个提供者以开始",
+      "dsh": "准备好使用带有 {{model}} 的 DeepSeek Harness。请在下方开始输入您的消息。",
+      "workbuddy": "准备好使用带有 {{model}} 的 WorkBuddy。请在下方开始输入您的消息。"
+    },
+    "pressToSearch": "按 <kbd>{{shortcut}}</kbd> 搜索会话、文件和提交"
+  },
+  "commandResult": {
+    "title": "命令结果",
+    "common": {
+      "close": "关闭",
+      "escCloses": "按 Esc 关闭弹窗。",
+      "closeModalAria": "关闭命令结果弹窗",
+      "unknown": "未知"
+    },
+    "help": {
+      "eyebrow": "命令中心",
+      "title": "帮助与快捷键",
+      "subtitle": "无需离开聊天即可搜索内置命令、语法模式和命令用法。",
+      "filterPlaceholder": "过滤命令...",
+      "noDescription": "暂无描述。",
+      "noMatch": "没有匹配该过滤条件的命令。",
+      "syntax": "语法",
+      "syntaxCommand": "/command arg1 arg2",
+      "syntaxArgs": "$ARGUMENTS 传递所有参数。",
+      "syntaxPositional": "$1、$2 传递位置参数。",
+      "syntaxFile": "@file 包含文件内容。",
+      "quickTip": "小贴士",
+      "quickTipBody": "在输入框中输入 <code>/</code> 打开命令面板，然后使用方向键和 Enter 执行命令。",
+      "builtin": "内置",
+      "fallbackModels": "浏览当前提供者可用的模型。",
+      "fallbackCost": "查看当前会话的 Token 用量。",
+      "fallbackStatus": "查看运行时、版本、提供者和环境状态。",
+      "fallbackMemory": "打开项目的 CLAUDE.md 记忆文件。",
+      "fallbackConfig": "打开设置和配置。",
+      "fallbackHelp": "显示命令文档和语法。"
+    },
+    "models": {
+      "eyebrow": "模型选择",
+      "title": "选择模型",
+      "subtitle": "选择该提供者应使用的模型。",
+      "activeModel": "当前模型 · {{provider}}",
+      "manageModels": "管理模型",
+      "searchPlaceholder": "搜索 {{provider}} 模型...",
+      "custom": "自定义",
+      "currentSelection": "当前选择",
+      "sessionModel": "会话模型",
+      "pendingNext": "→ 下一个：{{model}}",
+      "noMatch": "没有匹配该搜索的模型。",
+      "selectAria": "选择模型 {{model}}",
+      "sessionSavedNotice": "您的选择已保存到本次会话，并将成为新聊天的默认模型。",
+      "defaultSavedNotice": "您的选择将成为新聊天的默认模型。",
+      "sessionSetNotice": "本次会话现在使用 {{model}}。",
+      "defaultSetNotice": "已将默认 {{provider}} 模型设置为 {{model}}。",
+      "changeFailed": "当前无法更改模型。"
+    },
+    "cost": {
+      "eyebrow": "会话遥测",
+      "title": "Token 用量",
+      "subtitle": "本次会话的输入、输出和总 Token 数量。",
+      "totalTokens": "Token 总用量",
+      "inputTokens": "输入 Token",
+      "outputTokens": "输出 Token",
+      "breakdown": "明细",
+      "unavailable": "不可用",
+      "contextWindow": "上下文窗口",
+      "provider": "提供者",
+      "model": "模型"
+    },
+    "status": {
+      "eyebrow": "运行时状态",
+      "title": "系统状态",
+      "subtitle": "版本、提供者、运行时和环境信息一览。",
+      "package": "包名",
+      "version": "版本",
+      "uptime": "运行时长",
+      "provider": "提供者",
+      "model": "模型",
+      "nodejs": "Node.js",
+      "platform": "平台",
+      "memory": "内存",
+      "memoryValue": "{{mb}} MB RSS",
+      "runtimeOnline": "运行时在线",
+      "processResponding": "进程 #{{pid}} 正在响应。",
+      "processStatus": "进程状态正在响应。",
+      "healthy": "健康"
+    }
+  },
+  "modelLibrary": {
+    "title": "模型库",
+    "description": "添加您的提供者支持的模型 ID。内置模型保持锁定。",
+    "backToModels": "返回模型列表",
+    "addCustomModel": "添加自定义模型",
+    "editCustomModel": "编辑自定义模型",
+    "idSentNote": "ID 将完全按输入原样发送给 {{provider}}。",
+    "modelName": "模型名称",
+    "modelNamePlaceholder": "例如 GPT-5.5 Pro",
+    "modelId": "模型 ID",
+    "modelIdPlaceholder": "例如 gpt-5.5-pro",
+    "idHint": "请使用提供者 CLI 接受的准确标识符。ID 不能包含空格。",
+    "enterBothError": "请输入模型名称和模型 ID。",
+    "noSpacesError": "模型 ID 不能包含空格。",
+    "saveFailedError": "无法保存此模型。",
+    "deleteFailedError": "无法删除此模型。",
+    "updatedNotice": "{{model}} 已更新。",
+    "addedNotice": "{{model}} 已添加。",
+    "deletedNotice": "{{model}} 已删除。",
+    "saving": "保存中…",
+    "saveChanges": "保存更改",
+    "addModel": "添加模型",
+    "yourModels": "您的模型",
+    "storedInAuthDb": "可编辑，存储于 auth.db",
+    "noCustomModels": "暂无自定义模型",
+    "noCustomModelsHint": "使用表单添加一个，它将出现在所有模型选择器中。",
+    "deleteConfirm": "从所有选择器中删除此模型？",
+    "cancel": "取消",
+    "delete": "删除",
+    "custom": "自定义",
+    "builtInModels": "内置模型",
+    "maintainedByCloudCLI": "由 CloudCLI 维护，只读",
+    "cancelEditingAria": "取消编辑",
+    "editAria": "编辑 {{model}}",
+    "deleteAria": "删除 {{model}}"
+  },
+  "session": {
+    "continue": {
+      "title": "继续您的对话",
+      "description": "询问有关代码的问题、请求更改或获取开发任务的帮助"
+    },
+    "loading": {
+      "olderMessages": "正在加载更早的消息...",
+      "sessionMessages": "正在加载会话消息..."
+    },
+    "messages": {
+      "showingOf": "显示 {{shown}} / {{total}} 条消息",
+      "scrollToLoad": "向上滚动以加载更多",
+      "showingLast": "显示最近 {{count}} 条消息（共 {{total}} 条）",
+      "loadEarlier": "加载更早的消息",
+      "loadAll": "加载全部消息",
+      "loadingAll": "正在加载全部消息...",
+      "allLoaded": "全部消息已加载",
+      "perfWarning": "已加载全部消息 - 滚动可能变慢。点击「滚动到底部」恢复性能。"
+    }
+  },
+  "shell": {
+    "selectProject": {
+      "title": "选择项目",
+      "description": "选择一个项目以在该目录中打开交互式 Shell"
+    },
+    "status": {
+      "newSession": "新会话",
+      "initializing": "初始化中...",
+      "restarting": "重启中..."
+    },
+    "actions": {
+      "disconnect": "断开连接",
+      "disconnectTitle": "断开 Shell 连接",
+      "restart": "重启",
+      "restartTitle": "重启 Shell（请先断开连接）",
+      "connect": "在 Shell 中继续",
+      "connectTitle": "连接到 Shell",
+      "bypass": "绕过",
+      "bypassOnTitle": "权限绕过已开启 — 点击关闭（将重启 CLI）",
+      "bypassOffTitle": "权限绕过已关闭 — 点击开启（将重启 CLI）"
+    },
+    "loading": "正在加载终端...",
+    "connecting": "正在连接到 Shell...",
+    "startSession": "启动新的 Claude 会话",
+    "resumeSession": "恢复会话：{{displayName}}...",
+    "runCommand": "在 {{projectName}} 中运行 {{command}}",
+    "startCli": "在 {{projectName}} 中启动 Claude CLI",
+    "defaultCommand": "命令"
+  },
+  "claudeStatus": {
+    "actions": {
+      "thinking": "思考中",
+      "processing": "处理中",
+      "analyzing": "分析中",
+      "working": "执行中",
+      "computing": "运算中",
+      "reasoning": "推理中"
+    },
+    "state": {
+      "live": "进行中",
+      "paused": "已暂停"
+    },
+    "elapsed": {
+      "seconds": "{{count}} 秒",
+      "minutesSeconds": "{{minutes}} 分 {{seconds}} 秒",
+      "label": "已过 {{time}}",
+      "startingNow": "正要开始"
+    },
+    "stop": "停止",
+    "controls": {
+      "stopGeneration": "停止生成",
+      "pressEscToStop": "随时按 Esc 即可停止"
+    },
+    "providers": {
+      "assistant": "助理"
+    }
+  },
+  "projectSelection": {
+    "startChatWithProvider": "选择一个项目以开始与 {{provider}} 聊天"
+  },
+  "tasks": {
+    "nextTaskPrompt": "开始下一个任务"
+  },
+  "message": {
+    "editAndResend": "编辑并重新发送",
+    "forkFromHere": "从此处派生"
+  },
+  "composer": {
+    "editing": {
+      "title": "正在替换先前的消息",
+      "filesNotReverted": "已修改的文件不会被还原",
+      "cancel": "取消"
+    }
+  },
+  "export": {
+    "trigger": "导出对话",
+    "heading": "导出为",
+    "untitled": "对话",
+    "html": {
+      "label": "网页 (.html)",
+      "description": "单文件，与应用外观一致，可打印为 PDF。"
+    },
+    "markdown": {
+      "label": "Markdown (.md)",
+      "description": "含工具调用与差异的纯文本。"
+    },
+    "json": {
+      "label": "JSON (.json)",
+      "description": "全部消息原样输出，供工具使用。"
+    }
+  },
+  "schedule": {
+    "trigger": "定时发送这条消息",
+    "heading": "稍后发送",
+    "customLabel": "或选择时间",
+    "confirm": "定时发送",
+    "in": {
+      "15": "15 分钟后",
+      "60": "1 小时后",
+      "480": "8 小时后",
+      "1440": "明天"
+    },
+    "pending": "将于 {{when}} 发送",
+    "failed": "未发送 — {{reason}}",
+    "cancel": "取消定时消息"
+  }
+}
