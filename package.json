@@ -52,6 +52,7 @@
     "test:client": "tsx --test \"src/**/*.test.ts\" \"src/**/*.test.tsx\"",
     "lint": "eslint src/ server/",
     "lint:fix": "eslint src/ server/ --fix",
+    "change-password": "node scripts/change-cloudcli-password.mjs",
     "start": "npm run build && npm run server",
     "release": "./release.sh",
     "prepublishOnly": "npm run build",
