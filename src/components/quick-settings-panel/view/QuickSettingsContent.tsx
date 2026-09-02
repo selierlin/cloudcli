@@ -11,7 +11,6 @@ import {
 } from '../../settings/constants/constants';
 import type { CodeFontFamilyId, FontFamilyId } from '../../settings/types/types';
 import { ThemeModeSelector } from '../../../shared/view/ui';
-import LanguageSelector from '../../../shared/view/ui/LanguageSelector';
 import {
   INPUT_SETTING_TOGGLES,
   SETTING_ROW_CLASS,
@@ -91,7 +90,6 @@ export default function QuickSettingsContent({
           </span>
           <ThemeModeSelector />
         </div>
-        <LanguageSelector compact />
         <div className={SETTING_ROW_CLASS}>
           <span className="flex items-center gap-2 text-sm text-foreground">
             <Type className="h-4 w-4 text-muted-foreground" />
