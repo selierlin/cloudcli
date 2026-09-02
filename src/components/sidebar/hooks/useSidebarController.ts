@@ -8,6 +8,8 @@ import type { SessionActivityMap } from '../../../hooks/useSessionProtection';
 import type {
   ArchivedProjectListItem,
   ArchivedSessionListItem,
+  BatchArchivedSessionDeleteConfirmation,
+  BatchSessionArchiveConfirmation,
   DeleteProjectConfirmation,
   ProjectSortOrder,
   RecentConversationListItem,
@@ -151,6 +153,8 @@ export function useSidebarController({
   const [deletingProjects, setDeletingProjects] = useState<Set<string>>(new Set());
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteProjectConfirmation | null>(null);
   const [sessionDeleteConfirmation, setSessionDeleteConfirmation] = useState<SessionDeleteConfirmation | null>(null);
+  const [batchSessionArchiveConfirmation, setBatchSessionArchiveConfirmation] = useState<BatchSessionArchiveConfirmation | null>(null);
+  const [batchArchivedSessionDeleteConfirmation, setBatchArchivedSessionDeleteConfirmation] = useState<BatchArchivedSessionDeleteConfirmation | null>(null);
   const [showVersionModal, setShowVersionModal] = useState(false);
   const [searchMode, setSearchMode] = useState<SidebarSearchMode>('projects');
   const [conversationResults, setConversationResults] = useState<ConversationSearchResults | null>(null);
@@ -885,6 +889,101 @@ export function useSidebarController({
     }
   }, [fetchArchivedSessions, onSessionDelete, reloadRecentConversations, sessionDeleteConfirmation, t]);
 
+  const showBatchSessionArchiveConfirmation = useCallback((sessionIds: string[], onCompleted: (archivedSessionIds: string[]) => void) => {
+    const uniqueSessionIds = [...new Set(sessionIds)].filter((sessionId) => !activeSessions.has(sessionId));
+    if (uniqueSessionIds.length === 0) {
+      return;
+    }
+
+    setBatchSessionArchiveConfirmation({
+      sessionIds: uniqueSessionIds,
+      onCompleted,
+    });
+  }, [activeSessions]);
+
+  const confirmBatchSessionArchive = useCallback(async () => {
+    if (!batchSessionArchiveConfirmation) {
+      return;
+    }
+
+    const { sessionIds, onCompleted } = batchSessionArchiveConfirmation;
+    setBatchSessionArchiveConfirmation(null);
+
+    const archiveableSessionIds = sessionIds.filter((sessionId) => !activeSessions.has(sessionId));
+    if (archiveableSessionIds.length === 0) {
+      alert(t('messages.batchArchiveNoLongerAvailable', 'The selected sessions are currently running and cannot be archived.'));
+      return;
+    }
+
+    const results = await Promise.allSettled(
+      archiveableSessionIds.map(async (sessionId) => {
+        const response = await api.deleteSession(sessionId);
+        if (!response.ok) {
+          throw new Error(`Failed to archive session ${sessionId}: ${response.status}`);
+        }
+        return sessionId;
+      }),
+    );
+    const archivedSessionIds = results
+      .filter((result): result is PromiseFulfilledResult<string> => result.status === 'fulfilled')
+      .map((result) => result.value);
+
+    archivedSessionIds.forEach((sessionId) => onSessionDelete?.(sessionId));
+    onCompleted(archivedSessionIds);
+
+    if (archivedSessionIds.length > 0) {
+      await fetchArchivedSessions();
+      void reloadRecentConversations();
+    }
+
+    if (archivedSessionIds.length !== sessionIds.length) {
+      alert(t('messages.batchArchivePartialFailure', {
+        archived: archivedSessionIds.length,
+        total: sessionIds.length,
+        defaultValue: '{{archived}} of {{total}} sessions were archived. Please try the remaining sessions again.',
+      }));
+    }
+  }, [activeSessions, batchSessionArchiveConfirmation, fetchArchivedSessions, onSessionDelete, reloadRecentConversations, t]);
+
+  const showBatchArchivedSessionDeleteConfirmation = useCallback((sessionIds: string[], onCompleted: (deletedSessionIds: string[]) => void) => {
+    const uniqueSessionIds = [...new Set(sessionIds)];
+    if (uniqueSessionIds.length === 0) {
+      return;
+    }
+
+    setBatchArchivedSessionDeleteConfirmation({
+      sessionIds: uniqueSessionIds,
+      onCompleted,
+    });
+  }, []);
+
+  const confirmBatchArchivedSessionDelete = useCallback(async () => {
+    if (!batchArchivedSessionDeleteConfirmation) {
+      return;
+    }
+
+    const { sessionIds, onCompleted } = batchArchivedSessionDeleteConfirmation;
+    setBatchArchivedSessionDeleteConfirmation(null);
+
+    try {
+      const response = await api.permanentlyDeleteArchivedSessions(sessionIds);
+      if (!response.ok) {
+        console.error('[Sidebar] Failed to permanently delete archived sessions:', response.status);
+        alert(t('messages.batchPermanentDeleteFailed'));
+        return;
+      }
+
+      const payload = await response.json() as { data?: { sessionIds?: string[] } };
+      const deletedSessionIds = payload.data?.sessionIds ?? sessionIds;
+      deletedSessionIds.forEach((sessionId) => onSessionDelete?.(sessionId));
+      onCompleted(deletedSessionIds);
+      await fetchArchivedSessions();
+    } catch (error) {
+      console.error('[Sidebar] Error permanently deleting archived sessions:', error);
+      alert(t('messages.batchPermanentDeleteError'));
+    }
+  }, [batchArchivedSessionDeleteConfirmation, fetchArchivedSessions, onSessionDelete, t]);
+
   const requestProjectDelete = useCallback(
     (project: Project) => {
       setDeleteConfirmation({
@@ -1055,6 +1154,23 @@ export function useSidebarController({
     [onRefresh, reloadRecentConversations, t],
   );
 
+  const updateSessionPinned = useCallback(async (sessionId: string, isPinned: boolean) => {
+    try {
+      const response = await api.setSessionPinned(sessionId, isPinned);
+      if (!response.ok) {
+        console.error('[Sidebar] Failed to update session pin:', response.status);
+        alert(t('messages.updateSessionPinFailed', 'Failed to update session pin. Please try again.'));
+        return;
+      }
+
+      await Promise.resolve(onRefresh());
+      reloadRecentConversations();
+    } catch (error) {
+      console.error('[Sidebar] Error updating session pin:', error);
+      alert(t('messages.updateSessionPinError', 'Error updating session pin. Please try again.'));
+    }
+  }, [onRefresh, reloadRecentConversations, t]);
+
   const collapseSidebar = useCallback(() => {
     setSidebarVisible(false);
   }, [setSidebarVisible]);
@@ -1080,6 +1196,8 @@ export function useSidebarController({
     loadingMoreProjects,
     deleteConfirmation,
     sessionDeleteConfirmation,
+    batchSessionArchiveConfirmation,
+    batchArchivedSessionDeleteConfirmation,
     showVersionModal,
     filteredProjects,
     runningSessionsCount,
@@ -1106,6 +1224,10 @@ export function useSidebarController({
     saveProjectName,
     showDeleteSessionConfirmation,
     confirmDeleteSession,
+    showBatchSessionArchiveConfirmation,
+    confirmBatchSessionArchive,
+    showBatchArchivedSessionDeleteConfirmation,
+    confirmBatchArchivedSessionDelete,
     requestProjectDelete,
     confirmDeleteProject,
     handleProjectSelect,
@@ -1114,6 +1236,7 @@ export function useSidebarController({
     restoreArchivedSession,
     refreshProjects,
     updateSessionSummary,
+    updateSessionPinned,
     collapseSidebar,
     expandSidebar,
     setShowNewProject,
@@ -1138,6 +1261,8 @@ export function useSidebarController({
     setSearchFilter,
     setDeleteConfirmation,
     setSessionDeleteConfirmation,
+    setBatchSessionArchiveConfirmation,
+    setBatchArchivedSessionDeleteConfirmation,
     setShowVersionModal,
   };
 }

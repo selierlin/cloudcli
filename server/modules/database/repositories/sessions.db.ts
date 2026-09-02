@@ -13,6 +13,8 @@ type SessionRow = {
   model: string | null;
   /** Reasoning effort this session runs with; NULL until the app records one. */
   effort: string | null;
+  /** Whether the user has pinned this conversation in the recent feed. */
+  isPinned: number;
   isArchived: number;
   created_at: string;
   updated_at: string;
@@ -24,7 +26,7 @@ type RecentSessionsPage = {
 };
 
 const SESSION_ROW_COLUMNS =
-  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, model, effort, isArchived, created_at, updated_at';
+  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, model, effort, isPinned, isArchived, created_at, updated_at';
 
 const SQLITE_UTC_TIMESTAMP_REGEX = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 
@@ -382,7 +384,8 @@ export const sessionsDb = {
          FROM sessions
          LEFT JOIN projects ON projects.project_path = sessions.project_path
          WHERE ${visibilityClause}
-         ORDER BY julianday(COALESCE(sessions.updated_at, sessions.created_at)) DESC,
+         ORDER BY sessions.isPinned DESC,
+                  julianday(COALESCE(sessions.updated_at, sessions.created_at)) DESC,
                   sessions.session_id DESC
          LIMIT ? OFFSET ?`
       )
@@ -515,6 +518,19 @@ export const sessionsDb = {
        SET isArchived = ?
        WHERE session_id = ?`
     ).run(isArchived ? 1 : 0, sessionId);
+  },
+
+  /**
+   * Persists the user's pin preference independently from a session's activity
+   * timestamps, so synchronizers can refresh metadata without changing it.
+   */
+  updateSessionIsPinned(sessionId: string, isPinned: boolean): void {
+    const db = getConnection();
+    db.prepare(
+      `UPDATE sessions
+       SET isPinned = ?
+       WHERE session_id = ?`
+    ).run(isPinned ? 1 : 0, sessionId);
   },
 
   deleteSessionById(sessionId: string): boolean {

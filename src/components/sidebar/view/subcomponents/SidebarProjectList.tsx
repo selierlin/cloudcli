@@ -48,11 +48,13 @@ export type SidebarProjectListProps = {
     sessionTitle: string,
     provider: LLMProvider,
   ) => void;
+  onRequestBatchArchive: (sessionIds: string[], onCompleted: (archivedSessionIds: string[]) => void) => void;
   onNewSession: (project: Project) => void;
   onEditingSessionNameChange: (value: string) => void;
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
+  onTogglePinned: (sessionId: string, isPinned: boolean) => void;
   t: TFunction;
 };
 
@@ -90,11 +92,13 @@ export default function SidebarProjectList({
   onDeleteProject,
   onSessionSelect,
   onDeleteSession,
+  onRequestBatchArchive,
   onNewSession,
   onEditingSessionNameChange,
   onStartEditingSession,
   onCancelEditingSession,
   onSaveEditingSession,
+  onTogglePinned,
   t,
 }: SidebarProjectListProps) {
   const pageTitle = getPageTitle(selectedProject, selectedSession);
@@ -149,6 +153,7 @@ export default function SidebarProjectList({
               onDeleteProject={onDeleteProject}
               onSessionSelect={onSessionSelect}
               onDeleteSession={onDeleteSession}
+              onRequestBatchArchive={onRequestBatchArchive}
               onLoadMoreSessions={onLoadMoreSessions}
               activeSessions={activeSessions}
               attentionSessionIds={attentionSessionIds}
@@ -157,6 +162,7 @@ export default function SidebarProjectList({
               onStartEditingSession={onStartEditingSession}
               onCancelEditingSession={onCancelEditingSession}
               onSaveEditingSession={onSaveEditingSession}
+              onTogglePinned={onTogglePinned}
               t={t}
             />
           ))}

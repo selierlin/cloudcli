@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
@@ -7,6 +8,7 @@ import type { Project, ProjectSession, LLMProvider } from '../../../../types/app
 import type { SessionWithProvider } from '../../types/types';
 
 import SidebarSessionItem from './SidebarSessionItem';
+import SidebarBatchSessionActions from './SidebarBatchSessionActions';
 
 type SidebarProjectSessionsProps = {
   project: Project;
@@ -25,6 +27,7 @@ type SidebarProjectSessionsProps = {
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
+  onTogglePinned: (sessionId: string, isPinned: boolean) => void;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
   onDeleteSession: (
@@ -33,6 +36,7 @@ type SidebarProjectSessionsProps = {
     sessionTitle: string,
     provider: LLMProvider,
   ) => void;
+  onRequestBatchArchive: (sessionIds: string[], onCompleted: (archivedSessionIds: string[]) => void) => void;
   onLoadMoreSessions: (projectId: string) => void;
   onNewSession: (project: Project) => void;
   t: TFunction;
@@ -73,24 +77,80 @@ export default function SidebarProjectSessions({
   onStartEditingSession,
   onCancelEditingSession,
   onSaveEditingSession,
+  onTogglePinned,
   onProjectSelect,
   onSessionSelect,
   onDeleteSession,
+  onRequestBatchArchive,
   onLoadMoreSessions,
   onNewSession,
   t,
 }: SidebarProjectSessionsProps) {
+  const hasSessions = sessions.length > 0;
+  const [isManaging, setIsManaging] = useState(false);
+  const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setSelectedSessionIds((current) => {
+      const availableSessionIds = new Set(
+        sessions
+          .filter((session) => !activeSessions.has(session.id))
+          .map((session) => session.id),
+      );
+      return new Set([...current].filter((sessionId) => availableSessionIds.has(sessionId)));
+    });
+  }, [activeSessions, sessions]);
+
+  const selectableSessionIds = sessions
+    .filter((session) => !activeSessions.has(session.id))
+    .map((session) => session.id);
+  const areAllSelectableSessionsSelected = selectableSessionIds.length > 0
+    && selectableSessionIds.every((sessionId) => selectedSessionIds.has(sessionId));
+
+  const toggleBatchSelection = (sessionId: string) => {
+    setSelectedSessionIds((current) => {
+      const next = new Set(current);
+      if (next.has(sessionId)) {
+        next.delete(sessionId);
+      } else {
+        next.add(sessionId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedSessionIds(
+      areAllSelectableSessionsSelected ? new Set() : new Set(selectableSessionIds),
+    );
+  };
+
+  const exitManaging = () => {
+    setIsManaging(false);
+    setSelectedSessionIds(new Set());
+  };
+
+  const requestBatchArchive = () => {
+    onRequestBatchArchive([...selectedSessionIds], (archivedSessionIds) => {
+      const archivedSessionIdSet = new Set(archivedSessionIds);
+      setSelectedSessionIds((current) => new Set(
+        [...current].filter((sessionId) => !archivedSessionIdSet.has(sessionId)),
+      ));
+      if (archivedSessionIds.length === selectedSessionIds.size) {
+        setIsManaging(false);
+      }
+    });
+  };
+
   if (!isExpanded) {
     return null;
   }
 
-  const hasSessions = sessions.length > 0;
-
   return (
     <div className="ml-3 space-y-1 border-l border-border pl-3">
-      <div className="px-3 pb-1 pt-1 md:hidden">
-        <button
-          className="flex h-8 w-full items-center justify-center gap-2 rounded-md bg-primary text-xs font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-[0.98]"
+      <div className="grid grid-cols-2 gap-1 px-3 pb-1 pt-1 md:hidden">
+        {!isManaging && <button
+          className="flex h-8 items-center justify-center gap-2 rounded-md bg-primary text-xs font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-[0.98]"
           onClick={() => {
             onProjectSelect(project);
             onNewSession(project);
@@ -98,18 +158,38 @@ export default function SidebarProjectSessions({
         >
           <Plus className="h-3 w-3" />
           {t('sessions.newSession')}
-        </button>
+        </button>}
+        <Button
+          variant="ghost"
+          size="sm"
+          className={isManaging ? 'col-span-2 h-8 text-xs' : 'h-8 text-xs'}
+          onClick={() => (isManaging ? exitManaging() : setIsManaging(true))}
+          disabled={!hasSessions && !isManaging}
+        >
+          {isManaging ? t('actions.cancel') : t('sessions.manageSessions')}
+        </Button>
       </div>
 
-      <Button
-        variant="default"
-        size="sm"
-        className="hidden h-8 w-full justify-start gap-2 bg-primary text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 md:flex"
-        onClick={() => onNewSession(project)}
-      >
-        <Plus className="h-3 w-3" />
-        {t('sessions.newSession')}
-      </Button>
+      <div className="hidden gap-1 md:flex">
+        {!isManaging && <Button
+          variant="default"
+          size="sm"
+          className="h-8 flex-1 justify-start gap-2 bg-primary text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          onClick={() => onNewSession(project)}
+        >
+          <Plus className="h-3 w-3" />
+          {t('sessions.newSession')}
+        </Button>}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 text-xs"
+          onClick={() => (isManaging ? exitManaging() : setIsManaging(true))}
+          disabled={!hasSessions && !isManaging}
+        >
+          {isManaging ? t('actions.cancel') : t('sessions.manageSessions')}
+        </Button>
+      </div>
 
       {!initialSessionsLoaded ? (
         <SessionListSkeleton />
@@ -126,6 +206,8 @@ export default function SidebarProjectSessions({
               session={session}
               selectedSession={selectedSession}
               isProcessing={activeSessions.has(session.id)}
+              isManaging={isManaging}
+              isBatchSelected={selectedSessionIds.has(session.id)}
               needsAttention={attentionSessionIds.has(session.id)}
               currentTime={currentTime}
               editingSession={editingSession}
@@ -134,6 +216,8 @@ export default function SidebarProjectSessions({
               onStartEditingSession={onStartEditingSession}
               onCancelEditingSession={onCancelEditingSession}
               onSaveEditingSession={onSaveEditingSession}
+              onTogglePinned={onTogglePinned}
+              onToggleBatchSelection={toggleBatchSelection}
               onProjectSelect={onProjectSelect}
               onSessionSelect={onSessionSelect}
               onDeleteSession={onDeleteSession}
@@ -151,6 +235,18 @@ export default function SidebarProjectSessions({
             >
               {isLoadingMoreSessions ? t('sessions.loadingSessions') : t('sessions.showMore')}
             </Button>
+          )}
+
+          {isManaging && (
+            <SidebarBatchSessionActions
+              selectedCount={selectedSessionIds.size}
+              selectableCount={selectableSessionIds.length}
+              areAllSelected={areAllSelectableSessionsSelected}
+              onToggleSelectAll={toggleSelectAll}
+              onArchive={requestBatchArchive}
+              onCancel={exitManaging}
+              t={t}
+            />
           )}
         </>
       )}

@@ -114,6 +114,9 @@ CREATE TABLE IF NOT EXISTS sessions (
     -- restores its exact runtime configuration instead of provider defaults.
     model TEXT,
     effort TEXT,
+    -- User-controlled priority for returning to an important conversation.
+    -- Pinned sessions stay visible in the active recent-conversation feed.
+    isPinned BOOLEAN DEFAULT 0,
     isArchived BOOLEAN DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,

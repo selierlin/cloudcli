@@ -328,6 +328,44 @@ const parseSessionRenameSummary = (payload: unknown): string => {
   return summary;
 };
 
+const parseSessionPinned = (payload: unknown): boolean => {
+  if (!payload || typeof payload !== 'object') {
+    throw new AppError('Request body must be an object.', {
+      code: 'INVALID_REQUEST_BODY',
+      statusCode: 400,
+    });
+  }
+
+  const isPinned = (payload as Record<string, unknown>).isPinned;
+  if (typeof isPinned !== 'boolean') {
+    throw new AppError('isPinned must be a boolean.', {
+      code: 'INVALID_SESSION_PINNED',
+      statusCode: 400,
+    });
+  }
+
+  return isPinned;
+};
+
+const parseArchivedSessionIds = (payload: unknown): string[] => {
+  if (!payload || typeof payload !== 'object') {
+    throw new AppError('Request body must be an object.', {
+      code: 'INVALID_REQUEST_BODY',
+      statusCode: 400,
+    });
+  }
+
+  const sessionIds = (payload as Record<string, unknown>).sessionIds;
+  if (!Array.isArray(sessionIds) || sessionIds.length === 0) {
+    throw new AppError('sessionIds must be a non-empty array.', {
+      code: 'INVALID_ARCHIVED_SESSION_IDS',
+      statusCode: 400,
+    });
+  }
+
+  return [...new Set(sessionIds.map((sessionId) => parseSessionId(sessionId)))];
+};
+
 const parseBranchMessageId = (payload: unknown): string => {
   if (!payload || typeof payload !== 'object') {
     throw new AppError('Request body must be an object.', {
@@ -782,6 +820,15 @@ router.get(
   }),
 );
 
+router.delete(
+  '/sessions/archived',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionIds = parseArchivedSessionIds(req.body);
+    const result = await sessionsService.permanentlyDeleteArchivedSessions(sessionIds);
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
 router.get(
   '/sessions/:sessionId/provider-id',
   asyncHandler(async (req: Request, res: Response) => {
@@ -830,6 +877,16 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const sessionId = parseSessionId(req.params.sessionId);
     const result = sessionsService.restoreSessionById(sessionId);
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
+router.put(
+  '/sessions/:sessionId/pinned',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    const isPinned = parseSessionPinned(req.body);
+    const result = sessionsService.setSessionPinned(sessionId, isPinned);
     res.json(createApiSuccessResponse(result));
   }),
 );

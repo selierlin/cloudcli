@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Activity, Archive, ChevronDown, ChevronRight, Folder, MessageSquare, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { Activity, Archive, Check, ChevronDown, ChevronRight, Folder, MessageSquare, RotateCcw, Search, Trash2 } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { ScrollArea } from '../../../../shared/view/ui';
@@ -11,6 +11,7 @@ import LLMProviderLogo from '../../../llm-provider-logo/LLMProviderLogo';
 import { formatCompactAge, getAllSessions } from '../../utils/utils';
 
 import SidebarFooter from './SidebarFooter';
+import SidebarBatchSessionActions from './SidebarBatchSessionActions';
 import SidebarHeader from './SidebarHeader';
 import SidebarProjectList, { type SidebarProjectListProps } from './SidebarProjectList';
 import SidebarRecentConversations from './SidebarRecentConversations';
@@ -114,12 +115,15 @@ type SidebarContentProps = {
   onLoadMoreRecentConversations: () => void;
   onRetryRecentConversations: () => void;
   onRenameSession: (sessionId: string, summary: string, provider: LLMProvider) => void;
+  onToggleSessionPinned: (sessionId: string, isPinned: boolean) => void;
   onDeleteSession: (
     projectId: string | null,
     sessionId: string,
     sessionTitle: string,
     provider: LLMProvider,
   ) => void;
+  onRequestBatchArchive: (sessionIds: string[], onCompleted: (archivedSessionIds: string[]) => void) => void;
+  onRequestBatchPermanentDelete: (sessionIds: string[], onCompleted: (deletedSessionIds: string[]) => void) => void;
   onArchivedSessionClick: (session: ArchivedSessionListItem) => void;
   onRestoreArchivedSession: (sessionId: string) => void;
   onDeleteArchivedSession: (session: ArchivedSessionListItem) => void;
@@ -168,7 +172,10 @@ export default function SidebarContent({
   onLoadMoreRecentConversations,
   onRetryRecentConversations,
   onRenameSession,
+  onToggleSessionPinned,
   onDeleteSession,
+  onRequestBatchArchive,
+  onRequestBatchPermanentDelete,
   onArchivedSessionClick,
   onRestoreArchivedSession,
   onDeleteArchivedSession,
@@ -197,6 +204,9 @@ export default function SidebarContent({
 
   // 记录"与默认状态相反"的项目（即用户手动展开/收起过的），新搜索开始时清空。
   const [searchGroupOverrides, setSearchGroupOverrides] = useState<Set<string>>(new Set());
+  const [isManagingArchivedSessions, setIsManagingArchivedSessions] = useState(false);
+  const [selectedArchivedSessionIds, setSelectedArchivedSessionIds] = useState<Set<string>>(new Set());
+  const [expandedArchivedGroupKeys, setExpandedArchivedGroupKeys] = useState<Set<string>>(new Set());
 
   const isSearchGroupExpanded = (projectKey: string): boolean =>
     DEFAULT_SEARCH_GROUPS_EXPANDED
@@ -241,10 +251,85 @@ export default function SidebarContent({
     && (conversationResults.titleResults.length > 0 || conversationResults.results.length > 0),
   );
   const groupedArchivedSessions = groupArchivedSessionsByProject(archivedSessions);
+  const archivedGroupKeys = [
+    ...archivedProjects.map((project) => `project:${project.projectId}`),
+    ...groupedArchivedSessions.map((group) => `sessions:${group.key}`),
+  ];
+  const areAllArchivedGroupsExpanded = archivedGroupKeys.length > 0
+    && archivedGroupKeys.every((groupKey) => expandedArchivedGroupKeys.has(groupKey));
+  const batchDeletableArchivedSessionIds = archivedSessions
+    .filter((session) => !session.isProjectArchived)
+    .map((session) => session.sessionId);
+  const areAllArchivedSessionsSelected = batchDeletableArchivedSessionIds.length > 0
+    && batchDeletableArchivedSessionIds.every((sessionId) => selectedArchivedSessionIds.has(sessionId));
   const visibleArchivedItemsCount = archivedProjects.length + archivedSessions.length;
   const isRenamingOnMobile = isMobile && Boolean(
     projectListProps.editingProject || projectListProps.editingSession,
   );
+
+  useEffect(() => {
+    const deletableSessionIdSet = new Set(
+      archivedSessions
+        .filter((session) => !session.isProjectArchived)
+        .map((session) => session.sessionId),
+    );
+    setSelectedArchivedSessionIds((current) => new Set(
+      [...current].filter((sessionId) => deletableSessionIdSet.has(sessionId)),
+    ));
+  }, [archivedSessions]);
+
+  const toggleArchivedSessionSelection = (sessionId: string) => {
+    setSelectedArchivedSessionIds((current) => {
+      const next = new Set(current);
+      if (next.has(sessionId)) {
+        next.delete(sessionId);
+      } else {
+        next.add(sessionId);
+      }
+      return next;
+    });
+  };
+
+  const toggleAllArchivedSessionSelections = () => {
+    setSelectedArchivedSessionIds(
+      areAllArchivedSessionsSelected ? new Set() : new Set(batchDeletableArchivedSessionIds),
+    );
+  };
+
+  const exitArchivedSessionManagement = () => {
+    setIsManagingArchivedSessions(false);
+    setSelectedArchivedSessionIds(new Set());
+  };
+
+  const requestBatchPermanentDelete = () => {
+    onRequestBatchPermanentDelete([...selectedArchivedSessionIds], (deletedSessionIds) => {
+      const deletedSessionIdSet = new Set(deletedSessionIds);
+      setSelectedArchivedSessionIds((current) => new Set(
+        [...current].filter((sessionId) => !deletedSessionIdSet.has(sessionId)),
+      ));
+      if (deletedSessionIds.length === selectedArchivedSessionIds.size) {
+        setIsManagingArchivedSessions(false);
+      }
+    });
+  };
+
+  const toggleArchivedGroup = (groupKey: string) => {
+    setExpandedArchivedGroupKeys((current) => {
+      const next = new Set(current);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
+      }
+      return next;
+    });
+  };
+
+  const toggleAllArchivedGroups = () => {
+    setExpandedArchivedGroupKeys(
+      areAllArchivedGroupsExpanded ? new Set() : new Set(archivedGroupKeys),
+    );
+  };
 
   return (
     <div
@@ -483,12 +568,15 @@ export default function SidebarContent({
             isLoadingMore={isLoadingMoreRecentConversations}
             hasError={recentConversationsError}
             selectedSession={projectListProps.selectedSession}
+            activeSessions={projectListProps.activeSessions}
             currentTime={projectListProps.currentTime}
             onConversationSelect={onConversationResultClick}
             onLoadMore={onLoadMoreRecentConversations}
             onRetry={onRetryRecentConversations}
             onRenameSession={onRenameSession}
-            onDeleteSession={onDeleteSession}
+            onTogglePinned={onToggleSessionPinned}
+                onDeleteSession={onDeleteSession}
+                onRequestBatchArchive={onRequestBatchArchive}
             t={t}
           />
         ) : searchMode === 'running' ? (
@@ -586,19 +674,44 @@ export default function SidebarContent({
                     </p>
                   </div>
                 </div>
-                <span
-                  className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] tabular-nums text-muted-foreground"
-                  title={visibleArchivedItemsCount !== archivedSessionsCount
-                    ? `${visibleArchivedItemsCount} of ${archivedSessionsCount}`
-                    : undefined}
-                >
-                  {visibleArchivedItemsCount !== archivedSessionsCount
-                    ? `${visibleArchivedItemsCount}/${archivedSessionsCount}`
-                    : archivedSessionsCount}
-                </span>
+                <div className="flex items-center gap-1">
+                  <span
+                    className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] tabular-nums text-muted-foreground"
+                    title={visibleArchivedItemsCount !== archivedSessionsCount
+                      ? `${visibleArchivedItemsCount} of ${archivedSessionsCount}`
+                      : undefined}
+                  >
+                    {visibleArchivedItemsCount !== archivedSessionsCount
+                      ? `${visibleArchivedItemsCount}/${archivedSessionsCount}`
+                      : archivedSessionsCount}
+                  </span>
+                  {archivedGroupKeys.length > 1 && (
+                    <button
+                      type="button"
+                      className="h-7 rounded-md px-2 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      onClick={toggleAllArchivedGroups}
+                    >
+                      {areAllArchivedGroupsExpanded ? t('archived.collapseAll') : t('archived.expandAll')}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="h-7 rounded-md px-2 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                    disabled={batchDeletableArchivedSessionIds.length === 0 && !isManagingArchivedSessions}
+                    onClick={() => (
+                      isManagingArchivedSessions
+                        ? exitArchivedSessionManagement()
+                        : setIsManagingArchivedSessions(true)
+                    )}
+                  >
+                    {isManagingArchivedSessions ? t('actions.cancel') : t('archived.manageSessions')}
+                  </button>
+                </div>
               </div>
               {archivedProjects.map((project) => {
                 const projectSessions = getAllSessions(project);
+                const groupKey = `project:${project.projectId}`;
+                const isExpanded = expandedArchivedGroupKeys.has(groupKey);
 
                 return (
                   <section
@@ -625,6 +738,17 @@ export default function SidebarContent({
                         </p>
                       </div>
                       <button
+                        type="button"
+                        className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        onClick={() => toggleArchivedGroup(groupKey)}
+                        aria-expanded={isExpanded}
+                        aria-label={isExpanded
+                          ? t('archived.collapseSessions', 'Collapse sessions')
+                          : t('archived.expandSessions', 'Expand sessions')}
+                      >
+                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      </button>
+                      <button
                         className="flex h-7 flex-shrink-0 items-center gap-1.5 rounded-lg border border-emerald-600/15 bg-emerald-500/10 px-2 text-[10px] font-medium text-emerald-700 transition-all hover:border-emerald-600/25 hover:bg-emerald-500/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 dark:text-emerald-300"
                         onClick={() => onRestoreArchivedProject(project.projectId)}
                         title={t('archived.restoreProject', 'Restore workspace')}
@@ -634,7 +758,7 @@ export default function SidebarContent({
                         {t('archived.restoreAction', 'Restore')}
                       </button>
                     </div>
-                    {projectSessions.length > 0 && (
+                    {isExpanded && projectSessions.length > 0 && (
                       <div className="border-t border-border/45 bg-muted/[0.08]">
                         {projectSessions.map((session) => (
                           <button
@@ -700,8 +824,12 @@ export default function SidebarContent({
                   </section>
                 );
               })}
-              {groupedArchivedSessions.map((group) => (
-                <section
+              {groupedArchivedSessions.map((group) => {
+                const groupKey = `sessions:${group.key}`;
+                const isExpanded = expandedArchivedGroupKeys.has(groupKey);
+
+                return (
+                  <section
                   key={group.key}
                   className="group/archive overflow-hidden rounded-xl border border-border/70 bg-card/45 shadow-[0_1px_0_hsl(var(--border)/0.2)] transition-colors hover:border-border"
                 >
@@ -724,16 +852,54 @@ export default function SidebarContent({
                         </p>
                       )}
                     </div>
+                    <button
+                      type="button"
+                      className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => toggleArchivedGroup(groupKey)}
+                      aria-expanded={isExpanded}
+                      aria-label={isExpanded
+                        ? t('archived.collapseSessions', 'Collapse sessions')
+                        : t('archived.expandSessions', 'Expand sessions')}
+                    >
+                      {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    </button>
                   </div>
-                  <div className="border-t border-border/45 bg-muted/[0.08]">
+                  {isExpanded && <div className="border-t border-border/45 bg-muted/[0.08]">
                     {group.sessions.map((session) => (
+                      (() => {
+                        const canBatchDelete = !session.isProjectArchived;
+                        const isBatchSelected = selectedArchivedSessionIds.has(session.sessionId);
+
+                        return (
                       <div
                         key={session.sessionId}
                         className="group/session flex items-center gap-1 border-b border-border/35 px-2.5 py-2 last:border-b-0 hover:bg-accent/35"
                       >
+                        {isManagingArchivedSessions && canBatchDelete && (
+                          <button
+                            type="button"
+                            role="checkbox"
+                            aria-checked={isBatchSelected}
+                            aria-label={t('sessions.selectSession', { name: session.sessionTitle })}
+                            className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border ${
+                              isBatchSelected
+                                ? 'border-primary bg-primary text-primary-foreground'
+                                : 'border-muted-foreground/40 bg-background'
+                            }`}
+                            onClick={() => toggleArchivedSessionSelection(session.sessionId)}
+                          >
+                            {isBatchSelected && <Check className="h-3 w-3" />}
+                          </button>
+                        )}
                         <button
                           className="flex min-w-0 flex-1 items-center gap-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          onClick={() => onArchivedSessionClick(session)}
+                          onClick={() => {
+                            if (isManagingArchivedSessions && canBatchDelete) {
+                              toggleArchivedSessionSelection(session.sessionId);
+                              return;
+                            }
+                            onArchivedSessionClick(session);
+                          }}
                         >
                           <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-background/70">
                             <LLMProviderLogo provider={session.provider} className="h-3.5 w-3.5" />
@@ -755,7 +921,7 @@ export default function SidebarContent({
                             </div>
                           </div>
                         </button>
-                        <div className="flex flex-shrink-0 items-center gap-0.5">
+                        {!isManagingArchivedSessions && <div className="flex flex-shrink-0 items-center gap-0.5">
                           <button
                             className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-emerald-500/10 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 dark:hover:text-emerald-300"
                             onClick={() => onRestoreArchivedSession(session.sessionId)}
@@ -772,12 +938,27 @@ export default function SidebarContent({
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
-                        </div>
+                        </div>}
                       </div>
+                        );
+                      })()
                     ))}
-                  </div>
-                </section>
-              ))}
+                  </div>}
+                  </section>
+                );
+              })}
+              {isManagingArchivedSessions && (
+                <SidebarBatchSessionActions
+                  selectedCount={selectedArchivedSessionIds.size}
+                  selectableCount={batchDeletableArchivedSessionIds.length}
+                  areAllSelected={areAllArchivedSessionsSelected}
+                  onToggleSelectAll={toggleAllArchivedSessionSelections}
+                  onArchive={requestBatchPermanentDelete}
+                  onCancel={exitArchivedSessionManagement}
+                  permanentDelete
+                  t={t}
+                />
+              )}
             </div>
           )
         ) : (

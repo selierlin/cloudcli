@@ -76,6 +76,8 @@ function Sidebar({
     deletingProjects,
     deleteConfirmation,
     sessionDeleteConfirmation,
+    batchSessionArchiveConfirmation,
+    batchArchivedSessionDeleteConfirmation,
     showVersionModal,
     filteredProjects,
     archivedProjects,
@@ -102,6 +104,10 @@ function Sidebar({
     saveProjectName,
     showDeleteSessionConfirmation,
     confirmDeleteSession,
+    showBatchSessionArchiveConfirmation,
+    confirmBatchSessionArchive,
+    showBatchArchivedSessionDeleteConfirmation,
+    confirmBatchArchivedSessionDelete,
     requestProjectDelete,
     confirmDeleteProject,
     handleProjectSelect,
@@ -110,6 +116,7 @@ function Sidebar({
     restoreArchivedSession,
     refreshProjects,
     updateSessionSummary,
+    updateSessionPinned,
     collapseSidebar: handleCollapseSidebar,
     expandSidebar: handleExpandSidebar,
     setShowNewProject,
@@ -119,6 +126,8 @@ function Sidebar({
     setSearchFilter,
     setDeleteConfirmation,
     setSessionDeleteConfirmation,
+    setBatchSessionArchiveConfirmation,
+    setBatchArchivedSessionDeleteConfirmation,
     setShowVersionModal,
   } = useSidebarController({
     projects,
@@ -187,6 +196,7 @@ function Sidebar({
     onDeleteProject: requestProjectDelete,
     onSessionSelect: handleSessionClick,
     onDeleteSession: showDeleteSessionConfirmation,
+    onRequestBatchArchive: showBatchSessionArchiveConfirmation,
     onLoadMoreSessions: loadMoreSessionsForProject,
     onNewSession,
     onEditingSessionNameChange: setEditingSessionName,
@@ -200,6 +210,9 @@ function Sidebar({
     },
     onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => {
       void updateSessionSummary(projectName, sessionId, summary, provider);
+    },
+    onTogglePinned: (sessionId: string, isPinned: boolean) => {
+      void updateSessionPinned(sessionId, isPinned);
     },
     t,
   };
@@ -220,6 +233,12 @@ function Sidebar({
         sessionDeleteConfirmation={sessionDeleteConfirmation}
         onCancelDeleteSession={() => setSessionDeleteConfirmation(null)}
         onConfirmDeleteSession={confirmDeleteSession}
+        batchSessionArchiveConfirmation={batchSessionArchiveConfirmation}
+        onCancelBatchSessionArchive={() => setBatchSessionArchiveConfirmation(null)}
+        onConfirmBatchSessionArchive={confirmBatchSessionArchive}
+        batchArchivedSessionDeleteConfirmation={batchArchivedSessionDeleteConfirmation}
+        onCancelBatchArchivedSessionDelete={() => setBatchArchivedSessionDeleteConfirmation(null)}
+        onConfirmBatchArchivedSessionDelete={confirmBatchArchivedSessionDelete}
         showVersionModal={showVersionModal}
         onCloseVersionModal={() => setShowVersionModal(false)}
         releaseInfo={releaseInfo}
@@ -273,9 +292,14 @@ function Sidebar({
             onRenameSession={(sessionId, summary, provider) => {
               void updateSessionSummary(null, sessionId, summary, provider);
             }}
+            onToggleSessionPinned={(sessionId, isPinned) => {
+              void updateSessionPinned(sessionId, isPinned);
+            }}
             onDeleteSession={(projectId, sessionId, sessionTitle, provider) => {
               showDeleteSessionConfirmation(projectId, sessionId, sessionTitle, provider);
             }}
+            onRequestBatchArchive={showBatchSessionArchiveConfirmation}
+            onRequestBatchPermanentDelete={showBatchArchivedSessionDeleteConfirmation}
             onArchivedSessionClick={openArchivedSession}
             onRestoreArchivedSession={restoreArchivedSession}
             onDeleteArchivedSession={(session) => {

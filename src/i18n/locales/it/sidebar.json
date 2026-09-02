@@ -36,6 +36,17 @@
     "sessionOptions": "Opzioni sessione",
     "sessionOptionsFor": "Opzioni sessione per {{name}}",
     "sessionName": "Nome sessione",
+    "pinSession": "Fissa sessione",
+    "unpinSession": "Rimuovi fissaggio",
+    "pinnedSession": "Sessione fissata",
+    "manageSessions": "Gestisci",
+    "selectAll": "Seleziona tutto",
+    "deselectAll": "Deseleziona tutto",
+    "selectSession": "Seleziona sessione: {{name}}",
+    "selectedCount": "{{count}} selezionate",
+    "archiveSelected": "Archivia {{count}}",
+    "deleteSelectedPermanently": "Elimina definitivamente {{count}}",
+    "runningSessionCannotBeArchived": "Le sessioni in esecuzione non possono essere archiviate in blocco",
     "archiveOrDeleteSession": "Archivia o elimina sessione",
     "providerSession": "Sessione {{provider}}",
     "copySessionId": "Copia ID sessione {{provider}}",
@@ -120,6 +131,12 @@
     "deleteSessionError": "Errore durante l'eliminazione della sessione. Riprova.",
     "renameSessionFailed": "Impossibile rinominare la sessione. Riprova.",
     "renameSessionError": "Errore durante la rinomina della sessione. Riprova.",
+    "updateSessionPinFailed": "Impossibile aggiornare il fissaggio della sessione. Riprova.",
+    "updateSessionPinError": "Errore durante l'aggiornamento del fissaggio della sessione. Riprova.",
+    "batchArchivePartialFailure": "Sono state archiviate {{archived}} sessioni su {{total}}. Riprova con le rimanenti.",
+    "batchArchiveNoLongerAvailable": "Le sessioni selezionate sono in esecuzione e non possono essere archiviate in blocco.",
+    "batchPermanentDeleteFailed": "Impossibile eliminare definitivamente le sessioni selezionate. Riprova.",
+    "batchPermanentDeleteError": "Si è verificato un errore durante l'eliminazione definitiva delle sessioni selezionate. Riprova.",
     "deleteProjectFailed": "Impossibile rimuovere il progetto. Riprova.",
     "deleteProjectError": "Errore durante la rimozione del progetto. Riprova.",
     "createProjectFailed": "Impossibile creare il progetto. Riprova.",
@@ -134,6 +151,10 @@
   "version": {
     "updateAvailable": "Aggiornamento disponibile",
     "restartRequired": "Aggiornamento installato — riavvia il server per applicarlo"
+  },
+  "recent": {
+    "pinnedTitle": "Conversazioni fissate",
+    "unpinnedTitle": "Conversazioni recenti"
   },
   "search": {
     "modeProjects": "Progetti",
@@ -161,12 +182,24 @@
     "deleteAllData": "Elimina tutti i dati permanentemente",
     "allConversationsDeleted": "Il progetto verrà rimosso dalla barra laterale. I tuoi file, memorie e dati delle sessioni verranno preservati.",
     "cannotUndo": "Puoi riaggiungerlo in seguito.",
+    "archiveProject": "Archivia progetto",
     "archiveSession": "Archivia sessione",
+    "archiveSessionsTitle": "Archivia {{count}} sessioni",
+    "archiveSessionsAction": "Archivia {{count}} sessioni",
+    "archiveSessionsNotice": "Queste sessioni saranno nascoste dagli elenchi attivi, ma la cronologia verrà conservata e potrà essere ripristinata dall'archivio.",
+    "permanentlyDeleteArchivedSessionsTitle": "Elimina definitivamente {{count}} sessioni archiviate",
+    "permanentlyDeleteArchivedSessionsAction": "Elimina definitivamente {{count}} sessioni",
+    "permanentlyDeleteArchivedSessionsNotice": "I record di sessione selezionati e i file di cronologia su disco verranno eliminati definitivamente. I progetti archiviati non sono interessati.",
     "deleteSessionPermanently": "Elimina definitivamente",
     "archiveSessionNotice": "L'archiviazione rimuove la sessione dall'elenco attivo conservandone la cronologia.",
     "archivedSessionNotice": "Questa sessione è già archiviata. Puoi tenerla nascosta o eliminarla definitivamente."
   },
   "archived": {
+    "manageSessions": "Gestisci sessioni",
+    "expandSessions": "Espandi sessioni",
+    "collapseSessions": "Comprimi sessioni",
+    "expandAll": "Espandi tutto",
+    "collapseAll": "Comprimi tutto",
     "restore": "Ripristina sessione",
     "deletePermanently": "Elimina definitivamente"
   }

@@ -25,7 +25,9 @@ export type ArchivedSessionListItem = {
 export type RecentConversationListItem = Pick<
   ArchivedSessionListItem,
   'sessionId' | 'provider' | 'projectId' | 'projectDisplayName' | 'sessionTitle' | 'lastActivity'
->;
+> & {
+  isPinned: boolean;
+};
 
 export type DeleteProjectConfirmation = {
   project: Project;
@@ -40,6 +42,16 @@ export type SessionDeleteConfirmation = {
   sessionTitle: string;
   provider: LLMProvider;
   isArchived: boolean;
+};
+
+export type BatchSessionArchiveConfirmation = {
+  sessionIds: string[];
+  onCompleted: (archivedSessionIds: string[]) => void;
+};
+
+export type BatchArchivedSessionDeleteConfirmation = {
+  sessionIds: string[];
+  onCompleted: (deletedSessionIds: string[]) => void;
 };
 
 export type SidebarProps = {

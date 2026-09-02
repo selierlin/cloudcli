@@ -48,7 +48,9 @@ type ArchivedSessionListItem = {
 type RecentSessionListItem = Pick<
   ArchivedSessionListItem,
   'sessionId' | 'provider' | 'projectId' | 'projectDisplayName' | 'sessionTitle' | 'lastActivity'
->;
+> & {
+  isPinned: boolean;
+};
 
 type RecentSessionsPage = {
   conversations: RecentSessionListItem[];
@@ -209,6 +211,7 @@ export const sessionsService = {
         projectDisplayName: resolveProjectDisplayName(projectPath, project?.custom_project_name),
         sessionTitle: session.custom_name?.trim() || session.session_id,
         lastActivity: session.updated_at ?? session.created_at ?? null,
+        isPinned: Boolean(session.isPinned),
       };
     });
 
@@ -217,6 +220,24 @@ export const sessionsService = {
       total: page.total,
       hasMore: offset + conversations.length < page.total,
     };
+  },
+
+  /**
+   * Changes the local sidebar priority for one active or archived session.
+   * Archived sessions retain their pin so a later restore returns them to the
+   * pinned feed without requiring the user to set it again.
+   */
+  setSessionPinned(sessionId: string, isPinned: boolean): { sessionId: string; isPinned: boolean } {
+    const session = sessionsDb.getSessionById(sessionId);
+    if (!session) {
+      throw new AppError(`Session "${sessionId}" was not found.`, {
+        code: 'SESSION_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+
+    sessionsDb.updateSessionIsPinned(sessionId, isPinned);
+    return { sessionId, isPinned };
   },
 
   /**
@@ -655,6 +676,44 @@ export const sessionsService = {
       action: 'deleted',
       deletedFromDisk: removedFromDisk,
     };
+  },
+
+  /**
+   * Permanently removes archived session rows selected in the archive view.
+   * Every id is validated before deletion, so an active or missing session
+   * cannot leave a partially modified batch. Project rows are never touched.
+   */
+  async permanentlyDeleteArchivedSessions(sessionIds: string[]): Promise<{ sessionIds: string[] }> {
+    for (const sessionId of sessionIds) {
+      const session = sessionsDb.getSessionById(sessionId);
+      if (!session) {
+        throw new AppError(`Session "${sessionId}" was not found.`, {
+          code: 'SESSION_NOT_FOUND',
+          statusCode: 404,
+        });
+      }
+      if (!session.isArchived) {
+        throw new AppError(`Session "${sessionId}" is not archived.`, {
+          code: 'SESSION_NOT_ARCHIVED',
+          statusCode: 409,
+        });
+      }
+      if (session.project_path && projectsDb.getProjectPath(session.project_path)?.isArchived) {
+        throw new AppError(`Session "${sessionId}" belongs to an archived project.`, {
+          code: 'SESSION_PROJECT_ARCHIVED',
+          statusCode: 409,
+        });
+      }
+    }
+
+    for (const sessionId of sessionIds) {
+      await sessionsService.deleteOrArchiveSessionById(sessionId, {
+        force: true,
+        deletedFromDisk: true,
+      });
+    }
+
+    return { sessionIds };
   },
 
   /**
