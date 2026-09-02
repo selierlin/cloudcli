@@ -17,6 +17,9 @@
   var WebCache = (window.Capacitor && typeof window.Capacitor.registerPlugin === 'function')
     ? window.Capacitor.registerPlugin('WebCache')
     : null;
+  var ServerSession = (window.Capacitor && typeof window.Capacitor.registerPlugin === 'function')
+    ? window.Capacitor.registerPlugin('ServerSession')
+    : null;
 
   var els = {
     savedSection: document.getElementById('saved-section'),
@@ -283,10 +286,20 @@
   }
 
   async function connect(url, name) {
-    showConnectingOverlay(name);
     await setLastServer(url);
     await setPickerUrl();
     await setServerName(name);
+
+    if (ServerSession) {
+      try {
+        await ServerSession.switchToServer({ url: url });
+        return;
+      } catch (e) {
+        // 原生会话缓存不可用时，降级为原来的网页跳转方式。
+      }
+    }
+
+    showConnectingOverlay(name);
     window.location.href = url;
   }
 
