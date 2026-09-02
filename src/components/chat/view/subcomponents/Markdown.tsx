@@ -21,6 +21,23 @@ type MarkdownProps = {
   breaks?: boolean;
 };
 
+const MarkdownTable = ({ children, scrollHint }: { children?: React.ReactNode; scrollHint: string }) => {
+  return (
+    <div className="markdown-table-wrapper my-3 overflow-x-auto rounded-lg border border-border">
+      {/* my-0 cancels Tailwind Typography's table margin, which would show as blank bands inside the border */}
+      <table className="markdown-table my-0 min-w-full border-collapse text-sm">{children}</table>
+      <div className="markdown-table-scroll-hint" aria-hidden="true">
+        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M7 8l-4 4 4 4" />
+          <path d="M17 8l4 4-4 4" />
+          <path d="M3 12h18" />
+        </svg>
+        <span>{scrollHint}</span>
+      </div>
+    </div>
+  );
+};
+
 // Links to the wider web (or in-page anchors) keep normal browser navigation;
 // everything else is treated as a workspace file reference.
 const isExternalHref = (href?: string): boolean =>
@@ -203,10 +220,9 @@ const markdownComponents = {
   ),
   li: ({ children }: { children?: React.ReactNode }) => <li className="[&>div:last-child]:mb-0 [&>div]:mb-1">{children}</li>,
   table: ({ children }: { children?: React.ReactNode }) => (
-    <div className="markdown-table-wrapper my-3 overflow-x-auto rounded-lg border border-border">
-      {/* my-0 cancels Tailwind Typography's table margin, which would show as blank bands inside the border */}
-      <table className="markdown-table my-0 min-w-full border-collapse text-sm">{children}</table>
-    </div>
+    <MarkdownTable scrollHint="">
+      {children}
+    </MarkdownTable>
   ),
   thead: ({ children }: { children?: React.ReactNode }) => <thead className="bg-muted/60">{children}</thead>,
   tr: ({ children }: { children?: React.ReactNode }) => (
@@ -230,10 +246,16 @@ export function Markdown({ children, className, breaks = false }: MarkdownProps)
   );
   const rehypePlugins = useMemo(() => [rehypeKatex], []);
   const { openFileInEditor } = usePaletteOps();
+  const { t } = useTranslation('chat');
 
   const components = useMemo(
     () => ({
       ...markdownComponents,
+      table: ({ children }: { children?: React.ReactNode }) => (
+        <MarkdownTable scrollHint={t('table.scrollHint', { defaultValue: '左右滑动查看完整表格' })}>
+          {children}
+        </MarkdownTable>
+      ),
       a: ({ href, children: linkChildren }: { href?: string; children?: React.ReactNode }) => {
         // Prefer the href when it is a real path; otherwise fall back to the
         // link text, since models often emit `[src/foo.ts]()` with an empty href.
@@ -267,7 +289,7 @@ export function Markdown({ children, className, breaks = false }: MarkdownProps)
         );
       },
     }),
-    [openFileInEditor],
+    [openFileInEditor, t],
   );
 
   return (

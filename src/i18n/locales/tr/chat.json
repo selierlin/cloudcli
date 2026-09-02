@@ -4,6 +4,9 @@
     "copied": "Kopyalandı",
     "copyCode": "Kodu kopyala"
   },
+  "table": {
+    "scrollHint": "Tablonun tamamını görmek için kaydırın"
+  },
   "copyMessage": {
     "copy": "Mesajı kopyala",
     "copied": "Mesaj kopyalandı",

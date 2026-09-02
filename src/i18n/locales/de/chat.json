@@ -4,6 +4,9 @@
     "copied": "Kopiert",
     "copyCode": "Code kopieren"
   },
+  "table": {
+    "scrollHint": "Wischen, um die vollständige Tabelle zu sehen"
+  },
   "copyMessage": {
     "copy": "Nachricht kopieren",
     "copied": "Nachricht kopiert",

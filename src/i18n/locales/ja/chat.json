@@ -4,6 +4,9 @@
     "copied": "コピーしました",
     "copyCode": "コードをコピー"
   },
+  "table": {
+    "scrollHint": "左右にスワイプして表全体を表示"
+  },
   "copyMessage": {
     "copy": "メッセージをコピー",
     "copied": "メッセージをコピーしました",
