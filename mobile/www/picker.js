@@ -13,13 +13,15 @@
   var PICKER_URL_KEY = 'cloudcli.pickerUrl';
   var SERVER_NAME_KEY = 'cloudcli.serverName';
 
-  var Preferences = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences) || null;
-  var WebCache = (window.Capacitor && typeof window.Capacitor.registerPlugin === 'function')
-    ? window.Capacitor.registerPlugin('WebCache')
-    : null;
-  var ServerSession = (window.Capacitor && typeof window.Capacitor.registerPlugin === 'function')
-    ? window.Capacitor.registerPlugin('ServerSession')
-    : null;
+  // 原生注入的插件对象。选择页没有打包 @capacitor/core，而原生注入的
+  // native-bridge.js 又不提供 registerPlugin，所以必须直接取 JSExport 注入
+  // 到 window.Capacitor.Plugins 的插件对象（与 Preferences 的取法一致）。
+  // 之前用 registerPlugin 取 ServerSession/WebCache 恒为 null：连接退化为
+  // 整页导航、原生会话缓存失效，「返回服务器列表」也随之失效。
+  var nativePlugins = (window.Capacitor && window.Capacitor.Plugins) || {};
+  var Preferences = nativePlugins.Preferences || null;
+  var WebCache = nativePlugins.WebCache || null;
+  var ServerSession = nativePlugins.ServerSession || null;
 
   var els = {
     savedSection: document.getElementById('saved-section'),
@@ -489,8 +491,8 @@
    *  这里再显式调用一次，确保 WebView 加载完成后 swizzle 已生效。 */
   async function hideKeyboardAccessoryBar() {
     try {
-      if (window.Capacitor && typeof window.Capacitor.registerPlugin === 'function') {
-        var Keyboard = window.Capacitor.registerPlugin('Keyboard');
+      var Keyboard = nativePlugins.Keyboard;
+      if (Keyboard) {
         await Keyboard.setAccessoryBarVisible({ isVisible: false });
       }
     } catch (e) {
@@ -553,14 +555,21 @@
     });
     document.addEventListener('focusout', reset);
 
-    // 辅助事件源：Capacitor 键盘事件（精确高度）与 visualViewport resize
-    if (window.Capacitor && typeof window.Capacitor.registerPlugin === 'function') {
+    // 辅助事件源：Capacitor 键盘事件（精确高度）与 visualViewport resize。
+    // 注入的插件对象 addListener 同步返回句柄（不是 Promise），两种返回值都兼容。
+    var Keyboard = nativePlugins.Keyboard;
+    if (Keyboard && typeof Keyboard.addListener === 'function') {
       try {
-        var Keyboard = window.Capacitor.registerPlugin('Keyboard');
-        Keyboard.addListener('keyboardWillShow', function () {
+        var showHandle = Keyboard.addListener('keyboardWillShow', function () {
           shift();
-        }).catch(function () {});
-        Keyboard.addListener('keyboardWillHide', reset).catch(function () {});
+        });
+        if (showHandle && typeof showHandle.catch === 'function') {
+          showHandle.catch(function () {});
+        }
+        var hideHandle = Keyboard.addListener('keyboardWillHide', reset);
+        if (hideHandle && typeof hideHandle.catch === 'function') {
+          hideHandle.catch(function () {});
+        }
       } catch (e) {
         console.warn('[picker] keyboard plugin unavailable:', e);
       }
