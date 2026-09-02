@@ -62,8 +62,8 @@ export const DEFAULT_FONT_SETTINGS: FontSettingsState = {
   codeFontFamily: 'system',
 };
 
-export const UI_FONT_SIZE_OPTIONS = ['13', '14', '15', '16', '17', '18'];
-export const TERMINAL_FONT_SIZE_OPTIONS = ['11', '12', '13', '14', '15', '16'];
+export const UI_FONT_SIZE_OPTIONS = ['13', '14', '15', '16', '17', '18', '19', '20'];
+export const TERMINAL_FONT_SIZE_OPTIONS = ['11', '12', '13', '14', '15', '16', '17', '18', '19', '20'];
 export const FONT_FAMILY_OPTIONS: Array<{ id: FontFamilyId; label: string }> = [
   { id: 'system', label: 'system' },
   { id: 'serif', label: 'serif' },
@@ -87,7 +87,7 @@ export const FONT_FAMILY_CSS: Record<FontFamilyId, string> = {
   monospace: 'ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace',
 };
 
-export const CODE_FONT_SIZE_OPTIONS = ['11', '12', '13', '14', '15', '16'];
+export const CODE_FONT_SIZE_OPTIONS = ['11', '12', '13', '14', '15', '16', '17', '18', '19', '20'];
 export const CODE_FONT_FAMILY_OPTIONS: Array<{ id: CodeFontFamilyId; label: string }> = [
   { id: 'system', label: 'system' },
   { id: 'jetbrains-mono', label: 'jetbrains-mono' },
