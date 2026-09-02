@@ -4,6 +4,9 @@
     "copied": "已複製",
     "copyCode": "複製程式碼"
   },
+  "table": {
+    "scrollHint": "左右滑動查看完整表格"
+  },
   "copyMessage": {
     "copy": "複製訊息",
     "copied": "訊息已複製",
