@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
 import { buildClaudeToolPermissionEntry } from '@/modules/chat/utils/chatPermissions';
+import { getClaudeSettings } from '@/modules/chat/utils/chatStorage';
+import { writeUserPreference } from '@/shared/userSettings';
 
 test('buildClaudeToolPermissionEntry derives a scoped git command from JSON input', () => {
   assert.equal(
@@ -21,4 +23,12 @@ test('buildClaudeToolPermissionEntry accepts an already parsed tool input', () =
 
 test('buildClaudeToolPermissionEntry rejects JSON with no string command', () => {
   assert.equal(buildClaudeToolPermissionEntry('Bash', JSON.stringify({ command: false })), 'Bash');
+});
+
+test('Claude settings default project sorting to recent activity unless name is explicit', () => {
+  writeUserPreference('projectSortOrder', 'invalid');
+  assert.equal(getClaudeSettings().projectSortOrder, 'date');
+
+  writeUserPreference('projectSortOrder', 'name');
+  assert.equal(getClaudeSettings().projectSortOrder, 'name');
 });
