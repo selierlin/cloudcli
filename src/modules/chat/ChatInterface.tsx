@@ -19,6 +19,7 @@ import { useChatSessionState } from '@/modules/chat/hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '@/modules/chat/hooks/useChatRealtimeHandlers';
 import { useChatComposerState } from '@/modules/chat/hooks/useChatComposerState';
 import { useSessionStore } from '@/modules/chat/hooks/useSessionStore';
+import { getChatProviderLabel } from '@/modules/chat/utils/chatProviderLabel';
 import {
   useProcessingSessions,
   useSessionProtectionActions,
@@ -46,6 +47,7 @@ type ChatInterfaceProps = {
   onShowAllTasks?: (() => void) | null;
 };
 
+/** Resolves the provider name shown in chat empty states and composer hints. */
 /**
  * Used by the project-workspace module (via the chat barrel) to render a
  * project session's chat tab; it owns the session, provider, realtime and
@@ -390,14 +392,7 @@ function ChatInterface({
   // overlapping the last message.
   const hasActivityIndicator = Boolean(sessionActivity && pendingPermissionRequests.length === 0);
 
-  const selectedProviderLabel =
-    provider === 'cursor'
-      ? t('messageTypes.cursor')
-      : provider === 'codex'
-        ? t('messageTypes.codex')
-        : provider === 'opencode'
-            ? t('messageTypes.opencode', { defaultValue: 'OpenCode' })
-          : t('messageTypes.claude');
+  const selectedProviderLabel = getChatProviderLabel(provider, t);
 
   if (!selectedProject) {
     return (
