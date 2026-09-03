@@ -146,6 +146,9 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
 
   const [activeTab, setActiveTab] = useState<SettingsMainTab>(() => normalizeMainTab(initialTab));
   const [saveStatus, setSaveStatus] = useState<'success' | 'error' | null>(null);
+  // Auto-save stays disabled until the current dialog opening has finished
+  // loading its persisted values, which must become the comparison baseline.
+  const [settingsHydrated, setSettingsHydrated] = useState(false);
   const [projectSortOrder, setProjectSortOrder] = useState<ProjectSortOrder>('date');
   const [codeEditorSettings, setCodeEditorSettings] = useState<CodeEditorSettingsState>(() => (
     readCodeEditorSettings()
@@ -167,6 +170,8 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
 
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginProvider, setLoginProvider] = useState<ActiveLoginProvider>('');
+  const autoSaveTimerRef = useRef<number | null>(null);
+  const lastAutoSavedKeyRef = useRef<string | null>(null);
   const {
     providerAuthStatus,
     checkProviderAuthStatus,
@@ -312,26 +317,58 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
 
   useEffect(() => {
     if (!isOpen) {
+      setSettingsHydrated(false);
+      lastAutoSavedKeyRef.current = null;
       return;
     }
 
+    let isCurrentOpening = true;
+    setSettingsHydrated(false);
+    lastAutoSavedKeyRef.current = null;
     setActiveTab(normalizeMainTab(initialTab));
-    void loadSettings();
+    void loadSettings().finally(() => {
+      if (isCurrentOpening) {
+        setSettingsHydrated(true);
+      }
+    });
     void refreshProviderAuthStatuses();
+
+    return () => {
+      isCurrentOpening = false;
+    };
   }, [initialTab, isOpen, loadSettings, refreshProviderAuthStatuses]);
 
   useEffect(() => {
     setNotificationSoundEnabled(notificationPreferences.channels.sound);
   }, [notificationPreferences.channels.sound]);
 
-  // Auto-save permissions and sort order with debounce
-  const autoSaveTimerRef = useRef<number | null>(null);
-  const isInitialLoadRef = useRef(true);
+  const autoSaveSnapshotKey = JSON.stringify([
+    claudePermissions.allowedTools,
+    claudePermissions.disallowedTools,
+    claudePermissions.skipPermissions,
+    cursorPermissions.allowedCommands,
+    cursorPermissions.disallowedCommands,
+    cursorPermissions.skipPermissions,
+    codexPermissionMode,
+    workbuddyPermissionMode,
+    notificationPreferences,
+    projectSortOrder,
+  ]);
+
+  // The values loaded for this opening are the baseline, not a user edit.
+  useEffect(() => {
+    if (isOpen && settingsHydrated && lastAutoSavedKeyRef.current === null) {
+      lastAutoSavedKeyRef.current = autoSaveSnapshotKey;
+    }
+  }, [autoSaveSnapshotKey, isOpen, settingsHydrated]);
 
   useEffect(() => {
-    // Skip auto-save on initial load (settings are being loaded from the store)
-    if (isInitialLoadRef.current) {
-      isInitialLoadRef.current = false;
+    if (
+      !isOpen
+      || !settingsHydrated
+      || lastAutoSavedKeyRef.current === null
+      || lastAutoSavedKeyRef.current === autoSaveSnapshotKey
+    ) {
       return;
     }
 
@@ -340,6 +377,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     }
 
     autoSaveTimerRef.current = window.setTimeout(() => {
+      lastAutoSavedKeyRef.current = autoSaveSnapshotKey;
       saveSettings();
     }, 500);
 
@@ -348,7 +386,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
         window.clearTimeout(autoSaveTimerRef.current);
       }
     };
-  }, [saveSettings]);
+  }, [autoSaveSnapshotKey, isOpen, saveSettings, settingsHydrated]);
 
   // Clear save status after 2 seconds
   useEffect(() => {
@@ -359,13 +397,6 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     const timer = window.setTimeout(() => setSaveStatus(null), 2000);
     return () => window.clearTimeout(timer);
   }, [saveStatus]);
-
-  // Reset initial load flag when settings dialog opens
-  useEffect(() => {
-    if (isOpen) {
-      isInitialLoadRef.current = true;
-    }
-  }, [isOpen]);
 
   useEffect(() => () => {
     if (closeTimerRef.current !== null) {

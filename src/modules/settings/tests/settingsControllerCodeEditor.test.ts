@@ -5,6 +5,11 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { CODE_EDITOR_DEFAULTS } from '@/shared/constants';
 
+const settingsApiMocks = vi.hoisted(() => ({
+  notificationPreferences: vi.fn(() => Promise.resolve({ ok: false })),
+  saveNotificationPreferences: vi.fn(() => Promise.resolve({ ok: true, json: async () => ({}) })),
+}));
+
 /**
  * The regression was in useSettingsController itself: an effect keyed on the
  * settings object wrote all four codeEditor* values, and it ran on mount.
@@ -26,8 +31,8 @@ vi.mock('@/shared/api', () => {
   return {
     api: {
       settings: {
-        notificationPreferences: () => Promise.resolve({ ok: false }),
-        saveNotificationPreferences: () => Promise.resolve({ ok: true, json: async () => ({}) }),
+        notificationPreferences: settingsApiMocks.notificationPreferences,
+        saveNotificationPreferences: settingsApiMocks.saveNotificationPreferences,
       },
       user: {
         preferences: async () => new Response(JSON.stringify({ preferences: {} }), {
@@ -98,6 +103,8 @@ beforeEach(() => {
   // A fresh module graph per test, so the seeded mirror above is what the
   // preference store picks up when the controller pulls it in.
   vi.resetModules();
+  settingsApiMocks.notificationPreferences.mockClear();
+  settingsApiMocks.saveNotificationPreferences.mockClear();
   localStorage.clear();
 });
 
@@ -132,6 +139,42 @@ test('opening settings does not change a font size the user already chose', asyn
     { fontSize: '16' },
     'opening the dialog must not rewrite the stored settings',
   );
+});
+
+test('opening settings does not auto-save hydrated defaults', async () => {
+  await renderSettings();
+
+  await waitFor(() => {
+    assert.equal(settingsApiMocks.notificationPreferences.mock.calls.length, 1);
+  });
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 650));
+  });
+
+  assert.equal(
+    settingsApiMocks.saveNotificationPreferences.mock.calls.length,
+    0,
+    'loading fallback values must not be mistaken for a user edit',
+  );
+});
+
+test('changing a hydrated setting still auto-saves after the debounce', async () => {
+  const { result } = await renderSettings();
+
+  await waitFor(() => {
+    assert.equal(settingsApiMocks.notificationPreferences.mock.calls.length, 1);
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+
+  act(() => {
+    result.current.setProjectSortOrder('name');
+  });
+
+  await waitFor(() => {
+    assert.equal(settingsApiMocks.saveNotificationPreferences.mock.calls.length, 1);
+  }, { timeout: 1200 });
 });
 
 test('changing a setting writes all four values and notifies the editor once', async () => {
