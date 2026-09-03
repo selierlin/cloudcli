@@ -678,8 +678,8 @@ export type TodoItem = {
   activeForm?: string;
 };
 
-/** Display state of a tool call — 'running', 'completed', 'error' or 'denied' — used to choose the status badge and styling shown beside it in the transcript. */
-export type ToolStatus = 'running' | 'completed' | 'error' | 'denied';
+/** Display state of a tool call — 'running', 'completed', 'error', 'denied' or 'stopped' — used to choose the status badge and styling shown beside it in the transcript. */
+export type ToolStatus = 'running' | 'completed' | 'error' | 'denied' | 'stopped';
 
 /** Props contract that every interactive permission panel implements, giving the panel the pending request and the callback it calls to allow or deny that request; use it when registering a panel in the permission panel registry. */
 export type PermissionPanelProps = {

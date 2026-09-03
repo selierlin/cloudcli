@@ -182,17 +182,32 @@ ReasoningTrigger.displayName = 'ReasoningTrigger';
 
 export type ReasoningContentProps = {
   children: React.ReactNode;
+  /** Defers expensive children until the reasoning panel is opened once. */
+  lazyMount?: boolean;
 } & React.HTMLAttributes<HTMLDivElement>;
 
 /** Body of Reasoning, used by MessageComponent. */
 export const ReasoningContent = React.memo<ReasoningContentProps>(
-  ({ className, children, ...props }) => (
-    <CollapsibleContent
-      className={cn('mt-4 text-sm text-muted-foreground', className)}
-      {...props}
-    >
-      {children}
-    </CollapsibleContent>
-  )
+  ({ className, children, lazyMount = false, ...props }) => {
+    const { isOpen } = useReasoning();
+    const [hasOpened, setHasOpened] = React.useState(isOpen);
+
+    React.useEffect(() => {
+      if (isOpen) {
+        setHasOpened(true);
+      }
+    }, [isOpen]);
+
+    const shouldRenderChildren = !lazyMount || isOpen || hasOpened;
+
+    return (
+      <CollapsibleContent
+        className={cn('mt-4 text-sm text-muted-foreground', className)}
+        {...props}
+      >
+        {shouldRenderChildren ? children : null}
+      </CollapsibleContent>
+    );
+  }
 );
 ReasoningContent.displayName = 'ReasoningContent';

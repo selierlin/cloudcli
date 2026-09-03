@@ -278,7 +278,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               /* Thinking messages — Reasoning component (ai-elements pattern) */
               <Reasoning defaultOpen={isExporting}>
                 <ReasoningTrigger />
-                <ReasoningContent>
+                <ReasoningContent lazyMount>
                   <Markdown className="prose prose-sm prose-gray max-w-none font-serif dark:prose-invert">
                     {message.content}
                   </Markdown>
@@ -295,7 +295,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                 {showThinking && message.reasoning && (
                   <Reasoning className="mb-3" defaultOpen={false}>
                     <ReasoningTrigger />
-                    <ReasoningContent>
+                    <ReasoningContent lazyMount>
                       <div className="whitespace-pre-wrap">
                         {message.reasoning}
                       </div>

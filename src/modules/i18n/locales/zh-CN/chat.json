@@ -145,7 +145,12 @@
     "effortDefault": "默认",
     "loadingModels": "正在加载模型…",
     "modelMenu": "选择模型和思考强度",
-    "permissionHeading": "{{provider}} 的操作应如何获得批准？"
+    "permissionHeading": "{{provider}} 的操作应如何获得批准？",
+    "editing": {
+      "title": "正在替换先前的消息",
+      "filesNotReverted": "已修改的文件不会被还原",
+      "cancel": "取消"
+    }
   },
   "commandMenu": {
     "namespace": {
@@ -406,13 +411,6 @@
   "message": {
     "editAndResend": "编辑并重新发送",
     "forkFromHere": "从此处派生"
-  },
-  "composer": {
-    "editing": {
-      "title": "正在替换先前的消息",
-      "filesNotReverted": "已修改的文件不会被还原",
-      "cancel": "取消"
-    }
   },
   "export": {
     "trigger": "导出对话",

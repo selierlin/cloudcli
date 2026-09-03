@@ -115,7 +115,11 @@ function SidebarProjectItem({
     const revealInput = () => {
       window.cancelAnimationFrame(animationFrame);
       animationFrame = window.requestAnimationFrame(() => {
-        mobileRenameInputRef.current?.scrollIntoView({ block: 'center', inline: 'nearest' });
+        // `block: 'nearest'` (not 'center') leaves the input in place when it's
+        // already visible. `block: 'center'` yanks it to the middle of the
+        // viewport — and again on every keyboard resize — so it ends up behind
+        // the on-screen keyboard on iOS.
+        mobileRenameInputRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       });
     };
 

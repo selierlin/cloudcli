@@ -124,7 +124,12 @@
     "effortDefault": "預設",
     "loadingModels": "正在載入模型…",
     "modelMenu": "選擇模型與思考強度",
-    "permissionHeading": "{{provider}} 的操作應如何核准？"
+    "permissionHeading": "{{provider}} 的操作應如何核准？",
+    "editing": {
+      "title": "正在取代先前的訊息",
+      "filesNotReverted": "已修改的檔案不會還原",
+      "cancel": "取消"
+    }
   },
   "thinkingMode": {
     "selector": {
@@ -265,13 +270,6 @@
   "message": {
     "editAndResend": "編輯並重新傳送",
     "forkFromHere": "從此處分支"
-  },
-  "composer": {
-    "editing": {
-      "title": "正在取代先前的訊息",
-      "filesNotReverted": "已修改的檔案不會還原",
-      "cancel": "取消"
-    }
   },
   "export": {
     "trigger": "匯出對話",
