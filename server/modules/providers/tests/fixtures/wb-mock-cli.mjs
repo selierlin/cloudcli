@@ -123,6 +123,31 @@ if (mode === 'hang') {
   setInterval(() => {}, 1000);
 } else if (mode === 'error-sensitive') {
   emit({ type: 'error', error: 'authorization: Bearer secret-value apiKey=another-secret' });
+} else if (mode === 'reasoning-events') {
+  // Model reasoning arrives as its own top-level event while the engine
+  // thinks between tool calls. The runtime must surface it as a thinking
+  // message rather than dropping it as an unsupported stream-json event.
+  emit({
+    type: 'reasoning',
+    id: 'reasoning-1',
+    rawContent: [{ type: 'reasoning_text', text: 'thinking about the problem' }],
+  });
+  emit({
+    type: 'function_call',
+    id: 'function-event-1',
+    callId: 'call-reasoning-tool',
+    name: 'Bash',
+    arguments: '{"command":"echo hello"}',
+  });
+  emit({
+    type: 'function_call_result',
+    id: 'function-result-1',
+    callId: 'call-reasoning-tool',
+    name: 'Bash',
+    status: 'completed',
+    output: { type: 'text', text: 'hello' },
+  });
+  emit({ type: 'result', subtype: 'success', is_error: false, session_id: sid, result: 'ok' });
 } else if (mode === 'function-events') {
   emit({
     type: 'function_call',

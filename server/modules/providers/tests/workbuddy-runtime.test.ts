@@ -24,6 +24,7 @@ type Captured = {
   kind: string;
   id?: string;
   role?: string;
+  provider?: string;
   content?: unknown;
   toolName?: string;
   toolId?: string;
@@ -85,6 +86,7 @@ function makeWriter(captured: Captured[]): ProviderRuntimeWriter {
         kind: message.kind,
         id: message.id,
         role: message.role,
+        provider: message.provider,
         content: message.content,
         toolName: message.toolName,
         toolId: message.toolId,
@@ -375,6 +377,30 @@ test('workbuddy run forwards top-level function call events to the frontend', as
   const toolResult = captured.find((entry) => entry.kind === 'tool_result');
   assert.equal(toolResult?.toolId, 'call-tool-search');
   assert.equal(toolResult?.content, 'No matching tools found');
+});
+
+test('workbuddy run forwards reasoning events as thinking messages', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'reasoning-events';
+  const captured: Captured[] = [];
+
+  await workbuddyRuntime.run(
+    'diagnose',
+    { sessionId: 'wb-reasoning-events', cwd: '/tmp' },
+    makeWriter(captured),
+    makeContext(new Map()),
+  );
+
+  const thinking = captured.filter((entry) => entry.kind === 'thinking');
+  assert.equal(thinking.length, 1);
+  assert.equal(thinking[0]?.content, 'thinking about the problem');
+  assert.equal(thinking[0]?.role, 'assistant');
+  assert.equal(thinking[0]?.provider, 'workbuddy');
+
+  // The tool call still streams after the thinking block so the UI can show
+  // both the in-progress reasoning and the tool lifecycle.
+  assert.equal(captured.find((entry) => entry.kind === 'tool_use')?.toolName, 'Bash');
+  assert.equal(captured.find((entry) => entry.kind === 'complete')?.exitCode, 0);
 });
 
 test('workbuddy run preserves task lifecycle events with one stable task id', async () => {
@@ -847,4 +873,32 @@ test('workbuddy normalizeMessage preserves thinking, text, and tool blocks', () 
   assert.equal(failedTask[0]?.kind, 'task_notification');
   assert.equal(failedTask[0]?.status, 'failed');
   assert.equal(failedTask[0]?.isFinal, true);
+});
+
+test('workbuddy normalizeMessage maps top-level reasoning events to thinking messages', () => {
+  const provider = new WorkbuddySessionsProvider();
+
+  const messages = provider.normalizeMessage({
+    type: 'reasoning',
+    id: 'reasoning-1',
+    rawContent: [
+      { type: 'reasoning_text', text: 'first thought' },
+      { type: 'reasoning_text', text: '  ' },
+      { type: 'reasoning_text', text: 'second thought' },
+    ],
+  }, 'app-session');
+
+  assert.deepEqual(messages.map((message) => message.kind), ['thinking', 'thinking']);
+  assert.deepEqual(messages.map((message) => message.content), ['first thought', 'second thought']);
+  assert.equal(messages[0]?.role, 'assistant');
+  assert.equal(messages[0]?.provider, 'workbuddy');
+  assert.equal(messages[0]?.sessionId, 'app-session');
+
+  // The rawContent array is authoritative; a reasoning event with no text
+  // produces no messages rather than a fake assistant turn.
+  assert.deepEqual(provider.normalizeMessage({ type: 'reasoning', rawContent: [] }, 's'), []);
+  assert.deepEqual(
+    provider.normalizeMessage({ type: 'reasoning', rawContent: [{ type: 'other', text: 'ignored' }] }, 's'),
+    [],
+  );
 });

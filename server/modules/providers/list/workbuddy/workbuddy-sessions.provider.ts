@@ -357,6 +357,27 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
     if (taskMessage) {
       return [taskMessage];
     }
+    if (event?.type === 'reasoning') {
+      const blocks = Array.isArray(event.rawContent)
+        ? event.rawContent
+        : Array.isArray(event.content)
+          ? event.content
+          : [];
+      const messages: NormalizedMessage[] = [];
+      for (const block of blocks) {
+        const record = readObjectRecord(block);
+        if (record?.type === 'reasoning_text' && typeof record.text === 'string' && record.text.trim()) {
+          messages.push(createNormalizedMessage({
+            kind: 'thinking',
+            role: 'assistant',
+            content: record.text,
+            sessionId,
+            provider: 'workbuddy',
+          }));
+        }
+      }
+      return messages;
+    }
     if (event?.type !== 'assistant' && event?.type !== 'user') {
       if (event?.type === 'function_call' && typeof event.name === 'string' && event.name.trim()) {
         const toolId = typeof event.callId === 'string' ? event.callId : typeof event.id === 'string' ? event.id : undefined;

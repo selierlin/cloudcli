@@ -316,7 +316,15 @@
     els.errorMsg.classList.add('hidden');
     var reachable = await probe(server.url);
     if (reachable) {
-      await connect(server.url, server.name);
+      try {
+        await connect(server.url, server.name);
+      } finally {
+        // 原生会话切换成功时选择页 webview 只是被隐藏、DOM 保留，必须清除
+        // 连接中状态，否则返回服务器列表时该行仍呈灰色且不可点（data-connecting
+        // 会让点击直接 return）。整页导航降级路径下页面已离开，清不清无影响。
+        li.removeAttribute('data-connecting');
+        li.classList.remove('connecting');
+      }
     } else {
       li.removeAttribute('data-connecting');
       li.classList.remove('connecting');
@@ -436,10 +444,18 @@
       list.push({ name: name, url: url });
     }
     await saveServers(list);
+    // 立即渲染列表：原生切换时选择页 webview 保留（只是被隐藏），
+    // 否则返回列表时看不到刚添加的服务器、按钮也停留在「连接中…」。
+    render(list);
 
     var reachable = await probe(url);
     if (reachable) {
-      await connect(url, name);
+      try {
+        await connect(url, name);
+      } finally {
+        els.connectBtn.disabled = false;
+        els.connectBtn.textContent = '连接';
+      }
     } else {
       els.connectBtn.disabled = false;
       els.connectBtn.textContent = '连接';
