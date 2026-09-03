@@ -35,7 +35,7 @@ type DesktopNotificationsState = {
 };
 
 /** Exported as the settings module's public entry point and rendered by the sidebar module as its settings dialog. */
-function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: SettingsProps) {
+function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }: SettingsProps) {
   const { t } = useTranslation('settings');
   const desktopNotificationsBridge = useMemo(() => (
     typeof window === 'undefined'

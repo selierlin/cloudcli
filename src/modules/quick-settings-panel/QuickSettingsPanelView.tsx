@@ -121,7 +121,7 @@ function QuickSettingsPanelView() {
 
       <div
         ref={panelRef}
-        className={`fixed right-0 top-0 z-[9999] h-full w-64 transform border-l border-border bg-background shadow-xl transition-transform duration-150 ease-out ${isOpen ? 'translate-x-0' : 'translate-x-full'} ${isMobile ? 'h-screen' : ''}`}
+        className={`fixed right-0 top-0 z-[9999] h-full w-80 transform border-l border-border bg-background shadow-xl transition-transform duration-150 ease-out ${isOpen ? 'translate-x-0' : 'translate-x-full'} ${isMobile ? 'h-screen' : ''}`}
         style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
       >
         <div className="flex h-full flex-col">

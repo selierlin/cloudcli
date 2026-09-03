@@ -178,7 +178,11 @@ export function useMcpServerForm({
         setJsonValidationError(t('mcpForm.validation.missingType'));
       } else if (!supportedTransports.includes(transportInput)) {
         setJsonValidationError(
-          unsupportedTransportMessage?.(transportInput) ?? `${provider} does not support ${transportInput} MCP servers`,
+          unsupportedTransportMessage?.(transportInput) ?? t('mcpServers.errors.providerTransportUnsupported', {
+            provider,
+            transport: transportInput,
+            defaultValue: `${provider} does not support ${transportInput} MCP servers`,
+          }),
         );
       } else if (transportInput === 'stdio' && !parsed.command) {
         setJsonValidationError(t('mcpForm.validation.stdioRequiresCommand'));
@@ -239,7 +243,8 @@ export function useMcpServerForm({
       // lines or partial KEY=value entries without the form rewriting them.
       await onSubmit(createSubmitFormData(), editingServer);
     } catch (error) {
-      alert(`Error: ${getErrorMessage(error)}`);
+      const message = getErrorMessage(error);
+      alert(t('mcpServers.errors.errorAlert', { message, defaultValue: `Error: ${message}` }));
     } finally {
       setIsSubmitting(false);
     }

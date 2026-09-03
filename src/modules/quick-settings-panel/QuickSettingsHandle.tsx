@@ -31,7 +31,7 @@ export default function QuickSettingsHandle({
 }: QuickSettingsHandleProps) {
   const { t } = useTranslation('settings');
 
-  const placementClass = isOpen ? 'right-64' : 'right-0';
+  const placementClass = isOpen ? 'right-80' : 'right-0';
   const borderClass = isDragging
     ? 'border-blue-500 dark:border-blue-400'
     : 'border-gray-200 dark:border-gray-700';
