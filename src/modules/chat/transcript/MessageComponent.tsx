@@ -360,7 +360,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               <MemoryCitations citations={message.memoryCitations} />
             )}
 
-            {(shouldShowAssistantCopyControl || !isGrouped) && (
+            {!message.isThinking && (shouldShowAssistantCopyControl || !isGrouped) && (
               <div className="mt-1 flex w-full items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500">
                 {shouldShowAssistantCopyControl && (
                   // The copy control stretches flex-1 on narrow screens; pin it
@@ -372,7 +372,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                 {shouldShowAssistantCopyControl && (
                   <MessageSpeakControl content={assistantCopyContent} />
                 )}
-                {!isGrouped && <span>{formattedTime}</span>}
+                {(shouldShowAssistantCopyControl || !isGrouped) && <span>{formattedTime}</span>}
               </div>
             )}
           </div>
