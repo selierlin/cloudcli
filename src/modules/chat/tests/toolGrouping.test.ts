@@ -67,13 +67,38 @@ test('a single tool call is not grouped', () => {
   assert.equal(isToolGroupItem(items[0]), false);
 });
 
-test('different tools are not grouped together', () => {
+test('mixed routine tools are grouped into one compact activity row', () => {
   const items = groupConsecutiveTools([
     toolMessage('Read', { file_path: '/a.ts' }),
     toolMessage('Write', { file_path: '/b.ts' }),
   ]);
 
-  assert.equal(items.length, 2);
+  assert.equal(items.length, 1);
+  const [group] = items;
+  assert.ok(isToolGroupItem(group));
+  assert.deepEqual(group.messages.map((message) => message.toolName), ['Read', 'Write']);
+  assert.equal(group.preview, '/a.ts, b.ts');
+});
+
+test('interactive tools split otherwise groupable routine activity', () => {
+  const items = groupConsecutiveTools([
+    toolMessage('Bash', { command: 'pwd' }),
+    toolMessage('AskUserQuestion', { questions: [] }),
+    toolMessage('Read', { file_path: '/a.ts' }),
+  ]);
+
+  assert.equal(items.length, 3);
+  assert.equal(items.every((item) => !isToolGroupItem(item)), true);
+});
+
+test('canonical checklist tools stay outside routine activity groups', () => {
+  const items = groupConsecutiveTools([
+    toolMessage('Bash', { command: 'pwd' }),
+    toolMessage('TodoWrite', { todos: [] }),
+    toolMessage('Read', { file_path: '/a.ts' }),
+  ]);
+
+  assert.equal(items.length, 3);
   assert.equal(items.every((item) => !isToolGroupItem(item)), true);
 });
 

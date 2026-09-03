@@ -6,6 +6,18 @@ export const TOOL_GROUP_THRESHOLD = 2;
 /** How many of a group's tool inputs the collapsed summary line spells out. */
 const PREVIEWED_TOOL_COUNT = 2;
 
+// Interactive and stateful surfaces must stay visible instead of being hidden
+// inside a routine activity group. Include both legacy and canonical names.
+const NON_GROUPABLE_TOOL_NAMES = new Set([
+  'AskUserQuestion',
+  'TodoList',
+  'TodoWrite',
+  'TodoRead',
+  'Task',
+  'exit_plan_mode',
+  'ExitPlanMode',
+]);
+
 
 export type MessageListItem = ChatMessage | ToolGroupItem;
 
@@ -14,7 +26,12 @@ export function isToolGroupItem(item: MessageListItem): item is ToolGroupItem {
 }
 
 function isGroupableToolMessage(message: ChatMessage): message is ChatMessage & { toolName: string } {
-  return Boolean(message.isToolUse && message.toolName && !message.isSubagentContainer);
+  return Boolean(
+    message.isToolUse
+    && message.toolName
+    && !message.isSubagentContainer
+    && !NON_GROUPABLE_TOOL_NAMES.has(message.toolName),
+  );
 }
 
 // Messages that render nothing (e.g. reasoning hidden when showThinking is off)
@@ -106,7 +123,7 @@ export function groupConsecutiveTools(
         continue;
       }
 
-      if (isGroupableToolMessage(candidate) && candidate.toolName === message.toolName) {
+      if (isGroupableToolMessage(candidate)) {
         run.push(candidate);
         nextIndex += 1;
         continue;

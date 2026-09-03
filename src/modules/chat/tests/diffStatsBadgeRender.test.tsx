@@ -131,4 +131,22 @@ describe('diff stats on a collapsed tool group', () => {
 
     expect(renderGroup('Read', [readMessage, readMessage])).not.toContain('lines added');
   });
+
+  it('totals edit rows inside a mixed routine-tool group', () => {
+    const readMessage = {
+      type: 'assistant',
+      content: '',
+      timestamp: new Date('2026-08-23T00:00:00.000Z'),
+      isToolUse: true,
+      toolName: 'Read',
+      toolInput: serializeToolInput({ file_path: '/tmp/demo/a.js' }),
+    } as unknown as ChatMessage;
+
+    const markup = renderGroup('Read', [
+      readMessage,
+      editMessage('one\ntwo', 'one\nTWO\nthree'),
+    ]);
+
+    expect(markup).toContain('2 lines added, 1 removed');
+  });
 });
