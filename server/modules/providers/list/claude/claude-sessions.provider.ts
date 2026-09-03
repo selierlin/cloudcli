@@ -668,6 +668,12 @@ export class ClaudeSessionsProvider implements IProviderSessions {
         if (message.role === 'user') {
           message.transcriptAnchorId = anchorId;
         }
+        if (
+          message.kind === 'text' &&
+          (message.role === 'user' || message.role === 'assistant')
+        ) {
+          message.forkAnchorId = anchorId;
+        }
       }
     }
 

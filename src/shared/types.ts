@@ -289,9 +289,11 @@ export type ChatMessage = {
   /**
    * The provider's identifier for the transcript row behind this message, when
    * the provider has stable per-row identity. Present on user turns from
-   * Claude; it is the anchor "edit this message" and "fork from here" send back.
+   * Claude; it is the anchor sent back for "edit this message".
    */
   transcriptAnchorId?: string;
+  /** Stable provider-owned anchor used only by the "fork from here" action. */
+  forkAnchorId?: string;
   /**
    * Set on the optimistic echo of a message being sent as a replacement for an
    * already-sent one, naming the anchor it replaces. Local to this client.
@@ -405,6 +407,8 @@ export type NormalizedMessage = {
    * anchor for "edit this message" and "fork from here".
    */
   transcriptAnchorId?: string;
+  /** Stable provider-owned anchor used only by the "fork from here" action. */
+  forkAnchorId?: string;
   /**
    * Set only on the client-side optimistic echo of an edited message, naming
    * the anchor that echo replaces. Never sent by the backend.

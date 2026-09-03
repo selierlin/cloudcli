@@ -112,7 +112,7 @@ test('a thinking message does not render a second timestamp footer', () => {
 test('an assistant message exposes the fork-from-here action', () => {
   const message: ChatMessage = {
     ...assistantMessage(false),
-    transcriptAnchorId: 'assistant-anchor',
+    forkAnchorId: 'assistant-anchor',
   };
   let forkedMessage: ChatMessage | null = null;
   const { container } = render(

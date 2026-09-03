@@ -514,6 +514,15 @@ test('user turns carry the transcript uuid so they can be edited', { concurrency
         userRows.map((message) => message.transcriptAnchorId),
         ['u1', 'u2b'],
       );
+      assert.deepEqual(
+        userRows.map((message) => message.forkAnchorId),
+        ['u1', 'u2b'],
+      );
+      const assistantRows = history.messages.filter((message) => message.role === 'assistant');
+      assert.deepEqual(
+        assistantRows.map((message) => message.forkAnchorId),
+        ['a1', 'a2b'],
+      );
       // Assistant rows are never an anchor: the UI only offers editing on a
       // turn the user typed.
       assert.equal(
