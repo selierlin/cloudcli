@@ -1,6 +1,6 @@
 import type {
   MouseEvent as ReactMouseEvent,
-  TouchEvent as ReactTouchEvent,
+  PointerEvent as ReactPointerEvent,
 } from 'react';
 import {
   ChevronLeft,
@@ -16,8 +16,11 @@ type QuickSettingsHandleProps = {
   isDragging: boolean;
   style: QuickSettingsHandleStyle;
   onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void;
-  onMouseDown: (event: ReactMouseEvent<HTMLButtonElement>) => void;
-  onTouchStart: (event: ReactTouchEvent<HTMLButtonElement>) => void;
+  onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onPointerMove: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onPointerUp: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onPointerCancel: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onLostPointerCapture: (event: ReactPointerEvent<HTMLButtonElement>) => void;
 };
 
 /** Rendered by QuickSettingsPanelView as the draggable edge handle that opens and closes the drawer. */
@@ -26,8 +29,11 @@ export default function QuickSettingsHandle({
   isDragging,
   style,
   onClick,
-  onMouseDown,
-  onTouchStart,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onPointerCancel,
+  onLostPointerCapture,
 }: QuickSettingsHandleProps) {
   const { t } = useTranslation('settings');
 
@@ -52,8 +58,11 @@ export default function QuickSettingsHandle({
     <button
       type="button"
       onClick={onClick}
-      onMouseDown={onMouseDown}
-      onTouchStart={onTouchStart}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
+      onLostPointerCapture={onLostPointerCapture}
       className={`fixed ${placementClass} z-50 ${transitionClass} border bg-white dark:bg-gray-800 ${borderClass} rounded-l-md p-2 shadow-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 ${cursorClass} touch-none`}
       style={{
         ...style,
