@@ -51,12 +51,13 @@ export const safeLocalStorage = {
  */
 export function getClaudeSettings(): ClaudeSettings {
   const stored = readUserPreference<Partial<ClaudeSettings>>('claudePermissions', {});
+  const storedProjectSortOrder = readUserPreference<ClaudeSettings['projectSortOrder']>('projectSortOrder', 'date');
 
   return {
     allowedTools: Array.isArray(stored.allowedTools) ? stored.allowedTools : [],
     disallowedTools: Array.isArray(stored.disallowedTools) ? stored.disallowedTools : [],
     skipPermissions: Boolean(stored.skipPermissions),
-    projectSortOrder: readUserPreference<ClaudeSettings['projectSortOrder']>('projectSortOrder', 'name'),
+    projectSortOrder: storedProjectSortOrder === 'name' ? 'name' : 'date',
   };
 }
 
