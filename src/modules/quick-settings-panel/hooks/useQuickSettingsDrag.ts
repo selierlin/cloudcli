@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 
 import type { QuickSettingsHandleStyle } from '@/shared/types';
 
@@ -14,9 +14,7 @@ type UseQuickSettingsDragProps = {
   isMobile: boolean;
 };
 
-type StartDragEvent = ReactMouseEvent<HTMLButtonElement> | ReactTouchEvent<HTMLButtonElement>;
-type MoveDragEvent = MouseEvent | TouchEvent;
-type EventWithClientY = StartDragEvent | MoveDragEvent;
+type PointerDragEvent = ReactPointerEvent<HTMLButtonElement>;
 
 const clampPosition = (value: number): number => (
   Math.max(HANDLE_POSITION_MIN, Math.min(HANDLE_POSITION_MAX, value))
@@ -45,123 +43,100 @@ const readHandlePosition = (): number => {
   return DEFAULT_HANDLE_POSITION;
 };
 
-const isTouchEvent = (event: { type: string }): boolean => event.type.includes('touch');
-
-const getClientY = (event: EventWithClientY): number | null => {
-  if ('touches' in event) {
-    return event.touches[0]?.clientY ?? null;
-  }
-
-  return 'clientY' in event && typeof event.clientY === 'number'
-    ? event.clientY
-    : null;
-};
-
 export function useQuickSettingsDrag({ isMobile }: UseQuickSettingsDragProps) {
   const [handlePosition, setHandlePosition] = useState<number>(readHandlePosition);
-  const [isPointerDown, setIsPointerDown] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
+  const activePointerIdRef = useRef<number | null>(null);
   const dragStartYRef = useRef<number | null>(null);
   const dragStartPositionRef = useRef(DEFAULT_HANDLE_POSITION);
   const didDragRef = useRef(false);
   const suppressNextClickRef = useRef(false);
-  const bodyStylesAppliedRef = useRef(false);
+  const bodyStyleSnapshotRef = useRef<{ cursor: string; userSelect: string } | null>(null);
 
   const clearBodyDragStyles = useCallback(() => {
-    if (!bodyStylesAppliedRef.current) {
+    const snapshot = bodyStyleSnapshotRef.current;
+    if (!snapshot) {
       return;
     }
 
-    document.body.style.cursor = '';
-    document.body.style.userSelect = '';
-    document.body.style.overflow = '';
-    document.body.style.position = '';
-    document.body.style.width = '';
-    bodyStylesAppliedRef.current = false;
+    document.body.style.cursor = snapshot.cursor;
+    document.body.style.userSelect = snapshot.userSelect;
+    bodyStyleSnapshotRef.current = null;
   }, []);
 
-  const applyBodyDragStyles = useCallback((isTouchDragging: boolean) => {
-    if (bodyStylesAppliedRef.current) {
+  const applyBodyDragStyles = useCallback(() => {
+    if (bodyStyleSnapshotRef.current) {
       return;
     }
 
+    bodyStyleSnapshotRef.current = {
+      cursor: document.body.style.cursor,
+      userSelect: document.body.style.userSelect,
+    };
     document.body.style.cursor = 'grabbing';
     document.body.style.userSelect = 'none';
-
-    // Touch drag should lock body scroll so the handle movement stays smooth.
-    if (isTouchDragging) {
-      document.body.style.overflow = 'hidden';
-      document.body.style.position = 'fixed';
-      document.body.style.width = '100%';
-    }
-
-    bodyStylesAppliedRef.current = true;
   }, []);
 
-  const endDrag = useCallback(() => {
-    if (!isPointerDown && dragStartYRef.current === null) {
+  const endDrag = useCallback((event?: PointerDragEvent) => {
+    const activePointerId = activePointerIdRef.current;
+    if (activePointerId === null || (event && event.pointerId !== activePointerId)) {
       return;
     }
 
-    suppressNextClickRef.current = didDragRef.current;
+    activePointerIdRef.current = null;
+    if (event?.currentTarget.hasPointerCapture(activePointerId)) {
+      event.currentTarget.releasePointerCapture(activePointerId);
+    }
+    // A cancelled pointer gesture does not emit a click; do not swallow the
+    // user's next intentional tap in that case.
+    suppressNextClickRef.current = event?.type === 'pointerup' && didDragRef.current;
     didDragRef.current = false;
     dragStartYRef.current = null;
-    setIsPointerDown(false);
     setIsDragging(false);
     clearBodyDragStyles();
-  }, [clearBodyDragStyles, isPointerDown]);
+  }, [clearBodyDragStyles]);
 
-  const handleMove = useCallback(
-    (event: MoveDragEvent) => {
-      if (!isPointerDown || dragStartYRef.current === null) {
-        return;
-      }
-
-      const clientY = getClientY(event);
-      if (clientY === null) {
-        return;
-      }
-
-      const rawDelta = clientY - dragStartYRef.current;
-      const movedPastThreshold = Math.abs(rawDelta) > DRAG_THRESHOLD_PX;
-
-      if (!didDragRef.current && movedPastThreshold) {
-        didDragRef.current = true;
-        setIsDragging(true);
-        applyBodyDragStyles(isTouchEvent(event));
-      }
-
-      if (!didDragRef.current) {
-        return;
-      }
-
-      if (isTouchEvent(event)) {
-        event.preventDefault();
-      }
-
-      const viewportHeight = Math.max(window.innerHeight, 1);
-      const normalizedDelta = (rawDelta / viewportHeight) * 100;
-      const positionDelta = isMobile ? -normalizedDelta : normalizedDelta;
-      setHandlePosition(clampPosition(dragStartPositionRef.current + positionDelta));
-    },
-    [applyBodyDragStyles, isMobile, isPointerDown],
-  );
-
-  const startDrag = useCallback((event: StartDragEvent) => {
-    event.stopPropagation();
-
-    const clientY = getClientY(event);
-    if (clientY === null) {
+  const startDrag = useCallback((event: PointerDragEvent) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) {
       return;
     }
 
-    dragStartYRef.current = clientY;
+    if (activePointerIdRef.current !== null) {
+      return;
+    }
+
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    activePointerIdRef.current = event.pointerId;
+    dragStartYRef.current = event.clientY;
     dragStartPositionRef.current = handlePosition;
     didDragRef.current = false;
     setIsDragging(false);
-    setIsPointerDown(true);
   }, [handlePosition]);
+
+  const handlePointerMove = useCallback((event: PointerDragEvent) => {
+    if (event.pointerId !== activePointerIdRef.current || dragStartYRef.current === null) {
+      return;
+    }
+
+    const rawDelta = event.clientY - dragStartYRef.current;
+    if (!didDragRef.current && Math.abs(rawDelta) > DRAG_THRESHOLD_PX) {
+      didDragRef.current = true;
+      setIsDragging(true);
+      applyBodyDragStyles();
+    }
+
+    if (!didDragRef.current) {
+      return;
+    }
+
+    event.preventDefault();
+    const viewportHeight = Math.max(window.innerHeight, 1);
+    const normalizedDelta = (rawDelta / viewportHeight) * 100;
+    const positionDelta = isMobile ? -normalizedDelta : normalizedDelta;
+    setHandlePosition(clampPosition(dragStartPositionRef.current + positionDelta));
+  }, [applyBodyDragStyles, isMobile]);
 
   // Persist drag-handle position so users keep their preferred quick-access location.
   useEffect(() => {
@@ -170,37 +145,6 @@ export function useQuickSettingsDrag({ isMobile }: UseQuickSettingsDragProps) {
       JSON.stringify({ y: handlePosition }),
     );
   }, [handlePosition]);
-
-  useEffect(() => {
-    if (!isPointerDown) {
-      return undefined;
-    }
-
-    const handleMouseMove = (event: MouseEvent) => {
-      handleMove(event);
-    };
-    const handleMouseUp = () => {
-      endDrag();
-    };
-    const handleTouchMove = (event: TouchEvent) => {
-      handleMove(event);
-    };
-    const handleTouchEnd = () => {
-      endDrag();
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    document.addEventListener('touchmove', handleTouchMove, { passive: false });
-    document.addEventListener('touchend', handleTouchEnd);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('touchend', handleTouchEnd);
-    };
-  }, [endDrag, handleMove, isPointerDown]);
 
   useEffect(() => (
     () => {
@@ -234,6 +178,8 @@ export function useQuickSettingsDrag({ isMobile }: UseQuickSettingsDragProps) {
     isDragging,
     handleStyle,
     startDrag,
+    handlePointerMove,
+    endDrag,
     consumeSuppressedClick,
   };
 }

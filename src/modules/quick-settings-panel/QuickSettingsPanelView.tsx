@@ -16,7 +16,7 @@ import QuickSettingsOutline from '@/modules/quick-settings-panel/QuickSettingsOu
 /** Exported as QuickSettingsPanel and rendered by the project-workspace module as its slide-out quick settings drawer. */
 function QuickSettingsPanelView() {
   const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'settings' | 'outline'>('settings');
+  const [activeTab, setActiveTab] = useState<'settings' | 'outline'>('outline');
   const [exportExpanded, setExportExpanded] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<HTMLDivElement>(null);
@@ -29,6 +29,8 @@ function QuickSettingsPanelView() {
     isDragging,
     handleStyle,
     startDrag,
+    handlePointerMove,
+    endDrag,
     consumeSuppressedClick,
   } = useQuickSettingsDrag({ isMobile });
 
@@ -114,8 +116,11 @@ function QuickSettingsPanelView() {
           isDragging={isDragging}
           style={handleStyle}
           onClick={handleToggleFromHandle}
-          onMouseDown={startDrag}
-          onTouchStart={startDrag}
+          onPointerDown={startDrag}
+          onPointerMove={handlePointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onLostPointerCapture={endDrag}
         />
       </div>
 
