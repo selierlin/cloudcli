@@ -66,3 +66,45 @@ test('the finished reply still shows its whole content', () => {
   assert.match(container.textContent ?? '', /First paragraph\./);
   assert.match(container.textContent ?? '', /Second paragraph\./);
 });
+
+test('a grouped assistant reply keeps its own timestamp beside the copy controls', () => {
+  const message = assistantMessage(false);
+  const previousMessage: ChatMessage = {
+    ...assistantMessage(false),
+    content: 'Previous reply',
+    timestamp: '2026-08-21T09:59:00.000Z',
+  };
+  const { container } = render(
+    <UiPreferencesProvider>
+      <MessageComponent
+        message={message}
+        prevMessage={previousMessage}
+        createDiff={createDiff}
+        provider="claude"
+      />
+    </UiPreferencesProvider>,
+  );
+
+  assert.match(container.textContent ?? '', new RegExp(new Date(message.timestamp).toLocaleTimeString()));
+});
+
+test('a thinking message does not render a second timestamp footer', () => {
+  const message: ChatMessage = {
+    ...assistantMessage(false),
+    content: 'Internal reasoning',
+    isThinking: true,
+  };
+  const { container } = render(
+    <UiPreferencesProvider>
+      <MessageComponent
+        message={message}
+        prevMessage={null}
+        createDiff={createDiff}
+        provider="claude"
+        showThinking
+      />
+    </UiPreferencesProvider>,
+  );
+
+  assert.doesNotMatch(container.textContent ?? '', new RegExp(new Date(message.timestamp).toLocaleTimeString()));
+});
