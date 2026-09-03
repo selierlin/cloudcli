@@ -133,6 +133,15 @@ function Sidebar({
     refreshProjects,
     updateSessionSummary,
     forkSession,
+    updateSessionPinned,
+    batchSessionArchiveConfirmation,
+    batchArchivedSessionDeleteConfirmation,
+    showBatchSessionArchiveConfirmation,
+    confirmBatchSessionArchive,
+    cancelBatchSessionArchive,
+    showBatchArchivedSessionDeleteConfirmation,
+    confirmBatchArchivedSessionDelete,
+    cancelBatchArchivedSessionDelete,
     collapseSidebar: handleCollapseSidebar,
     expandSidebar: handleExpandSidebar,
     setShowNewProject,
@@ -184,6 +193,15 @@ function Sidebar({
     [updateSessionSummary],
   );
 
+  // Recent-conversation rows carry no project identity, but renaming a session
+  // is scoped by sessionId alone, so the project slot can be left empty.
+  const handleRenameRecentSession = useCallback(
+    (sessionId: string, summary: string, provider: LLMProvider) => {
+      void updateSessionSummary('', sessionId, summary, provider);
+    },
+    [updateSessionSummary],
+  );
+
   const projectListProps: SidebarProjectListProps = {
     projects,
     filteredProjects,
@@ -213,6 +231,8 @@ function Sidebar({
     onSaveProjectName: handleSaveProjectName,
     onDeleteProject: requestProjectDelete,
     onSessionSelect: handleSessionClick,
+    onTogglePinned: updateSessionPinned,
+    onRequestBatchArchive: showBatchSessionArchiveConfirmation,
     onDeleteSession: showDeleteSessionConfirmation,
     onForkSession: forkSession,
     onLoadMoreSessions: loadMoreSessionsForProject,
@@ -237,6 +257,12 @@ function Sidebar({
         onCancelDeletion={() => setPendingDeletion(null)}
         onConfirmDeleteProject={confirmDeleteProject}
         onConfirmDeleteSession={confirmDeleteSession}
+        batchSessionArchiveConfirmation={batchSessionArchiveConfirmation}
+        onConfirmBatchSessionArchive={confirmBatchSessionArchive}
+        onCancelBatchSessionArchive={cancelBatchSessionArchive}
+        batchArchivedSessionDeleteConfirmation={batchArchivedSessionDeleteConfirmation}
+        onConfirmBatchArchivedSessionDelete={confirmBatchArchivedSessionDelete}
+        onCancelBatchArchivedSessionDelete={cancelBatchArchivedSessionDelete}
         showVersionModal={showVersionModal}
         onCloseVersionModal={() => setShowVersionModal(false)}
         releaseInfo={releaseInfo}
@@ -287,6 +313,10 @@ function Sidebar({
             onRestoreArchivedProject={restoreArchivedProject}
             onLoadMoreRecentConversations={loadMoreRecentConversations}
             onRetryRecentConversations={reloadRecentConversations}
+            onRenameRecentSession={handleRenameRecentSession}
+            onToggleSessionPinned={updateSessionPinned}
+            onRequestBatchArchive={showBatchSessionArchiveConfirmation}
+            onRequestBatchPermanentDelete={showBatchArchivedSessionDeleteConfirmation}
             onArchivedSessionClick={openArchivedSession}
             onRestoreArchivedSession={restoreArchivedSession}
             onDeleteArchivedSession={(session) => {

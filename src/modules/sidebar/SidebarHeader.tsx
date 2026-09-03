@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import { Preferences } from '@capacitor/preferences';
 import { Activity, Archive, Folder, FolderPlus, MessageSquare, Plus, RefreshCw, Search, X, PanelLeftClose } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
@@ -5,6 +7,7 @@ import { Button, Input, Tooltip } from '@/shared/ui';
 import { CLOUDCLI_WORDMARK_FONT_FAMILY } from '@/shared/constants';
 import { IS_PLATFORM, cn } from '@/shared/utils';
 import type { SidebarSearchMode } from '@/shared/types';
+import SidebarServerMenu from '@/modules/sidebar/SidebarServerMenu';
 
 const MOD_KEY =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
@@ -26,24 +29,44 @@ type SidebarHeaderProps = {
   isRefreshing: boolean;
   onCreateProject: () => void;
   onCollapseSidebar: () => void;
+  onShowSettings: () => void;
   t: TFunction;
 };
 
-/** Module-level, not a nested render function, so the wordmark is not remounted on every SidebarHeader render. */
-function LogoBlock({ t }: { t: TFunction }) {
+/** Module-level, not a nested render function, so the wordmark menu is not remounted on every SidebarHeader render. */
+function LogoBlock({
+  t,
+  serverName,
+  onShowSettings,
+}: {
+  t: TFunction;
+  serverName: string | null;
+  onShowSettings: () => void;
+}) {
+  const mark = (
+    <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-primary/90 shadow-sm">
+      <svg className="h-3.5 w-3.5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      </svg>
+    </div>
+  );
+
   return (
     <div className="flex min-w-0 items-center gap-2.5">
-      <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-primary/90 shadow-sm">
-        <svg className="h-3.5 w-3.5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
+      {IS_PLATFORM ? (
+        <a
+          href="https://cloudcli.ai/dashboard"
+          className="transition-opacity hover:opacity-80"
+          title={t('tooltips.viewEnvironments')}
+        >
+          {mark}
+        </a>
+      ) : (
+        mark
+      )}
+      <div className="min-w-0" style={{ fontFamily: CLOUDCLI_WORDMARK_FONT_FAMILY }}>
+        <SidebarServerMenu serverName={serverName} onShowSettings={onShowSettings} />
       </div>
-      <h1
-        className="truncate text-sm font-bold tracking-tight text-foreground"
-        style={{ fontFamily: CLOUDCLI_WORDMARK_FONT_FAMILY }}
-      >
-        {t('app.title')}
-      </h1>
     </div>
   );
 }
@@ -66,8 +89,35 @@ export default function SidebarHeader({
   isRefreshing,
   onCreateProject,
   onCollapseSidebar,
+  onShowSettings,
   t,
 }: SidebarHeaderProps) {
+  // 移动端由服务器选择页跳转而来时，头部 Logo 旁显示当前服务器名称。
+  // 名称由选择页（mobile/www/picker.js）写入 Preferences，跨 origin 共享；
+  // 非 Capacitor 原生壳（桌面浏览器 / PWA）读取不到，回退显示 CloudCLI。
+  const [serverName, setServerName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const isCapacitorShell = Boolean(
+      (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.(),
+    );
+    if (!isCapacitorShell) return;
+
+    let disposed = false;
+    void Preferences.get({ key: 'cloudcli.serverName' })
+      .then((res) => {
+        const value = res?.value?.trim();
+        if (!disposed && value) setServerName(value);
+      })
+      .catch(() => {
+        // 读取失败时保持默认标题（CloudCLI）
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, []);
+
   const showSearchTools = (projectsCount > 0 || runningSessionsCount > 0 || archivedSessionsCount > 0 || isArchivedSessionsLoading) && !isLoading;
   const searchPlaceholder = searchMode === 'conversations'
     ? t('search.conversationsPlaceholder')
@@ -86,17 +136,7 @@ export default function SidebarHeader({
         style={{}}
       >
         <div className="flex items-center justify-between gap-2">
-          {IS_PLATFORM ? (
-            <a
-              href="https://cloudcli.ai/dashboard"
-              className="flex min-w-0 items-center gap-2.5 transition-opacity hover:opacity-80"
-              title={t('tooltips.viewEnvironments')}
-            >
-              <LogoBlock t={t} />
-            </a>
-          ) : (
-            <LogoBlock t={t} />
-          )}
+          <LogoBlock t={t} serverName={serverName} onShowSettings={onShowSettings} />
 
           <div className="flex flex-shrink-0 items-center gap-0.5">
             <Button
@@ -246,17 +286,7 @@ export default function SidebarHeader({
         style={isPWA && isMobile ? { paddingTop: '16px' } : {}}
       >
         <div className="flex items-center justify-between">
-          {IS_PLATFORM ? (
-            <a
-              href="https://cloudcli.ai/dashboard"
-              className="flex min-w-0 items-center gap-2.5 transition-opacity active:opacity-70"
-              title={t('tooltips.viewEnvironments')}
-            >
-              <LogoBlock t={t} />
-            </a>
-          ) : (
-            <LogoBlock t={t} />
-          )}
+          <LogoBlock t={t} serverName={serverName} onShowSettings={onShowSettings} />
 
           <div className="flex flex-shrink-0 gap-1.5">
             <button

@@ -1,7 +1,7 @@
 // Service Worker for CloudCLI PWA
 // Cache only manifest (needed for PWA install). HTML and JS are never pre-cached
 // so a rebuild + refresh always picks up the latest assets.
-const CACHE_NAME = 'claude-ui-v2';
+const CACHE_NAME = 'claude-ui-v3';
 const urlsToCache = [
   '/manifest.json'
 ];
@@ -36,24 +36,38 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Hashed assets (JS/CSS in /assets/) — cache-first since filenames change per build
+  // Hashed assets (JS/CSS in /assets/) — cache-first since filenames change per build.
+  // Never let a transient network failure reject respondWith (which aborts the whole
+  // ES-module load and leaves the launch splash stuck); only cache valid responses.
   if (url.includes('/assets/')) {
     event.respondWith(
       caches.match(event.request).then(cached => {
         if (cached) return cached;
         return fetch(event.request).then(response => {
+          if (!response.ok) return response; // don't cache error responses
           const clone = response.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
           return response;
-        });
+        }).catch(() => new Response('', {
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: { 'Content-Type': 'text/plain' }
+        }));
       })
     );
     return;
   }
 
-  // Everything else — network-first
+  // Everything else — network-first. Cache miss + network failure must still yield
+  // a Response (never undefined), or respondWith throws "Failed to convert value to 'Response'".
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    fetch(event.request)
+      .catch(() => caches.match(event.request))
+      .then(match => match || new Response('', {
+        status: 404,
+        statusText: 'Not Found',
+        headers: { 'Content-Type': 'text/plain' }
+      }))
   );
 });
 

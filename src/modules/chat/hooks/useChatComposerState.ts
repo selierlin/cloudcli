@@ -223,6 +223,17 @@ export function useChatComposerState({
     ) => Promise<void>) | null
   >(null);
   const inputValueRef = useRef(input);
+  /**
+   * Guards against duplicate session-creation submits.
+   *
+   * When the user sends the first message of a brand-new chat, `handleSubmit`
+   * allocates the session via an async session-gateway POST. During that
+   * round-trip the submit button stays enabled (nothing has set the processing
+   * state yet), so a second Enter/click can run the same branch and mint a
+   * second, identical session. The flag closes that window: a second submit is
+   * dropped while one session-creation request is already in flight.
+   */
+  const creatingSessionRef = useRef(false);
   const selectedProjectId = selectedProject?.projectId;
   // Prefer the stable backend-allocated id (selectedSession.id) but fall back
   // to currentSessionId for a just-established session that hasn't been
@@ -747,51 +758,75 @@ export function useChatComposerState({
       // handoff later — this id stays valid for the conversation's lifetime.
       let targetSessionId = selectedSession?.id || currentSessionId || null;
       if (!targetSessionId) {
-        let createdSessionName = sessionSummary;
+        // A previous submit is still allocating this session over the network.
+        // Without this guard a second Enter/click during the round-trip would
+        // mint a second, identical session (the submit button stays enabled
+        // until the session is established).
+        if (creatingSessionRef.current) {
+          console.warn(
+            '[composer] Session creation already in flight; duplicate submit ignored',
+            { at: new Date().toISOString() },
+          );
+          return;
+        }
+
+        creatingSessionRef.current = true;
+        let sessionCreated = false;
         try {
-          const response = await api.providers.createSession({
+          let createdSessionName = sessionSummary;
+          try {
+            const response = await api.providers.createSession({
+              provider,
+              projectPath: resolvedProjectPath,
+              initialMessage: messageContent,
+            });
+            if (!response.ok) {
+              throw new Error(`Failed to create session (${response.status})`);
+            }
+            const body = await response.json();
+            targetSessionId = body?.data?.sessionId || null;
+            // A blank server name would leave the session unlabeled, so the local
+            // summary stays the fallback unless a real name comes back.
+            const returnedSessionName = typeof body?.data?.sessionName === 'string'
+              ? body.data.sessionName.trim()
+              : '';
+            if (returnedSessionName) {
+              createdSessionName = returnedSessionName;
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            console.error('Session creation failed:', error);
+            addMessage({
+              type: 'error',
+              content: `Failed to start a new session: ${message}`,
+              timestamp: new Date(),
+            });
+            return;
+          }
+
+          if (!targetSessionId) {
+            addMessage({
+              type: 'error',
+              content: 'Failed to start a new session: no session id returned.',
+              timestamp: new Date(),
+            });
+            return;
+          }
+
+          sessionCreated = true;
+          onSessionEstablished?.(targetSessionId, {
             provider,
-            projectPath: resolvedProjectPath,
-            initialMessage: messageContent,
+            project: selectedProject,
+            summary: createdSessionName,
           });
-          if (!response.ok) {
-            throw new Error(`Failed to create session (${response.status})`);
+        } finally {
+          // On success the lock stays held until `currentSessionId` commits
+          // (see the release effect below); on failure it is released here so
+          // the user can retry immediately.
+          if (!sessionCreated) {
+            creatingSessionRef.current = false;
           }
-          const body = await response.json();
-          targetSessionId = body?.data?.sessionId || null;
-          // A blank server name would leave the session unlabeled, so the local
-          // summary stays the fallback unless a real name comes back.
-          const returnedSessionName = typeof body?.data?.sessionName === 'string'
-            ? body.data.sessionName.trim()
-            : '';
-          if (returnedSessionName) {
-            createdSessionName = returnedSessionName;
-          }
-        } catch (error) {
-          const message = error instanceof Error ? error.message : 'Unknown error';
-          console.error('Session creation failed:', error);
-          addMessage({
-            type: 'error',
-            content: `Failed to start a new session: ${message}`,
-            timestamp: new Date(),
-          });
-          return;
         }
-
-        if (!targetSessionId) {
-          addMessage({
-            type: 'error',
-            content: 'Failed to start a new session: no session id returned.',
-            timestamp: new Date(),
-          });
-          return;
-        }
-
-        onSessionEstablished?.(targetSessionId, {
-          provider,
-          project: selectedProject,
-          summary: createdSessionName,
-        });
       }
 
       const attachmentRecords = uploadedAttachments as ChatAttachment[];
@@ -877,6 +912,16 @@ export function useChatComposerState({
   useEffect(() => {
     handleSubmitRef.current = handleSubmit;
   }, [handleSubmit]);
+
+  // A successfully created session commits `currentSessionId` through
+  // `onSessionEstablished`; only then is the creation lock released. Keeping
+  // it held across the POST→render gap closes the window where a submit with
+  // a stale (null) session id could mint a second session.
+  useEffect(() => {
+    if (currentSessionId) {
+      creatingSessionRef.current = false;
+    }
+  }, [currentSessionId]);
 
   // The VPS dispatcher owns sending. While the card is visible, periodically
   // reconcile only its removal so the UI notices when the server claims it.

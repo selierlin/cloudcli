@@ -78,6 +78,8 @@ export type ProjectSession = {
   updated_at?: string;
   lastActivity?: string;
   messageCount?: number;
+  /** True when the user pinned the session so it sorts above unpinned ones. */
+  isPinned?: boolean;
   provider?: LLMProvider;
   __provider?: LLMProvider;
   // Tags the session with the owning project's DB `projectId` so UI handlers
@@ -1306,6 +1308,13 @@ export type SidebarProjectListProps = {
   onDeleteSession: (sessionId: string, sessionTitle: string) => void;
   /** Branches a session into an independent one. Rows hide it for providers that cannot. */
   onForkSession?: (session: SessionWithProvider) => void;
+  /** Pins or unpins one active session; rows surface it from their options menu. */
+  onTogglePinned?: (sessionId: string, isPinned: boolean) => void;
+  /** Opens the batch-archive confirmation for a manage-mode selection. */
+  onRequestBatchArchive?: (
+    sessionIds: string[],
+    onCompleted: (archivedSessionIds: string[]) => void,
+  ) => void;
   onNewSession: (project: Project) => void;
   onStartEditingSession: (projectId: string, sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
@@ -1345,7 +1354,9 @@ export type ArchivedSessionListItem = {
 export type RecentConversationListItem = Pick<
   ArchivedSessionListItem,
   'sessionId' | 'provider' | 'projectId' | 'projectDisplayName' | 'sessionTitle' | 'lastActivity'
->;
+> & {
+  isPinned: boolean;
+};
 
 /**
  * The rename the sidebar currently has open, if any.
@@ -1371,6 +1382,18 @@ export type ActiveSidebarRename =
 export type PendingSidebarDeletion =
   | { kind: 'project'; project: Project; sessionCount: number }
   | { kind: 'session'; sessionId: string; sessionTitle: string; isArchived: boolean };
+
+/** The sidebar's pending batch archive confirmation: a set of session ids selected in manage mode, plus a completion callback the caller uses to prune its own selection once the archive lands. */
+export type BatchSessionArchiveConfirmation = {
+  sessionIds: string[];
+  onCompleted: (archivedSessionIds: string[]) => void;
+};
+
+/** The sidebar's pending batch permanent-delete confirmation for archived sessions. */
+export type BatchArchivedSessionDeleteConfirmation = {
+  sessionIds: string[];
+  onCompleted: (deletedSessionIds: string[]) => void;
+};
 
 /** Whether a TaskMaster MCP server is present and configured for a project, or null while that status is still unknown. */
 export type MCPServerStatus = {
