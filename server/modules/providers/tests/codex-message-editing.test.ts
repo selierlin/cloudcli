@@ -118,6 +118,14 @@ test('every Codex prompt is anchored to the turn that contains it', { concurrenc
         ['third prompt', 'turn-c'],
       ],
     );
+    assert.deepEqual(
+      prompts.map((message) => [message.content, message.forkAnchorId]),
+      [
+        ['first prompt', 'turn-a'],
+        ['second prompt', 'turn-b'],
+        ['third prompt', 'turn-c'],
+      ],
+    );
     // An anchor on an answer would put a pencil on a message that cannot be
     // edited, so only prompts carry one.
     assert.equal(

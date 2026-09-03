@@ -1346,6 +1346,7 @@ async function getCodexSessionMessages(sessionId: string): Promise<CodexHistoryR
             timestamp,
             message: { role: 'user', content },
             images,
+            ...(turnId ? { turnId } : {}),
           });
         }
         continue;
@@ -1466,6 +1467,7 @@ async function getCodexSessionMessages(sessionId: string): Promise<CodexHistoryR
         type: 'assistant',
         timestamp,
         message: { role: 'assistant', content: textContent },
+        ...(turns.getCurrentTurnId() ? { turnId: turns.getCurrentTurnId() } : {}),
         memoryCitations: cited.memoryCitations,
       });
       continue;
@@ -2040,6 +2042,7 @@ export class CodexSessionsProvider implements IProviderSessions {
         // usable for this: Codex rows carry no id, so it is synthesized per
         // read and would address a different message every time.
         transcriptAnchorId: readNonEmptyString(raw.turnId),
+        forkAnchorId: readNonEmptyString(raw.turnId),
       })];
     }
 
@@ -2063,6 +2066,7 @@ export class CodexSessionsProvider implements IProviderSessions {
         kind: 'text',
         role: 'assistant',
         content,
+        forkAnchorId: readNonEmptyString(raw.turnId),
         memoryCitations: raw.memoryCitations,
       })];
     }

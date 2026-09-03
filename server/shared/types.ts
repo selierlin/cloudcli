@@ -263,10 +263,12 @@ export type NormalizedMessage = {
   /**
    * The provider's own identifier for the transcript row this message came
    * from, when the provider has stable per-row identity (today: Claude's
-   * `uuid`). It is what "edit this message" and "fork from here" address, so it
-   * has to survive a reload — never a value this app synthesized.
+   * `uuid`). It is what "edit this message" addresses, so it has to survive a
+   * reload — never a value this app synthesized.
    */
   transcriptAnchorId?: string;
+  /** Stable provider-owned anchor used only to fork a session from this row. */
+  forkAnchorId?: string;
   sessionId: string;
   timestamp: string;
   provider: LLMProvider;

@@ -131,7 +131,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                       <PencilIcon className="h-3.5 w-3.5" />
                     </button>
                   )}
-                  {onForkFromMessage && message.transcriptAnchorId && (
+                  {onForkFromMessage && message.forkAnchorId && (
                     <button
                       type="button"
                       onClick={() => onForkFromMessage(message)}
@@ -363,7 +363,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
             {!message.isThinking && (shouldShowAssistantCopyControl || !isGrouped) && (
               <div className="mt-1 flex w-full items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500">
                 {onForkFromMessage &&
-                  message.transcriptAnchorId &&
+                  message.forkAnchorId &&
                   message.type === 'assistant' &&
                   !message.isToolUse && (
                     <button

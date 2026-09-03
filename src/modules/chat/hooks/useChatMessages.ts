@@ -192,9 +192,10 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       isLocalCommand: msg.isLocalCommand,
       isLocalCommandStdout: msg.isLocalCommandStdout,
       isCompactSummary: msg.isCompactSummary,
-      // Carried through so a rendered user bubble can address its own
-      // transcript row when the user edits or forks from it.
+      // Carried through so rendered bubbles can address their provider rows
+      // for editing and forking.
       transcriptAnchorId: msg.transcriptAnchorId,
+      forkAnchorId: msg.forkAnchorId,
     };
 
     switch (msg.kind) {
