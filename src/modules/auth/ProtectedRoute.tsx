@@ -16,13 +16,20 @@ type ProtectedRouteProps = {
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, isLoading, needsSetup, hasCompletedOnboarding, refreshOnboardingStatus } = useAuth();
 
-  // Auth verification is the first stable-screen boundary (login / setup / onboarding
-  // or the routed main content). The launch splash in index.html stays up until here
-  // so it never flashes the intermediate AuthLoadingScreen; dismissing on !isLoading
-  // hands over to whatever stable UI this route renders next.
+  // 认证完成后的「主界面分支」判定：无 loading 且已通过 setup / 登录 / 引导。
+  const isContentBranch =
+    !isLoading &&
+    (IS_PLATFORM
+      ? hasCompletedOnboarding
+      : Boolean(user && hasCompletedOnboarding && !needsSetup));
+
+  // 认证完成后的非主界面分支（登录 / 设置 / 引导）不再有独立 loading，
+  // 立即移除启动 splash 让界面可见；主界面分支交给主内容在项目加载完成时处理。
   useEffect(() => {
-    if (!isLoading) dismissSplash();
-  }, [isLoading]);
+    if (!isLoading && !isContentBranch) {
+      dismissSplash();
+    }
+  }, [isLoading, isContentBranch]);
 
   if (isLoading) {
     return <AuthLoadingScreen />;

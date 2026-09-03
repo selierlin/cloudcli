@@ -8,7 +8,11 @@ import { Terminal } from '@xterm/xterm';
 import type { ITerminalOptions } from '@xterm/xterm';
 
 import type { MobileTerminalSelectionManager, Project } from '@/shared/types';
-import { copyTextToClipboard } from '@/shared/utils';
+import {
+  copyTextToClipboard,
+  FONT_SETTINGS_CHANGED_EVENT,
+  readFontSettings,
+} from '@/shared/utils';
 import { TERMINAL_INIT_DELAY_MS } from '@/shared/constants';
 import { installMobileTerminalSelection } from '@/modules/shell/utils/mobileTerminalSelection';
 import { sendSocketMessage } from '@/modules/shell/utils/socket';
@@ -177,7 +181,10 @@ export function useShellTerminal({
       return;
     }
 
-    const nextTerminal = new Terminal(TERMINAL_OPTIONS);
+    const nextTerminal = new Terminal({
+      ...TERMINAL_OPTIONS,
+      fontSize: Number(readFontSettings().terminalFontSize),
+    });
     terminalRef.current = nextTerminal;
 
     const nextFitAddon = new FitAddon();
@@ -361,6 +368,21 @@ export function useShellTerminal({
     terminalRef,
     wsRef,
   ]);
+
+  // Apply terminal font-size changes (Settings → Appearance → Fonts) live.
+  useEffect(() => {
+    const applyFontSize = () => {
+      const terminal = terminalRef.current;
+      if (!terminal) {
+        return;
+      }
+      terminal.options.fontSize = Number(readFontSettings().terminalFontSize);
+      terminal.refresh(0, terminal.rows - 1);
+    };
+
+    window.addEventListener(FONT_SETTINGS_CHANGED_EVENT, applyFontSize);
+    return () => window.removeEventListener(FONT_SETTINGS_CHANGED_EVENT, applyFontSize);
+  }, [terminalRef]);
 
   return {
     isInitialized,

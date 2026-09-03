@@ -372,3 +372,20 @@ export function resetUserPreferences(): void {
 if (typeof localStorage !== 'undefined') {
   preferences = readMirror();
 }
+
+// A second tab on this device writes the same mirror blob (a code-editor or
+// theme change there, for instance). `storage` events never reach the writing
+// tab, only the other tabs, so this handler is what keeps each tab's in-memory
+// copy current without a server round-trip. The freshly-read mirror is
+// authoritative; anything still queued from before the event is stale relative
+// to it and would push an outdated value over the copy the other tab just wrote.
+if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key !== MIRROR_STORAGE_KEY) {
+      return;
+    }
+    preferences = readMirror();
+    pendingServerWrites = {};
+    notifyListeners();
+  });
+}

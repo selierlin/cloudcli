@@ -1,8 +1,9 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useEffect } from 'react';
 
 import { useProjectMainState } from '@/modules/project-workspace/context/ProjectsStateContext';
 import type { SessionEstablishedContext, SessionNavigationOptions,ProjectWorkspaceShellProps } from '@/shared/types';
 import WorkspaceMain from '@/modules/project-workspace/WorkspaceMain';
+import { dismissSplash } from '@/utils/splash';
 
 /** Rendered by ProjectWorkspaceShell to bind this module's project state to WorkspaceMain. */
 function ProjectMainRegion({
@@ -12,6 +13,7 @@ function ProjectMainRegion({
   navigate,
 }: ProjectWorkspaceShellProps) {
   const {
+    projects,
     selectedProject,
     selectedSession,
     activeTab,
@@ -48,8 +50,18 @@ function ProjectMainRegion({
     void refreshProjectsSilently();
   }, [refreshProjectsSilently]);
 
+  // Main-content project loading is the content-ready boundary for the routed
+  // app; ProtectedRoute only dismisses the splash on non-content branches, so
+  // the launch splash stays up through the workspace load and never flashes it.
+  useEffect(() => {
+    if (!isLoadingProjects) {
+      dismissSplash();
+    }
+  }, [isLoadingProjects]);
+
   return (
     <WorkspaceMain
+      projects={projects}
       selectedProject={selectedProject}
       selectedSession={selectedSession}
       activeTab={activeTab}
