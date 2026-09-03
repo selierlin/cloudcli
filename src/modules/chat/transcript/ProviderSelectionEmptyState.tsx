@@ -34,6 +34,8 @@ const PROVIDER_META: { id: LLMProvider; name: string }[] = [
   { id: "codex", name: "OpenAI" },
   { id: "cursor", name: "Cursor" },
   { id: "opencode", name: "OpenCode" },
+  { id: "dsh", name: "DeepSeek Harness" },
+  { id: "workbuddy", name: "WorkBuddy" },
 ];
 
 const MOD_KEY =
@@ -87,6 +89,8 @@ function getProviderDisplayName(p: LLMProvider) {
   if (p === "cursor") return "Cursor";
   if (p === "codex") return "Codex";
   if (p === "opencode") return "OpenCode";
+  if (p === "dsh") return "DeepSeek Harness";
+  if (p === "workbuddy") return "WorkBuddy";
   return "Claude";
 }
 

@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -18,6 +18,8 @@ function QuickSettingsPanelView() {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'settings' | 'outline'>('settings');
   const [exportExpanded, setExportExpanded] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const handleRef = useRef<HTMLDivElement>(null);
   const { t } = useTranslation('settings');
   const { selectedProject, selectedSession, handleSessionSelect } = useProjectMainState();
   const { isMobile } = useDeviceSettings({ trackPWA: false });
@@ -62,6 +64,32 @@ function QuickSettingsPanelView() {
     [consumeSuppressedClick],
   );
 
+  // The panel intentionally has no full-screen overlay masking the chat (the
+  // feature branch dropped it so the conversation stays visible and usable
+  // while the drawer is open). Close on an outside click or Escape instead.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePointerDown = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (panelRef.current?.contains(target)) return;
+      if (handleRef.current?.contains(target)) return;
+      setIsOpen(false);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
+
   const { outlineItems, chatMessages, isLoading } = useSessionOutlineData({
     isOpen,
     selectedSession,
@@ -80,16 +108,19 @@ function QuickSettingsPanelView() {
 
   return (
     <>
-      <QuickSettingsHandle
-        isOpen={isOpen}
-        isDragging={isDragging}
-        style={handleStyle}
-        onClick={handleToggleFromHandle}
-        onMouseDown={startDrag}
-        onTouchStart={startDrag}
-      />
+      <div ref={handleRef} style={{ display: 'contents' }}>
+        <QuickSettingsHandle
+          isOpen={isOpen}
+          isDragging={isDragging}
+          style={handleStyle}
+          onClick={handleToggleFromHandle}
+          onMouseDown={startDrag}
+          onTouchStart={startDrag}
+        />
+      </div>
 
       <div
+        ref={panelRef}
         className={`fixed right-0 top-0 z-[9999] h-full w-64 transform border-l border-border bg-background shadow-xl transition-transform duration-150 ease-out ${isOpen ? 'translate-x-0' : 'translate-x-full'} ${isMobile ? 'h-screen' : ''}`}
       >
         <div className="flex h-full flex-col">
@@ -119,13 +150,6 @@ function QuickSettingsPanelView() {
           )}
         </div>
       </div>
-
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-[9998] bg-background/80 backdrop-blur-sm transition-opacity duration-150 ease-out"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
     </>
   );
 }

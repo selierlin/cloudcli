@@ -212,6 +212,12 @@ export const api = {
     post(`/api/providers/sessions/${encodeURIComponent(sessionId)}/fork`, body),
   renameSession: (sessionId: string, summary: string) =>
     put(`/api/providers/sessions/${sessionId}`, { summary }),
+  // Pins or unpins a session so it sorts ahead of unpinned ones in the sidebar.
+  setSessionPinned: (sessionId: string, isPinned: boolean) =>
+    put(`/api/providers/sessions/${encodeURIComponent(sessionId)}/pinned`, { isPinned }),
+  // Permanently removes a whole batch of archived sessions at once.
+  permanentlyDeleteArchivedSessions: (sessionIds: string[]) =>
+    del('/api/providers/sessions/archived', { sessionIds }),
 
   // Scheduled messages: send a message to a session at a future time.
   scheduledMessages: {

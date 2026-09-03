@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import { Check, Copy, Edit2, GitBranch, Loader2, MoreHorizontal, Trash2, X } from 'lucide-react';
+import { Check, Copy, Edit2, GitBranch, Loader2, MoreHorizontal, Pin, PinOff, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { ActionMenu, Badge, Dialog, DialogContent, DialogTitle, LLMProviderLogo, Tooltip, buttonVariants } from '@/shared/ui';
@@ -15,6 +15,10 @@ type SidebarSessionItemProps = {
   session: SessionWithProvider;
   selectedSession: ProjectSession | null;
   isProcessing: boolean;
+  /** True while the parent list is in manage (batch-select) mode. */
+  isManaging: boolean;
+  /** True when this row is selected in manage mode. */
+  isBatchSelected: boolean;
   needsAttention: boolean;
   currentTime: Date;
   /** Resolved for this row, so a keystroke elsewhere does not invalidate it. */
@@ -26,6 +30,8 @@ type SidebarSessionItemProps = {
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
+  onTogglePinned: (sessionId: string, isPinned: boolean) => void;
+  onToggleBatchSelection: (sessionId: string) => void;
   onDeleteSession: (sessionId: string, sessionTitle: string) => void;
   /** Branches this session into an independent one; absent when its provider cannot. */
   onForkSession?: (session: SessionWithProvider) => void;
@@ -48,6 +54,8 @@ function SidebarSessionItem({
   session,
   selectedSession,
   isProcessing,
+  isManaging,
+  isBatchSelected,
   needsAttention,
   currentTime,
   isEditing,
@@ -58,6 +66,8 @@ function SidebarSessionItem({
   onSaveEditingSession,
   onProjectSelect,
   onSessionSelect,
+  onTogglePinned,
+  onToggleBatchSelection,
   onDeleteSession,
   onForkSession,
   t,
@@ -97,8 +107,19 @@ function SidebarSessionItem({
   // Sessions are owned by a project identified by `projectId` (DB primary key)
   // after the projectName → projectId migration.
   const selectMobileSession = () => {
+    if (isManaging) {
+      if (!isProcessing) {
+        onToggleBatchSelection(session.id);
+      }
+      return;
+    }
+
     onProjectSelect(project);
     onSessionSelect(session, project.projectId);
+  };
+
+  const togglePinned = () => {
+    onTogglePinned(session.id, !session.isPinned);
   };
 
   const saveEditedSession = () => {
@@ -237,7 +258,25 @@ function SidebarSessionItem({
           )}
           onClick={selectMobileSession}
         >
-          <div className="flex items-center gap-2">
+          <div className={cn('flex items-center gap-2', isManaging && isProcessing && 'cursor-not-allowed opacity-60')}>
+            {isManaging && (
+              <span
+                role="checkbox"
+                aria-checked={isBatchSelected}
+                aria-label={isProcessing
+                  ? t('sessions.runningSessionCannotBeArchived')
+                  : t('sessions.selectSession', { name: sessionView.sessionName })}
+                className={cn(
+                  'flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-colors',
+                  isBatchSelected
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-muted-foreground/40 bg-background',
+                  isProcessing && 'opacity-40',
+                )}
+              >
+                {isBatchSelected && <Check className="h-3 w-3" />}
+              </span>
+            )}
             <div
               className={cn(
                 'w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0',
@@ -255,6 +294,13 @@ function SidebarSessionItem({
                 >
                   {sessionView.sessionName}
                 </div>
+                {session.isPinned && (
+                  <Tooltip content={t('sessions.pinnedSession')} position="top">
+                    <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-muted-foreground">
+                      <Pin className="h-3 w-3 fill-current" aria-hidden="true" />
+                    </span>
+                  </Tooltip>
+                )}
                 {isProcessing ? (
                   <span className="ml-auto flex-shrink-0">
                     <Tooltip content={t('tooltips.processingSessionIndicator', 'Processing session')} position="top">
@@ -276,7 +322,7 @@ function SidebarSessionItem({
               </div>
             </div>
 
-            <button
+            {!isManaging && <button
               type="button"
               aria-label={`Session options for ${sessionView.sessionName}`}
               aria-haspopup="dialog"
@@ -288,7 +334,7 @@ function SidebarSessionItem({
               }}
             >
               <MoreHorizontal className="h-4 w-4" />
-            </button>
+            </button>}
           </div>
         </div>
 
@@ -358,6 +404,17 @@ function SidebarSessionItem({
               </div>
             ) : (
               <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={togglePinned}
+                  className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-border bg-muted/35 px-4 py-3 text-left text-foreground transition-colors active:bg-muted"
+                >
+                  {session.isPinned ? <PinOff className="h-5 w-5 flex-shrink-0" /> : <Pin className="h-5 w-5 flex-shrink-0" />}
+                  <span className="text-sm font-medium">
+                    {session.isPinned ? t('sessions.unpinSession') : t('sessions.pinSession')}
+                  </span>
+                </button>
+
                 <button
                   type="button"
                   onClick={startMobileRename}
@@ -436,16 +493,43 @@ function SidebarSessionItem({
               : !isSelected && sessionView.isActive
                 ? 'border-green-500/30 bg-green-50/5 hover:bg-green-50/10 dark:bg-green-900/5 dark:hover:bg-green-900/10'
                 : 'hover:bg-accent/50',
+            isManaging && isProcessing && 'cursor-not-allowed opacity-60',
           )}
           // Left-click keeps in-app navigation; Ctrl/Cmd/middle-click and the
           // native right-click menu use the href to open a new tab/window.
           onClick={(event) => {
+            if (isManaging) {
+              event.preventDefault();
+              if (!isProcessing) {
+                onToggleBatchSelection(session.id);
+              }
+              return;
+            }
+
             if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
             event.preventDefault();
             onSessionSelect(session, project.projectId);
           }}
         >
           <div className="flex w-full min-w-0 items-center gap-2">
+            {isManaging && (
+              <span
+                role="checkbox"
+                aria-checked={isBatchSelected}
+                aria-label={isProcessing
+                  ? t('sessions.runningSessionCannotBeArchived')
+                  : t('sessions.selectSession', { name: sessionView.sessionName })}
+                className={cn(
+                  'flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-colors',
+                  isBatchSelected
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-muted-foreground/40 bg-background',
+                  isProcessing && 'opacity-40',
+                )}
+              >
+                {isBatchSelected && <Check className="h-3 w-3" />}
+              </span>
+            )}
             <div
               className={cn(
                 'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md',
@@ -462,6 +546,13 @@ function SidebarSessionItem({
                 >
                   {sessionView.sessionName}
                 </div>
+                {session.isPinned && (
+                  <Tooltip content={t('sessions.pinnedSession')} position="top">
+                    <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-muted-foreground">
+                      <Pin className="h-3 w-3 fill-current" aria-hidden="true" />
+                    </span>
+                  </Tooltip>
+                )}
                 {isProcessing ? (
                   <span
                     className={cn(
@@ -493,7 +584,7 @@ function SidebarSessionItem({
           </div>
         </a>
 
-        <div
+        {!isManaging && <div
           ref={editingContainerRef}
           className="absolute right-2 top-1/2 flex -translate-y-1/2 transform items-center gap-1 opacity-100 transition-all duration-200"
         >
@@ -564,6 +655,12 @@ function SidebarSessionItem({
                     onSelect: () => onStartEditingSession(project.projectId, session.id, sessionView.sessionName),
                   },
                   {
+                    key: 'pin',
+                    label: session.isPinned ? t('sessions.unpinSession') : t('sessions.pinSession'),
+                    icon: session.isPinned ? PinOff : Pin,
+                    onSelect: togglePinned,
+                  },
+                  {
                     key: 'copy',
                     label: copyLabel,
                     description: copyState === 'error' ? 'Click to try again.' : undefined,
@@ -590,7 +687,7 @@ function SidebarSessionItem({
                 ]}
               />
             )}
-          </div>
+          </div>}
       </div>
       )}
     </div>

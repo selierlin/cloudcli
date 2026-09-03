@@ -2,7 +2,9 @@ import type { LLMProvider } from '@/shared/types';
 import ClaudeLogo from '@/shared/ui/ClaudeLogo';
 import CodexLogo from '@/shared/ui/CodexLogo';
 import CursorLogo from '@/shared/ui/CursorLogo';
+import DshLogo from '@/shared/ui/DshLogo';
 import OpenCodeLogo from '@/shared/ui/OpenCodeLogo';
+import WorkbuddyLogo from '@/shared/ui/WorkbuddyLogo';
 
 type LLMProviderLogoProps = {
   provider?: LLMProvider | string | null;
@@ -24,6 +26,14 @@ export function LLMProviderLogo({
 
   if (provider === 'opencode') {
     return <OpenCodeLogo className={className} />;
+  }
+
+  if (provider === 'dsh') {
+    return <DshLogo className={className} />;
+  }
+
+  if (provider === 'workbuddy') {
+    return <WorkbuddyLogo className={className} />;
   }
 
   return <ClaudeLogo className={className} />;

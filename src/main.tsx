@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { scan } from 'react-scan'
 
 import App from '@/App'
+import { dismissSplash } from '@/utils/splash'
 import '@/index.css'
 import 'katex/dist/katex.min.css'
 
@@ -22,6 +23,12 @@ if ('serviceWorker' in navigator) {
     console.warn('Service worker registration failed:', err);
   });
 }
+
+// The launch splash (#app-splash) is kept up through the first stable screen so it
+// never flashes the intermediate loading pages; ProtectedRoute dismisses it when
+// auth verification settles. Fallback: force it away 15s after boot so an abnormal
+// startup sequence can never leave the splash covering the UI indefinitely.
+window.setTimeout(dismissSplash, 15000)
 
 const rootElement = document.getElementById('root')
 if (!rootElement) {

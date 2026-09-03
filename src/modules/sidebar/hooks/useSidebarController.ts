@@ -4,7 +4,7 @@ import type { TFunction } from 'i18next';
 import { api } from '@/shared/api';
 import { subscribeToUserPreferences } from '@/shared/userSettings';
 import { usePaletteOps } from '@/modules/command-palette';
-import type { ArchivedProjectListItem, ArchivedSessionListItem, ConversationProjectResult, ConversationSearchResults, LLMProvider, Project, ProjectSession, ProjectSortOrder, RecentConversationListItem, SearchProgress, ActiveSidebarRename, PendingSidebarDeletion, SessionTitleSearchResult, SessionWithProvider, SidebarSearchMode } from '@/shared/types';
+import type { ArchivedProjectListItem, ArchivedSessionListItem, BatchArchivedSessionDeleteConfirmation, BatchSessionArchiveConfirmation, ConversationProjectResult, ConversationSearchResults, LLMProvider, Project, ProjectSession, ProjectSortOrder, RecentConversationListItem, SearchProgress, ActiveSidebarRename, PendingSidebarDeletion, SessionTitleSearchResult, SessionWithProvider, SidebarSearchMode } from '@/shared/types';
 import {
   filterProjects,
   getAllSessions,
@@ -94,6 +94,12 @@ export function useSidebarController({
   // project and session dialogs are portalled at the same z-index and would
   // otherwise stack. See PendingSidebarDeletion.
   const [pendingDeletion, setPendingDeletion] = useState<PendingSidebarDeletion | null>(null);
+  // Batch confirmations are single values for the same portalled-stacking reason
+  // as pendingDeletion: at most one may be open at a time.
+  const [batchSessionArchiveConfirmation, setBatchSessionArchiveConfirmation] =
+    useState<BatchSessionArchiveConfirmation | null>(null);
+  const [batchArchivedSessionDeleteConfirmation, setBatchArchivedSessionDeleteConfirmation] =
+    useState<BatchArchivedSessionDeleteConfirmation | null>(null);
   const [showVersionModal, setShowVersionModal] = useState(false);
   const [searchMode, setSearchMode] = useState<SidebarSearchMode>('projects');
   const [conversationResults, setConversationResults] = useState<ConversationSearchResults | null>(null);
@@ -860,6 +866,109 @@ export function useSidebarController({
     }
   }, [pendingDeletion, onProjectDelete, t]);
 
+  // Opens the archive confirmation for a manage-mode selection. Running sessions
+  // are filtered out up front so the dialog never offers to archive them.
+  const showBatchSessionArchiveConfirmation = useCallback(
+    (sessionIds: string[], onCompleted: (archivedSessionIds: string[]) => void) => {
+      const uniqueSessionIds = [...new Set(sessionIds)]
+        .filter((sessionId) => !activeSessions.has(sessionId));
+      if (uniqueSessionIds.length === 0) {
+        return;
+      }
+
+      setBatchSessionArchiveConfirmation({
+        sessionIds: uniqueSessionIds,
+        onCompleted,
+      });
+    },
+    [activeSessions],
+  );
+
+  const confirmBatchSessionArchive = useCallback(async () => {
+    if (!batchSessionArchiveConfirmation) {
+      return;
+    }
+
+    const { sessionIds, onCompleted } = batchSessionArchiveConfirmation;
+    setBatchSessionArchiveConfirmation(null);
+
+    const archiveableSessionIds = sessionIds.filter((sessionId) => !activeSessions.has(sessionId));
+    if (archiveableSessionIds.length === 0) {
+      alert(t('messages.batchArchiveNoLongerAvailable'));
+      return;
+    }
+
+    const results = await Promise.allSettled(
+      archiveableSessionIds.map(async (sessionId) => {
+        const response = await api.deleteSession(sessionId);
+        if (!response.ok) {
+          throw new Error(`Failed to archive session ${sessionId}: ${response.status}`);
+        }
+        return sessionId;
+      }),
+    );
+    const archivedSessionIds = results
+      .filter((result): result is PromiseFulfilledResult<string> => result.status === 'fulfilled')
+      .map((result) => result.value);
+
+    archivedSessionIds.forEach((sessionId) => onSessionDelete?.(sessionId));
+    onCompleted(archivedSessionIds);
+
+    if (archivedSessionIds.length > 0) {
+      await fetchArchivedSessions();
+      reloadRecentConversations();
+    }
+
+    if (archivedSessionIds.length !== sessionIds.length) {
+      alert(t('messages.batchArchivePartialFailure', {
+        archived: archivedSessionIds.length,
+        total: sessionIds.length,
+      }));
+    }
+  }, [activeSessions, batchSessionArchiveConfirmation, fetchArchivedSessions, onSessionDelete, reloadRecentConversations, t]);
+
+  const showBatchArchivedSessionDeleteConfirmation = useCallback(
+    (sessionIds: string[], onCompleted: (deletedSessionIds: string[]) => void) => {
+      const uniqueSessionIds = [...new Set(sessionIds)];
+      if (uniqueSessionIds.length === 0) {
+        return;
+      }
+
+      setBatchArchivedSessionDeleteConfirmation({
+        sessionIds: uniqueSessionIds,
+        onCompleted,
+      });
+    },
+    [],
+  );
+
+  const confirmBatchArchivedSessionDelete = useCallback(async () => {
+    if (!batchArchivedSessionDeleteConfirmation) {
+      return;
+    }
+
+    const { sessionIds, onCompleted } = batchArchivedSessionDeleteConfirmation;
+    setBatchArchivedSessionDeleteConfirmation(null);
+
+    try {
+      const response = await api.permanentlyDeleteArchivedSessions(sessionIds);
+      if (!response.ok) {
+        console.error('[Sidebar] Failed to permanently delete archived sessions:', response.status);
+        alert(t('messages.batchPermanentDeleteFailed'));
+        return;
+      }
+
+      const payload = await response.json() as { data?: { sessionIds?: string[] } };
+      const deletedSessionIds = payload.data?.sessionIds ?? sessionIds;
+      deletedSessionIds.forEach((sessionId) => onSessionDelete?.(sessionId));
+      onCompleted(deletedSessionIds);
+      await fetchArchivedSessions();
+    } catch (error) {
+      console.error('[Sidebar] Error permanently deleting archived sessions:', error);
+      alert(t('messages.batchPermanentDeleteError'));
+    }
+  }, [batchArchivedSessionDeleteConfirmation, fetchArchivedSessions, onSessionDelete, t]);
+
   const handleProjectSelect = useCallback(
     (project: Project) => {
       onProjectSelect(project);
@@ -1011,6 +1120,23 @@ export function useSidebarController({
     [onSessionSelect, t],
   );
 
+  const updateSessionPinned = useCallback(
+    async (sessionId: string, isPinned: boolean) => {
+      try {
+        const response = await api.setSessionPinned(sessionId, isPinned);
+        if (!response.ok) {
+          throw new Error(`Failed to update pin state: ${response.status}`);
+        }
+        await Promise.resolve(onRefresh());
+        reloadRecentConversations();
+      } catch (error) {
+        console.error('[Sidebar] Error updating session pin:', error);
+        alert(t('messages.updateSessionPinError'));
+      }
+    },
+    [onRefresh, reloadRecentConversations, t],
+  );
+
   const collapseSidebar = useCallback(() => {
     setSidebarVisible(false);
   }, [setSidebarVisible]);
@@ -1031,6 +1157,8 @@ export function useSidebarController({
     deletingProjects,
     loadingMoreProjects,
     pendingDeletion,
+    batchSessionArchiveConfirmation,
+    batchArchivedSessionDeleteConfirmation,
     showVersionModal,
     filteredProjects,
     runningSessionsCount,
@@ -1049,6 +1177,7 @@ export function useSidebarController({
     toggleProject,
     handleSessionClick,
     forkSession,
+    updateSessionPinned,
     toggleStarProject,
     isProjectStarred,
     getProjectSessions,
@@ -1062,6 +1191,12 @@ export function useSidebarController({
     confirmDeleteSession,
     requestProjectDelete,
     confirmDeleteProject,
+    showBatchSessionArchiveConfirmation,
+    confirmBatchSessionArchive,
+    cancelBatchSessionArchive: () => setBatchSessionArchiveConfirmation(null),
+    showBatchArchivedSessionDeleteConfirmation,
+    confirmBatchArchivedSessionDelete,
+    cancelBatchArchivedSessionDelete: () => setBatchArchivedSessionDeleteConfirmation(null),
     handleProjectSelect,
     openArchivedSession,
     restoreArchivedProject,

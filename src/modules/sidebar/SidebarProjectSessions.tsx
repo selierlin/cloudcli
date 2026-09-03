@@ -1,9 +1,11 @@
+import { useCallback, useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button } from '@/shared/ui';
 import type { LLMProvider, Project, ProjectSession, SessionWithProvider } from '@/shared/types';
 import SidebarSessionItem from '@/modules/sidebar/SidebarSessionItem';
+import SidebarBatchSessionActions from '@/modules/sidebar/SidebarBatchSessionActions';
 import { useCompactSidebar } from '@/modules/sidebar/hooks/useCompactSidebar';
 
 type SidebarProjectSessionsProps = {
@@ -26,12 +28,18 @@ type SidebarProjectSessionsProps = {
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
+  onTogglePinned?: (sessionId: string, isPinned: boolean) => void;
+  onRequestBatchArchive?: (sessionIds: string[], onCompleted: (archivedSessionIds: string[]) => void) => void;
   onDeleteSession: (sessionId: string, sessionTitle: string) => void;
   onForkSession?: (session: SessionWithProvider) => void;
   onLoadMoreSessions: (projectId: string) => void;
   onNewSession: (project: Project) => void;
   t: TFunction;
 };
+
+// Stable stand-in for a missing onTogglePinned so every row is handed the same
+// callback identity and its memo boundary can bail (see sidebarRowProps.test.tsx).
+const NOOP_TOGGLE_PINNED = () => {};
 
 function SessionListSkeleton() {
   return (
@@ -71,6 +79,8 @@ export default function SidebarProjectSessions({
   onSaveEditingSession,
   onProjectSelect,
   onSessionSelect,
+  onTogglePinned,
+  onRequestBatchArchive,
   onDeleteSession,
   onForkSession,
   onLoadMoreSessions,
@@ -78,38 +88,123 @@ export default function SidebarProjectSessions({
   t,
 }: SidebarProjectSessionsProps) {
   const isCompact = useCompactSidebar();
+  const [isManaging, setIsManaging] = useState(false);
+  const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
+
+  // Running sessions can never be archived in bulk, so prune the selection as
+  // sessions come and go (e.g. a session starts while manage mode is open).
+  // Returning `current` untouched when nothing changed lets React skip the
+  // re-render, keeping the row render count stable (see sidebarRowProps.test.tsx).
+  useEffect(() => {
+    setSelectedSessionIds((current) => {
+      if (current.size === 0) {
+        return current;
+      }
+      const availableSessionIds = new Set(
+        sessions
+          .filter((session) => !activeSessions.has(session.id))
+          .map((session) => session.id),
+      );
+      const next = new Set([...current].filter((sessionId) => availableSessionIds.has(sessionId)));
+      return next.size === current.size ? current : next;
+    });
+  }, [activeSessions, sessions]);
+
+  const hasSessions = sessions.length > 0;
+  const selectableSessionIds = sessions
+    .filter((session) => !activeSessions.has(session.id))
+    .map((session) => session.id);
+  const areAllSelectableSessionsSelected = selectableSessionIds.length > 0
+    && selectableSessionIds.every((sessionId) => selectedSessionIds.has(sessionId));
+
+  const toggleBatchSelection = useCallback((sessionId: string) => {
+    setSelectedSessionIds((current) => {
+      const next = new Set(current);
+      if (next.has(sessionId)) {
+        next.delete(sessionId);
+      } else {
+        next.add(sessionId);
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = () => {
+    setSelectedSessionIds(
+      areAllSelectableSessionsSelected ? new Set() : new Set(selectableSessionIds),
+    );
+  };
+
+  const exitManaging = () => {
+    setIsManaging(false);
+    setSelectedSessionIds(new Set());
+  };
+
+  const requestBatchArchive = () => {
+    onRequestBatchArchive?.([...selectedSessionIds], (archivedSessionIds) => {
+      const archivedSessionIdSet = new Set(archivedSessionIds);
+      setSelectedSessionIds((current) => new Set(
+        [...current].filter((sessionId) => !archivedSessionIdSet.has(sessionId)),
+      ));
+      if (archivedSessionIds.length === selectedSessionIds.size) {
+        setIsManaging(false);
+      }
+    });
+  };
 
   if (!isExpanded) {
     return null;
   }
 
-  const hasSessions = sessions.length > 0;
-
   return (
     <div className="ml-3 space-y-1 border-l border-border pl-3">
       {isCompact ? (
-        <div className="px-3 pb-1 pt-1">
-          <button
-            className="flex h-8 w-full items-center justify-center gap-2 rounded-md bg-primary text-xs font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-[0.98]"
-            onClick={() => {
-              onProjectSelect(project);
-              onNewSession(project);
-            }}
+        <div className="grid grid-cols-2 gap-1 px-3 pb-1 pt-1">
+          {!isManaging && (
+            <button
+              className="flex h-8 items-center justify-center gap-2 rounded-md bg-primary text-xs font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-[0.98]"
+              onClick={() => {
+                onProjectSelect(project);
+                onNewSession(project);
+              }}
+            >
+              <Plus className="h-3 w-3" />
+              {t('sessions.newSession')}
+            </button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={isManaging ? 'col-span-2 h-8 text-xs' : 'h-8 text-xs'}
+            onClick={() => (isManaging ? exitManaging() : setIsManaging(true))}
+            disabled={!hasSessions && !isManaging}
           >
-            <Plus className="h-3 w-3" />
-            {t('sessions.newSession')}
-          </button>
+            {isManaging ? t('actions.cancel') : t('sessions.manageSessions')}
+          </Button>
         </div>
       ) : (
-        <Button
-          variant="default"
-          size="sm"
-          className="flex h-8 w-full justify-start gap-2 bg-primary text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          onClick={() => onNewSession(project)}
-        >
-          <Plus className="h-3 w-3" />
-          {t('sessions.newSession')}
-        </Button>
+        <div className="flex gap-1">
+          {!isManaging && (
+            <Button
+              variant="default"
+              size="sm"
+              className="h-8 flex-1 justify-start gap-2 bg-primary text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              onClick={() => onNewSession(project)}
+            >
+              <Plus className="h-3 w-3" />
+              {t('sessions.newSession')}
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => (isManaging ? exitManaging() : setIsManaging(true))}
+            disabled={!hasSessions && !isManaging}
+          >
+            {isManaging ? t('actions.cancel') : t('sessions.manageSessions')}
+          </Button>
+        </div>
       )}
 
       {!initialSessionsLoaded ? (
@@ -127,6 +222,8 @@ export default function SidebarProjectSessions({
               session={session}
               selectedSession={selectedSession}
               isProcessing={activeSessions.has(session.id)}
+              isManaging={isManaging}
+              isBatchSelected={selectedSessionIds.has(session.id)}
               needsAttention={attentionSessionIds.has(session.id)}
               currentTime={currentTime}
               onRenameDraftChange={onRenameDraftChange}
@@ -137,6 +234,8 @@ export default function SidebarProjectSessions({
               onSaveEditingSession={onSaveEditingSession}
               onProjectSelect={onProjectSelect}
               onSessionSelect={onSessionSelect}
+              onTogglePinned={onTogglePinned ?? NOOP_TOGGLE_PINNED}
+              onToggleBatchSelection={toggleBatchSelection}
               onDeleteSession={onDeleteSession}
               onForkSession={onForkSession}
               t={t}
@@ -153,6 +252,18 @@ export default function SidebarProjectSessions({
             >
               {isLoadingMoreSessions ? t('sessions.loadingSessions') : 'Load more sessions'}
             </Button>
+          )}
+
+          {isManaging && (
+            <SidebarBatchSessionActions
+              selectedCount={selectedSessionIds.size}
+              selectableCount={selectableSessionIds.length}
+              areAllSelected={areAllSelectableSessionsSelected}
+              onToggleSelectAll={toggleSelectAll}
+              onArchive={requestBatchArchive}
+              onCancel={exitManaging}
+              t={t}
+            />
           )}
         </>
       )}
