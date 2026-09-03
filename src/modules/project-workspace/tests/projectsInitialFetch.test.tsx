@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { StrictMode } from 'react';
 import type { ReactNode } from 'react';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import type { Project } from '@/shared/types';
@@ -101,4 +101,24 @@ test('an explicit refresh still reaches the server after the mount fetch', async
   await result.current.refreshProjectsSilently();
 
   assert.equal(projectsResponse.mock.calls.length, 2);
+});
+
+test('ordinary settings entry opens appearance while explicit targets remain available', async () => {
+  const { result } = await renderProjectsState();
+
+  await waitFor(() => {
+    assert.equal(result.current.isLoadingProjects, false);
+  });
+
+  act(() => {
+    result.current.openSettings('browser');
+  });
+  assert.equal(result.current.settingsInitialTab, 'browser');
+
+  act(() => {
+    result.current.setShowSettings(false);
+    result.current.sidebarSharedProps.onShowSettings();
+  });
+  assert.equal(result.current.showSettings, true);
+  assert.equal(result.current.settingsInitialTab, 'appearance');
 });
