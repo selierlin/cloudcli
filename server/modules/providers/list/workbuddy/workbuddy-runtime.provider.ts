@@ -363,6 +363,16 @@ export const workbuddyRuntime: IProviderRuntime = {
         return;
       }
 
+      if (event.type === 'reasoning') {
+        // Model reasoning streams as its own top-level event while it thinks
+        // between tool calls. Surface the text as a thinking message so the UI
+        // shows an in-progress indicator instead of stalling on the last tool.
+        for (const message of context.normalizeMessage(event, appSessionId)) {
+          writer.send(message);
+        }
+        return;
+      }
+
       if (event.type === 'function_call' || event.type === 'function_call_result') {
         for (const message of context.normalizeMessage(event, appSessionId)) {
           writer.send(message);
