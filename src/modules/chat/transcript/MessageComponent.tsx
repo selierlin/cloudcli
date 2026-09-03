@@ -362,6 +362,20 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
 
             {!message.isThinking && (shouldShowAssistantCopyControl || !isGrouped) && (
               <div className="mt-1 flex w-full items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500">
+                {onForkFromMessage &&
+                  message.transcriptAnchorId &&
+                  message.type === 'assistant' &&
+                  !message.isToolUse && (
+                    <button
+                      type="button"
+                      onClick={() => onForkFromMessage(message)}
+                      title={t('message.forkFromHere')}
+                      aria-label={t('message.forkFromHere')}
+                      className="inline-flex items-center rounded px-1 py-0.5 text-gray-400 transition-colors hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                    >
+                      <GitBranchIcon className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 {shouldShowAssistantCopyControl && (
                   // The copy control stretches flex-1 on narrow screens; pin it
                   // to its content width so the timestamp sits next to it.

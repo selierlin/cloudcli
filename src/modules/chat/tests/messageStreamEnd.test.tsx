@@ -108,3 +108,29 @@ test('a thinking message does not render a second timestamp footer', () => {
 
   assert.doesNotMatch(container.textContent ?? '', new RegExp(new Date(message.timestamp).toLocaleTimeString()));
 });
+
+test('an assistant message exposes the fork-from-here action', () => {
+  const message: ChatMessage = {
+    ...assistantMessage(false),
+    transcriptAnchorId: 'assistant-anchor',
+  };
+  let forkedMessage: ChatMessage | null = null;
+  const { container } = render(
+    <UiPreferencesProvider>
+      <MessageComponent
+        message={message}
+        prevMessage={null}
+        createDiff={createDiff}
+        provider="claude"
+        onForkFromMessage={(selected) => {
+          forkedMessage = selected;
+        }}
+      />
+    </UiPreferencesProvider>,
+  );
+
+  const button = container.querySelector('button[aria-label="message.forkFromHere"]');
+  assert.ok(button, 'expected the assistant fork action to be rendered');
+  (button as HTMLButtonElement).click();
+  assert.equal(forkedMessage, message);
+});
