@@ -1,5 +1,6 @@
 import { memo, useEffect, useMemo, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import type { ChatMessage, ClaudePermissionSuggestion, PermissionGrantResult, LLMProvider,DiffLine,DiffStats,Project,ToolGroupItem,ToolStatus } from '@/shared/types';
 import { getToolConfig } from '@/modules/chat/tools';
@@ -32,21 +33,19 @@ type ToolGroupContainerProps = {
  * not render a diff at all.
  */
 function useGroupDiffStats(
-  toolName: string,
   messages: ChatMessage[],
   createDiff: (oldStr: string, newStr: string) => DiffLine[],
 ): DiffStats | null {
   return useMemo(() => {
-    const config = getToolConfig(toolName).input;
-    if (config.contentType !== 'diff' || !config.getContentProps) {
-      return null;
-    }
-
     let added = 0;
     let removed = 0;
     let counted = 0;
 
     for (const message of messages) {
+      const config = getToolConfig(message.toolName || 'UnknownTool').input;
+      if (config.contentType !== 'diff' || !config.getContentProps) {
+        continue;
+      }
       const contentProps = config.getContentProps(parseToolPayload(message.toolInput) ?? {});
       if (typeof contentProps?.oldContent !== 'string' || typeof contentProps?.newContent !== 'string') {
         continue;
@@ -59,7 +58,7 @@ function useGroupDiffStats(
     }
 
     return counted > 0 ? { added, removed } : null;
-  }, [createDiff, messages, toolName]);
+  }, [createDiff, messages]);
 }
 
 function getToolGroupIcon(icon: string | undefined, toolName: string): string {
@@ -87,7 +86,13 @@ function ToolGroupContainer({
   selectedProject,
   provider,
 }: ToolGroupContainerProps) {
+  const { t } = useTranslation('chat');
   const isExporting = useIsExportingTranscript();
+  const toolNames = useMemo(
+    () => new Set(group.messages.map((message) => message.toolName || group.toolName)),
+    [group.messages, group.toolName],
+  );
+  const hasMixedTools = toolNames.size > 1;
   // A run that errored, was denied or stopped mid-way is surfaced already
   // expanded: a collapsed row would bury the very thing that ended the run.
   const groupIssueStatus = useMemo<ToolStatus | undefined>(() => {
@@ -116,13 +121,13 @@ function ToolGroupContainer({
   }, [groupIssueStatus]);
   const showChildren = isExpanded || isExporting;
   const config = getToolConfig(group.toolName).input;
-  const label = config.label || group.toolName;
+  const label = hasMixedTools ? t('messageTypes.tool') : config.label || group.toolName;
   const borderClass = config.colorScheme?.border || 'border-border';
   const iconClass = config.colorScheme?.icon || 'text-muted-foreground';
-  const icon = getToolGroupIcon(config.icon, group.toolName);
+  const icon = hasMixedTools ? '…' : getToolGroupIcon(config.icon, group.toolName);
 
   const preview = group.preview;
-  const groupDiffStats = useGroupDiffStats(group.toolName, group.messages, createDiff);
+  const groupDiffStats = useGroupDiffStats(group.messages, createDiff);
 
   return (
     <div className="chat-message tool px-3 sm:px-0" data-message-timestamp={group.timestamp || undefined}>
