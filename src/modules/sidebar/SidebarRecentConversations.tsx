@@ -239,6 +239,8 @@ function RecentConversationRow({
         <Dialog open={isMobileOptionsOpen} onOpenChange={setMobileOptionsOpen}>
           <DialogContent
             aria-describedby="mobile-recent-session-options-description"
+            wrapperClassName="md:hidden"
+            style={{ bottom: 'var(--keyboard-height, 0px)' }}
             animationClassName="animate-bottom-sheet-content-show motion-reduce:animate-none"
             className="bottom-0 left-0 top-auto max-w-none translate-x-0 translate-y-0 rounded-b-none rounded-t-2xl border-x-0 border-b-0 px-4 pb-safe-area-inset-bottom pt-3"
           >

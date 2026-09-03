@@ -363,7 +363,11 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
             {(shouldShowAssistantCopyControl || !isGrouped) && (
               <div className="mt-1 flex w-full items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500">
                 {shouldShowAssistantCopyControl && (
-                  <MessageCopyControl content={assistantCopyContent} messageType="assistant" />
+                  // The copy control stretches flex-1 on narrow screens; pin it
+                  // to its content width so the timestamp sits next to it.
+                  <div className="flex-none">
+                    <MessageCopyControl content={assistantCopyContent} messageType="assistant" />
+                  </div>
                 )}
                 {shouldShowAssistantCopyControl && (
                   <MessageSpeakControl content={assistantCopyContent} />

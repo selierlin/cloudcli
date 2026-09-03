@@ -43,20 +43,15 @@ function LogoBlock({
   serverName: string | null;
   onShowSettings: () => void;
 }) {
-  const mark = (
-    <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-primary/90 shadow-sm">
-      <svg className="h-3.5 w-3.5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-      </svg>
-    </div>
-  );
+  // 自制的品牌终端图（/cloud-terminal-mark-flat.svg），平台端外包 dashboard 链接。
+  const mark = <img src="/cloud-terminal-mark-flat.svg" alt="CloudCLI" className="h-7 w-7 flex-shrink-0" />;
 
   return (
     <div className="flex min-w-0 items-center gap-2.5">
       {IS_PLATFORM ? (
         <a
           href="https://cloudcli.ai/dashboard"
-          className="transition-opacity hover:opacity-80"
+          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md transition-opacity hover:opacity-80"
           title={t('tooltips.viewEnvironments')}
         >
           {mark}

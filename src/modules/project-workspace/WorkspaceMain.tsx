@@ -17,6 +17,7 @@ import WorkspaceStateView from '@/modules/project-workspace/WorkspaceStateView';
 import WorkspaceErrorBoundary from '@/modules/project-workspace/WorkspaceErrorBoundary';
 
 type WorkspaceMainProps = {
+  projects: Project[];
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
   activeTab: AppTab;
@@ -39,6 +40,7 @@ type WorkspaceMainProps = {
 
 /** Rendered by ProjectMainRegion to show the selected project's active tab: chat, files, shell, git, tasks, browser or a plugin. */
 function WorkspaceMain({
+  projects,
   selectedProject,
   selectedSession,
   activeTab,
@@ -120,11 +122,27 @@ function WorkspaceMain({
   usePaletteOpsRegister({ openFile, openFileInEditor });
 
   if (isLoading) {
-    return <WorkspaceStateView mode="loading" isMobile={isMobile} onMenuClick={onMenuClick} />;
+    return (
+      <WorkspaceStateView
+        mode="loading"
+        projects={projects}
+        isMobile={isMobile}
+        onMenuClick={onMenuClick}
+        onProjectSelect={onProjectSelect}
+      />
+    );
   }
 
   if (!selectedProject) {
-    return <WorkspaceStateView mode="empty" isMobile={isMobile} onMenuClick={onMenuClick} />;
+    return (
+      <WorkspaceStateView
+        mode="empty"
+        projects={projects}
+        isMobile={isMobile}
+        onMenuClick={onMenuClick}
+        onProjectSelect={onProjectSelect}
+      />
+    );
   }
 
   return (

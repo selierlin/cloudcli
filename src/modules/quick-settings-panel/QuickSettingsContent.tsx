@@ -5,6 +5,7 @@ import {
   Eye,
   Languages,
   Mic,
+  SunMoon,
   Terminal,
   Type,
   type LucideIcon,
@@ -121,7 +122,7 @@ export default function QuickSettingsContent({
       <QuickSettingsSection title={t('quickSettings.sections.appearance')}>
         <div className={SETTING_ROW_CLASS}>
           <span className="flex items-center gap-2 text-sm text-foreground">
-            <Type className="h-4 w-4 text-muted-foreground" />
+            <SunMoon className="h-4 w-4 text-muted-foreground" />
             {t('quickSettings.theme')}
           </span>
           <ThemeModeSelector />
