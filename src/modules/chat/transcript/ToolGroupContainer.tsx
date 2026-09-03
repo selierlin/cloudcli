@@ -1,11 +1,12 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 
-import type { ChatMessage, ClaudePermissionSuggestion, PermissionGrantResult, LLMProvider,DiffLine,DiffStats,Project,ToolGroupItem } from '@/shared/types';
+import type { ChatMessage, ClaudePermissionSuggestion, PermissionGrantResult, LLMProvider,DiffLine,DiffStats,Project,ToolGroupItem,ToolStatus } from '@/shared/types';
 import { getToolConfig } from '@/modules/chat/tools';
 import MessageComponent from '@/modules/chat/transcript/MessageComponent';
 import { useIsExportingTranscript } from '@/modules/chat/context/TranscriptRenderContext';
 import { DiffStatsBadge } from '@/modules/chat/tools/DiffStatsBadge';
+import { ToolStatusBadge } from '@/modules/chat/tools/ToolStatusBadge';
 import { parseToolPayload, summarizeDiff } from '@/modules/chat/utils/messageTransforms';
 
 type ToolGroupContainerProps = {
@@ -87,10 +88,32 @@ function ToolGroupContainer({
   provider,
 }: ToolGroupContainerProps) {
   const isExporting = useIsExportingTranscript();
+  // A run that errored, was denied or stopped mid-way is surfaced already
+  // expanded: a collapsed row would bury the very thing that ended the run.
+  const groupIssueStatus = useMemo<ToolStatus | undefined>(() => {
+    for (const message of group.messages) {
+      if (message.toolResult?.isError) {
+        return 'error';
+      }
+      if (
+        message.toolStatus === 'error'
+        || message.toolStatus === 'denied'
+        || message.toolStatus === 'stopped'
+      ) {
+        return message.toolStatus;
+      }
+    }
+    return undefined;
+  }, [group.messages]);
   // Collapsed on screen, always open in an export: the whole point of the
   // group row is to hide detail the reader can ask for, and an exported file
   // has no way to ask.
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(Boolean(groupIssueStatus));
+  useEffect(() => {
+    if (groupIssueStatus) {
+      setIsExpanded(true);
+    }
+  }, [groupIssueStatus]);
   const showChildren = isExpanded || isExporting;
   const config = getToolConfig(group.toolName).input;
   const label = config.label || group.toolName;
@@ -120,6 +143,7 @@ function ToolGroupContainer({
         <span className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
           x{group.messages.length}
         </span>
+        {groupIssueStatus && <ToolStatusBadge status={groupIssueStatus} />}
         {preview && (
           <>
             <span className="text-[10px] text-muted-foreground/40">/</span>

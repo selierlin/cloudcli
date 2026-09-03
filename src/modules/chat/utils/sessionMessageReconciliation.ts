@@ -116,3 +116,35 @@ export function removeOptimisticUserEchoes(
     return false;
   });
 }
+
+/**
+ * Provider item updates reuse the same native item/tool id. Replace the
+ * previous realtime snapshot instead of rendering each lifecycle update as a
+ * separate row, so a tool that streams running → completed keeps one row.
+ */
+export function upsertRealtimeMessages(
+  existing: NormalizedMessage[],
+  incoming: NormalizedMessage[],
+): NormalizedMessage[] {
+  const updated = [...existing];
+
+  for (const message of incoming) {
+    const index = updated.findIndex((candidate) => (
+      candidate.id === message.id
+      || (
+        message.kind === 'tool_use'
+        && candidate.kind === 'tool_use'
+        && message.toolId
+        && candidate.toolId === message.toolId
+      )
+    ));
+
+    if (index === -1) {
+      updated.push(message);
+    } else {
+      updated[index] = { ...updated[index], ...message };
+    }
+  }
+
+  return updated;
+}

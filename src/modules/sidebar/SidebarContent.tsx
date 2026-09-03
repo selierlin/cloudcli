@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import { Activity, Archive, Check, Folder, MessageSquare, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { Activity, Archive, Check, ChevronDown, ChevronRight, Folder, MessageSquare, RotateCcw, Search, Trash2 } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { LLMProviderLogo, ScrollArea } from '@/shared/ui';
@@ -82,6 +82,10 @@ function groupArchivedSessionsByProject(sessions: ArchivedSessionListItem[]): Ar
     return b.localeCompare(a);
   });
 }
+
+// New searches start with every project group collapsed so a broad query does
+// not dump every match on screen; the user expands a group to see its hits.
+const DEFAULT_SEARCH_GROUPS_EXPANDED = false;
 
 type SidebarContentProps = {
   isPWA: boolean;
@@ -257,6 +261,69 @@ export default function SidebarContent({
     });
   };
 
+  // Expand/collapse for the conversation-content search results. The overrides
+  // set records only the project groups the user flipped against the default;
+  // it resets on every new query or search-mode change.
+  const [searchGroupOverrides, setSearchGroupOverrides] = useState<Set<string>>(new Set());
+  const [expandedArchivedGroupKeys, setExpandedArchivedGroupKeys] = useState<Set<string>>(new Set());
+  const searchProjectKeys = (conversationResults?.results ?? []).map(
+    (projectResult) => projectResult.projectId ?? projectResult.projectName,
+  );
+  const isSearchGroupExpanded = (projectKey: string): boolean => (
+    DEFAULT_SEARCH_GROUPS_EXPANDED
+      ? !searchGroupOverrides.has(projectKey)
+      : searchGroupOverrides.has(projectKey)
+  );
+  const allSearchGroupsExpanded = searchProjectKeys.length > 0
+    && searchProjectKeys.every((projectKey) => isSearchGroupExpanded(projectKey));
+
+  useEffect(() => {
+    setSearchGroupOverrides(new Set());
+  }, [conversationResults?.query, searchMode]);
+
+  const toggleSearchGroup = (projectKey: string) => {
+    setSearchGroupOverrides((previous) => {
+      const next = new Set(previous);
+      if (next.has(projectKey)) {
+        next.delete(projectKey);
+      } else {
+        next.add(projectKey);
+      }
+      return next;
+    });
+  };
+  const expandAllSearchGroups = () => {
+    setSearchGroupOverrides(DEFAULT_SEARCH_GROUPS_EXPANDED ? new Set() : new Set(searchProjectKeys));
+  };
+  const collapseAllSearchGroups = () => {
+    setSearchGroupOverrides(DEFAULT_SEARCH_GROUPS_EXPANDED ? new Set(searchProjectKeys) : new Set());
+  };
+
+  // Expand/collapse for the archive cards. Each archived project or standalone
+  // group of archived sessions is one key; they start collapsed.
+  const archivedGroupKeys = [
+    ...archivedProjects.map((project) => `project:${project.projectId}`),
+    ...groupedArchivedSessions.map((group) => `sessions:${group.key}`),
+  ];
+  const areAllArchivedGroupsExpanded = archivedGroupKeys.length > 0
+    && archivedGroupKeys.every((groupKey) => expandedArchivedGroupKeys.has(groupKey));
+  const toggleArchivedGroup = (groupKey: string) => {
+    setExpandedArchivedGroupKeys((current) => {
+      const next = new Set(current);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
+      }
+      return next;
+    });
+  };
+  const toggleAllArchivedGroups = () => {
+    setExpandedArchivedGroupKeys(
+      areAllArchivedGroupsExpanded ? new Set() : new Set(archivedGroupKeys),
+    );
+  };
+
   return (
     <div
       className="flex h-full flex-col bg-background/80 backdrop-blur-sm md:w-72 md:select-none"
@@ -369,9 +436,26 @@ export default function SidebarContent({
                     >
                       {t('search.conversationContents', 'Conversation contents')}
                     </h3>
-                    <span className="text-[10px] tabular-nums text-muted-foreground/70">
-                      {t('search.matches', { count: conversationResults.totalMatches })}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {searchProjectKeys.length > 0 && (
+                        <button
+                          type="button"
+                          className="text-[10px] text-muted-foreground/70 transition-colors hover:text-foreground"
+                          onClick={() => (
+                            allSearchGroupsExpanded
+                              ? collapseAllSearchGroups()
+                              : expandAllSearchGroups()
+                          )}
+                        >
+                          {allSearchGroupsExpanded
+                            ? t('search.collapseAll', 'Collapse all')
+                            : t('search.expandAll', 'Expand all')}
+                        </button>
+                      )}
+                      <span className="text-[10px] tabular-nums text-muted-foreground/70">
+                        {t('search.matches', { count: conversationResults.totalMatches })}
+                      </span>
+                    </div>
                   </div>
 
                   {isSearching && searchProgress && (
@@ -395,56 +479,75 @@ export default function SidebarContent({
                     </div>
                   )}
 
-                  {conversationResults.results.map((projectResult) => (
-                    <div key={projectResult.projectName} className="space-y-1">
-                      <div className="flex items-center gap-1.5 px-1 py-1">
-                        <Folder className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
-                        <span className="truncate text-xs font-normal text-foreground">
-                          {projectResult.projectDisplayName}
-                        </span>
-                      </div>
-                      {projectResult.sessions.map((session) => (
+                  {conversationResults.results.map((projectResult) => {
+                    const projectKey = projectResult.projectId ?? projectResult.projectName;
+                    const groupExpanded = isSearchGroupExpanded(projectKey);
+
+                    return (
+                      <div key={projectResult.projectName} className="space-y-1">
                         <button
-                          key={`${projectResult.projectId ?? projectResult.projectName}-${session.sessionId}`}
-                          className="w-full rounded-md px-2 py-2 text-left transition-colors hover:bg-accent/50"
-                          onClick={() => onConversationResultClick(
-                            // Pass the DB projectId (preferred) so the parent can
-                            // cross-reference with the loaded projects list.
-                            projectResult.projectId,
-                            session.sessionId,
-                            session.provider || session.matches[0]?.provider || 'claude',
-                            session.matches[0]?.timestamp,
-                            session.matches[0]?.snippet
-                          )}
+                          type="button"
+                          className="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left transition-colors hover:bg-accent/40"
+                          onClick={() => toggleSearchGroup(projectKey)}
+                          aria-expanded={groupExpanded}
                         >
-                          <div className="mb-1 flex items-center gap-1.5">
-                            <MessageSquare className="h-3 w-3 flex-shrink-0 text-primary" />
-                            <span className="truncate text-xs font-normal text-foreground">
-                              {session.sessionSummary}
-                            </span>
-                            {session.provider && session.provider !== 'claude' && (
-                              <span className="flex-shrink-0 rounded bg-muted px-1 py-0.5 text-[9px] uppercase text-muted-foreground">
-                                {session.provider}
-                              </span>
-                            )}
-                          </div>
-                          <div className="space-y-1 pl-4">
-                            {session.matches.map((match, idx) => (
-                              <div key={idx} className="flex items-start gap-1">
-                                <span className="mt-0.5 flex-shrink-0 text-[10px] font-normal uppercase text-muted-foreground/60">
-                                  {match.role === 'user' ? 'U' : 'A'}
-                                </span>
-                                <HighlightedSnippet
-                                  snippet={match.snippet}
-                                  highlights={match.highlights}
-                                />
-                              </div>
-                            ))}
-                          </div>
+                          {groupExpanded ? (
+                            <ChevronDown className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+                          )}
+                          <Folder className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+                          <span className="truncate text-xs font-normal text-foreground">
+                            {projectResult.projectDisplayName}
+                          </span>
+                          <span className="ml-auto flex-shrink-0 text-[10px] tabular-nums text-muted-foreground/70">
+                            {projectResult.sessions.length}
+                          </span>
                         </button>
-                      ))}
-                    </div>
-                  ))}
+
+                        {groupExpanded && projectResult.sessions.map((session) => (
+                          <button
+                            key={`${projectResult.projectId ?? projectResult.projectName}-${session.sessionId}`}
+                            className="w-full rounded-md px-2 py-2 text-left transition-colors hover:bg-accent/50"
+                            onClick={() => onConversationResultClick(
+                              // Pass the DB projectId (preferred) so the parent can
+                              // cross-reference with the loaded projects list.
+                              projectResult.projectId,
+                              session.sessionId,
+                              session.provider || session.matches[0]?.provider || 'claude',
+                              session.matches[0]?.timestamp,
+                              session.matches[0]?.snippet
+                            )}
+                          >
+                            <div className="mb-1 flex items-center gap-1.5">
+                              <MessageSquare className="h-3 w-3 flex-shrink-0 text-primary" />
+                              <span className="truncate text-xs font-normal text-foreground">
+                                {session.sessionSummary}
+                              </span>
+                              {session.provider && session.provider !== 'claude' && (
+                                <span className="flex-shrink-0 rounded bg-muted px-1 py-0.5 text-[9px] uppercase text-muted-foreground">
+                                  {session.provider}
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-1 pl-4">
+                              {session.matches.map((match, idx) => (
+                                <div key={idx} className="flex items-start gap-1">
+                                  <span className="mt-0.5 flex-shrink-0 text-[10px] font-normal uppercase text-muted-foreground/60">
+                                    {match.role === 'user' ? 'U' : 'A'}
+                                  </span>
+                                  <HighlightedSnippet
+                                    snippet={match.snippet}
+                                    highlights={match.highlights}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })}
                 </section>
               )}
             </div>
@@ -575,6 +678,15 @@ export default function SidebarContent({
                       ? `${visibleArchivedItemsCount}/${archivedSessionsCount}`
                       : archivedSessionsCount}
                   </span>
+                  {archivedGroupKeys.length > 1 && (
+                    <button
+                      type="button"
+                      className="h-7 rounded-md px-2 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      onClick={toggleAllArchivedGroups}
+                    >
+                      {areAllArchivedGroupsExpanded ? t('archived.collapseAll') : t('archived.expandAll')}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="h-7 rounded-md px-2 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
@@ -591,6 +703,8 @@ export default function SidebarContent({
               </div>
               {archivedProjects.map((project) => {
                 const projectSessions = getAllSessions(project);
+                const groupKey = `project:${project.projectId}`;
+                const isExpanded = expandedArchivedGroupKeys.has(groupKey);
 
                 return (
                   <section
@@ -617,6 +731,17 @@ export default function SidebarContent({
                         </p>
                       </div>
                       <button
+                        type="button"
+                        className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        onClick={() => toggleArchivedGroup(groupKey)}
+                        aria-expanded={isExpanded}
+                        aria-label={isExpanded
+                          ? t('archived.collapseSessions', 'Collapse sessions')
+                          : t('archived.expandSessions', 'Expand sessions')}
+                      >
+                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      </button>
+                      <button
                         className="flex h-7 flex-shrink-0 items-center gap-1.5 rounded-lg border border-emerald-600/15 bg-emerald-500/10 px-2 text-[10px] font-medium text-emerald-700 transition-all hover:border-emerald-600/25 hover:bg-emerald-500/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 dark:text-emerald-300"
                         onClick={() => onRestoreArchivedProject(project.projectId)}
                         title={t('archived.restoreProject', 'Restore workspace')}
@@ -626,7 +751,7 @@ export default function SidebarContent({
                         {t('archived.restoreAction', 'Restore')}
                       </button>
                     </div>
-                    {projectSessions.length > 0 && (
+                    {isExpanded && projectSessions.length > 0 && (
                       <div className="border-t border-border/45 bg-muted/[0.08]">
                         {projectSessions.map((session) => (
                           <button
@@ -692,7 +817,11 @@ export default function SidebarContent({
                   </section>
                 );
               })}
-              {groupedArchivedSessions.map((group) => (
+              {groupedArchivedSessions.map((group) => {
+                const groupKey = `sessions:${group.key}`;
+                const isExpanded = expandedArchivedGroupKeys.has(groupKey);
+
+                return (
                 <section
                   key={group.key}
                   className="group/archive overflow-hidden rounded-xl border border-border/70 bg-card/45 shadow-[0_1px_0_hsl(var(--border)/0.2)] transition-colors hover:border-border"
@@ -716,9 +845,21 @@ export default function SidebarContent({
                         </p>
                       )}
                     </div>
+                    <button
+                      type="button"
+                      className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => toggleArchivedGroup(groupKey)}
+                      aria-expanded={isExpanded}
+                      aria-label={isExpanded
+                        ? t('archived.collapseSessions', 'Collapse sessions')
+                        : t('archived.expandSessions', 'Expand sessions')}
+                    >
+                      {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    </button>
                   </div>
-                  <div className="border-t border-border/45 bg-muted/[0.08]">
-                    {group.sessions.map((session) => {
+                  {isExpanded && (
+                    <div className="border-t border-border/45 bg-muted/[0.08]">
+                      {group.sessions.map((session) => {
                       const canBatchDelete = !session.isProjectArchived;
                       const isBatchSelected = selectedArchivedSessionIds.has(session.sessionId);
 
@@ -798,9 +939,10 @@ export default function SidebarContent({
                         </div>
                       );
                     })}
-                  </div>
+                    </div>
+                  )}
                 </section>
-              ))}
+              );})}
               {isManagingArchivedSessions && (
                 <SidebarBatchSessionActions
                   selectedCount={selectedArchivedSessionIds.size}

@@ -52,11 +52,44 @@ const CLAUDE_DENIAL_MESSAGES = [
   'permission request cancelled',
 ];
 
+/**
+ * Maps the raw lifecycle strings providers attach to a tool call onto the
+ * transcript's canonical statuses. Codex reports a command's lifecycle
+ * directly (so a row can show as running while its output is still streaming),
+ * but its vocabulary — success/succeeded/complete/cancelled/stopped/killed —
+ * differs from Claude's. Normalize before deriving, then fall back to the
+ * result payload.
+ */
+function normalizeToolStatus(status: unknown): ToolStatus | undefined {
+  switch (status) {
+    case 'in_progress':
+    case 'running':
+      return 'running';
+    case 'completed':
+    case 'complete':
+    case 'success':
+    case 'succeeded':
+      return 'completed';
+    case 'failed':
+    case 'error':
+      return 'error';
+    case 'denied':
+      return 'denied';
+    case 'stopped':
+    case 'cancelled':
+    case 'canceled':
+    case 'killed':
+      return 'stopped';
+    default:
+      return undefined;
+  }
+}
+
 function deriveToolStatus(toolResult: any, reportedStatus?: string): ToolStatus {
-  // Codex reports a command's lifecycle directly, so a row can show as running
-  // while its output is still streaming in rather than only once it finishes.
-  if (reportedStatus === 'in_progress') return 'running';
-  if (reportedStatus === 'failed') return 'error';
+  const normalized = normalizeToolStatus(reportedStatus);
+  if (normalized) {
+    return normalized;
+  }
   if (!toolResult) return 'running';
   if (toolResult.isError) {
     const content = String(toolResult.content || '').toLowerCase().trim();

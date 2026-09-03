@@ -169,6 +169,48 @@
         "label": "字型大小",
         "description": "編輯器字型大小（px）"
       }
+    },
+    "fontSettings": {
+      "title": "字型",
+      "uiFontSize": {
+        "label": "聊天 / 介面字型大小",
+        "description": "聊天訊息與介面文字的字型大小"
+      },
+      "terminalFontSize": {
+        "label": "終端機字型大小",
+        "description": "終端機中的字型大小"
+      },
+      "fontFamily": {
+        "label": "字型家族",
+        "description": "聊天訊息使用的字型"
+      },
+      "fontFamilyOptions": {
+        "serif": "襯線",
+        "system": "系統",
+        "sans": "黑體",
+        "songti": "宋體",
+        "kaiti": "楷體",
+        "jetbrains-mono": "JetBrains Mono",
+        "rounded": "圓體",
+        "monospace": "等寬"
+      },
+      "codeFontSize": {
+        "label": "程式碼字型大小",
+        "description": "行內程式碼與程式碼區塊的文字大小"
+      },
+      "codeFontFamily": {
+        "label": "程式碼字型",
+        "description": "行內程式碼與程式碼區塊使用的等寬字型"
+      },
+      "codeFontFamilyOptions": {
+        "system": "系統等寬",
+        "jetbrains-mono": "JetBrains Mono",
+        "fira-code": "Fira Code",
+        "cascadia-code": "Cascadia Code",
+        "source-code-pro": "Source Code Pro",
+        "hack": "Hack",
+        "ibm-plex-mono": "IBM Plex Mono"
+      }
     }
   },
   "mcpForm": {
