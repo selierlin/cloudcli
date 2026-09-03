@@ -291,6 +291,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   }, [providerCapabilities]);
 
   const pickStoredOrCurrent = (
+    targetProvider: LLMProvider,
     storageKey: string,
     current: string,
     def: ProviderModelsDefinition,
@@ -299,7 +300,14 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     if (stored && def.OPTIONS.some((o) => o.value === stored)) {
       return stored;
     }
-    if (current && def.OPTIONS.some((o) => o.value === current)) {
+    // Before the catalog loads, each provider uses a static startup value. It
+    // is not a user choice and must not override a config-driven catalog
+    // default once the backend returns one.
+    if (
+      current
+      && current !== FALLBACK_DEFAULT_MODEL[targetProvider]
+      && def.OPTIONS.some((o) => o.value === current)
+    ) {
       return current;
     }
     return def.DEFAULT;
@@ -374,7 +382,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
 
       const storageKey = providerModelStorageKey(targetProvider);
       const currentModel = providerModels[targetProvider];
-      const nextModel = pickStoredOrCurrent(storageKey, currentModel, catalog);
+      const nextModel = pickStoredOrCurrent(targetProvider, storageKey, currentModel, catalog);
 
       if (nextModel !== currentModel) {
         reconciledModels[targetProvider] = nextModel;

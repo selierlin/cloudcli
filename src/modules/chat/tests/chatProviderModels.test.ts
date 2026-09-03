@@ -18,6 +18,8 @@ const okJson = (data: unknown) => Promise.resolve({
   json: async () => data,
 });
 
+const providerModelsResponse = vi.hoisted(() => vi.fn());
+
 vi.mock('@/shared/api', () => ({
   api: {
     // The preference store PATCHes through api.user; it is stubbed rather than
@@ -27,7 +29,7 @@ vi.mock('@/shared/api', () => ({
       savePreferences: () => okJson({ success: true, preferences: {} }),
     },
     providers: {
-      models: () => okJson({ success: true, data: null }),
+      models: (provider: string) => providerModelsResponse(provider),
       capabilities: () => okJson({ success: true, data: null }),
       sessionActiveModel: () => okJson({ success: true, data: null }),
       setSessionActiveModel: () => okJson({ success: true, data: null }),
@@ -50,6 +52,8 @@ const renderProviderState = async () => {
 
 beforeEach(() => {
   localStorage.clear();
+  providerModelsResponse.mockReset();
+  providerModelsResponse.mockImplementation(() => okJson({ success: true, data: null }));
   // The preference store is a module-level singleton, so its in-memory copy
   // outlives localStorage.clear() and would leak one test's writes into the next.
   resetUserPreferences();
@@ -88,6 +92,30 @@ test('a provider with no stored model falls back to its own default, not another
     Object.keys(models).length,
     'each provider must have a distinct default model',
   );
+});
+
+test('a fresh provider adopts the config-driven catalog default instead of its startup fallback', async () => {
+  providerModelsResponse.mockImplementation((provider: string) => okJson({
+    success: true,
+    data: provider === 'codex'
+      ? {
+          models: {
+            OPTIONS: [
+              { value: 'configured-codex', label: 'Configured Codex' },
+              { value: 'gpt-5.4', label: 'Startup fallback' },
+            ],
+            DEFAULT: 'configured-codex',
+          },
+        }
+      : null,
+  }));
+
+  const { result } = await renderProviderState();
+
+  await waitFor(() => {
+    assert.equal(result.current.providerModels.codex, 'configured-codex');
+  });
+  assert.equal(localStorage.getItem('codex-model'), 'configured-codex');
 });
 
 test('choosing a model persists it under that provider’s key only', async () => {
