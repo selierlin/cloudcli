@@ -211,14 +211,14 @@ function SidebarSessionItem({
   const isCopyPending = copyState === 'loading' || copyState === 'copying';
   const CopyStateIcon = copyState === 'copied' ? Check : Copy;
   const copyLabel = copyState === 'loading'
-    ? `Loading ${providerLabel} session ID…`
+    ? t('sessions.loadingSessionId', { provider: providerLabel })
     : copyState === 'copied'
-      ? `${providerLabel} session ID copied`
+      ? t('sessions.sessionIdCopied', { provider: providerLabel })
       : copyState === 'error'
         ? providerSessionId
-          ? `Couldn't copy ${providerLabel} session ID`
-          : `${providerLabel} session ID unavailable`
-        : `Copy ${providerLabel} session ID`;
+          ? t('sessions.copySessionIdFailed', { provider: providerLabel })
+          : t('sessions.sessionIdUnavailable', { provider: providerLabel })
+        : t('sessions.copySessionId', { provider: providerLabel });
 
   return (
     <div className="group relative">
@@ -673,8 +673,8 @@ function SidebarSessionItem({
                   },
                   ...(onForkSession && canForkThisSession && !isProcessing ? [{
                     key: 'fork',
-                    label: 'Fork session',
-                    description: 'Continue from a copy, leaving this one untouched.',
+                    label: t('sessions.forkSession'),
+                    description: t('sessions.forkSessionDescription'),
                     icon: GitBranch,
                     onSelect: () => onForkSession(session),
                   }] : []),

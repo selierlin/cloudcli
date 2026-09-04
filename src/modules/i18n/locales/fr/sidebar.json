@@ -55,7 +55,9 @@
     "copySessionIdFailed": "Impossible de copier l'ID de session {{provider}}",
     "sessionIdUnavailable": "ID de session {{provider}} indisponible",
     "tapToTryAgain": "Touchez pour réessayer.",
-    "clickToTryAgain": "Cliquez pour réessayer."
+    "clickToTryAgain": "Cliquez pour réessayer.",
+    "forkSession": "Dupliquer la session",
+    "forkSessionDescription": "Continuer depuis une copie, en laissant celle-ci inchangée."
   },
   "tooltips": {
     "viewEnvironments": "Voir les environnements",

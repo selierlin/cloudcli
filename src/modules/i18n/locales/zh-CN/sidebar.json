@@ -55,7 +55,9 @@
     "copySessionIdFailed": "无法复制 {{provider}} 会话 ID",
     "sessionIdUnavailable": "{{provider}} 会话 ID 不可用",
     "tapToTryAgain": "点击重试。",
-    "clickToTryAgain": "点击重试。"
+    "clickToTryAgain": "点击重试。",
+    "forkSession": "派生会话",
+    "forkSessionDescription": "从副本继续，保持当前会话不变。"
   },
   "tooltips": {
     "viewEnvironments": "查看环境",

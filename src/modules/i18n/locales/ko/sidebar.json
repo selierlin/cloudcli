@@ -55,7 +55,9 @@
     "copySessionIdFailed": "{{provider}} 세션 ID를 복사할 수 없습니다",
     "sessionIdUnavailable": "{{provider}} 세션 ID를 사용할 수 없습니다",
     "tapToTryAgain": "다시 시도하려면 탭하세요.",
-    "clickToTryAgain": "다시 시도하려면 클릭하세요."
+    "clickToTryAgain": "다시 시도하려면 클릭하세요.",
+    "forkSession": "세션 분기",
+    "forkSessionDescription": "복사본에서 계속하고, 이 세션은 변경하지 않습니다."
   },
   "tooltips": {
     "viewEnvironments": "환경 보기",

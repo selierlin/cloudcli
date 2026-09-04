@@ -55,7 +55,9 @@
     "copySessionIdFailed": "{{provider}} oturum kimliği kopyalanamadı",
     "sessionIdUnavailable": "{{provider}} oturum kimliği kullanılamıyor",
     "tapToTryAgain": "Tekrar denemek için dokunun.",
-    "clickToTryAgain": "Tekrar denemek için tıklayın."
+    "clickToTryAgain": "Tekrar denemek için tıklayın.",
+    "forkSession": "Oturumu çatalla",
+    "forkSessionDescription": "Bir kopyadan devam edin, bu oturuma dokunulmasın."
   },
   "tooltips": {
     "viewEnvironments": "Ortamları Görüntüle",

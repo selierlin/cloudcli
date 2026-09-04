@@ -55,7 +55,9 @@
     "copySessionIdFailed": "無法複製 {{provider}} 工作階段 ID",
     "sessionIdUnavailable": "{{provider}} 工作階段 ID 無法使用",
     "tapToTryAgain": "點擊重試。",
-    "clickToTryAgain": "點擊重試。"
+    "clickToTryAgain": "點擊重試。",
+    "forkSession": "分支工作階段",
+    "forkSessionDescription": "從副本繼續，保留此工作階段不變。"
   },
   "tooltips": {
     "viewEnvironments": "查看環境",

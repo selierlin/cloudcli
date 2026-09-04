@@ -55,7 +55,9 @@
     "copySessionIdFailed": "{{provider}} セッション ID をコピーできませんでした",
     "sessionIdUnavailable": "{{provider}} セッション ID を利用できません",
     "tapToTryAgain": "タップして再試行",
-    "clickToTryAgain": "クリックして再試行"
+    "clickToTryAgain": "クリックして再試行",
+    "forkSession": "セッションを分岐",
+    "forkSessionDescription": "コピーから続行し、元のセッションは変更しません。"
   },
   "tooltips": {
     "viewEnvironments": "環境を表示",
