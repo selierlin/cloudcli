@@ -61,9 +61,9 @@ export default function SettingsSidebar({ activeTab, onChange }: SettingsSidebar
         </nav>
       </aside>
 
-      {/* Mobile horizontal nav — pill bar */}
+      {/* Mobile nav — wraps instead of horizontally scrolling so every category is visible and discoverable */}
       <div className="flex-shrink-0 border-b border-border px-3 py-2 md:hidden">
-        <PillBar className="scrollbar-hide w-full overflow-x-auto">
+        <PillBar className="w-full flex-wrap">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
 
