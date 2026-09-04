@@ -107,6 +107,28 @@
     "plugins": "プラグイン",
     "about": "概要"
   },
+  "browser": {
+    "title": "ブラウザ",
+    "description": "保護された Playwright ブラウザセッションをエージェントが作成できるようにし、ブラウザタブから監視できます。",
+    "enable": "ブラウザを有効化",
+    "enableDescription": "対応エージェントにブラウザを登録します。エージェントはブラウザセッションを作成でき、監視・停止・削除できます。",
+    "enableAria": "ブラウザを有効化",
+    "statusLabel": "ステータス",
+    "checking": "確認中…",
+    "installed": "インストール済み",
+    "missing": "不足",
+    "ready": "準備完了",
+    "setupRequired": "セットアップが必要",
+    "disabled": "無効",
+    "runtimeRequired": "ブラウザランタイムが必要です",
+    "runtimeRequiredDescription": "エージェントがブラウザセッションを作成する前に、ブラウザランタイムをインストールしてください。",
+    "installing": "インストール中…",
+    "installRuntime": "ランタイムをインストール",
+    "loadSettingsError": "ブラウザ設定を読み込めませんでした",
+    "loadStatusError": "ブラウザの状態を読み込めませんでした",
+    "saveSettingsError": "ブラウザ設定を保存できませんでした",
+    "installRuntimeError": "ブラウザランタイムをインストールできませんでした"
+  },
   "notifications": {
     "title": "通知",
     "description": "受信する通知イベントを設定します。",

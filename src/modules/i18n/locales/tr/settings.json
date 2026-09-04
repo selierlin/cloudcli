@@ -108,6 +108,28 @@
     "plugins": "Eklentiler",
     "about": "Hakkında"
   },
+  "browser": {
+    "title": "Tarayıcı",
+    "description": "Ajanların, Tarayıcı sekmesinden izleyebileceğiniz korumalı Playwright tarayıcı oturumları oluşturmasına izin verir.",
+    "enable": "Tarayıcıyı Etkinleştir",
+    "enableDescription": "Desteklenen ajanlar için Tarayıcı'yı kaydeder. Ajanlar tarayıcı oturumları oluşturabilir; bunları izleyebilir, durdurabilir ve silebilirsiniz.",
+    "enableAria": "Tarayıcıyı Etkinleştir",
+    "statusLabel": "Durum",
+    "checking": "kontrol ediliyor…",
+    "installed": "yüklü",
+    "missing": "eksik",
+    "ready": "hazır",
+    "setupRequired": "kurulum gerekli",
+    "disabled": "devre dışı",
+    "runtimeRequired": "Tarayıcı çalışma zamanı gerekli",
+    "runtimeRequiredDescription": "Ajanlar Tarayıcı oturumları oluşturmadan önce tarayıcı çalışma zamanını yükleyin.",
+    "installing": "Yükleniyor…",
+    "installRuntime": "Çalışma Zamanını Yükle",
+    "loadSettingsError": "Tarayıcı ayarları yüklenemedi",
+    "loadStatusError": "Tarayıcı durumu yüklenemedi",
+    "saveSettingsError": "Tarayıcı ayarları kaydedilemedi",
+    "installRuntimeError": "Tarayıcı çalışma zamanı yüklenemedi"
+  },
   "notifications": {
     "title": "Bildirimler",
     "description": "Hangi bildirim etkinliklerini alacağını kontrol et.",
