@@ -805,6 +805,9 @@ export function useSidebarController({
       if (response.ok) {
         onSessionDelete?.(sessionId);
         await fetchArchivedSessions();
+        // Reload so a deleted/archived conversation leaves the Recent
+        // conversations list immediately instead of lingering until refresh.
+        reloadRecentConversations();
       } else {
         const errorText = await response.text();
         console.error('[Sidebar] Failed to delete session:', {
@@ -817,7 +820,7 @@ export function useSidebarController({
       console.error('[Sidebar] Error deleting session:', error);
       alert(t('messages.deleteSessionError'));
     }
-  }, [fetchArchivedSessions, onSessionDelete, pendingDeletion, t]);
+  }, [fetchArchivedSessions, onSessionDelete, pendingDeletion, reloadRecentConversations, t]);
 
   const requestProjectDelete = useCallback(
     (project: Project) => {
