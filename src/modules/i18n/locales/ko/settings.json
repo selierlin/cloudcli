@@ -125,6 +125,28 @@
     "plugins": "플러그인",
     "about": "정보"
   },
+  "browser": {
+    "title": "브라우저",
+    "description": "에이전트가 보호된 Playwright 브라우저 세션을 만들 수 있도록 하며, 브라우저 탭에서 모니터링할 수 있습니다.",
+    "enable": "브라우저 활성화",
+    "enableDescription": "지원되는 에이전트에 브라우저를 등록합니다. 에이전트가 브라우저 세션을 만들 수 있으며, 이를 감시·중지·삭제할 수 있습니다.",
+    "enableAria": "브라우저 활성화",
+    "statusLabel": "상태",
+    "checking": "확인 중…",
+    "installed": "설치됨",
+    "missing": "누락",
+    "ready": "준비됨",
+    "setupRequired": "설정 필요",
+    "disabled": "비활성화됨",
+    "runtimeRequired": "브라우저 런타임 필요",
+    "runtimeRequiredDescription": "에이전트가 브라우저 세션을 만들기 전에 브라우저 런타임을 설치하세요.",
+    "installing": "설치 중…",
+    "installRuntime": "런타임 설치",
+    "loadSettingsError": "브라우저 설정을 불러오지 못했습니다",
+    "loadStatusError": "브라우저 상태를 불러오지 못했습니다",
+    "saveSettingsError": "브라우저 설정을 저장하지 못했습니다",
+    "installRuntimeError": "브라우저 런타임을 설치하지 못했습니다"
+  },
   "notifications": {
     "title": "알림",
     "description": "수신할 알림 이벤트를 설정합니다.",

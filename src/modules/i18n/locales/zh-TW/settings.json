@@ -108,6 +108,28 @@
     "plugins": "外掛",
     "about": "關於"
   },
+  "browser": {
+    "title": "瀏覽器",
+    "description": "允許代理建立受防護的 Playwright 瀏覽器工作階段，您可以在瀏覽器分頁中監控這些工作階段。",
+    "enable": "啟用瀏覽器",
+    "enableDescription": "為支援的代理註冊瀏覽器。代理可以建立瀏覽器工作階段；您可以監視、停止和刪除它們。",
+    "enableAria": "啟用瀏覽器",
+    "statusLabel": "狀態",
+    "checking": "檢查中…",
+    "installed": "已安裝",
+    "missing": "缺少",
+    "ready": "就緒",
+    "setupRequired": "需要設定",
+    "disabled": "已停用",
+    "runtimeRequired": "需要瀏覽器執行階段",
+    "runtimeRequiredDescription": "在代理建立瀏覽器工作階段之前，請先安裝瀏覽器執行階段。",
+    "installing": "正在安裝…",
+    "installRuntime": "安裝執行階段",
+    "loadSettingsError": "載入瀏覽器設定失敗",
+    "loadStatusError": "載入瀏覽器狀態失敗",
+    "saveSettingsError": "儲存瀏覽器設定失敗",
+    "installRuntimeError": "安裝瀏覽器執行階段失敗"
+  },
   "notifications": {
     "title": "通知",
     "description": "控制你希望接收的通知事件。",

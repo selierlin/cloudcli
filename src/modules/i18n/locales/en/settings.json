@@ -126,6 +126,28 @@
     "plugins": "Plugins",
     "about": "About"
   },
+  "browser": {
+    "title": "Browser",
+    "description": "Allow agents to create guarded Playwright browser sessions that you can monitor from the Browser tab.",
+    "enable": "Enable Browser",
+    "enableDescription": "Registers Browser for supported agents. Agents can create browser sessions; you can watch, stop, and delete them.",
+    "enableAria": "Enable Browser",
+    "statusLabel": "Status",
+    "checking": "checking...",
+    "installed": "installed",
+    "missing": "missing",
+    "ready": "ready",
+    "setupRequired": "setup required",
+    "disabled": "disabled",
+    "runtimeRequired": "Browser runtime required",
+    "runtimeRequiredDescription": "Install the browser runtime before agents can create Browser sessions.",
+    "installing": "Installing...",
+    "installRuntime": "Install Runtime",
+    "loadSettingsError": "Failed to load Browser settings",
+    "loadStatusError": "Failed to load Browser status",
+    "saveSettingsError": "Failed to save Browser settings",
+    "installRuntimeError": "Failed to install browser runtime"
+  },
   "notifications": {
     "title": "Notifications",
     "description": "Control which notification events you receive.",

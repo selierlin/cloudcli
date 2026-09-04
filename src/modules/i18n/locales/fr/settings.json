@@ -107,6 +107,28 @@
     "plugins": "Plugins",
     "about": "À propos"
   },
+  "browser": {
+    "title": "Navigateur",
+    "description": "Permet aux agents de créer des sessions de navigateur Playwright protégées, que vous pouvez surveiller depuis l'onglet Navigateur.",
+    "enable": "Activer le navigateur",
+    "enableDescription": "Enregistre le navigateur pour les agents pris en charge. Les agents peuvent créer des sessions de navigateur ; vous pouvez les surveiller, les arrêter et les supprimer.",
+    "enableAria": "Activer le navigateur",
+    "statusLabel": "Statut",
+    "checking": "vérification…",
+    "installed": "installé",
+    "missing": "manquant",
+    "ready": "prêt",
+    "setupRequired": "configuration requise",
+    "disabled": "désactivé",
+    "runtimeRequired": "Environnement d'exécution du navigateur requis",
+    "runtimeRequiredDescription": "Installez l'environnement d'exécution du navigateur avant que les agents puissent créer des sessions de navigateur.",
+    "installing": "Installation…",
+    "installRuntime": "Installer l'environnement d'exécution",
+    "loadSettingsError": "Impossible de charger les paramètres du navigateur",
+    "loadStatusError": "Impossible de charger l'état du navigateur",
+    "saveSettingsError": "Impossible d'enregistrer les paramètres du navigateur",
+    "installRuntimeError": "Impossible d'installer l'environnement d'exécution du navigateur"
+  },
   "notifications": {
     "title": "Notifications",
     "description": "Contrôlez les événements de notification que vous recevez.",

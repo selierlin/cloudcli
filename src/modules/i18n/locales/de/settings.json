@@ -107,6 +107,28 @@
     "plugins": "Plugins",
     "about": "Info"
   },
+  "browser": {
+    "title": "Browser",
+    "description": "Erlaubt Agents das Erstellen geschützter Playwright-Browsersitzungen, die Sie im Browser-Tab überwachen können.",
+    "enable": "Browser aktivieren",
+    "enableDescription": "Registriert Browser für unterstützte Agents. Agents können Browsersitzungen erstellen; Sie können sie beobachten, stoppen und löschen.",
+    "enableAria": "Browser aktivieren",
+    "statusLabel": "Status",
+    "checking": "wird geprüft…",
+    "installed": "installiert",
+    "missing": "fehlt",
+    "ready": "bereit",
+    "setupRequired": "Einrichtung erforderlich",
+    "disabled": "deaktiviert",
+    "runtimeRequired": "Browser-Laufzeit erforderlich",
+    "runtimeRequiredDescription": "Installieren Sie die Browser-Laufzeit, bevor Agents Browsersitzungen erstellen können.",
+    "installing": "Wird installiert…",
+    "installRuntime": "Laufzeit installieren",
+    "loadSettingsError": "Browser-Einstellungen konnten nicht geladen werden",
+    "loadStatusError": "Browser-Status konnte nicht geladen werden",
+    "saveSettingsError": "Browser-Einstellungen konnten nicht gespeichert werden",
+    "installRuntimeError": "Browser-Laufzeit konnte nicht installiert werden"
+  },
   "notifications": {
     "title": "Benachrichtigungen",
     "description": "Lege fest, welche Benachrichtigungen du erhältst.",

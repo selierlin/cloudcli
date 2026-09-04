@@ -125,6 +125,28 @@
     "plugins": "Plugins",
     "about": "Acerca de"
   },
+  "browser": {
+    "title": "Navegador",
+    "description": "Permite a los agentes crear sesiones protegidas de navegador Playwright que puedes supervisar desde la pestaña Navegador.",
+    "enable": "Habilitar navegador",
+    "enableDescription": "Registra el navegador para los agentes compatibles. Los agentes pueden crear sesiones de navegador; puedes verlas, detenerlas y eliminarlas.",
+    "enableAria": "Habilitar navegador",
+    "statusLabel": "Estado",
+    "checking": "comprobando…",
+    "installed": "instalado",
+    "missing": "falta",
+    "ready": "listo",
+    "setupRequired": "configuración requerida",
+    "disabled": "deshabilitado",
+    "runtimeRequired": "Se requiere el entorno de ejecución del navegador",
+    "runtimeRequiredDescription": "Instala el entorno de ejecución del navegador antes de que los agentes puedan crear sesiones de navegador.",
+    "installing": "Instalando…",
+    "installRuntime": "Instalar entorno de ejecución",
+    "loadSettingsError": "No se pudieron cargar los ajustes del navegador",
+    "loadStatusError": "No se pudo cargar el estado del navegador",
+    "saveSettingsError": "No se pudieron guardar los ajustes del navegador",
+    "installRuntimeError": "No se pudo instalar el entorno de ejecución del navegador"
+  },
   "notifications": {
     "title": "Notificaciones",
     "description": "Controla qué eventos de notificación recibes.",

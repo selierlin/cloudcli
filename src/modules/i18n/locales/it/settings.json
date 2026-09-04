@@ -107,6 +107,28 @@
     "plugins": "Plugin",
     "about": "Informazioni"
   },
+  "browser": {
+    "title": "Browser",
+    "description": "Consente agli agenti di creare sessioni browser Playwright protette che puoi monitorare dalla scheda Browser.",
+    "enable": "Abilita browser",
+    "enableDescription": "Registra il browser per gli agenti supportati. Gli agenti possono creare sessioni browser; puoi osservarle, arrestarle ed eliminarle.",
+    "enableAria": "Abilita browser",
+    "statusLabel": "Stato",
+    "checking": "verifica…",
+    "installed": "installato",
+    "missing": "mancante",
+    "ready": "pronto",
+    "setupRequired": "configurazione richiesta",
+    "disabled": "disabilitato",
+    "runtimeRequired": "Runtime del browser richiesto",
+    "runtimeRequiredDescription": "Installa il runtime del browser prima che gli agenti possano creare sessioni browser.",
+    "installing": "Installazione…",
+    "installRuntime": "Installa runtime",
+    "loadSettingsError": "Impossibile caricare le impostazioni del browser",
+    "loadStatusError": "Impossibile caricare lo stato del browser",
+    "saveSettingsError": "Impossibile salvare le impostazioni del browser",
+    "installRuntimeError": "Impossibile installare il runtime del browser"
+  },
   "notifications": {
     "title": "Notifiche",
     "description": "Controlla quali notifiche ricevere.",
