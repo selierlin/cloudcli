@@ -55,7 +55,9 @@
     "copySessionIdFailed": "Не удалось скопировать ID сеанса {{provider}}",
     "sessionIdUnavailable": "ID сеанса {{provider}} недоступен",
     "tapToTryAgain": "Нажмите, чтобы повторить.",
-    "clickToTryAgain": "Нажмите, чтобы повторить."
+    "clickToTryAgain": "Нажмите, чтобы повторить.",
+    "forkSession": "Создать ветку сессии",
+    "forkSessionDescription": "Продолжить из копии, оставив эту без изменений."
   },
   "tooltips": {
     "viewEnvironments": "Просмотр окружений",

@@ -55,7 +55,9 @@
     "copySessionIdFailed": "Couldn't copy {{provider}} session ID",
     "sessionIdUnavailable": "{{provider}} session ID unavailable",
     "tapToTryAgain": "Tap to try again.",
-    "clickToTryAgain": "Click to try again."
+    "clickToTryAgain": "Click to try again.",
+    "forkSession": "Fork session",
+    "forkSessionDescription": "Continue from a copy, leaving this one untouched."
   },
   "tooltips": {
     "viewEnvironments": "View Environments",

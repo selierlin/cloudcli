@@ -55,7 +55,9 @@
     "copySessionIdFailed": "{{provider}}-Sitzungs-ID konnte nicht kopiert werden",
     "sessionIdUnavailable": "{{provider}}-Sitzungs-ID nicht verfügbar",
     "tapToTryAgain": "Zum erneuten Versuchen tippen.",
-    "clickToTryAgain": "Zum erneuten Versuchen klicken."
+    "clickToTryAgain": "Zum erneuten Versuchen klicken.",
+    "forkSession": "Sitzung verzweigen",
+    "forkSessionDescription": "In einer Kopie fortfahren und diese hier unverändert lassen."
   },
   "tooltips": {
     "viewEnvironments": "Umgebungen anzeigen",
