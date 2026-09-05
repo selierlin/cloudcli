@@ -1,11 +1,12 @@
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
-import { Activity, Archive, Check, ChevronDown, ChevronRight, Folder, MessageSquare, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { Activity, Archive, Check, ChevronDown, ChevronRight, Edit2, Folder, Loader2, MessageSquare, MoreHorizontal, Pin, PinOff, RotateCcw, Search, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { LLMProviderLogo, ScrollArea } from '@/shared/ui';
+import { ActionMenu, Dialog, DialogContent, DialogTitle, LLMProviderLogo, ScrollArea } from '@/shared/ui';
 import { cn } from '@/shared/utils';
 import type { ArchivedProjectListItem, ArchivedSessionListItem, ConversationSearchResults, LLMProvider, Project, RecentConversationListItem, ReleaseInfo, SearchProgress, SessionTitleSearchResult, SidebarProjectListProps, SidebarSearchMode } from '@/shared/types';
 import { formatCompactAge, getAllSessions } from '@/modules/sidebar/utils/sidebarProjectFormatting';
+import { useCopyProviderSessionId } from '@/modules/sidebar/hooks/useCopyProviderSessionId';
 import SidebarBatchSessionActions from '@/modules/sidebar/SidebarBatchSessionActions';
 import SidebarFooter from '@/modules/sidebar/SidebarFooter';
 import SidebarHeader from '@/modules/sidebar/SidebarHeader';
@@ -36,6 +37,15 @@ function HighlightedSnippet({ snippet, highlights }: { snippet: string; highligh
   );
 }
 
+const SEARCH_PROVIDER_LABELS: Record<string, string> = {
+  claude: 'Claude',
+  codex: 'Codex',
+  cursor: 'Cursor',
+  opencode: 'OpenCode',
+  dsh: 'DeepSeek Harness',
+  workbuddy: 'WorkBuddy',
+};
+
 /**
  * One session-title hit row, shared by the conversation-search title section
  * and the projects-mode id-lookup section. Clicking the body opens the
@@ -47,60 +57,400 @@ function ConversationTitleResultRow({
   t,
   onOpen,
   onRestore,
+  onRename,
+  onTogglePinned,
+  onDelete,
 }: {
   session: SessionTitleSearchResult;
   currentTime: Date;
   t: TFunction;
   onOpen: (projectId: string | null, sessionId: string, provider: string) => void;
   onRestore?: (session: SessionTitleSearchResult) => void;
+  onRename?: (sessionId: string, summary: string, provider: LLMProvider) => void;
+  onTogglePinned?: (sessionId: string, isPinned: boolean) => void;
+  onDelete?: (sessionId: string, sessionTitle: string) => void;
 }) {
   const age = formatCompactAge(session.lastActivity, currentTime);
+  const [isMobileOptionsOpen, setIsMobileOptionsOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingName, setEditingName] = useState('');
+  const providerLabel = SEARCH_PROVIDER_LABELS[session.provider] ?? session.provider;
+  const {
+    copyLabel,
+    isCopyPending,
+    CopyStateIcon,
+    handleCopyAction,
+    onOptionsOpen,
+  } = useCopyProviderSessionId({ sessionId: session.sessionId, providerLabel, t });
+
+  const startRename = () => {
+    setIsEditing(true);
+    setEditingName(session.sessionTitle);
+  };
+
+  const saveRename = () => {
+    onRename?.(session.sessionId, editingName, session.provider as LLMProvider);
+    setIsEditing(false);
+    setEditingName('');
+    setIsMobileOptionsOpen(false);
+  };
+
+  const cancelRename = () => {
+    setIsEditing(false);
+    setEditingName('');
+  };
+
+  const setMobileOpen = (open: boolean) => {
+    setIsMobileOptionsOpen(open);
+    onOptionsOpen(open);
+    if (!open && isEditing) {
+      cancelRename();
+    }
+  };
+
+  const menuItems = session.isArchived
+    ? [
+        {
+          key: 'copy',
+          label: copyLabel,
+          icon: CopyStateIcon,
+          loading: isCopyPending,
+          closeOnSelect: false,
+          onSelect: handleCopyAction,
+        },
+        {
+          key: 'restore',
+          label: t('archived.restore', 'Restore session'),
+          icon: RotateCcw,
+          onSelect: () => onRestore?.(session),
+        },
+      ]
+    : [
+        ...(onTogglePinned
+          ? [{
+              key: 'pin',
+              label: session.isPinned ? t('sessions.unpinSession') : t('sessions.pinSession'),
+              icon: session.isPinned ? PinOff : Pin,
+              onSelect: () => onTogglePinned(session.sessionId, !session.isPinned),
+            }]
+          : []),
+        ...(onRename
+          ? [{
+              key: 'rename',
+              label: t('sessions.renameSession'),
+              icon: Edit2,
+              onSelect: startRename,
+            }]
+          : []),
+        {
+          key: 'copy',
+          label: copyLabel,
+          icon: CopyStateIcon,
+          loading: isCopyPending,
+          closeOnSelect: false,
+          onSelect: handleCopyAction,
+        },
+        ...(onDelete
+          ? [{
+              key: 'delete',
+              label: t('sessions.archiveOrDeleteSession'),
+              icon: Trash2,
+              isDanger: true,
+              showDividerBefore: true,
+              onSelect: () => onDelete(session.sessionId, session.sessionTitle),
+            }]
+          : []),
+      ];
 
   return (
-    <div className="group flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-2 transition-colors hover:bg-accent/60">
-      <button
-        type="button"
-        className="flex min-w-0 flex-1 items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        onClick={() => onOpen(session.projectId, session.sessionId, session.provider)}
-      >
-        <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-muted/60">
-          <LLMProviderLogo provider={session.provider} className="h-3.5 w-3.5" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="flex min-w-0 items-center gap-1.5">
-            <span className="min-w-0 truncate text-[13px] font-normal leading-4 text-foreground">
-              {session.sessionTitle}
+    <div className="group relative">
+      {/* Mobile */}
+      <div className="md:hidden">
+        <div className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-accent/60">
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+            onClick={() => onOpen(session.projectId, session.sessionId, session.provider)}
+          >
+            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-muted/60">
+              <LLMProviderLogo provider={session.provider} className="h-3.5 w-3.5" />
             </span>
-            {session.isArchived && (
-              <span className="flex-shrink-0 rounded bg-muted px-1 py-px text-[9px] font-normal leading-3 text-muted-foreground">
-                {t('search.archivedBadge', 'Archived')}
+            <span className="min-w-0 flex-1">
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="min-w-0 truncate text-[13px] font-normal leading-4 text-foreground">
+                  {session.sessionTitle}
+                </span>
+                {session.isArchived && (
+                  <span className="flex-shrink-0 rounded bg-muted px-1 py-px text-[9px] font-normal leading-3 text-muted-foreground">
+                    {t('search.archivedBadge', 'Archived')}
+                  </span>
+                )}
               </span>
+              <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] leading-3 text-muted-foreground">
+                <span className="truncate">{session.projectDisplayName}</span>
+                {age && (
+                  <>
+                    <span className="flex-shrink-0 text-muted-foreground/40">·</span>
+                    <time className="flex-shrink-0 tabular-nums" dateTime={session.lastActivity ?? undefined}>
+                      {age}
+                    </time>
+                  </>
+                )}
+              </span>
+            </span>
+          </button>
+          <button
+            type="button"
+            aria-label={t('sessions.sessionOptionsFor', { name: session.sessionTitle })}
+            className="ml-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted active:scale-95"
+            onClick={() => setMobileOpen(true)}
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </button>
+        </div>
+
+        <Dialog open={isMobileOptionsOpen} onOpenChange={setMobileOpen}>
+          <DialogContent
+            aria-describedby="mobile-search-session-options-description"
+            wrapperClassName="md:hidden"
+            style={{ bottom: 'var(--keyboard-height, 0px)' }}
+            animationClassName="animate-bottom-sheet-content-show motion-reduce:animate-none"
+            className="bottom-0 left-0 top-auto max-w-none translate-x-0 translate-y-0 rounded-b-none rounded-t-2xl border-x-0 border-b-0 px-4 pb-safe-area-inset-bottom pt-3"
+          >
+            <DialogTitle>{t('sessions.sessionOptions')}</DialogTitle>
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-muted-foreground/30" aria-hidden="true" />
+
+            <div className="mb-4 flex items-center gap-3 px-1">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-muted">
+                <LLMProviderLogo provider={session.provider} className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-foreground" title={session.sessionTitle}>
+                  {session.sessionTitle}
+                </p>
+                <p id="mobile-search-session-options-description" className="text-xs text-muted-foreground">
+                  {t('sessions.providerSession', { provider: providerLabel })}
+                </p>
+              </div>
+            </div>
+
+            {isEditing ? (
+              <div className="mb-3 space-y-2">
+                <label htmlFor={`mobile-search-rename-${session.sessionId}`} className="block px-1 text-xs font-medium text-muted-foreground">
+                  {t('sessions.sessionName')}
+                </label>
+                <input
+                  id={`mobile-search-rename-${session.sessionId}`}
+                  type="text"
+                  value={editingName}
+                  onChange={(event) => setEditingName(event.target.value)}
+                  onKeyDown={(event) => {
+                    event.stopPropagation();
+                    if (event.key === 'Enter') saveRename();
+                  }}
+                  className="w-full rounded-xl border-2 border-primary/40 bg-background px-3 py-3 text-foreground shadow-sm focus:border-primary focus:outline-none"
+                  autoFocus
+                  autoComplete="off"
+                  style={{ fontSize: '16px' }}
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={saveRename}
+                    className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition-transform active:scale-95"
+                  >
+                    <Check className="h-5 w-5 flex-shrink-0" />
+                    {t('actions.save')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelRename}
+                    className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-muted/35 px-4 py-3 text-sm font-medium text-foreground transition-colors active:bg-muted"
+                  >
+                    <X className="h-5 w-5 flex-shrink-0" />
+                    {t('actions.cancel')}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {!session.isArchived && (
+                  <>
+                    {onTogglePinned && (
+                      <button
+                        type="button"
+                        onClick={() => onTogglePinned(session.sessionId, !session.isPinned)}
+                        className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-border bg-muted/35 px-4 py-3 text-left text-foreground transition-colors active:bg-muted"
+                      >
+                        {session.isPinned ? <PinOff className="h-5 w-5 flex-shrink-0" /> : <Pin className="h-5 w-5 flex-shrink-0" />}
+                        <span className="text-sm font-medium">
+                          {session.isPinned ? t('sessions.unpinSession') : t('sessions.pinSession')}
+                        </span>
+                      </button>
+                    )}
+                    {onRename && (
+                      <button
+                        type="button"
+                        onClick={startRename}
+                        className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-border bg-muted/35 px-4 py-3 text-left text-foreground transition-colors active:bg-muted"
+                      >
+                        <Edit2 className="h-5 w-5 flex-shrink-0" />
+                        <span className="text-sm font-medium">{t('sessions.renameSession')}</span>
+                      </button>
+                    )}
+                  </>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleCopyAction}
+                  disabled={isCopyPending}
+                  className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-border bg-muted/35 px-4 py-3 text-left text-foreground transition-colors active:bg-muted"
+                >
+                  {isCopyPending ? (
+                    <Loader2 className="h-5 w-5 flex-shrink-0 animate-spin" />
+                  ) : (
+                    <CopyStateIcon className="h-5 w-5 flex-shrink-0" />
+                  )}
+                  <span className="text-sm font-medium">{copyLabel}</span>
+                </button>
+
+                {session.isArchived && onRestore ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileOpen(false);
+                      onRestore(session);
+                    }}
+                    className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-border bg-muted/35 px-4 py-3 text-left text-emerald-700 transition-colors active:bg-emerald-500/10 dark:text-emerald-300"
+                  >
+                    <RotateCcw className="h-5 w-5 flex-shrink-0" />
+                    <span className="text-sm font-medium">{t('archived.restore', 'Restore session')}</span>
+                  </button>
+                ) : !session.isArchived && onDelete ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileOpen(false);
+                      onDelete(session.sessionId, session.sessionTitle);
+                    }}
+                    className="flex min-h-12 w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-red-600 transition-colors active:bg-red-500/10 dark:text-red-400"
+                  >
+                    <Trash2 className="h-5 w-5 flex-shrink-0" />
+                    <span className="text-sm font-medium">{t('sessions.archiveOrDeleteSession')}</span>
+                  </button>
+                ) : null}
+              </div>
             )}
-          </span>
-          <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] leading-3 text-muted-foreground">
-            <span className="truncate">{session.projectDisplayName}</span>
-            {age && (
-              <>
-                <span className="flex-shrink-0 text-muted-foreground/40">·</span>
-                <time className="flex-shrink-0 tabular-nums" dateTime={session.lastActivity ?? undefined}>
-                  {age}
-                </time>
-              </>
+
+            {!isEditing && (
+              <button
+                type="button"
+                onClick={() => setMobileOpen(false)}
+                className="mb-3 mt-2 min-h-11 w-full rounded-xl text-sm font-medium text-muted-foreground transition-colors active:bg-muted"
+              >
+                {t('actions.cancel')}
+              </button>
             )}
-          </span>
-        </span>
-      </button>
-      {session.isArchived && onRestore && (
-        <button
-          type="button"
-          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-emerald-500/10 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 dark:hover:text-emerald-300"
-          onClick={() => onRestore(session)}
-          title={t('archived.restore', 'Restore session')}
-          aria-label={`${t('archived.restore', 'Restore session')}: ${session.sessionTitle}`}
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
-        </button>
-      )}
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Desktop */}
+      <div className="hidden md:block">
+        <div className="flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-2 pr-10 transition-colors hover:bg-accent/60">
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => onOpen(session.projectId, session.sessionId, session.provider)}
+          >
+            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-muted/60">
+              <LLMProviderLogo provider={session.provider} className="h-3.5 w-3.5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="min-w-0 truncate text-[13px] font-normal leading-4 text-foreground">
+                  {session.sessionTitle}
+                </span>
+                {session.isArchived && (
+                  <span className="flex-shrink-0 rounded bg-muted px-1 py-px text-[9px] font-normal leading-3 text-muted-foreground">
+                    {t('search.archivedBadge', 'Archived')}
+                  </span>
+                )}
+              </span>
+              <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] leading-3 text-muted-foreground">
+                <span className="truncate">{session.projectDisplayName}</span>
+                {age && (
+                  <>
+                    <span className="flex-shrink-0 text-muted-foreground/40">·</span>
+                    <time className="flex-shrink-0 tabular-nums" dateTime={session.lastActivity ?? undefined}>
+                      {age}
+                    </time>
+                  </>
+                )}
+              </span>
+            </span>
+          </button>
+        </div>
+
+        <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 transform items-center gap-1">
+          {isEditing ? (
+            <>
+              <input
+                type="text"
+                value={editingName}
+                onChange={(event) => setEditingName(event.target.value)}
+                onKeyDown={(event) => {
+                  event.stopPropagation();
+                  if (event.key === 'Enter') saveRename();
+                  else if (event.key === 'Escape') cancelRename();
+                }}
+                onClick={(event) => event.stopPropagation()}
+                className="w-32 rounded border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                autoFocus
+              />
+              <button
+                className="flex h-6 w-6 items-center justify-center rounded bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40"
+                onClick={saveRename}
+                title={t('tooltips.save')}
+              >
+                <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
+              </button>
+              <button
+                className="flex h-6 w-6 items-center justify-center rounded bg-gray-50 hover:bg-gray-100 dark:bg-gray-900/20 dark:hover:bg-gray-900/40"
+                onClick={cancelRename}
+                title={t('tooltips.cancel')}
+              >
+                <X className="h-3 w-3 text-gray-600 dark:text-gray-400" />
+              </button>
+            </>
+          ) : (
+            <ActionMenu
+              label={t('sessions.sessionOptions')}
+              ariaLabel={t('sessions.sessionOptionsFor', { name: session.sessionTitle })}
+              icon={MoreHorizontal}
+              iconOnly
+              portal
+              variant="ghost"
+              size="icon"
+              onOpenChange={onOptionsOpen}
+              triggerClassName="h-7 w-7 text-muted-foreground opacity-70 hover:bg-muted hover:opacity-100"
+              menuClassName="w-[260px] rounded-xl p-1.5 shadow-xl"
+              header={(
+                <div className="mb-1 border-b border-border px-3 py-2">
+                  <p className="truncate text-xs font-medium text-foreground" title={session.sessionTitle}>
+                    {session.sessionTitle}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {t('sessions.providerSession', { provider: providerLabel })}
+                  </p>
+                </div>
+              )}
+              items={menuItems}
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -481,6 +831,9 @@ export default function SidebarContent({
                       t={t}
                       onOpen={onConversationResultClick}
                       onRestore={restoreSearchHit}
+                      onRename={onRenameRecentSession}
+                      onTogglePinned={onToggleSessionPinned}
+                      onDelete={projectListProps.onDeleteSession}
                     />
                   ))}
                 </section>

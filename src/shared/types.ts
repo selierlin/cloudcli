@@ -1448,6 +1448,7 @@ export type SessionTitleSearchResult = {
   lastActivity: string | null;
   /** True when the hit is an archived session; the sidebar renders an archived badge for it. */
   isArchived?: boolean;
+  isPinned?: boolean;
 };
 
 /** All conversation matches found inside a single project during a search, grouped so the results can be rendered under one project heading. */

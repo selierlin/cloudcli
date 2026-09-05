@@ -47,6 +47,7 @@ type SessionTitleSearchResult = {
   lastActivity: string | null;
   /** True when the hit comes from the archived sessions table. */
   isArchived: boolean;
+  isPinned: boolean;
 };
 
 export type SessionConversationSearchProgressUpdate = {
@@ -231,6 +232,7 @@ function findSessionTitleResults(
         sessionTitle,
         lastActivity: session.updated_at || session.created_at || null,
         isArchived,
+        isPinned: Boolean(session.isPinned),
         matchIndex,
       }];
     })
