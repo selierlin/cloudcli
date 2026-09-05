@@ -471,6 +471,23 @@
     "error": "错误：{{error}}",
     "errors": {
       "cursorCliNotFound": "未找到 Cursor CLI，或 Cursor CLI 尚未安装。"
+    },
+    "settingsSource": {
+      "title": "配置文件 (claude --settings)",
+      "description": "每次运行时加载一份你自行维护的 Claude settings JSON——适用于指向中转站（ANTHROPIC_BASE_URL、认证 token、自定义模型等）。CloudCLI 只保存路径，文件内容由你维护。",
+      "directoryLabel": "配置目录",
+      "directoryHint": "该目录下的所有 settings-*.json（或 setting-*.json）会自动作为配置档列出。",
+      "saveDirectory": "扫描目录",
+      "activeLabel": "当前生效的配置文件",
+      "activeNone": "无（使用默认配置）",
+      "activeHint": "选中的文件会在每次 Claude 运行时加载，等价于传入 --settings。",
+      "customPathLabel": "或指定单个配置文件路径",
+      "applyPath": "应用",
+      "clear": "清除",
+      "current": "当前：{{path}}",
+      "loadError": "加载 Claude 配置失败。",
+      "saveError": "保存 Claude 配置失败。",
+      "saving": "保存中…"
     }
   },
   "skills": {

@@ -389,6 +389,14 @@ export const api = {
       get(`/api/providers/${encodeURIComponent(provider)}/skills${query({ workspacePath })}`),
     saveSkills: (provider: string, payload: unknown) =>
       post(`/api/providers/${provider}/skills`, payload),
+
+    // Provider-level custom settings source (claude --settings equivalent).
+    settingsSource: (provider: string) =>
+      get(`/api/providers/${encodeURIComponent(provider)}/settings-source`),
+    updateSettingsSource: (
+      provider: string,
+      input: { directory?: string; activeFile?: string },
+    ) => put(`/api/providers/${encodeURIComponent(provider)}/settings-source`, input),
   },
 
   // Slash commands
