@@ -221,6 +221,51 @@ export function mergeOlderServerPage(
   };
 }
 
+function readMessageTime(message: NormalizedMessage): number | null {
+  const time = Date.parse(message.timestamp);
+  return Number.isFinite(time) ? time : null;
+}
+
+/**
+ * Returns true when the newest row of an older page is at or before the oldest
+ * row of the cached suffix. This is the normal relationship for a tail-offset
+ * older page; a newer boundary means the offset pointed into a rewritten tail.
+ */
+export function olderPagePrecedesCachedHistory(
+  olderMessages: NormalizedMessage[],
+  cachedMessages: NormalizedMessage[],
+): boolean {
+  const olderNewest = olderMessages[olderMessages.length - 1];
+  const cachedOldest = cachedMessages[0];
+  if (!olderNewest || !cachedOldest) return true;
+
+  const olderTime = readMessageTime(olderNewest);
+  const cachedTime = readMessageTime(cachedOldest);
+  return olderTime === null || cachedTime === null || olderTime <= cachedTime;
+}
+
+/**
+ * Detects whether an older page has drifted out of the expected chronological
+ * position relative to the cached suffix.
+ *
+ * A growing or shrinking transcript (common for live WorkBuddy sessions) can
+ * change `total` between requests. As long as the fetched page either overlaps
+ * the cached prefix or sits entirely before it, the page is safe to prepend.
+ * Only a disjoint newer page is treated as a shift that needs a latest-page
+ * refresh.
+ */
+export function isOlderPageShifted(
+  cachedMessages: NormalizedMessage[],
+  olderMessages: NormalizedMessage[],
+): boolean {
+  if (olderMessages.length === 0 || cachedMessages.length === 0) {
+    return false;
+  }
+
+  const { overlapLength } = mergeOlderServerPage(cachedMessages, olderMessages);
+  return overlapLength === 0 && !olderPagePrecedesCachedHistory(olderMessages, cachedMessages);
+}
+
 /** Preserves the cached oldest-page boundary after a successful tail stitch. */
 export function resolveLatestPagePagination(
   previousMessageCount: number,

@@ -7,6 +7,7 @@ import {
   buildSessionMessagesUrl,
   findLatestPageOverlapLength,
   hasReachedCachedTailTimeBoundary,
+  isOlderPageShifted,
   mergeLatestServerPage,
   mergeOlderServerPage,
   planLatestPageBridge,
@@ -176,4 +177,31 @@ test('offset counts loaded persisted rows even when renderable total excludes to
 
   assert.equal(pagination.offset, 23);
   assert.ok(pagination.offset > renderableTotal);
+});
+
+test('older page that sits before the cached suffix is not treated as shifted', () => {
+  const cached = range(81, 100);
+  const older = range(61, 80);
+
+  assert.equal(isOlderPageShifted(cached, older), false);
+});
+
+test('older page that overlaps the cached prefix is not treated as shifted', () => {
+  const cached = range(81, 100);
+  const older = range(66, 85);
+
+  assert.equal(isOlderPageShifted(cached, older), false);
+});
+
+test('disjoint newer older page is treated as shifted', () => {
+  const cached = range(1, 20);
+  const newer = range(30, 49);
+
+  assert.equal(isOlderPageShifted(cached, newer), true);
+});
+
+test('empty older page is not treated as shifted', () => {
+  const cached = range(1, 20);
+
+  assert.equal(isOlderPageShifted(cached, []), false);
 });
