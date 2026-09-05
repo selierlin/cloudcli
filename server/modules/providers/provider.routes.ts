@@ -5,6 +5,7 @@ import { providerAuthService } from '@/modules/providers/services/provider-auth.
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
+import { providerSettingsSourceService } from '@/modules/providers/services/provider-settings-source.service.js';
 import { providerTokenUsageService } from '@/modules/providers/services/provider-token-usage.service.js';
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
 import { sessionConversationsSearchService } from '@/modules/providers/services/session-conversations-search.service.js';
@@ -299,6 +300,28 @@ const parseProvider = (value: unknown): LLMProvider => {
     code: 'UNSUPPORTED_PROVIDER',
     statusCode: 400,
   });
+};
+
+/** Both fields are optional: an empty body forks the whole conversation. */
+const parseSessionForkPayload = (payload: unknown): { upToAnchorId?: string; title?: string } => {
+  if (payload === undefined || payload === null) {
+    return {};
+  }
+  if (typeof payload !== 'object') {
+    throw new AppError('Request body must be an object.', {
+      code: 'INVALID_REQUEST_BODY',
+      statusCode: 400,
+    });
+  }
+
+  const body = payload as Record<string, unknown>;
+  const upToAnchorId = typeof body.upToAnchorId === 'string' ? body.upToAnchorId.trim() : '';
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+
+  return {
+    ...(upToAnchorId ? { upToAnchorId } : {}),
+    ...(title ? { title } : {}),
+  };
 };
 
 const parseSessionRenameSummary = (payload: unknown): string => {
@@ -775,6 +798,35 @@ router.get(
   }),
 );
 
+// ----------------- Settings-source routes -----------------
+/**
+ * Provider-level custom settings source (claude --settings equivalent).
+ * The client reads the current directory + active file and the live scan of
+ * `settings-*.json` profiles; PUT persists the directory and active selection.
+ * Only paths are stored — the user maintains the JSON files themselves.
+ */
+router.get(
+  '/:provider/settings-source',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const result = await providerSettingsSourceService.getSource(provider);
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
+router.put(
+  '/:provider/settings-source',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const result = await providerSettingsSourceService.updateSource(provider, {
+      directory: typeof body.directory === 'string' ? body.directory : undefined,
+      activeFile: typeof body.activeFile === 'string' ? body.activeFile : undefined,
+    });
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
 // ----------------- Session routes -----------------
 /**
  * Session gateway entry point: allocates the stable app-facing session id for
@@ -878,6 +930,15 @@ router.post(
     const sessionId = parseSessionId(req.params.sessionId);
     const result = sessionsService.restoreSessionById(sessionId);
     res.json(createApiSuccessResponse(result));
+  }),
+);
+
+router.post(
+  '/sessions/:sessionId/fork',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    const result = await sessionsService.forkSessionById(sessionId, parseSessionForkPayload(req.body));
+    res.status(201).json(createApiSuccessResponse(result));
   }),
 );
 

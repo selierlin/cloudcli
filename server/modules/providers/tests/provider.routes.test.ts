@@ -230,6 +230,59 @@ test('conversation search streams title matches before transcript results', asyn
   });
 });
 
+test('conversation search finds renamed sessions by either session id column', async () => {
+  await withProviderServer(async (baseUrl, workspacePath) => {
+    sessionsDb.createAppSession('renamed-app-session', 'codex', workspacePath, 'Renamed title');
+    sessionsDb.assignProviderSessionId('renamed-app-session', 'provider-id-abc123');
+    // An archived session is searchable too and comes back flagged, so the UI
+    // can badge it instead of silently hiding it from the conversations tab.
+    sessionsDb.createAppSession('archived-app-session', 'codex', workspacePath, 'Archived title');
+    sessionsDb.assignProviderSessionId('archived-app-session', 'archived-id-def456');
+    sessionsDb.updateSessionIsArchived('archived-app-session', true);
+
+    const readTitleResults = async (query: string) => {
+      const response = await fetch(
+        `${baseUrl}/api/providers/search/sessions?q=${encodeURIComponent(query)}&limit=50`,
+      );
+      const eventStream = await response.text();
+      const titleEventIndex = eventStream.indexOf('event: title-results');
+      assert.ok(titleEventIndex >= 0);
+      const titleDataLine = eventStream
+        .slice(titleEventIndex)
+        .split('\n')
+        .find((line) => line.startsWith('data: '));
+      assert.ok(titleDataLine);
+      const titlePayload = JSON.parse(titleDataLine.slice('data: '.length)) as {
+        titleResults: Array<{ sessionId: string; sessionTitle: string; isArchived?: boolean }>;
+      };
+      return titlePayload.titleResults;
+    };
+
+    // Both the engine-side id and the app-facing id match; the displayed title
+    // stays the custom name instead of leaking the id.
+    const byProviderId = await readTitleResults('provider-id-abc123');
+    assert.equal(byProviderId.length, 1);
+    assert.equal(byProviderId[0]?.sessionId, 'renamed-app-session');
+    assert.equal(byProviderId[0]?.sessionTitle, 'Renamed title');
+    assert.equal(byProviderId[0]?.isArchived, false);
+
+    const byAppId = await readTitleResults('renamed-app-session');
+    assert.equal(byAppId.length, 1);
+    assert.equal(byAppId[0]?.sessionTitle, 'Renamed title');
+
+    // The archived session is returned flagged as archived.
+    const byArchivedId = await readTitleResults('archived-id-def456');
+    assert.equal(byArchivedId.length, 1);
+    assert.equal(byArchivedId[0]?.sessionId, 'archived-app-session');
+    assert.equal(byArchivedId[0]?.sessionTitle, 'Archived title');
+    assert.equal(byArchivedId[0]?.isArchived, true);
+
+    // An unrelated id must not match.
+    const byUnrelatedId = await readTitleResults('provider-id-zzz');
+    assert.equal(byUnrelatedId.length, 0);
+  });
+});
+
 test('reasoning effort is persisted and returned with the active session model', async () => {
   await withProviderServer(async (baseUrl, workspacePath) => {
     sessionsDb.createAppSession('effort-session', 'codex', workspacePath);

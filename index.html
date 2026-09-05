@@ -12,7 +12,7 @@
 
     <!-- Launch splash: pure inline HTML/CSS so it paints before the JS bundle
          downloads. Covers the WebView blank screen while the front-end assets
-         load (especially on a first connection), and is removed by main.jsx
+         load (especially on a first connection), and is removed by the main.tsx
          once React has mounted. -->
     <style>
       #app-splash {
@@ -83,7 +83,7 @@
       <div class="splash-sub" id="splash-sub">首次连接需下载前端资源，请稍候</div>
     </div>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <script type="module" src="/src/main.tsx"></script>
 
     <!-- 在启动 splash 上显示当前连接的服务器名（Capacitor 原生存储，跨 origin 共享） -->
     <script>
@@ -100,7 +100,6 @@
           .catch(function () {});
       })();
     </script>
-
     <!-- Service Worker Registration -->
     <script>
       if ('serviceWorker' in navigator) {

@@ -161,7 +161,7 @@
     height: 100%;
     margin: 0;
     padding: 0;
-    /* The app shell is a fixed inset-0 container (see AppContent), so the
+    /* The app shell is a fixed inset-0 container (see ProjectWorkspaceShell), so the
        document itself never needs to scroll. Clipping it removes the phantom
        full-height page scrollbar and disables the browser pull-to-refresh
        gesture that reloads the page when scrolling up on mobile. */
@@ -735,7 +735,11 @@
       opacity: 1 !important;
     }
     
-    /* Only disable hover states for interactive elements, not containers */
+    /* Only disable hover states for interactive elements, not containers.
+       Do NOT reset `transform` here: on touch devices the sticky :hover
+       state would strip layout transforms such as -translate-y-1/2 used
+       to center absolutely-positioned buttons (e.g. the sidebar search
+       clear button), making them visibly jump out of alignment. */
     button:hover,
     [role="button"]:hover,
     .cursor-pointer:hover,
@@ -747,7 +751,6 @@
       background-color: inherit !important;
       color: inherit !important;
       opacity: inherit !important;
-      transform: inherit !important;
     }
     
     /* Force buttons to be immediately clickable */
@@ -823,12 +826,35 @@
     overflow-wrap: inherit;
   }
 
-  /* Give mobile tables enough room to preserve readable column widths. */
+  .markdown-table-scroll-hint {
+    display: none;
+  }
+
+  /* On phones, preserve table columns and make horizontal scrolling explicit. */
   @media screen and (max-width: 768px) {
     .chat-message .markdown-table {
       width: 100%;
       min-width: 36rem;
       max-width: none;
+    }
+
+    .chat-message .markdown-table th,
+    .chat-message .markdown-table td {
+      min-width: 8rem;
+    }
+
+    .chat-message .markdown-table th {
+      white-space: nowrap;
+    }
+
+    .chat-message .markdown-table-scroll-hint {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.25rem;
+      padding: 0.375rem 0.5rem 0;
+      color: hsl(var(--muted-foreground));
+      font-size: 0.75rem;
     }
   }
 

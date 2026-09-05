@@ -35,6 +35,12 @@ type ActiveCodexSession = {
 
 const activeCodexSessions = new Map<string, ActiveCodexSession>();
 
+/**
+ * Item types whose in-flight updates are worth showing. These are the ones a
+ * user waits on — a shell command's output, an MCP call, and the running plan.
+ */
+const PROGRESSIVE_CODEX_ITEM_TYPES = new Set(['command_execution', 'mcp_tool_call', 'todo_list']);
+
 function readUsageNumber(value: unknown): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -85,13 +91,16 @@ export function transformCodexEvent(event: AnyRecord): AnyRecord {
         return { type: event.type, item: null };
       }
 
-      // Transform based on item type
+      // `itemId` is the SDK's stable per-item id. Carrying it through means an
+      // in-progress row and its later completion normalize to the same message
+      // id, so the client updates one transcript entry instead of appending a
+      // new one for every progress tick.
       switch (item.type) {
         case 'agent_message':
           return {
             type: 'item',
             itemType: 'agent_message',
-            id: item.id,
+            itemId: item.id,
             message: {
               role: 'assistant',
               content: item.text
@@ -102,7 +111,7 @@ export function transformCodexEvent(event: AnyRecord): AnyRecord {
           return {
             type: 'item',
             itemType: 'reasoning',
-            id: item.id,
+            itemId: item.id,
             message: {
               role: 'assistant',
               content: item.text,
@@ -114,7 +123,7 @@ export function transformCodexEvent(event: AnyRecord): AnyRecord {
           return {
             type: 'item',
             itemType: 'command_execution',
-            id: item.id,
+            itemId: item.id,
             command: item.command,
             output: item.aggregated_output,
             exitCode: item.exit_code,
@@ -125,7 +134,7 @@ export function transformCodexEvent(event: AnyRecord): AnyRecord {
           return {
             type: 'item',
             itemType: 'file_change',
-            id: item.id,
+            itemId: item.id,
             changes: item.changes,
             status: item.status
           };
@@ -134,7 +143,7 @@ export function transformCodexEvent(event: AnyRecord): AnyRecord {
           return {
             type: 'item',
             itemType: 'mcp_tool_call',
-            id: item.id,
+            itemId: item.id,
             server: item.server,
             tool: item.tool,
             arguments: item.arguments,
@@ -147,7 +156,7 @@ export function transformCodexEvent(event: AnyRecord): AnyRecord {
           return {
             type: 'item',
             itemType: 'web_search',
-            id: item.id,
+            itemId: item.id,
             query: item.query
           };
 
@@ -155,7 +164,7 @@ export function transformCodexEvent(event: AnyRecord): AnyRecord {
           return {
             type: 'item',
             itemType: 'todo_list',
-            id: item.id,
+            itemId: item.id,
             items: item.items,
             eventType: event.type,
           };
@@ -164,7 +173,7 @@ export function transformCodexEvent(event: AnyRecord): AnyRecord {
           return {
             type: 'item',
             itemType: 'error',
-            id: item.id,
+            itemId: item.id,
             message: {
               role: 'error',
               content: item.message
@@ -175,7 +184,7 @@ export function transformCodexEvent(event: AnyRecord): AnyRecord {
           return {
             type: 'item',
             itemType: item.type,
-            id: item.id,
+            itemId: item.id,
             item: item
           };
       }
@@ -291,6 +300,12 @@ export async function queryCodex(
   let capturedSessionId = providerSessionId;
   let sessionCreatedSent = false;
   let terminalFailure = null;
+  // Codex surfaces API failures as streamed error items/turn.failed events, and
+  // then the SDK also throws "Codex Exec exited with code N: <stderr>" once the
+  // process dies. Showing both means the rendered error is followed by a raw
+  // stderr dump of unrelated CLI log lines, so the thrown wrapper is dropped
+  // when the stream already reported the failure.
+  let errorSurfaced = false;
   const abortController = new AbortController();
   // Session-map key: the app session id when the caller supplied one, else
   // the provider-native thread id once captured (legacy/direct API callers).
@@ -371,7 +386,22 @@ export async function queryCodex(
         }
       }
 
+      // Progress events used to be dropped, so a long shell command or a
+      // growing plan showed nothing until it finished. They are forwarded now;
+      // every item carries a stable id, so the client replaces the row it
+      // already has rather than stacking a new one per tick. Text items are
+      // still skipped mid-flight because assistant prose arrives through the
+      // separate streaming path.
+      if (
+        (event.type === 'item.started' || event.type === 'item.updated')
+        && !PROGRESSIVE_CODEX_ITEM_TYPES.has(event.item?.type)
+      ) {
+        continue;
+      }
       const transformed = transformCodexEvent(event);
+      if (transformed.type === 'error' || transformed.itemType === 'error') {
+        errorSurfaced = true;
+      }
 
       // Normalize the transformed event into NormalizedMessage(s) via adapter
       const normalizedMsgs = context.normalizeMessage(transformed, capturedSessionId || sessionId || null);
@@ -381,6 +411,7 @@ export async function queryCodex(
 
       if (event.type === 'turn.failed' && !terminalFailure) {
         terminalFailure = event.error || new Error('Turn failed');
+        errorSurfaced = true;
         // Notifications are app-facing, so they carry the app session id.
         notifyRunFailed({
           userId: ws?.userId || null,
@@ -432,13 +463,15 @@ export async function queryCodex(
     if (!wasAborted) {
       console.error('[Codex] Error:', error);
 
-      // Check if Codex SDK is available for a clearer error message
-      const installed = await context.isProviderInstalled();
-      const errorContent = !installed
-        ? 'Codex CLI is not configured. Please set up authentication first.'
-        : error.message;
+      if (!errorSurfaced) {
+        // Check if Codex SDK is available for a clearer error message
+        const installed = await context.isProviderInstalled();
+        const errorContent = !installed
+          ? 'Codex CLI is not configured. Please set up authentication first.'
+          : error.message;
 
-      sendMessage(ws, createNormalizedMessage({ kind: 'error', content: errorContent, sessionId: capturedSessionId || sessionId || null, provider: 'codex' }));
+        sendMessage(ws, createNormalizedMessage({ kind: 'error', content: errorContent, sessionId: capturedSessionId || sessionId || null, provider: 'codex' }));
+      }
       sendMessage(ws, createCompleteMessage({
         provider: 'codex',
         sessionId: capturedSessionId || sessionId || null,
