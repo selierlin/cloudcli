@@ -21,6 +21,8 @@ import enChat from '@/modules/i18n/locales/en/chat.json';
 import enCodeEditor from '@/modules/i18n/locales/en/codeEditor.json';
 // oxlint-disable-next-line importx/order
 import enTasks from '@/modules/i18n/locales/en/tasks.json';
+// oxlint-disable-next-line importx/order
+import enBrowser from '@/modules/i18n/locales/en/browser.json';
 
 import frCommon from '@/modules/i18n/locales/fr/common.json';
 import frSettings from '@/modules/i18n/locales/fr/settings.json';
@@ -30,6 +32,8 @@ import frChat from '@/modules/i18n/locales/fr/chat.json';
 import frCodeEditor from '@/modules/i18n/locales/fr/codeEditor.json';
 // oxlint-disable-next-line importx/order
 import frTasks from '@/modules/i18n/locales/fr/tasks.json';
+// oxlint-disable-next-line importx/order
+import frBrowser from '@/modules/i18n/locales/fr/browser.json';
 
 import esCommon from '@/modules/i18n/locales/es/common.json';
 import esSettings from '@/modules/i18n/locales/es/settings.json';
@@ -39,6 +43,8 @@ import esChat from '@/modules/i18n/locales/es/chat.json';
 import esCodeEditor from '@/modules/i18n/locales/es/codeEditor.json';
 // oxlint-disable-next-line importx/order
 import esTasks from '@/modules/i18n/locales/es/tasks.json';
+// oxlint-disable-next-line importx/order
+import esBrowser from '@/modules/i18n/locales/es/browser.json';
 
 import koCommon from '@/modules/i18n/locales/ko/common.json';
 import koSettings from '@/modules/i18n/locales/ko/settings.json';
@@ -48,6 +54,8 @@ import koChat from '@/modules/i18n/locales/ko/chat.json';
 import koCodeEditor from '@/modules/i18n/locales/ko/codeEditor.json';
 // oxlint-disable-next-line importx/order
 import koTasks from '@/modules/i18n/locales/ko/tasks.json';
+// oxlint-disable-next-line importx/order
+import koBrowser from '@/modules/i18n/locales/ko/browser.json';
 
 import zhCommon from '@/modules/i18n/locales/zh-CN/common.json';
 import zhSettings from '@/modules/i18n/locales/zh-CN/settings.json';
@@ -56,6 +64,8 @@ import zhSidebar from '@/modules/i18n/locales/zh-CN/sidebar.json';
 import zhChat from '@/modules/i18n/locales/zh-CN/chat.json';
 import zhCodeEditor from '@/modules/i18n/locales/zh-CN/codeEditor.json';
 import zhTasks from '@/modules/i18n/locales/zh-CN/tasks.json';
+// oxlint-disable-next-line importx/order
+import zhBrowser from '@/modules/i18n/locales/zh-CN/browser.json';
 import jaCommon from '@/modules/i18n/locales/ja/common.json';
 import jaSettings from '@/modules/i18n/locales/ja/settings.json';
 import jaAuth from '@/modules/i18n/locales/ja/auth.json';
@@ -64,6 +74,8 @@ import jaChat from '@/modules/i18n/locales/ja/chat.json';
 import jaCodeEditor from '@/modules/i18n/locales/ja/codeEditor.json';
 // oxlint-disable-next-line importx/order
 import jaTasks from '@/modules/i18n/locales/ja/tasks.json';
+// oxlint-disable-next-line importx/order
+import jaBrowser from '@/modules/i18n/locales/ja/browser.json';
 
 import ruCommon from '@/modules/i18n/locales/ru/common.json';
 import ruSettings from '@/modules/i18n/locales/ru/settings.json';
@@ -73,6 +85,8 @@ import ruChat from '@/modules/i18n/locales/ru/chat.json';
 import ruCodeEditor from '@/modules/i18n/locales/ru/codeEditor.json';
 // oxlint-disable-next-line importx/order
 import ruTasks from '@/modules/i18n/locales/ru/tasks.json';
+// oxlint-disable-next-line importx/order
+import ruBrowser from '@/modules/i18n/locales/ru/browser.json';
 
 import deCommon from '@/modules/i18n/locales/de/common.json';
 import deSettings from '@/modules/i18n/locales/de/settings.json';
@@ -82,6 +96,8 @@ import deChat from '@/modules/i18n/locales/de/chat.json';
 import deCodeEditor from '@/modules/i18n/locales/de/codeEditor.json';
 // oxlint-disable-next-line importx/order
 import deTasks from '@/modules/i18n/locales/de/tasks.json';
+// oxlint-disable-next-line importx/order
+import deBrowser from '@/modules/i18n/locales/de/browser.json';
 
 import trCommon from '@/modules/i18n/locales/tr/common.json';
 import trSettings from '@/modules/i18n/locales/tr/settings.json';
@@ -90,6 +106,8 @@ import trSidebar from '@/modules/i18n/locales/tr/sidebar.json';
 import trChat from '@/modules/i18n/locales/tr/chat.json';
 import trCodeEditor from '@/modules/i18n/locales/tr/codeEditor.json';
 import trTasks from '@/modules/i18n/locales/tr/tasks.json';
+// oxlint-disable-next-line importx/order
+import trBrowser from '@/modules/i18n/locales/tr/browser.json';
 import itCommon from '@/modules/i18n/locales/it/common.json';
 import itSettings from '@/modules/i18n/locales/it/settings.json';
 import itAuth from '@/modules/i18n/locales/it/auth.json';
@@ -98,6 +116,8 @@ import itChat from '@/modules/i18n/locales/it/chat.json';
 import itCodeEditor from '@/modules/i18n/locales/it/codeEditor.json';
 // oxlint-disable-next-line importx/order
 import itTasks from '@/modules/i18n/locales/it/tasks.json';
+// oxlint-disable-next-line importx/order
+import itBrowser from '@/modules/i18n/locales/it/browser.json';
 
 import zhTWCommon from '@/modules/i18n/locales/zh-TW/common.json';
 import zhTWSettings from '@/modules/i18n/locales/zh-TW/settings.json';
@@ -107,6 +127,8 @@ import zhTWChat from '@/modules/i18n/locales/zh-TW/chat.json';
 import zhTWCodeEditor from '@/modules/i18n/locales/zh-TW/codeEditor.json';
 // oxlint-disable-next-line importx/order
 import zhTWTasks from '@/modules/i18n/locales/zh-TW/tasks.json';
+// oxlint-disable-next-line importx/order
+import zhTWBrowser from '@/modules/i18n/locales/zh-TW/browser.json';
 
 // Import supported languages configuration
 import { languages } from '@/modules/i18n/languages';
@@ -142,6 +164,7 @@ i18n
         chat: enChat,
         codeEditor: enCodeEditor,
         tasks: enTasks,
+        browser: enBrowser,
       },
       fr: {
         common: frCommon,
@@ -151,6 +174,7 @@ i18n
         chat: frChat,
         codeEditor: frCodeEditor,
         tasks: frTasks,
+        browser: frBrowser,
       },
       es: {
         common: esCommon,
@@ -160,6 +184,7 @@ i18n
         chat: esChat,
         codeEditor: esCodeEditor,
         tasks: esTasks,
+        browser: esBrowser,
       },
       ko: {
         common: koCommon,
@@ -169,6 +194,7 @@ i18n
         chat: koChat,
         codeEditor: koCodeEditor,
         tasks: koTasks,
+        browser: koBrowser,
       },
       'zh-CN': {
         common: zhCommon,
@@ -178,6 +204,7 @@ i18n
         chat: zhChat,
         codeEditor: zhCodeEditor,
         tasks: zhTasks,
+        browser: zhBrowser,
       },
       ja: {
         common: jaCommon,
@@ -187,6 +214,7 @@ i18n
         chat: jaChat,
         codeEditor: jaCodeEditor,
         tasks: jaTasks,
+        browser: jaBrowser,
       },
       ru: {
         common: ruCommon,
@@ -196,6 +224,7 @@ i18n
         chat: ruChat,
         codeEditor: ruCodeEditor,
         tasks: ruTasks,
+        browser: ruBrowser,
       },
       de: {
         common: deCommon,
@@ -205,6 +234,7 @@ i18n
         chat: deChat,
         codeEditor: deCodeEditor,
         tasks: deTasks,
+        browser: deBrowser,
       },
       tr: {
         common: trCommon,
@@ -214,6 +244,7 @@ i18n
         chat: trChat,
         codeEditor: trCodeEditor,
         tasks: trTasks,
+        browser: trBrowser,
       },
       it: {
         common: itCommon,
@@ -223,6 +254,7 @@ i18n
         chat: itChat,
         codeEditor: itCodeEditor,
         tasks: itTasks,
+        browser: itBrowser,
       },
       'zh-TW': {
         common: zhTWCommon,
@@ -232,6 +264,7 @@ i18n
         chat: zhTWChat,
         codeEditor: zhTWCodeEditor,
         tasks: zhTWTasks,
+        browser: zhTWBrowser,
       },
     },
 
@@ -245,7 +278,7 @@ i18n
     debug: false,
 
     // Namespaces - load only what's needed
-    ns: ['common', 'settings', 'auth', 'sidebar', 'chat', 'codeEditor', 'tasks'],
+    ns: ['common', 'settings', 'auth', 'sidebar', 'chat', 'codeEditor', 'tasks', 'browser'],
     defaultNS: 'common',
 
     // Key separator for nested keys (default: '.')

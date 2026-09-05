@@ -1,0 +1,69 @@
+{
+  "title": "瀏覽器",
+  "subtitle": "監控由 AI 代理開啟的瀏覽器工作階段。",
+  "openSettings": "開啟瀏覽器設定",
+  "refresh": "重新整理瀏覽器工作階段",
+  "error": {
+    "load": "載入瀏覽器失敗",
+    "action": "瀏覽器操作失敗"
+  },
+  "runtime": {
+    "disabled": "已停用",
+    "ready": "就緒",
+    "installing": "正在安裝",
+    "setupRequired": "需要設定"
+  },
+  "empty": {
+    "title": "尚無瀏覽器工作階段",
+    "disabledTitle": "瀏覽器已停用",
+    "agentDescription": "當 AI 任務使用瀏覽器時，代理的瀏覽器工作階段會顯示在這裡。",
+    "disabledDescription": "在設定中啟用瀏覽器，以允許代理開啟受監控的瀏覽器工作階段。"
+  },
+  "install": {
+    "required": "需要設定執行階段",
+    "button": "安裝執行階段",
+    "installing": "正在安裝..."
+  },
+  "prompts": {
+    "heading": "提示詞",
+    "inspect": "使用瀏覽器檢查結帳流程，並回報任何損壞的 UI 狀態。",
+    "openInteract": "用瀏覽器開啟 <url>，與頁面互動，並總結每一步之後的變化。"
+  },
+  "screenshot": {
+    "waiting": "等待截圖",
+    "nextSnapshot": "下一個代理瀏覽器快照將在此顯示。"
+  },
+  "sessions": {
+    "title": "工作階段",
+    "active": "{{count}} 個進行中",
+    "total": "共 {{count}} 個",
+    "none": "沒有代理瀏覽器工作階段。",
+    "updated": "更新於 {{time}}",
+    "noPageLoaded": "尚未載入頁面",
+    "emptyBadge": "空",
+    "noneStatus": "無",
+    "selected": "已選取",
+    "status": "狀態",
+    "lastAction": "最後操作",
+    "profile": "設定檔",
+    "temporary": "暫時",
+    "stop": "停止",
+    "delete": "刪除",
+    "stopSession": "停止工作階段",
+    "deleteSession": "刪除工作階段",
+    "fullscreen": "全螢幕",
+    "close": "關閉",
+    "waiting": "等待中",
+    "fullscreenTitle": "瀏覽器工作階段",
+    "screenshotAlt": "瀏覽器工作階段截圖"
+  },
+  "time": {
+    "never": "從未",
+    "unknown": "未知",
+    "justNow": "剛剛",
+    "secondsAgo": "{{count}} 秒前",
+    "minutesAgo": "{{count}} 分鐘前",
+    "hoursAgo": "{{count}} 小時前",
+    "daysAgo": "{{count}} 天前"
+  }
+}

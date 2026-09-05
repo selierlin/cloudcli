@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Bot,
   Clock3,
@@ -13,6 +14,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import type { TFunction } from 'i18next';
 
 import { cn } from '@/shared/utils';
 import { Badge, Button } from '@/shared/ui';
@@ -57,24 +59,24 @@ type BrowserUsePanelProps = {
   onShowSettings?: (tab?: SettingsMainTab) => void;
 };
 
-function formatRelativeTime(value: string | null): string {
-  if (!value) return 'Never';
+function formatRelativeTime(t: TFunction, value: string | null): string {
+  if (!value) return t('time.never');
 
   const timestamp = Date.parse(value);
-  if (!Number.isFinite(timestamp)) return 'Unknown';
+  if (!Number.isFinite(timestamp)) return t('time.unknown');
 
   const elapsedSeconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
-  if (elapsedSeconds < 10) return 'Just now';
-  if (elapsedSeconds < 60) return `${elapsedSeconds}s ago`;
+  if (elapsedSeconds < 10) return t('time.justNow');
+  if (elapsedSeconds < 60) return t('time.secondsAgo', { count: elapsedSeconds });
   const elapsedMinutes = Math.round(elapsedSeconds / 60);
-  if (elapsedMinutes < 60) return `${elapsedMinutes}m ago`;
+  if (elapsedMinutes < 60) return t('time.minutesAgo', { count: elapsedMinutes });
   const elapsedHours = Math.round(elapsedMinutes / 60);
-  if (elapsedHours < 24) return `${elapsedHours}h ago`;
-  return `${Math.round(elapsedHours / 24)}d ago`;
+  if (elapsedHours < 24) return t('time.hoursAgo', { count: elapsedHours });
+  return t('time.daysAgo', { count: Math.round(elapsedHours / 24) });
 }
 
-function getDomain(url: string | null): string {
-  if (!url) return 'No page loaded';
+function getDomain(t: TFunction, url: string | null): string {
+  if (!url) return t('sessions.noPageLoaded');
 
   try {
     return new URL(url).hostname;
@@ -83,8 +85,8 @@ function getDomain(url: string | null): string {
   }
 }
 
-function formatAction(action: string | null): string {
-  if (!action) return 'Waiting';
+function formatAction(t: TFunction, action: string | null): string {
+  if (!action) return t('sessions.waiting');
   return action.replace(/_/g, ' ').replace(/:/g, ': ');
 }
 
@@ -111,13 +113,10 @@ function getStatusDot(status: BrowserUseSession['status']): string {
   return 'bg-border';
 }
 
-const PROMPTS = [
-  'Use Browser to inspect the checkout flow and report any broken UI states.',
-  'Open <url> with Browser, interact with the page, and summarize what changed after each step.',
-];
-
 /** Used by the project-workspace module to render the Browser tab's session list and live preview. */
 export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUsePanelProps) {
+  const { t } = useTranslation('browser');
+
   const [status, setStatus] = useState<BrowserUseStatus | null>(null);
   const [sessions, setSessions] = useState<BrowserUseSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -135,12 +134,12 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
   const activeSessions = sessions.filter((session) => session.status === 'ready');
   const needsBrowserBinaries = Boolean(status?.enabled && (!status.playwrightInstalled || !status.chromiumInstalled));
   const runtimeLabel = !status?.enabled
-    ? 'Disabled'
+    ? t('runtime.disabled')
     : status.available
-      ? 'Ready'
+      ? t('runtime.ready')
       : status.installInProgress || isInstalling
-        ? 'Installing'
-        : 'Setup required';
+        ? t('runtime.installing')
+        : t('runtime.setupRequired');
 
   const cursorStyle = selectedSession?.cursor && selectedSession.viewport
     ? {
@@ -168,11 +167,11 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
       ));
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load Browser');
+      setError(err instanceof Error ? err.message : t('error.load'));
     } finally {
       setIsRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!isVisible) return;
@@ -186,11 +185,11 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
       await action();
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Browser action failed');
+      setError(err instanceof Error ? err.message : t('error.action'));
     } finally {
       setIsBusy(false);
     }
-  }, [refresh]);
+  }, [refresh, t]);
 
   const stopSession = () => runAction(async () => {
     if (!selectedSession) return;
@@ -233,9 +232,9 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2">
               <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', getStatusDot(session.status))} />
-              <div className="truncate text-sm font-medium">{session.title || getDomain(session.url)}</div>
+              <div className="truncate text-sm font-medium">{session.title || getDomain(t, session.url)}</div>
             </div>
-            <div className="mt-1 truncate pl-3.5 text-xs text-muted-foreground">{getDomain(session.url)}</div>
+            <div className="mt-1 truncate pl-3.5 text-xs text-muted-foreground">{getDomain(t, session.url)}</div>
           </div>
           <Badge variant="outline" className="shrink-0 border-border bg-background text-[10px] text-muted-foreground">
             {session.status}
@@ -243,8 +242,8 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
         </div>
         <div className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <Clock3 className="h-3 w-3" />
-          <span>{formatRelativeTime(session.updatedAt)}</span>
-          <span className="truncate">- {formatAction(session.lastAction)}</span>
+          <span>{formatRelativeTime(t, session.updatedAt)}</span>
+          <span className="truncate">- {formatAction(t, session.lastAction)}</span>
         </div>
       </button>
     );
@@ -259,19 +258,19 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
           </div>
           <div className="min-w-0">
             <div className="text-sm font-semibold text-foreground">
-              {status?.enabled ? 'No browser sessions yet' : 'Browser is disabled'}
+              {status?.enabled ? t('empty.title') : t('empty.disabledTitle')}
             </div>
             <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">
               {status?.enabled
-                ? 'Agent browser sessions appear here while an AI task is using Browser.'
-                : 'Enable Browser in settings to let agents open monitored browser sessions.'}
+                ? t('empty.agentDescription')
+                : t('empty.disabledDescription')}
             </p>
           </div>
         </div>
 
         {needsBrowserBinaries && (
           <div className="mt-4 rounded-md border border-border bg-muted/30 p-3">
-            <div className="text-sm font-medium text-foreground">Runtime setup required</div>
+            <div className="text-sm font-medium text-foreground">{t('install.required')}</div>
             <p className="mt-1 text-sm text-muted-foreground">{status?.message}</p>
             <Button
               type="button"
@@ -285,17 +284,17 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
               ) : (
                 <Download className="h-4 w-4" />
               )}
-              {isInstalling || status?.installInProgress ? 'Installing...' : 'Install Runtime'}
+              {isInstalling || status?.installInProgress ? t('install.installing') : t('install.button')}
             </Button>
           </div>
         )}
 
         <div className="mt-5 grid gap-2 sm:grid-cols-2">
-          {PROMPTS.map((prompt) => (
+          {[t('prompts.inspect'), t('prompts.openInteract')].map((prompt) => (
             <div key={prompt} className="rounded-md border border-border/70 bg-background/70 p-3">
               <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 <Bot className="h-3.5 w-3.5" />
-                Prompt
+                {t('prompts.heading')}
               </div>
               <p className="text-sm leading-6 text-foreground">{prompt}</p>
             </div>
@@ -311,7 +310,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
         <div className="relative inline-block max-h-full">
           <img
             src={selectedSession.screenshotDataUrl}
-            alt="Browser session screenshot"
+            alt={t('sessions.screenshotAlt')}
             className={fullscreen ? 'block max-h-[80vh] w-auto max-w-full object-contain' : 'block max-h-[72vh] w-auto max-w-full object-contain'}
           />
           {cursorStyle && (
@@ -326,8 +325,8 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
       ) : (
         <div className="px-6 text-center">
           <MonitorPlay className="mx-auto h-9 w-9 text-neutral-500" />
-          <div className="mt-3 text-sm font-medium text-neutral-100">{selectedSession?.message || 'Waiting for screenshot'}</div>
-          <p className="mt-1 text-xs text-neutral-400">The next agent browser snapshot will render here.</p>
+          <div className="mt-3 text-sm font-medium text-neutral-100">{selectedSession?.message || t('screenshot.waiting')}</div>
+          <p className="mt-1 text-xs text-neutral-400">{t('screenshot.nextSnapshot')}</p>
         </div>
       )}
     </div>
@@ -339,12 +338,12 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <MonitorPlay className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-semibold text-foreground">Browser</h3>
+            <h3 className="text-sm font-semibold text-foreground">{t('title')}</h3>
             <Badge variant="outline" className={cn('text-[10px]', getRuntimeTone(status, isInstalling))}>
               {runtimeLabel}
             </Badge>
           </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">Monitor browser sessions opened by AI agents.</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t('subtitle')}</p>
         </div>
         <div className="flex items-center gap-1.5">
           {onShowSettings && (
@@ -353,8 +352,8 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
               size="sm"
               className="h-7 w-7 p-0"
               onClick={() => onShowSettings('browser')}
-              title="Open Browser settings"
-              aria-label="Open Browser settings"
+              title={t('openSettings')}
+              aria-label={t('openSettings')}
             >
               <Settings className="h-3.5 w-3.5" />
             </Button>
@@ -365,8 +364,8 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
             className="h-7 w-7 p-0"
             onClick={() => void refresh()}
             disabled={isRefreshing || isBusy}
-            title="Refresh browser sessions"
-            aria-label="Refresh browser sessions"
+            title={t('refresh')}
+            aria-label={t('refresh')}
           >
             <RefreshCw className={cn('h-3.5 w-3.5', isRefreshing && 'animate-spin')} />
           </Button>
@@ -396,7 +395,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
               >
                 <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', getStatusDot(session.status))} />
                 <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
-                  {session.title || getDomain(session.url)}
+                  {session.title || getDomain(t, session.url)}
                 </span>
               </button>
             ))}
@@ -408,12 +407,12 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
         <main className="flex min-h-0 flex-col overflow-hidden">
           <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground">
             <div className="min-w-0 truncate">
-              {activeSessions.length} active
+              {t('sessions.active', { count: activeSessions.length })}
               <span className="px-1.5">/</span>
-              {sessions.length} total
+              {t('sessions.total', { count: sessions.length })}
             </div>
             <div className="min-w-0 truncate">
-              Updated {formatRelativeTime(selectedSession?.updatedAt || null)}
+              {t('sessions.updated', { time: formatRelativeTime(t, selectedSession?.updatedAt || null) })}
             </div>
           </div>
 
@@ -424,27 +423,27 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
               <div className="mx-auto flex min-h-[500px] max-w-7xl flex-col overflow-hidden rounded-md border border-border bg-background shadow-sm">
                 <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-3 py-2">
                   <Badge variant="outline" className={selectedSession ? cn('text-[10px]', getStatusTone(selectedSession.status)) : 'text-[10px]'}>
-                    {selectedSession?.status || 'empty'}
+                    {selectedSession?.status || t('sessions.emptyBadge')}
                   </Badge>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium text-foreground">
-                      {selectedSession?.title || getDomain(selectedSession?.url || null)}
+                      {selectedSession?.title || getDomain(t, selectedSession?.url || null)}
                     </div>
                     <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
                       <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{selectedSession?.url || 'No page loaded'}</span>
+                      <span className="truncate">{selectedSession?.url || t('sessions.noPageLoaded')}</span>
                     </div>
                   </div>
                   <div className="hidden text-xs text-muted-foreground md:block">
-                    {formatAction(selectedSession?.lastAction || null)}
+                    {formatAction(t, selectedSession?.lastAction || null)}
                   </div>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setIsFullscreen(true)} disabled={!selectedSession?.screenshotDataUrl} title="Full screen" aria-label="Full screen">
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setIsFullscreen(true)} disabled={!selectedSession?.screenshotDataUrl} title={t('sessions.fullscreen')} aria-label={t('sessions.fullscreen')}>
                     <Expand className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 lg:hidden" onClick={stopSession} disabled={isBusy || !selectedSession || selectedSession.status !== 'ready'} title="Stop session" aria-label="Stop session">
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 lg:hidden" onClick={stopSession} disabled={isBusy || !selectedSession || selectedSession.status !== 'ready'} title={t('sessions.stopSession')} aria-label={t('sessions.stopSession')}>
                     <Square className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 lg:hidden" onClick={deleteSession} disabled={isBusy || !selectedSession} title="Delete session" aria-label="Delete session">
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 lg:hidden" onClick={deleteSession} disabled={isBusy || !selectedSession} title={t('sessions.deleteSession')} aria-label={t('sessions.deleteSession')}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -458,10 +457,10 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
           <div className="border-b border-border/60 px-4 py-3">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <div className="text-sm font-semibold text-foreground">Sessions</div>
-                <div className="mt-0.5 text-xs text-muted-foreground">{sessions.length} total</div>
+                <div className="text-sm font-semibold text-foreground">{t('sessions.title')}</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">{t('sessions.total', { count: sessions.length })}</div>
               </div>
-              <Badge variant="outline" className="text-[10px]">{activeSessions.length} active</Badge>
+              <Badge variant="outline" className="text-[10px]">{t('sessions.active', { count: activeSessions.length })}</Badge>
             </div>
           </div>
 
@@ -470,7 +469,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
               <div className="space-y-2">{sessions.map(renderSessionItem)}</div>
             ) : (
               <div className="rounded-md border border-dashed border-border/70 px-3 py-8 text-center text-xs text-muted-foreground">
-                No agent browser sessions.
+                {t('sessions.none')}
               </div>
             )}
           </div>
@@ -479,30 +478,30 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
             <div className="rounded-md border border-border/70 bg-muted/30 p-3">
               <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 <Bot className="h-3.5 w-3.5" />
-                Selected
+                {t('sessions.selected')}
               </div>
               <div className="mt-3 space-y-2 text-xs text-muted-foreground">
                 <div className="flex items-center justify-between gap-3">
-                  <span>Status</span>
-                  <span className="font-medium text-foreground">{selectedSession?.status || 'None'}</span>
+                  <span>{t('sessions.status')}</span>
+                  <span className="font-medium text-foreground">{selectedSession?.status || t('sessions.noneStatus')}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <span>Last action</span>
-                  <span className="truncate font-medium text-foreground">{formatAction(selectedSession?.lastAction || null)}</span>
+                  <span>{t('sessions.lastAction')}</span>
+                  <span className="truncate font-medium text-foreground">{formatAction(t, selectedSession?.lastAction || null)}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <span>Profile</span>
-                  <span className="truncate font-medium text-foreground">{selectedSession?.profileName || 'Temporary'}</span>
+                  <span>{t('sessions.profile')}</span>
+                  <span className="truncate font-medium text-foreground">{selectedSession?.profileName || t('sessions.temporary')}</span>
                 </div>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <Button variant="outline" size="sm" onClick={stopSession} disabled={isBusy || !selectedSession || selectedSession.status !== 'ready'}>
                   <Square className="h-4 w-4" />
-                  Stop
+                  {t('sessions.stop')}
                 </Button>
                 <Button variant="outline" size="sm" onClick={deleteSession} disabled={isBusy || !selectedSession}>
                   <Trash2 className="h-4 w-4" />
-                  Delete
+                  {t('sessions.delete')}
                 </Button>
               </div>
             </div>
@@ -514,10 +513,10 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
         <div className="fixed inset-0 z-50 bg-black/90 p-6">
           <div className="flex h-full flex-col rounded-md border border-white/10 bg-black">
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 text-sm text-white/80">
-              <div className="min-w-0 truncate">{selectedSession.title || selectedSession.url || 'Browser session'}</div>
+              <div className="min-w-0 truncate">{selectedSession.title || selectedSession.url || t('sessions.fullscreenTitle')}</div>
               <Button variant="outline" size="sm" onClick={() => setIsFullscreen(false)}>
                 <X className="h-4 w-4" />
-                Close
+                {t('sessions.close')}
               </Button>
             </div>
             {renderBrowserSurface(true)}
