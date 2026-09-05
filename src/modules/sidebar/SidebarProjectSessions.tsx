@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button } from '@/shared/ui';
+import { cn } from '@/shared/utils';
 import type { LLMProvider, Project, ProjectSession, SessionWithProvider } from '@/shared/types';
 import SidebarSessionItem from '@/modules/sidebar/SidebarSessionItem';
 import SidebarBatchSessionActions from '@/modules/sidebar/SidebarBatchSessionActions';
@@ -152,11 +153,14 @@ export default function SidebarProjectSessions({
     });
   };
 
-  if (!isExpanded) {
-    return null;
-  }
-
   return (
+    <div
+      className={cn(
+        'grid transition-[grid-template-rows] duration-200 ease-out',
+        isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+      )}
+    >
+    <div className="overflow-hidden">
     <div className="ml-3 space-y-1 border-l border-border pl-3">
       {isCompact ? (
         <div className="grid grid-cols-2 gap-1 px-3 pb-1 pt-1">
@@ -267,6 +271,8 @@ export default function SidebarProjectSessions({
           )}
         </>
       )}
+    </div>
+    </div>
     </div>
   );
 }

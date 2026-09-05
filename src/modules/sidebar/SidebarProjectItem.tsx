@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef } from 'react';
-import { Check, ChevronDown, ChevronRight, Edit3, Star, Trash2, X } from 'lucide-react';
+import { Check, ChevronRight, Edit3, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button } from '@/shared/ui';
@@ -279,11 +279,10 @@ function SidebarProjectItem({
                     </button>
 
                     <div className="flex h-6 w-6 items-center justify-center rounded-md bg-muted/30">
-                      {isExpanded ? (
-                        <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                      )}
+                      <ChevronRight className={cn(
+                        'h-3 w-3 text-muted-foreground transition-transform duration-200',
+                        isExpanded && 'rotate-90',
+                      )} />
                     </div>
                   </>
                 )}
@@ -414,11 +413,10 @@ function SidebarProjectItem({
                 >
                   <Trash2 className="h-3 w-3 text-red-600 dark:text-red-400" />
                 </div>
-                {isExpanded ? (
-                  <ChevronDown className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
-                )}
+                <ChevronRight className={cn(
+                  'h-4 w-4 text-muted-foreground transition-all duration-200 group-hover:text-foreground',
+                  isExpanded && 'rotate-90',
+                )} />
               </>
             )}
           </div>
