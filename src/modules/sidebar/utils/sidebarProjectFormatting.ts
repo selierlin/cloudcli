@@ -154,6 +154,33 @@ export const sortProjects = (
   return byName;
 };
 
+/** True when one project's display name or path contains the given pre-normalized search text. */
+export const projectMatchesNameOrPath = (project: Project, normalizedSearch: string): boolean => {
+  const displayName = (project.displayName || project.projectId).toLowerCase();
+  // `project.path`/`fullPath` is the most useful search target now that the
+  // folder-derived name is gone; fall back to displayName above.
+  const searchPath = (project.path || project.fullPath || '').toLowerCase();
+  return displayName.includes(normalizedSearch) || searchPath.includes(normalizedSearch);
+};
+
+/**
+ * True when one loaded session's title or provider contains the given
+ * pre-normalized (lowercased) search text. Only the already-loaded session
+ * pages participate; transcripts are not searched.
+ */
+export const sessionMatchesSearchFilter = (
+  session: SessionWithProvider,
+  normalizedSearch: string,
+): boolean => {
+  if (!normalizedSearch) {
+    return false;
+  }
+
+  const summary = session.summary || session.name || '';
+  return summary.toLowerCase().includes(normalizedSearch)
+    || getSessionProvider(session).toLowerCase().includes(normalizedSearch);
+};
+
 export const filterProjects = (projects: Project[], searchFilter: string): Project[] => {
   const normalizedSearch = searchFilter.trim().toLowerCase();
   if (!normalizedSearch) {
@@ -161,12 +188,33 @@ export const filterProjects = (projects: Project[], searchFilter: string): Proje
   }
 
   return projects.filter((project) => {
-    const displayName = (project.displayName || project.projectId).toLowerCase();
-    // `project.path`/`fullPath` is the most useful search target now that the
-    // folder-derived name is gone; fall back to displayName above.
-    const searchPath = (project.path || project.fullPath || '').toLowerCase();
-    return displayName.includes(normalizedSearch) || searchPath.includes(normalizedSearch);
+    if (projectMatchesNameOrPath(project, normalizedSearch)) {
+      return true;
+    }
+
+    // A title word or provider name (claude/codex/workbuddy, …) in any loaded
+    // session surfaces the owning project.
+    return getAllSessions(project).some((session) => sessionMatchesSearchFilter(session, normalizedSearch));
   });
+};
+
+/**
+ * Sessions of one project shown while a search is active. A project that
+ * matched by name/path keeps its full session list; one that survived through
+ * a session match shows only the matching sessions. With no query this returns
+ * the full list.
+ */
+export const filterSessionsForProject = (
+  project: Project,
+  projectMatchedByNameOrPath: boolean,
+  searchFilter: string,
+): SessionWithProvider[] => {
+  const normalizedSearch = searchFilter.trim().toLowerCase();
+  if (!normalizedSearch || projectMatchedByNameOrPath) {
+    return getAllSessions(project);
+  }
+
+  return getAllSessions(project).filter((session) => sessionMatchesSearchFilter(session, normalizedSearch));
 };
 
 export const getTaskIndicatorStatus = (

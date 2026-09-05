@@ -23,6 +23,7 @@ export default function SidebarProjectList({
   tasksEnabled,
   mcpServerStatus,
   getProjectSessions,
+  matchedSessionsByProjectId,
   onLoadMoreSessions,
   loadingMoreProjects,
   activeSessions,
@@ -95,7 +96,7 @@ export default function SidebarProjectList({
                 isStarred={isProjectStarred(project.projectId)}
                 isEditing={renamingProject !== null}
                 renameDraft={renamingProject?.draft ?? ''}
-                sessions={getProjectSessions(project)}
+                sessions={matchedSessionsByProjectId?.get(project.projectId) ?? getProjectSessions(project)}
                 initialSessionsLoaded={initialSessionsLoaded.has(project.projectId)}
                 isLoadingMoreSessions={loadingMoreProjects.has(project.projectId)}
                 currentTime={currentTime}
