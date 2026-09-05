@@ -71,6 +71,7 @@ function makeContext(
   return {
     resolveProviderSessionId: (sessionId) => providerSessionIds.get(sessionId ?? '') ?? null,
     resolveProviderConfigDir: (sessionId) => (sessionId && configDir ? configDir : null),
+    resolveSettingsFile: () => null,
     resolveResumeModel: async () => resumeModel,
     getProviderModels: async () => models,
     normalizeMessage: (raw, sessionId) => new WorkbuddySessionsProvider().normalizeMessage(raw, sessionId),

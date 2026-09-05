@@ -363,6 +363,13 @@ export const workbuddyRuntime: IProviderRuntime = {
         return;
       }
 
+      if (event.type === 'reasoning') {
+        for (const message of context.normalizeMessage(event, appSessionId)) {
+          writer.send(message);
+        }
+        return;
+      }
+
       if (event.type === 'function_call' || event.type === 'function_call_result') {
         for (const message of context.normalizeMessage(event, appSessionId)) {
           writer.send(message);
