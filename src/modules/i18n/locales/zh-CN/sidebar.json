@@ -222,6 +222,8 @@
     "collapseSessions": "收起会话",
     "expandAll": "全部展开",
     "collapseAll": "全部收起",
+    "sessionCount_one": "{{count}} 个会话",
+    "sessionCount_other": "{{count}} 个会话",
     "restore": "恢复会话",
     "deletePermanently": "永久删除",
     "loadingTitle": "正在加载归档...",

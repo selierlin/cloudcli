@@ -384,7 +384,7 @@ export default function SidebarHeader({
                 <button
                   onClick={onClearSearchFilter}
                   aria-label={t('tooltips.clearSearch')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 hover:bg-accent"
+                  className="absolute inset-y-0 right-1 my-auto flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent"
                 >
                   <X className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>
