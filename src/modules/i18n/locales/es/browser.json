@@ -1,0 +1,69 @@
+{
+  "title": "Browser",
+  "subtitle": "Monitor browser sessions opened by AI agents.",
+  "openSettings": "Open Browser settings",
+  "refresh": "Refresh browser sessions",
+  "error": {
+    "load": "Failed to load Browser",
+    "action": "Browser action failed"
+  },
+  "runtime": {
+    "disabled": "Disabled",
+    "ready": "Ready",
+    "installing": "Installing",
+    "setupRequired": "Setup required"
+  },
+  "empty": {
+    "title": "No browser sessions yet",
+    "disabledTitle": "Browser is disabled",
+    "agentDescription": "Agent browser sessions appear here while an AI task is using Browser.",
+    "disabledDescription": "Enable Browser in settings to let agents open monitored browser sessions."
+  },
+  "install": {
+    "required": "Runtime setup required",
+    "button": "Install Runtime",
+    "installing": "Installing..."
+  },
+  "prompts": {
+    "heading": "Prompt",
+    "inspect": "Use Browser to inspect the checkout flow and report any broken UI states.",
+    "openInteract": "Open <url> with Browser, interact with the page, and summarize what changed after each step."
+  },
+  "screenshot": {
+    "waiting": "Waiting for screenshot",
+    "nextSnapshot": "The next agent browser snapshot will render here."
+  },
+  "sessions": {
+    "title": "Sessions",
+    "active": "{{count}} active",
+    "total": "{{count}} total",
+    "none": "No agent browser sessions.",
+    "updated": "Updated {{time}}",
+    "noPageLoaded": "No page loaded",
+    "emptyBadge": "empty",
+    "noneStatus": "None",
+    "selected": "Selected",
+    "status": "Status",
+    "lastAction": "Last action",
+    "profile": "Profile",
+    "temporary": "Temporary",
+    "stop": "Stop",
+    "delete": "Delete",
+    "stopSession": "Stop session",
+    "deleteSession": "Delete session",
+    "fullscreen": "Full screen",
+    "close": "Close",
+    "waiting": "Waiting",
+    "fullscreenTitle": "Browser session",
+    "screenshotAlt": "Browser session screenshot"
+  },
+  "time": {
+    "never": "Never",
+    "unknown": "Unknown",
+    "justNow": "Just now",
+    "secondsAgo": "{{count}}s ago",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago",
+    "daysAgo": "{{count}}d ago"
+  }
+}
