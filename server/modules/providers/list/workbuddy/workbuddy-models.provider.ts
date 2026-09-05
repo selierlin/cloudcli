@@ -27,6 +27,12 @@ export const WORKBUDDY_PREDEFINED_MODELS: ProviderModelsDefinition = {
       description: '平衡效果与速度。自动为每个任务匹配最优模型，积分倍率随之浮动。',
     },
     {
+      value: 'hy4',
+      label: 'Hy4 preview',
+      description: '混元思考模型预览版，具有增强的推理能力。',
+      effort: { values: [{ value: 'low' }, { value: 'high' }], default: 'high' },
+    },
+    {
       value: 'hy3',
       label: 'Hy3',
       description: '混元思考模型，具有增强的推理能力。',
@@ -36,6 +42,15 @@ export const WORKBUDDY_PREDEFINED_MODELS: ProviderModelsDefinition = {
       value: 'glm-5.3',
       label: 'GLM-5.3',
       description: '能力均衡，适合日常使用。',
+      effort: {
+        values: [{ value: 'low' }, { value: 'high' }, { value: 'xhigh' }],
+        default: 'high',
+      },
+    },
+    {
+      value: 'glm-5.3-flash',
+      label: 'GLM-5.3-Flash',
+      description: 'GLM-5.3 快速版，低延迟，适合日常使用。',
       effort: {
         values: [{ value: 'low' }, { value: 'high' }, { value: 'xhigh' }],
         default: 'high',

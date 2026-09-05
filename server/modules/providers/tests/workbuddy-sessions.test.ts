@@ -293,3 +293,178 @@ test('normalizeMessage keeps cancelled tool results distinct from ordinary error
   assert.equal(message?.isError, true);
   assert.equal(message?.status, 'cancelled');
 });
+
+test('fetchHistory keeps tool rows timestamp-stable across repeated reads', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const engineSessionId = 'wb-transcript-tools';
+    const appSessionId = 'app-wb-tools';
+    await writeTranscript(sessionsRoot, cwd, engineSessionId, [
+      userMessage('list files', 1_700_000_000_000),
+      {
+        type: 'function_call',
+        id: 'fc-1',
+        callId: 'call-1',
+        name: 'Bash',
+        arguments: { command: 'ls' },
+        timestamp: 1_700_000_010_000,
+      },
+      {
+        type: 'function_call_result',
+        id: 'fcr-1',
+        callId: 'call-1',
+        status: 'completed',
+        output: { type: 'text', text: 'file-a' },
+        timestamp: 1_700_000_020_000,
+      },
+    ]);
+
+    sessionsDb.createAppSession(appSessionId, 'workbuddy', cwd, 'Tool rows');
+    sessionsDb.assignProviderSessionId(appSessionId, engineSessionId);
+
+    const provider = new WorkbuddySessionsProvider();
+    const firstRead = await provider.fetchHistory(appSessionId);
+    const secondRead = await provider.fetchHistory(appSessionId);
+
+    const firstToolRows = firstRead.messages.filter((message) => message.kind.startsWith('tool_'));
+    const secondToolRows = secondRead.messages.filter((message) => message.kind.startsWith('tool_'));
+
+    assert.equal(firstToolRows.length, 2);
+    // The frontend pagination only stitches older pages when repeated reads of
+    // the same transcript row produce identical timestamps/ids.
+    assert.deepEqual(
+      secondToolRows.map(({ id, kind, timestamp, toolId }) => ({ id, kind, timestamp, toolId })),
+      firstToolRows.map(({ id, kind, timestamp, toolId }) => ({ id, kind, timestamp, toolId })),
+    );
+    assert.equal(firstToolRows[0]?.timestamp, new Date(1_700_000_010_000).toISOString());
+    assert.equal(firstToolRows[1]?.timestamp, new Date(1_700_000_020_000).toISOString());
+  });
+});
+
+test('fetchHistory folds TaskCreate/TaskUpdate calls into one TodoList snapshot', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const engineSessionId = 'wb-task-tools';
+    const appSessionId = 'app-wb-task-tools';
+    const time = 1_700_000_000_000;
+    const taskCall = (id: string, callId: string, name: string, args: Record<string, unknown>, timestamp: number) => ({
+      type: 'function_call',
+      id,
+      callId,
+      name,
+      arguments: JSON.stringify(args),
+      timestamp,
+    });
+    const taskResult = (id: string, callId: string, name: string, outputText: string, timestamp: number) => ({
+      type: 'function_call_result',
+      id,
+      callId,
+      name,
+      status: 'completed',
+      output: { type: 'text', text: outputText },
+      timestamp,
+    });
+
+    await writeTranscript(sessionsRoot, cwd, engineSessionId, [
+      userMessage('按清单执行', time),
+      taskCall('fc-1', 'call-1', 'TaskCreate', { subject: '第一项', description: '描述一', activeForm: '做第一项' }, time + 100),
+      taskResult('fcr-1', 'call-1', 'TaskCreate', 'Task #1 created successfully: 第一项', time + 200),
+      taskCall('fc-2', 'call-2', 'TaskCreate', { subject: '第二项', description: '描述二', activeForm: '做第二项' }, time + 300),
+      taskResult('fcr-2', 'call-2', 'TaskCreate', 'Task #2 created successfully: 第二项', time + 400),
+      taskCall('fc-3', 'call-3', 'TaskUpdate', { status: 'in_progress', taskId: '1' }, time + 500),
+      taskResult('fcr-3', 'call-3', 'TaskUpdate', 'Updated task #1 status', time + 600),
+      taskCall('fc-4', 'call-4', 'TaskUpdate', { status: 'completed', taskId: '2' }, time + 700),
+      taskResult('fcr-4', 'call-4', 'TaskUpdate', 'Updated task #2 status', time + 800),
+    ]);
+
+    sessionsDb.createAppSession(appSessionId, 'workbuddy', cwd, 'Task tools');
+    sessionsDb.assignProviderSessionId(appSessionId, engineSessionId);
+
+    const result = await new WorkbuddySessionsProvider().fetchHistory(appSessionId);
+    const todoMessages = result.messages.filter((message) => message.toolName === 'TodoList');
+    const items = (todoMessages[0]?.toolInput as { items?: unknown[] } | undefined)?.items;
+
+    assert.equal(todoMessages.length, 1);
+    assert.deepEqual(items, [
+      { id: '1', content: '第一项', status: 'in_progress', activeForm: '做第一项' },
+      { id: '2', content: '第二项', status: 'completed', activeForm: '做第二项' },
+    ]);
+    assert.equal(
+      result.messages.some((message) => message.toolName === 'TaskCreate' || message.toolName === 'TaskUpdate'),
+      false,
+    );
+  });
+});
+
+test('fetchHistory restores image_blob_ref attachments as user images', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const blobPath = path.join(sessionsRoot, 'sample.png');
+    const blobBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+    await mkdir(sessionsRoot, { recursive: true });
+    await writeFile(blobPath, blobBytes);
+
+    const engineSessionId = 'wb-image';
+    const appSessionId = 'app-wb-image';
+    await writeTranscript(sessionsRoot, cwd, engineSessionId, [
+      {
+        type: 'message',
+        role: 'user',
+        timestamp: 1_700_000_000_000,
+        cwd: '/Users/test/project',
+        content: [
+          { type: 'input_text', text: '<user_query>看看这张图</user_query>' },
+          {
+            type: 'image_blob_ref',
+            blob_id: 'blob-1',
+            blob_path: blobPath,
+            mime: 'image/png',
+            size: blobBytes.length,
+            original_filename: 'sample.png',
+          },
+        ],
+      },
+    ]);
+
+    sessionsDb.createAppSession(appSessionId, 'workbuddy', cwd, 'Image');
+    sessionsDb.assignProviderSessionId(appSessionId, engineSessionId);
+
+    const result = await new WorkbuddySessionsProvider().fetchHistory(appSessionId);
+    const userRow = result.messages.find((message) => message.role === 'user');
+    const images = Array.isArray(userRow?.images) ? userRow.images : [];
+
+    assert.equal(userRow?.content, '看看这张图');
+    assert.equal(images.length, 1);
+    assert.equal(images[0]?.name, 'sample.png');
+    assert.equal(images[0]?.data, `data:image/png;base64,${blobBytes.toString('base64')}`);
+  });
+});
+
+test('fetchHistory maps top-level reasoning events to thinking', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const engineSessionId = 'wb-reasoning';
+    const appSessionId = 'app-wb-reasoning';
+    const time = 1_700_000_000_000;
+    await writeTranscript(sessionsRoot, cwd, engineSessionId, [
+      {
+        type: 'reasoning',
+        timestamp: time,
+        cwd: '/Users/test/project',
+        rawContent: [{ type: 'reasoning_text', text: '先想想方案' }],
+      },
+      {
+        type: 'message',
+        role: 'assistant',
+        timestamp: time + 100,
+        cwd: '/Users/test/project',
+        content: [{ type: 'output_text', text: '方案如下' }],
+      },
+    ]);
+
+    sessionsDb.createAppSession(appSessionId, 'workbuddy', cwd, 'Reasoning');
+    sessionsDb.assignProviderSessionId(appSessionId, engineSessionId);
+
+    const result = await new WorkbuddySessionsProvider().fetchHistory(appSessionId);
+    const thinking = result.messages.filter((message) => message.kind === 'thinking');
+
+    assert.equal(thinking.length, 1);
+    assert.equal(thinking[0]?.content, '先想想方案');
+  });
+});

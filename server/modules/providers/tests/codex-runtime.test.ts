@@ -21,7 +21,7 @@ test('Codex runtime preserves native item ids for lifecycle updates', () => {
   assert.deepEqual(transformed, {
     type: 'item',
     itemType: 'command_execution',
-    id: 'command-live-1',
+    itemId: 'command-live-1',
     command: 'npm test',
     output: 'running',
     exitCode: undefined,

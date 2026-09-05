@@ -1,0 +1,448 @@
+{
+  "codeBlock": {
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyCode": "Copy code"
+  },
+  "table": {
+    "scrollHint": "Swipe to view the full table"
+  },
+  "copyMessage": {
+    "copy": "Copy message",
+    "copied": "Message copied",
+    "selectFormat": "Select copy format",
+    "copyAsMarkdown": "Copy as markdown",
+    "copyAsText": "Copy as text"
+  },
+  "message": {
+    "branchFromHere": "Branch from this message"
+  },
+  "messageTypes": {
+    "user": "U",
+    "error": "Error",
+    "tool": "Tool",
+    "claude": "Claude",
+    "cursor": "Cursor",
+    "codex": "Codex",
+    "opencode": "OpenCode",
+    "dsh": "DeepSeek Harness",
+    "workbuddy": "WorkBuddy"
+  },
+  "tools": {
+    "settings": "Tool Settings",
+    "error": "Tool Error",
+    "result": "Tool Result",
+    "viewParams": "View input parameters",
+    "viewRawParams": "View raw parameters",
+    "viewDiff": "View edit diff for",
+    "creatingFile": "Creating new file:",
+    "updatingTodo": "Updating Todo List",
+    "read": "Read",
+    "readFile": "Read file",
+    "updateTodo": "Update todo list",
+    "readTodo": "Read todo list",
+    "searchResults": "results"
+  },
+  "search": {
+    "found": "Found {{count}} {{type}}",
+    "file": "file",
+    "files": "files",
+    "pattern": "pattern:",
+    "in": "in:"
+  },
+  "fileOperations": {
+    "updated": "File updated successfully",
+    "created": "File created successfully",
+    "written": "File written successfully",
+    "diff": "Diff",
+    "newFile": "New File",
+    "viewContent": "View file content",
+    "viewFullOutput": "View full output ({{count}} chars)",
+    "contentDisplayed": "The file content is displayed in the diff view above"
+  },
+  "thinking": {
+    "title": "Thinking...",
+    "emoji": "💭 Thinking..."
+  },
+  "json": {
+    "response": "JSON Response"
+  },
+  "permissions": {
+    "grant": "Grant permission for {{tool}}",
+    "added": "Permission added",
+    "addTo": "Adds {{entry}} to Allowed Tools.",
+    "retry": "Permission saved. Retry the request to use the tool.",
+    "error": "Unable to update permissions. Please try again.",
+    "openSettings": "Open settings"
+  },
+  "todo": {
+    "updated": "Todo list has been updated successfully",
+    "current": "Current Todo List"
+  },
+  "plan": {
+    "viewPlan": "📋 View implementation plan",
+    "title": "Implementation Plan"
+  },
+  "usageLimit": {
+    "resetAt": "Claude usage limit reached. Your limit will reset at **{{time}} {{timezone}}** - {{date}}"
+  },
+  "codex": {
+    "permissionMode": "Permission Mode",
+    "modes": {
+      "default": "Default Mode",
+      "auto": "Auto Mode",
+      "acceptEdits": "Accept Edits",
+      "bypassPermissions": "Bypass Permissions",
+      "plan": "Plan Mode"
+    },
+    "descriptions": {
+      "default": "Only trusted commands (ls, cat, grep, git status, etc.) run automatically. Other commands are skipped. Can write to workspace.",
+      "auto": "A model classifier decides per tool call whether to approve or deny. Hands-off, but safer than Bypass — denials still happen.",
+      "acceptEdits": "All commands run automatically within the workspace. Full auto mode with sandboxed execution.",
+      "bypassPermissions": "Full system access with no restrictions. All commands run automatically with full disk and network access. Use with caution.",
+      "plan": "Planning mode - no commands are executed"
+    },
+    "technicalDetails": "Technical details"
+  },
+  "voice": {
+    "input": "Voice input",
+    "stopRecording": "Stop recording",
+    "transcribing": "Transcribing…",
+    "speak": "Read aloud",
+    "stopSpeaking": "Stop",
+    "loading": "Loading…"
+  },
+  "input": {
+    "placeholder": "Type / for commands, @ for files, or ask {{provider}} anything...",
+    "placeholderDefault": "Ask anything...",
+    "disabled": "Input disabled",
+    "attachFiles": "Attach files",
+    "attachImages": "Attach images",
+    "send": "Send",
+    "stop": "Stop",
+    "hintText": {
+      "ctrlEnter": "Ctrl+Enter to send • Shift+Enter for new line • Tab to change modes • / for slash commands",
+      "enter": "Enter to send • Shift+Enter for new line • Tab to change modes • / for slash commands",
+      "queue": "Enter to queue your next message",
+      "updateQueued": "Enter to update queued message"
+    },
+    "clickToChangeMode": "Click to change permission mode (or press Tab in input)",
+    "showAllCommands": "Show all commands",
+    "clearInput": "Clear input",
+    "scrollToBottom": "Scroll to bottom",
+    "queue": {
+      "sendNext": "Queue next message",
+      "update": "Update queued message",
+      "label": "Queued",
+      "willSend": "Will send when this finishes",
+      "edit": "Edit queued message",
+      "delete": "Delete queued message"
+    }
+  },
+  "composer": {
+    "reasoning": "Reasoning",
+    "model": "Model",
+    "effortDefault": "Default",
+    "loadingModels": "Loading models…",
+    "modelMenu": "Select model and reasoning effort",
+    "permissionHeading": "How should {{provider}} actions be approved?",
+    "editing": {
+      "title": "Replacing an earlier message",
+      "filesNotReverted": "files the agent already changed are not reverted",
+      "cancel": "Cancel"
+    }
+  },
+  "commandMenu": {
+    "namespace": {
+      "frequent": "Frequently Used",
+      "builtin": "Built-in Commands",
+      "skill": "Skills",
+      "project": "Project Commands",
+      "user": "User Commands",
+      "other": "Other Commands"
+    },
+    "empty": "No commands available",
+    "aria": {
+      "availableCommands": "Available commands"
+    },
+    "builtin": {
+      "help": "Show help documentation for Claude Code",
+      "models": "View available models for the current provider",
+      "cost": "Display token usage information",
+      "memory": "Open CLAUDE.md memory file for editing",
+      "config": "Open settings and configuration",
+      "status": "Show system status and version information"
+    }
+  },
+  "providerSelection": {
+    "title": "Choose Your AI Assistant",
+    "description": "Pick a tool, then choose the model it is configured with",
+    "selectModel": "Select Model",
+    "chooseTool": "1 · Choose your tool",
+    "chooseModelStep": "2 · Choose a model",
+    "clickToChooseModel": "Click to choose a model",
+    "chooseModelForTool": "{{tool}} models",
+    "chooseModelDescription": "Models available in this tool's config",
+    "addModel": "Add model",
+    "manageModels": "Manage models",
+    "searchModels": "Search models...",
+    "noModelsFound": "No models found.",
+    "loadingModels": "Loading models…",
+    "modelSelectorTitle": "Model Selector",
+    "custom": "Custom",
+    "providerInfo": {
+      "anthropic": "by Anthropic",
+      "openai": "by OpenAI",
+      "cursorEditor": "AI Code Editor",
+      "google": "by Google",
+      "deepseek": "by DeepSeek"
+    },
+    "readyPrompt": {
+      "claude": "Ready to use Claude with {{model}}. Start typing your message below.",
+      "cursor": "Ready to use Cursor with {{model}}. Start typing your message below.",
+      "codex": "Ready to use Codex with {{model}}. Start typing your message below.",
+      "opencode": "Ready to use OpenCode with {{model}}. Start typing your message below.",
+      "default": "Select a provider above to begin",
+      "dsh": "Ready to use DeepSeek Harness with {{model}}. Start typing your message below.",
+      "workbuddy": "Ready to use WorkBuddy with {{model}}. Start typing your message below."
+    },
+    "pressToSearch": "Press <kbd>{{shortcut}}</kbd> to search sessions, files, and commits"
+  },
+  "commandResult": {
+    "title": "Command Result",
+    "common": {
+      "close": "Close",
+      "escCloses": "Esc closes the modal.",
+      "closeModalAria": "Close command result modal",
+      "unknown": "Unknown"
+    },
+    "help": {
+      "eyebrow": "Command center",
+      "title": "Help & Shortcuts",
+      "subtitle": "Search built-ins, syntax patterns, and command usage without leaving the chat.",
+      "filterPlaceholder": "Filter commands...",
+      "noDescription": "No description available.",
+      "noMatch": "No commands match that filter.",
+      "syntax": "Syntax",
+      "syntaxCommand": "/command arg1 arg2",
+      "syntaxArgs": "$ARGUMENTS passes all args.",
+      "syntaxPositional": "$1, $2 pass positional args.",
+      "syntaxFile": "@file includes file contents.",
+      "quickTip": "Quick tip",
+      "quickTipBody": "Type <code>/</code> in the composer to open the command palette, then use arrows and Enter to run a command.",
+      "builtin": "builtin",
+      "fallbackModels": "Browse available models for the active provider.",
+      "fallbackCost": "Review token usage for the active session.",
+      "fallbackStatus": "Inspect runtime, version, provider, and environment status.",
+      "fallbackMemory": "Open the project CLAUDE.md memory file.",
+      "fallbackConfig": "Open settings and configuration.",
+      "fallbackHelp": "Show command documentation and syntax."
+    },
+    "models": {
+      "eyebrow": "Model selection",
+      "title": "Choose a Model",
+      "subtitle": "Pick the model this provider should use.",
+      "activeModel": "Active model · {{provider}}",
+      "manageModels": "Manage models",
+      "searchPlaceholder": "Search {{provider}} models...",
+      "custom": "Custom",
+      "currentSelection": "Current selection",
+      "sessionModel": "Session model",
+      "pendingNext": "→ {{model}} next",
+      "noMatch": "No models match that search.",
+      "selectAria": "Select model {{model}}",
+      "sessionSavedNotice": "Your choice is saved for this session and becomes the default for new chats.",
+      "defaultSavedNotice": "Your choice becomes the default model for new chats.",
+      "sessionSetNotice": "This session now uses {{model}}.",
+      "defaultSetNotice": "Default {{provider}} model set to {{model}}.",
+      "changeFailed": "Unable to change the model right now."
+    },
+    "cost": {
+      "eyebrow": "Session telemetry",
+      "title": "Token Usage",
+      "subtitle": "Input, output, and total token counts for this session.",
+      "totalTokens": "Total tokens used",
+      "inputTokens": "Input tokens",
+      "outputTokens": "Output tokens",
+      "breakdown": "Breakdown",
+      "unavailable": "Unavailable",
+      "contextWindow": "Context window",
+      "provider": "Provider",
+      "model": "Model"
+    },
+    "status": {
+      "eyebrow": "Runtime health",
+      "title": "System Status",
+      "subtitle": "Version, provider, runtime, and environment details in one place.",
+      "package": "Package",
+      "version": "Version",
+      "uptime": "Uptime",
+      "provider": "Provider",
+      "model": "Model",
+      "nodejs": "Node.js",
+      "platform": "Platform",
+      "memory": "Memory",
+      "memoryValue": "{{mb}} MB RSS",
+      "runtimeOnline": "Runtime online",
+      "processResponding": "Process #{{pid}} is responding.",
+      "processStatus": "Process status is responding.",
+      "healthy": "Healthy"
+    }
+  },
+  "modelLibrary": {
+    "title": "Model library",
+    "description": "Add model IDs supported by your provider. Built-in models stay locked.",
+    "backToModels": "Back to models",
+    "addCustomModel": "Add a custom model",
+    "editCustomModel": "Edit custom model",
+    "idSentNote": "The ID is sent to {{provider}} exactly as written.",
+    "modelName": "Model name",
+    "modelNamePlaceholder": "e.g. GPT-5.5 Pro",
+    "modelId": "Model ID",
+    "modelIdPlaceholder": "e.g. gpt-5.5-pro",
+    "idHint": "Use the exact identifier accepted by the provider CLI. IDs cannot contain spaces.",
+    "enterBothError": "Enter both a model name and model ID.",
+    "noSpacesError": "Model IDs cannot contain spaces.",
+    "saveFailedError": "Unable to save this model.",
+    "deleteFailedError": "Unable to delete this model.",
+    "updatedNotice": "{{model}} was updated.",
+    "addedNotice": "{{model}} was added.",
+    "deletedNotice": "{{model}} was deleted.",
+    "saving": "Saving…",
+    "saveChanges": "Save changes",
+    "addModel": "Add model",
+    "yourModels": "Your models",
+    "storedInAuthDb": "Editable and stored in auth.db",
+    "noCustomModels": "No custom models yet",
+    "noCustomModelsHint": "Add one with the form and it will appear in every model picker.",
+    "deleteConfirm": "Delete this model from all pickers?",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "custom": "Custom",
+    "builtInModels": "Built-in models",
+    "maintainedByCloudCLI": "Maintained by CloudCLI and read-only",
+    "cancelEditingAria": "Cancel editing",
+    "editAria": "Edit {{model}}",
+    "deleteAria": "Delete {{model}}"
+  },
+  "session": {
+    "continue": {
+      "title": "Continue your conversation",
+      "description": "Ask questions about your code, request changes, or get help with development tasks"
+    },
+    "loading": {
+      "olderMessages": "Loading older messages...",
+      "sessionMessages": "Loading chat history..."
+    },
+    "messages": {
+      "showingOf": "Showing {{shown}} of {{total}} messages",
+      "scrollToLoad": "Scroll up to load more",
+      "showingLast": "Showing last {{count}} messages ({{total}} total)",
+      "loadEarlier": "Load earlier messages",
+      "loadAll": "Load all messages",
+      "loadingAll": "Loading all messages...",
+      "allLoaded": "All messages loaded",
+      "perfWarning": "All messages loaded — scrolling may be slower. Click \"Scroll to bottom\" to restore performance."
+    }
+  },
+  "shell": {
+    "selectProject": {
+      "title": "Select a Project",
+      "description": "Choose a project to open an interactive shell in that directory"
+    },
+    "status": {
+      "newSession": "New Session",
+      "initializing": "Initializing...",
+      "restarting": "Restarting..."
+    },
+    "actions": {
+      "disconnect": "Disconnect",
+      "disconnectTitle": "Disconnect from shell",
+      "restart": "Restart",
+      "restartTitle": "Restart Shell",
+      "connect": "Continue in Shell",
+      "connectTitle": "Connect to shell",
+      "bypass": "Bypass",
+      "bypassOnTitle": "Bypass permissions on — click to disable (restarts the CLI)",
+      "bypassOffTitle": "Bypass permissions off — click to enable (restarts the CLI)"
+    },
+    "loading": "Loading terminal...",
+    "connecting": "Connecting to shell...",
+    "startSession": "Start a new Claude session",
+    "resumeSession": "Resume session: {{displayName}}...",
+    "runCommand": "Run {{command}} in {{projectName}}",
+    "startCli": "Starting Claude CLI in {{projectName}}",
+    "defaultCommand": "command"
+  },
+  "claudeStatus": {
+    "actions": {
+      "thinking": "Thinking",
+      "processing": "Processing",
+      "analyzing": "Analyzing",
+      "working": "Working",
+      "computing": "Computing",
+      "reasoning": "Reasoning"
+    },
+    "state": {
+      "live": "Live",
+      "paused": "Paused"
+    },
+    "elapsed": {
+      "seconds": "{{count}}s",
+      "minutesSeconds": "{{minutes}}m {{seconds}}s",
+      "label": "{{time}} elapsed",
+      "startingNow": "Starting now"
+    },
+    "stop": "Stop",
+    "controls": {
+      "stopGeneration": "Stop Generation",
+      "pressEscToStop": "Press Esc anytime to stop"
+    },
+    "providers": {
+      "assistant": "Assistant"
+    }
+  },
+  "projectSelection": {
+    "startChatWithProvider": "Select a project to start chatting with {{provider}}"
+  },
+  "tasks": {
+    "nextTaskPrompt": "Start the next task"
+  },
+  "message": {
+    "editAndResend": "Edit and resend",
+    "forkFromHere": "Fork from here"
+  },
+  "export": {
+    "trigger": "Export conversation",
+    "heading": "Export as",
+    "untitled": "Conversation",
+    "html": {
+      "label": "Web page (.html)",
+      "description": "Self-contained, looks like the app, prints to PDF."
+    },
+    "markdown": {
+      "label": "Markdown (.md)",
+      "description": "Plain text with tool calls and diffs."
+    },
+    "json": {
+      "label": "JSON (.json)",
+      "description": "Every message, unformatted, for tooling."
+    }
+  },
+  "schedule": {
+    "trigger": "Schedule this message",
+    "heading": "Send later",
+    "customLabel": "Or pick a time",
+    "confirm": "Schedule",
+    "in": {
+      "15": "In 15 minutes",
+      "60": "In an hour",
+      "480": "In 8 hours",
+      "1440": "Tomorrow"
+    },
+    "pending": "Scheduled for {{when}}",
+    "failed": "Not sent — {{reason}}",
+    "cancel": "Cancel scheduled message",
+    "dismiss": "Dismiss failure notice"
+  }
+}

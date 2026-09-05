@@ -2,11 +2,10 @@ import { randomUUID } from 'node:crypto';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 
-import { forkSession as sdkForkSession } from '@anthropic-ai/claude-agent-sdk';
-
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
-import { chatRunRegistry } from '@/modules/websocket/index.js';
+import { broadcastSessionUpserted, chatRunRegistry } from '@/modules/websocket/index.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
+import { sessionHistoryCache } from '@/modules/providers/services/session-history-cache.service.js';
 import type {
   FetchHistoryOptions,
   FetchHistoryResult,
@@ -14,7 +13,7 @@ import type {
   NormalizedMessage,
   SessionOutlineItem,
 } from '@/shared/types.js';
-import { AppError } from '@/shared/utils.js';
+import { AppError, sliceTailPage } from '@/shared/utils.js';
 
 type CreateAppSessionResult = {
   sessionId: string;
@@ -22,15 +21,6 @@ type CreateAppSessionResult = {
   projectPath: string;
   sessionName: string;
 };
-
-/**
- * Minimal shape of the claude-agent-sdk `forkSession` call used for branching,
- * kept loose so tests can inject a fake without importing the SDK namespace.
- */
-type ClaudeBranchForkFn = (
-  sessionId: string,
-  options?: { dir?: string; upToMessageId?: string; title?: string },
-) => Promise<{ sessionId: string }>;
 
 type ArchivedSessionListItem = {
   sessionId: string;
@@ -48,9 +38,7 @@ type ArchivedSessionListItem = {
 type RecentSessionListItem = Pick<
   ArchivedSessionListItem,
   'sessionId' | 'provider' | 'projectId' | 'projectDisplayName' | 'sessionTitle' | 'lastActivity'
-> & {
-  isPinned: boolean;
-};
+>;
 
 type RecentSessionsPage = {
   conversations: RecentSessionListItem[];
@@ -78,25 +66,13 @@ type SessionDetails = {
 };
 
 const MAX_CLOUDCLI_SESSION_NAME_WORDS = 4;
+const MAX_OUTLINE_SNIPPET_LENGTH = 80;
 
 function buildCloudCliSessionName(initialMessage: string): string {
   const words = initialMessage.trim().split(/\s+/).filter(Boolean);
   return words.slice(0, MAX_CLOUDCLI_SESSION_NAME_WORDS).join(' ') || 'Untitled Session';
 }
 
-const MAX_OUTLINE_SNIPPET_LENGTH = 80;
-
-/** First non-empty line of a message, trimmed. */
-function firstNonEmptyLine(value: string): string {
-  return (value.split('\n').find((part) => part.trim().length > 0) ?? '').trim();
-}
-
-/**
- * Builds the lightweight outline from normalized history.
- *
- * Keeps `kind === 'text' && role === 'user'` rows only, mirroring what
- * `normalizedToChatMessages` would surface as `type: 'user'` chat messages.
- */
 function buildOutlineItems(messages: NormalizedMessage[]): SessionOutlineItem[] {
   const items: SessionOutlineItem[] = [];
 
@@ -105,15 +81,14 @@ function buildOutlineItems(messages: NormalizedMessage[]): SessionOutlineItem[] 
 
     const content = typeof message.content === 'string' ? message.content : '';
     const displayText = typeof message.displayText === 'string' ? message.displayText : '';
-    const raw = content.trim().length > 0 ? content : displayText;
-    const snippet = firstNonEmptyLine(raw).slice(0, MAX_OUTLINE_SNIPPET_LENGTH);
+    const snippet = (content.trim() || displayText)
+      .split('\n')
+      .find((part) => part.trim().length > 0)?.trim()
+      .slice(0, MAX_OUTLINE_SNIPPET_LENGTH) ?? '';
 
-    // Claude wraps background-agent results in a synthetic user-role row; the
-    // chat renderer shows it as an assistant notification, so keep it out of
-    // the outline for parity.
-    if (snippet.startsWith('<task-notification>')) continue;
-
-    items.push({ timestamp: message.timestamp, snippet });
+    if (!snippet.startsWith('<task-notification>')) {
+      items.push({ timestamp: message.timestamp, snippet });
+    }
   }
 
   return items;
@@ -222,11 +197,7 @@ export const sessionsService = {
     };
   },
 
-  /**
-   * Changes the local sidebar priority for one active or archived session.
-   * Archived sessions retain their pin so a later restore returns them to the
-   * pinned feed without requiring the user to set it again.
-   */
+  /** Updates the sidebar priority of one active or archived session. */
   setSessionPinned(sessionId: string, isPinned: boolean): { sessionId: string; isPinned: boolean } {
     const session = sessionsDb.getSessionById(sessionId);
     if (!session) {
@@ -257,26 +228,13 @@ export const sessionsService = {
     return session ? session.provider_session_id : sessionId;
   },
 
-  /**
-   * Resolves the provider data root that owns a session's on-disk transcript,
-   * so runtimes can launch the engine against the same config dir the session
-   * was written from. WorkBuddy/CodeBuddy transcripts live under
-   * `{configDir}/projects/{encodedCwd}/{id}.jsonl`; this strips those three
-   * trailing segments to recover the config dir. Returns null when the session
-   * has no indexed transcript (fresh sessions fall back to the engine default).
-   */
+  /** Resolves a WorkBuddy session's persisted configuration root when known. */
   resolveProviderConfigDir(sessionId: string | null | undefined): string | null {
-    if (!sessionId) {
-      return null;
-    }
+    if (!sessionId) return null;
 
-    const session = sessionsDb.getSessionById(sessionId);
-    if (!session?.jsonl_path) {
-      return null;
-    }
-
-    const match = session.jsonl_path.match(/^(.+)[/\\]projects[/\\][^/\\]+[/\\][^/\\]+\.jsonl$/);
-    return match ? match[1] : null;
+    const transcriptPath = sessionsDb.getSessionById(sessionId)?.jsonl_path;
+    const match = transcriptPath?.match(/^(.+)[/\\]projects[/\\][^/\\]+[/\\][^/\\]+\.jsonl$/);
+    return match?.[1] ?? null;
   },
 
   /**
@@ -327,20 +285,86 @@ export const sessionsService = {
   },
 
   /**
-   * Forks a Claude session at the message identified by `messageId`.
+   * Branches a session into an independent one containing its conversation up
+   * to `upToAnchorId` (the whole thing when omitted).
    *
-   * Uses the Claude Agent SDK's native `forkSession`, which copies the source
-   * transcript into a brand-new JSONL, remapping every message UUID and slicing
-   * at `upToMessageId` (inclusive). The forked provider session is then
-   * registered as a fresh app session: a new app-allocated id, the provider
-   * mapping, and — once the transcript path is known — the `jsonl_path` that
-   * history fetches depend on. Only Claude supports branching today; other
-   * providers reject the call.
+   * The source is left completely untouched — this is the "try two approaches"
+   * action, not a destructive one.
+   */
+  async forkSessionById(
+    sessionId: string,
+    options: { upToAnchorId?: string; title?: string } = {},
+  ): Promise<CreateAppSessionResult> {
+    const source = sessionsDb.getSessionById(sessionId);
+    if (!source) {
+      throw new AppError(`Session "${sessionId}" was not found.`, {
+        code: 'SESSION_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+
+    const provider = source.provider as LLMProvider;
+    const fork = providerRegistry.resolveProvider(provider).fork;
+    if (!fork) {
+      throw new AppError(`Sessions cannot be forked for provider "${provider}".`, {
+        code: 'FORK_NOT_SUPPORTED',
+        statusCode: 409,
+      });
+    }
+
+    // A session that has never run has no transcript to copy, so there is
+    // nothing a fork of it could resume from.
+    if (!source.provider_session_id || !source.jsonl_path) {
+      throw new AppError('This session has not produced a transcript yet.', {
+        code: 'FORK_SOURCE_NOT_READY',
+        statusCode: 409,
+      });
+    }
+
+    const sessionName = options.title?.trim()
+      || `${source.custom_name?.trim() || 'Session'} (fork)`;
+
+    const forked = await fork.forkSession({
+      providerSessionId: source.provider_session_id,
+      jsonlPath: source.jsonl_path,
+      projectPath: source.project_path ?? '',
+      upToAnchorId: options.upToAnchorId,
+      title: sessionName,
+    });
+
+    const forkSessionId = randomUUID();
+    sessionsDb.createForkedSession({
+      sessionId: forkSessionId,
+      provider,
+      projectPath: source.project_path ?? '',
+      customName: sessionName,
+      providerSessionId: forked.providerSessionId,
+      jsonlPath: forked.jsonlPath,
+      forkedFromSessionId: sessionId,
+      // A fork that silently dropped to the catalog default would answer
+      // differently from the conversation it was branched from.
+      model: source.model,
+      effort: source.effort,
+    });
+
+    await broadcastSessionUpserted(forkSessionId);
+
+    return {
+      sessionId: forkSessionId,
+      provider,
+      projectPath: source.project_path ?? '',
+      sessionName,
+    };
+  },
+
+  /**
+   * Legacy Claude-only branch endpoint used by existing clients. It delegates
+   * to the provider-neutral fork flow so both entry points create the same
+   * indexed fork and preserve model, effort, and lineage metadata.
    */
   async createClaudeBranch(
     sourceSessionId: string,
     messageId: string,
-    deps: { forkSession: ClaudeBranchForkFn } = { forkSession: sdkForkSession },
   ): Promise<{ sessionId: string; providerSessionId: string; sessionName: string }> {
     const source = sessionsDb.getSessionById(sourceSessionId);
     if (!source) {
@@ -355,94 +379,28 @@ export const sessionsService = {
         statusCode: 400,
       });
     }
-    if (!source.provider_session_id) {
-      throw new AppError('This session ID is not available yet.', {
-        code: 'PROVIDER_SESSION_ID_NOT_AVAILABLE',
-        statusCode: 409,
-      });
-    }
-    if (!source.project_path) {
-      throw new AppError('projectPath is required.', {
-        code: 'PROJECT_PATH_REQUIRED',
-        statusCode: 400,
-      });
-    }
 
-    // Frontend message ids are `<native-uuid>_text_<index>` (or `_tr_<toolUseId>`
-    // for tool results); the native message UUID is always the leading segment.
-    const branchUuid = messageId.trim().split('_')[0];
-    if (!branchUuid) {
+    const anchorId = messageId.trim().split('_')[0];
+    if (!anchorId) {
       throw new AppError('messageId is invalid.', {
         code: 'INVALID_MESSAGE_ID',
         statusCode: 400,
       });
     }
 
-    const sourceName = source.custom_name?.trim() || '';
-    const forkedTitle = sourceName ? `${sourceName} (fork)` : undefined;
-
-    const { forkSession } = deps;
-    let forkedProviderSessionId: string;
-    try {
-      const result = await forkSession(source.provider_session_id, {
-        dir: source.project_path,
-        upToMessageId: branchUuid,
-        title: forkedTitle,
-      });
-      forkedProviderSessionId = result.sessionId;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new AppError(`Failed to fork Claude session: ${message}`, {
+    const forked = await this.forkSessionById(sourceSessionId, { upToAnchorId: anchorId });
+    const providerSessionId = sessionsDb.getSessionById(forked.sessionId)?.provider_session_id;
+    if (!providerSessionId) {
+      throw new AppError('Claude fork did not produce a provider session id.', {
         code: 'SESSION_BRANCH_FAILED',
-        statusCode: 500,
+        statusCode: 502,
       });
-    }
-
-    const newAppSessionId = randomUUID();
-    const sessionName = forkedTitle ?? sourceName;
-    sessionsDb.createAppSession(newAppSessionId, 'claude', source.project_path, sessionName);
-    sessionsDb.assignProviderSessionId(newAppSessionId, forkedProviderSessionId);
-
-    // Attach the forked transcript path so history fetches resolve immediately.
-    // The fork lands in the same project directory as the source transcript, so
-    // derive it from the source's jsonl_path first; fall back to scanning.
-    let forkedJsonlPath: string | null = null;
-    if (source.jsonl_path) {
-      const candidate = path.join(path.dirname(source.jsonl_path), `${forkedProviderSessionId}.jsonl`);
-      try {
-        await fsp.access(candidate);
-        forkedJsonlPath = candidate;
-      } catch {
-        forkedJsonlPath = null;
-      }
-    }
-    if (!forkedJsonlPath) {
-      try {
-        const synchronizer = providerRegistry.resolveProvider('claude').sessionSynchronizer;
-        forkedJsonlPath = (await synchronizer.resolveTranscriptPath?.(
-          forkedProviderSessionId,
-          source.project_path,
-        )) ?? null;
-      } catch {
-        forkedJsonlPath = null;
-      }
-    }
-    if (forkedJsonlPath) {
-      sessionsDb.createSession(
-        forkedProviderSessionId,
-        'claude',
-        source.project_path,
-        sessionName,
-        undefined,
-        undefined,
-        forkedJsonlPath,
-      );
     }
 
     return {
-      sessionId: newAppSessionId,
-      providerSessionId: forkedProviderSessionId,
-      sessionName,
+      sessionId: forked.sessionId,
+      providerSessionId,
+      sessionName: forked.sessionName,
     };
   },
 
@@ -478,6 +436,73 @@ export const sessionsService = {
    * and every returned message is remapped back to the app session id so
    * provider ids never reach the frontend.
    */
+  /**
+   * Resolves where a conversation must resume from so that one already-sent
+   * message, and everything after it, is replaced.
+   *
+   * Returns `null` when the provider cannot do this at all, which is how the
+   * chat gateway knows to refuse the request rather than silently sending the
+   * edit as a new message at the end of the conversation.
+   */
+  async resolveEditAnchor(
+    sessionId: string,
+    anchorId: string,
+  ): Promise<{ found: boolean; resumeThroughId: string | null } | null> {
+    const session = sessionsDb.getSessionById(sessionId);
+    if (!session) {
+      throw new AppError(`Session "${sessionId}" was not found.`, {
+        code: 'SESSION_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+
+    const sessions = providerRegistry.resolveProvider(session.provider as LLMProvider).sessions;
+    if (!sessions.resolveEditAnchor) {
+      return null;
+    }
+
+    return sessions.resolveEditAnchor(sessionId, anchorId);
+  },
+
+  /**
+   * Whether editing a message on this session's provider means rewinding it on
+   * disk first, rather than handing the anchor to the runtime as a resume
+   * option.
+   *
+   * Answering this without doing anything is the point: the rewind moves the
+   * session onto a different provider transcript and cannot be undone, so the
+   * gateway has to know which shape the run takes before it commits to one.
+   */
+  providerRewindsForEdit(sessionId: string): boolean {
+    const session = sessionsDb.getSessionById(sessionId);
+    if (!session) {
+      throw new AppError(`Session "${sessionId}" was not found.`, {
+        code: 'SESSION_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+
+    return Boolean(providerRegistry.resolveProvider(session.provider as LLMProvider).sessions.rewindSession);
+  },
+
+  /**
+   * Rewinds a session on disk so `keepThroughId` is the last row it holds.
+   *
+   * Only call this once the run is admitted — see `providerRewindsForEdit`.
+   */
+  async rewindSessionForEdit(sessionId: string, keepThroughId: string | null): Promise<void> {
+    const session = sessionsDb.getSessionById(sessionId);
+    if (!session) {
+      throw new AppError(`Session "${sessionId}" was not found.`, {
+        code: 'SESSION_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+
+    const sessions = providerRegistry.resolveProvider(session.provider as LLMProvider).sessions;
+    await sessions.rewindSession?.(sessionId, keepThroughId);
+  },
+
   async fetchHistory(
     sessionId: string,
     options: Pick<FetchHistoryOptions, 'limit' | 'offset'> = {},
@@ -503,12 +528,51 @@ export const sessionsService = {
     }
 
     const provider = session.provider as LLMProvider;
-    const result = await providerRegistry.resolveProvider(provider).sessions.fetchHistory(sessionId, {
-      limit: options.limit ?? null,
-      offset: options.offset ?? 0,
-      projectPath: session.project_path ?? '',
-      providerSessionId: session.provider_session_id,
+    const providerSessions = providerRegistry.resolveProvider(provider).sessions;
+    const providerSessionId = session.provider_session_id;
+    const projectPath = session.project_path ?? '';
+    const requestedLimit = options.limit ?? null;
+    const requestedOffset = options.offset ?? 0;
+
+    // Claude, Codex and WorkBuddy history readers parse `jsonl_path` itself, so
+    // a page can be sliced from the stat-validated full-transcript cache instead
+    // of re-parsing the whole file per request. Cursor and OpenCode read their
+    // messages from elsewhere (store.db / shared SQLite), so that file's stat says
+    // nothing about their history — they stay on the direct path.
+    const transcriptPath = provider === 'claude' || provider === 'codex' || provider === 'workbuddy'
+      ? session.jsonl_path
+      : null;
+    const fullHistory = await sessionHistoryCache.getFullHistory({
+      sessionId,
+      transcriptPath,
+      loadFull: () => providerSessions.fetchHistory(sessionId, {
+        limit: null,
+        offset: 0,
+        projectPath,
+        providerSessionId,
+      }),
     });
+
+    let result: FetchHistoryResult;
+    if (fullHistory) {
+      // Providers slice with this same helper, so a cached page is identical
+      // to what a direct `(limit, offset)` read would have returned.
+      const { page, hasMore } = sliceTailPage(fullHistory.messages, requestedLimit, Math.max(0, requestedOffset));
+      result = {
+        ...fullHistory,
+        messages: page,
+        hasMore,
+        offset: requestedOffset,
+        limit: requestedLimit,
+      };
+    } else {
+      result = await providerSessions.fetchHistory(sessionId, {
+        limit: requestedLimit,
+        offset: requestedOffset,
+        projectPath,
+        providerSessionId,
+      });
+    }
 
     return {
       ...result,
@@ -519,17 +583,9 @@ export const sessionsService = {
     };
   },
 
-  /**
-   * Returns a lightweight outline of a session's user turns for the QuickSettings
-   * outline panel.
-   *
-   * Only `{ timestamp, snippet }` pairs are returned instead of the full
-   * transcript, so opening the outline panel never pays the cost of downloading
-   * and re-normalizing entire conversations. History is still read server-side
-   * via `fetchHistory`, but the heavy payload never crosses the wire.
-   */
+  /** Returns lightweight user-turn summaries without sending the full transcript to the client. */
   async fetchOutline(sessionId: string): Promise<SessionOutlineItem[]> {
-    const history = await sessionsService.fetchHistory(sessionId, { limit: null, offset: 0 });
+    const history = await this.fetchHistory(sessionId, { limit: null, offset: 0 });
     return buildOutlineItems(history.messages);
   },
 
@@ -643,26 +699,33 @@ export const sessionsService = {
 
     let removedFromDisk = false;
     if (options.deletedFromDisk) {
-      let transcriptPath = session.jsonl_path;
-      if (!transcriptPath && session.provider_session_id && session.project_path) {
-        // Rows that were never indexed carry no jsonl_path; ask the provider's
-        // synchronizer to resolve the on-disk transcript so a permanent delete
-        // still removes the file instead of letting the next scan resurrect it.
+      // Every file the conversation has lived in, not just the one the row
+      // points at now: editing a message on a provider that rewinds by
+      // branching moves the session onto a copy and leaves the earlier
+      // transcript behind. Deleting only the current one would leave the
+      // replaced turns on disk, and unreachable through the app.
+      let resolvedTranscriptPath = session.jsonl_path;
+      if (!resolvedTranscriptPath && session.provider_session_id && session.project_path) {
         try {
-          const synchronizer = providerRegistry.resolveProvider(session.provider).sessionSynchronizer;
-          transcriptPath = (await synchronizer.resolveTranscriptPath?.(
+          const synchronizer = providerRegistry.resolveProvider(session.provider as LLMProvider).sessionSynchronizer;
+          resolvedTranscriptPath = (await synchronizer.resolveTranscriptPath?.(
             session.provider_session_id,
             session.project_path,
           )) ?? null;
         } catch {
-          // Unknown provider or no path resolver: fall back to removing the row only.
+          // Fall back to removing the database row when a provider has no resolver.
         }
       }
-      if (transcriptPath) {
-        removedFromDisk = await removeFileIfExists(transcriptPath);
+      const transcripts = [
+        ...(resolvedTranscriptPath ? [resolvedTranscriptPath] : []),
+        ...sessionsDb.getSupersededTranscriptPaths(sessionId),
+      ];
+      for (const transcript of transcripts) {
+        removedFromDisk = (await removeFileIfExists(transcript)) || removedFromDisk;
       }
     }
 
+    sessionsDb.clearSupersededProviderSessions(sessionId);
     const deleted = sessionsDb.deleteSessionById(sessionId);
     if (!deleted) {
       throw new AppError(`Session "${sessionId}" was not found.`, {
@@ -678,11 +741,7 @@ export const sessionsService = {
     };
   },
 
-  /**
-   * Permanently removes archived session rows selected in the archive view.
-   * Every id is validated before deletion, so an active or missing session
-   * cannot leave a partially modified batch. Project rows are never touched.
-   */
+  /** Permanently removes archived sessions after validating the whole selected batch. */
   async permanentlyDeleteArchivedSessions(sessionIds: string[]): Promise<{ sessionIds: string[] }> {
     for (const sessionId of sessionIds) {
       const session = sessionsDb.getSessionById(sessionId);
@@ -707,10 +766,7 @@ export const sessionsService = {
     }
 
     for (const sessionId of sessionIds) {
-      await sessionsService.deleteOrArchiveSessionById(sessionId, {
-        force: true,
-        deletedFromDisk: true,
-      });
+      await this.deleteOrArchiveSessionById(sessionId, { force: true, deletedFromDisk: true });
     }
 
     return { sessionIds };

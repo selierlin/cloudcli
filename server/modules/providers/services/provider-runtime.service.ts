@@ -1,5 +1,6 @@
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
+import { providerSettingsSourceService } from '@/modules/providers/services/provider-settings-source.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
 import type { IProvider } from '@/shared/interfaces.js';
 import type {
@@ -16,6 +17,7 @@ type ProviderRuntimeServiceDependencies = {
   resolveProvider(provider: string): IProvider;
   resolveProviderSessionId(sessionId: string | null | undefined): string | null;
   resolveProviderConfigDir(sessionId: string | null | undefined): string | null;
+  resolveActiveSettingsFile(provider: LLMProvider): string | null;
   resolveResumeModel(
     provider: LLMProvider,
     sessionId: string | undefined,
@@ -29,6 +31,7 @@ const defaultDependencies: ProviderRuntimeServiceDependencies = {
   resolveProvider: (provider) => providerRegistry.resolveProvider(provider),
   resolveProviderSessionId: (sessionId) => sessionsService.resolveProviderSessionId(sessionId),
   resolveProviderConfigDir: (sessionId) => sessionsService.resolveProviderConfigDir(sessionId),
+  resolveActiveSettingsFile: (provider) => providerSettingsSourceService.resolveActiveSettingsFile(provider),
   resolveResumeModel: (provider, sessionId, requestedModel) =>
     providerModelsService.resolveResumeModel(provider, sessionId, requestedModel),
   getProviderModels: (provider) => providerModelsService.getProviderModels(provider),
@@ -51,6 +54,7 @@ export function createProviderRuntimeService(
   ): ProviderRuntimeContext => ({
     resolveProviderSessionId: dependencies.resolveProviderSessionId,
     resolveProviderConfigDir: dependencies.resolveProviderConfigDir,
+    resolveSettingsFile: (sessionId) => dependencies.resolveActiveSettingsFile(provider.id),
     resolveResumeModel: (sessionId, requestedModel) =>
       dependencies.resolveResumeModel(provider.id, sessionId, requestedModel),
     getProviderModels: async () => dependencies.getProviderModels(provider.id),

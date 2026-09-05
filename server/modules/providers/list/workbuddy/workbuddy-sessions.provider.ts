@@ -1,5 +1,4 @@
-import { createReadStream, existsSync } from 'node:fs';
-import { createInterface } from 'node:readline';
+import { existsSync, promises as fsp } from 'node:fs';
 import path from 'node:path';
 
 import { sessionsDb } from '@/modules/database/index.js';
@@ -145,6 +144,137 @@ function readNonEmptyString(...values: unknown[]): string | undefined {
   return undefined;
 }
 
+/**
+ * Reads a stable event timestamp so normalized messages keep the same
+ * timestamp across repeated transcript reads.
+ *
+ * Transcript readers merge an ISO timestamp into every non-`message` event and
+ * live runtime events may carry epoch milliseconds. Without this, the fallback
+ * "now" stamp in `createNormalizedMessage` makes each history read produce a
+ * different timestamp for the same row, which breaks the frontend's persisted
+ * row comparison during scroll-up pagination.
+ */
+function readEventTimestamp(event: AnyRecord): string | undefined {
+  if (typeof event.timestamp === 'string' && event.timestamp.trim()) {
+    return event.timestamp;
+  }
+  if (typeof event.timestamp === 'number' && Number.isFinite(event.timestamp)) {
+    return new Date(event.timestamp).toISOString();
+  }
+  return undefined;
+}
+
+/** Parses a WorkBuddy task tool payload stored as a JSON string or object. */
+function parseTaskArguments(value: unknown): AnyRecord | null {
+  if (typeof value === 'string') {
+    try {
+      return readObjectRecord(JSON.parse(value));
+    } catch {
+      return null;
+    }
+  }
+  return readObjectRecord(value);
+}
+
+/** Recovers the engine-assigned task id from a TaskCreate result sentence. */
+function extractTaskIdFromCreateResult(output: unknown): string | undefined {
+  const text = extractFunctionResultText(output);
+  return text.match(/Task\s*#(\d+)/i)?.[1];
+}
+
+/** Reads a WorkBuddy image blob into a data URL, returning null when it is gone. */
+async function readBlobAsDataUrl(blobPath: string, mime: string): Promise<string | null> {
+  try {
+    const bytes = await fsp.readFile(blobPath);
+    return `data:${mime || 'application/octet-stream'};base64,${bytes.toString('base64')}`;
+  } catch {
+    return null;
+  }
+}
+
+type WorkbuddyTodoEntry = {
+  id: string;
+  content: string;
+  status: string;
+  activeForm?: string;
+};
+
+/**
+ * Replays one WorkBuddy `TaskCreate`/`TaskUpdate` stream event into the
+ * reader's running checklist and emits a TodoList snapshot when it changes.
+ *
+ * Unlike CodeBuddy's `rawResponse.todos`, these calls never state the full
+ * list: `TaskCreate` returns the engine-assigned id in its result sentence and
+ * later `TaskUpdate` calls land on that id. The generic tool row is folded away
+ * so the conversation draws the single checklist instead of a wall of task
+ * bookkeeping cards.
+ */
+function collectWorkbuddyTaskEvent(
+  event: AnyRecord,
+  todoEntries: Map<string, WorkbuddyTodoEntry>,
+  pendingCreates: Map<string, { content: string; activeForm?: string }>,
+  emit: (timestamp?: string) => void,
+): boolean {
+  if (event.type !== 'function_call' && event.type !== 'function_call_result') {
+    return false;
+  }
+  const name = typeof event.name === 'string' ? event.name : '';
+  if (name !== 'TaskCreate' && name !== 'TaskUpdate') {
+    return false;
+  }
+
+  const timestamp = readEventTimestamp(event);
+
+  if (event.type === 'function_call' && name === 'TaskCreate') {
+    const input = parseTaskArguments(event.arguments);
+    const content = readNonEmptyString(input?.subject, input?.description);
+    const activeForm = readNonEmptyString(input?.activeForm);
+    const callId = readNonEmptyString(event.callId, event.id);
+    if (callId && content) {
+      pendingCreates.set(callId, { content, activeForm });
+    }
+    return true;
+  }
+
+  if (event.type === 'function_call_result' && name === 'TaskCreate') {
+    const taskId = extractTaskIdFromCreateResult(event.output);
+    const callId = readNonEmptyString(event.callId, event.id);
+    const pending = callId ? pendingCreates.get(callId) : undefined;
+    if (taskId) {
+      todoEntries.set(taskId, {
+        id: taskId,
+        content: pending?.content || taskId,
+        status: 'pending',
+        ...(pending?.activeForm ? { activeForm: pending.activeForm } : {}),
+      });
+      if (callId) {
+        pendingCreates.delete(callId);
+      }
+      emit(timestamp);
+    }
+    return true;
+  }
+
+  if (event.type === 'function_call' && name === 'TaskUpdate') {
+    const input = parseTaskArguments(event.arguments);
+    const taskId = readNonEmptyString(input?.taskId);
+    if (taskId) {
+      const existing = todoEntries.get(taskId);
+      todoEntries.set(taskId, {
+        id: taskId,
+        content: existing?.content || taskId,
+        status: readNonEmptyString(input?.status) || existing?.status || 'pending',
+        ...(existing?.activeForm ? { activeForm: existing.activeForm } : {}),
+      });
+      emit(timestamp);
+    }
+    return true;
+  }
+
+  // A TaskUpdate result only echoes the id the call already applied.
+  return true;
+}
+
 function normalizeTaskStatus(subtype: string, status: unknown): string {
   const value = readNonEmptyString(status)?.toLowerCase();
   if (value) {
@@ -208,11 +338,6 @@ function normalizeTaskEvent(event: AnyRecord, sessionId: string | null): Normali
   const status = normalizeTaskStatus(event.subtype, event.status);
   const isFinal = ['completed', 'failed', 'cancelled', 'stopped', 'killed'].includes(status)
     || event.subtype === 'task_notification';
-  const timestamp = typeof event.timestamp === 'number'
-    ? new Date(event.timestamp).toISOString()
-    : typeof event.timestamp === 'string' && event.timestamp.trim()
-      ? event.timestamp
-      : undefined;
 
   return createNormalizedMessage({
     id,
@@ -227,7 +352,7 @@ function normalizeTaskEvent(event: AnyRecord, sessionId: string | null): Normali
     toolUseId: readNonEmptyString(event.tool_use_id, event.toolUseId),
     progress: event.progress,
     isFinal,
-    timestamp,
+    timestamp: readEventTimestamp(event),
   });
 }
 
@@ -358,14 +483,10 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
       return [taskMessage];
     }
     if (event?.type === 'reasoning') {
-      const blocks = Array.isArray(event.rawContent)
-        ? event.rawContent
-        : Array.isArray(event.content)
-          ? event.content
-          : [];
+      const rawContent = Array.isArray(event.rawContent) ? event.rawContent : [];
       const messages: NormalizedMessage[] = [];
-      for (const block of blocks) {
-        const record = readObjectRecord(block);
+      for (const block of rawContent) {
+        const record = block as AnyRecord | null;
         if (record?.type === 'reasoning_text' && typeof record.text === 'string' && record.text.trim()) {
           messages.push(createNormalizedMessage({
             kind: 'thinking',
@@ -373,6 +494,7 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
             content: record.text,
             sessionId,
             provider: 'workbuddy',
+            timestamp: readEventTimestamp(event),
           }));
         }
       }
@@ -390,6 +512,7 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
           id: typeof event.id === 'string' ? event.id : undefined,
           sessionId,
           provider: 'workbuddy',
+          timestamp: readEventTimestamp(event),
         })];
       }
       if (event?.type === 'function_call_result') {
@@ -405,6 +528,7 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
           id: typeof event.id === 'string' ? event.id : undefined,
           sessionId,
           provider: 'workbuddy',
+          timestamp: readEventTimestamp(event),
         })];
       }
       return [];
@@ -419,6 +543,7 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
       if (!record) {
         continue;
       }
+      const timestamp = readEventTimestamp(event);
       if (event.type === 'assistant' && record.type === 'thinking' && typeof record.thinking === 'string' && record.thinking.trim()) {
         messages.push(createNormalizedMessage({
           kind: 'thinking',
@@ -426,6 +551,7 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
           content: record.thinking,
           sessionId,
           provider: 'workbuddy',
+          timestamp,
         }));
       } else if (event.type === 'assistant' && record.type === 'text' && typeof record.text === 'string' && record.text.trim()) {
         messages.push(createNormalizedMessage({
@@ -434,6 +560,7 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
           content: record.text,
           sessionId,
           provider: 'workbuddy',
+          timestamp,
         }));
       } else if (event.type === 'assistant' && record.type === 'tool_use' && typeof record.name === 'string' && record.name.trim()) {
         messages.push(createNormalizedMessage({
@@ -444,6 +571,7 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
           toolId: typeof record.id === 'string' ? record.id : undefined,
           sessionId,
           provider: 'workbuddy',
+          timestamp,
         }));
       } else if (record.type === 'tool_result') {
         messages.push(createNormalizedMessage({
@@ -455,8 +583,9 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
           status: typeof record.status === 'string' ? record.status : undefined,
           sessionId,
           provider: 'workbuddy',
+          timestamp,
         }));
-        const todoMessage = normalizeWorkbuddyTodoResult(record, sessionId);
+        const todoMessage = normalizeWorkbuddyTodoResult(record, sessionId, timestamp);
         if (todoMessage) {
           messages.push(todoMessage);
         }
@@ -504,9 +633,11 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
    *
    * Only `message` events carry content: user turns use `input_text` blocks,
    * assistant turns use `output_text` (text), `reasoning_text` (thinking), and
-   * tool blocks. Every other event type (`ai-title`, `file-history-snapshot`,
-   * `reasoning`, …) is skipped. A finite page passes its required tail window
-   * to the collector so a large transcript is not retained in full.
+   * tool blocks. Top-level `reasoning` events become thinking, and the
+   * incremental `TaskCreate`/`TaskUpdate` calls are folded into one TodoList
+   * snapshot. `ai-title` and `file-history-snapshot` are skipped. A finite page
+   * passes its required tail window to the collector so a large transcript is
+   * not retained in full.
    */
   private async readTranscript(
     filePath: string,
@@ -514,120 +645,162 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
     maxMessages: number | null,
   ): Promise<TranscriptReadResult> {
     const collector = new TranscriptMessageCollector(maxMessages);
+    const todoEntries = new Map<string, WorkbuddyTodoEntry>();
+    const pendingCreates = new Map<string, { content: string; activeForm?: string }>();
+    const todoId = `workbuddy-todo-${appSessionId}`;
+    const emitTodoSnapshot = (snapshotTimestamp?: string) => {
+      if (todoEntries.size === 0) {
+        return;
+      }
+      const items = [...todoEntries.values()].map((entry) => {
+        const item: AnyRecord = { id: entry.id, content: entry.content, status: entry.status };
+        if (entry.activeForm) {
+          item.activeForm = entry.activeForm;
+        }
+        return item;
+      });
+      collector.add(createNormalizedMessage({
+        id: todoId,
+        kind: 'tool_use',
+        role: 'assistant',
+        provider: 'workbuddy',
+        sessionId: appSessionId,
+        toolName: 'TodoList',
+        toolInput: { items },
+        toolId: todoId,
+        timestamp: snapshotTimestamp,
+      }));
+    };
 
-    const fileStream = createReadStream(filePath, { encoding: 'utf8' });
-    const lineReader = createInterface({ input: fileStream, crlfDelay: Infinity });
-
+    let fileContent: string;
     try {
-      for await (const line of lineReader) {
-        if (!line.trim()) {
+      fileContent = await fsp.readFile(filePath, 'utf8');
+    } catch {
+      return collector.toResult();
+    }
+
+    const lines = fileContent.split(/\r?\n/);
+
+    for (const line of lines) {
+      if (!line.trim()) {
+        continue;
+      }
+      let event: AnyRecord;
+      try {
+        event = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      const timestamp = typeof event.timestamp === 'number'
+        ? new Date(event.timestamp).toISOString()
+        : undefined;
+      const timestampField = timestamp ? { timestamp } : {};
+      if (event.type !== 'message') {
+        if (collectWorkbuddyTaskEvent(event, todoEntries, pendingCreates, emitTodoSnapshot)) {
           continue;
         }
-        let event: AnyRecord;
-        try {
-          event = JSON.parse(line);
-        } catch {
-          continue;
+        const normalizedMessages = this.normalizeMessage(
+          timestampField.timestamp ? { ...event, ...timestampField } : event,
+          appSessionId,
+        );
+        for (const message of normalizedMessages) {
+          collector.add(message);
         }
-        const timestamp = typeof event.timestamp === 'number'
-          ? new Date(event.timestamp).toISOString()
-          : undefined;
-        const timestampField = timestamp ? { timestamp } : {};
-        if (event.type !== 'message') {
-          const normalizedMessages = this.normalizeMessage(
-            timestampField.timestamp ? { ...event, ...timestampField } : event,
-            appSessionId,
-          );
-          for (const message of normalizedMessages) {
-            collector.add(message);
+        continue;
+      }
+
+      const blocks = Array.isArray(event.content) ? event.content : [];
+
+      if (event.role === 'user') {
+        const text = extractBlockText(blocks, 'input_text');
+        const images: Array<{ data: string; name?: string }> = [];
+        for (const block of blocks) {
+          const record = block as AnyRecord | null;
+          if (record?.type === 'image_blob_ref' && typeof record.blob_path === 'string') {
+            const mime = typeof record.mime === 'string' && record.mime ? record.mime : 'image/png';
+            const dataUrl = await readBlobAsDataUrl(record.blob_path, mime);
+            if (dataUrl) {
+              images.push({
+                data: dataUrl,
+                ...(typeof record.original_filename === 'string'
+                  ? { name: record.original_filename }
+                  : {}),
+              });
+            }
           }
-          continue;
         }
-
-        const blocks = Array.isArray(event.content) ? event.content : [];
-
-        if (event.role === 'user') {
-          const text = extractBlockText(blocks, 'input_text');
-          if (text) {
+        if (text || images.length > 0) {
+          collector.add(createNormalizedMessage({
+            kind: 'text',
+            role: 'user',
+            content: text ? extractUserPrompt(text) : '',
+            images: images.length > 0 ? images : undefined,
+            sessionId: appSessionId,
+            provider: 'workbuddy',
+            ...timestampField,
+          }));
+        }
+        for (const block of blocks) {
+          const record = block as AnyRecord | null;
+          if (record?.type !== 'tool_result') {
+            continue;
+          }
+          collector.add(createNormalizedMessage({
+            kind: 'tool_result',
+            role: 'user',
+            content: extractFunctionResultText(record.content),
+            toolId: typeof record.tool_use_id === 'string' ? record.tool_use_id : undefined,
+            isError: Boolean(record.is_error),
+            status: typeof record.status === 'string' ? record.status : undefined,
+            sessionId: appSessionId,
+            provider: 'workbuddy',
+            ...timestampField,
+          }));
+          const todoMessage = normalizeWorkbuddyTodoResult(record, appSessionId, timestamp);
+          if (todoMessage) {
+            collector.add(todoMessage);
+          }
+        }
+      } else if (event.role === 'assistant') {
+        // Emit blocks in transcript order so reasoning reads as thinking before
+        // the final answer, matching how the live stream normalizes them.
+        for (const block of blocks) {
+          const record = block as AnyRecord | null;
+          if (!record) {
+            continue;
+          }
+          if (record.type === 'reasoning_text' && typeof record.text === 'string' && record.text.trim()) {
+            collector.add(createNormalizedMessage({
+              kind: 'thinking',
+              role: 'assistant',
+              content: record.text,
+              sessionId: appSessionId,
+              provider: 'workbuddy',
+              ...timestampField,
+            }));
+          } else if (record.type === 'output_text' && typeof record.text === 'string' && record.text.trim()) {
             collector.add(createNormalizedMessage({
               kind: 'text',
-              role: 'user',
-              content: extractUserPrompt(text),
+              role: 'assistant',
+              content: record.text,
               sessionId: appSessionId,
               provider: 'workbuddy',
               ...timestampField,
             }));
-          }
-          for (const block of blocks) {
-            const record = block as AnyRecord | null;
-            if (record?.type !== 'tool_result') {
-              continue;
-            }
+          } else if (record.type === 'tool_use' && typeof record.name === 'string' && record.name.trim()) {
             collector.add(createNormalizedMessage({
-              kind: 'tool_result',
-              role: 'user',
-              content: extractFunctionResultText(record.content),
-              toolId: typeof record.tool_use_id === 'string' ? record.tool_use_id : undefined,
-              isError: Boolean(record.is_error),
-              status: typeof record.status === 'string' ? record.status : undefined,
+              kind: 'tool_use',
+              role: 'assistant',
+              toolName: record.name,
+              toolInput: record.input,
+              toolId: typeof record.id === 'string' ? record.id : undefined,
               sessionId: appSessionId,
               provider: 'workbuddy',
               ...timestampField,
             }));
-            const todoMessage = normalizeWorkbuddyTodoResult(record, appSessionId, timestamp);
-            if (todoMessage) {
-              collector.add(todoMessage);
-            }
-          }
-        } else if (event.role === 'assistant') {
-          // Emit blocks in transcript order so reasoning reads as thinking before
-          // the final answer, matching how the live stream normalizes them.
-          for (const block of blocks) {
-            const record = block as AnyRecord | null;
-            if (!record) {
-              continue;
-            }
-            if (record.type === 'reasoning_text' && typeof record.text === 'string' && record.text.trim()) {
-              collector.add(createNormalizedMessage({
-                kind: 'thinking',
-                role: 'assistant',
-                content: record.text,
-                sessionId: appSessionId,
-                provider: 'workbuddy',
-                ...timestampField,
-              }));
-            } else if (record.type === 'output_text' && typeof record.text === 'string' && record.text.trim()) {
-              collector.add(createNormalizedMessage({
-                kind: 'text',
-                role: 'assistant',
-                content: record.text,
-                sessionId: appSessionId,
-                provider: 'workbuddy',
-                ...timestampField,
-              }));
-            } else if (record.type === 'tool_use' && typeof record.name === 'string' && record.name.trim()) {
-              collector.add(createNormalizedMessage({
-                kind: 'tool_use',
-                role: 'assistant',
-                toolName: record.name,
-                toolInput: record.input,
-                toolId: typeof record.id === 'string' ? record.id : undefined,
-                sessionId: appSessionId,
-                provider: 'workbuddy',
-                ...timestampField,
-              }));
-            }
           }
         }
-      }
-    } catch {
-      // A partially-written transcript is common while a run is active. Keep
-      // the rows already decoded instead of retaining the whole file in memory
-      // or failing the entire session history request.
-      return collector.toResult();
-    } finally {
-      lineReader.close();
-      fileStream.destroy();
+        }
     }
 
     return collector.toResult();
