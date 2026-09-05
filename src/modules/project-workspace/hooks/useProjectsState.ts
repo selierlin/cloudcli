@@ -1075,9 +1075,11 @@ export function useProjectsState({
     [clearSessionAttention, navigate, selectedSession?.id],
   );
 
-  const handleSidebarRefresh = useCallback(async () => {
+  const handleSidebarRefresh = useCallback(async (
+    { skipSynchronization = false }: { skipSynchronization?: boolean } = {},
+  ) => {
     try {
-      const response = await api.projects();
+      const response = await api.projects({ skipSynchronization });
       const freshProjects = (await response.json()) as Project[];
       const projectsWithTaskMaster = mergeTaskMasterCache(freshProjects, projects);
       const mergedProjects = mergeExpandedSessionPages(projects, projectsWithTaskMaster);

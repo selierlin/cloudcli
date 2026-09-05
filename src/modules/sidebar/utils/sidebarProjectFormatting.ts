@@ -5,6 +5,7 @@ import type {
   Project,
   ProjectSession,
   ProjectSortOrder,
+  RecentConversationListItem,
   SessionWithProvider,
   SettingsProject,
 } from '@/shared/types';
@@ -188,6 +189,70 @@ export const getTaskIndicatorStatus = (
   }
 
   return 'not-configured';
+};
+
+/**
+ * Overlays optimistic per-session pin flags on the fetched project list.
+ *
+ * Only projects that actually contain an overridden session are rebuilt, so
+ * untouched projects keep their identity — and with it the
+ * `sortedSessionsByProject` cache that keeps session-row memoization intact.
+ * An empty override map returns the input unchanged.
+ */
+export const applyOptimisticSessionPinState = (
+  projects: Project[],
+  optimisticPins: ReadonlyMap<string, boolean>,
+): Project[] => {
+  if (optimisticPins.size === 0) {
+    return projects;
+  }
+
+  return projects.map((project) => {
+    const sessions = project.sessions;
+    if (!sessions || sessions.length === 0) {
+      return project;
+    }
+
+    let changed = false;
+    const nextSessions = sessions.map((session) => {
+      const optimisticPin = optimisticPins.get(session.id);
+      if (optimisticPin === undefined) {
+        return session;
+      }
+      if (Boolean(session.isPinned) === optimisticPin) {
+        return session;
+      }
+      changed = true;
+      return { ...session, isPinned: optimisticPin };
+    });
+
+    return changed ? { ...project, sessions: nextSessions } : project;
+  });
+};
+
+/**
+ * Flips one conversation to the requested pin state and stable-partitions the
+ * list so pinned rows render above unpinned ones, mirroring the server's
+ * recent-conversations ordering. Used to preview a pin before the refetch lands.
+ * Returns the input unchanged when the session is not in the list.
+ */
+export const reorderRecentConversationsForPin = (
+  conversations: RecentConversationListItem[],
+  sessionId: string,
+  isPinned: boolean,
+): RecentConversationListItem[] => {
+  if (!conversations.some((conversation) => conversation.sessionId === sessionId)) {
+    return conversations;
+  }
+
+  const updated = conversations.map((conversation) =>
+    conversation.sessionId === sessionId ? { ...conversation, isPinned } : conversation,
+  );
+
+  return [
+    ...updated.filter((conversation) => conversation.isPinned),
+    ...updated.filter((conversation) => !conversation.isPinned),
+  ];
 };
 
 export const normalizeProjectForSettings = (project: Project): SettingsProject => {

@@ -6,8 +6,10 @@ import { subscribeToUserPreferences } from '@/shared/userSettings';
 import { usePaletteOps } from '@/modules/command-palette';
 import type { ArchivedProjectListItem, ArchivedSessionListItem, BatchArchivedSessionDeleteConfirmation, BatchSessionArchiveConfirmation, ConversationProjectResult, ConversationSearchResults, LLMProvider, Project, ProjectSession, ProjectSortOrder, RecentConversationListItem, SearchProgress, ActiveSidebarRename, PendingSidebarDeletion, SessionTitleSearchResult, SessionWithProvider, SidebarSearchMode } from '@/shared/types';
 import {
+  applyOptimisticSessionPinState,
   filterProjects,
   getAllSessions,
+  reorderRecentConversationsForPin,
   sortProjects,
 } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import {
@@ -40,6 +42,11 @@ type RecentConversationsApiPayload = {
   };
 };
 
+type SidebarRefreshOptions = {
+  /** Skips the backend's on-disk session rescan; safe for pure DB mutations. */
+  skipSynchronization?: boolean;
+};
+
 type UseSidebarControllerArgs = {
   projects: Project[];
   selectedProject: Project | null;
@@ -48,7 +55,7 @@ type UseSidebarControllerArgs = {
   isLoading: boolean;
   isMobile: boolean;
   t: TFunction;
-  onRefresh: () => Promise<void> | void;
+  onRefresh: (options?: SidebarRefreshOptions) => Promise<void> | void;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: ProjectSession) => void;
   onSessionDelete?: (sessionId: string) => void;
@@ -116,11 +123,13 @@ export function useSidebarController({
   const [recentConversationsError, setRecentConversationsError] = useState(false);
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [optimisticStarByProjectId, setOptimisticStarByProjectId] = useState<Map<string, boolean>>(new Map());
+  const [optimisticPinBySessionId, setOptimisticPinBySessionId] = useState<Map<string, boolean>>(new Map());
   const [loadingMoreProjects, setLoadingMoreProjects] = useState<Set<string>>(new Set());
   const searchSeqRef = useRef(0);
   const recentConversationsSeqRef = useRef(0);
   const eventSourceRef = useRef<EventSource | null>(null);
   const starToggleSequenceByProjectRef = useRef<Map<string, number>>(new Map());
+  const pinToggleSequenceBySessionRef = useRef<Map<string, number>>(new Map());
   const migrationStartedRef = useRef(false);
   const onRefreshRef = useRef(onRefresh);
 
@@ -355,6 +364,44 @@ export function useSidebarController({
 
         if (Boolean(project.isStarred) === optimisticValue) {
           next.delete(projectId);
+          changed = true;
+        }
+      }
+
+      return changed ? next : previous;
+    });
+  }, [projects]);
+
+  // Same reconciliation for optimistic session pins: an entry survives only
+  // until the refreshed projects payload agrees with it. Sessions belong to a
+  // single project, so the scan stops at the first owning project.
+  useEffect(() => {
+    setOptimisticPinBySessionId((previous) => {
+      if (previous.size === 0) {
+        return previous;
+      }
+
+      const next = new Map(previous);
+      let changed = false;
+
+      for (const [sessionId, optimisticPin] of previous.entries()) {
+        let found = false;
+        for (const project of projects) {
+          const session = (project.sessions ?? []).find((candidate) => candidate.id === sessionId);
+          if (session) {
+            found = true;
+            if (Boolean(session.isPinned) === optimisticPin) {
+              next.delete(sessionId);
+              changed = true;
+            }
+            break;
+          }
+        }
+
+        // The session left the loaded list (archived/deleted/paged out); the
+        // overlay no longer has a row to paint, so drop the stale entry.
+        if (!found) {
+          next.delete(sessionId);
           changed = true;
         }
       }
@@ -648,9 +695,14 @@ export function useSidebarController({
     });
   }, [optimisticStarByProjectId, projects]);
 
+  const projectsWithResolvedPinState = useMemo(
+    () => applyOptimisticSessionPinState(projectsWithResolvedStarState, optimisticPinBySessionId),
+    [optimisticPinBySessionId, projectsWithResolvedStarState],
+  );
+
   const sortedProjects = useMemo(
-    () => sortProjects(projectsWithResolvedStarState, projectSortOrder),
-    [projectSortOrder, projectsWithResolvedStarState],
+    () => sortProjects(projectsWithResolvedPinState, projectSortOrder),
+    [projectSortOrder, projectsWithResolvedPinState],
   );
 
   const runningProjects = useMemo(() => {
@@ -1125,14 +1177,54 @@ export function useSidebarController({
 
   const updateSessionPinned = useCallback(
     async (sessionId: string, isPinned: boolean) => {
+      const latestSequence = (pinToggleSequenceBySessionRef.current.get(sessionId) ?? 0) + 1;
+      pinToggleSequenceBySessionRef.current.set(sessionId, latestSequence);
+
+      // Preview the result immediately instead of waiting out the refresh
+      // round trip: flip the project-tree session and regroup the recent feed.
+      // A quiet skip-sync refresh reconciles with the server in the background.
+      setOptimisticPinBySessionId((previous) => {
+        const next = new Map(previous);
+        next.set(sessionId, isPinned);
+        return next;
+      });
+      setRecentConversations((previous) =>
+        reorderRecentConversationsForPin(previous, sessionId, isPinned),
+      );
+
       try {
         const response = await api.setSessionPinned(sessionId, isPinned);
         if (!response.ok) {
           throw new Error(`Failed to update pin state: ${response.status}`);
         }
-        await Promise.resolve(onRefresh());
+
+        const isLatestSequence = pinToggleSequenceBySessionRef.current.get(sessionId) === latestSequence;
+        if (!isLatestSequence) {
+          return;
+        }
+
+        // Pinning only touches a DB flag — no transcript is written — so the
+        // reconciling refresh can skip the backend's on-disk session rescan.
+        await Promise.resolve(onRefresh({ skipSynchronization: true }));
         reloadRecentConversations();
       } catch (error) {
+        const isLatestSequence = pinToggleSequenceBySessionRef.current.get(sessionId) === latestSequence;
+        if (!isLatestSequence) {
+          return;
+        }
+
+        // Drop the optimistic preview and let a quiet refresh restore whatever
+        // the server actually persisted.
+        setOptimisticPinBySessionId((previous) => {
+          if (!previous.has(sessionId)) {
+            return previous;
+          }
+          const next = new Map(previous);
+          next.delete(sessionId);
+          return next;
+        });
+        void onRefresh({ skipSynchronization: true });
+        reloadRecentConversations();
         console.error('[Sidebar] Error updating session pin:', error);
         alert(t('messages.updateSessionPinError'));
       }
