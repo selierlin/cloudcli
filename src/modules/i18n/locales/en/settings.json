@@ -471,6 +471,23 @@
     "error": "Error: {{error}}",
     "errors": {
       "cursorCliNotFound": "Cursor CLI is not installed or could not be found."
+    },
+    "settingsSource": {
+      "title": "Settings file (claude --settings)",
+      "description": "Load a user-maintained Claude settings JSON on every run — useful for pointing at a relay (ANTHROPIC_BASE_URL, auth token, custom model). CloudCLI only stores paths; keep the file contents yourself.",
+      "directoryLabel": "Settings directory",
+      "directoryHint": "Every settings-*.json (or setting-*.json) in this directory is listed below as a profile.",
+      "saveDirectory": "Scan directory",
+      "activeLabel": "Active settings file",
+      "activeNone": "None (use default settings)",
+      "activeHint": "The selected file is loaded on every Claude run, equivalent to passing --settings.",
+      "customPathLabel": "Or point at a single settings file",
+      "applyPath": "Apply",
+      "clear": "Clear",
+      "current": "Current: {{path}}",
+      "loadError": "Failed to load the Claude settings configuration.",
+      "saveError": "Failed to save the Claude settings configuration.",
+      "saving": "Saving…"
     }
   },
   "skills": {

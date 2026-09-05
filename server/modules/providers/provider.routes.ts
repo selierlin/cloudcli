@@ -5,6 +5,7 @@ import { providerAuthService } from '@/modules/providers/services/provider-auth.
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
+import { providerSettingsSourceService } from '@/modules/providers/services/provider-settings-source.service.js';
 import { providerTokenUsageService } from '@/modules/providers/services/provider-token-usage.service.js';
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
 import { sessionConversationsSearchService } from '@/modules/providers/services/session-conversations-search.service.js';
@@ -794,6 +795,35 @@ router.get(
     res.json(createApiSuccessResponse(
       providerCapabilitiesService.getProviderCapabilities(provider),
     ));
+  }),
+);
+
+// ----------------- Settings-source routes -----------------
+/**
+ * Provider-level custom settings source (claude --settings equivalent).
+ * The client reads the current directory + active file and the live scan of
+ * `settings-*.json` profiles; PUT persists the directory and active selection.
+ * Only paths are stored — the user maintains the JSON files themselves.
+ */
+router.get(
+  '/:provider/settings-source',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const result = await providerSettingsSourceService.getSource(provider);
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
+router.put(
+  '/:provider/settings-source',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const result = await providerSettingsSourceService.updateSource(provider, {
+      directory: typeof body.directory === 'string' ? body.directory : undefined,
+      activeFile: typeof body.activeFile === 'string' ? body.activeFile : undefined,
+    });
+    res.json(createApiSuccessResponse(result));
   }),
 );
 

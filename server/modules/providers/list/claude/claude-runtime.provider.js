@@ -216,7 +216,7 @@ function matchesToolPermission(entry, toolName, input) {
 }
 
 function mapCliOptionsToSDK(options = {}) {
-  const { providerSessionId, cwd, toolsSettings, permissionMode, effort, resumeAnchorId, resumeFromScratch } = options;
+  const { providerSessionId, cwd, toolsSettings, permissionMode, effort, resumeAnchorId, resumeFromScratch, settingsFile } = options;
 
   const sdkOptions = {};
 
@@ -285,6 +285,15 @@ function mapCliOptionsToSDK(options = {}) {
   };
 
   sdkOptions.settingSources = ['project', 'user', 'local'];
+
+  // A user-configured settings file (the claude --settings equivalent) applies
+  // to the whole run — unless an inline settings object is already present.
+  // The only writer of an inline object today is applyClaudeEffort's ultracode
+  // branch, which must keep working for effort = ultracode even when a file is
+  // configured, so a file never overwrites it.
+  if (typeof settingsFile === 'string' && settingsFile.trim() && !sdkOptions.settings) {
+    sdkOptions.settings = settingsFile.trim();
+  }
 
   // The SDK resumes with the provider-native session id, never the app id.
   // `resumeFromScratch` is set when the very first prompt of a conversation was
@@ -698,6 +707,11 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
   // Callers pass the stable app session id; the SDK only understands the
   // provider-native id recorded on the session row.
   const providerSessionId = context.resolveProviderSessionId(sessionId);
+  // Provider-level custom settings file (claude --settings equivalent), read
+  // once per run. Guarded so unit tests can pass a context without it.
+  const settingsFile = (typeof context.resolveSettingsFile === 'function')
+    ? context.resolveSettingsFile(sessionId)
+    : null;
   // Provider-native id as the SDK reports it (starts as the resume id, or is
   // captured from the stream for brand-new sessions).
   let capturedSessionId = providerSessionId;
@@ -769,11 +783,50 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       providerSessionId,
       model: resolvedModel || options.model,
       effortModels,
+      settingsFile,
     });
 
     const mcpServers = await loadMcpConfig(options.cwd);
     if (mcpServers) {
       sdkOptions.mcpServers = mcpServers;
+    }
+
+    // A configured settings file (claude --settings) is loaded for the run.
+    // The SDK accepts either a path string OR an inline object, so:
+    //  - default path: mapCliOptionsToSDK already assigned the path — keep it.
+    //  - ultracode (inline object): merge the file's settings under the object
+    //    so the relay config still applies at ultracode effort.
+    // A missing or unreadable file must never take the run down: skip it with
+    // a warning and fall back to whatever the user gets without configuring one.
+    if (typeof settingsFile === 'string' && settingsFile.trim()) {
+      const settingsPath = settingsFile.trim();
+      let accessible = true;
+      try {
+        await fs.access(settingsPath);
+      } catch {
+        accessible = false;
+        console.warn(`[Claude SDK] Configured settings file is not readable, skipping it: ${settingsPath}`);
+        if (sdkOptions.settings === settingsPath) {
+          delete sdkOptions.settings;
+        }
+      }
+
+      if (accessible && sdkOptions.settings && typeof sdkOptions.settings === 'object') {
+        try {
+          const raw = await fs.readFile(settingsPath, 'utf8');
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            sdkOptions.settings = { ...parsed, ...sdkOptions.settings };
+          } else {
+            console.warn(`[Claude SDK] Configured settings file has no JSON object, keeping inline settings: ${settingsPath}`);
+          }
+        } catch (mergeError) {
+          console.warn(
+            `[Claude SDK] Failed to merge settings file with inline settings, skipping it: ${settingsPath}`,
+            mergeError?.message || mergeError,
+          );
+        }
+      }
     }
 
     // Every turn uses streaming input so stdin stays open past the turn's
@@ -1215,3 +1268,6 @@ export {
   extractTokenBudget,
   extractCumulativeTokenBudget
 };
+
+// mapCliOptionsToSDK: exported for unit tests that verify SDK option mapping.
+export { mapCliOptionsToSDK };

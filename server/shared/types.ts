@@ -445,6 +445,13 @@ export type ProviderRuntimeContext = {
    * Returns null when the session has no indexed transcript.
    */
   resolveProviderConfigDir(sessionId: string | null | undefined): string | null;
+  /**
+   * Resolves the provider-level custom settings file (the `claude --settings`
+   * equivalent) configured for this provider, or null when none is active.
+   * Runtimes hand the returned path to the SDK; a missing file is a caller
+   * decision (skip + warn), not an error surfaced here.
+   */
+  resolveSettingsFile(sessionId: string | null | undefined): string | null;
   resolveResumeModel(
     sessionId: string | undefined,
     requestedModel?: string | null,

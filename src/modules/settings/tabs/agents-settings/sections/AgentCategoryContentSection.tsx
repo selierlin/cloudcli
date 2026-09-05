@@ -2,6 +2,7 @@ import type { AgentCategory, AgentContextByProvider, AgentProvider, AgentSetting
 import { McpServers } from '@/modules/mcp';
 import { ProviderSkills } from '@/modules/skills';
 import AccountContent from '@/modules/settings/tabs/agents-settings/sections/content/AccountContent';
+import ClaudeSettingsSourceSection from '@/modules/settings/tabs/agents-settings/sections/content/ClaudeSettingsSourceSection';
 import PermissionsContent from '@/modules/settings/tabs/agents-settings/sections/content/PermissionsContent';
 
 type AgentCategoryContentSectionProps = {
@@ -37,11 +38,14 @@ export default function AgentCategoryContentSection({
   return (
     <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-4">
       {selectedCategory === 'account' && (
-        <AccountContent
-          agent={selectedAgent}
-          authStatus={agentContextById[selectedAgent].authStatus}
-          onLogin={agentContextById[selectedAgent].onLogin}
-        />
+        <div className="space-y-6">
+          <AccountContent
+            agent={selectedAgent}
+            authStatus={agentContextById[selectedAgent].authStatus}
+            onLogin={agentContextById[selectedAgent].onLogin}
+          />
+          {selectedAgent === 'claude' && <ClaudeSettingsSourceSection />}
+        </div>
       )}
 
       {selectedCategory === 'permissions' && selectedAgent === 'claude' && (
