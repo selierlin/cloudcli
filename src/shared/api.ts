@@ -152,7 +152,11 @@ export const api = {
   // config endpoint removed - no longer needed (frontend uses window.location)
   // After the projectName → projectId migration the path/query identifier is
   // the DB-assigned `projectId`; parameter names reflect that for clarity.
-  projects: () => get('/api/projects'),
+  // `skipSynchronization` avoids the backend's on-disk session rescan. Pure DB
+  // mutations (pin/star) do not create transcripts, so their follow-up refresh
+  // can skip it; refreshes that may reveal new transcripts must not.
+  projects: ({ skipSynchronization = false }: { skipSynchronization?: boolean } = {}) =>
+    get(`/api/projects${query({ skipSynchronization })}`),
   archivedProjects: () => get('/api/projects/archived'),
   projectSessions: (
     projectId: string,
