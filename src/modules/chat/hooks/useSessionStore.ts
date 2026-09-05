@@ -14,8 +14,10 @@ import type { LLMProvider, NormalizedMessage } from '@/shared/types';
 import { removeOptimisticUserEchoes, upsertRealtimeMessages } from '@/modules/chat/utils/sessionMessageReconciliation';
 import {
   hasReachedCachedTailTimeBoundary,
+  isOlderPageShifted,
   mergeLatestServerPage,
   mergeOlderServerPage,
+  olderPagePrecedesCachedHistory,
   planLatestPageBridge,
   resolveLatestPagePagination,
   SESSION_MESSAGES_PAGE_SIZE,
@@ -401,19 +403,6 @@ function hasEquivalentTokenUsage(left: unknown, right: unknown): boolean {
   return Object.is(left, right) || JSON.stringify(left) === JSON.stringify(right);
 }
 
-function olderPagePrecedesCachedHistory(
-  olderMessages: NormalizedMessage[],
-  cachedMessages: NormalizedMessage[],
-): boolean {
-  const olderNewest = olderMessages[olderMessages.length - 1];
-  const cachedOldest = cachedMessages[0];
-  if (!olderNewest || !cachedOldest) return true;
-
-  const olderTime = readMessageTime(olderNewest);
-  const cachedTime = readMessageTime(cachedOldest);
-  return olderTime === null || cachedTime === null || olderTime <= cachedTime;
-}
-
 /**
  * Fetches and atomically applies a bounded persisted-tail reconciliation.
  * Every request is finite. Claude/Codex bridge discovery may use more than one
@@ -653,17 +642,18 @@ export function useSessionStore() {
           if (!canRequest()) break;
 
           const cachedMessages = slot.serverMessages;
-          const expectedTotal = slot.total;
           const data = await requestSessionHistoryPage(sessionId, {
             limit: opts.limit ?? SESSION_MESSAGES_PAGE_SIZE,
             offset: slot.offset,
           });
           const olderMerge = mergeOlderServerPage(cachedMessages, data.messages);
-          const shiftedWhileFetching = (
-            data.total !== expectedTotal
-            || olderMerge.overlapLength > 0
-            || !olderPagePrecedesCachedHistory(data.messages, cachedMessages)
-          );
+          // A smaller `total` than the rows we already hold means the transcript
+          // was truncated (e.g. a Claude/Codex rewind). In that case we refresh
+          // the latest tail before continuing. Live WorkBuddy growth increases
+          // `total`; as long as the fetched page is older than the cached suffix
+          // it can be prepended without a full realignment.
+          const shiftedWhileFetching = data.total < cachedMessages.length
+            || isOlderPageShifted(cachedMessages, data.messages);
 
           if (shiftedWhileFetching) {
             if (attempt > 0 || !canRequest()) break;
