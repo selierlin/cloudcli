@@ -119,7 +119,7 @@ export class WorkbuddyProviderAuth implements IProviderAuth {
     return {
       installed,
       provider: 'workbuddy',
-      authenticated: false,
+      authenticated: versionOk,
       authVerified: false,
       email: null,
       method: versionOk ? 'workbuddy_desktop' : null,
