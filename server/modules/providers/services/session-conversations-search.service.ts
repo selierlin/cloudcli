@@ -45,6 +45,8 @@ type SessionTitleSearchResult = {
   projectDisplayName: string;
   sessionTitle: string;
   lastActivity: string | null;
+  /** True when the hit comes from the archived sessions table. */
+  isArchived: boolean;
 };
 
 export type SessionConversationSearchProgressUpdate = {
@@ -167,27 +169,42 @@ function toSummaryText(customName: string | null, fallback: string | null | unde
 }
 
 /**
- * Finds visible sessions whose displayed title contains the query. Title
- * matches are resolved from the database before transcript scanning so the UI
- * can always present them first, including sessions without a transcript yet.
+ * Finds visible sessions whose displayed title or session ids contain the
+ * query. Title matches are resolved from the database before transcript
+ * scanning so the UI can always present them first, including sessions without
+ * a transcript yet. Archived sessions are searched through the same matcher
+ * and flagged with `isArchived` so the UI can badge them; sessions belonging
+ * to an archived project stay hidden in both cases.
  */
 function findSessionTitleResults(
   sessions: SessionRepositoryRow[],
+  archivedSessions: SessionRepositoryRow[],
   query: string,
   limit: number,
 ): SessionTitleSearchResult[] {
   const normalizedQuery = query.toLocaleLowerCase().replace(/\s+/g, ' ');
   const projectCache = new Map<string, ReturnType<typeof projectsDb.getProjectPath>>();
+  const archivedSessionIds = new Set(archivedSessions.map((session) => session.session_id));
 
-  return sessions
+  return [...sessions, ...archivedSessions]
     .flatMap((session) => {
       const sessionTitle = toSummaryText(session.custom_name, session.session_id, session.session_id);
       const normalizedTitle = sessionTitle.toLocaleLowerCase().replace(/\s+/g, ' ');
-      const matchIndex = normalizedTitle.indexOf(normalizedQuery);
+      let matchIndex = normalizedTitle.indexOf(normalizedQuery);
+      // Both id columns are match targets so a pasted id also finds renamed
+      // sessions; the displayed title stays unchanged. Id matches sort after
+      // title matches (ties fall through to the last-activity ordering).
+      const providerSessionId = typeof session.provider_session_id === 'string' ? session.provider_session_id : '';
       if (matchIndex === -1) {
-        return [];
+        const idMatched = [session.session_id, providerSessionId]
+          .some((id) => id.toLocaleLowerCase().includes(normalizedQuery));
+        if (!idMatched) {
+          return [];
+        }
+        matchIndex = normalizedTitle.length;
       }
 
+      const isArchived = archivedSessionIds.has(session.session_id);
       const projectPath = typeof session.project_path === 'string' && session.project_path.trim()
         ? session.project_path.trim()
         : null;
@@ -213,6 +230,7 @@ function findSessionTitleResults(
           : 'Unknown Project',
         sessionTitle,
         lastActivity: session.updated_at || session.created_at || null,
+        isArchived,
         matchIndex,
       }];
     })
@@ -1172,7 +1190,8 @@ export async function searchConversations(
   }
 
   const activeSessions = sessionsDb.getAllSessions();
-  const titleResults = findSessionTitleResults(activeSessions, safeQuery, safeLimit);
+  const archivedSessions = sessionsDb.getArchivedSessions();
+  const titleResults = findSessionTitleResults(activeSessions, archivedSessions, safeQuery, safeLimit);
   onTitleResults?.(titleResults);
 
   const searchableSessions = normalizeSearchableSessions(activeSessions);

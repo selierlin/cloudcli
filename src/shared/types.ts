@@ -1294,6 +1294,12 @@ export type SidebarProjectListProps = {
   tasksEnabled: boolean;
   mcpServerStatus: MCPServerStatus;
   getProjectSessions: (project: Project) => SessionWithProvider[];
+  /**
+   * While a projects-mode search is active, the sessions of each surviving
+   * project narrowed to the query matches (title/provider); null when no
+   * search is active so every loaded session renders.
+   */
+  matchedSessionsByProjectId: Map<string, SessionWithProvider[]> | null;
   onLoadMoreSessions: (projectId: string) => void;
   loadingMoreProjects: Set<string>;
   activeSessions: ReadonlySet<string>;
@@ -1440,6 +1446,8 @@ export type SessionTitleSearchResult = {
   projectDisplayName: string;
   sessionTitle: string;
   lastActivity: string | null;
+  /** True when the hit is an archived session; the sidebar renders an archived badge for it. */
+  isArchived?: boolean;
 };
 
 /** All conversation matches found inside a single project during a search, grouped so the results can be rendered under one project heading. */

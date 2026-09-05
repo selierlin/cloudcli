@@ -1,10 +1,10 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { Activity, Archive, Check, ChevronDown, ChevronRight, Folder, MessageSquare, RotateCcw, Search, Trash2 } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { LLMProviderLogo, ScrollArea } from '@/shared/ui';
 import { cn } from '@/shared/utils';
-import type { ArchivedProjectListItem, ArchivedSessionListItem, ConversationSearchResults, LLMProvider, Project, RecentConversationListItem, ReleaseInfo, SearchProgress, SidebarProjectListProps, SidebarSearchMode } from '@/shared/types';
+import type { ArchivedProjectListItem, ArchivedSessionListItem, ConversationSearchResults, LLMProvider, Project, RecentConversationListItem, ReleaseInfo, SearchProgress, SessionTitleSearchResult, SidebarProjectListProps, SidebarSearchMode } from '@/shared/types';
 import { formatCompactAge, getAllSessions } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import SidebarBatchSessionActions from '@/modules/sidebar/SidebarBatchSessionActions';
 import SidebarFooter from '@/modules/sidebar/SidebarFooter';
@@ -33,6 +33,75 @@ function HighlightedSnippet({ snippet, highlights }: { snippet: string; highligh
     <span className="min-w-0 flex-1 break-words text-xs leading-relaxed text-muted-foreground">
       {parts}
     </span>
+  );
+}
+
+/**
+ * One session-title hit row, shared by the conversation-search title section
+ * and the projects-mode id-lookup section. Clicking the body opens the
+ * session; archived hits show a badge and a restore action.
+ */
+function ConversationTitleResultRow({
+  session,
+  currentTime,
+  t,
+  onOpen,
+  onRestore,
+}: {
+  session: SessionTitleSearchResult;
+  currentTime: Date;
+  t: TFunction;
+  onOpen: (projectId: string | null, sessionId: string, provider: string) => void;
+  onRestore?: (session: SessionTitleSearchResult) => void;
+}) {
+  const age = formatCompactAge(session.lastActivity, currentTime);
+
+  return (
+    <div className="group flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-2 transition-colors hover:bg-accent/60">
+      <button
+        type="button"
+        className="flex min-w-0 flex-1 items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onClick={() => onOpen(session.projectId, session.sessionId, session.provider)}
+      >
+        <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-muted/60">
+          <LLMProviderLogo provider={session.provider} className="h-3.5 w-3.5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="min-w-0 truncate text-[13px] font-normal leading-4 text-foreground">
+              {session.sessionTitle}
+            </span>
+            {session.isArchived && (
+              <span className="flex-shrink-0 rounded bg-muted px-1 py-px text-[9px] font-normal leading-3 text-muted-foreground">
+                {t('search.archivedBadge', 'Archived')}
+              </span>
+            )}
+          </span>
+          <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] leading-3 text-muted-foreground">
+            <span className="truncate">{session.projectDisplayName}</span>
+            {age && (
+              <>
+                <span className="flex-shrink-0 text-muted-foreground/40">·</span>
+                <time className="flex-shrink-0 tabular-nums" dateTime={session.lastActivity ?? undefined}>
+                  {age}
+                </time>
+              </>
+            )}
+          </span>
+        </span>
+      </button>
+      {session.isArchived && onRestore && (
+        <button
+          type="button"
+          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-emerald-500/10 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 dark:hover:text-emerald-300"
+          onClick={() => onRestore(session)}
+          title={t('archived.restore', 'Restore session')}
+          aria-label={`${t('archived.restore', 'Restore session')}: ${session.sessionTitle}`}
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -189,9 +258,25 @@ export default function SidebarContent({
   t,
 }: SidebarContentProps) {
   const showConversationSearch = searchMode === 'conversations' && searchFilter.trim().length >= 2;
+
+  // Conversation search results stay frozen until the next query lands. Track
+  // sessions restored from the results list so their rows drop out immediately
+  // instead of lingering with a stale archived badge.
+  const [restoredSearchSessionIds, setRestoredSearchSessionIds] = useState<Set<string>>(new Set());
+  const visibleTitleResults = conversationResults
+    ? conversationResults.titleResults.filter((session) => !restoredSearchSessionIds.has(session.sessionId))
+    : [];
+  // Shared by both search-hit sections (conversation titles and the
+  // projects-mode id lookup): the row drops out locally and the restore
+  // callback refreshes the active and archived lists.
+  const restoreSearchHit = useCallback((session: SessionTitleSearchResult) => {
+    setRestoredSearchSessionIds((previous) => new Set(previous).add(session.sessionId));
+    onRestoreArchivedSession(session.sessionId);
+  }, [onRestoreArchivedSession]);
+
   const hasSearchResults = Boolean(
     conversationResults
-    && (conversationResults.titleResults.length > 0 || conversationResults.results.length > 0),
+      && ((visibleTitleResults.length > 0) || conversationResults.results.length > 0),
   );
   const groupedArchivedSessions = groupArchivedSessionsByProject(archivedSessions);
   const visibleArchivedItemsCount = archivedProjects.length + archivedSessions.length;
@@ -374,7 +459,7 @@ export default function SidebarContent({
             </div>
           ) : conversationResults && (hasSearchResults || isSearching) ? (
             <div className="space-y-4 px-2" aria-live="polite">
-              {conversationResults.titleResults.length > 0 && (
+              {visibleTitleResults.length > 0 && (
                 <section className="space-y-1" aria-labelledby="session-title-results-heading">
                   <div className="flex items-center justify-between px-1 py-0.5">
                     <h3
@@ -384,46 +469,20 @@ export default function SidebarContent({
                       {t('search.sessionTitles', 'Session')}
                     </h3>
                     <span className="text-[10px] tabular-nums text-muted-foreground/70">
-                      {conversationResults.titleResults.length}
+                      {visibleTitleResults.length}
                     </span>
                   </div>
 
-                  {conversationResults.titleResults.map((session) => {
-                    const age = formatCompactAge(session.lastActivity, projectListProps.currentTime);
-
-                    return (
-                      <button
-                        key={`${session.provider}-${session.sessionId}`}
-                        type="button"
-                        className="group flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-2 text-left transition-colors hover:bg-accent/60"
-                        onClick={() => onConversationResultClick(
-                          session.projectId,
-                          session.sessionId,
-                          session.provider,
-                        )}
-                      >
-                        <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-muted/60">
-                          <LLMProviderLogo provider={session.provider} className="h-3.5 w-3.5" />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[13px] font-normal leading-4 text-foreground">
-                            {session.sessionTitle}
-                          </span>
-                          <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] leading-3 text-muted-foreground">
-                            <span className="truncate">{session.projectDisplayName}</span>
-                            {age && (
-                              <>
-                                <span className="flex-shrink-0 text-muted-foreground/40">·</span>
-                                <time className="flex-shrink-0 tabular-nums" dateTime={session.lastActivity ?? undefined}>
-                                  {age}
-                                </time>
-                              </>
-                            )}
-                          </span>
-                        </span>
-                      </button>
-                    );
-                  })}
+                  {visibleTitleResults.map((session) => (
+                    <ConversationTitleResultRow
+                      key={`${session.provider}-${session.sessionId}`}
+                      session={session}
+                      currentTime={projectListProps.currentTime}
+                      t={t}
+                      onOpen={onConversationResultClick}
+                      onRestore={restoreSearchHit}
+                    />
+                  ))}
                 </section>
               )}
 

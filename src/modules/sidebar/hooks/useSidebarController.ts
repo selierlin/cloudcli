@@ -8,7 +8,9 @@ import type { ArchivedProjectListItem, ArchivedSessionListItem, BatchArchivedSes
 import {
   applyOptimisticSessionPinState,
   filterProjects,
+  filterSessionsForProject,
   getAllSessions,
+  projectMatchesNameOrPath,
   reorderRecentConversationsForPin,
   sortProjects,
 } from '@/modules/sidebar/utils/sidebarProjectFormatting';
@@ -736,6 +738,44 @@ export function useSidebarController({
     [debouncedSearchQuery, runningProjects, searchMode, sortedProjects],
   );
 
+  // While a projects-mode search is active, expand every surviving project so
+  // the narrowed session lists are visible without extra clicks.
+  useEffect(() => {
+    if (searchMode !== 'projects' || !debouncedSearchQuery) {
+      return;
+    }
+
+    setExpandedProjects((previous) => {
+      const next = new Set(previous);
+      filteredProjects.forEach((project) => next.add(project.projectId));
+      return next.size === previous.size ? previous : next;
+    });
+  }, [debouncedSearchQuery, filteredProjects, searchMode]);
+
+  // Per-project narrowed session lists for the active search. Projects that
+  // matched by name/path keep every loaded session; projects that survived
+  // through a session match show only the matching sessions. Null when no
+  // search is active, so the tree renders the full lists.
+  const matchedSessionsByProjectId = useMemo(() => {
+    const normalizedSearch = debouncedSearchQuery.trim().toLowerCase();
+    if (!normalizedSearch || (searchMode !== 'projects' && searchMode !== 'running')) {
+      return null;
+    }
+
+    const map = new Map<string, SessionWithProvider[]>();
+    for (const project of filteredProjects) {
+      map.set(
+        project.projectId,
+        filterSessionsForProject(
+          project,
+          projectMatchesNameOrPath(project, normalizedSearch),
+          debouncedSearchQuery,
+        ),
+      );
+    }
+    return map;
+  }, [debouncedSearchQuery, filteredProjects, searchMode]);
+
   const filteredArchivedSessions = useMemo(() => {
     const normalizedSearch = debouncedSearchQuery.trim().toLowerCase();
     if (!normalizedSearch) {
@@ -748,6 +788,8 @@ export function useSidebarController({
         session.projectDisplayName,
         session.projectPath ?? '',
         session.provider,
+        // Session ids are searchable so a pasted id finds archived sessions.
+        session.sessionId,
       ];
 
       return searchableFields.some((value) => value.toLowerCase().includes(normalizedSearch));
@@ -781,6 +823,8 @@ export function useSidebarController({
         return [
           sessionSummary,
           session.__provider,
+          // Session ids are searchable so a pasted id finds archived sessions.
+          session.id,
         ].some((value) => value.toLowerCase().includes(normalizedSearch));
       });
     });
@@ -1304,6 +1348,7 @@ export function useSidebarController({
     searchMode,
     setSearchMode,
     conversationResults,
+    matchedSessionsByProjectId,
     isSearching,
     searchProgress,
     clearConversationResults: useCallback(() => {
