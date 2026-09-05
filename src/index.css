@@ -735,7 +735,11 @@
       opacity: 1 !important;
     }
     
-    /* Only disable hover states for interactive elements, not containers */
+    /* Only disable hover states for interactive elements, not containers.
+       Do NOT reset `transform` here: on touch devices the sticky :hover
+       state would strip layout transforms such as -translate-y-1/2 used
+       to center absolutely-positioned buttons (e.g. the sidebar search
+       clear button), making them visibly jump out of alignment. */
     button:hover,
     [role="button"]:hover,
     .cursor-pointer:hover,
@@ -747,7 +751,6 @@
       background-color: inherit !important;
       color: inherit !important;
       opacity: inherit !important;
-      transform: inherit !important;
     }
     
     /* Force buttons to be immediately clickable */

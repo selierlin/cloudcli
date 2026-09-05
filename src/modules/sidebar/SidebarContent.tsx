@@ -770,38 +770,40 @@ export default function SidebarContent({
                     key={project.projectId}
                     className="group/archive overflow-hidden rounded-xl border border-border/70 bg-card/45 shadow-[0_1px_0_hsl(var(--border)/0.2)] transition-colors hover:border-border"
                   >
-                    <div className="flex items-center gap-2.5 px-2.5 py-2.5">
-                      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/45 text-muted-foreground">
-                        <Folder className="h-4 w-4" />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          <h3 className="truncate text-[13px] font-medium text-foreground">
-                            {project.displayName}
-                          </h3>
-                          {projectSessions.length > 0 && (
-                            <span className="flex-shrink-0 rounded-md bg-muted/60 px-1.5 py-0.5 text-[9px] tabular-nums text-muted-foreground">
-                              {projectSessions.length}
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-0.5 truncate text-[11px] text-muted-foreground/70" title={project.fullPath}>
-                          {project.fullPath}
-                        </p>
-                      </div>
+                    <div className="flex items-center gap-1.5 px-1.5 py-1.5">
                       <button
                         type="button"
-                        className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1.5 py-1 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                         onClick={() => toggleArchivedGroup(groupKey)}
                         aria-expanded={isExpanded}
                         aria-label={isExpanded
                           ? t('archived.collapseSessions', 'Collapse sessions')
                           : t('archived.expandSessions', 'Expand sessions')}
                       >
-                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/45 text-muted-foreground">
+                          <Folder className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <span className="truncate text-[13px] font-medium text-foreground">
+                              {project.displayName}
+                            </span>
+                            {projectSessions.length > 0 && (
+                              <span className="flex-shrink-0 rounded-md bg-muted/60 px-1.5 py-0.5 text-[9px] tabular-nums text-muted-foreground">
+                                {projectSessions.length}
+                              </span>
+                            )}
+                          </span>
+                          <span className="mt-0.5 block truncate text-[11px] text-muted-foreground/70" title={project.fullPath}>
+                            {project.fullPath}
+                          </span>
+                        </span>
+                        <span aria-hidden className="flex flex-shrink-0 items-center justify-center text-muted-foreground">
+                          {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </span>
                       </button>
                       <button
-                        className="flex h-7 flex-shrink-0 items-center gap-1.5 rounded-lg border border-emerald-600/15 bg-emerald-500/10 px-2 text-[10px] font-medium text-emerald-700 transition-all hover:border-emerald-600/25 hover:bg-emerald-500/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 dark:text-emerald-300"
+                        className="flex h-8 flex-shrink-0 items-center gap-1.5 rounded-lg border border-emerald-600/15 bg-emerald-500/10 px-2 text-[10px] font-medium text-emerald-700 transition-all hover:border-emerald-600/25 hover:bg-emerald-500/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 dark:text-emerald-300"
                         onClick={() => onRestoreArchivedProject(project.projectId)}
                         title={t('archived.restoreProject', 'Restore workspace')}
                         aria-label={`${t('archived.restoreProject', 'Restore workspace')}: ${project.displayName}`}
@@ -885,35 +887,37 @@ export default function SidebarContent({
                   key={group.key}
                   className="group/archive overflow-hidden rounded-xl border border-border/70 bg-card/45 shadow-[0_1px_0_hsl(var(--border)/0.2)] transition-colors hover:border-border"
                 >
-                  <div className="flex items-center gap-2.5 px-2.5 py-2.5">
-                    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/45 text-muted-foreground">
-                      <Folder className="h-4 w-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <h3 className="truncate text-[13px] font-medium text-foreground">
-                          {group.projectDisplayName}
-                        </h3>
-                        <span className="flex-shrink-0 rounded-md bg-muted/60 px-1.5 py-0.5 text-[9px] tabular-nums text-muted-foreground">
-                          {group.sessions.length}
-                        </span>
-                      </div>
-                      {group.projectPath && (
-                        <p className="mt-0.5 truncate text-[11px] text-muted-foreground/70" title={group.projectPath}>
-                          {group.projectPath}
-                        </p>
-                      )}
-                    </div>
+                  <div className="flex items-center gap-1.5 px-1.5 py-1.5">
                     <button
                       type="button"
-                      className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1.5 py-1 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                       onClick={() => toggleArchivedGroup(groupKey)}
                       aria-expanded={isExpanded}
                       aria-label={isExpanded
                         ? t('archived.collapseSessions', 'Collapse sessions')
                         : t('archived.expandSessions', 'Expand sessions')}
                     >
-                      {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/45 text-muted-foreground">
+                        <Archive className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="truncate text-[13px] font-medium text-foreground">
+                            {group.projectDisplayName}
+                          </span>
+                          <span className="flex-shrink-0 rounded-md bg-muted/60 px-1.5 py-0.5 text-[9px] tabular-nums text-muted-foreground">
+                            {t('archived.sessionCount', { count: group.sessions.length })}
+                          </span>
+                        </span>
+                        {group.projectPath && (
+                          <span className="mt-0.5 block truncate text-[11px] text-muted-foreground/70" title={group.projectPath}>
+                            {group.projectPath}
+                          </span>
+                        )}
+                      </span>
+                      <span aria-hidden className="flex flex-shrink-0 items-center justify-center text-muted-foreground">
+                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      </span>
                     </button>
                   </div>
                   {isExpanded && (

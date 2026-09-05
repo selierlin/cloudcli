@@ -144,7 +144,13 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
   const isAuthenticated = Boolean(loginProvider && providerAuthStatus[loginProvider].authenticated);
 
   return (
-    <div className="modal-backdrop fixed inset-0 z-[9999] flex items-center justify-center bg-background/80 backdrop-blur-sm md:p-4">
+    // Lift the whole modal above the on-screen keyboard. Mirrors how the
+    // workspace shell / bottom sheets stay above it (--keyboard-height is
+    // driven by useVisualViewportKeyboardOffset on the workspace route).
+    <div
+      className="modal-backdrop fixed inset-0 z-[9999] flex items-center justify-center bg-background/80 backdrop-blur-sm md:p-4"
+      style={{ bottom: 'var(--keyboard-height, 0px)' }}
+    >
       <div className="flex h-full w-full flex-col overflow-hidden border border-border bg-background shadow-2xl md:h-[90vh] md:max-w-4xl md:rounded-xl">
         {/* Header */}
         <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-4 py-3 md:px-5">
@@ -170,7 +176,16 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
 
           {/* Content */}
           <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
-            <div key={activeTab} className="settings-content-enter min-w-0 space-y-6 overflow-x-hidden p-4 pb-safe-area-inset-bottom md:space-y-8 md:p-6">
+            <div
+              key={activeTab}
+              className="settings-content-enter min-w-0 space-y-6 overflow-x-hidden p-4 md:space-y-8 md:p-6"
+              style={{
+                // Reserve room below the last row for the on-screen keyboard and
+                // home-indicator safe area so bottom inputs can always be scrolled
+                // into view (mirrors the shell/TerminalShortcutsPanel handling).
+                paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--keyboard-height, 0px))',
+              }}
+            >
               {activeTab === 'appearance' && (
                 <AppearanceSettingsTab
                   projectSortOrder={projectSortOrder}

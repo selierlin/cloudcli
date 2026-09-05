@@ -222,6 +222,8 @@
     "collapseSessions": "Collapse sessions",
     "expandAll": "Expand all",
     "collapseAll": "Collapse all",
+    "sessionCount_one": "{{count}} session",
+    "sessionCount_other": "{{count}} sessions",
     "restore": "Restore session",
     "deletePermanently": "Delete permanently",
     "loadingTitle": "Loading archive...",
