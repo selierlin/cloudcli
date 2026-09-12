@@ -111,16 +111,20 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     // `--permission-mode` on every run.
     permissionModes: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
     defaultPermissionMode: 'default',
-    // Images and files reach the engine as stream-json input blocks; no
-    // token-usage parser exists for WorkBuddy transcripts yet.
+    // Images and files reach the engine as stream-json input blocks; token
+    // usage is summarized from the `message.usage` blocks persisted on
+    // assistant/function_call transcript rows.
     supportsImages: true,
     supportsFiles: true,
     supportsAbort: true,
     supportsPermissionRequests: false,
-    supportsTokenUsage: false,
+    supportsTokenUsage: true,
     supportsEffort: true,
     supportsMessageEditing: false,
-    supportsSessionForking: false,
+    // Forking is materialised in WorkbuddyForkProvider: the engine cannot cut
+    // at a row itself, so the provider copies the transcript prefix into a new
+    // session file that the next `--resume` picks up.
+    supportsSessionForking: true,
   },
   dsh: {
     provider: 'dsh',

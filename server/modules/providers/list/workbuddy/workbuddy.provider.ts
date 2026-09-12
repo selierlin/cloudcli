@@ -1,4 +1,5 @@
 import { AbstractProvider } from '@/modules/providers/shared/base/abstract.provider.js';
+import { WorkbuddyForkProvider } from '@/modules/providers/list/workbuddy/workbuddy-fork.provider.js';
 import { WorkbuddyProviderAuth } from '@/modules/providers/list/workbuddy/workbuddy-auth.provider.js';
 import { WorkbuddyProviderModels } from '@/modules/providers/list/workbuddy/workbuddy-models.provider.js';
 import { WorkbuddyMcpProvider } from '@/modules/providers/list/workbuddy/workbuddy-mcp.provider.js';
@@ -8,6 +9,7 @@ import { WorkbuddySessionsProvider } from '@/modules/providers/list/workbuddy/wo
 import { WorkbuddySkillsProvider } from '@/modules/providers/list/workbuddy/workbuddy-skills.provider.js';
 import type {
   IProviderAuth,
+  IProviderFork,
   IProviderModels,
   IProviderRuntime,
   IProviderSessionSynchronizer,
@@ -22,6 +24,7 @@ export class WorkbuddyProvider extends AbstractProvider {
   readonly auth: IProviderAuth = new WorkbuddyProviderAuth();
   readonly skills: IProviderSkills = new WorkbuddySkillsProvider();
   readonly sessions: IProviderSessions = new WorkbuddySessionsProvider();
+  readonly fork: IProviderFork = new WorkbuddyForkProvider();
   readonly sessionSynchronizer: IProviderSessionSynchronizer = new WorkbuddySessionSynchronizer();
 
   constructor() {
