@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useLayoutEffect, useMemo, useReducer } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 
 import type { ChatMessage,
@@ -10,6 +10,11 @@ import type { ChatMessage,
   ProviderModelsDefinition } from '@/shared/types';
 import { getIntrinsicMessageKey } from '@/modules/chat/utils/messageKeys';
 import { groupConsecutiveTools, isToolGroupItem } from '@/modules/chat/utils/toolGrouping';
+import { deriveReasoningPresentations } from '@/modules/chat/utils/reasoningDisclosure';
+import {
+  disclosureRegistryReducer,
+  resolveReasoningDisclosureState,
+} from '@/modules/chat/utils/reasoningDisclosureRegistry';
 import { useLazyRowObserver } from '@/modules/chat/hooks/useLazyRowObserver';
 import LazyMessageRow from '@/modules/chat/transcript/LazyMessageRow';
 import MessageComponent from '@/modules/chat/transcript/MessageComponent';
@@ -31,6 +36,10 @@ type ChatMessagesPaneProps = {
   isLoadingSessionMessages: boolean;
   /** True while the viewed session has an active provider run in flight. */
   isProcessing?: boolean;
+  /** Prevents disclosure layout changes while the user reads above the tail. */
+  isUserScrolledUp?: boolean;
+  /** Asks the chat-owned scroll writer to follow an automatic reasoning collapse. */
+  onReasoningAutoCollapseStart?: () => void;
   /** True while ChatComposer's floating activity/stop tab is rendered above the input. */
   hasActivityIndicator?: boolean;
   chatMessages: ChatMessage[];
@@ -83,6 +92,8 @@ function ChatMessagesPane({
   onTouchMove,
   isLoadingSessionMessages,
   isProcessing = false,
+  isUserScrolledUp = false,
+  onReasoningAutoCollapseStart,
   hasActivityIndicator = false,
   chatMessages,
   selectedSession,
@@ -122,6 +133,44 @@ function ChatMessagesPane({
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
   const lazyRows = useLazyRowObserver(scrollContainerRef);
+  const sessionId = selectedSession?.id ?? null;
+  // Retains user ownership and visible duration across lazy row unmounts.
+  const [disclosureRegistry, dispatchDisclosure] = useReducer(disclosureRegistryReducer, {
+    sessionId,
+    entries: {},
+  });
+  const reasoningPresentations = useMemo(
+    () => deriveReasoningPresentations(visibleMessages, sessionId ?? 'no-session', isProcessing),
+    [isProcessing, sessionId, visibleMessages],
+  );
+
+  useLayoutEffect(() => {
+    dispatchDisclosure({ type: 'reset', sessionId });
+  }, [sessionId]);
+
+  useLayoutEffect(() => {
+    dispatchDisclosure({
+      type: 'sync',
+      rows: [...reasoningPresentations.entries()].map(([message, presentation]) => ({
+        key: presentation.disclosureKey,
+        content: String(message.content || ''),
+        isStreaming: Boolean(message.isStreaming),
+        timestamp: message.timestamp,
+      })),
+      now: Date.now(),
+    });
+  }, [reasoningPresentations]);
+
+  const handleReasoningUserOpenChange = useCallback((key: string, open: boolean) => {
+    dispatchDisclosure({ type: 'user', key, open });
+  }, []);
+  const handleReasoningProgramOpen = useCallback((key: string) => {
+    dispatchDisclosure({ type: 'program_open', key, now: Date.now() });
+  }, []);
+  const handleReasoningProgramCollapse = useCallback((key: string) => {
+    onReasoningAutoCollapseStart?.();
+    dispatchDisclosure({ type: 'program_collapse', key });
+  }, [onReasoningAutoCollapseStart]);
   const groupedVisibleMessages = useMemo(
     () => groupConsecutiveTools(visibleMessages, Boolean(showThinking)),
     [visibleMessages, showThinking],
@@ -281,6 +330,15 @@ function ChatMessagesPane({
 
               const messagePrevMessage = prevMessage;
               prevMessage = item;
+              const reasoningPresentation = reasoningPresentations.get(item);
+              const reasoningDisclosureState = reasoningPresentation
+                && disclosureRegistry.sessionId === sessionId
+                ? resolveReasoningDisclosureState(
+                    disclosureRegistry,
+                    reasoningPresentation.disclosureKey,
+                    String(item.content || ''),
+                  )
+                : undefined;
 
               return (
                 <LazyMessageRow
@@ -300,6 +358,12 @@ function ChatMessagesPane({
                     showThinking={showThinking}
                     selectedProject={selectedProject}
                     provider={provider}
+                    reasoningPresentation={reasoningPresentation}
+                    reasoningDisclosureState={reasoningDisclosureState}
+                    suppressReasoningAutoCollapse={isUserScrolledUp}
+                    onReasoningUserOpenChange={handleReasoningUserOpenChange}
+                    onReasoningProgramOpen={handleReasoningProgramOpen}
+                    onReasoningProgramCollapse={handleReasoningProgramCollapse}
                     onEditMessage={onEditMessage}
                     onForkFromMessage={onForkFromMessage}
                   />

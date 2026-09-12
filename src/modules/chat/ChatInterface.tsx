@@ -49,6 +49,8 @@ type ChatInterfaceProps = {
   onShowAllTasks?: (() => void) | null;
 };
 
+const REASONING_COLLAPSE_FOLLOW_MS = 350;
+
 /** Resolves the provider name shown in chat empty states and composer hints. */
 /**
  * Used by the project-workspace module (via the chat barrel) to render a
@@ -170,6 +172,7 @@ function ChatInterface({
     scrollContainerRef,
     scrollToBottom,
     scrollToBottomAndReset,
+    followTranscriptLayout,
     handleScroll,
     requestLatestMessages,
   } = useChatSessionState({
@@ -186,6 +189,10 @@ function ChatInterface({
     lastSeqRef,
     sessionStore,
   });
+
+  const handleReasoningAutoCollapseStart = useCallback(() => {
+    followTranscriptLayout(REASONING_COLLAPSE_FOLLOW_MS);
+  }, [followTranscriptLayout]);
 
   const visibleStreamingSessionId = isActive
     ? selectedSession?.id || currentSessionId || null
@@ -455,6 +462,8 @@ function ChatInterface({
           onTouchMove={handleScroll}
           isLoadingSessionMessages={isLoadingSessionMessages}
           isProcessing={isProcessing}
+          isUserScrolledUp={isUserScrolledUp}
+          onReasoningAutoCollapseStart={handleReasoningAutoCollapseStart}
           hasActivityIndicator={hasActivityIndicator}
           chatMessages={chatMessages}
           selectedSession={selectedSession}

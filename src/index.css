@@ -596,6 +596,18 @@
 
 /* Mobile optimizations and components */
 @layer components {
+  .reasoning-collapse-content {
+    --reasoning-collapse-duration: 220ms;
+    --reasoning-fade-duration: 150ms;
+  }
+
+  @media (hover: none) and (pointer: coarse) {
+    .reasoning-collapse-content {
+      --reasoning-collapse-duration: 280ms;
+      --reasoning-fade-duration: 180ms;
+    }
+  }
+
   .chat-messages-pane {
     contain: layout style paint;
   }

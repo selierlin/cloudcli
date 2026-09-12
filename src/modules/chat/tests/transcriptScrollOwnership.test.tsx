@@ -55,9 +55,10 @@ const buildMessage = (index: number, timestamp: string): NormalizedMessage => ({
 function createContainer(scrollHeight: number, clientHeight: number) {
   const element = document.createElement('div');
   const writes: number[] = [];
+  let currentScrollHeight = scrollHeight;
   let scrollTop = scrollHeight - clientHeight;
 
-  Object.defineProperty(element, 'scrollHeight', { get: () => scrollHeight });
+  Object.defineProperty(element, 'scrollHeight', { get: () => currentScrollHeight });
   Object.defineProperty(element, 'clientHeight', { get: () => clientHeight });
   Object.defineProperty(element, 'scrollTop', {
     get: () => scrollTop,
@@ -67,7 +68,14 @@ function createContainer(scrollHeight: number, clientHeight: number) {
     },
   });
 
-  return { element: element as HTMLDivElement, writes, scrollHeight };
+  return {
+    element: element as HTMLDivElement,
+    writes,
+    scrollHeight,
+    setScrollHeight: (next: number) => {
+      currentScrollHeight = next;
+    },
+  };
 }
 
 function createStore(messagesBySession: Map<string, NormalizedMessage[]>) {
@@ -237,6 +245,69 @@ describe('deferred scroll-to-bottom', () => {
     });
 
     expect(container.writes).toContain(container.scrollHeight);
+  });
+
+  it('follows the bottom throughout an animated reasoning collapse', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
+    ]);
+    const store = createStore(messages);
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+    const container = createContainer(5000, 500);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    act(() => {
+      result.current.followTranscriptLayout(350);
+      container.setScrollHeight(4200);
+      runAnimationFrame();
+    });
+    expect(container.writes.at(-1)).toBe(4200);
+
+    act(() => {
+      vi.advanceTimersByTime(200);
+      container.setScrollHeight(3500);
+      runAnimationFrame();
+    });
+    expect(container.writes.at(-1)).toBe(3500);
+
+    act(() => {
+      vi.advanceTimersByTime(150);
+      container.setScrollHeight(3000);
+      runAnimationFrame();
+    });
+    expect(container.writes.at(-1)).toBe(3000);
+    expect(frameCallbacks.size).toBe(0);
+  });
+
+  it('stops following a reasoning collapse as soon as the user scrolls away', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
+    ]);
+    const store = createStore(messages);
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+    const container = createContainer(5000, 500);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    act(() => {
+      result.current.followTranscriptLayout(350);
+      runAnimationFrame();
+      result.current.setIsUserScrolledUp(true);
+    });
+    const writeCount = container.writes.length;
+
+    act(() => {
+      vi.advanceTimersByTime(200);
+      container.setScrollHeight(3500);
+      runAnimationFrame();
+    });
+    expect(container.writes).toHaveLength(writeCount);
+    expect(frameCallbacks.size).toBe(0);
   });
 
   it('still sticks to the bottom when the user has not scrolled away', async () => {
