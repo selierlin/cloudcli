@@ -510,6 +510,37 @@ export const sessionsService = {
     await sessions.rewindSession?.(sessionId, keepThroughId);
   },
 
+  /**
+   * Detaches a session from its provider transcript for a "start over" edit —
+   * the case where the very first prompt is edited and there is nothing before
+   * it to resume through.
+   *
+   * The runtime (Claude's SDK in this shape) opens a brand-new provider session
+   * instead of resuming, so the old transcript is marked superseded to keep the
+   * indexer from offering it back, and the row is detached so the id the next
+   * run captures attaches to THIS app session rather than surfacing as a
+   * second sidebar entry.
+   */
+  async detachSessionForScratchEdit(sessionId: string): Promise<void> {
+    const session = sessionsDb.getSessionById(sessionId);
+    if (!session) {
+      throw new AppError(`Session "${sessionId}" was not found.`, {
+        code: 'SESSION_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+
+    if (session.provider_session_id) {
+      sessionsDb.markProviderSessionSuperseded({
+        providerSessionId: session.provider_session_id,
+        provider: session.provider as LLMProvider,
+        sessionId,
+        jsonlPath: session.jsonl_path ?? null,
+      });
+    }
+    sessionsDb.detachProviderSession(sessionId);
+  },
+
   async fetchHistory(
     sessionId: string,
     options: Pick<FetchHistoryOptions, 'limit' | 'offset'> = {},

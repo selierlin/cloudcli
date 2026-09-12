@@ -402,6 +402,21 @@ async function handleChatEditSend(
           // conversation that was not rewound after all.
           throw error;
         }
+      } else if (resumeThroughId === null) {
+        // Editing the very first prompt has nothing to resume through, so the
+        // runtime starts the conversation over in a brand-new provider session.
+        // Detach the old transcript first (marking it superseded) so the new id
+        // the runtime captures attaches to THIS app session instead of
+        // surfacing as a second sidebar entry.
+        try {
+          await sessionsService.detachSessionForScratchEdit(sessionId);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          sendProtocolError(ws, 'EDIT_DETACH_FAILED', `Could not start the conversation over: ${message}`, sessionId);
+          // Ends the run before the provider is asked to continue a
+          // conversation that was not detached after all.
+          throw error;
+        }
       }
     },
   );

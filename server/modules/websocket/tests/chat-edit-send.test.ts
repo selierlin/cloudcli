@@ -163,6 +163,15 @@ test('editing the first prompt starts the conversation over', async () => {
     assert.equal(runs.length, 1);
     assert.equal(runs[0].options.resumeAnchorId, undefined);
     assert.equal(runs[0].options.resumeFromScratch, true);
+
+    // Nothing precedes the edited prompt to resume through, so the runtime
+    // starts a brand-new provider session. The old transcript is detached and
+    // marked superseded, so the id the next run captures attaches to THIS app
+    // session instead of surfacing as a second sidebar entry.
+    const detached = sessionsDb.getSessionById(SESSION_ID);
+    assert.equal(detached?.provider_session_id, null);
+    assert.equal(detached?.jsonl_path, null);
+    assert.ok(sessionsDb.isProviderSessionSuperseded(SESSION_ID, 'claude'));
   });
 });
 
