@@ -16,9 +16,8 @@ scroll re-reads that intent through `isUserScrolledUpRef` at the moment it fires
 the value it was armed with may be seconds stale. Everything else — the settle after
 opening a session, the position restore after older history is prepended, the jump to a
 search hit — stakes a temporary claim in a ref that tells the other writers to stand down
-until it is finished. The test file says it plainly: *"The transcript's scroll position is
-written from five places coordinated by refs and timers rather than by one owner"*
-(`src/modules/chat/tests/transcriptScrollOwnership.test.tsx`).
+until it is finished. Streaming follow uses one cancellable animation frame; the initial
+settle loop is separate but now obeys the same synchronous user-intent ref.
 
 ## Mental model
 
@@ -30,23 +29,22 @@ written from five places coordinated by refs and timers rather than by one owner
    and `onTouchMove` as props. Every write to `scrollTop`, every threshold and every claim
    ref lives in `src/modules/chat/hooks/useChatSessionState.ts`. If you are reading
    `ChatMessagesPane.tsx` looking for scroll logic, you are in the wrong file.
-3. **`isUserScrolledUp` is the only shared decision, and it has exactly three readers.**
-   The append-follow effect, the tab-reactivation branch of the `useLayoutEffect`, and the
-   jump-to-bottom button in `ChatInterface.tsx`. Predict from it: if the flag is `true`,
-   no automatic scroll happens, and the round arrow button is on screen.
+3. **`isUserScrolledUp` is the shared decision.** The follow frame, initial-settle loop,
+   tab-reactivation branch and jump-to-bottom button all obey it. If the flag is `true`,
+   queued automatic follow work is cancelled and the round arrow button is on screen.
 4. **The flag is only recomputed from an input event.** `handleScroll` runs on `scroll`,
    `wheel` and `touchmove`, and applies one test — `scrollHeight - scrollTop - clientHeight
    < 50`. Content that grows *below* the fold does not move `scrollTop`, emits no event, and
    therefore leaves the flag stale.
-5. **A deferred scroll must re-read intent at fire time.** `isUserScrolledUpRef` mirrors
-   the state so a timer armed 50 ms or 200 ms ago can ask whether the user has scrolled
-   away since. Adding a timed scroll without that check reintroduces the bug
+5. **A deferred scroll must re-read intent at fire time.** The public setter writes
+   `isUserScrolledUpRef` synchronously before updating React state, so a queued frame or
+   timer can ask whether the user has scrolled away since it was armed. Adding deferred
+   scrolling without that check reintroduces the bug
    `transcriptScrollOwnership.test.tsx` exists to catch.
-6. **The follow effect re-runs on three things, not one.** Its deps are
-   `chatMessages.length`, `isUserScrolledUp` and `isLoadingMoreMessages`. So a new *row*
-   re-follows; a streamed rewrite of an existing row does not; and the flag flipping back
-   to `false` also arms a scroll, which is what snaps you the last few pixels when you
-   scroll back down.
+6. **The follow effect watches message identity, not only row count.** A streamed rewrite
+   receives a fresh `chatMessages` array and schedules the same single follow frame as a
+   newly appended row. Multiple updates before that frame coalesce; flipping the flag
+   back to `false` also schedules one final bottom alignment.
 7. **A claim ref suppresses the other writers.** `pendingInitialScrollRef`,
    `pendingScrollRestoreRef`, `searchScrollActiveRef`, plus two latches at the top of the
    list, `topLoadLockRef` and `wasNearTopRef`. A session change clears or re-arms all five
@@ -60,7 +58,7 @@ written from five places coordinated by refs and timers rather than by one owner
 
 | File | Role |
 | --- | --- |
-| `src/modules/chat/hooks/useChatSessionState.ts` | Owns the scroll position. All five writers, `isNearBottom`, `handleScroll`, every claim ref, the search jump. |
+| `src/modules/chat/hooks/useChatSessionState.ts` | Owns the scroll position, the single streaming follow frame, `isNearBottom`, `handleScroll`, every claim ref and the search jump. |
 | `src/modules/chat/transcript/ChatMessagesPane.tsx` | Renders the one scrolling element, binds the ref and the wheel/touch handlers it is handed, mounts the newest `INITIAL_MOUNTED_TAIL_ROWS` rows eagerly. |
 | `src/modules/chat/ChatInterface.tsx` | Wires the hook to the pane, passes `handleScroll` as `onWheel`/`onTouchMove`, renders the jump-to-bottom button. |
 | `src/modules/chat/hooks/useChatComposerState.ts` | `handleSubmit` clears `isUserScrolledUp` and scrolls to the bottom at +100 ms. |
@@ -136,16 +134,16 @@ then the only way for the user to reach the top pager or the "load all" overlay.
 `handleScroll` calls it on every `scroll`, `wheel` and `touchmove` (after bailing out when
 the Chat tab is inactive), writes `setIsUserScrolledUp(!nearBottom)`, and records the
 current `{height, top}` into `scrollPositionRef` for the tab-reactivation restore. A
-separate effect mirrors the state into `isUserScrolledUpRef` — an effect rather than an
-assignment beside each setter, because `setIsUserScrolledUp` is also returned from the hook
-and called by the composer.
+single `setIsUserScrolledUp` wrapper writes `isUserScrolledUpRef` first and React state
+second. `handleScroll`, session reset and the composer all use that wrapper, so queued
+frames observe the new intent without waiting for a React effect.
 
 **RULE: an append only scrolls when the user has not scrolled away, and it re-checks
 before it moves.**
 
 ```mermaid
 flowchart TD
-  A["Follow effect runs on a change to chatMessages.length, isUserScrolledUp or isLoadingMoreMessages"] --> B{"Chat tab active and transcript non-empty"}
+  A["Follow effect runs on chatMessages identity, session, intent or loading changes"] --> B{"Chat tab active and transcript non-empty"}
   B -->|"no"| Z["Do nothing"]
   B -->|"yes"| D{"Loading an older page or a restore is pending"}
   D -->|"yes"| Z
@@ -153,16 +151,16 @@ flowchart TD
   E -->|"yes"| Z
   E -->|"no"| F{"isUserScrolledUp"}
   F -->|"true"| Z
-  F -->|"false"| G["Arm a 50 ms timer"]
-  G --> H{"isUserScrolledUpRef still false when it fires"}
+  F -->|"false"| G["Arm one requestAnimationFrame; reuse it for further updates"]
+  G --> H{"Session/claims still match and isUserScrolledUpRef is false"}
   H -->|"no"| Z
   H -->|"yes"| I["Set scrollTop to scrollHeight"]
 ```
 
-That is the whole auto-follow. Note what re-runs it. A new **row** re-follows; the 100 ms
-streaming flushes that rewrite an existing row in place do not (see the gotchas). And
-because `isUserScrolledUp` is a dependency, dropping back inside the 50 px band arms one
-more scroll that finishes the trip to the bottom.
+That is the whole auto-follow. New rows and streamed rewrites both produce a fresh
+`chatMessages` array, but any number of changes before the browser's next frame still
+produce one `scrollTop` write. Because `isUserScrolledUp` is a dependency, dropping back
+inside the 50 px band arms one more frame that finishes the trip to the bottom.
 
 ### Follow and detached
 
@@ -213,9 +211,9 @@ sequenceDiagram
     U->>P: drag upward
     P->>H: scroll event
     H->>H: gap is 50 px or more, set isUserScrolledUp true
-    W->>S: stream_delta flush every 100 ms
-    S->>E: same row rewritten, so the row count is unchanged
-    E->>E: effect does not re-run
+    W->>S: latest streaming state published
+    S->>E: same row rewritten with a fresh message-array identity
+    E->>E: user intent is detached, so no follow frame is scheduled
     W->>S: a tool_use row arrives
     S->>E: row count changed, effect runs
     E->>E: isUserScrolledUp is true, no timer armed
@@ -227,12 +225,13 @@ sequenceDiagram
 
 ## Deferred scrolls re-check intent
 
-**RULE: a scroll armed on a timer must re-read `isUserScrolledUpRef` before it moves
+**RULE: a deferred scroll must re-read `isUserScrolledUpRef` before it moves
 anything.**
 
 | Where | Delay | Re-checks? |
 | --- | --- | --- |
-| Append follow effect (`useChatSessionState.ts`) | 50 ms | yes — `if (!isUserScrolledUpRef.current)` |
+| Streaming follow effect (`useChatSessionState.ts`) | next animation frame | yes — session, loading/restore/search claims and `isUserScrolledUpRef` are all rechecked |
+| Initial settle loop (same file) | up to 60 animation frames | yes — user detachment stops the loop immediately |
 | External-update refresh (same file, the `externalMessageUpdate` effect) | 200 ms | yes — same guard, and only armed when `isNearBottom()` held before the refetch |
 | Composer send (`useChatComposerState.ts` → `handleSubmit`) | 100 ms | **no** — it sets the flag false itself, then calls `scrollToBottom()` unconditionally |
 
@@ -242,17 +241,17 @@ emits a `scroll` event, the resulting `handleScroll` reset `isUserScrolledUp` to
 hid the jump-to-bottom button too. The user was returned to the bottom *and* lost the
 control that would have explained why.
 
-`transcriptScrollOwnership.test.tsx` pins both directions on fake timers, driving the real
+`transcriptScrollOwnership.test.tsx` pins both directions with controlled animation frames, driving the real
 hook against a hand-built container (jsdom has no layout, so `scrollHeight`/`clientHeight`
 are stubbed and `scrollTop` writes are recorded):
 
 - *"does not yank the view back down when the user scrolls up inside the delay"* — appends
-  a row, flips the flag, advances 200 ms, asserts **zero** writes.
+  a row, flips the flag, runs the queued frame, asserts **zero** writes.
 - *"still sticks to the bottom when the user has not scrolled away"* — same setup without
   the flip, asserts a write of `scrollHeight`.
 
-The test stubs `requestAnimationFrame` to a no-op on purpose: the initial-settle loop is a
-separate writer that would otherwise satisfy an assertion meant for the timer.
+The test owns a deterministic rAF queue, so the follow frame and initial-settle loop are
+both checked against the same user-intent transition.
 
 The composer send is deliberately unguarded — the user pressed Enter, so the intent is
 fresh. The cost is that scrolling up within 100 ms of sending is undone.
@@ -495,17 +494,14 @@ a scroll event.
 
 ## Gotchas and why the code looks like this
 
-- **Streaming text does not re-follow, but the first flush does.** `updateStreaming` in
-  `useSessionStore.ts` writes a row with the well-known id `__streaming_<sessionId>`. The
-  first flush appends it, so `chatMessages.length` changes once and the follow effect runs.
-  Every flush after that replaces the same array slot, so the length is unchanged and the
-  effect stays quiet. Within one streamed block the pane is held by the browser, not by this
-  code.
-- **`stream_end` does not re-follow either.** `finalizeStreaming` rewrites the same slot in
-  place, changing only the id, `kind` and `role`; both `stream_delta` and an assistant
-  `text` map to exactly one row in `normalizedToChatMessages`. The length never moves, so
-  the effect does not re-run. What re-follows is the *next* row — a tool call, or the next
-  streamed block, which allocates a fresh `__streaming_` id.
+- **Streaming text re-follows even when row count stays flat.** `updateStreamingBatch` in
+  `useSessionStore.ts` replaces the well-known `__streaming_<sessionId>` row in place, but
+  the store and `normalizedToChatMessages` expose fresh array identities. The follow effect
+  therefore schedules one cancellable rAF; repeated publishes before that frame coalesce.
+- **`stream_end` preserves row position.** `finalizeStreaming` rewrites the same slot in
+  place, changing only the id, `kind` and `role`; it does not append a second row. Any
+  message-array update may schedule a follow frame, but its callback still obeys current
+  user intent and all restore/search/loading claims.
 - **`isUserScrolledUp` can be stale.** It is only recomputed from `scroll`, `wheel` and
   `touchmove`. Content growing below the fold does not move `scrollTop`, so no event fires,
   the flag stays `false`, and the jump-to-bottom button stays hidden even though the newest
@@ -536,9 +532,10 @@ a scroll event.
   (commit `0a19ad8a`) because an uncommitted window made it scroll to an arbitrary message —
   the exact failure the rewrite was meant to remove. It survives on the final attempt only,
   because that is what maps a hit inside a collapsed tool group onto its group row.
-- **The initial scroll is a loop, not a timeout.** One `scrollToBottom()` at +200 ms lost
+- **The initial scroll is a guarded loop, not a timeout.** One `scrollToBottom()` at +200 ms lost
   the race against late markdown, highlighting and image layout. The rAF loop with a
-  3-stable-frame / 60-frame cap is the fix.
+  3-stable-frame / 60-frame cap is the fix; each frame also verifies the active session
+  and stops permanently as soon as `isUserScrolledUpRef` becomes true.
 - **Lazy rows exist for memory, and pay for it in scroll correctness.** Commit `f537a3a9`:
   "Load all" on a long session used to commit thousands of markdown/tool subtrees at once and
   grow the tab toward a gigabyte. With the 29k-row fixture the tab now holds ~112 MB with a
@@ -560,8 +557,8 @@ a scroll event.
 | --- | --- |
 | The 50 px threshold in `isNearBottom` | The follow effect, the tab-reactivation branch and the jump-to-bottom button all read the same flag. |
 | The `< 100` top zone or the `> 20` lock release | `topLoadLockRef` must still need an explicit move away from the top, or paging runs away. |
-| `chatMessages` shape or identity | The follow effect and the restore/reactivation `useLayoutEffect` are both keyed on `chatMessages.length`; in-place row rewrites are invisible to both. |
-| Anything that adds a deferred scroll | It must re-read `isUserScrolledUpRef` at fire time, or `transcriptScrollOwnership.test.tsx` should fail. |
+| `chatMessages` shape or identity | Streaming follow intentionally keys on array identity so same-row growth is visible; restore/reactivation still protects session and claim ownership. |
+| Anything that adds a deferred scroll | It must re-read `isUserScrolledUpRef` and session/claim refs at fire time, or `transcriptScrollOwnership.test.tsx` should fail. |
 | `getIntrinsicMessageKey` or the key map in `ChatMessagesPane` | The prepend restore needs the anchor element to survive; unstable keys remount rows and drop it to the height-delta fallback. |
 | `LazyMessageRow` placeholder height, the `.chat-message` class placement, or the 1200 px observer margin | Prepend anchor scan, search-jump row lookup, and `lazyMessageRow.test.tsx`. |
 | `SEARCH_SCROLL_RETRIES`, the retry delay, or `findRenderedMessageElement` | The cross-session cancellation test and `searchTargetLocator.test.ts`; `allowNearest` must stay on the final attempt only. |

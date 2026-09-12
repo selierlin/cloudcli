@@ -13,8 +13,9 @@ type StreamingMarkdownProps = {
 /**
  * Used by chat's MessageComponent for an assistant reply, streaming or not.
  *
- * The realtime handler republishes the whole accumulated reply every 100ms, so
- * a single <Markdown> would re-parse the entire message ten times a second.
+ * The server batches deltas around 50ms and the visible-session scheduler can
+ * republish the latest accumulated reply at about 20–30Hz, so a single
+ * <Markdown> would repeatedly re-parse the entire growing message.
  * Splitting at a block boundary keeps the settled half's props stable, so
  * memo(MarkdownBody) skips it and only the block still being written is
  * re-parsed. Markdown blocks are independent across the boundaries

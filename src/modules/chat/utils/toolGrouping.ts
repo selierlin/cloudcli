@@ -67,11 +67,11 @@ function getToolInputPreview(message: ChatMessage): string {
  *
  * Computed here rather than in the component so it happens once per grouping
  * pass instead of once per group render. It is not cached beyond that: grouping
- * re-runs on every 100ms stream tick because visibleMessages is a fresh array,
- * and a run's preview changes as the run grows, so a cache would have to be
- * keyed on the whole run. Measured at 0.18ms per tick over a 100-message window,
- * which is a seventh of what the store's own per-tick merge costs — not worth
- * the staleness risk.
+ * re-runs on every visible-session stream publish because visibleMessages is
+ * a fresh array, and a run's preview changes as the run grows, so a cache would have to be
+ * keyed on the whole run. The old 10Hz path measured 0.18ms per publish over a
+ * 100-message window; the frame-aligned path is judged by per-second cost so a
+ * higher publish rate cannot hide behind a cheap single call.
  */
 function buildGroupPreview(messages: ChatMessage[]): string {
   const named = messages

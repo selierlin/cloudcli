@@ -6,7 +6,13 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 import { useChatRealtimeHandlers } from '@/modules/chat/hooks/useChatRealtimeHandlers';
 import { createStreamingBufferRegistry } from '@/modules/chat/utils/streamingBufferRegistry';
 import type { SessionStore } from '@/modules/chat/hooks/useSessionStore';
-import type { ProjectSession, ServerEvent, StreamChannel } from '@/shared/types';
+import type {
+  LLMProvider,
+  ProjectSession,
+  ServerEvent,
+  StreamChannel,
+  StreamingChannelUpdate,
+} from '@/shared/types';
 
 /**
  * The pane-wide streaming buffer used to be two global refs, so two sessions
@@ -17,7 +23,11 @@ import type { ProjectSession, ServerEvent, StreamChannel } from '@/shared/types'
  * buffer must restart from empty.
  */
 
-type UpdateCall = [sessionId: string, channel: StreamChannel, text: string, provider: string];
+type UpdateCall = [
+  sessionId: string,
+  updates: StreamingChannelUpdate[],
+  provider: LLMProvider,
+];
 
 const renderHandlers = () => {
   let listener: ((event: ServerEvent) => void) | null = null;
@@ -36,9 +46,12 @@ const renderHandlers = () => {
 
   // Deltas now reach the store through the registry's flush callback rather
   // than the handler calling `updateStreaming` directly.
-  const streamBuffers = createStreamingBufferRegistry((sessionId, text, provider, channel) => {
-    updateStreaming.push([sessionId, channel, text, provider]);
-  });
+  const streamBuffers = createStreamingBufferRegistry(
+    (sessionId, updates, provider) => {
+      updateStreaming.push([sessionId, updates, provider]);
+    },
+    sessionId => sessionId === 'viewed',
+  );
 
   renderHook(() => useChatRealtimeHandlers({
     isActive: true,
@@ -106,11 +119,11 @@ test('two sessions stream into their own slot, each stamped with its own provide
 
   dispatch(delta('viewed', '你好', 'claude'));
   dispatch(delta('background', 'hello', 'cursor'));
-  vi.advanceTimersByTime(100);
+  vi.advanceTimersByTime(200);
 
   assert.deepEqual(updateStreaming, [
-    ['viewed', 'text', '你好', 'claude'],
-    ['background', 'text', 'hello', 'cursor'],
+    ['viewed', [{ channel: 'text', text: '你好' }], 'claude'],
+    ['background', [{ channel: 'text', text: 'hello' }], 'cursor'],
   ]);
   assert.deepEqual(appendRealtime, [], 'background deltas must not bypass into per-delta rows');
 });
@@ -120,12 +133,14 @@ test('a thinking delta buffers on the thinking channel, not the reply', () => {
 
   dispatch(delta('s', '推理', 'claude', 'thinking'));
   dispatch(delta('s', '正文', 'claude', 'text'));
-  vi.advanceTimersByTime(100);
+  vi.advanceTimersByTime(200);
 
   // The trace flushes before the reply so the store can order it above.
   assert.deepEqual(updateStreaming, [
-    ['s', 'thinking', '推理', 'claude'],
-    ['s', 'text', '正文', 'claude'],
+    ['s', [
+      { channel: 'thinking', text: '推理' },
+      { channel: 'text', text: '正文' },
+    ], 'claude'],
   ]);
 });
 
@@ -136,13 +151,13 @@ test("a session's stream_end tears down only that session", () => {
   dispatch(delta('b', 'B', 'claude'));
   dispatch(streamEnd('a'));
 
-  assert.deepEqual(updateStreaming, [['a', 'text', 'A', 'claude']], 'stream_end flushes only a');
+  assert.deepEqual(updateStreaming, [['a', [{ channel: 'text', text: 'A' }], 'claude']], 'stream_end flushes only a');
   assert.deepEqual(finalizeStreaming, ['a']);
 
-  vi.advanceTimersByTime(100);
+  vi.advanceTimersByTime(200);
   assert.deepEqual(updateStreaming, [
-    ['a', 'text', 'A', 'claude'],
-    ['b', 'text', 'B', 'claude'],
+    ['a', [{ channel: 'text', text: 'A' }], 'claude'],
+    ['b', [{ channel: 'text', text: 'B' }], 'claude'],
   ]);
 });
 
@@ -154,8 +169,10 @@ test('stream_end flushes both channels before finalizing', () => {
   dispatch(streamEnd('s'));
 
   assert.deepEqual(updateStreaming, [
-    ['s', 'thinking', '推理', 'claude'],
-    ['s', 'text', '正文', 'claude'],
+    ['s', [
+      { channel: 'thinking', text: '推理' },
+      { channel: 'text', text: '正文' },
+    ], 'claude'],
   ]);
   assert.deepEqual(finalizeStreaming, ['s']);
 });
@@ -168,12 +185,12 @@ test('complete without stream_end (Cursor) finalizes only its own buffer', () =>
   dispatch(complete('cursor-session'));
 
   assert.deepEqual(finalizeStreaming, ['cursor-session']);
-  assert.deepEqual(updateStreaming, [['cursor-session', 'text', 'chunk', 'cursor']]);
+  assert.deepEqual(updateStreaming, [['cursor-session', [{ channel: 'text', text: 'chunk' }], 'cursor']]);
 
-  vi.advanceTimersByTime(100);
+  vi.advanceTimersByTime(200);
   assert.deepEqual(updateStreaming, [
-    ['cursor-session', 'text', 'chunk', 'cursor'],
-    ['other', 'text', 'x', 'claude'],
+    ['cursor-session', [{ channel: 'text', text: 'chunk' }], 'cursor'],
+    ['other', [{ channel: 'text', text: 'x' }], 'claude'],
   ]);
 });
 
@@ -181,7 +198,7 @@ test('a delta-less stream_end writes no row but still finalizes', () => {
   const { updateStreaming, finalizeStreaming, dispatch } = renderHandlers();
 
   dispatch(streamEnd('tool-only'));
-  vi.advanceTimersByTime(100);
+  vi.advanceTimersByTime(200);
 
   assert.deepEqual(updateStreaming, [], 'an empty flush must not create a stub row');
   assert.deepEqual(finalizeStreaming, ['tool-only']);
@@ -196,8 +213,8 @@ test('a second cycle in the same session starts from empty text', () => {
   dispatch(streamEnd('s'));
 
   assert.deepEqual(updateStreaming, [
-    ['s', 'text', 'first', 'claude'],
-    ['s', 'text', 'second', 'claude'],
+    ['s', [{ channel: 'text', text: 'first' }], 'claude'],
+    ['s', [{ channel: 'text', text: 'second' }], 'claude'],
   ]);
   assert.deepEqual(finalizeStreaming, ['s', 's']);
 });

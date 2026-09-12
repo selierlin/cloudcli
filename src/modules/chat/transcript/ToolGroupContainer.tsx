@@ -187,8 +187,8 @@ function ToolGroupContainer({
  * group is unchanged then.
  *
  * It cannot bail during streaming: groupConsecutiveTools rebuilds every group
- * object from a fresh visibleMessages array on each 100ms tick, so `group` is a
- * new reference even when its contents are identical. Stabilizing it would mean
+ * object from a fresh visibleMessages array on each visible-session publish,
+ * so `group` is a new reference even when its contents are identical. Stabilizing it would mean
  * keying a cache on the whole run — first and second message identity, run
  * length and showThinking — because the preview depends on all four.
  */

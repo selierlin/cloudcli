@@ -3,145 +3,210 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { createStreamingBufferRegistry } from '@/modules/chat/utils/streamingBufferRegistry';
-import type { LLMProvider, StreamChannel } from '@/shared/types';
+import type { LLMProvider, StreamingChannelUpdate } from '@/shared/types';
 
-/**
- * The streaming buffer coalesces each session's deltas into a single store
- * write every 100ms. These tests pin the coalescing window, the per-session
- * isolation, the reply/reasoning channel split, and the no-op rules that stop
- * delta-less frames from creating stub rows.
- */
-
-type FlushCall = { sessionId: string; text: string; provider: LLMProvider; channel: StreamChannel };
+type FlushCall = {
+  sessionId: string;
+  updates: StreamingChannelUpdate[];
+  provider: LLMProvider;
+};
 
 const flushCalls: FlushCall[] = [];
+let visibleSessions: Set<string>;
+let nextFrameId: number;
+let frameCallbacks: Map<number, FrameRequestCallback>;
 
 const create = () => {
   flushCalls.length = 0;
-  return createStreamingBufferRegistry((sessionId, text, provider, channel) => {
-    flushCalls.push({ sessionId, text, provider, channel });
-  });
+  return createStreamingBufferRegistry(
+    (sessionId, updates, provider) => {
+      flushCalls.push({ sessionId, updates, provider });
+    },
+    sessionId => visibleSessions.has(sessionId),
+  );
+};
+
+const runNextFrame = (timestamp: number): void => {
+  const next = frameCallbacks.entries().next().value as [number, FrameRequestCallback] | undefined;
+  assert.ok(next, 'expected a pending animation frame');
+  frameCallbacks.delete(next[0]);
+  next[1](timestamp);
 };
 
 beforeEach(() => {
   vi.useFakeTimers();
+  visibleSessions = new Set(['s1', 's2', 'a', 'b']);
+  nextFrameId = 1;
+  frameCallbacks = new Map();
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    const id = nextFrameId++;
+    frameCallbacks.set(id, callback);
+    return id;
+  });
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+    frameCallbacks.delete(id);
+  });
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 
-test('coalesces deltas inside the 100ms window into one flush', () => {
+test('publishes the first visible delta on the next animation frame', () => {
+  const registry = create();
+
+  registry.append('s1', '你', 'claude');
+  assert.deepEqual(flushCalls, []);
+
+  runNextFrame(0);
+  assert.deepEqual(flushCalls, [{
+    sessionId: 's1',
+    updates: [{ channel: 'text', text: '你' }],
+    provider: 'claude',
+  }]);
+});
+
+test('coalesces same-frame deltas into one latest-state batch', () => {
   const registry = create();
 
   registry.append('s1', '你', 'claude');
   registry.append('s1', '好', 'claude');
+  runNextFrame(0);
 
-  assert.deepEqual(flushCalls, [], 'nothing flushes before the window elapses');
-
-  vi.advanceTimersByTime(100);
-
-  assert.deepEqual(flushCalls, [{ sessionId: 's1', text: '你好', provider: 'claude', channel: 'text' }]);
+  assert.deepEqual(flushCalls, [{
+    sessionId: 's1',
+    updates: [{ channel: 'text', text: '你好' }],
+    provider: 'claude',
+  }]);
 });
 
-test('keeps an independent buffer and provider per session', () => {
+test('limits visible publishes to one eligible frame per 32ms', () => {
   const registry = create();
 
   registry.append('s1', 'A', 'claude');
-  registry.append('s2', 'B', 'cursor');
-  vi.advanceTimersByTime(100);
+  runNextFrame(0);
+  registry.append('s1', 'B', 'claude');
+  runNextFrame(16);
+  assert.equal(flushCalls.length, 1);
 
-  assert.deepEqual(flushCalls, [
-    { sessionId: 's1', text: 'A', provider: 'claude', channel: 'text' },
-    { sessionId: 's2', text: 'B', provider: 'cursor', channel: 'text' },
-  ]);
+  runNextFrame(32);
+  assert.deepEqual(flushCalls[1].updates, [{ channel: 'text', text: 'AB' }]);
 });
 
-test('flushNow cancels the debounce and publishes immediately', () => {
+test('uses the watchdog when animation frames do not run', () => {
   const registry = create();
 
   registry.append('s1', 'partial', 'claude');
-  registry.flushNow('s1');
+  vi.advanceTimersByTime(99);
+  assert.equal(flushCalls.length, 0);
 
-  assert.deepEqual(flushCalls, [{ sessionId: 's1', text: 'partial', provider: 'claude', channel: 'text' }]);
-
-  vi.advanceTimersByTime(100);
-  assert.equal(flushCalls.length, 1, 'the cancelled timer must not flush a second time');
+  vi.advanceTimersByTime(1);
+  assert.deepEqual(flushCalls[0].updates, [{ channel: 'text', text: 'partial' }]);
+  assert.equal(frameCallbacks.size, 0, 'watchdog cancels the pending frame');
 });
 
-test('reply and reasoning accumulate in separate channels', () => {
+test('publishes only channels changed since the previous batch', () => {
   const registry = create();
 
-  registry.append('s1', '想', 'claude', 'thinking');
-  registry.append('s1', '一下', 'claude', 'thinking');
-  registry.append('s1', '答', 'claude', 'text');
-  registry.append('s1', '案', 'claude', 'text');
-  vi.advanceTimersByTime(100);
+  registry.append('s1', '推理', 'claude', 'thinking');
+  runNextFrame(0);
+  registry.append('s1', '正文', 'claude', 'text');
+  runNextFrame(32);
 
-  assert.deepEqual(flushCalls, [
-    { sessionId: 's1', text: '想一下', provider: 'claude', channel: 'thinking' },
-    { sessionId: 's1', text: '答案', provider: 'claude', channel: 'text' },
+  assert.deepEqual(flushCalls.map(call => call.updates), [
+    [{ channel: 'thinking', text: '推理' }],
+    [{ channel: 'text', text: '正文' }],
   ]);
 });
 
-test('flushNow publishes every non-empty channel of one session', () => {
+test('publishes two dirty channels in one thinking-first batch', () => {
   const registry = create();
 
   registry.append('s1', '正文', 'claude', 'text');
   registry.append('s1', '推理', 'claude', 'thinking');
-  registry.flushNow('s1');
+  runNextFrame(0);
 
-  assert.deepEqual(flushCalls, [
-    { sessionId: 's1', text: '推理', provider: 'claude', channel: 'thinking' },
-    { sessionId: 's1', text: '正文', provider: 'claude', channel: 'text' },
-  ]);
+  assert.deepEqual(flushCalls, [{
+    sessionId: 's1',
+    updates: [
+      { channel: 'thinking', text: '推理' },
+      { channel: 'text', text: '正文' },
+    ],
+    provider: 'claude',
+  }]);
 });
 
-test('a thinking-only buffer still counts as a held session', () => {
-  const registry = create();
-
-  registry.append('s1', '推理', 'claude', 'thinking');
-  assert.equal(registry.has('s1'), true);
-
-  registry.flushNow('s1');
-  assert.deepEqual(flushCalls, [{ sessionId: 's1', text: '推理', provider: 'claude', channel: 'thinking' }]);
-});
-
-test('append and flushNow ignore empty text so no stub row is written', () => {
-  const registry = create();
-
-  registry.append('s1', '', 'claude');
-  assert.equal(registry.has('s1'), false);
-
-  registry.flushNow('s1');
-  vi.advanceTimersByTime(100);
-
-  assert.deepEqual(flushCalls, []);
-});
-
-test('drop cancels the pending flush without publishing', () => {
-  const registry = create();
-
-  registry.append('s1', 'abandoned', 'claude');
-  registry.drop('s1');
-
-  assert.equal(registry.has('s1'), false);
-
-  vi.advanceTimersByTime(100);
-  assert.deepEqual(flushCalls, []);
-});
-
-test('dropAll clears every session and pending timer', () => {
+test('limits hidden sessions to one publish every 200ms without requesting a frame', () => {
+  visibleSessions.delete('s1');
   const registry = create();
 
   registry.append('s1', 'A', 'claude');
+  registry.append('s1', 'B', 'claude');
+  assert.equal(frameCallbacks.size, 0);
+  vi.advanceTimersByTime(199);
+  assert.equal(flushCalls.length, 0);
+
+  vi.advanceTimersByTime(1);
+  assert.deepEqual(flushCalls[0].updates, [{ channel: 'text', text: 'AB' }]);
+});
+
+test('replaces a pending foreground schedule with the hidden cadence', () => {
+  const registry = create();
+  registry.append('s1', 'A', 'claude');
+
+  visibleSessions.delete('s1');
+  registry.append('s1', 'B', 'claude');
+  assert.equal(frameCallbacks.size, 0);
+  vi.advanceTimersByTime(100);
+  assert.equal(flushCalls.length, 0, 'the old foreground watchdog must be cancelled');
+
+  vi.advanceTimersByTime(100);
+  assert.deepEqual(flushCalls[0].updates, [{ channel: 'text', text: 'AB' }]);
+});
+
+test('flushNow synchronously catches up a session that becomes visible', () => {
+  visibleSessions.delete('s1');
+  const registry = create();
+  registry.append('s1', 'latest', 'claude');
+
+  visibleSessions.add('s1');
+  registry.flushNow('s1');
+
+  assert.deepEqual(flushCalls[0].updates, [{ channel: 'text', text: 'latest' }]);
+  vi.advanceTimersByTime(200);
+  assert.equal(flushCalls.length, 1);
+});
+
+test('flushNow with no dirty content is a no-op', () => {
+  const registry = create();
+  registry.append('s1', 'done', 'claude');
+  registry.flushNow('s1');
+  registry.flushNow('s1');
+
+  assert.equal(flushCalls.length, 1);
+});
+
+test('empty deltas do not create a buffer or placeholder row', () => {
+  const registry = create();
+  registry.append('s1', '', 'claude');
+  registry.flushNow('s1');
+
+  assert.equal(registry.has('s1'), false);
+  assert.deepEqual(flushCalls, []);
+});
+
+test('drop and dropAll cancel all pending frame and timer work', () => {
+  const registry = create();
+  registry.append('s1', 'A', 'claude');
   registry.append('s2', 'B', 'cursor');
+  registry.drop('s1');
   registry.dropAll();
 
   assert.equal(registry.has('s1'), false);
   assert.equal(registry.has('s2'), false);
-
-  vi.advanceTimersByTime(100);
+  assert.equal(frameCallbacks.size, 0);
+  vi.advanceTimersByTime(200);
   assert.deepEqual(flushCalls, []);
 });
 
@@ -151,12 +216,11 @@ test('a dropped session starts its next cycle from empty text', () => {
   registry.append('s1', 'first', 'claude');
   registry.flushNow('s1');
   registry.drop('s1');
-
   registry.append('s1', 'second', 'claude');
-  vi.advanceTimersByTime(100);
+  registry.flushNow('s1');
 
-  assert.deepEqual(flushCalls, [
-    { sessionId: 's1', text: 'first', provider: 'claude', channel: 'text' },
-    { sessionId: 's1', text: 'second', provider: 'claude', channel: 'text' },
+  assert.deepEqual(flushCalls.map(call => call.updates), [
+    [{ channel: 'text', text: 'first' }],
+    [{ channel: 'text', text: 'second' }],
   ]);
 });

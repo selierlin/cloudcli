@@ -10,7 +10,12 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { api } from '@/shared/api';
-import type { LLMProvider, NormalizedMessage, StreamChannel } from '@/shared/types';
+import type {
+  LLMProvider,
+  NormalizedMessage,
+  StreamChannel,
+  StreamingChannelUpdate,
+} from '@/shared/types';
 import { removeOptimisticUserEchoes, upsertRealtimeMessages } from '@/modules/chat/utils/sessionMessageReconciliation';
 import {
   hasReachedCachedTailTimeBoundary,
@@ -854,36 +859,53 @@ export function useSessionStore() {
     return Date.now() - slot.fetchedAt > STALE_THRESHOLD_MS;
   }, []);
 
-  /**
-   * Update or create a streaming message (accumulated text so far).
-   * Uses a well-known id per channel so subsequent calls replace the same row:
-   * the reply and the reasoning trace finalize into two distinct rows.
-   */
-  const updateStreaming = useCallback((sessionId: string, accumulatedText: string, msgProvider: LLMProvider, channel: StreamChannel = 'text') => {
+  /** Atomically update every dirty streaming channel with one merge and notify. */
+  const updateStreamingBatch = useCallback((
+    sessionId: string,
+    updates: StreamingChannelUpdate[],
+    msgProvider: LLMProvider,
+  ) => {
+    if (updates.length === 0) return;
+
     const slot = getSlot(sessionId);
-    const streamId = channel === 'thinking' ? `__streaming_thinking_${sessionId}` : `__streaming_${sessionId}`;
-    const idx = slot.realtimeMessages.findIndex(m => m.id === streamId);
-    const msg: NormalizedMessage = {
-      id: streamId,
-      sessionId,
-      // Freeze the row's first timestamp. Re-stamping on every update let the
-      // channel flushed later drift past the other one and swap their order,
-      // so the reasoning row ended up below the reply until a refresh.
-      timestamp: idx >= 0 ? slot.realtimeMessages[idx].timestamp : new Date().toISOString(),
-      provider: msgProvider,
-      kind: 'stream_delta',
-      streamChannel: channel,
-      content: accumulatedText,
-    };
-    if (idx >= 0) {
-      slot.realtimeMessages = [...slot.realtimeMessages];
-      slot.realtimeMessages[idx] = msg;
-    } else {
-      slot.realtimeMessages = [...slot.realtimeMessages, msg];
+    const next = [...slot.realtimeMessages];
+    for (const update of updates) {
+      const streamId = update.channel === 'thinking'
+        ? `__streaming_thinking_${sessionId}`
+        : `__streaming_${sessionId}`;
+      const idx = next.findIndex(message => message.id === streamId);
+      const msg: NormalizedMessage = {
+        id: streamId,
+        sessionId,
+        // Each row freezes its own first timestamp. Existing rows stay in
+        // place; new rows append in batch order even when timestamps match.
+        timestamp: idx >= 0 ? next[idx].timestamp : new Date().toISOString(),
+        provider: msgProvider,
+        kind: 'stream_delta',
+        streamChannel: update.channel,
+        content: update.text,
+      };
+      if (idx >= 0) {
+        next[idx] = msg;
+      } else {
+        next.push(msg);
+      }
     }
+
+    slot.realtimeMessages = next;
     recomputeMergedIfNeeded(slot);
     notify(sessionId);
   }, [getSlot, notify]);
+
+  /** Backward-compatible single-channel wrapper used by existing store consumers. */
+  const updateStreaming = useCallback((
+    sessionId: string,
+    accumulatedText: string,
+    msgProvider: LLMProvider,
+    channel: StreamChannel = 'text',
+  ) => {
+    updateStreamingBatch(sessionId, [{ channel, text: accumulatedText }], msgProvider);
+  }, [updateStreamingBatch]);
 
   /**
    * Finalize streaming: convert each channel's placeholder to a regular row.
@@ -948,13 +970,14 @@ export function useSessionStore() {
     refreshLatestFromServer,
     setActiveSession,
     isStale,
+    updateStreamingBatch,
     updateStreaming,
     finalizeStreaming,
     getMessages,
     getSessionSlot,
   }), [
     fetchFromServer, fetchMore, appendRealtime, truncateAt, refreshLatestFromServer,
-    setActiveSession, isStale, updateStreaming, finalizeStreaming,
+    setActiveSession, isStale, updateStreamingBatch, updateStreaming, finalizeStreaming,
     getMessages, getSessionSlot,
   ]);
 }
