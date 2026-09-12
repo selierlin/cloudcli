@@ -1,8 +1,8 @@
-import { memo, useMemo, useRef } from 'react';
+import { memo, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { GitBranchIcon, PencilIcon } from 'lucide-react';
 
-import type { ChatMessage, ClaudePermissionSuggestion, PermissionGrantResult, LLMProvider,DiffLine,Project } from '@/shared/types';
+import type { ChatMessage, ClaudePermissionSuggestion, PermissionGrantResult, LLMProvider,DiffLine,Project,ReasoningDisclosureState,ReasoningPresentation } from '@/shared/types';
 import { formatUsageLimitText, stripProposedPlanEnvelope } from '@/modules/chat/utils/chatFormatting';
 import { ToolRenderer, ToolErrorDisplay, SubagentPanel, shouldHideToolResult } from '@/modules/chat/tools';
 import { LLMProviderLogo } from '@/shared/ui';
@@ -27,6 +27,12 @@ type MessageComponentProps = {
   showThinking?: boolean;
   selectedProject?: Project | null;
   provider: LLMProvider | string;
+  reasoningPresentation?: ReasoningPresentation;
+  reasoningDisclosureState?: ReasoningDisclosureState;
+  suppressReasoningAutoCollapse?: boolean;
+  onReasoningUserOpenChange?: (key: string, open: boolean) => void;
+  onReasoningProgramOpen?: (key: string) => void;
+  onReasoningProgramCollapse?: (key: string) => void;
   /**
    * Loads this message back into the composer to be replaced. Absent when the
    * provider cannot re-run a conversation from a chosen point, which is what
@@ -46,7 +52,7 @@ const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
  * Rendered by chat's ChatMessagesPane and ToolGroupContainer to draw one
  * transcript entry — user turn, assistant turn, or a tool call and its result.
  */
-const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, onEditMessage, onForkFromMessage }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, reasoningPresentation, reasoningDisclosureState, suppressReasoningAutoCollapse, onReasoningUserOpenChange, onReasoningProgramOpen, onReasoningProgramCollapse, onEditMessage, onForkFromMessage }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -81,6 +87,16 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     assistantCopyContent.trim().length > 0 &&
     !isCommandOrFileEditToolResponse &&
     !message.isThinking;
+  const disclosureKey = reasoningPresentation?.disclosureKey;
+  const handleReasoningUserOpenChange = useCallback((open: boolean) => {
+    if (disclosureKey) onReasoningUserOpenChange?.(disclosureKey, open);
+  }, [disclosureKey, onReasoningUserOpenChange]);
+  const handleReasoningProgramOpen = useCallback(() => {
+    if (disclosureKey) onReasoningProgramOpen?.(disclosureKey);
+  }, [disclosureKey, onReasoningProgramOpen]);
+  const handleReasoningProgramCollapse = useCallback(() => {
+    if (disclosureKey) onReasoningProgramCollapse?.(disclosureKey);
+  }, [disclosureKey, onReasoningProgramCollapse]);
 
 
   const formattedTime = useMemo(() => new Date(message.timestamp).toLocaleTimeString(), [message.timestamp]);
@@ -219,6 +235,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                 toolResult={message.toolResult}
                 subagent={message.subagent}
                 activity={message.subagentActivity}
+                startTimestamp={message.timestamp}
                 onFileOpen={onFileOpen}
                 createDiff={createDiff}
                 selectedProject={selectedProject}
@@ -246,6 +263,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                     showRawParameters={showRawParameters}
                     rawToolInput={typeof message.toolInput === 'string' ? message.toolInput : undefined}
                     toolStatus={message.toolStatus}
+                    startTimestamp={message.timestamp}
                   />
                 )}
 
@@ -271,6 +289,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                         onFileOpen={onFileOpen}
                         createDiff={createDiff}
                         selectedProject={selectedProject}
+                        startTimestamp={message.timestamp}
                       />
                     </div>
                   )
@@ -285,8 +304,18 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                  reply — and the element type never changes across the
                  streaming→settled switch, so the DOM is not rebuilt. */
               <Reasoning
-                defaultOpen={isExporting ? true : undefined}
+                open={isExporting ? true : undefined}
                 isStreaming={Boolean(message.isStreaming)}
+                handoffSequence={reasoningPresentation?.handoffSequence}
+                finalAnswerStarted={reasoningPresentation?.finalAnswerStarted}
+                isAutoCollapseCandidate={reasoningPresentation?.isAutoCollapseCandidate}
+                isSupersededThinking={reasoningPresentation?.isSupersededThinking}
+                toolActivityStarted={reasoningPresentation?.toolActivityStarted}
+                suppressAutoCollapse={Boolean(suppressReasoningAutoCollapse || isExporting)}
+                disclosureState={reasoningDisclosureState}
+                onUserOpenChange={handleReasoningUserOpenChange}
+                onProgramOpen={handleReasoningProgramOpen}
+                onProgramCollapse={handleReasoningProgramCollapse}
               >
                 <ReasoningTrigger />
                 <ReasoningContent lazyMount>

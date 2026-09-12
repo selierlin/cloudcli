@@ -220,6 +220,8 @@ export function useChatSessionState({
   const isUserScrolledUpRef = useRef(false);
   /** The sole queued streaming follow write, shared across transcript updates. */
   const followFrameRef = useRef<number | null>(null);
+  /** Deadline through which the same follow writer tracks an animated tail layout change. */
+  const followUntilRef = useRef(0);
   const isLoadingMoreRef = useRef(false);
   const allMessagesLoadedRef = useRef(false);
   const topLoadLockRef = useRef(false);
@@ -233,9 +235,12 @@ export function useChatSessionState({
 
   const setIsUserScrolledUp = useCallback((next: boolean) => {
     isUserScrolledUpRef.current = next;
-    if (next && followFrameRef.current !== null) {
-      window.cancelAnimationFrame(followFrameRef.current);
-      followFrameRef.current = null;
+    if (next) {
+      followUntilRef.current = 0;
+      if (followFrameRef.current !== null) {
+        window.cancelAnimationFrame(followFrameRef.current);
+        followFrameRef.current = null;
+      }
     }
     setIsUserScrolledUpState(next);
   }, []);
@@ -420,6 +425,48 @@ export function useChatSessionState({
     if (!container) return;
     container.scrollTop = container.scrollHeight;
   }, []);
+
+  const followTranscriptLayout = useCallback((durationMs = 0) => {
+    const scheduledSessionId = activeSessionIdRef.current;
+    const cannotFollow = (
+      !isActiveRef.current
+      || !scheduledSessionId
+      || !scrollContainerRef.current
+      || isLoadingMoreRef.current
+      || pendingScrollRestoreRef.current !== null
+      || searchScrollActiveRef.current
+      || isUserScrolledUpRef.current
+    );
+    if (cannotFollow) return;
+
+    followUntilRef.current = Math.max(
+      followUntilRef.current,
+      Date.now() + Math.max(0, durationMs),
+    );
+    if (followFrameRef.current !== null) return;
+
+    const tick = () => {
+      followFrameRef.current = null;
+      if (
+        !isActiveRef.current
+        || activeSessionIdRef.current !== scheduledSessionId
+        || isUserScrolledUpRef.current
+        || isLoadingMoreRef.current
+        || pendingScrollRestoreRef.current
+        || searchScrollActiveRef.current
+      ) {
+        followUntilRef.current = 0;
+        return;
+      }
+
+      scrollToBottom();
+      if (Date.now() < followUntilRef.current) {
+        followFrameRef.current = window.requestAnimationFrame(tick);
+      }
+    };
+
+    followFrameRef.current = window.requestAnimationFrame(tick);
+  }, [scrollToBottom]);
 
   const scrollToBottomAndReset = useCallback(() => {
     scrollToBottom();
@@ -986,30 +1033,19 @@ export function useChatSessionState({
         window.cancelAnimationFrame(followFrameRef.current);
         followFrameRef.current = null;
       }
+      followUntilRef.current = 0;
       return;
     }
 
-    if (followFrameRef.current !== null) return;
-    const scheduledSessionId = activeSessionId;
-    followFrameRef.current = window.requestAnimationFrame(() => {
-      followFrameRef.current = null;
-      if (
-        !isActiveRef.current
-        || activeSessionIdRef.current !== scheduledSessionId
-        || isUserScrolledUpRef.current
-        || isLoadingMoreRef.current
-        || pendingScrollRestoreRef.current
-        || searchScrollActiveRef.current
-      ) return;
-      scrollToBottom();
-    });
-  }, [activeSessionId, chatMessages, isActive, isLoadingMoreMessages, isUserScrolledUp, scrollToBottom]);
+    followTranscriptLayout();
+  }, [activeSessionId, chatMessages, followTranscriptLayout, isActive, isLoadingMoreMessages, isUserScrolledUp]);
 
   useEffect(() => () => {
     if (followFrameRef.current !== null) {
       window.cancelAnimationFrame(followFrameRef.current);
       followFrameRef.current = null;
     }
+    followUntilRef.current = 0;
   }, []);
 
   useEffect(() => {
@@ -1115,6 +1151,7 @@ export function useChatSessionState({
     scrollContainerRef,
     scrollToBottom,
     scrollToBottomAndReset,
+    followTranscriptLayout,
     handleScroll,
     requestLatestMessages,
   };

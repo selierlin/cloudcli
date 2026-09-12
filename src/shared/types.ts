@@ -277,6 +277,33 @@ export type SubagentInfo = {
   activityCount?: number;
 };
 
+/** Ephemeral UI ownership and timing retained for a thinking disclosure while lazy transcript rows unmount and remount. */
+export type ReasoningDisclosureState = {
+  /** Whether the program may still change the disclosure or the user has taken control. */
+  ownership: 'auto' | 'user_open' | 'user_closed';
+  /** Whether the program has collapsed this block during the current mounted chat session. */
+  autoCollapsed: boolean;
+  /** Whether this block streamed during the current mounted chat session. */
+  hasEverStreamed: boolean;
+  /** Valid provider timestamp used as the visible-duration start boundary. */
+  streamStartedAtMs?: number;
+  /** Browser time when this client first presented the live block, used to prevent blink-fast handoffs. */
+  visibleStartedAtMs?: number;
+  /** Completed CloudCLI-visible thinking duration displayed after streaming settles. */
+  visibleDurationSeconds?: number;
+};
+
+/** Per-render signals that tell a thinking disclosure when prose, a newer thought, or a visible tool can take over its screen space. */
+export type ReasoningPresentation = {
+  disclosureKey: string;
+  /** Changes when a later transcript segment arrives, so pending handoffs use latest-wins timing. */
+  handoffSequence: number;
+  finalAnswerStarted: boolean;
+  isAutoCollapseCandidate: boolean;
+  isSupersededThinking: boolean;
+  toolActivityStarted: boolean;
+};
+
 /** One rendered entry in a chat transcript — user turn, assistant turn, tool call and result, local command output, or subagent container — and the shape the chat message list and message components consume. */
 export type ChatMessage = {
   type: string;
@@ -301,6 +328,8 @@ export type ChatMessage = {
   replacesAnchorId?: string;
   isThinking?: boolean;
   isStreaming?: boolean;
+  /** Marks the assistant-looking detail row projected from a background task notification, so it is not mistaken for the active turn's final answer. */
+  isTaskNotificationResult?: boolean;
   isToolUse?: boolean;
   toolName?: string;
   toolInput?: unknown;
@@ -669,6 +698,8 @@ export type ToolGroupItem = {
    * JSON parsing it needs never runs during render.
    */
   preview: string;
+  /** Highest-priority running, failure, or completed-category summary shown beside the group count. */
+  activitySummary: string;
 };
 
 /** One line of a rendered file diff, marked 'added' or 'removed', with its text and line number. */

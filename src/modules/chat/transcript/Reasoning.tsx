@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { BrainIcon, ChevronDownIcon } from 'lucide-react';
 
+import type { ReasoningDisclosureState } from '@/shared/types';
 import { cn } from '@/shared/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger, Shimmer } from '@/shared/ui';
 
@@ -25,11 +26,60 @@ const useReasoning = () => {
 
 /* ─── Reasoning (root) ───────────────────────────────────────────── */
 
-const AUTO_CLOSE_DELAY = 1000;
-const MS_IN_S = 1000;
+const AUTO_CLOSE_DELAY_MS = 2500;
+const DESKTOP_HANDOFF_SETTLE_MS = 350;
+const DESKTOP_MINIMUM_VISIBLE_MS = 900;
+const TOUCH_HANDOFF_SETTLE_MS = 450;
+const TOUCH_MINIMUM_VISIBLE_MS = 1200;
+const TOUCH_POINTER_QUERY = '(hover: none) and (pointer: coarse)';
+
+function useReasoningHandoffProfile(): { settleMs: number; minimumVisibleMs: number } {
+  const readIsTouchPrimary = React.useCallback(() => (
+    typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia(TOUCH_POINTER_QUERY).matches
+  ), []);
+  // Tracks primary input capability so handoff pacing adapts when a tablet gains or loses a pointer.
+  const [isTouchPrimary, setIsTouchPrimary] = React.useState(readIsTouchPrimary);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const mediaQuery = window.matchMedia(TOUCH_POINTER_QUERY);
+    const update = () => setIsTouchPrimary(mediaQuery.matches);
+    mediaQuery.addEventListener?.('change', update);
+    return () => mediaQuery.removeEventListener?.('change', update);
+  }, []);
+
+  return isTouchPrimary
+    ? { settleMs: TOUCH_HANDOFF_SETTLE_MS, minimumVisibleMs: TOUCH_MINIMUM_VISIBLE_MS }
+    : { settleMs: DESKTOP_HANDOFF_SETTLE_MS, minimumVisibleMs: DESKTOP_MINIMUM_VISIBLE_MS };
+}
+
+function selectionIntersects(element: HTMLElement | null): boolean {
+  const selection = window.getSelection();
+  if (!element || !selection || selection.isCollapsed || selection.rangeCount === 0) return false;
+  for (let index = 0; index < selection.rangeCount; index += 1) {
+    try {
+      if (selection.getRangeAt(index).intersectsNode(element)) return true;
+    } catch {
+      // A selection can detach between selectionchange and this frame.
+    }
+  }
+  return false;
+}
 
 export type ReasoningProps = {
   isStreaming?: boolean;
+  handoffSequence?: number;
+  finalAnswerStarted?: boolean;
+  isAutoCollapseCandidate?: boolean;
+  isSupersededThinking?: boolean;
+  toolActivityStarted?: boolean;
+  suppressAutoCollapse?: boolean;
+  disclosureState?: ReasoningDisclosureState;
+  onUserOpenChange?: (open: boolean) => void;
+  onProgramOpen?: () => void;
+  onProgramCollapse?: () => void;
   open?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -41,80 +91,168 @@ export const Reasoning = React.memo<ReasoningProps>(
   ({
     className,
     isStreaming = false,
+    handoffSequence = 0,
+    finalAnswerStarted = false,
+    isAutoCollapseCandidate = false,
+    isSupersededThinking = false,
+    toolActivityStarted = false,
+    suppressAutoCollapse = false,
+    disclosureState,
+    onUserOpenChange,
+    onProgramOpen,
+    onProgramCollapse,
     open: controlledOpen,
     defaultOpen,
     onOpenChange,
+    onPointerEnter,
+    onPointerLeave,
+    onFocus,
+    onBlur,
     duration: durationProp,
     children,
     ...props
   }) => {
     const resolvedDefaultOpen = defaultOpen ?? isStreaming;
-    const isExplicitlyClosed = defaultOpen === false;
-
-    // Controllable open state
+    const handoffProfile = useReasoningHandoffProfile();
+    // Local fallback keeps embedded, non-registry reasoning disclosures usable.
     const [internalOpen, setInternalOpen] = React.useState(resolvedDefaultOpen);
-    const isControlled = controlledOpen !== undefined;
-    const isOpen = isControlled ? controlledOpen : internalOpen;
-    const setIsOpen = React.useCallback(
+    const registryOpen = disclosureState?.ownership === 'user_open'
+      || (disclosureState?.ownership === 'auto'
+        && (isStreaming || !disclosureState.autoCollapsed));
+    const isOpen = controlledOpen ?? (disclosureState ? registryOpen : internalOpen);
+    const handleUserOpenChange = React.useCallback(
       (next: boolean) => {
-        if (!isControlled) setInternalOpen(next);
+        if (controlledOpen === undefined && !disclosureState) setInternalOpen(next);
+        onUserOpenChange?.(next);
         onOpenChange?.(next);
       },
-      [isControlled, onOpenChange]
+      [controlledOpen, disclosureState, onOpenChange, onUserOpenChange],
     );
 
-    // Duration tracking
-    const [duration, setDuration] = React.useState<number | undefined>(durationProp);
-    const hasEverStreamedRef = React.useRef(isStreaming);
-    const [hasAutoClosed, setHasAutoClosed] = React.useState(false);
-    const startTimeRef = React.useRef<number | null>(null);
+    const duration = durationProp ?? disclosureState?.visibleDurationSeconds;
+    const rootRef = React.useRef<HTMLDivElement | null>(null);
+    // Hover pauses programmatic layout changes while the pointer is reading this block.
+    const [isPointerInside, setIsPointerInside] = React.useState(false);
+    // Focus protects keyboard users interacting with the disclosure.
+    const [containsFocus, setContainsFocus] = React.useState(false);
+    // Selection protects mouse and touch text selection crossing this block.
+    const [hasIntersectingSelection, setHasIntersectingSelection] = React.useState(false);
+    const canProgrammaticallyChange = disclosureState?.ownership === 'auto';
+    const hasReadingGuard = suppressAutoCollapse
+      || isPointerInside
+      || containsFocus
+      || hasIntersectingSelection;
+    const mayProgrammaticallyCollapse = Boolean(
+      isAutoCollapseCandidate || isSupersededThinking || toolActivityStarted,
+    );
 
-    // Sync external duration prop
+    // Streaming can reopen an automatically managed block, never a user-owned one.
     React.useEffect(() => {
-      if (durationProp !== undefined) setDuration(durationProp);
-    }, [durationProp]);
-
-    // Track streaming start/end for duration
-    React.useEffect(() => {
-      if (isStreaming) {
-        hasEverStreamedRef.current = true;
-        if (startTimeRef.current === null) {
-          startTimeRef.current = Date.now();
-        }
-      } else if (startTimeRef.current !== null) {
-        setDuration(Math.ceil((Date.now() - startTimeRef.current) / MS_IN_S));
-        startTimeRef.current = null;
+      if (isStreaming && canProgrammaticallyChange && disclosureState?.autoCollapsed) {
+        onProgramOpen?.();
       }
-    }, [isStreaming]);
+    }, [canProgrammaticallyChange, disclosureState?.autoCollapsed, isStreaming, onProgramOpen]);
 
-    // Auto-open when streaming starts
     React.useEffect(() => {
-      if (isStreaming && !isOpen && !isExplicitlyClosed) {
-        setIsOpen(true);
-      }
-    }, [isStreaming, isOpen, setIsOpen, isExplicitlyClosed]);
+      if (!mayProgrammaticallyCollapse || !canProgrammaticallyChange || !isOpen) return undefined;
+      let animationFrame: number | null = null;
+      const updateSelection = () => {
+        if (animationFrame !== null) cancelAnimationFrame(animationFrame);
+        animationFrame = requestAnimationFrame(() => {
+          animationFrame = null;
+          setHasIntersectingSelection(selectionIntersects(rootRef.current));
+        });
+      };
+      document.addEventListener('selectionchange', updateSelection);
+      updateSelection();
+      return () => {
+        document.removeEventListener('selectionchange', updateSelection);
+        if (animationFrame !== null) cancelAnimationFrame(animationFrame);
+      };
+    }, [canProgrammaticallyChange, isOpen, mayProgrammaticallyCollapse]);
 
-    // Auto-close after streaming ends
+    // Activity handoffs wait for a stable successor and guarantee a minimum
+    // visible lifetime. A newer segment changes handoffSequence, cancelling
+    // and replacing this timer instead of producing a cascade of collapses.
     React.useEffect(() => {
-      if (hasEverStreamedRef.current && !isStreaming && isOpen && !hasAutoClosed) {
-        const timer = setTimeout(() => {
-          setIsOpen(false);
-          setHasAutoClosed(true);
-        }, AUTO_CLOSE_DELAY);
-        return () => clearTimeout(timer);
+      if (
+        (isSupersededThinking || toolActivityStarted)
+        && canProgrammaticallyChange
+        && isOpen
+        && !hasReadingGuard
+      ) {
+        const visibleStartedAtMs = disclosureState?.visibleStartedAtMs;
+        const visibleForMs = visibleStartedAtMs === undefined
+          ? handoffProfile.minimumVisibleMs
+          : Math.max(0, Date.now() - visibleStartedAtMs);
+        const remainingMinimumMs = Math.max(0, handoffProfile.minimumVisibleMs - visibleForMs);
+        const delayMs = Math.max(handoffProfile.settleMs, remainingMinimumMs);
+        const timer = window.setTimeout(() => onProgramCollapse?.(), delayMs);
+        return () => window.clearTimeout(timer);
       }
-    }, [isStreaming, isOpen, setIsOpen, hasAutoClosed]);
+      return undefined;
+    }, [
+      canProgrammaticallyChange,
+      disclosureState?.visibleStartedAtMs,
+      handoffProfile.minimumVisibleMs,
+      handoffProfile.settleMs,
+      hasReadingGuard,
+      handoffSequence,
+      isOpen,
+      isSupersededThinking,
+      onProgramCollapse,
+      toolActivityStarted,
+    ]);
+
+    // Final prose gets a full reading window before the thinking block yields.
+    React.useEffect(() => {
+      if (
+        !finalAnswerStarted
+        || !isAutoCollapseCandidate
+        || !canProgrammaticallyChange
+        || !isOpen
+        || hasReadingGuard
+        || toolActivityStarted
+      ) return undefined;
+      const timer = window.setTimeout(() => onProgramCollapse?.(), AUTO_CLOSE_DELAY_MS);
+      return () => window.clearTimeout(timer);
+    }, [
+      canProgrammaticallyChange,
+      finalAnswerStarted,
+      hasReadingGuard,
+      isAutoCollapseCandidate,
+      isOpen,
+      onProgramCollapse,
+      toolActivityStarted,
+    ]);
 
     const contextValue = React.useMemo(
-      () => ({ duration, isOpen, isStreaming, setIsOpen }),
-      [duration, isOpen, isStreaming, setIsOpen]
+      () => ({ duration, isOpen, isStreaming, setIsOpen: handleUserOpenChange }),
+      [duration, handleUserOpenChange, isOpen, isStreaming],
     );
 
     return (
       <ReasoningContext.Provider value={contextValue}>
         <Collapsible
+          ref={rootRef}
           open={isOpen}
-          onOpenChange={setIsOpen}
+          onOpenChange={handleUserOpenChange}
+          onPointerEnter={(event) => {
+            setIsPointerInside(true);
+            onPointerEnter?.(event);
+          }}
+          onPointerLeave={(event) => {
+            setIsPointerInside(false);
+            onPointerLeave?.(event);
+          }}
+          onFocus={(event) => {
+            setContainsFocus(true);
+            onFocus?.(event);
+          }}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) setContainsFocus(false);
+            onBlur?.(event);
+          }}
           className={cn('not-prose', className)}
           {...props}
         >
@@ -188,7 +326,7 @@ export type ReasoningContentProps = {
 
 /** Body of Reasoning, used by MessageComponent. */
 export const ReasoningContent = React.memo<ReasoningContentProps>(
-  ({ className, children, lazyMount = false, ...props }) => {
+  ({ className, children, lazyMount = false, style, ...props }) => {
     const { isOpen } = useReasoning();
     const [hasOpened, setHasOpened] = React.useState(isOpen);
 
@@ -202,7 +340,17 @@ export const ReasoningContent = React.memo<ReasoningContentProps>(
 
     return (
       <CollapsibleContent
-        className={cn('mt-4 text-sm text-muted-foreground', className)}
+        className={cn(
+          'reasoning-collapse-content mt-4 text-sm text-muted-foreground',
+          isOpen ? 'opacity-100' : 'opacity-0',
+          className,
+        )}
+        style={{
+          ...style,
+          transitionDuration: 'var(--reasoning-collapse-duration), var(--reasoning-fade-duration)',
+          transitionProperty: 'grid-template-rows, opacity',
+          transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
         {...props}
       >
         {shouldRenderChildren ? children : null}
