@@ -14,8 +14,21 @@ type BashCommandDisplayProps = {
   output?: string;
   isError?: boolean;
   status?: ToolStatus;
+  startTimestamp?: string | number | Date;
+  endTimestamp?: string | number | Date;
   defaultOpen?: boolean;
 };
+
+function timestampMs(timestamp: string | number | Date | undefined): number | undefined {
+  if (timestamp === undefined) return undefined;
+  const value = new Date(timestamp).getTime();
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function formatElapsed(milliseconds: number): string {
+  const seconds = Math.max(0, milliseconds) / 1000;
+  return seconds < 10 ? `${seconds.toFixed(1)}s` : `${Math.round(seconds)}s`;
+}
 
 /**
  * Codex-in-VSCode style command row: a compact, single-line command with a
@@ -32,6 +45,8 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
   output,
   isError = false,
   status,
+  startTimestamp,
+  endTimestamp,
   defaultOpen = false,
 }) => {
   const { t } = useTranslation();
@@ -39,12 +54,30 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
   const hasOutput = trimmedOutput.length > 0;
   const outputLineCount = hasOutput ? trimmedOutput.split('\n').length : 0;
   const isRunning = status === 'running';
+  const startedAtMs = timestampMs(startTimestamp);
+  const endedAtMs = timestampMs(endTimestamp);
+  // Updates only a mounted running command's elapsed label; terminal rows stop ticking.
+  const [nowMs, setNowMs] = useState(() => Date.now());
   // `open` is raised by an effect once output arrives (below). A document is
   // rendered without effects, so it would show every command and no output.
   const isExporting = useIsExportingTranscript();
   const [openState, setOpen] = useState(false);
   const open = openState || isExporting;
   const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!isRunning || startedAtMs === undefined) return undefined;
+    const interval = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [isRunning, startedAtMs]);
+  const runningElapsed = isRunning && startedAtMs !== undefined
+    ? `${Math.max(0, Math.floor((nowMs - startedAtMs) / 1000))}s`
+    : undefined;
+  const completedElapsed = !isRunning && startedAtMs !== undefined && endedAtMs !== undefined
+    ? formatElapsed(endedAtMs - startedAtMs)
+    : undefined;
+  const errorPreview = isError && hasOutput
+    ? trimmedOutput.split('\n').slice(-3).join('\n')
+    : '';
 
   // Output often arrives after this component first mounts, so apply the
   // auto-open intent once when there is finally something to show. After that
@@ -122,12 +155,22 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
         </span>
 
         {isRunning && (
-          <span className="h-2.5 w-2.5 flex-shrink-0 animate-spin rounded-full border-[1.5px] border-muted-foreground/30 border-t-emerald-400" />
+          <>
+            <span className="h-2.5 w-2.5 flex-shrink-0 animate-spin rounded-full border-[1.5px] border-muted-foreground/30 border-t-emerald-400" />
+            <span className="flex-shrink-0 text-[10px] tabular-nums text-muted-foreground">
+              Running{runningElapsed ? ` · ${runningElapsed}` : ''}
+            </span>
+          </>
         )}
         {status && status !== 'running' && <ToolStatusBadge status={status} className="flex-shrink-0" />}
         {!open && hasOutput && !isRunning && (
           <span className="flex-shrink-0 text-[10px] tabular-nums text-muted-foreground/70 transition-opacity group-hover/cmd:opacity-0">
-            {outputLineCount} {outputLineCount === 1 ? 'line' : 'lines'}
+            {completedElapsed ? `${completedElapsed} · ` : ''}{outputLineCount} {outputLineCount === 1 ? 'line' : 'lines'}
+          </span>
+        )}
+        {!open && !hasOutput && !isRunning && completedElapsed && (
+          <span className="flex-shrink-0 text-[10px] tabular-nums text-muted-foreground/70">
+            {completedElapsed}
           </span>
         )}
 
@@ -146,6 +189,12 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
         <div className="truncate px-2.5 pb-1.5 pl-[2.4rem] text-[11px] italic text-muted-foreground/70">
           {description}
         </div>
+      )}
+
+      {errorPreview && !open && (
+        <pre className="border-t border-red-500/20 px-3 py-2 font-mono text-xs text-red-600 dark:text-red-400">
+          {errorPreview}
+        </pre>
       )}
 
       {/* Expanded output */}

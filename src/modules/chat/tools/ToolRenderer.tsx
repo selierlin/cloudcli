@@ -16,6 +16,7 @@ import { PlanDisplay } from '@/modules/chat/tools/PlanDisplay';
 import { ToolStatusBadge } from '@/modules/chat/tools/ToolStatusBadge';
 import { DiffStatsBadge } from '@/modules/chat/tools/DiffStatsBadge';
 import { parseToolPayload, summarizeDiff } from '@/modules/chat/utils/messageTransforms';
+import { getToolCategory } from '@/modules/chat/utils/toolGrouping';
 
 type ToolRendererProps = {
   toolName: string;
@@ -28,21 +29,11 @@ type ToolRendererProps = {
   selectedProject?: Project | null;
   showRawParameters?: boolean;
   rawToolInput?: string;
+  /** Provider timestamp for the tool call, used only for elapsed-time display. */
+  startTimestamp?: string | number | Date;
   /** Lifecycle the provider reported, when it reports one. Overrides the result-based inference. */
   toolStatus?: string;
 };
-
-function getToolCategory(toolName: string): string {
-  if (['Edit', 'Write', 'ApplyPatch'].includes(toolName)) return 'edit';
-  if (['Grep', 'Glob'].includes(toolName)) return 'search';
-  if (toolName === 'Bash') return 'bash';
-  if (['TodoWrite', 'TodoRead'].includes(toolName)) return 'todo';
-  if (['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet'].includes(toolName)) return 'task';
-  if (toolName === 'Task') return 'agent';
-  if (toolName === 'exit_plan_mode' || toolName === 'ExitPlanMode') return 'plan';
-  if (toolName === 'AskUserQuestion') return 'question';
-  return 'default';
-}
 
 // Exact denial messages from the Claude runtime adapter — other providers can't reliably signal denial
 const CLAUDE_DENIAL_MESSAGES = [
@@ -119,6 +110,7 @@ export const ToolRenderer: React.FC<ToolRendererProps> = memo(({
   selectedProject,
   showRawParameters = false,
   rawToolInput,
+  startTimestamp,
   toolStatus: reportedStatus,
 }) => {
   const config = getToolConfig(toolName);
@@ -172,7 +164,9 @@ export const ToolRenderer: React.FC<ToolRendererProps> = memo(({
         description={description}
         output={output}
         isError={Boolean(toolResult?.isError)}
-        status={toolStatus !== 'completed' ? toolStatus : undefined}
+        status={toolStatus}
+        startTimestamp={startTimestamp}
+        endTimestamp={toolResult?.timestamp}
         // Commands stay collapsed by default — including failures; the status
         // badge marks errors and the output expands via the chevron.
         defaultOpen={false}

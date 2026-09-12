@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { test } from 'vitest';
 
-import { groupConsecutiveTools, isToolGroupItem } from '@/modules/chat/utils/toolGrouping';
+import { groupConsecutiveTools, isToolGroupItem, summarizeToolGroupActivity } from '@/modules/chat/utils/toolGrouping';
 import type { ChatMessage } from '@/shared/types';
 
 /**
@@ -45,6 +45,27 @@ test('a run of same-tool calls is grouped and carries a precomputed preview', ()
   const [group] = items;
   assert.ok(isToolGroupItem(group));
   assert.equal(group.preview, '/a.ts, /b.ts');
+  assert.equal(group.activitySummary, 'Running: /b.ts');
+});
+
+test('completed group summary uses the existing categories and labels default as Other', () => {
+  const messages = [
+    { ...toolMessage('Read', { file_path: '/a.ts' }), toolStatus: 'completed', toolResult: { content: 'ok' } },
+    { ...toolMessage('WebSearch', { query: 'cloudcli' }), toolStatus: 'completed', toolResult: { content: 'ok' } },
+    { ...toolMessage('Grep', { pattern: 'TODO' }), toolStatus: 'completed', toolResult: { content: 'ok' } },
+    { ...toolMessage('Bash', { command: 'npm test' }), toolStatus: 'completed', toolResult: { content: 'ok' } },
+  ];
+
+  assert.equal(summarizeToolGroupActivity(messages), 'Other 2 · Search 1 · Bash 1');
+});
+
+test('group activity prioritizes failures over running tools', () => {
+  const messages = [
+    { ...toolMessage('Bash', { command: 'npm test' }), toolStatus: 'running' },
+    { ...toolMessage('Write', { file_path: '/a.ts' }), toolStatus: 'error', toolResult: { isError: true } },
+  ];
+
+  assert.equal(summarizeToolGroupActivity(messages), 'Failed: Write');
 });
 
 test('a group of more than two calls reports the remainder', () => {

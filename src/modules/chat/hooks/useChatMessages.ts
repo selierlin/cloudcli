@@ -224,6 +224,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
                 type: 'assistant',
                 content: formatUsageLimitText(taskNotif.result),
                 timestamp: msg.timestamp,
+                isTaskNotificationResult: true,
                 ...sharedMetadata,
               });
             }
