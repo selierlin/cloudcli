@@ -427,6 +427,25 @@ Nothing scrolls. There is no `scrollIntoView` anywhere under
 browser's own scroll anchoring absorbs; if the row later unmounts, `LazyMessageRow` records
 the expanded height first.
 
+### Automatically collapsing reasoning
+
+Reasoning disclosure is also a row-local layout change: it never reads or writes
+`scrollTop`. `ChatMessagesPane` passes the existing `isUserScrolledUp` intent into the
+disclosure state machine, so automatic collapse is suppressed whenever the user has left
+the tail. Hover, focus and a text selection intersecting the reasoning block add local
+reading guards. Final prose receives a 2.5 s window. Thinking/tool handoffs use a
+latest-wins stability window plus a minimum visible lifetime (desktop 350/900 ms,
+coarse-pointer clients 450/1200 ms) before the prior block collapses; the height/fade
+transition is 220 ms on desktop and 280 ms on coarse-pointer clients. A visible tool row may take over the
+running signal immediately after the same guards pass. User-owned open/closed state is
+never reversed by either path.
+
+Before an automatic reasoning collapse, `ChatMessagesPane` asks the chat-owned follow writer
+to remain active for 350 ms. That writer pins the viewport to the changing `scrollHeight`
+throughout the 220/280 ms transition and still rechecks session, loading/search claims and
+`isUserScrolledUpRef` on every frame. Reasoning components never write `scrollTop` themselves;
+manual scrolling cancels the same shared frame immediately.
+
 ## Lazy rows and height stability
 
 **RULE: unmounting a row's content must not change the scroll geometry.**

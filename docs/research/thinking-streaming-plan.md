@@ -2,7 +2,7 @@
 
 > **状态**：**路线 A 已实现并通过手工验收（2026-09-11）**。§8 前置实测已完成，结论已回填 §2.2 / §5-0 / §6-0 / §7-Q5。
 > **2026-09-11 二次定案**：Q1 由「路线 B」改判为**路线 A**。动工前复验发现路线 B 的立论前提「思考期间界面无反馈」不成立——指示器在发送瞬间即已点亮，B 为空操作（证据见 §2.4 / §2.5 / §7-Q1 及文末「作者复验追加」）。
-> **验收记录**：发送后约 5s（TTFT）开始流式输出思考内容并自动展开；思考结束约 1s 后自动收起，正文接续流式。与 §5-1 口径一致。
+> **验收记录**：发送后约 5s（TTFT）开始流式输出思考内容并自动展开。原“思考结束约 1s 自动收起”已于 2026-09-13 被事件驱动披露替代：最终正文连续可见 2.5s 后收起；思考/工具交接采用 latest-wins 稳定窗口和最短展示时间，再以响应设备能力的动画收起；用户阅读和手动选择优先。详见 `docs/research/agent-activity-experience-optimization-plan.md`。
 > **日期**：2026-09-11
 > **用途**：解决 Claude 在 extended thinking 阶段「界面完全无输出、整块思考内容一次弹出」的问题。本文档给出根因认定、两条可选路线与取舍，供其他 harness 审阅与批注。审阅时请重点检查：§2.1 的通道模型是否必要、§2.4 的路线推荐是否成立、§4 的风险是否被低估、§7 的开放问题是否该有明确默认。
 > **参考规范**：`docs/architecture/02-realtime-stream.md`（§Text streaming、§Cross-session behaviour）、`.agents/skills/backend-module-standards/SKILL.md`、`.agents/skills/frontend-module-standards/SKILL.md`
@@ -53,7 +53,7 @@ if (raw.type === 'content_block_delta' && raw.delta?.text) {
 | `defaultOpen ?? isStreaming` —— 流式期间自动展开 | `:51` |
 | `isStreaming` 时触发 `<Shimmer>Thinking...</Shimmer>` | `:135-138` |
 | 记录思考耗时，结束后显示「Thought for N seconds」 | `:78-88`、`:139-142` |
-| 流式结束后 1s 自动收起 | `:98-106` |
+| 最终正文 2.5s 后或工具活动接棒时自动收起 | `Reasoning.tsx` + `ChatMessagesPane.tsx` 的 disclosure registry |
 | `lazyMount` —— 未展开过就不渲染昂贵子节点 | `:190-212` |
 
 但 `MessageComponent.tsx:281` 传的是 `<Reasoning defaultOpen={isExporting}>`，`isExporting` 常规为 `false` → 命中 `isExplicitlyClosed`（`:52`），**自动展开被显式关掉**；且思考行永远不可能是 `isStreaming`（后端从不发流式思考）。
@@ -113,7 +113,7 @@ if (raw.type === 'content_block_delta' && raw.delta?.text) {
 把 `thinking_delta` 真正渲染出来，复用 `Reasoning` 的流式能力。
 
 - **后端**：adapter 增加 `content_block_delta` + `delta.type === 'thinking_delta'` 分支 → 带通道标记的流式消息；runtime 的子代理过滤（`isSubagentPartialEvent`）扩展到思考通道。
-- **前端**：registry 增加通道维度；`useChatMessages` 的 `stream_delta` 分支按通道产出 `isThinking: true, isStreaming: true` 的行；`MessageComponent` 对「正在流式的思考行」传 `isStreaming` 且不强制 `defaultOpen={false}`，交给 `Reasoning` 自动展开、结束后 1s 收起。
+- **前端**：registry 增加通道维度；`useChatMessages` 的 `stream_delta` 分支按通道产出 `isThinking: true, isStreaming: true` 的行；`MessageComponent` 对「正在流式的思考行」传 `isStreaming` 且不强制 `defaultOpen={false}`，交给 `Reasoning` 自动展开。收起不再由流式结束直接触发，而由最终正文 2.5s 窗口或可见工具活动接棒触发。
 
 **收益**：静默期变成实时滚动的推理文本；结束后自动收起，不污染阅读。
 **成本**：改动横跨后端 adapter / runtime / 类型与前端 registry / store / 渲染，是本方案里最大的一档。
@@ -288,7 +288,7 @@ both-blocks             → [{"k":"thinking","id":"UUID-B_0"},{"k":"text","id":"
 | # | 问题 | 我的倾向 |
 |---|---|---|
 | Q1 | 路线 A（思考内容流式）还是 B（进度指示）？ | ✅ **已定案（2026-09-11）**：~~走路线 B~~ → **改判为路线 A**。原定 B 的前提被复验证伪（指示器本就常亮，B 为空操作，见 §2.4/§2.5）；B 降级为 redacted/omitted 的 fallback。A 必须配套自动展开（§4.1） |
-| Q2 | （A）流式期间自动展开思考面板吗？ | 展开，结束后 1s 自动收起——否则 A 的收益落空（§4.1） |
+| Q2 | （A）流式期间自动展开思考面板吗？ | 展开；2026-09-13 起改为最终正文 2.5s 后或工具活动接棒时收起，并尊重用户阅读与手动操作（§4.1；详见关联优化方案） |
 | Q3 | 通道用什么机制：P1 复用 `stream_delta` + 字段 / P2 新 kind / P3 两个 registry？ | P1 |
 | Q4 | 路线 B 的进度指示是否受 `showThinking` 偏好控制？ | 不受控（只显示进度、不泄露内容）；内容行仍受控 |
 | Q5 | 思考 delta 是否也纳入服务端合并，以控制 replay 压力？ | ✅ **已实现（2026-09-11）**：纳入。`createDeltaBatcher` 对含思考通道在内的所有 `stream_delta` 按 50ms 窗口合并（§4.2）。§8 实测：思考 delta 占总帧数 **58%（242/420）** 与 **3%（53/1600）**，比例随任务剧烈波动——最坏情形（思考主导）下不合并确实会先撞 5000 上限 |
