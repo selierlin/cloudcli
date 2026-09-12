@@ -178,16 +178,81 @@ test('Cursor returns an explicit unsupported token usage result', async () => {
   assert.equal(result.total, 0);
 });
 
-test('WorkBuddy returns an explicit unsupported token usage result', async () => {
+test('WorkBuddy token usage reads the newest assistant usage block', async () => {
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), 'provider-token-usage-workbuddy-'));
+  const sessionFilePath = path.join(tempDirectory, 'provider-session.jsonl');
+
+  try {
+    await writeFile(sessionFilePath, [
+      JSON.stringify({
+        type: 'function_call',
+        id: 'fc-1',
+        callId: 'call-1',
+        name: 'Bash',
+        message: {
+          usage: {
+            input_tokens: 50,
+            output_tokens: 5,
+            total_tokens: 55,
+            cache_read_input_tokens: 40,
+          },
+        },
+      }),
+      JSON.stringify({
+        type: 'message',
+        role: 'assistant',
+        status: 'completed',
+        content: [{ type: 'output_text', text: 'done' }],
+        message: {
+          usage: {
+            input_tokens: 100,
+            output_tokens: 20,
+            total_tokens: 120,
+            cache_read_input_tokens: 80,
+          },
+        },
+      }),
+    ].join('\n'));
+
+    const service = createProviderTokenUsageService({
+      getSessionById: () => createSessionRow({
+        provider: 'workbuddy',
+        jsonl_path: sessionFilePath,
+      }),
+    });
+
+    // The newest row wins — a mid-turn function_call usage is superseded by the
+    // terminal assistant message's usage.
+    assert.deepEqual(await service.getSessionTokenUsage('app-session'), {
+      used: 120,
+      total: 200_000,
+      inputTokens: 100,
+      outputTokens: 20,
+      cacheReadTokens: 80,
+      cacheCreationTokens: 0,
+      cacheTokens: 80,
+      breakdown: { input: 100, output: 20 },
+    });
+  } finally {
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+});
+
+test('WorkBuddy token usage reports an empty result for a session without a transcript', async () => {
   const service = createProviderTokenUsageService({
-    getSessionById: () => createSessionRow({ provider: 'workbuddy' }),
+    getSessionById: () => createSessionRow({ provider: 'workbuddy', jsonl_path: null }),
   });
 
-  const result = await service.getSessionTokenUsage('app-session');
-
-  assert.equal(result.unsupported, true);
-  assert.equal(result.used, 0);
-  assert.equal(result.total, 0);
+  assert.deepEqual(await service.getSessionTokenUsage('app-session'), {
+    used: 0,
+    total: 200_000,
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheCreationTokens: 0,
+    cacheTokens: 0,
+    breakdown: { input: 0, output: 0 },
+  });
 });
 
 test('token usage reports SESSION_NOT_FOUND for an unknown app session id', async () => {

@@ -60,6 +60,7 @@ async function writeTranscript(
 }
 
 const userMessage = (text: string, timestamp: number) => ({
+  id: `user-${timestamp}`,
   type: 'message',
   role: 'user',
   timestamp,
@@ -68,6 +69,7 @@ const userMessage = (text: string, timestamp: number) => ({
 });
 
 const assistantMessage = (text: string, timestamp: number) => ({
+  id: `assistant-${timestamp}`,
   type: 'message',
   role: 'assistant',
   timestamp,
@@ -102,6 +104,40 @@ test('fetchHistory decodes the WorkBuddy transcript via the provider session id'
     assert.equal(result.messages[2]?.role, 'assistant');
     assert.equal(result.messages[2]?.content, 'Hi!');
     assert.equal(result.messages[2]?.provider, 'workbuddy');
+  });
+});
+
+test('user and assistant text carry row ids so they can be forked', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const engineSessionId = 'wb-anchor-ids';
+    const appSessionId = 'app-wb-anchor-ids';
+    const time = Date.now();
+    await writeTranscript(sessionsRoot, cwd, engineSessionId, [
+      userMessage('hello there', time),
+      assistantMessage('Hi!', time + 100),
+    ]);
+
+    sessionsDb.createAppSession(appSessionId, 'workbuddy', cwd, 'WB anchor');
+    sessionsDb.assignProviderSessionId(appSessionId, engineSessionId);
+
+    const history = await new WorkbuddySessionsProvider().fetchHistory(appSessionId);
+
+    // User turns are both an edit and a fork address; assistant replies only
+    // fork (the UI never offers editing on a turn the model wrote).
+    const userText = history.messages.filter((m) => m.role === 'user' && m.kind === 'text');
+    assert.deepEqual(
+      userText.map((m) => [m.id, m.transcriptAnchorId, m.forkAnchorId]),
+      [[`user-${time}`, `user-${time}`, `user-${time}`]],
+    );
+    const assistantText = history.messages.filter((m) => m.role === 'assistant' && m.kind === 'text');
+    assert.deepEqual(
+      assistantText.map((m) => m.forkAnchorId),
+      [`assistant-${time + 100}`],
+    );
+    assert.equal(
+      history.messages.some((m) => m.role === 'assistant' && m.kind === 'thinking' && m.forkAnchorId),
+      false,
+    );
   });
 });
 
@@ -158,6 +194,85 @@ test('fetchHistory pages the tail when limit/offset are supplied', async () => {
     const fullHistory = await provider.fetchHistory(appSessionId);
     assert.equal(fullHistory.hasMore, false);
     assert.equal(fullHistory.messages.length, 6);
+  });
+});
+
+test('fetchHistory reports token usage from the newest assistant message', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const engineSessionId = 'wb-token-usage';
+    const appSessionId = 'app-wb-token-usage';
+    const time = 1_700_000_000_000;
+    await writeTranscript(sessionsRoot, cwd, engineSessionId, [
+      userMessage('first prompt', time),
+      {
+        type: 'message',
+        role: 'assistant',
+        timestamp: time + 100,
+        cwd: '/Users/test/project',
+        content: [{ type: 'output_text', text: 'first reply' }],
+        message: {
+          usage: {
+            input_tokens: 40,
+            output_tokens: 8,
+            total_tokens: 48,
+            cache_read_input_tokens: 30,
+          },
+        },
+      },
+      userMessage('second prompt', time + 200),
+      {
+        type: 'message',
+        role: 'assistant',
+        timestamp: time + 300,
+        cwd: '/Users/test/project',
+        content: [{ type: 'output_text', text: 'second reply' }],
+        message: {
+          usage: {
+            input_tokens: 100,
+            output_tokens: 20,
+            total_tokens: 120,
+            cache_read_input_tokens: 80,
+          },
+        },
+      },
+    ]);
+
+    sessionsDb.createAppSession(appSessionId, 'workbuddy', cwd, 'Token usage');
+    sessionsDb.assignProviderSessionId(appSessionId, engineSessionId);
+
+    const result = await new WorkbuddySessionsProvider().fetchHistory(appSessionId);
+
+    // The terminal assistant message's usage (input 100 + output 20) supersedes
+    // the earlier turn, matching the "newest turn = current context" semantics.
+    assert.deepEqual(result.tokenUsage, {
+      used: 120,
+      total: 200_000,
+      inputTokens: 100,
+      outputTokens: 20,
+      cacheReadTokens: 80,
+      cacheCreationTokens: 0,
+      cacheTokens: 80,
+      breakdown: { input: 100, output: 20 },
+    });
+  });
+});
+
+test('fetchHistory omits token usage when the transcript carries none', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const engineSessionId = 'wb-no-usage';
+    const appSessionId = 'app-wb-no-usage';
+    const time = 1_700_000_000_000;
+    await writeTranscript(sessionsRoot, cwd, engineSessionId, [
+      userMessage('hello', time),
+      assistantMessage('hi', time + 100),
+    ]);
+
+    sessionsDb.createAppSession(appSessionId, 'workbuddy', cwd, 'No usage');
+    sessionsDb.assignProviderSessionId(appSessionId, engineSessionId);
+
+    const result = await new WorkbuddySessionsProvider().fetchHistory(appSessionId);
+
+    assert.equal(result.tokenUsage, undefined);
   });
 });
 

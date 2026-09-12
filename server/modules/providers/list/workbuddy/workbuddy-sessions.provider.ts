@@ -10,6 +10,7 @@ import type {
   NormalizedMessage,
 } from '@/shared/types.js';
 import { createNormalizedMessage, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
+import { summarizeWorkbuddyTokenUsage } from '@/modules/providers/services/provider-token-usage.service.js';
 
 import { getWorkbuddySessionRoots } from './workbuddy-storage.provider.js';
 
@@ -364,6 +365,8 @@ type StoredHistoryMessage = {
 type TranscriptReadResult = {
   messages: NormalizedMessage[];
   total: number;
+  /** Newest assistant usage block, when the transcript carries one. */
+  tokenUsage?: unknown;
 };
 
 /**
@@ -650,7 +653,11 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
     const normalizedOffset = Math.max(0, offset);
     const normalizedLimit = limit === null ? null : Math.max(0, limit);
     const retention = normalizedLimit === null ? null : normalizedOffset + normalizedLimit;
-    const { messages: retainedMessages, total } = await this.readTranscript(filePath, sessionId, retention);
+    const { messages: retainedMessages, total, tokenUsage } = await this.readTranscript(
+      filePath,
+      sessionId,
+      retention,
+    );
     const { page, hasMore } = sliceRetainedTailPage(
       retainedMessages,
       total,
@@ -664,6 +671,7 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
       hasMore,
       offset: normalizedOffset,
       limit: normalizedLimit,
+      tokenUsage,
     };
   }
 
@@ -720,6 +728,11 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
 
     const lines = fileContent.split(/\r?\n/);
 
+    // Assistant replies (and mid-turn function calls) carry an OpenAI-compatible
+    // `message.usage` block. Collecting the events lets the summarizer pick the
+    // newest one, which is the session's current context occupation.
+    const usageEvents: AnyRecord[] = [];
+
     for (const line of lines) {
       if (!line.trim()) {
         continue;
@@ -729,6 +742,9 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
         event = JSON.parse(line);
       } catch {
         continue;
+      }
+      if (event.message?.usage != null) {
+        usageEvents.push(event);
       }
       const timestamp = typeof event.timestamp === 'number'
         ? new Date(event.timestamp).toISOString()
@@ -749,6 +765,11 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
       }
 
       const blocks = Array.isArray(event.content) ? event.content : [];
+
+      // The transcript row's own id is the anchor "edit this message" and
+      // "fork from here" address, like Claude's row uuid. Applied on text
+      // messages only — tool results and thinking are never offered a button.
+      const eventAnchorId = typeof event.id === 'string' ? event.id : undefined;
 
       if (event.role === 'user') {
         const text = extractBlockText(blocks, 'input_text');
@@ -772,6 +793,9 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
           collector.add(createNormalizedMessage({
             kind: 'text',
             role: 'user',
+            id: eventAnchorId,
+            transcriptAnchorId: eventAnchorId,
+            forkAnchorId: eventAnchorId,
             content: text ? extractUserPrompt(text) : '',
             images: images.length > 0 ? images : undefined,
             sessionId: appSessionId,
@@ -821,6 +845,7 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
             collector.add(createNormalizedMessage({
               kind: 'text',
               role: 'assistant',
+              forkAnchorId: eventAnchorId,
               content: record.text,
               sessionId: appSessionId,
               provider: 'workbuddy',
@@ -842,6 +867,11 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
         }
     }
 
-    return collector.toResult();
+    const result = collector.toResult();
+    const tokenUsage = summarizeWorkbuddyTokenUsage(usageEvents);
+    if (tokenUsage) {
+      result.tokenUsage = tokenUsage;
+    }
+    return result;
   }
 }

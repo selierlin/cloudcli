@@ -62,6 +62,13 @@ type OpenCodeTokenRow = {
  */
 const TOKEN_USAGE_TAIL_BYTES = 4 * 1024 * 1024;
 
+/**
+ * Context-window fallback for WorkBuddy sessions. The engine's usage blocks
+ * carry no window field; CodeBuddy's default Claude-family models run 200K, the
+ * same fallback the Codex reader uses.
+ */
+const WORKBUDDY_CONTEXT_WINDOW = 200_000;
+
 const defaultDependencies: ProviderTokenUsageServiceDependencies = {
   getSessionById: (sessionId) => sessionsDb.getSessionById(sessionId),
   getHomeDirectory: () => os.homedir(),
@@ -332,6 +339,55 @@ function emptyPiTokenUsage(): TokenUsageResult {
   };
 }
 
+/**
+ * Summarizes the newest assistant usage from a WorkBuddy transcript.
+ *
+ * The engine persists an OpenAI-compatible usage block on the `message` field
+ * of assistant `message` events (and, mid-turn, of `function_call` events): the
+ * latest request's whole prompt, which is what the context window currently
+ * holds — matching the Claude summarizer's semantics. `input_tokens` already
+ * includes `cache_read_input_tokens`.
+ */
+export function summarizeWorkbuddyTokenUsage(entries: AnyRecord[]): TokenUsageResult | undefined {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const usage = entries[index]?.message?.usage as AnyRecord | null | undefined;
+    if (!usage || typeof usage !== 'object') {
+      continue;
+    }
+    const inputTokens = readUsageNumber(usage.input_tokens);
+    const outputTokens = readUsageNumber(usage.output_tokens);
+    if (inputTokens === 0 && outputTokens === 0) {
+      continue;
+    }
+    const cacheReadTokens = readUsageNumber(usage.cache_read_input_tokens);
+    const totalTokens = readUsageNumber(usage.total_tokens);
+    return {
+      used: totalTokens || inputTokens + outputTokens,
+      total: WORKBUDDY_CONTEXT_WINDOW,
+      inputTokens,
+      outputTokens,
+      cacheReadTokens,
+      cacheCreationTokens: 0,
+      cacheTokens: cacheReadTokens,
+      breakdown: { input: inputTokens, output: outputTokens },
+    };
+  }
+  return undefined;
+}
+
+function emptyWorkbuddyTokenUsage(): TokenUsageResult {
+  return {
+    used: 0,
+    total: WORKBUDDY_CONTEXT_WINDOW,
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheCreationTokens: 0,
+    cacheTokens: 0,
+    breakdown: { input: 0, output: 0 },
+  };
+}
+
 function readOpenCodeTokenUsage(databasePath: string, providerSessionId: string): TokenUsageResult {
   const database = new Database(databasePath, { readonly: true, fileMustExist: true });
   try {
@@ -450,15 +506,22 @@ export function createProviderTokenUsageService(
       }
 
       if (session.provider === 'workbuddy') {
-        return {
-          used: 0,
-          total: 0,
-          inputTokens: 0,
-          outputTokens: 0,
-          breakdown: { input: 0, output: 0 },
-          unsupported: true,
-          message: 'Token usage tracking not available for WorkBuddy sessions',
-        };
+        // WorkBuddy session rows are indexed with the transcript path the
+        // synchronizer resolved; a brand-new session with no transcript simply
+        // has no usage yet.
+        const sessionFilePath = session.jsonl_path && dependencies.fileExists(session.jsonl_path)
+          ? session.jsonl_path
+          : null;
+        if (!sessionFilePath) {
+          return emptyWorkbuddyTokenUsage();
+        }
+
+        const tail = await dependencies.readTextFileTail(sessionFilePath, TOKEN_USAGE_TAIL_BYTES);
+        let entries = parseClaudeUsageEntries(tail.content);
+        if (!summarizeWorkbuddyTokenUsage(entries) && !tail.isComplete) {
+          entries = parseClaudeUsageEntries(await dependencies.readTextFile(sessionFilePath));
+        }
+        return summarizeWorkbuddyTokenUsage(entries) ?? emptyWorkbuddyTokenUsage();
       }
 
       if (session.provider === 'pi') {
