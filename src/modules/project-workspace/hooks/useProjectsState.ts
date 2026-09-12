@@ -876,6 +876,11 @@ export function useProjectsState({
 
   useEffect(() => {
     if (!sessionId) {
+      // The root route represents a new/empty chat. Clear the denormalized
+      // selection as soon as the URL no longer carries a session id; otherwise
+      // the previous URL value can win one render before navigate('/') lands
+      // and leave ChatInterface in the "continue" state.
+      setSelectedSession(null);
       return;
     }
 
