@@ -303,7 +303,9 @@ WorkBuddy 的基础接入已经存在，以下部分已在代码中找到：
 
 - [ ] **P-004 注册 Provider 和依赖注入**
 - [ ] **P-005 实现 Runtime：启动、输入、输出、错误、退出码**
-- [ ] **P-006 实现流式事件映射和稳定 ID**
+- [ ] **P-006 实现流式事件映射、合并契约和稳定 ID**
+
+  Token-stream Provider 必须同时满足：发送可按顺序直接拼接的 delta，而不是累计全文；runtime 接入共享 `createDeltaBatcher`；thinking/text 切换时先发布旧通道；runtime fixture 断言各通道 delta 拼接后严格等于最终全文。前端的发布限频只能控制渲染成本，不能修复累计全文被重复 append 的正确性错误。
 - [ ] **P-007 实现工具完整生命周期**
 - [ ] **P-008 实现 Task/Todo/Workflow 生命周期（如支持）**
 - [ ] **P-009 实现官方取消、超时和优雅收尾协议**

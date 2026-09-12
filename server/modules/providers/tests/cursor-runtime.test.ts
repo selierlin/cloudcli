@@ -26,7 +26,7 @@ function makeContext(): ProviderRuntimeContext {
   };
 }
 
-type Captured = { kind: string; sessionId?: string | null };
+type Captured = { kind: string; content?: unknown; sessionId?: string | null };
 
 /**
  * Writes a fake `cursor-agent` that streams an assistant chunk every 30ms, and
@@ -68,6 +68,65 @@ emit();
   await writeFile(commandPath, '#!/bin/sh\nexec node "$(dirname "$0")/cursor-agent.js" "$@"\n', 'utf8');
   await chmod(commandPath, 0o755);
 }
+
+/** Writes a finite Cursor fixture whose two deltas have one known final text. */
+async function createFiniteCursorExecutable(binDir: string): Promise<void> {
+  const script = `
+const emit = (value) => process.stdout.write(JSON.stringify(value) + '\\n');
+emit({ type: 'assistant', message: { content: [{ text: 'first ' }] } });
+setTimeout(() => emit({ type: 'assistant', message: { content: [{ text: 'second' }] } }), 60);
+setTimeout(() => emit({ type: 'result', subtype: 'success' }), 120);
+setTimeout(() => process.exit(0), 150);
+`;
+  const scriptPath = path.join(binDir, 'cursor-agent.js');
+  await writeFile(scriptPath, script, 'utf8');
+
+  if (process.platform === 'win32') {
+    await writeFile(
+      path.join(binDir, 'cursor-agent.cmd'),
+      '@echo off\r\nnode "%~dp0cursor-agent.js" %*\r\n',
+      'utf8',
+    );
+    return;
+  }
+
+  const commandPath = path.join(binDir, 'cursor-agent');
+  await writeFile(commandPath, '#!/bin/sh\nexec node "$(dirname "$0")/cursor-agent.js" "$@"\n', 'utf8');
+  await chmod(commandPath, 0o755);
+}
+
+test('stream deltas concatenate to the finite Cursor reply', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'cursor-runtime-delta-contract-'));
+  const pathKey = findEnvKey('PATH');
+  const previousPath = process.env[pathKey];
+  const messages: Captured[] = [];
+  const writer: ProviderRuntimeWriter = {
+    send(message) {
+      messages.push(message as Captured);
+    },
+    setSessionId() {},
+    userId: null,
+  };
+
+  try {
+    await createFiniteCursorExecutable(tempRoot);
+    process.env[pathKey] = `${tempRoot}${path.delimiter}${previousPath || ''}`;
+    await cursorRuntime.run('Hi', { sessionId: 'delta-contract', cwd: tempRoot }, writer, makeContext());
+
+    const reply = messages
+      .filter(message => message.kind === 'stream_delta')
+      .map(message => message.content)
+      .join('');
+    assert.equal(reply, 'first second');
+  } finally {
+    if (previousPath === undefined) {
+      delete process.env[pathKey];
+    } else {
+      process.env[pathKey] = previousPath;
+    }
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
 
 // The regression depends on SIGTERM reaching the child and letting it emit one
 // last chunk, which is POSIX-specific; Windows kill semantics would not.

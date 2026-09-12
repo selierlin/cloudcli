@@ -69,6 +69,73 @@ emit();
   await chmod(commandPath, 0o755);
 }
 
+/** Writes a finite OpenCode fixture whose two deltas have one known final text. */
+async function createFiniteOpenCodeExecutable(binDir: string): Promise<void> {
+  const script = `
+const emit = (text) => process.stdout.write(JSON.stringify({
+  type: 'text',
+  sessionID: 'open-delta-contract',
+  text,
+}) + '\\n');
+emit('first ');
+setTimeout(() => emit('second'), 60);
+setTimeout(() => process.exit(0), 120);
+`;
+  const scriptPath = path.join(binDir, 'opencode.js');
+  await writeFile(scriptPath, script, 'utf8');
+
+  if (process.platform === 'win32') {
+    await writeFile(
+      path.join(binDir, 'opencode.cmd'),
+      '@echo off\r\nnode "%~dp0opencode.js" %*\r\n',
+      'utf8',
+    );
+    return;
+  }
+
+  const commandPath = path.join(binDir, 'opencode');
+  await writeFile(commandPath, '#!/bin/sh\nexec node "$(dirname "$0")/opencode.js" "$@"\n', 'utf8');
+  await chmod(commandPath, 0o755);
+}
+
+test('stream deltas concatenate to the finite OpenCode reply', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-runtime-delta-contract-'));
+  const pathKey = findEnvKey('PATH');
+  const previousPath = process.env[pathKey];
+  const messages: Captured[] = [];
+  const writer: ProviderRuntimeWriter = {
+    send(message) {
+      messages.push(message as Captured);
+    },
+    setSessionId() {},
+    userId: null,
+  };
+
+  try {
+    await createFiniteOpenCodeExecutable(tempRoot);
+    process.env[pathKey] = `${tempRoot}${path.delimiter}${previousPath || ''}`;
+    await opencodeRuntime.run(
+      'Hi',
+      { sessionId: 'delta-contract', cwd: tempRoot },
+      writer,
+      makeContext(),
+    );
+
+    const reply = messages
+      .filter(message => message.kind === 'stream_delta')
+      .map(message => message.content)
+      .join('');
+    assert.equal(reply, 'first second');
+  } finally {
+    if (previousPath === undefined) {
+      delete process.env[pathKey];
+    } else {
+      process.env[pathKey] = previousPath;
+    }
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 // The regression depends on SIGTERM reaching the child and letting it emit one
 // last event, which is POSIX-specific; Windows kill semantics would not.
 test('an abort drops a delta that arrives after the terminal complete', { skip: process.platform === 'win32' }, async () => {
