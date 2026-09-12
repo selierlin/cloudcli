@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowDownIcon } from 'lucide-react';
 
@@ -89,12 +89,23 @@ function ChatInterface({
   useEffect(() => {
     sessionStoreRef.current = sessionStore;
   }, [sessionStore]);
+  const visibleStreamingSessionIdRef = useRef<string | null>(
+    isActive ? selectedSession?.id ?? null : null,
+  );
+  const publishStreamingBatch = useCallback<Parameters<typeof createStreamingBufferRegistry>[0]>(
+    (sessionId, updates, provider) => {
+      sessionStoreRef.current.updateStreamingBatch(sessionId, updates, provider);
+    },
+    [],
+  );
+  const isStreamingSessionVisible = useCallback(
+    (sessionId: string) => visibleStreamingSessionIdRef.current === sessionId,
+    [],
+  );
   // Session-keyed streaming buffer. The lazy initializer runs exactly once, so
   // a single registry backs every render.
   const [streamBuffers] = useState<StreamingBufferRegistry>(() =>
-    createStreamingBufferRegistry((sessionId, text, provider, channel) => {
-      sessionStoreRef.current.updateStreaming(sessionId, text, provider, channel);
-    }));
+    createStreamingBufferRegistry(publishStreamingBatch, isStreamingSessionVisible));
   // When each session's `chat.subscribe` was last sent; idle acks older than
   // a later local request are discarded as stale.
   const statusCheckSentAtRef = useRef(new Map<string, number>());
@@ -175,6 +186,23 @@ function ChatInterface({
     lastSeqRef,
     sessionStore,
   });
+
+  const visibleStreamingSessionId = isActive
+    ? selectedSession?.id || currentSessionId || null
+    : null;
+  useLayoutEffect(() => {
+    const previousSessionId = visibleStreamingSessionIdRef.current;
+    visibleStreamingSessionIdRef.current = visibleStreamingSessionId;
+
+    // Cancel any foreground schedule owned by the session that just became
+    // hidden, then publish the newly visible session before its first paint.
+    if (previousSessionId && previousSessionId !== visibleStreamingSessionId) {
+      streamBuffers.flushNow(previousSessionId);
+    }
+    if (visibleStreamingSessionId) {
+      streamBuffers.flushNow(visibleStreamingSessionId);
+    }
+  }, [streamBuffers, visibleStreamingSessionId]);
 
   // Brand-new conversation: the composer allocated a stable session id via
   // the session gateway before the first send. Record it locally and put it

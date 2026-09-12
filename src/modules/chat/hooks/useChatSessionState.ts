@@ -196,7 +196,7 @@ export function useChatSessionState({
   const [isLoadingMoreMessages, setIsLoadingMoreMessages] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [totalMessages, setTotalMessages] = useState(0);
-  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
+  const [isUserScrolledUp, setIsUserScrolledUpState] = useState(false);
   const [tokenBudget, setTokenBudget] = useState<Record<string, unknown> | null>(null);
   const [visibleMessageCount, setVisibleMessageCount] = useState(INITIAL_VISIBLE_MESSAGES);
   const [allMessagesLoaded, setAllMessagesLoaded] = useState(false);
@@ -216,13 +216,10 @@ export function useChatSessionState({
    * cancel a jump that belongs to the transcript the user just left.
    */
   const searchScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /**
-   * `isUserScrolledUp` readable from a timer callback. Both deferred
-   * scroll-to-bottom calls are armed while the user is at the bottom and fire
-   * tens to hundreds of milliseconds later; without re-reading this at fire
-   * time, a scroll-up inside that window is silently undone.
-   */
+  /** Latest user scroll ownership, read synchronously by queued animation frames. */
   const isUserScrolledUpRef = useRef(false);
+  /** The sole queued streaming follow write, shared across transcript updates. */
+  const followFrameRef = useRef<number | null>(null);
   const isLoadingMoreRef = useRef(false);
   const allMessagesLoadedRef = useRef(false);
   const topLoadLockRef = useRef(false);
@@ -233,6 +230,15 @@ export function useChatSessionState({
   const loadAllFinishedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadAllOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastLoadedSessionKeyRef = useRef<string | null>(null);
+
+  const setIsUserScrolledUp = useCallback((next: boolean) => {
+    isUserScrolledUpRef.current = next;
+    if (next && followFrameRef.current !== null) {
+      window.cancelAnimationFrame(followFrameRef.current);
+      followFrameRef.current = null;
+    }
+    setIsUserScrolledUpState(next);
+  }, []);
   /**
    * Tracks the last processed value from `useProjectsState.newSessionTrigger`.
    *
@@ -409,14 +415,6 @@ export function useChatSessionState({
     }
   }, [activeSessionId, sessionStore]);
 
-  // Mirrors the state into a ref so the two deferred scroll-to-bottom timers
-  // can re-read it at fire time. An effect rather than assignments next to each
-  // `setIsUserScrolledUp` call, because the setter is also returned from this
-  // hook and driven from the composer.
-  useEffect(() => {
-    isUserScrolledUpRef.current = isUserScrolledUp;
-  }, [isUserScrolledUp]);
-
   const scrollToBottom = useCallback(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -538,7 +536,7 @@ export function useChatSessionState({
       const didLoad = await loadOlderMessages(container);
       if (didLoad) topLoadLockRef.current = true;
     }
-  }, [hasMoreMessages, isActive, isNearBottom, loadOlderMessages]);
+  }, [hasMoreMessages, isActive, isNearBottom, loadOlderMessages, setIsUserScrolledUp]);
 
   const wasChatActiveRef = useRef(isActive);
   useLayoutEffect(() => {
@@ -594,7 +592,7 @@ export function useChatSessionState({
     pendingScrollRestoreRef.current = null;
     wasNearTopRef.current = false;
     setIsUserScrolledUp(false);
-  }, [selectedProject?.projectId, selectedSession?.id]);
+  }, [selectedProject?.projectId, selectedSession?.id, setIsUserScrolledUp]);
 
   // Initial scroll to bottom — robust to lazy content reflow.
   // The previous implementation fired one scrollToBottom() at +200ms and
@@ -618,8 +616,18 @@ export function useChatSessionState({
     let stableCount = 0;
     let rafId = 0;
 
+    const scheduledSessionId = activeSessionId;
     const tick = () => {
-      if (!pendingInitialScrollRef.current || !scrollContainerRef.current) return;
+      if (
+        !pendingInitialScrollRef.current
+        || !scrollContainerRef.current
+        || !isActiveRef.current
+        || activeSessionIdRef.current !== scheduledSessionId
+      ) return;
+      if (isUserScrolledUpRef.current) {
+        pendingInitialScrollRef.current = false;
+        return;
+      }
       container.scrollTop = container.scrollHeight;
       if (container.scrollHeight === lastHeight) {
         stableCount++;
@@ -638,7 +646,7 @@ export function useChatSessionState({
     return () => {
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, [chatMessages.length, isActive, isLoadingSessionMessages, scrollToBottom]);
+  }, [activeSessionId, chatMessages.length, isActive, isLoadingSessionMessages, scrollToBottom]);
 
   // Session replay/subscription remains active regardless of which main tab is
   // visible. Only persisted-history HTTP traffic is visibility-gated below.
@@ -962,19 +970,47 @@ export function useChatSessionState({
   });
 
   useEffect(() => {
-    if (!isActive) return;
-    if (!scrollContainerRef.current || chatMessages.length === 0) return;
-    if (isLoadingMoreRef.current || isLoadingMoreMessages || pendingScrollRestoreRef.current) return;
-    if (searchScrollActiveRef.current) return;
-
-    if (!isUserScrolledUp) {
-      setTimeout(() => {
-        if (!isUserScrolledUpRef.current) {
-          scrollToBottom();
-        }
-      }, 50);
+    const cannotFollow = (
+      !isActive
+      || !activeSessionId
+      || !scrollContainerRef.current
+      || chatMessages.length === 0
+      || isLoadingMoreRef.current
+      || isLoadingMoreMessages
+      || pendingScrollRestoreRef.current !== null
+      || searchScrollActiveRef.current
+      || isUserScrolledUpRef.current
+    );
+    if (cannotFollow) {
+      if (followFrameRef.current !== null) {
+        window.cancelAnimationFrame(followFrameRef.current);
+        followFrameRef.current = null;
+      }
+      return;
     }
-  }, [chatMessages, isActive, isLoadingMoreMessages, isUserScrolledUp, scrollToBottom]);
+
+    if (followFrameRef.current !== null) return;
+    const scheduledSessionId = activeSessionId;
+    followFrameRef.current = window.requestAnimationFrame(() => {
+      followFrameRef.current = null;
+      if (
+        !isActiveRef.current
+        || activeSessionIdRef.current !== scheduledSessionId
+        || isUserScrolledUpRef.current
+        || isLoadingMoreRef.current
+        || pendingScrollRestoreRef.current
+        || searchScrollActiveRef.current
+      ) return;
+      scrollToBottom();
+    });
+  }, [activeSessionId, chatMessages, isActive, isLoadingMoreMessages, isUserScrolledUp, scrollToBottom]);
+
+  useEffect(() => () => {
+    if (followFrameRef.current !== null) {
+      window.cancelAnimationFrame(followFrameRef.current);
+      followFrameRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     const container = scrollContainerRef.current;

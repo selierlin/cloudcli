@@ -75,6 +75,55 @@ async function loadedStore() {
 }
 
 describe('thinking stream channel', () => {
+  it('creates a two-channel batch atomically in stable append order', async () => {
+    const { result } = await loadedStore();
+
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:10.000Z'));
+      act(() => {
+        result.current.updateStreamingBatch('session-1', [
+          { channel: 'thinking', text: '推理中' },
+          { channel: 'text', text: '正文中' },
+        ], 'claude');
+      });
+
+      const streamed = result.current
+        .getMessages('session-1')
+        .filter(message => message.kind === 'stream_delta');
+      assert.deepEqual(
+        streamed.map(message => [message.streamChannel, message.content]),
+        [['thinking', '推理中'], ['text', '正文中']],
+      );
+      assert.deepEqual(
+        streamed.map(message => message.timestamp),
+        ['2026-01-01T00:00:10.000Z', '2026-01-01T00:00:10.000Z'],
+        'equal millisecond timestamps must preserve batch append order',
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not reorder text that was created in an earlier batch', async () => {
+    const { result } = await loadedStore();
+
+    act(() => {
+      result.current.updateStreaming('session-1', '正文先到', 'claude', 'text');
+      result.current.updateStreamingBatch('session-1', [
+        { channel: 'thinking', text: '推理后到' },
+      ], 'claude');
+    });
+
+    const streamed = result.current
+      .getMessages('session-1')
+      .filter(message => message.kind === 'stream_delta');
+    assert.deepEqual(
+      streamed.map(message => message.streamChannel),
+      ['text', 'thinking'],
+    );
+  });
+
   it('keeps the reply and the reasoning trace as two rows', async () => {
     const { result } = await loadedStore();
 

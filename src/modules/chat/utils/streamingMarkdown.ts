@@ -2,11 +2,11 @@
  * Splits a partially-streamed assistant message into a settled prefix and the
  * block still being written.
  *
- * The realtime handler pushes the whole accumulated reply every 100ms, so
- * rendering it as one markdown document re-parses the entire message ten times
- * a second — O(length) per tick and O(length²) over a reply. Splitting at a
- * block boundary lets the prefix render through a memoized <MarkdownBody>,
- * whose input only changes when a block completes, so each tick only parses the
+ * The server batches deltas around 50ms and the visible-session scheduler can
+ * republish the whole accumulated reply at about 20–30Hz. Rendering it as one
+ * markdown document would be O(length) per publish and O(length²) over a
+ * reply. Splitting at a block boundary lets the prefix render through a memoized <MarkdownBody>,
+ * whose input only changes when a block completes, so each publish only parses the
  * tail.
  *
  * Correctness rests on markdown blocks being independent across a blank line:
@@ -38,7 +38,7 @@ const MATH_DELIMITER_PATTERN = /^ {0,3}\$\$/;
  * blocks at a blank line, and no input has been found where splitting there
  * renders differently — they are kept because the cost of being wrong is a
  * visible layout break and the cost of being cautious is one more block staying
- * in the pending half for one tick.
+ * in the pending half for one publish.
  */
 const CONTEXT_SENSITIVE_LINE = new RegExp([
   '^\\s*([-*+]|\\d+[.)])\\s',      // list item

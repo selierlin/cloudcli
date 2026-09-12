@@ -7,9 +7,8 @@ import type { NormalizedMessage, Project, ProjectSession } from '@/shared/types'
 
 /**
  * The transcript's scroll position is written from five places coordinated by
- * refs and timers rather than by one owner. These are the two cases where that
- * coordination was observably wrong; both are timing bugs, so they are driven
- * on fake timers rather than by clicking.
+ * refs and animation frames rather than by one owner. These tests pin user
+ * ownership and same-row growth without relying on browser layout.
  */
 
 vi.mock('@/shared/api', () => ({
@@ -22,6 +21,14 @@ vi.mock('@/shared/api', () => ({
 
 const SESSION_A = 'session-a';
 const SESSION_B = 'session-b';
+let nextFrameId = 1;
+let frameCallbacks = new Map<number, FrameRequestCallback>();
+
+function runAnimationFrame(timestamp = 16): void {
+  const callbacks = [...frameCallbacks.values()];
+  frameCallbacks.clear();
+  callbacks.forEach(callback => callback(timestamp));
+}
 
 const project: Project = {
   projectId: 'project-1',
@@ -86,6 +93,7 @@ function createStore(messagesBySession: Map<string, NormalizedMessage[]>) {
     })),
     setActiveSession: vi.fn(),
     isStale: vi.fn(() => false),
+    updateStreamingBatch: vi.fn(),
     updateStreaming: vi.fn(),
     finalizeStreaming: vi.fn(),
     getMessages: vi.fn((sessionId: string) => messagesBySession.get(sessionId) ?? []),
@@ -96,13 +104,14 @@ function createStore(messagesBySession: Map<string, NormalizedMessage[]>) {
 async function renderChatSessionState(options: {
   session: ProjectSession;
   store: ReturnType<typeof createStore>;
+  isActive?: boolean;
 }) {
   const { useChatSessionState } = await import('@/modules/chat/hooks/useChatSessionState');
 
   return renderHook(
-    ({ session }: { session: ProjectSession }) =>
+    ({ session, isActive = true }: { session: ProjectSession; isActive?: boolean }) =>
       useChatSessionState({
-        isActive: true,
+        isActive,
         selectedProject: project,
         selectedSession: session,
         ws: null,
@@ -111,18 +120,22 @@ async function renderChatSessionState(options: {
         lastSeqRef: { current: new Map() },
         sessionStore: options.store as never,
       }),
-    { initialProps: { session: options.session } },
+    { initialProps: { session: options.session, isActive: options.isActive } },
   );
 }
 
 beforeEach(() => {
   vi.useFakeTimers();
-  // The initial-scroll effect is a separate writer that re-scrolls to the
-  // bottom every animation frame until the height settles. It would satisfy an
-  // assertion meant for the deferred timer, so it is silenced here — these
-  // tests are about which writer wins, and it is not one of the two.
-  vi.stubGlobal('requestAnimationFrame', () => 0);
-  vi.stubGlobal('cancelAnimationFrame', () => undefined);
+  nextFrameId = 1;
+  frameCallbacks = new Map();
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    const id = nextFrameId++;
+    frameCallbacks.set(id, callback);
+    return id;
+  });
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+    frameCallbacks.delete(id);
+  });
   localStorage.clear();
 });
 
@@ -133,6 +146,27 @@ afterEach(() => {
 });
 
 describe('deferred scroll-to-bottom', () => {
+  it('lets the user cancel the initial settle loop', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
+    ]);
+    const store = createStore(messages);
+    const { result, rerender } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+    const container = createContainer(5000, 500);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    act(() => {
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: true });
+      result.current.setIsUserScrolledUp(true);
+      runAnimationFrame();
+    });
+
+    assert.deepEqual(container.writes, []);
+  });
+
   it('does not yank the view back down when the user scrolls up inside the delay', async () => {
     const messages = new Map<string, NormalizedMessage[]>([
       [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
@@ -146,13 +180,13 @@ describe('deferred scroll-to-bottom', () => {
     const container = createContainer(5000, 500);
     (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
 
-    // A new row lands while the user is at the bottom: a scroll is armed for +50ms.
+    // A new row lands while the user is at the bottom: one follow frame is armed.
     messages.set(SESSION_A, [
       ...messages.get(SESSION_A)!,
       buildMessage(1, '2026-01-01T00:00:01.000Z'),
     ]);
     act(() => {
-      rerender({ session: { id: SESSION_A } as ProjectSession });
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: true });
     });
 
     // ...and the user drags upward before it fires.
@@ -163,6 +197,7 @@ describe('deferred scroll-to-bottom', () => {
 
     act(() => {
       vi.advanceTimersByTime(200);
+      runAnimationFrame();
     });
 
     assert.deepEqual(
@@ -193,12 +228,12 @@ describe('deferred scroll-to-bottom', () => {
       { ...buildMessage(0, '2026-01-01T00:00:00.000Z'), content: 'message 0 grown' },
     ]);
     act(() => {
-      rerender({ session: { id: SESSION_A } as ProjectSession });
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: true });
     });
     container.writes.length = 0;
 
     act(() => {
-      vi.advanceTimersByTime(200);
+      runAnimationFrame();
     });
 
     expect(container.writes).toContain(container.scrollHeight);
@@ -222,15 +257,41 @@ describe('deferred scroll-to-bottom', () => {
       buildMessage(1, '2026-01-01T00:00:01.000Z'),
     ]);
     act(() => {
-      rerender({ session: { id: SESSION_A } as ProjectSession });
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: true });
     });
     container.writes.length = 0;
 
     act(() => {
-      vi.advanceTimersByTime(200);
+      runAnimationFrame();
     });
 
     expect(container.writes).toContain(container.scrollHeight);
+  });
+
+  it('cancels a queued follow frame when the Chat tab becomes inactive', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
+    ]);
+    const store = createStore(messages);
+    const { result, rerender } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+    const container = createContainer(5000, 500);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    messages.set(SESSION_A, [
+      ...messages.get(SESSION_A)!,
+      buildMessage(1, '2026-01-01T00:00:01.000Z'),
+    ]);
+    act(() => {
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: true });
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: false });
+    });
+    container.writes.length = 0;
+
+    act(() => runAnimationFrame());
+    assert.deepEqual(container.writes, []);
   });
 });
 
@@ -268,7 +329,7 @@ describe('search jump ownership', () => {
 
     // The user gives up waiting and opens a different session.
     await act(async () => {
-      rerender({ session: { id: SESSION_B } as ProjectSession });
+      rerender({ session: { id: SESSION_B } as ProjectSession, isActive: true });
     });
 
     // Let the whole retry budget elapse (20 retries, 150ms apart).

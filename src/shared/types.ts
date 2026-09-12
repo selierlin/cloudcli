@@ -518,6 +518,12 @@ type MessageKind =
 /** Which stream a `stream_delta` frame belongs to: the assistant's visible reply (`text`) or its reasoning trace (`thinking`). They buffer into separate rows. */
 export type StreamChannel = 'text' | 'thinking';
 
+/** One accumulated streaming channel published atomically from the chat buffer into the session store. */
+export type StreamingChannelUpdate = {
+  channel: StreamChannel;
+  text: string;
+};
+
 // ---------------------------
 
 //----------------- CHAT COMPOSER ------------

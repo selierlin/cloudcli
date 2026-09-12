@@ -1,83 +1,143 @@
-import type { LLMProvider, StreamChannel } from '@/shared/types';
+import type {
+  LLMProvider,
+  StreamChannel,
+  StreamingChannelUpdate,
+} from '@/shared/types';
 
-/**
- * Debounce window for coalescing incoming deltas into one store write. Kept in
- * sync with `StreamingMarkdown`, whose split logic assumes this cadence.
- */
-const STREAMING_FLUSH_INTERVAL_MS = 100;
+const FOREGROUND_MIN_PUBLISH_INTERVAL_MS = 32;
+const STREAM_PUBLISH_WATCHDOG_MS = 100;
+const BACKGROUND_PUBLISH_INTERVAL_MS = 200;
 
-/**
- * One session's in-flight reply. The reply text and the reasoning trace are
- * accumulated as separate channels so they finalize into two rows rather than
- * concatenating reasoning into the reply; `provider` and `timer` are shared.
- */
+/** One session's authoritative in-flight reply and its publish scheduler. */
 type StreamBuffer = {
   text: string;
   thinking: string;
+  publishedText: string;
+  publishedThinking: string;
   provider: LLMProvider;
-  timer: number | null;
+  frameId: number | null;
+  publishTimer: number | null;
+  lastPublishedAt: number | null;
 };
 
 /**
  * Session-keyed streaming buffer owned by the chat pane. `ChatInterface`
  * creates it and hands it to `useChatRealtimeHandlers`, which appends deltas
- * and flushes on `stream_end` / `complete`. The narrow interface lets the
- * 100ms coalescing rule be unit-tested without rendering React.
+ * and flushes synchronously on `stream_end` / `complete`.
  */
 export type StreamingBufferRegistry = {
-  /**
-   * Appends a delta to one of the session's channels, arming the debounce
-   * timer on the first one. No-ops on an empty session id or empty text, so a
-   * delta-less frame cannot create a stub row later. `channel` defaults to
-   * `text` for providers that only stream a reply.
-   */
+  /** Appends a non-empty delta to one session/channel and schedules its latest state. */
   append: (sessionId: string, text: string, provider: LLMProvider, channel?: StreamChannel) => void;
-  /**
-   * Cancels the debounce and publishes every non-empty channel immediately.
-   * No-ops when the session has no buffer — this is what keeps a tool-only
-   * `stream_end` from writing an empty placeholder row.
-   */
+  /** Publishes every dirty channel synchronously without finalizing or dropping the buffer. */
   flushNow: (sessionId: string) => void;
-  /** Cancels the debounce and discards the buffer without publishing. */
+  /** Cancels pending work and discards one session buffer without publishing it. */
   drop: (sessionId: string) => void;
-  /** Cancels every timer and discards every buffer. Used on unmount. */
+  /** Cancels pending work and discards all session buffers. */
   dropAll: () => void;
-  /** Whether the session currently holds a buffer. */
+  /** Whether the session currently holds an in-flight buffer. */
   has: (sessionId: string) => boolean;
 };
 
 /**
- * Creates the session-keyed streaming buffer used by `ChatInterface` and
- * `useChatRealtimeHandlers`.
- *
- * `flush` receives one accumulated channel at a time, together with the
- * provider recorded at append time. The provider must travel with the message
- * rather than being captured from a hook-scope closure: a background session
- * running a different provider would otherwise stamp its row with the viewed
- * session's provider.
+ * Creates the pane-wide stream scheduler. Visible sessions publish on an
+ * eligible animation frame with a watchdog; hidden sessions publish at most
+ * five times per second. `flush` always receives one atomic channel batch.
  */
 export function createStreamingBufferRegistry(
-  flush: (sessionId: string, text: string, provider: LLMProvider, channel: StreamChannel) => void,
+  flush: (
+    sessionId: string,
+    updates: StreamingChannelUpdate[],
+    provider: LLMProvider,
+  ) => void,
+  isSessionVisible: (sessionId: string) => boolean = () => true,
 ): StreamingBufferRegistry {
   const buffers = new Map<string, StreamBuffer>();
 
-  const clearTimer = (buffer: StreamBuffer): void => {
-    if (buffer.timer !== null) {
-      window.clearTimeout(buffer.timer);
-      buffer.timer = null;
+  const clearFrame = (buffer: StreamBuffer): void => {
+    if (buffer.frameId !== null) {
+      window.cancelAnimationFrame(buffer.frameId);
+      buffer.frameId = null;
     }
   };
 
-  const flushBuffer = (sessionId: string, buffer: StreamBuffer): void => {
-    // The reasoning trace is produced before the reply it precedes, and the
-    // store stamps each row when it is first created. Flushing the trace first
-    // therefore orders it above the reply instead of below it.
-    if (buffer.thinking) {
-      flush(sessionId, buffer.thinking, buffer.provider, 'thinking');
+  const clearPublishTimer = (buffer: StreamBuffer): void => {
+    if (buffer.publishTimer !== null) {
+      window.clearTimeout(buffer.publishTimer);
+      buffer.publishTimer = null;
     }
-    if (buffer.text) {
-      flush(sessionId, buffer.text, buffer.provider, 'text');
+  };
+
+  const clearScheduledPublish = (buffer: StreamBuffer): void => {
+    clearFrame(buffer);
+    clearPublishTimer(buffer);
+  };
+
+  const collectDirtyChannels = (buffer: StreamBuffer): StreamingChannelUpdate[] => {
+    const updates: StreamingChannelUpdate[] = [];
+    if (buffer.thinking !== buffer.publishedThinking) {
+      updates.push({ channel: 'thinking', text: buffer.thinking });
     }
+    if (buffer.text !== buffer.publishedText) {
+      updates.push({ channel: 'text', text: buffer.text });
+    }
+    return updates;
+  };
+
+  const publishBuffer = (sessionId: string, buffer: StreamBuffer, publishedAt: number): void => {
+    clearScheduledPublish(buffer);
+    const updates = collectDirtyChannels(buffer);
+    if (updates.length === 0) {
+      return;
+    }
+
+    flush(sessionId, updates, buffer.provider);
+    for (const update of updates) {
+      if (update.channel === 'thinking') {
+        buffer.publishedThinking = update.text;
+      } else {
+        buffer.publishedText = update.text;
+      }
+    }
+    buffer.lastPublishedAt = publishedAt;
+  };
+
+  const scheduleForegroundPublish = (sessionId: string, buffer: StreamBuffer): void => {
+    if (buffer.frameId !== null) {
+      return;
+    }
+    clearPublishTimer(buffer);
+
+    const onAnimationFrame = (timestamp: number): void => {
+      buffer.frameId = null;
+      if (
+        buffer.lastPublishedAt !== null
+        && timestamp - buffer.lastPublishedAt < FOREGROUND_MIN_PUBLISH_INTERVAL_MS
+      ) {
+        buffer.frameId = window.requestAnimationFrame(onAnimationFrame);
+        return;
+      }
+      publishBuffer(sessionId, buffer, timestamp);
+    };
+
+    buffer.frameId = window.requestAnimationFrame(onAnimationFrame);
+    buffer.publishTimer = window.setTimeout(() => {
+      buffer.publishTimer = null;
+      publishBuffer(sessionId, buffer, performance.now());
+    }, STREAM_PUBLISH_WATCHDOG_MS);
+  };
+
+  const scheduleBackgroundPublish = (sessionId: string, buffer: StreamBuffer): void => {
+    if (buffer.frameId !== null) {
+      clearFrame(buffer);
+      clearPublishTimer(buffer);
+    }
+    if (buffer.publishTimer !== null) {
+      return;
+    }
+    buffer.publishTimer = window.setTimeout(() => {
+      buffer.publishTimer = null;
+      publishBuffer(sessionId, buffer, performance.now());
+    }, BACKGROUND_PUBLISH_INTERVAL_MS);
   };
 
   const append = (
@@ -92,19 +152,26 @@ export function createStreamingBufferRegistry(
 
     let buffer = buffers.get(sessionId);
     if (!buffer) {
-      buffer = { text: '', thinking: '', provider, timer: null };
+      buffer = {
+        text: '',
+        thinking: '',
+        publishedText: '',
+        publishedThinking: '',
+        provider,
+        frameId: null,
+        publishTimer: null,
+        lastPublishedAt: null,
+      };
       buffers.set(sessionId, buffer);
     }
 
     buffer.provider = provider;
     buffer[channel] += text;
 
-    if (buffer.timer === null) {
-      const target = buffer;
-      target.timer = window.setTimeout(() => {
-        target.timer = null;
-        flushBuffer(sessionId, target);
-      }, STREAMING_FLUSH_INTERVAL_MS);
+    if (isSessionVisible(sessionId)) {
+      scheduleForegroundPublish(sessionId, buffer);
+    } else {
+      scheduleBackgroundPublish(sessionId, buffer);
     }
   };
 
@@ -113,9 +180,7 @@ export function createStreamingBufferRegistry(
     if (!buffer) {
       return;
     }
-
-    clearTimer(buffer);
-    flushBuffer(sessionId, buffer);
+    publishBuffer(sessionId, buffer, performance.now());
   };
 
   const drop = (sessionId: string): void => {
@@ -123,13 +188,12 @@ export function createStreamingBufferRegistry(
     if (!buffer) {
       return;
     }
-
-    clearTimer(buffer);
+    clearScheduledPublish(buffer);
     buffers.delete(sessionId);
   };
 
   const dropAll = (): void => {
-    buffers.forEach(clearTimer);
+    buffers.forEach(clearScheduledPublish);
     buffers.clear();
   };
 
