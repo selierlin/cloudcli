@@ -113,13 +113,18 @@ export const sessionsDb = {
       .get(providerSessionId, provider) as { session_id: string } | undefined;
 
     if (existing) {
+      // Archived rows must not be resurrected by a plain rescan (which omits
+      // timestamps), but a caller reporting genuinely newer activity — an
+      // explicit updatedAt newer than the stored one — reactivates the row.
+      // The ON CONFLICT branch below keeps its own, opposite "omitted
+      // timestamp counts as activity" rule for app-created legacy rows.
       db.prepare(
         `UPDATE sessions SET
            provider = ?,
            updated_at = COALESCE(?, CURRENT_TIMESTAMP),
            project_path = ?,
            jsonl_path = ?,
-           isArchived = CASE WHEN ? IS NULL OR julianday(?) > julianday(updated_at) THEN 0 ELSE isArchived END,
+           isArchived = CASE WHEN ? IS NOT NULL AND julianday(?) > julianday(updated_at) THEN 0 ELSE isArchived END,
            custom_name = CASE
              WHEN session_id <> provider_session_id
                AND custom_name IS NOT NULL
@@ -134,7 +139,8 @@ export const sessionsDb = {
                THEN name_source
              ELSE COALESCE(?, name_source)
            END
-         WHERE session_id = ? AND isArchived = 0`
+         WHERE session_id = ?
+           AND (isArchived = 0 OR (? IS NOT NULL AND julianday(?) > julianday(updated_at)))`
       ).run(
         provider,
         updatedAtValue,
@@ -144,7 +150,9 @@ export const sessionsDb = {
         updatedAtValue,
         customName ?? null,
         nameSource,
-        existing.session_id
+        existing.session_id,
+        updatedAtValue,
+        updatedAtValue
       );
 
       return existing.session_id;
