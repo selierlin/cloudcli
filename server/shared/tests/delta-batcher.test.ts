@@ -62,6 +62,26 @@ test('a channel change flushes the previous batch first', () => {
   assert.equal(sent[1].streamChannel, 'text');
 });
 
+test('interleaved thinking and text preserve every channel transition', () => {
+  const sent: NormalizedMessage[] = [];
+  const batcher = createDeltaBatcher((message) => sent.push(message), NEVER_FLUSH);
+
+  batcher.send(delta('想一', 'thinking'));
+  batcher.send(delta('想二', 'thinking'));
+  batcher.send(delta('答一', 'text'));
+  batcher.send(delta('再想', 'thinking'));
+  batcher.flush();
+
+  assert.deepEqual(
+    sent.map((message) => [message.streamChannel, message.content]),
+    [
+      ['thinking', '想一想二'],
+      ['text', '答一'],
+      ['thinking', '再想'],
+    ],
+  );
+});
+
 test('a provider change flushes the previous batch first', () => {
   const sent: NormalizedMessage[] = [];
   const batcher = createDeltaBatcher((message) => sent.push(message), NEVER_FLUSH);
