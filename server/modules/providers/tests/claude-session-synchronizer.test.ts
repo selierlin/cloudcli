@@ -236,3 +236,31 @@ test('falls back to Untitled when no usable prompt exists', async () => {
     assert.equal(readCustomName(sessionId), 'Untitled Claude Session');
   });
 });
+
+test('skips a transcript the session was edited away from', async () => {
+  await withIsolatedEnvironment(async (homeDir) => {
+    const sessionId = 'sess-superseded';
+    const cwd = path.join(homeDir, 'project');
+    await writeSessionFile(homeDir, sessionId, [
+      makeUserMessage(sessionId, cwd, 'first prompt'),
+      makeAssistantMessage(sessionId, cwd, 'reply'),
+    ]);
+
+    await new ClaudeSessionSynchronizer().synchronize();
+    assert.ok(readCustomName(sessionId));
+
+    // Editing the first prompt moves the live session onto a brand-new
+    // transcript; the abandoned one is marked superseded. Re-indexing it would
+    // add a second sidebar entry for the version the user edited away from.
+    sessionsDb.markProviderSessionSuperseded({
+      providerSessionId: sessionId,
+      provider: 'claude',
+      sessionId,
+      jsonlPath: null,
+    });
+
+    const processed = await new ClaudeSessionSynchronizer().synchronize();
+    assert.equal(processed, 0);
+    assert.equal(readSession(sessionId)?.custom_name, 'first prompt');
+  });
+});
