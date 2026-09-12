@@ -1,6 +1,6 @@
 # CloudCLI 思考过程与工具活动体验优化方案
 
-> 状态：第二轮复审已汇总，方案已修订，待实施确认
+> 状态：首期已实施并通过自动化验证，待桌面与 iOS 人工验收
 > 日期：2026-09-12
 > 范围：思考过程展开/收起、命令与工具活动状态、子代理摘要、折叠引起的滚动稳定性
 > 首期边界：只调整现有前端展示状态，不修改 Provider 协议或持久化格式
@@ -11,9 +11,10 @@
 本方案首期选择：**用户意图优先、由事件驱动的渐进披露（progressive disclosure）**。
 
 - 思考流式进行时默认展开，让用户持续看到模型在工作。
-- 最终正文开始后不立即收起思考；在最终正文首次可见至少 2.5 秒后，满足安全条件才自动收起。工具前后的普通 assistant preamble、任务通知及其派生结果不算最终正文；若晚到工具证明流式文本其实是 preamble，已自动收起的思考会恢复展开并保持到本轮 terminal。
+- 最终正文开始后不立即收起思考；在最终正文首次可见至少 2.5 秒后，满足安全条件才自动收起。工具前后的普通 assistant preamble、任务通知及其派生结果不算最终正文；工具行可见时由运行状态接替反馈，思考保持或进入收起，不发生自动回弹。
 - 自动收起不再只依赖“思考流结束 + 固定 1 秒”。没有正文、用户正在阅读、用户已离开底部或用户手动操作时，均不自动收起。
 - 用户手动展开或收起后，本轮都不再由程序反向覆盖其选择。
+- 思考或工具活动接替当前思考时，新内容立即显示；旧块按 latest-wins 合并连续交接，桌面使用 350ms 稳定窗口和 900ms 最短展示，粗指针设备使用 450ms 和 1200ms，再分别以 220ms/280ms 平滑收起。
 - 命令和工具维持紧凑行展示；运行中增加可感知的耗时，完成后保留结果摘要，错误提供就地诊断入口。
 - 工具组和子代理默认呈现“现在做什么、做了多少、结果如何”，完整细节继续按需展开。
 - 首期不实现 stdout/stderr 实时 tail。当前多数 Provider 只在 `toolResult` 到达时给出完整输出，强行在前端模拟会制造假进度。真正的命令输出增量协议作为二期单独设计。
@@ -98,6 +99,7 @@ stream_end / complete
 | 正文尚未出现时 | 不因 `isStreaming=false` 自动收起 |
 | 用户手动切换后 | 本轮程序反向切换次数为 0 |
 | 用户已上滑、面板 hover/focus、存在文本选择时 | 自动收起次数为 0 |
+| 工具行可见后的状态交接 | 思考不自动回弹；工具活动导致的程序收起最多 1 次且遵守全部阅读 guard |
 | 自动折叠动画 | 180–240ms，并尊重 `prefers-reduced-motion` |
 | 自动折叠触发范围 | 仅限仍贴底的视口；非贴底时不进入自动折叠路径 |
 | 贴底自动折叠后的稳定状态 | 仍贴底，正文锚点不发生可感知跳动 |
@@ -128,7 +130,7 @@ stream_end / complete
 
 ### 4.1 思考块状态输入与最终正文判定
 
-`Reasoning` 新增五个展示输入，不写入 Provider 原始消息：
+`Reasoning` 新增六个展示输入，不写入 Provider 原始消息：
 
 ```ts
 type ReasoningProps = {
@@ -136,6 +138,7 @@ type ReasoningProps = {
   finalAnswerStarted?: boolean;
   isAutoCollapseCandidate?: boolean;
   isSupersededThinking?: boolean;
+  toolActivityStarted?: boolean;
   suppressAutoCollapse?: boolean;
   disclosureKey?: string;
   // existing props...
@@ -145,6 +148,7 @@ type ReasoningProps = {
 - `finalAnswerStarted`：同一用户轮次内已经出现可判定为最终回答的 assistant 正文。
 - `isAutoCollapseCandidate`：当前块是否为本轮最新 thinking 且已具备自动收起条件；同时控制候选期 selection 监听。
 - `isSupersededThinking`：当前块之后已出现更新的 thinking，用于逐块接管并收起旧块。
+- `toolActivityStarted`：当前块之后的工具行已经可见，表示工具运行状态可以接替思考块的“模型仍在工作”反馈。
 - `suppressAutoCollapse`：聊天视口已离开底部，或外层存在不适合改变布局的状态。
 - `disclosureKey`：本轮 thinking 块的稳定展示键，用于在 LazyMessageRow 卸载/重挂后恢复用户所有权和可见耗时。
 - 这些字段都是展示派生值，不污染 Provider 原始消息或持久化格式。
@@ -154,7 +158,7 @@ type ReasoningProps = {
 首期使用以下可执行判定：
 
 1. 非 thinking、非 tool、非任务通知、非任务通知派生结果且内容非空，才是正文候选。`useChatMessages` 投影任务通知结果时新增 `isTaskNotificationResult=true`，不依赖 `isProcessing` 间接猜测来源。
-2. 候选若 `isStreaming=true`，并且它之后尚无运行中/新增工具，则暂视为流式最终正文；若随后出现工具，立即撤销候选并取消 timer。若工具到达时块已进入 `COLLAPSED_AUTO`，reducer 将其恢复为 `OPEN_AUTO`，并标记 `deferAutoCollapseUntilTerminal=true`：本轮剩余 processing 期间不再反复收起，terminal 后若存在最终正文，再重新给予完整 2500ms 窗口。
+2. 候选若 `isStreaming=true`，并且它之后尚无运行中/新增工具，则暂视为流式最终正文。若它在 2500ms 前 settled 且会话仍 processing，规则 3 立即使候选失效并取消 timer；只有连续流式跨过 2500ms 才可能抢跑收起。随后工具行可见时立即撤销正文候选：块若已收起则保持收起；若仍展开且所有权为 `AUTO`，在阅读 guard 通过后执行一次工具活动交接收起，由工具行的 Running 状态接替反馈，不产生 `COLLAPSED_AUTO → OPEN_AUTO` 回边。
 3. 候选若不是流式行，只在当前会话已经 `isProcessing=false` 且其后没有工具时视为最终正文。这样 Codex 等不流式发送最终文本的 Provider 会在整轮 terminal 后进入收起流程，preamble 不会误判。
 4. 挂在 tool 消息 `displayText` 上的说明天然随 tool 排除。
 
@@ -181,25 +185,22 @@ type ReasoningDisclosureState = {
   ownership: 'auto' | 'user_open' | 'user_closed';
   autoCollapsed: boolean;
   hasEverStreamed: boolean;
-  deferAutoCollapseUntilTerminal: boolean;
   streamStartedAtMs?: number;
   visibleDurationSeconds?: number;
 };
 ```
 
-该类型会跨 `ChatMessagesPane`、`MessageComponent` 和 `Reasoning` 使用，实施时放入 `src/shared/types.ts` 的聊天消息相关分组并逐项注释。registry 固定使用 `useReducer` 更新，用户点击、supersede、晚到工具恢复和自动收起都作为 action；reducer 在处理自动 action 时基于最新 `ownership` 与 guard 快照二次校验，禁止陈旧 timer 覆盖同 tick 的用户操作。下传的读取器与 dispatch 包装使用 `useCallback` 保持稳定，避免破坏未变化消息行的 memo。1 秒耗时 tick 仍留在具体可见组件内，不写 registry。历史 settled thinking 若没有 registry 记录，保持当前默认收起；只有本次 UI 生命周期内实际流式过且没有正文的块才保持展开。
+该类型会跨 `ChatMessagesPane`、`MessageComponent` 和 `Reasoning` 使用，实施时放入 `src/shared/types.ts` 的聊天消息相关分组并逐项注释。registry 固定使用 `useReducer` 更新，用户点击、supersede、工具活动交接和最终正文收起都作为 action；reducer 在处理自动 action 时基于最新 `ownership` 与 guard 快照二次校验，禁止陈旧 timer 覆盖同 tick 的用户操作。下传的读取器与 dispatch 包装使用 `useCallback` 保持稳定，避免破坏未变化消息行的 memo。1 秒耗时 tick 仍留在具体可见组件内，不写 registry。历史 settled thinking 若没有 registry 记录，保持当前默认收起；只有本次 UI 生命周期内实际流式过且没有正文的块才保持展开。
 
 ```text
                  thinking starts
 AUTO ─────────────────────────────────▶ OPEN_AUTO
  │                                          │
  │ user toggles                             │ finalAnswerStarted + 2500ms
- ▼                                          │ + all guards pass
+ ▼                                          │ or tool activity handoff
 USER_OPEN / USER_CLOSED ◀───────────────────┘
  │                                          ▼
  └──────── program never overrides ─── COLLAPSED_AUTO
-                                             │ late tool while processing
-                                             └──────────────▶ OPEN_AUTO
 ```
 
 状态语义：
@@ -218,8 +219,9 @@ USER_OPEN / USER_CLOSED ◀─────────────────�
 5. timer 到点重新检查全部 guard，而不是相信排队时状态。
 6. 自动收起 action 在 reducer 内再次检查最新所有权；用户 action 与 timer 同 tick 时，用户所有权优先。
 7. `finalAnswerStarted` 变回 false、组件卸载或任一 guard 失效时取消 timer；组件卸载不清除 pane registry。
-8. 已自动收起后出现晚到工具且会话仍 processing，恢复展开并锁定到 terminal，避免 preamble/tool 周期反复开合。
-9. 没有正文的中止/错误轮次保持思考展开，使它作为本轮唯一有意义的输出留在屏幕上。
+8. 工具行可见后，若所有权仍为 `AUTO` 且阅读 guard 通过，允许不等待 2500ms 直接执行活动交接收起；若块已经收起则保持原状，绝不因晚到工具自动展开。
+9. 工具活动交接只以工具行已经可见为前提；若阶段 0 发现某 Provider 的 tool_use 到工具行渲染存在可感知延迟，则该 Provider 退回“保持思考展开到工具行可见”的同一规则，不提前按不可见事件收起。
+10. 没有正文也没有后续工具的中止/错误轮次保持思考展开，使它作为本轮唯一有意义的输出留在屏幕上。
 
 ### 4.3 阅读保护条件
 
@@ -237,9 +239,9 @@ USER_OPEN / USER_CLOSED ◀─────────────────�
 - `suppressAutoCollapse` 直接复用 `useChatSessionState` 已有的 `isUserScrolledUp`，从 `ChatInterface` 下传；不新增 scroll listener，也不写 scrollTop。
 - hover 使用 Reasoning 根节点的 `pointerenter` / `pointerleave` 局部状态。
 - focus 使用根节点的 `focusin` / `focusout` 局部状态。
-- selection 由显式 `isAutoCollapseCandidate || isSupersededThinking` prop 控制，仅在本块可能发生程序收起时订阅 document `selectionchange`；用一个 rAF 合并同帧高频事件，再检查 range 是否与根 DOM 相交；候选取消或卸载时移除监听与 rAF。
+- selection 由显式 `isAutoCollapseCandidate || isSupersededThinking || toolActivityStarted` prop 控制，仅在本块可能发生程序收起时订阅 document `selectionchange`；用一个 rAF 合并同帧高频事件，再检查 range 是否与根 DOM 相交；候选取消或卸载时移除监听与 rAF。
 
-若 2500ms 到期但 guard 不通过，不循环每 100ms 轮询。等 pointerleave、focusout、selection 清空或 `suppressAutoCollapse` 恢复 false 后，再启动一个新的完整 2500ms 阅读窗口，避免“鼠标刚移开立即塌陷”。iOS 长按选择行为不靠 jsdom 推断，列入真机验收。
+若最终正文的 2500ms timer 到期但 guard 不通过，不循环每 100ms 轮询。等 pointerleave、focusout、selection 清空或 `suppressAutoCollapse` 恢复 false 后，再启动一个新的完整 2500ms 阅读窗口，避免“鼠标刚移开立即塌陷”。工具活动交接和 supersede 路径不使用正文 timer，但同样必须等待全部 guard 解除后才能收起。iOS 长按选择行为不靠 jsdom 推断，列入真机验收。
 
 ### 4.4 折叠动画与滚动稳定
 
@@ -347,7 +349,7 @@ Tools  x7     Failed: Bash
 | 文件 | 修改 |
 | --- | --- |
 | `src/modules/chat/transcript/Reasoning.tsx` | 替换固定 1 秒逻辑；程序/用户入口分离；实现局部 hover/focus/selection guard、候选 prop 和 2.5 秒最终正文窗口 |
-| `src/modules/chat/transcript/MessageComponent.tsx` | 接收可选的正文、候选、supersede、上滑状态、稳定键与 registry 回调并传给 Reasoning；ToolGroupContainer 内调用无需提供 |
+| `src/modules/chat/transcript/MessageComponent.tsx` | 接收可选的正文、候选、supersede、工具活动交接、上滑状态、稳定键与 registry 回调并传给 Reasoning；ToolGroupContainer 内调用无需提供 |
 | `src/modules/chat/transcript/ChatMessagesPane.tsx` | 一次反向扫描派生最终正文与 thinking 接管关系；用 reducer 维护 disclosure registry；pane 级记录 settled 时间；接收用户是否上滑 |
 | `src/modules/chat/ChatInterface.tsx` | 把现有 `isUserScrolledUp` 下传，不增加新状态源 |
 | `src/modules/chat/hooks/useChatMessages.ts` | 给任务通知派生结果增加 `isTaskNotificationResult` 展示标记，使正文扫描可显式排除 |
@@ -404,7 +406,7 @@ Tools  x7     Failed: Bash
 15. 注入 fake IntersectionObserver 并触发 `isNearViewport=false`，先断言 LazyMessageRow 子树真实卸载，再验证重挂后恢复 USER_OPEN、USER_CLOSED 和可见 duration；不得依赖 jsdom 的恒挂载 fallback。
 16. 同一轮 3 个 thinking 块中，新块出现时仅接管并收起此前最新块；hover/focus/selection guard 仍有效，不让多个旧块在正文到达时同步塌陷。
 17. 用户点击与自动 timer 同 tick 时，reducer 以最新 ownership 为准，程序 action 不覆盖用户选择。
-18. 已自动收起后出现晚到工具，块恢复展开并保持到 terminal；本轮 processing 期间不重复开合。
+18. 工具行可见时：仍展开的 AUTO 块通过 guard 后执行一次活动交接收起；已自动收起的块保持收起且不回弹；USER_OPEN/USER_CLOSED 均不被覆盖。
 
 ### 6.2 正文关联契约
 
@@ -414,7 +416,9 @@ Tools  x7     Failed: Bash
 - thinking → 普通 assistant preamble → tool：false。
 - thinking → 普通 assistant preamble，当前仍 processing：false。
 - thinking → terminal 普通 assistant text 且其后无 tool：true。
-- thinking → 流式 text → 2.5 秒已收起 → 晚到 tool：撤销正文候选、恢复展开并锁定到 terminal。
+- thinking → 流式 text 在 2.5 秒前 settled、仍 processing：撤销正文候选并取消 timer，不发生抢跑收起。
+- thinking → 流式 preamble 连续超过 2.5 秒 → 已收起 → 晚到 tool：保持收起，由可见工具行接替运行反馈，不自动回弹。
+- thinking → preamble 未收起 → tool 行可见：撤销正文候选，经过阅读 guard 后执行一次活动交接收起。
 - thinking → tool → user：false。
 - thinking → text → user → thinking：前一条 true，后一条 false。
 - 多条 thinking → 同一正文：只有本轮最后一条 thinking 启动正文 timer，更早块已在后继 thinking 出现时逐块完成接管。
@@ -460,8 +464,8 @@ npm run build:client
 | 场景 | 桌面预期 | iOS H5 预期 |
 | --- | --- | --- |
 | 长思考后正文开始 | 正文出现至少 2.5 秒后自然收起 | 同左；不得在用户触摸阅读时收起 |
-| 思考后出现 preamble 再执行工具 | preamble 不触发收起；工具期仍能看到思考/活动 | 同左 |
-| 流式 preamble 后工具晚于 2.5 秒到达 | 若已自动收起则恢复展开，并保持到本轮 terminal | 同左；不得反复开合 |
+| 思考后出现 preamble 再执行工具 | preamble 本身不触发收起；工具行可见后由 Running 状态接棒，思考经 guard 后收起 | 同左 |
+| 流式 preamble 连续超过 2.5 秒后工具到达 | 若已自动收起则保持收起，不回弹；工具行立即提供运行反馈 | 同左；不得反复开合 |
 | 后台任务通知结果插入当前轮 | 不作为最终正文，不触发思考收起 | 同左 |
 | 思考结束但无正文 | 保持展开 | 保持展开 |
 | 流式时手动收起 | 后续 delta 不重开 | 同左 |
@@ -520,13 +524,13 @@ type ToolOutputDelta = {
 
 - 录制桌面与 iOS 的“长思考→正文”“用户上滑”“长 Bash”“失败 Bash”“多工具组”视频。
 - 记录当前 1 秒收起、视口位移和错误发现点击数。
-- 按 Provider 采样“流式 preamble settled → 后续 tool 首次可见”的间隔，覆盖大 JSON tool input；记录超过 2.5 秒的样本，用于验证晚到工具恢复路径。
+- 按 Provider 分别采样两项：流式 preamble 候选连续时长达到 2.5 秒的轮次占比，以及 tool_use 发出到工具行可见的间隔；覆盖大 JSON tool input。前者验证抢跑是否真实发生，后者验证工具行能否及时接棒。
 - 分别验证桌面浏览器和 iOS WKWebView 在“贴底 + 200ms 高度折叠”下是否保持尾部稳定；若任一失败，阶段 1 默认取消高度动画。
 
 ### 阶段 1：思考状态机
 
 - 先写状态机和正文关联测试。
-- 实现用户意图所有权、2.5 秒正文窗口和阅读保护。
+- 实现用户意图所有权、2.5 秒正文窗口、工具活动交接和阅读保护。
 - 单独人工验收后再进入工具摘要。
 
 ### 阶段 2：命令与工具摘要
@@ -552,7 +556,7 @@ type ToolOutputDelta = {
 | --- | --- | --- |
 | 状态机过度复杂 | 用户操作后仍被程序切换 | 单独记录用户所有权，fake timer 穷举转移 |
 | 正文关联跨轮误判 | 上一轮正文使新思考提前收起 | 遇 user 明确重置，反向扫描测试 |
-| preamble 后工具晚到 | 思考已收起，工具期失去工作信号 | 晚到工具触发 reducer 恢复并锁定至 terminal；阶段 0 分 Provider 采样 |
+| 流式 preamble 连续超过 2.5 秒 | 思考可能在工具出现前抢跑收起 | 工具行可见后接替运行反馈且思考不回弹；阶段 0 分 Provider 采样连续流式占比和工具行可见延迟 |
 | 后台任务结果误判正文 | 异步结果提前收起当前轮思考 | 投影时增加显式结果标记并从正文候选排除 |
 | registry 并发覆盖 | timer 与用户点击同 tick，程序覆盖用户意图 | useReducer 原子 action；自动 action 二次校验最新 ownership |
 | 分页导致关联信息暂缺 | 历史思考暂时展开 | 宁可晚收，不在信息不足时误收 |
@@ -687,6 +691,8 @@ type ToolOutputDelta = {
 
 > [!NOTE] **补充 §4.3：Reasoning 需显式知道「我是自动收起候选」才能按候选期订阅 selectionchange**。候选判定在 pane 扫描（最新 thinking + `finalAnswerStarted`），若某块挂载时非候选、后续正文出现后才变候选，需要新 prop 驱动订阅开关。建议在 props 中显式传 `isAutoCollapseCandidate`（或并入 `disclosureKey` 语义），否则 selection 订阅时机悬空，§4.3「仅候选期订阅」无法实现。
 
+> [!IMPORTANT] **裁决 · 流式 preamble 竞态（WorkBuddy 复审 #1）：推荐「工具事件到达即收起」（Y'），不采用「晚到弹开」（X）与「延迟 terminal 才收起」（Y）**。X 的「收起→弹开」制造两次突兀（内容刚消失又回来），恰违 §2.1-1；且需新增 `COLLAPSED_AUTO→OPEN_AUTO` 回边、弹回后是否再计时不明，易振荡。Y 无来回跳动但让思考在长工具期全程展开占屏，退化为接近方案 D 的缺点。Y'：preamble 期思考保持展开提供「模型在工作」信号；tool_use 事件到达时由工具行 `Running · Ns`（§4.6）接替展示职责、程序收起思考——是职责交接而非消失，无回边、无振荡。成立前提：tool_use 事件到达时工具行能立即渲染 Running 状态；若某 Provider 的 tool_use 与工具行渲染之间存在可观延迟，退回 Y。阶段 0 需采集「preamble settled → tool_use 可见」间隔：若主流 Provider 间隔 <2.5s，原「2.5s 收起 + 撤销」已够用，竞态只是边缘；若 >2.5s 则必须走 Y'。三种方案收起均需过 hover/focus/selection 阅读保护。建议正文 §4.1 规则 2 / §4.2 状态图按 Y' 落定，§6.2 相应把「已收起后 tool 到达」的断言改为「tool 到达即程序收起、不弹回」。
+
 ### 第二轮牵头结论（2026-09-13）
 
 - 部分采纳：流式 preamble 后工具晚到会穿透 2.5 秒窗口（来源：WorkBuddy，Pi 复核确认）。采纳 Provider 时序采样和“已收起后工具到达”测试；实现上不无限延长所有流式正文的等待，而是在晚到工具证明误判时由 reducer 恢复 `OPEN_AUTO`，并锁定到本轮 terminal，兼顾最终正文及时收起与工具期工作信号。
@@ -700,3 +706,55 @@ type ToolOutputDelta = {
 - 采纳：LazyMessageRow 卸载期间 thinking settled 会丢 duration 终点（来源：Pi）。settled 边界改由始终持有消息数组的 ChatMessagesPane 记录，不依赖 Reasoning 子树存活。
 - 采纳：selectionchange 订阅缺少明确候选输入（来源：Pi）。新增 `isAutoCollapseCandidate` 与 `isSupersededThinking` 展示 prop，仅在块可能发生程序收起时启用 selection 监听。
 - 修订说明：第二轮已更新结论、正文候选排除项、晚到工具恢复状态、thinking 接管规则、registry reducer、稳定键、duration 终点、selection 订阅、分类口径、文件清单、自动化测试、人工矩阵、阶段 0 数据采样和风险表。两位审阅者的复审批注原文均保留未改写。
+
+### WorkBuddy 复审（补）（2026-09-13）
+
+先更正我自己在 `WorkBuddy 复审` 第 1 条里的触发条件——这直接决定阶段 0 该采什么数据，也决定恢复逻辑是否必需：抢跑只在**候选到 2.5 秒时仍处于流式**才会发生。preamble 若在 2.5 秒前 settled，规则 3 立刻把它判为非最终正文，`finalAnswerStarted` 转 false，按 §4.2 约束 7 自行取消 timer，不会收起。因此真实触发条件是「preamble 连续流式跨过 2.5 秒、且此后才请求工具」，比 `Pi 复审` 中「流式文本 settled 后…思考已收起」的描述窄得多（settled 本身就会取消 timer）。建议阶段 0 把它拆成两个可测计数：①候选连续流式时长 ≥2.5s 的轮次占比；②`tool_use` 从发出到工具行可见的间隔。只有①非零且②偏大时，「晚到工具恢复」才是需交付的能力。
+
+关于「晚到工具后是否重新展开」，我的保留意见是**不重开**，理由三条：
+
+- 展开在文本上完全不受保护：§4.3 的六条 guard 全部写作「不得自动收起」，恢复展开没有任何对应约束。
+- 一轮从「一次收起」变成「收起→回弹→再收起」三次高度变化，正是 §2.1-1 要消除的「内容刚看见就消失／又来」形态。
+- 收起的代价本来有限：工具行今天就已有运行态信号（`BashCommandDisplay.tsx:124-126` 的 spinner、`ToolStatusBadge` 的 `Running` 徽标），§4.6/§4.7 只是加强它。「模型在工作」并不依赖思考块保持展开。
+
+另需指出一处事实，供 §4.2 修订时参考：`Pi 复审` 裁决的 Y'（工具事件到达时收起、由工具行接替信号）与我的 C，在**已被 2.5 秒窗口收起的场景下结局相同**——思考都保持收起、由工具行承担活动信号；唯一会回弹的是第二轮牵头结论选定的恢复方案。建议在 §4.2 注明这一点，避免文档读成「恢复展开是三选一的共识」。
+
+若恢复方案确定保留，以下三条是它上线的前提，目前正文均未覆盖：
+
+> [!WARNING] **中高 · 恢复展开必须与折叠共用同一 guard 集，否则会在用户正在阅读的位置下方插入内容**。可达路径：t=2.5s 贴底收起 → 用户上滑阅读 preamble（`suppressAutoCollapse=true`）→ t=6s 晚到工具 → §4.2 约束 8 触发恢复 → 视口在用户正读的位置下方被撑开。§2.2:102「仅限仍贴底的视口」与 §4.3 全文都只约束折叠，恢复路径没有任何对应条款。建议：恢复动作先查 `suppressAutoCollapse`、pointer、focus、selection，任一成立则挂起到 guard 解除后再执行；并补「上滑期间晚到工具不改变视口」的用例。
+
+> [!WARNING] **中 · §2.2 指标需按两次收起重写**。恢复方案下一轮可能是 收起→恢复→terminal 再收起，line 97「不少于 2500ms」需说明测哪一次折叠，line 100「自动收起次数为 0」需扩到「含恢复展开」，并新增「每轮恢复展开 ≤1 次」「恢复后锁定到 terminal，不因同一原因反复」两条门槛——否则头部「审阅已汇总」的指标与实现口径对不上。
+
+> [!TIP] **恢复路径建议规定为无高度动画**。§4.4 的 200ms 只描述折叠；恢复若同样做 200ms 高度过渡，用户看到的是「收起→弹开→再收起」的连续表演。建议在 §4.4 显式写明：恢复不做高度过渡（直接切换，仅 chevron/透明度过渡），把每轮可见的高度动画压到 ≤2 次。
+
+### 第三轮牵头结论（2026-09-13）
+
+- 采纳：工具事件到达且工具行可见时，由 Running 状态接替“模型仍在工作”的反馈，AUTO 思考块经阅读 guard 后收起（来源：Pi；WorkBuddy 补充确认）。这形成单向职责交接，不新增 `COLLAPSED_AUTO → OPEN_AUTO` 回边。
+- 不采纳并撤回：第二轮牵头结论中的“晚到工具后恢复展开”。两位审阅者已收敛为不回弹；恢复会增加布局变化、缺少展开方向的阅读保护，并扩大 reducer 状态面。正文、状态图、测试、人工矩阵和风险表已全部改为“不回弹”。
+- 采纳：抢跑的真实条件是流式 preamble 候选连续超过 2.5 秒，而不是 settled 后等待工具（来源：WorkBuddy 更正）。阶段 0 改为分别统计“连续流式达到 2.5 秒的轮次占比”和“tool_use 发出到工具行可见的间隔”。
+- 采纳：工具活动交接必须以工具行已经可见为前提（来源：Pi，WorkBuddy）。若 Provider 从 tool_use 到工具行渲染存在可感知延迟，思考保持展开到工具行真正可见，不能让两个工作信号之间出现空窗。
+- 采纳：工具活动交接仍受上滑、hover、focus、selection、用户所有权和导出模式全部 guard 约束；guard 解除后才执行收起（来源：Pi，WorkBuddy）。
+- 不适用：WorkBuddy 针对“若保留恢复方案”提出的恢复 guard、恢复次数指标和无高度动画三项前提。由于恢复路径已经删除，这三项不进入实现；其原始批注继续保留，作为撤回该路线的依据。
+- 修订说明：第三轮只处理尚存分歧，未扩展其他功能。当前两位审阅者在流式 preamble、工具活动交接和不回弹策略上已达成一致，方案不存在待裁决的观点冲突，可进入实施阶段。
+
+## 13. 实施结果（2026-09-13）
+
+首期前端实现已完成：
+
+- 思考块改为 pane 级 disclosure registry，最终正文使用 2500ms 窗口，工具行可见后单向接棒；用户所有权、上滑、hover、focus、selection 和导出 guard 已接入。
+- 多段 thinking 逐块 supersede，历史 settled thinking 默认收起；稳定键不依赖内容预览，streaming→settled 的可见 duration 由 pane 级记录。
+- 任务通知派生结果带显式标记，不参与最终正文判定。
+- Bash 增加运行秒数、可靠 timestamp 完成耗时、输出行数和失败末三行预览。
+- 工具组保留既有 `label + xN`，追加异常、运行活动或分类统计摘要；分类沿用现有集合，default 显示为 Other。
+- 子代理折叠态增加运行耗时、steps/tools、最后活动和失败结果摘要，完整 timeline 继续按需挂载。
+- 滚动单一 writer 未改变；Reasoning 不读写 `scrollTop`，reduced-motion 会取消折叠高度过渡。
+
+自动验证结果：
+
+- 定向测试：36 项通过。
+- `npm run test:client`：68 个测试文件、474 项测试全部通过。
+- `npm run typecheck`：通过。
+- `npm run lint:client`：退出码 0；仅有仓库既存 warning，无本次新增 error。
+- `npm run build:client`：通过。
+
+尚待人工验收：桌面浏览器与 iOS H5 的贴底折叠稳定性、长按选择保护、长命令/多工具组/100 步子代理的实际视觉密度。若贴底高度动画在任一端可见跳动，按 §4.4 取消高度动画，不增加滚动补偿 writer。
