@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { Bot, Brain, ChevronRight, CircleAlert, CircleCheck, MessageSquareText } from 'lucide-react';
 
 import type { DiffLine, Project, SubagentActivity, SubagentInfo, ToolResult } from '@/shared/types';
@@ -13,10 +13,26 @@ type SubagentPanelProps = {
   toolResult?: ToolResult | null;
   subagent?: SubagentInfo;
   activity?: SubagentActivity[];
+  startTimestamp?: string | number | Date;
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
   createDiff: (oldStr: string, newStr: string) => DiffLine[];
   selectedProject?: Project | null;
 };
+
+function timestampMs(timestamp: string | number | Date | undefined): number | undefined {
+  if (timestamp === undefined) return undefined;
+  const value = new Date(timestamp).getTime();
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function summarizeCurrentActivity(activity: SubagentActivity | undefined): string {
+  if (!activity) return '';
+  if (activity.kind === 'thinking') return 'Thinking';
+  if (activity.kind === 'text') return String(activity.content || '').trim().split('\n')[0] || 'Responding';
+  const input = parseToolInput(activity.toolInput);
+  const detail = String(input.command || input.file_path || input.path || '').trim();
+  return detail ? `${activity.toolName || 'Tool'} / ${detail}` : activity.toolName || 'Tool';
+}
 
 /**
  * How many timeline entries are drawn before the "show more" step. A single
@@ -102,6 +118,7 @@ export const SubagentPanel = memo(({
   toolResult,
   subagent,
   activity,
+  startTimestamp,
   onFileOpen,
   createDiff,
   selectedProject,
@@ -122,6 +139,19 @@ export const SubagentPanel = memo(({
   const entries = activity ?? [];
   const status = subagent?.status ?? (toolResult ? 'completed' : 'running');
   const toolCount = entries.filter((entry) => entry.kind === 'tool').length;
+  const stepCount = subagent?.activityCount ?? entries.length;
+  const currentActivity = summarizeCurrentActivity(entries.at(-1));
+  const startedAtMs = timestampMs(startTimestamp);
+  // Updates only the mounted running subagent's compact elapsed label.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (status !== 'running' || startedAtMs === undefined) return undefined;
+    const interval = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [startedAtMs, status]);
+  const runningSeconds = startedAtMs === undefined
+    ? undefined
+    : Math.max(0, Math.floor((nowMs - startedAtMs) / 1000));
   // Claude names its agent presets (Explore, Plan); Codex has none, so the
   // neutral label carries and the assigned nickname shows alongside it.
   const label = subagent?.type ?? String(parsedInput.subagent_type ?? '');
@@ -158,7 +188,7 @@ export const SubagentPanel = memo(({
           {status === 'running' ? (
             <>
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-purple-500 dark:bg-purple-400" />
-              running
+              Running{runningSeconds !== undefined ? ` · ${runningSeconds}s` : ''}{stepCount > 0 ? ` · ${stepCount} steps` : ''}
             </>
           ) : status === 'failed' ? (
             <>
@@ -168,11 +198,25 @@ export const SubagentPanel = memo(({
           ) : (
             <>
               <CircleCheck className="h-3 w-3" />
-              {toolCount > 0 ? `${toolCount} ${toolCount === 1 ? 'tool' : 'tools'}` : 'done'}
+              {stepCount > 0
+                ? `Completed · ${stepCount} steps${toolCount > 0 ? ` · ${toolCount} tools` : ''}`
+                : 'done'}
             </>
           )}
         </span>
       </button>
+
+      {!showTimeline && currentActivity && (
+        <div className="truncate pl-[18px] pr-2 text-[11px] text-muted-foreground/70">
+          {currentActivity}
+        </div>
+      )}
+
+      {!showTimeline && status === 'failed' && resultText && (
+        <div className="mt-1 line-clamp-2 whitespace-pre-wrap break-words pl-[18px] pr-2 text-[11px] text-red-600 dark:text-red-400">
+          {resultText}
+        </div>
+      )}
 
       {showTimeline && (
         <div className="mt-1.5 space-y-2 pl-[18px]">
@@ -204,6 +248,7 @@ export const SubagentPanel = memo(({
                     onFileOpen={onFileOpen}
                     createDiff={createDiff}
                     selectedProject={selectedProject}
+                    startTimestamp={entry.timestamp}
                   />
                 ) : (
                   <SubagentNote key={`activity-${index}`} activity={entry} />

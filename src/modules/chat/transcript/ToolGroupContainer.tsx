@@ -126,7 +126,7 @@ function ToolGroupContainer({
   const iconClass = config.colorScheme?.icon || 'text-muted-foreground';
   const icon = hasMixedTools ? '…' : getToolGroupIcon(config.icon, group.toolName);
 
-  const preview = group.preview;
+  const preview = group.activitySummary || group.preview;
   const groupDiffStats = useGroupDiffStats(group.messages, createDiff);
 
   return (

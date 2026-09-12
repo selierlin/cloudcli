@@ -128,5 +128,6 @@ test('preserves both UI objects produced by an unchanged task notification', () 
   assert.strictEqual(updated[0], initial[0]);
   assert.strictEqual(updated[1], initial[1]);
   assert.equal(updated[0]?.isTaskNotification, true);
+  assert.equal(updated[1]?.isTaskNotificationResult, true);
   assert.equal(updated[1]?.content, 'Detailed result');
 });

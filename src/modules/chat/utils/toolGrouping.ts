@@ -18,6 +18,18 @@ const NON_GROUPABLE_TOOL_NAMES = new Set([
   'ExitPlanMode',
 ]);
 
+const TOOL_CATEGORY_LABELS: Record<string, string> = {
+  edit: 'Edit',
+  search: 'Search',
+  bash: 'Bash',
+  todo: 'Todo',
+  task: 'Task',
+  agent: 'Agent',
+  plan: 'Plan',
+  question: 'Question',
+  default: 'Other',
+};
+
 
 export type MessageListItem = ChatMessage | ToolGroupItem;
 
@@ -60,6 +72,48 @@ function getToolInputPreview(message: ChatMessage): string {
   const value = config.getValue?.(parsedInput);
 
   return String(value || title || message.displayText || message.content || '').trim();
+}
+
+/** Returns the chat module's one canonical visual category for a tool. */
+export function getToolCategory(toolName: string): string {
+  if (['Edit', 'Write', 'ApplyPatch'].includes(toolName)) return 'edit';
+  if (['Grep', 'Glob'].includes(toolName)) return 'search';
+  if (toolName === 'Bash') return 'bash';
+  if (['TodoWrite', 'TodoRead'].includes(toolName)) return 'todo';
+  if (['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet'].includes(toolName)) return 'task';
+  if (toolName === 'Task') return 'agent';
+  if (toolName === 'exit_plan_mode' || toolName === 'ExitPlanMode') return 'plan';
+  if (toolName === 'AskUserQuestion') return 'question';
+  return 'default';
+}
+
+/** Builds the collapsed group's failure, running, or category summary. */
+export function summarizeToolGroupActivity(messages: ChatMessage[]): string {
+  const issue = messages.find((message) => message.toolResult?.isError
+    || ['error', 'denied', 'stopped'].includes(String(message.toolStatus || '')));
+  if (issue) {
+    const issueLabel = issue.toolStatus === 'denied'
+      ? 'Denied'
+      : issue.toolStatus === 'stopped'
+        ? 'Stopped'
+        : 'Failed';
+    return `${issueLabel}: ${issue.toolName || 'Tool'}`;
+  }
+
+  const running = [...messages].reverse().find((message) => message.toolStatus === 'running'
+    || (!message.toolResult && !['completed', 'error', 'denied', 'stopped'].includes(String(message.toolStatus || ''))));
+  if (running) {
+    return `Running: ${getToolInputPreview(running) || running.toolName || 'Tool'}`;
+  }
+
+  const counts = new Map<string, number>();
+  for (const message of messages) {
+    const category = getToolCategory(message.toolName || 'UnknownTool');
+    counts.set(category, (counts.get(category) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([category, count]) => `${TOOL_CATEGORY_LABELS[category] || 'Other'} ${count}`)
+    .join(' · ');
 }
 
 /**
@@ -139,6 +193,7 @@ export function groupConsecutiveTools(
         messages: run,
         timestamp: message.timestamp,
         preview: buildGroupPreview(run),
+        activitySummary: summarizeToolGroupActivity(run),
       });
     } else {
       items.push(...run);
