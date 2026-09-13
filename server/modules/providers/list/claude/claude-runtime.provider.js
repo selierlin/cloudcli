@@ -36,7 +36,12 @@ import {
   notifyRunStopped,
   notifyUserIfEnabled
 } from '@/modules/notifications/index.js';
-import { createCompleteMessage, createDeltaBatcher, createNormalizedMessage } from '@/shared/utils.js';
+import {
+  createCompleteMessage,
+  createDeltaBatcher,
+  createNormalizedMessage,
+  omitStreamedAssistantBlocks
+} from '@/shared/utils.js';
 
 const activeSessions = new Map();
 const pendingToolApprovals = new Map();
@@ -416,6 +421,56 @@ function transformMessage(sdkMessage) {
     };
   }
   return sdkMessage;
+}
+
+/**
+ * Prevents the SDK's full assistant block snapshots from duplicating content
+ * already published through partial-message deltas. Tool blocks are retained.
+ * State resets at the next main-thread assistant message boundary.
+ *
+ * @returns {(sdkMessage: Object) => Object} Stateful SDK message filter
+ */
+function createClaudeAssistantStreamFilter() {
+  let streamedText = false;
+  let streamedThinking = false;
+
+  return (sdkMessage) => {
+    // Subagent partial frames are filtered separately and must not alter the
+    // main thread's current streaming window.
+    if (sdkMessage?.parent_tool_use_id) {
+      return sdkMessage;
+    }
+
+    if (sdkMessage?.type === 'stream_event') {
+      const event = sdkMessage.event;
+      if (event?.type === 'message_start') {
+        streamedText = false;
+        streamedThinking = false;
+      } else if (event?.type === 'content_block_delta') {
+        if (event.delta?.type === 'text_delta' && event.delta.text) {
+          streamedText = true;
+        } else if (event.delta?.type === 'thinking_delta' && event.delta.thinking) {
+          streamedThinking = true;
+        }
+      }
+      return sdkMessage;
+    }
+
+    if (sdkMessage?.type !== 'assistant' || !Array.isArray(sdkMessage.message?.content)) {
+      return sdkMessage;
+    }
+
+    return {
+      ...sdkMessage,
+      message: {
+        ...sdkMessage.message,
+        content: omitStreamedAssistantBlocks(sdkMessage.message.content, {
+          text: streamedText,
+          thinking: streamedThinking,
+        }),
+      },
+    };
+  };
 }
 
 /**
@@ -852,6 +907,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
   // Hoisted above the try so the catch's cleanup can tell whether this run
   // still owns the activeSessions entry (or was superseded by a newer run).
   let queryInstance = null;
+  const filterAssistantStreamSnapshots = createClaudeAssistantStreamFilter();
 
   try {
     const resolvedModel = await context.resolveResumeModel(sessionId, options.model);
@@ -1107,7 +1163,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       }
 
       // Transform and normalize message via adapter
-      const transformedMessage = transformMessage(message);
+      const transformedMessage = transformMessage(filterAssistantStreamSnapshots(message));
       const sid = capturedSessionId || sessionId || null;
 
       // Use adapter to normalize SDK events into NormalizedMessage[]
@@ -1422,5 +1478,5 @@ export {
 // mapCliOptionsToSDK: exported for unit tests that verify SDK option mapping.
 export { mapCliOptionsToSDK };
 
-// transformMessage: exported for unit tests that verify stream_event unwrapping.
-export { transformMessage };
+// Stream helpers: exported for focused tests of the realtime event pipeline.
+export { createClaudeAssistantStreamFilter, transformMessage };

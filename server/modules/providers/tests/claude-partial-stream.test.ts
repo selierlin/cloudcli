@@ -4,6 +4,7 @@ import test from 'node:test';
 import { CLAUDE_PREDEFINED_MODELS } from '@/modules/providers/list/claude/claude-models.provider.js';
 import { ClaudeSessionsProvider } from '@/modules/providers/list/claude/claude-sessions.provider.js';
 import {
+  createClaudeAssistantStreamFilter,
   isSubagentPartialEvent,
   mapCliOptionsToSDK,
   transformMessage,
@@ -157,27 +158,63 @@ test('subagent tool_use / tool_result are kept', () => {
 });
 
 test('a text + tool_use message streams once and ends once', () => {
+  const filter = createClaudeAssistantStreamFilter();
   const events = [
-    { type: 'message_start', message: { role: 'assistant' } },
-    { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
-    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Let me ' } },
-    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'check.' } },
-    { type: 'content_block_stop', index: 0 },
-    { type: 'content_block_start', index: 1, content_block: { type: 'tool_use', id: 'toolu_1', name: 'Read' } },
-    { type: 'content_block_stop', index: 1 },
-    { type: 'message_stop' },
+    { type: 'stream_event', parent_tool_use_id: null, event: { type: 'message_start', message: { role: 'assistant' } } },
+    { type: 'stream_event', parent_tool_use_id: null, event: { type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'Need to inspect.' } } },
+    {
+      type: 'assistant',
+      message: { role: 'assistant', content: [{ type: 'thinking', thinking: 'Need to inspect.' }] },
+    },
+    { type: 'stream_event', parent_tool_use_id: null, event: { type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: 'Let me check.' } } },
+    {
+      type: 'assistant',
+      message: { role: 'assistant', content: [{ type: 'text', text: 'Let me check.' }] },
+    },
+    {
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: 'toolu_1', name: 'Read', input: { file_path: '/repo/package.json' } }],
+      },
+    },
+    { type: 'stream_event', parent_tool_use_id: null, event: { type: 'message_stop' } },
   ];
 
-  const messages = events.flatMap((event) => normalizeIncoming({
-    type: 'stream_event',
-    parent_tool_use_id: null,
-    event,
-  }));
+  const messages = events.flatMap((event) => provider.normalizeMessage(
+    transformMessage(filter(event)),
+    SESSION_ID,
+  ));
 
   const deltas = messages.filter((message) => message.kind === 'stream_delta');
   const ends = messages.filter((message) => message.kind === 'stream_end');
+  const thinking = messages.filter((message) => message.kind === 'thinking');
+  const text = messages.filter((message) => message.kind === 'text');
+  const tools = messages.filter((message) => message.kind === 'tool_use');
 
   assert.equal(deltas.length, 2);
   assert.equal(ends.length, 1);
-  assert.equal(deltas.map((message) => message.content).join(''), 'Let me check.');
+  assert.equal(thinking.length, 0);
+  assert.equal(text.length, 0);
+  assert.equal(tools.length, 1);
+  assert.equal(deltas.find((message) => message.streamChannel === 'thinking')?.content, 'Need to inspect.');
+  assert.equal(deltas.find((message) => message.streamChannel === 'text')?.content, 'Let me check.');
+});
+
+test('an assistant block without a matching delta is retained', () => {
+  const filter = createClaudeAssistantStreamFilter();
+  filter({
+    type: 'stream_event',
+    parent_tool_use_id: null,
+    event: { type: 'message_start', message: { role: 'assistant' } },
+  });
+
+  const messages = provider.normalizeMessage(transformMessage(filter({
+    type: 'assistant',
+    message: { role: 'assistant', content: [{ type: 'text', text: 'fallback' }] },
+  })), SESSION_ID);
+
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].kind, 'text');
+  assert.equal(messages[0].content, 'fallback');
 });
