@@ -279,6 +279,36 @@ describe('deferred scroll-to-bottom', () => {
       runAnimationFrame();
     });
     expect(container.writes.at(-1)).toBe(3000);
+
+    act(() => runAnimationFrame());
+    act(() => runAnimationFrame());
+    expect(frameCallbacks.size).toBe(0);
+  });
+
+  it('waits for cross-frame geometry stability after the main thread misses the deadline', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
+    ]);
+    const store = createStore(messages);
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+    const container = createContainer(5000, 500);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    act(() => {
+      result.current.followTranscriptLayout(350);
+      vi.advanceTimersByTime(600);
+      container.setScrollHeight(3000);
+      runAnimationFrame();
+    });
+
+    expect(container.writes.at(-1)).toBe(3000);
+    expect(frameCallbacks.size).toBe(1);
+    act(() => runAnimationFrame());
+    expect(frameCallbacks.size).toBe(1);
+    act(() => runAnimationFrame());
     expect(frameCallbacks.size).toBe(0);
   });
 

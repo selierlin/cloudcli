@@ -220,8 +220,12 @@ export function useChatSessionState({
   const isUserScrolledUpRef = useRef(false);
   /** The sole queued streaming follow write, shared across transcript updates. */
   const followFrameRef = useRef<number | null>(null);
-  /** Deadline through which the same follow writer tracks an animated tail layout change. */
+  /** Minimum deadline before an animated handoff may be considered settled. */
   const followUntilRef = useRef(0);
+  /** Last post-write geometry observed by the single transcript follow loop. */
+  const followGeometryRef = useRef<string | null>(null);
+  /** Consecutive rendered frames whose post-write geometry matched. */
+  const followStableFramesRef = useRef(0);
   const isLoadingMoreRef = useRef(false);
   const allMessagesLoadedRef = useRef(false);
   const topLoadLockRef = useRef(false);
@@ -237,6 +241,8 @@ export function useChatSessionState({
     isUserScrolledUpRef.current = next;
     if (next) {
       followUntilRef.current = 0;
+      followGeometryRef.current = null;
+      followStableFramesRef.current = 0;
       if (followFrameRef.current !== null) {
         window.cancelAnimationFrame(followFrameRef.current);
         followFrameRef.current = null;
@@ -443,6 +449,11 @@ export function useChatSessionState({
       followUntilRef.current,
       Date.now() + Math.max(0, durationMs),
     );
+    followGeometryRef.current = null;
+    followStableFramesRef.current = 0;
+    // Requests triggered from a layout effect must correct the newly committed
+    // geometry before the browser can paint a one-frame tail gap.
+    scrollToBottom();
     if (followFrameRef.current !== null) return;
 
     const tick = () => {
@@ -456,12 +467,32 @@ export function useChatSessionState({
         || searchScrollActiveRef.current
       ) {
         followUntilRef.current = 0;
+        followGeometryRef.current = null;
+        followStableFramesRef.current = 0;
         return;
       }
 
       scrollToBottom();
-      if (Date.now() < followUntilRef.current) {
+      const container = scrollContainerRef.current;
+      const geometry = container
+        ? `${container.scrollTop}:${container.scrollHeight}:${container.clientHeight}`
+        : null;
+      if (geometry !== null && geometry === followGeometryRef.current) {
+        followStableFramesRef.current += 1;
+      } else {
+        followGeometryRef.current = geometry;
+        followStableFramesRef.current = 0;
+      }
+
+      // Wall time is only a minimum window. Completion requires stable
+      // post-write geometry across separate rendered frames, so a blocked main
+      // thread cannot skip straight past the coordination period.
+      if (Date.now() < followUntilRef.current || followStableFramesRef.current < 2) {
         followFrameRef.current = window.requestAnimationFrame(tick);
+      } else {
+        followUntilRef.current = 0;
+        followGeometryRef.current = null;
+        followStableFramesRef.current = 0;
       }
     };
 
@@ -1016,7 +1047,7 @@ export function useChatSessionState({
     scrollPositionRef.current = { height: container.scrollHeight, top: container.scrollTop };
   });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const cannotFollow = (
       !isActive
       || !activeSessionId
@@ -1034,10 +1065,23 @@ export function useChatSessionState({
         followFrameRef.current = null;
       }
       followUntilRef.current = 0;
+      followGeometryRef.current = null;
+      followStableFramesRef.current = 0;
       return;
     }
 
     followTranscriptLayout();
+
+    // Cancel the frame loop when any dependency changes; the next effect run
+    // (or the unmount effect below) is what restarts or stops it. The tick
+    // itself self-cancels, but an explicit cleanup keeps a pending frame from
+    // outliving the state that scheduled it.
+    return () => {
+      if (followFrameRef.current !== null) {
+        window.cancelAnimationFrame(followFrameRef.current);
+        followFrameRef.current = null;
+      }
+    };
   }, [activeSessionId, chatMessages, followTranscriptLayout, isActive, isLoadingMoreMessages, isUserScrolledUp]);
 
   useEffect(() => () => {
@@ -1046,6 +1090,8 @@ export function useChatSessionState({
       followFrameRef.current = null;
     }
     followUntilRef.current = 0;
+    followGeometryRef.current = null;
+    followStableFramesRef.current = 0;
   }, []);
 
   useEffect(() => {
