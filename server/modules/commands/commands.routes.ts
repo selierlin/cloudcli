@@ -28,7 +28,7 @@ const providerModelsService = dependencies.models;
 const process = dependencies.runtime;
 const router = express.Router();
 
-const MODEL_PROVIDERS = ["claude", "cursor", "codex", "opencode", "dsh", "workbuddy", "pi"];
+const MODEL_PROVIDERS = ["claude", "cursor", "codex", "opencode", "dsh", "workbuddy", "pi", "zcode"];
 
 const MODEL_PROVIDER_LABELS = {
   claude: "Claude",
@@ -38,6 +38,7 @@ const MODEL_PROVIDER_LABELS = {
   dsh: "DeepSeek Harness",
   workbuddy: "WorkBuddy",
   pi: "Pi",
+  zcode: "ZCode",
 };
 
 const readModelProvider = (value) => {
@@ -73,6 +74,7 @@ const executeModelsCommand = async (args, context, modelsService) => {
     value: option.value,
     label: option.label,
     description: option.description,
+    group: option.group,
     recordId: option.recordId,
     isCustom: option.isCustom,
   }));

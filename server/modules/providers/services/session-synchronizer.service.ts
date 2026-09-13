@@ -87,6 +87,7 @@ async function runSessionSynchronization(): Promise<SessionSynchronizeResult> {
     dsh: 0,
     workbuddy: 0,
     pi: 0,
+    zcode: 0,
   };
   const failures: string[] = [];
 

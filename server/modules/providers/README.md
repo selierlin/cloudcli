@@ -48,6 +48,7 @@ Current provider ids in this repo are:
 - `dsh`
 - `workbuddy`
 - `pi`
+- `zcode`
 
 Those ids are mirrored in backend unions and frontend provider constants. If
 adding a new provider, update every place that hardcodes this list.
@@ -68,7 +69,7 @@ server/modules/providers/list/<provider>/
   <provider>-session-synchronizer.provider.ts
 ```
 
-The existing provider folders are `claude`, `codex`, `cursor`, `opencode`, `dsh`, `workbuddy`, and `pi`.
+The existing provider folders are `claude`, `codex`, `cursor`, `opencode`, `dsh`, `workbuddy`, `pi`, and `zcode`.
 
 Each provider wrapper owns its SDK/CLI runtime alongside its auth, model, and
 session facets. Runtime adapters receive registry-backed model and session
@@ -149,6 +150,7 @@ Current MCP formats in this repo are:
 | DSH | Harness-managed MCP configuration | `user`, `project` | `stdio`, `http`, `sse` |
 | WorkBuddy | `~/.codebuddy.json` / `~/.workbuddy/.mcp.json` and `<workspace>/.mcp.json` | `user`, `local`, `project` | `stdio`, `http`, `sse` |
 | Pi | n/a (Pi has no native MCP server support) | — | — |
+| ZCode | `~/.zcode/cli/config.json` (`mcp.servers`) and `<workspace>/.zcode/config.json` | `user`, `project` | `stdio`, `http`, `sse` |
 
 WorkBuddy authentication is owned by the WorkBuddy desktop app. CloudCLI only
 checks that the configured `codebuddy` executable (PATH, `CODEBUDDY_COMMAND`,
@@ -156,6 +158,34 @@ or the embedded WorkBuddy app CLI) is available; it must not present a fake
 CloudCLI login flow. `CODEBUDDY_CONFIG_DIR` and `WORKBUDDY_CONFIG_DIR` relocate
 the provider state, while `WORKBUDDY_RUN_TIMEOUT_MS` controls the live-run
 timeout (one hour by default).
+
+ZCode authentication is read from `~/.zcode/cli/config.json`: the provider is
+considered authenticated when that document declares at least one provider with
+an `options.apiKey` and a resolvable model (`model.main` or `provider.<id>.models`).
+The desktop app's OAuth credentials under `~/.zcode/v2/credentials.json` are not
+sufficient on their own — the CLI exits with "Model config is missing" without a
+`cli/config.json` provider. `ZCODE_COMMAND` overrides the CLI launcher
+(`<command> [args...]`). The config and session database are always rooted at
+`~/.zcode`: `ZCODE_STORAGE_DIR` was verified to move only auxiliary state
+(plugin cache) and must not be used to relocate them.
+
+ZCode's model catalog mirrors every model declared under
+`provider.<id>.models`, valued `<providerId>/<modelId>` and grouped by channel so
+the `ark` and `deepseek` entries that share a model id stay distinguishable.
+`DEFAULT` is `model.main`. Headless ZCode has no model flag — `--model` does not
+exist, `--settings` is rejected by the parser despite appearing in `--help`, and
+a `/model` prompt is treated as plain text — but it does honour a per-process
+channel: `ZCODE_MODEL` + `ZCODE_BASE_URL` + `ZCODE_API_KEY` (all three required;
+verified against 0.16.5, where the trio is self-contained and the `<provider>/`
+prefix is carried through as a label). `resolveZcodeModelEnv` therefore resolves
+a selected model to that trio by reading its channel's `options.baseURL` and
+`options.apiKey` from the config, and the runtime passes it to the spawn. The
+config is never written, and the rest of it (MCP servers, skills, permissions,
+tools) still loads. Selecting the model `model.main` already names returns no
+override, leaving that run on the config path, which also carries provider
+headers, timeouts, and request signing. A model whose channel cannot supply a
+base URL and key fails the run before spawning rather than silently answering on
+a different model.
 
 5. Implement skills.
 
@@ -179,6 +209,7 @@ Current skill discovery roots are:
 | DSH | Harness-managed skills | Harness-managed project roots | `/` | The adapter exposes only roots supported by the DSH bridge. |
 | WorkBuddy | `~/.workbuddy/skills` (or the configured WorkBuddy state directory) | None | `/` | WorkBuddy currently loads user skills only; the adapter does not invent project-level discovery. |
 | Pi | `~/.pi/agent/skills`, `~/.agents/skills` | `<workspace>/.pi/skills`, `<workspace>/.agents/skills` + cwd-to-git-root `.agents/skills` | `/skill:` | Pi loads all four roots (user roots always; project roots only after Pi trusts the project). Direct root-level `.md` files count as skills only in Pi's own roots (`~/.pi/agent/skills`, `.pi/skills`). |
+| ZCode | `~/.zcode/skills`, `~/.agents/skills` | Cwd-to-git-worktree-root `.zcode/skills` and `.agents/skills` | `/skill ` | ZCode walks every directory from the cwd up to its git worktree root. The command is space-separated (`/skill <name>`), so it is built by the adapter rather than via `commandPrefix`. |
 
 Command forms currently used by the providers are:
 
@@ -227,6 +258,7 @@ Current session sync roots are:
 | DSH | Provider-owned session storage | The adapter is only required to implement synchronization when the bridge exposes durable session artifacts. |
 | WorkBuddy | `~/.codebuddy/projects/**/*.jsonl` and `~/.workbuddy/projects/**/*.jsonl` | The first process scan backfills both roots; later scans honor the orchestration cursor. `ai-title`, user prompts, Task events, and `rawResponse.todos` are normalized without indexing `subagents` or transient desktop workspaces. |
 | Pi | `~/.pi/agent/sessions/**/*.jsonl` (`PI_CODING_AGENT_SESSION_DIR` overrides) | Header `session` entry carries the UUID + cwd; `session_info` entries give explicit names; the first user prompt is the fallback title. Files are matched by `_<UUID>.jsonl` suffix. |
+| ZCode | `~/.zcode/cli/db/db.sqlite` (`storage.sessionDbPath` in `~/.zcode/cli/config.json` overrides) | Reads active sessions/messages/parts from ZCode's OpenCode-derived shared SQLite database. There is no `project` table, so `projectPath` comes from `session.directory` (realpath-normalized); `jsonl_path` is stored as `null` so deleting one app session cannot remove the shared DB. |
 
 8. Register the provider.
 

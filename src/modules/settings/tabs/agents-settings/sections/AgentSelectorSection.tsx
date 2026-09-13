@@ -16,6 +16,7 @@ const AGENT_NAMES: Record<AgentProvider, string> = {
   dsh: 'DeepSeek Harness',
   workbuddy: 'WorkBuddy',
   pi: 'Pi',
+  zcode: 'ZCode',
 };
 
 /** Rendered by AgentsSettingsTab to pick which agent provider the tab is configuring. */
@@ -36,7 +37,9 @@ export default function AgentSelectorSection({
             agent === 'codex' ? 'bg-[#10a37f]' :
             agent === 'opencode' ? 'bg-zinc-500' :
             agent === 'dsh' ? 'bg-[#4D6BFE]' :
-            agent === 'workbuddy' ? 'bg-[#01C886]' : 'bg-foreground';
+            agent === 'workbuddy' ? 'bg-[#01C886]' :
+            agent === 'pi' ? 'bg-foreground' :
+            agent === 'zcode' ? 'bg-[#5B5B66]' : 'bg-foreground';
 
           return (
             <Pill

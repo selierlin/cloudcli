@@ -15,6 +15,8 @@ export function getChatProviderLabel(provider: string, t: ChatProviderTranslator
       return t('messageTypes.workbuddy', { defaultValue: 'WorkBuddy' });
     case 'pi':
       return t('messageTypes.pi', { defaultValue: 'Pi' });
+    case 'zcode':
+      return t('messageTypes.zcode', { defaultValue: 'ZCode' });
     default:
       return t('messageTypes.claude');
   }

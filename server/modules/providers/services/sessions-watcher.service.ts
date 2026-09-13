@@ -8,6 +8,7 @@ import { sessionSynchronizerService } from '@/modules/providers/services/session
 import { getDshSessionsRoot } from '@/modules/providers/list/dsh/dsh-models.provider.js';
 import { getPiSessionsRoot } from '@/modules/providers/list/pi/pi-models.provider.js';
 import { getWorkbuddySessionRoots } from '@/modules/providers/list/workbuddy/workbuddy-storage.provider.js';
+import { getZcodeHomeDir } from '@/modules/providers/list/zcode/zcode-models.provider.js';
 import { broadcastSessionUpsertedBatch } from '@/modules/websocket/index.js';
 import type { LLMProvider } from '@/shared/types.js';
 
@@ -46,6 +47,12 @@ function getProviderWatchPaths(): Array<{ provider: LLMProvider; rootPath: strin
       provider: 'pi',
       rootPath: getPiSessionsRoot(),
     },
+    {
+      provider: 'zcode',
+      // ZCode keeps every session in one SQLite database; watching its
+      // directory catches the checkpoint writes that update db.sqlite.
+      rootPath: path.join(getZcodeHomeDir(), 'cli', 'db'),
+    },
   ];
 }
 
@@ -59,6 +66,11 @@ function isProviderEnginePresent(provider: LLMProvider, rootPath: string): boole
     // Guard the watcher's mkdir: a missing engine (no dsh-desktop, no pi CLI)
     // must not get a phantom directory tree created under the user's home.
     return existsSync(path.dirname(rootPath));
+  }
+  if (provider === 'zcode') {
+    // ZCode's storage root is created by the app; without it there is nothing
+    // to watch and the watcher must not create a phantom ~/.zcode tree.
+    return existsSync(getZcodeHomeDir());
   }
   // The remaining providers store transcripts under home-dir config folders
   // owned by the engine; watching an empty-but-created folder is harmless and
@@ -110,6 +122,10 @@ function isWatcherTargetFile(provider: LLMProvider, filePath: string): boolean {
 
   if (provider === 'dsh') {
     return path.basename(filePath) === 'session.jsonl.zstd';
+  }
+
+  if (provider === 'zcode') {
+    return path.basename(filePath) === 'db.sqlite';
   }
 
   return filePath.endsWith('.jsonl');

@@ -7,8 +7,9 @@ import Database from 'better-sqlite3';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import type { AnyRecord } from '@/shared/types.js';
-import { AppError, getOpenCodeDatabasePath } from '@/shared/utils.js';
+import { AppError, getOpenCodeDatabasePath, readJsonRecord, readObjectRecord } from '@/shared/utils.js';
 import { resolvePiTranscriptPath } from '@/modules/providers/list/pi/pi-sessions.provider.js';
+import { getZcodeDatabasePath } from '@/modules/providers/list/zcode/zcode-models.provider.js';
 
 type SessionRow = NonNullable<ReturnType<typeof sessionsDb.getSessionById>>;
 
@@ -22,6 +23,7 @@ type ProviderTokenUsageServiceDependencies = {
   getSessionById: (sessionId: string) => SessionRow | null | undefined;
   getHomeDirectory: () => string;
   getOpenCodeDatabasePath: () => string;
+  getZcodeDatabasePath: () => string;
   fileExists: (filePath: string) => boolean;
   readDirectory: (directoryPath: string) => Promise<Dirent[]>;
   readTextFile: (filePath: string) => Promise<string>;
@@ -73,6 +75,7 @@ const defaultDependencies: ProviderTokenUsageServiceDependencies = {
   getSessionById: (sessionId) => sessionsDb.getSessionById(sessionId),
   getHomeDirectory: () => os.homedir(),
   getOpenCodeDatabasePath,
+  getZcodeDatabasePath,
   fileExists: (filePath) => fsSync.existsSync(filePath),
   readDirectory: (directoryPath) => fsp.readdir(directoryPath, { withFileTypes: true }),
   readTextFile: (filePath) => fsp.readFile(filePath, 'utf8'),
@@ -450,6 +453,87 @@ function readOpenCodeTokenUsage(databasePath: string, providerSessionId: string)
 }
 
 /**
+ * Reads ZCode's newest assistant token snapshot from the shared SQLite store.
+ *
+ * ZCode persists a per-turn prompt snapshot on each assistant `message.data`
+ * (`tokens.input` is that turn's whole prompt), so the newest row is the
+ * current context occupancy — the same semantics as the Claude/WorkBuddy/Pi
+ * readers. `cache.read` is reported alongside `input` rather than inside it,
+ * matching the history reader's totals.
+ */
+function readZcodeTokenUsage(databasePath: string, providerSessionId: string): TokenUsageResult {
+  const database = new Database(databasePath, { readonly: true, fileMustExist: true });
+  try {
+    database.pragma('busy_timeout = 2000');
+    const rows = database.prepare(`
+      SELECT data AS data
+      FROM message
+      WHERE session_id = ?
+        AND json_extract(data, '$.role') = 'assistant'
+      ORDER BY COALESCE(time_created, 0) DESC, COALESCE(sequence, 0) DESC
+      LIMIT 20
+    `).all(providerSessionId) as Array<{ data: string | null }>;
+
+    for (const row of rows) {
+      const tokens = readObjectRecord(readJsonRecord(row?.data)?.tokens);
+      if (!tokens) {
+        continue;
+      }
+
+      const inputTokens = readUsageNumber(tokens.input);
+      const outputTokens = readUsageNumber(tokens.output);
+      const cache = readObjectRecord(tokens.cache);
+      const cacheReadTokens = readUsageNumber(cache?.read);
+      const cacheCreationTokens = readUsageNumber(cache?.write);
+
+      // Interrupt/error turns are persisted with an all-zero usage block rather
+      // than none at all; treating one as the newest turn would zero a counter
+      // a live event had just set. Skip them like the Claude/Pi/WorkBuddy
+      // readers do.
+      if (
+        inputTokens === 0
+        && outputTokens === 0
+        && cacheReadTokens === 0
+        && cacheCreationTokens === 0
+      ) {
+        continue;
+      }
+
+      const displayInputTokens = inputTokens + cacheReadTokens;
+      return {
+        used: inputTokens
+          + outputTokens
+          + readUsageNumber(tokens.reasoning)
+          + cacheReadTokens
+          + cacheCreationTokens,
+        inputTokens: displayInputTokens,
+        outputTokens,
+        cacheReadTokens,
+        cacheCreationTokens,
+        cacheTokens: cacheReadTokens,
+        breakdown: { input: displayInputTokens, output: outputTokens },
+      };
+    }
+
+    return emptyZcodeTokenUsage();
+  } finally {
+    database.close();
+  }
+}
+
+function emptyZcodeTokenUsage(): TokenUsageResult {
+  return {
+    used: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheCreationTokens: 0,
+    cacheTokens: 0,
+    breakdown: { input: 0, output: 0 },
+  };
+}
+
+/**
  * Creates the provider token-usage service used by the provider routes. The
  * provider test suite supplies isolated filesystem and session dependencies so
  * every calculator can be exercised without touching a developer's real data.
@@ -554,6 +638,18 @@ export function createProviderTokenUsageService(
         }
 
         return readOpenCodeTokenUsage(databasePath, providerSessionId);
+      }
+
+      if (session.provider === 'zcode') {
+        const databasePath = dependencies.getZcodeDatabasePath();
+        if (!dependencies.fileExists(databasePath)) {
+          throw new AppError('ZCode database was not found.', {
+            code: 'ZCODE_DATABASE_NOT_FOUND',
+            statusCode: 404,
+          });
+        }
+
+        return readZcodeTokenUsage(databasePath, providerSessionId);
       }
 
       if (session.provider === 'codex') {

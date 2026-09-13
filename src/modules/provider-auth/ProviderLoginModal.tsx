@@ -59,10 +59,11 @@ const getProviderCommand = ({
     return 'opencode auth login';
   }
 
-  // dsh, workbuddy and pi have no interactive terminal login: dsh reads the
-  // API key from the harness .env, workbuddy signs in through the desktop app,
-  // and pi manages credentials in `pi auth`. Never fall through to
-  // `claude /login`, which would mis-authenticate Claude.
+  // dsh, workbuddy, pi and zcode have no interactive terminal login: dsh reads
+  // the API key from the harness .env, workbuddy signs in through the desktop
+  // app, pi manages credentials in `pi auth`, and zcode authenticates from
+  // `~/.zcode/cli/config.json`. Never fall through to `claude /login`, which
+  // would mis-authenticate Claude.
   if (provider === 'dsh') {
     return 'echo "DSH authentication is configured via DEEPSEEK_API_KEY in the DSH harness .env file."';
   }
@@ -73,6 +74,10 @@ const getProviderCommand = ({
 
   if (provider === 'pi') {
     return 'echo "Pi authentication is managed by `pi auth` in a terminal. Run it and try again."';
+  }
+
+  if (provider === 'zcode') {
+    return 'echo "ZCode authentication is configured via ~/.zcode/cli/config.json. Add a provider with an apiKey, then retry."';
   }
 
   return 'claude --dangerously-skip-permissions /login';
@@ -86,6 +91,7 @@ const getProviderTitle = (provider: LLMProvider) => {
   if (provider === 'dsh') return 'DSH Login';
   if (provider === 'workbuddy') return 'WorkBuddy Login';
   if (provider === 'pi') return 'Pi Login';
+  if (provider === 'zcode') return 'ZCode Login';
   return 'Claude CLI Login';
 };
 

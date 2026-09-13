@@ -5,13 +5,22 @@ import type { NavigateFunction } from 'react-router-dom';
 //----------------- LLM PROVIDER MODEL CATALOG ------------
 
 /** Identifies which coding-agent CLI backs a session, project selection or model list. */
-export type LLMProvider = 'claude' | 'cursor' | 'codex' | 'opencode' | 'dsh' | 'workbuddy' | 'pi';
+export type LLMProvider = 'claude' | 'cursor' | 'codex' | 'opencode' | 'dsh' | 'workbuddy' | 'pi' | 'zcode';
 
 /** One selectable model in a provider's model menu, including its optional reasoning-effort choices. */
 export type ProviderModelOption = {
   value: string;
   label: string;
   description?: string;
+  /**
+   * Channel or vendor this option belongs to, when a provider exposes several.
+   *
+   * Pi reads every configured channel from the user's own `models.json`, so the
+   * picker groups options by this value to keep same-named models from different
+   * channels distinguishable. Providers with a single catalog leave it unset,
+   * and menus then render their options as one flat list.
+   */
+  group?: string;
   recordId?: number;
   isCustom?: boolean;
   effort?: {

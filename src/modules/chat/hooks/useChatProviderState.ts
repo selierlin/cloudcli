@@ -36,9 +36,13 @@ const FALLBACK_DEFAULT_MODEL: Record<LLMProvider, string> = {
   dsh: 'deepseek-v4-pro',
   workbuddy: 'auto',
   pi: 'deepseek/deepseek-v4-flash',
+  // ZCode's catalog is a single model decided by `~/.zcode/cli/config.json`'s
+  // `model.main`. The static default below is only used until the catalog
+  // loads — the resolved value will overwrite it.
+  zcode: 'zai/glm-5.1',
 };
 
-const PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi'];
+const PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode'];
 
 /** localStorage key holding the user's default model for one provider. */
 const providerModelStorageKey = (provider: LLMProvider): string => `${provider}-model`;
@@ -57,6 +61,7 @@ const FALLBACK_PERMISSION_MODES: Record<LLMProvider, PermissionMode[]> = {
   dsh: ['default'],
   workbuddy: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
   pi: ['default', 'readonly'],
+  zcode: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
 };
 
 type ProviderCapabilities = {

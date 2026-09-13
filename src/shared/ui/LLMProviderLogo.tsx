@@ -6,6 +6,7 @@ import DshLogo from '@/shared/ui/DshLogo';
 import OpenCodeLogo from '@/shared/ui/OpenCodeLogo';
 import PiLogo from '@/shared/ui/PiLogo';
 import WorkbuddyLogo from '@/shared/ui/WorkbuddyLogo';
+import ZcodeLogo from '@/shared/ui/ZcodeLogo';
 
 type LLMProviderLogoProps = {
   provider?: LLMProvider | string | null;
@@ -39,6 +40,10 @@ export function LLMProviderLogo({
 
   if (provider === 'pi') {
     return <PiLogo className={className} />;
+  }
+
+  if (provider === 'zcode') {
+    return <ZcodeLogo className={className} />;
   }
 
   return <ClaudeLogo className={className} />;

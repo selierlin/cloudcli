@@ -20,3 +20,7 @@ export { getWorkbuddyCommand } from './list/workbuddy/workbuddy-auth.provider.js
 // getPiCommand: used by the websocket shell service to spawn the Pi CLI at its
 // resolved absolute path (not reliant on the PTY's PATH).
 export { getPiCommand } from './list/pi/pi-auth.provider.js';
+
+// getZcodeCommand: used by the websocket shell service to spawn the ZCode CLI
+// (either the `zcode` binary or `node <bundle>`) without relying on the PTY's PATH.
+export { getZcodeCommand } from './list/zcode/zcode-auth.provider.js';

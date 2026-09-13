@@ -10,6 +10,10 @@ import {
   createProviderTokenUsageService,
   summarizeClaudeTokenUsage,
 } from '@/modules/providers/services/provider-token-usage.service.js';
+import {
+  createZcodeDatabase,
+  seedZcodeRichSession,
+} from '@/modules/providers/tests/fixtures/zcode-session-db.js';
 import { AppError } from '@/shared/utils.js';
 
 function createSessionRow(overrides: Record<string, unknown> = {}) {
@@ -446,6 +450,82 @@ test('Codex token usage falls back to the whole file when the tail has no token_
 
     const usage = await service.getSessionTokenUsage('app-session');
     assert.equal(usage.used, 6);
+  } finally {
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+});
+
+test('ZCode token usage reads the newest assistant snapshot from the SQLite store', async () => {
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), 'provider-token-usage-zcode-'));
+  try {
+    const dbPath = await seedZcodeRichSession(tempDirectory, tempDirectory);
+
+    const service = createProviderTokenUsageService({
+      getSessionById: () => createSessionRow({
+        provider: 'zcode',
+        provider_session_id: 'zcode-session-1',
+      }),
+      getZcodeDatabasePath: () => dbPath,
+      fileExists: () => true,
+    });
+
+    assert.deepEqual(await service.getSessionTokenUsage('app-session'), {
+      used: 35,
+      inputTokens: 13,
+      outputTokens: 20,
+      cacheReadTokens: 3,
+      cacheCreationTokens: 2,
+      cacheTokens: 3,
+      breakdown: { input: 13, output: 20 },
+    });
+  } finally {
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+});
+
+test('ZCode token usage skips an all-zero synthetic newest row', async () => {
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), 'provider-token-usage-zcode-zero-'));
+  try {
+    const dbPath = await createZcodeDatabase(tempDirectory);
+    const db = new Database(dbPath);
+    try {
+      db.prepare(`
+        INSERT INTO session (id, project_id, directory, title, time_created, time_updated)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run('zcode-session-1', 'project-1', tempDirectory, 't', 1_700_000_000_000, 1_700_000_003_000);
+      const insertMessage = db.prepare(`
+        INSERT INTO message (id, session_id, time_created, time_updated, data, sequence)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+      insertMessage.run('m1', 'zcode-session-1', 1_700_000_001_000, 1_700_000_001_000,
+        JSON.stringify({
+          role: 'assistant',
+          tokens: { input: 10, output: 20, reasoning: 0, cache: { read: 3, write: 2 } },
+        }), 0);
+      // The newest row is a synthetic all-zero turn (interrupt/error) and must
+      // not zero a counter that the earlier live turn just set.
+      insertMessage.run('m2', 'zcode-session-1', 1_700_000_002_000, 1_700_000_002_000,
+        JSON.stringify({
+          role: 'assistant',
+          tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+        }), 0);
+    } finally {
+      db.close();
+    }
+
+    const service = createProviderTokenUsageService({
+      getSessionById: () => createSessionRow({
+        provider: 'zcode',
+        provider_session_id: 'zcode-session-1',
+      }),
+      getZcodeDatabasePath: () => dbPath,
+      fileExists: () => true,
+    });
+
+    const usage = await service.getSessionTokenUsage('app-session');
+    assert.equal(usage.used, 35);
+    assert.equal(usage.inputTokens, 13);
+    assert.equal(usage.outputTokens, 20);
   } finally {
     await rm(tempDirectory, { recursive: true, force: true });
   }

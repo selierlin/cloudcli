@@ -143,6 +143,7 @@
     "effortDefault": "Por defecto",
     "loadingModels": "Cargando modelos…",
     "modelMenu": "Seleccionar modelo y esfuerzo de razonamiento",
+    "otherModels": "Otros",
     "permissionHeading": "¿Cómo se deben aprobar las acciones de {{provider}}?",
     "editing": {
       "title": "Reemplazando un mensaje anterior",

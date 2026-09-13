@@ -5,6 +5,7 @@ import { DshProvider } from '@/modules/providers/list/dsh/dsh.provider.js';
 import { OpenCodeProvider } from '@/modules/providers/list/opencode/opencode.provider.js';
 import { PiProvider } from '@/modules/providers/list/pi/pi.provider.js';
 import { WorkbuddyProvider } from '@/modules/providers/list/workbuddy/workbuddy.provider.js';
+import { ZcodeProvider } from '@/modules/providers/list/zcode/zcode.provider.js';
 import type { IProvider } from '@/shared/interfaces.js';
 import type { LLMProvider } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
@@ -17,6 +18,7 @@ const providers: Record<LLMProvider, IProvider> = {
   dsh: new DshProvider(),
   workbuddy: new WorkbuddyProvider(),
   pi: new PiProvider(),
+  zcode: new ZcodeProvider(),
 };
 
 /**

@@ -42,6 +42,7 @@ const PROVIDER_LABELS: Record<LLMProvider, string> = {
   dsh: 'DeepSeek Harness',
   workbuddy: 'WorkBuddy',
   pi: 'Pi',
+  zcode: 'ZCode',
 };
 
 type RecentConversationRowProps = {

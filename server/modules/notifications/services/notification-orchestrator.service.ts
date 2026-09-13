@@ -52,6 +52,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   system: 'System',
   workbuddy: 'WorkBuddy',
   pi: 'Pi',
+  zcode: 'ZCode',
 };
 
 const recentEventKeys = new Map<string, number>();

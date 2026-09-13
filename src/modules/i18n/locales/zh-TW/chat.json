@@ -124,6 +124,7 @@
     "effortDefault": "預設",
     "loadingModels": "正在載入模型…",
     "modelMenu": "選擇模型與思考強度",
+    "otherModels": "其他",
     "permissionHeading": "{{provider}} 的操作應如何核准？",
     "editing": {
       "title": "正在取代先前的訊息",

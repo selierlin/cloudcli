@@ -293,6 +293,7 @@ const parseProvider = (value: unknown): LLMProvider => {
     || normalized === 'dsh'
     || normalized === 'workbuddy'
     || normalized === 'pi'
+    || normalized === 'zcode'
   ) {
     return normalized;
   }
