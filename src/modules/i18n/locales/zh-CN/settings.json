@@ -639,6 +639,42 @@
         }
       }
     },
+    "zcode": {
+      "permissionMode": "权限模式",
+      "description": "控制 ZCode 如何批准文件编辑与命令执行",
+      "modes": {
+        "default": {
+          "title": "只读",
+          "description": "ZCode 的 build 模式：不编辑文件、不执行命令，仅做计划。"
+        },
+        "acceptEdits": {
+          "title": "接受编辑",
+          "description": "自动批准文件编辑和安全命令；副作用写入与高危命令仍需确认。"
+        },
+        "bypassPermissions": {
+          "title": "绕过权限",
+          "description": "自动批准所有工具，包括任意命令执行。请谨慎使用。"
+        },
+        "plan": {
+          "title": "仅计划",
+          "description": "只生成执行计划，不修改文件或运行命令。"
+        }
+      }
+    },
+    "pi": {
+      "permissionMode": "权限模式",
+      "description": "控制 Pi 如何运行工具与命令",
+      "modes": {
+        "default": {
+          "title": "自主执行",
+          "description": "Pi 自主运行工具，无审批关卡。"
+        },
+        "readonly": {
+          "title": "只读",
+          "description": "只允许只读工具（read、grep、find、ls），Pi 无法修改文件。"
+        }
+      }
+    },
     "actions": {
       "add": "添加"
     }
