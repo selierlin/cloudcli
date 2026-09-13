@@ -98,6 +98,14 @@ const streamEnd = (sessionId: string): ServerEvent => ({
   sessionId,
 } as unknown as ServerEvent);
 
+const toolUse = (sessionId: string): ServerEvent => ({
+  kind: 'tool_use',
+  sessionId,
+  toolId: 'tool-1',
+  toolName: 'Bash',
+  toolInput: { command: 'pwd' },
+} as unknown as ServerEvent);
+
 // `success: false` keeps `complete` from triggering the completion indicator
 // and sound, which are irrelevant here.
 const complete = (sessionId: string): ServerEvent => ({
@@ -202,6 +210,24 @@ test('a delta-less stream_end writes no row but still finalizes', () => {
 
   assert.deepEqual(updateStreaming, [], 'an empty flush must not create a stub row');
   assert.deepEqual(finalizeStreaming, ['tool-only']);
+});
+
+test('a tool use seals the current thinking cycle before the next one starts', () => {
+  const { updateStreaming, finalizeStreaming, appendRealtime, dispatch } = renderHandlers();
+
+  dispatch(delta('s', '工具前思考', 'zcode', 'thinking'));
+  dispatch(toolUse('s'));
+  dispatch(delta('s', '工具后思考', 'zcode', 'thinking'));
+  dispatch(streamEnd('s'));
+
+  assert.deepEqual(updateStreaming, [
+    ['s', [{ channel: 'thinking', text: '工具前思考' }], 'zcode'],
+    ['s', [{ channel: 'thinking', text: '工具后思考' }], 'zcode'],
+  ]);
+  assert.deepEqual(finalizeStreaming, ['s', 's']);
+  assert.equal(appendRealtime.length, 1);
+  const appendedToolUse = appendRealtime[0] as [string, { kind?: string }] | undefined;
+  assert.equal(appendedToolUse?.[1].kind, 'tool_use');
 });
 
 test('a second cycle in the same session starts from empty text', () => {
