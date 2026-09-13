@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": ["vite/client", "node", "@playwright/test"]
+  },
+  "include": [
+    "../../playwright.transcript.config.ts",
+    "../../src/vite-env.d.ts",
+    "./fixture.tsx",
+    "./transcript-layout.spec.ts",
+    "./vite.config.ts"
+  ]
+}

@@ -97,6 +97,8 @@ temp/
 
 # Vite
 .vite/
+playwright-report/
+test-results/
 
 # Local Netlify folder
 .netlify
