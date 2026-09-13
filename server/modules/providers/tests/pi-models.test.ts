@@ -71,8 +71,28 @@ test('loads the built-in catalog from models-store.json', async () => {
     // Reasoning models expose effort options.
     const sonnet = catalog?.OPTIONS.find((option) => option.value === 'anthropic/claude-sonnet-4-5');
     assert.ok(sonnet?.effort?.values.some((entry) => entry.value === 'high'));
+    // Every option carries its channel so the client can group the picker.
+    assert.equal(sonnet?.group, 'anthropic');
     const haiku = catalog?.OPTIONS.find((option) => option.value === 'anthropic/claude-haiku-4-5');
     assert.equal(haiku?.effort, undefined);
+    assert.equal(haiku?.group, 'anthropic');
+  });
+});
+
+test('tags same-named models with their own channel', async () => {
+  await withPiAgentDir({
+    'models.json': JSON.stringify({
+      providers: {
+        deepseek: { models: [{ id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash-DP' }] },
+        ark: { models: [{ id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' }] },
+      },
+    }),
+  }, async () => {
+    const catalog = loadPiModels();
+    assert.ok(catalog);
+    const byValue = new Map(catalog?.OPTIONS.map((option) => [option.value, option]));
+    assert.equal(byValue.get('deepseek/deepseek-v4-flash')?.group, 'deepseek');
+    assert.equal(byValue.get('ark/deepseek-v4-flash')?.group, 'ark');
   });
 });
 
@@ -127,6 +147,20 @@ test('PI_MODEL overrides the picker default', async () => {
     process.env.PI_MODEL = 'deepseek/deepseek-v4-flash';
     const models = await new PiProviderModels().getSupportedModels();
     assert.equal(models.DEFAULT, 'deepseek/deepseek-v4-flash');
+  });
+});
+
+test('PI_MODEL injects a channel-tagged option when absent from the catalog', async () => {
+  await withPiAgentDir({
+    'models-store.json': JSON.stringify({
+      deepseek: { models: [{ id: 'deepseek-v4-flash', name: 'V4 Flash' }] },
+    }),
+  }, async () => {
+    process.env.PI_MODEL = 'openrouter/qwen3-coder';
+    const models = await new PiProviderModels().getSupportedModels();
+    assert.equal(models.DEFAULT, 'openrouter/qwen3-coder');
+    assert.equal(models.OPTIONS[0].value, 'openrouter/qwen3-coder');
+    assert.equal(models.OPTIONS[0].group, 'openrouter');
   });
 });
 

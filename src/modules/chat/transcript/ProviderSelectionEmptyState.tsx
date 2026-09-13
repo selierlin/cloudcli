@@ -27,6 +27,7 @@ import {
   LLMProviderLogo,
 } from "@/shared/ui";
 import ModelLibraryPanel from "@/modules/chat/modals/ModelLibraryPanel";
+import { groupModelOptions } from "@/modules/chat/utils/modelGrouping";
 import { writeSelectedProvider } from '@/shared/selectedProvider';
 
 const PROVIDER_META: { id: LLMProvider; name: string }[] = [
@@ -37,6 +38,7 @@ const PROVIDER_META: { id: LLMProvider; name: string }[] = [
   { id: "dsh", name: "DeepSeek Harness" },
   { id: "workbuddy", name: "WorkBuddy" },
   { id: "pi", name: "Pi" },
+  { id: "zcode", name: "ZCode" },
 ];
 
 const MOD_KEY =
@@ -90,8 +92,13 @@ function getModelLabel(
   catalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>,
 ): string {
   const config = getModelConfig(p, catalog);
-  const found = config.OPTIONS.find((o: { value: string; label: string }) => o.value === modelValue);
-  return found?.label || modelValue;
+  const found = config.OPTIONS.find((option) => option.value === modelValue);
+  if (!found) {
+    return modelValue;
+  }
+  // Pi exposes several channels, so the collapsed picker names the channel too;
+  // without it two channels offering the same model id read identically.
+  return found.group ? `${found.group} · ${found.label}` : found.label;
 }
 
 function getProviderDisplayName(p: LLMProvider) {
@@ -102,6 +109,7 @@ function getProviderDisplayName(p: LLMProvider) {
   if (p === "dsh") return "DeepSeek Harness";
   if (p === "workbuddy") return "WorkBuddy";
   if (p === "pi") return "Pi";
+  if (p === "zcode") return "ZCode";
   return "Claude";
 }
 
@@ -152,6 +160,15 @@ export default function ProviderSelectionEmptyState({
       models: providerModelCatalog[meta.id]?.OPTIONS ?? [],
     };
   }, [provider, providerModelCatalog]);
+
+  // Pi exposes every configured channel, so its models are split into sections
+  // that keep same-named entries from different channels distinguishable. A
+  // single-catalog provider yields one ungrouped section and renders as before.
+  const modelGroups = useMemo(
+    () => groupModelOptions(activeProviderGroup?.models ?? []),
+    [activeProviderGroup],
+  );
+  const hasChannelGroups = modelGroups.some((group) => group.key !== null);
 
   const handleToolSelect = useCallback(
     (providerId: LLMProvider) => {
@@ -321,43 +338,56 @@ export default function ProviderSelectionEmptyState({
                       })}
                     </CommandEmpty>
                     {activeProviderGroup && (
-                      <CommandGroup>
+                      <>
                         {activeProviderGroup.models.length === 0 && providerModelsLoading ? (
-                          <CommandItem disabled className="ml-4 border-l border-border/40 pl-4 text-muted-foreground">
-                            {t("providerSelection.loadingModels", { defaultValue: "Loading models…" })}
-                          </CommandItem>
-                        ) : null}
-                        {activeProviderGroup.models.map((model) => {
-                          const isSelected = currentModel === model.value;
-                          return (
-                            <CommandItem
-                              key={`${activeProviderGroup.id}-${model.value}`}
-                              value={`${activeProviderGroup.name} ${model.label} ${model.description || ''}`}
-                              onSelect={() => handleModelSelect(activeProviderGroup.id, model.value)}
-                              className="ml-4 border-l border-border/40 pl-4"
-                            >
-                              <div className="min-w-0 flex-1">
-                                <div className="flex min-w-0 items-center gap-2">
-                                  <span className="truncate">{model.label}</span>
-                                  {model.isCustom && (
-                                    <Badge className="h-4 shrink-0 rounded-full px-1.5 text-[8px]">
-                                      {t("providerSelection.custom", { defaultValue: "Custom" })}
-                                    </Badge>
-                                  )}
-                                </div>
-                                {model.label !== model.value && (
-                                  <div className="truncate font-mono text-[10px] text-muted-foreground">
-                                    {model.value}
-                                  </div>
-                                )}
-                              </div>
-                              {isSelected && (
-                                <Check className="ml-auto h-4 w-4 shrink-0 text-primary" />
-                              )}
+                          <CommandGroup>
+                            <CommandItem disabled className="ml-4 border-l border-border/40 pl-4 text-muted-foreground">
+                              {t("providerSelection.loadingModels", { defaultValue: "Loading models…" })}
                             </CommandItem>
-                          );
-                        })}
-                      </CommandGroup>
+                          </CommandGroup>
+                        ) : null}
+                        {modelGroups.map((group) => (
+                          <CommandGroup
+                            key={group.key ?? '__ungrouped'}
+                            heading={
+                              hasChannelGroups
+                                ? group.key ?? t("providerSelection.otherModels", { defaultValue: "Other" })
+                                : undefined
+                            }
+                          >
+                            {group.options.map((model) => {
+                              const isSelected = currentModel === model.value;
+                              return (
+                                <CommandItem
+                                  key={`${activeProviderGroup.id}-${model.value}`}
+                                  value={`${group.key ?? ''} ${activeProviderGroup.name} ${model.label} ${model.description || ''}`}
+                                  onSelect={() => handleModelSelect(activeProviderGroup.id, model.value)}
+                                  className="ml-4 border-l border-border/40 pl-4"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex min-w-0 items-center gap-2">
+                                      <span className="truncate">{model.label}</span>
+                                      {model.isCustom && (
+                                        <Badge className="h-4 shrink-0 rounded-full px-1.5 text-[8px]">
+                                          {t("providerSelection.custom", { defaultValue: "Custom" })}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    {model.label !== model.value && (
+                                      <div className="truncate font-mono text-[10px] text-muted-foreground">
+                                        {model.value}
+                                      </div>
+                                    )}
+                                  </div>
+                                  {isSelected && (
+                                    <Check className="ml-auto h-4 w-4 shrink-0 text-primary" />
+                                  )}
+                                </CommandItem>
+                              );
+                            })}
+                          </CommandGroup>
+                        ))}
+                      </>
                     )}
                   </CommandList>
                 </Command>
@@ -417,6 +447,10 @@ export default function ProviderSelectionEmptyState({
                 workbuddy: t("providerSelection.readyPrompt.workbuddy", {
                   model: currentModelLabel,
                   defaultValue: "Ready with WorkBuddy {{model}}",
+                }),
+                zcode: t("providerSelection.readyPrompt.zcode", {
+                  model: currentModelLabel,
+                  defaultValue: "Ready with ZCode {{model}}",
                 }),
               }[provider]
             }
