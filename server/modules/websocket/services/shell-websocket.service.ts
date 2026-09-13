@@ -6,7 +6,7 @@ import pty, { type IPty } from 'node-pty';
 import { WebSocket, type RawData } from 'ws';
 
 import { parseIncomingJsonObject } from '@/shared/utils.js';
-import { getPiCommand, getWorkbuddyCommand } from '@/modules/providers/index.js';
+import { getPiCommand, getWorkbuddyCommand, getZcodeCommand } from '@/modules/providers/index.js';
 
 type ShellIncomingMessage = {
   type?: string;
@@ -241,6 +241,19 @@ function buildShellCommand(
       return `${piBin} --session "${resumeSessionId}" || ${piBin}`;
     }
     return initialCommand || piBin;
+  }
+
+  if (provider === 'zcode') {
+    // Resolve to `zcode` on PATH or `node <bundle>` so the PTY's bash does not
+    // need the desktop app's bundle on its own PATH.
+    const zcodeBin = getZcodeCommand();
+    if (resumeSessionId) {
+      if (os.platform() === 'win32') {
+        return `${zcodeBin} --resume "${resumeSessionId}"; if ($LASTEXITCODE -ne 0) { ${zcodeBin} }`;
+      }
+      return `${zcodeBin} --resume "${resumeSessionId}" || ${zcodeBin}`;
+    }
+    return initialCommand || zcodeBin;
   }
 
   // Launching with the flag is what unlocks "bypass permissions" in the CLI's
@@ -573,6 +586,8 @@ export function handleShellConnection(
                       ? 'WorkBuddy'
                     : provider === 'pi'
                         ? 'Pi'
+                      : provider === 'zcode'
+                          ? 'ZCode'
                     : 'Claude';
           welcomeMsg = hasSession && resumeSessionId
             ? `\x1b[36mResuming ${providerName} session ${resumeSessionId} in: ${projectPath}\x1b[0m\r\n`

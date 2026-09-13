@@ -381,10 +381,10 @@ test('providerMcpService global adder writes to all providers and rejects unsupp
       workspacePath,
     });
 
-    assert.equal(globalResult.length, 7);
+    assert.equal(globalResult.length, 8);
     // DSH remains externally managed and Pi has no native MCP support;
-    // WorkBuddy persists its native MCP config and therefore participates in
-    // the global add operation.
+    // WorkBuddy and ZCode persist their native MCP config and therefore
+    // participate in the global add operation.
     const dshEntry = globalResult.find((entry) => entry.provider === 'dsh');
     assert.equal(dshEntry?.created, false);
     const piEntry = globalResult.find((entry) => entry.provider === 'pi');
@@ -409,6 +409,10 @@ test('providerMcpService global adder writes to all providers and rejects unsupp
 
     const workbuddyProject = await readJson(path.join(workspacePath, '.mcp.json'));
     assert.equal(((workbuddyProject.mcpServers as Record<string, unknown>)['global-http'] as Record<string, unknown> | undefined)?.type, 'http');
+
+    const zcodeProject = await readJson(path.join(workspacePath, '.zcode', 'config.json'));
+    assert.ok((zcodeProject.mcp as Record<string, unknown>).servers
+      && ((zcodeProject.mcp as Record<string, unknown>).servers as Record<string, unknown>)['global-http']);
 
     await assert.rejects(
       providerMcpService.addMcpServerToAllProviders({

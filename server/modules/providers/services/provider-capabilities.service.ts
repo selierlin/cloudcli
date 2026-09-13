@@ -162,6 +162,29 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsMessageEditing: false,
     supportsSessionForking: false,
   },
+  zcode: {
+    provider: 'zcode',
+    // ZCode's `--mode` accepts build|edit|plan|yolo, mapped 1:1 from the shared
+    // permission vocabulary. Headless ZCode has no approval channel: `edit`
+    // auto-approves file writes but denies shell commands, `build` denies both,
+    // and `yolo` approves everything. The default is `acceptEdits` (edit) so the
+    // common file-editing flow works without silently granting command
+    // execution; runs that need Bash must opt into `bypassPermissions` (yolo).
+    permissionModes: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
+    defaultPermissionMode: 'acceptEdits',
+    // Attachments (including images) ride repeated `--attach <path>` flags.
+    supportsImages: true,
+    supportsFiles: true,
+    supportsAbort: true,
+    supportsPermissionRequests: false,
+    // Usage is read from the `tokens` block ZCode persists on assistant messages.
+    supportsTokenUsage: true,
+    // No reasoning-effort entry point in the headless CLI.
+    supportsEffort: false,
+    // No resume-at-a-row or transcript fork in the one-shot `--prompt` path.
+    supportsMessageEditing: false,
+    supportsSessionForking: false,
+  },
 };
 
 /**

@@ -27,7 +27,8 @@
     "opencode": "OpenCode",
     "dsh": "DeepSeek Harness",
     "workbuddy": "WorkBuddy",
-    "pi": "Pi"
+    "pi": "Pi",
+    "zcode": "ZCode"
   },
   "tools": {
     "settings": "工具设置",
@@ -106,6 +107,9 @@
       "readonly": "仅允许只读工具（read、grep、find、ls）执行，无法修改文件。",
       "pi": {
         "default": "Pi 自动执行工具调用，无需逐次审批。"
+      },
+      "zcode": {
+        "bypassPermissions": "YOLO 模式会自动批准每一次工具调用（包括 Shell 执行）。如果多次拒绝，CLI 可能进入重试循环并退出。请谨慎使用，建议切回编辑模式（Accept Edits）以保证安全。"
       }
     },
     "technicalDetails": "技术细节"
@@ -151,6 +155,7 @@
     "effortDefault": "默认",
     "loadingModels": "正在加载模型…",
     "modelMenu": "选择模型和思考强度",
+    "otherModels": "其他",
     "permissionHeading": "{{provider}} 的操作应如何获得批准？",
     "editing": {
       "title": "正在替换先前的消息",
@@ -196,6 +201,7 @@
     "loadingModels": "正在加载模型…",
     "modelSelectorTitle": "模型选择器",
     "custom": "自定义",
+    "otherModels": "其他",
     "providerInfo": {
       "anthropic": "由 Anthropic 提供",
       "openai": "由 OpenAI 提供",
@@ -211,7 +217,8 @@
       "default": "请在上方选择一个提供者以开始",
       "dsh": "准备好使用带有 {{model}} 的 DeepSeek Harness。请在下方开始输入您的消息。",
       "workbuddy": "准备好使用带有 {{model}} 的 WorkBuddy。请在下方开始输入您的消息。",
-      "pi": "准备好使用带有 {{model}} 的 Pi。请在下方开始输入您的消息。"
+      "pi": "准备好使用带有 {{model}} 的 Pi。请在下方开始输入您的消息。",
+      "zcode": "准备好使用带有 {{model}} 的 ZCode。请在下方开始输入您的消息。"
     },
     "pressToSearch": "按 <kbd>{{shortcut}}</kbd> 搜索会话、文件和提交"
   },
@@ -308,6 +315,7 @@
     "modelId": "模型 ID",
     "modelIdPlaceholder": "例如 gpt-5.5-pro",
     "idHint": "请使用提供者 CLI 接受的准确标识符。ID 不能包含空格。",
+    "zcodeChannelPrefix": "请使用 <渠道>/<模型>（例如 ark/glm-5.3）。ZCode 会从 ~/.zcode/cli/config.json 中该渠道读取接口地址与 API Key。",
     "enterBothError": "请输入模型名称和模型 ID。",
     "noSpacesError": "模型 ID 不能包含空格。",
     "saveFailedError": "无法保存此模型。",

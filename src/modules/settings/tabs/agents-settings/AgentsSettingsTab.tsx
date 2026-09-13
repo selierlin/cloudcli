@@ -44,7 +44,7 @@ export default function AgentsSettingsTab({
   ), [selectedAgent]);
 
   const visibleAgents = useMemo<AgentProvider[]>(() => {
-    return ['claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi'];
+    return ['claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode'];
   }, []);
 
   const agentContextById = useMemo<AgentContextByProvider>(() => ({
@@ -76,6 +76,10 @@ export default function AgentsSettingsTab({
       authStatus: providerAuthStatus.pi,
       onLogin: () => onProviderLogin('pi'),
     },
+    zcode: {
+      authStatus: providerAuthStatus.zcode,
+      onLogin: () => onProviderLogin('zcode'),
+    },
   }), [
     onProviderLogin,
     providerAuthStatus.claude,
@@ -85,6 +89,7 @@ export default function AgentsSettingsTab({
     providerAuthStatus.dsh,
     providerAuthStatus.workbuddy,
     providerAuthStatus.pi,
+    providerAuthStatus.zcode,
   ]);
 
   useEffect(() => {

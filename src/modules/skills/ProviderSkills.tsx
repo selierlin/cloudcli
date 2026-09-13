@@ -57,6 +57,7 @@ const PROVIDER_NAMES: Record<SkillsProvider, string> = {
   dsh: 'DeepSeek Harness',
   workbuddy: 'WorkBuddy',
   pi: 'Pi',
+  zcode: 'ZCode',
 };
 
 const PROVIDER_SKILL_PATHS: Record<Exclude<SkillsProvider, 'opencode' | 'dsh'>, string> = {
@@ -65,6 +66,7 @@ const PROVIDER_SKILL_PATHS: Record<Exclude<SkillsProvider, 'opencode' | 'dsh'>, 
   cursor: '~/.cursor/skills/<skill-name>/SKILL.md',
   workbuddy: '~/.workbuddy/skills/<skill-name>/SKILL.md',
   pi: '~/.pi/agent/skills/<skill-name>/SKILL.md',
+  zcode: '~/.zcode/skills/<skill-name>/SKILL.md',
 };
 
 const SCOPE_BADGE_CLASSES: Record<SkillsScope, string> = {

@@ -66,7 +66,7 @@ export type AuthenticatedWebSocketRequest = IncomingMessage & {
  * Use this as the source of truth whenever a function or payload needs to identify
  * a specific LLM integration.
  */
-export type LLMProvider = 'claude' | 'codex' | 'cursor' | 'opencode' | 'dsh' | 'workbuddy' | 'pi';
+export type LLMProvider = 'claude' | 'codex' | 'cursor' | 'opencode' | 'dsh' | 'workbuddy' | 'pi' | 'zcode';
 
 //----------------- SESSION NAME SOURCE ------------
 /**
@@ -96,6 +96,14 @@ export type ProviderModelOption = {
   value: string;
   label: string;
   description?: string;
+  /**
+   * Channel or vendor this option belongs to, when a provider exposes several.
+   *
+   * The Pi adapter fills this with the provider id from the user's `models.json`
+   * so the client can group same-named models from different channels. Single-
+   * catalog providers leave it unset, and the client then renders a flat list.
+   */
+  group?: string;
   /** Stable SQLite row id used only by model-management actions. */
   recordId?: number;
   /** True for user-created rows; false for immutable CloudCLI defaults. */

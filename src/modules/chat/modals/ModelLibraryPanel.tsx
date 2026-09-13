@@ -27,6 +27,7 @@ const PROVIDERS: Array<{ id: LLMProvider; label: string }> = [
   { id: 'dsh', label: 'DeepSeek Harness' },
   { id: 'workbuddy', label: 'WorkBuddy' },
   { id: 'pi', label: 'Pi' },
+  { id: 'zcode', label: 'ZCode' },
 ];
 
 type ModelLibraryPanelProps = {
@@ -266,6 +267,17 @@ export default function ModelLibraryPanel({
           <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">
             {t('modelLibrary.idHint')}
           </p>
+
+          {selectedProvider === 'zcode' && (
+            // A ZCode run resolves the channel from the id's `<provider>/`
+            // prefix, so the prefix is what makes a custom id runnable.
+            <p className="mt-2 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[11px] leading-4 text-amber-700 dark:text-amber-300">
+              {t('modelLibrary.zcodeChannelPrefix', {
+                defaultValue:
+                  'Use <channel>/<model> (for example ark/glm-5.3). ZCode takes the endpoint and API key from that channel in ~/.zcode/cli/config.json.',
+              })}
+            </p>
+          )}
 
           {error && (
             <div role="alert" className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">

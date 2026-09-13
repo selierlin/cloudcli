@@ -37,6 +37,7 @@ function createDependencies(
     queryDsh: unexpectedProviderCall as AgentDependencies['queryDsh'],
     queryWorkbuddy: unexpectedProviderCall as AgentDependencies['queryWorkbuddy'],
     queryPi: unexpectedProviderCall as AgentDependencies['queryPi'],
+    queryZcode: unexpectedProviderCall as AgentDependencies['queryZcode'],
     GithubClient: class {} as unknown as AgentDependencies['GithubClient'],
     ...overrides,
   };
@@ -237,4 +238,36 @@ test('Agent route starts codex on the catalog default when the request names no 
   });
 
   assert.deepEqual(codexCalls.map((call) => call.model), ['catalog-default']);
+});
+
+test('Agent route forwards the requested model to ZCode', async () => {
+  const zcodeCalls: Array<{ model?: string; permissionMode?: string }> = [];
+
+  await withAgentServer(createDependencies({
+    fileSystem: {
+      access: async () => undefined,
+    } as unknown as AgentDependencies['fileSystem'],
+    models: {
+      getProviderModels: async () => ({ OPTIONS: [], DEFAULT: 'default-model' }),
+    } as unknown as AgentDependencies['models'],
+    queryZcode: (async (_prompt: string, options: { model?: string; permissionMode?: string }) => {
+      zcodeCalls.push(options);
+    }) as unknown as AgentDependencies['queryZcode'],
+  }), async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/agent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        projectPath: '/home/test/project',
+        message: 'Run',
+        provider: 'zcode',
+        model: 'deepseek-v4-flash',
+        stream: false,
+      }),
+    });
+    assert.equal(response.status, 200);
+  });
+
+  assert.deepEqual(zcodeCalls.map((call) => call.model), ['deepseek-v4-flash']);
+  assert.equal(zcodeCalls[0].permissionMode, 'bypassPermissions');
 });

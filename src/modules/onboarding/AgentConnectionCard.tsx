@@ -32,9 +32,10 @@ export default function AgentConnectionCard({
     && status.installed === true
     && status.method === 'workbuddy_desktop';
   const available = status.authenticated || externallyManaged;
-  // Pi's credentials live in its own `pi auth` flow, so the in-app login
-  // button is only useful for the CLIs that accept an interactive login here.
-  const canLogin = provider !== 'workbuddy' && provider !== 'pi' && !available && !status.loading;
+  // ZCode has no in-app OAuth flow: it authenticates from `~/.zcode/cli/config.json`,
+  // so the login button would be misleading. Pi's credentials live in its own
+  // `pi auth` flow, and WorkBuddy Desktop manages its CLI auth out-of-band.
+  const canLogin = provider !== 'workbuddy' && provider !== 'pi' && provider !== 'zcode' && !available && !status.loading;
   const containerClassName = available ? connectedClassName : 'border-border bg-card';
 
   const statusText = status.loading
@@ -45,7 +46,9 @@ export default function AgentConnectionCard({
         ? t('agents.externalAuth.description', { agent: title })
         : provider === 'pi'
           ? t('agents.externalAuth.description', { agent: title })
-          : status.authenticated
+          : provider === 'zcode'
+            ? t('agents.externalAuth.description', { agent: title })
+            : status.authenticated
           ? status.email || t('agents.authStatus.connected')
           : status.error === 'Cursor CLI not found or not installed' || status.error === 'Cursor CLI is not installed'
             ? t('agents.errors.cursorCliNotFound')

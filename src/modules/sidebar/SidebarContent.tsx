@@ -45,6 +45,7 @@ const SEARCH_PROVIDER_LABELS: Record<string, string> = {
   dsh: 'DeepSeek Harness',
   workbuddy: 'WorkBuddy',
   pi: 'Pi',
+  zcode: 'ZCode',
 };
 
 /**

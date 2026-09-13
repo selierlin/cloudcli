@@ -27,7 +27,8 @@
     "opencode": "OpenCode",
     "dsh": "DeepSeek Harness",
     "workbuddy": "WorkBuddy",
-    "pi": "Pi"
+    "pi": "Pi",
+    "zcode": "ZCode"
   },
   "tools": {
     "settings": "Tool Settings",
@@ -113,6 +114,9 @@
       "readonly": "Only read-only tools (read, grep, find, ls) are allowed; the model cannot modify files.",
       "pi": {
         "default": "Pi runs tool calls autonomously without per-call approval."
+      },
+      "zcode": {
+        "bypassPermissions": "YOLO mode auto-approves every tool call, including shell execution. The CLI may exit with a permission-denied retry loop if too many calls are rejected. Switch back to Accept Edits for safety."
       }
     },
     "technicalDetails": "Technical details"
@@ -158,6 +162,7 @@
     "effortDefault": "Default",
     "loadingModels": "Loading models…",
     "modelMenu": "Select model and reasoning effort",
+    "otherModels": "Other",
     "permissionHeading": "How should {{provider}} actions be approved?",
     "editing": {
       "title": "Replacing an earlier message",
@@ -203,6 +208,7 @@
     "loadingModels": "Loading models…",
     "modelSelectorTitle": "Model Selector",
     "custom": "Custom",
+    "otherModels": "Other",
     "providerInfo": {
       "anthropic": "by Anthropic",
       "openai": "by OpenAI",
@@ -218,7 +224,8 @@
       "default": "Select a provider above to begin",
       "dsh": "Ready to use DeepSeek Harness with {{model}}. Start typing your message below.",
       "workbuddy": "Ready to use WorkBuddy with {{model}}. Start typing your message below.",
-      "pi": "Ready to use Pi with {{model}}. Start typing your message below."
+      "pi": "Ready to use Pi with {{model}}. Start typing your message below.",
+      "zcode": "Ready to use ZCode with {{model}}. Start typing your message below."
     },
     "pressToSearch": "Press <kbd>{{shortcut}}</kbd> to search sessions, files, and commits",
     "chooseModel": "Choose a model",
@@ -323,6 +330,7 @@
     "modelId": "Model ID",
     "modelIdPlaceholder": "e.g. gpt-5.5-pro",
     "idHint": "Use the exact identifier accepted by the provider CLI. IDs cannot contain spaces.",
+    "zcodeChannelPrefix": "Use <channel>/<model> (for example ark/glm-5.3). ZCode takes the endpoint and API key from that channel in ~/.zcode/cli/config.json.",
     "enterBothError": "Enter both a model name and model ID.",
     "noSpacesError": "Model IDs cannot contain spaces.",
     "saveFailedError": "Unable to save this model.",

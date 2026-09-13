@@ -78,6 +78,14 @@ const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
     subtextClass: 'text-emerald-700 dark:text-emerald-300',
     buttonClass: 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800',
   },
+  zcode: {
+    name: 'ZCode',
+    bgClass: 'bg-neutral-50 dark:bg-neutral-900/20',
+    borderClass: 'border-neutral-300 dark:border-neutral-700',
+    textClass: 'text-neutral-900 dark:text-neutral-100',
+    subtextClass: 'text-neutral-700 dark:text-neutral-300',
+    buttonClass: 'bg-neutral-700 hover:bg-neutral-800 active:bg-neutral-900',
+  },
 };
 
 /** Rendered by AgentCategoryContentSection for the "account" category to show sign-in state for one provider. */

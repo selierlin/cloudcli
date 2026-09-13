@@ -28,6 +28,7 @@ export type UserPreferences = {
   dshPermissions: unknown;
   workbuddyPermissions: unknown;
   piPermissions: unknown;
+  zcodePermissions: unknown;
   codeEditorSettings: unknown;
   uiPreferences: unknown;
   selectedProvider: string;
@@ -71,6 +72,7 @@ const LEGACY_STORAGE_KEYS: Record<UserPreferenceKey, string> = {
   dshPermissions: '',
   workbuddyPermissions: '',
   piPermissions: '',
+  zcodePermissions: '',
   // Unused: the four code-editor settings never shared one key, so they are
   // read by readLegacyCodeEditorSettings instead.
   codeEditorSettings: '',
