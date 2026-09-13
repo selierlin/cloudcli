@@ -61,6 +61,10 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
     setCodexPermissionMode,
     workbuddyPermissionMode,
     setWorkbuddyPermissionMode,
+    zcodePermissionMode,
+    setZcodePermissionMode,
+    piPermissionMode,
+    setPiPermissionMode,
     providerAuthStatus,
     openLoginForProvider,
     showLoginModal,
@@ -212,6 +216,10 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
                   onCodexPermissionModeChange={setCodexPermissionMode}
                   workbuddyPermissionMode={workbuddyPermissionMode}
                   onWorkbuddyPermissionModeChange={setWorkbuddyPermissionMode}
+                  zcodePermissionMode={zcodePermissionMode}
+                  onZcodePermissionModeChange={setZcodePermissionMode}
+                  piPermissionMode={piPermissionMode}
+                  onPiPermissionModeChange={setPiPermissionMode}
                   projects={projects}
                 />
               )}

@@ -1213,6 +1213,12 @@ export type CodexPermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions
 /** Permission mode persisted for WorkBuddy's embedded CodeBuddy engine. */
 export type WorkbuddyPermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
 
+/** Permission mode persisted for the ZCode agent, mirroring ZCode's `--mode` build|edit|plan|yolo values (default resolves to acceptEdits). */
+export type ZcodePermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
+
+/** Permission mode persisted for the Pi agent; Pi has no approval gate, so the only real safety option is read-only. */
+export type PiPermissionMode = 'default' | 'readonly';
+
 /** A project as the settings dialog needs it - a required identifier in `name` plus optional display name and paths - passed down to the MCP and skills panels so they can scope configuration to a project. */
 export type AgentSettingsProject = {
   name: string;

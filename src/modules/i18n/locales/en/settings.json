@@ -656,6 +656,42 @@
         }
       }
     },
+    "zcode": {
+      "permissionMode": "Permission Mode",
+      "description": "Controls how ZCode approves file edits and command execution",
+      "modes": {
+        "default": {
+          "title": "Read-only",
+          "description": "ZCode's build mode: no file edits and no commands run; planning only."
+        },
+        "acceptEdits": {
+          "title": "Accept Edits",
+          "description": "Auto-approves file edits and safe commands; side-effecting writes and high-risk commands still require approval."
+        },
+        "bypassPermissions": {
+          "title": "Bypass Permissions",
+          "description": "Auto-approves every tool, including arbitrary command execution. Use with caution."
+        },
+        "plan": {
+          "title": "Plan",
+          "description": "Only produces an execution plan without modifying files or running commands."
+        }
+      }
+    },
+    "pi": {
+      "permissionMode": "Permission Mode",
+      "description": "Controls how Pi runs tools and commands",
+      "modes": {
+        "default": {
+          "title": "Autonomous",
+          "description": "Pi runs tools on its own with no approval gate."
+        },
+        "readonly": {
+          "title": "Read-only",
+          "description": "Only read-only tools (read, grep, find, ls) are allowed; Pi cannot modify files."
+        }
+      }
+    },
     "actions": {
       "add": "Add"
     }

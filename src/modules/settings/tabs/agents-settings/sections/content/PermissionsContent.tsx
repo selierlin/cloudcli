@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { AlertTriangle, Plus, Shield, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { Button, Input } from '@/shared/ui';
-import type { CodexPermissionMode, WorkbuddyPermissionMode } from '@/shared/types';
+import type { CodexPermissionMode, PermissionMode, PiPermissionMode, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
 
 const COMMON_CLAUDE_TOOLS = [
   'Bash(git log:*)',
@@ -580,7 +580,165 @@ function CodexPermissions({ permissionMode, onPermissionModeChange }: Omit<Codex
   );
 }
 
-type PermissionsContentProps = ClaudePermissionsProps | CursorPermissionsProps | CodexPermissionsProps;
+type PermissionModeCardProps = {
+  mode: PermissionMode;
+  selectedMode: PermissionMode;
+  onSelect: (mode: PermissionMode) => void;
+  radioName: string;
+  title: string;
+  description: string;
+  tone: 'default' | 'success' | 'warning' | 'info';
+  icon?: ReactNode;
+};
+
+/** A single selectable permission-mode card; shared by the zcode and pi pickers, which otherwise duplicate the codex card layout. */
+function PermissionModeCard({
+  mode,
+  selectedMode,
+  onSelect,
+  radioName,
+  title,
+  description,
+  tone,
+  icon,
+}: PermissionModeCardProps) {
+  const toneClasses = {
+    default: 'border-border bg-accent',
+    success: 'border-green-400 bg-green-50 dark:border-green-600 dark:bg-green-900/20',
+    warning: 'border-orange-400 bg-orange-50 dark:border-orange-600 dark:bg-orange-900/20',
+    info: 'border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-900/20',
+  }[tone];
+
+  return (
+    <div
+      className={`cursor-pointer rounded-lg border p-4 transition-all ${selectedMode === mode
+        ? toneClasses
+        : 'border-border bg-card/50 active:border-border active:bg-accent/50'
+        }`}
+      onClick={() => onSelect(mode)}
+    >
+      <label className="flex cursor-pointer items-start gap-3">
+        <input
+          type="radio"
+          name={radioName}
+          checked={selectedMode === mode}
+          onChange={() => onSelect(mode)}
+          className="mt-1 h-4 w-4 text-green-600"
+        />
+        <div>
+          <div className="flex items-center gap-2 font-medium text-foreground">
+            {title}
+            {icon}
+          </div>
+          <div className="text-sm text-muted-foreground">{description}</div>
+        </div>
+      </label>
+    </div>
+  );
+}
+
+type ZcodePermissionsProps = {
+  agent: 'zcode';
+  permissionMode: ZcodePermissionMode;
+  onPermissionModeChange: (value: ZcodePermissionMode) => void;
+};
+
+function ZcodePermissions({ permissionMode, onPermissionModeChange }: Omit<ZcodePermissionsProps, 'agent'>) {
+  const { t } = useTranslation('settings');
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Shield className="h-5 w-5 text-green-500" />
+          <h3 className="text-lg font-medium text-foreground">{t('permissions.zcode.permissionMode')}</h3>
+        </div>
+        <p className="text-sm text-muted-foreground">{t('permissions.zcode.description')}</p>
+
+        <PermissionModeCard
+          mode="default"
+          selectedMode={permissionMode}
+          onSelect={(mode) => onPermissionModeChange(mode as ZcodePermissionMode)}
+          radioName="zcodePermissionMode"
+          title={t('permissions.zcode.modes.default.title')}
+          description={t('permissions.zcode.modes.default.description')}
+          tone="default"
+        />
+        <PermissionModeCard
+          mode="acceptEdits"
+          selectedMode={permissionMode}
+          onSelect={(mode) => onPermissionModeChange(mode as ZcodePermissionMode)}
+          radioName="zcodePermissionMode"
+          title={t('permissions.zcode.modes.acceptEdits.title')}
+          description={t('permissions.zcode.modes.acceptEdits.description')}
+          tone="success"
+        />
+        <PermissionModeCard
+          mode="bypassPermissions"
+          selectedMode={permissionMode}
+          onSelect={(mode) => onPermissionModeChange(mode as ZcodePermissionMode)}
+          radioName="zcodePermissionMode"
+          title={t('permissions.zcode.modes.bypassPermissions.title')}
+          description={t('permissions.zcode.modes.bypassPermissions.description')}
+          tone="warning"
+          icon={<AlertTriangle className="h-4 w-4" />}
+        />
+        <PermissionModeCard
+          mode="plan"
+          selectedMode={permissionMode}
+          onSelect={(mode) => onPermissionModeChange(mode as ZcodePermissionMode)}
+          radioName="zcodePermissionMode"
+          title={t('permissions.zcode.modes.plan.title')}
+          description={t('permissions.zcode.modes.plan.description')}
+          tone="info"
+        />
+      </div>
+    </div>
+  );
+}
+
+type PiPermissionsProps = {
+  agent: 'pi';
+  permissionMode: PiPermissionMode;
+  onPermissionModeChange: (value: PiPermissionMode) => void;
+};
+
+function PiPermissions({ permissionMode, onPermissionModeChange }: Omit<PiPermissionsProps, 'agent'>) {
+  const { t } = useTranslation('settings');
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Shield className="h-5 w-5 text-green-500" />
+          <h3 className="text-lg font-medium text-foreground">{t('permissions.pi.permissionMode')}</h3>
+        </div>
+        <p className="text-sm text-muted-foreground">{t('permissions.pi.description')}</p>
+
+        <PermissionModeCard
+          mode="default"
+          selectedMode={permissionMode}
+          onSelect={(mode) => onPermissionModeChange(mode as PiPermissionMode)}
+          radioName="piPermissionMode"
+          title={t('permissions.pi.modes.default.title')}
+          description={t('permissions.pi.modes.default.description')}
+          tone="default"
+        />
+        <PermissionModeCard
+          mode="readonly"
+          selectedMode={permissionMode}
+          onSelect={(mode) => onPermissionModeChange(mode as PiPermissionMode)}
+          radioName="piPermissionMode"
+          title={t('permissions.pi.modes.readonly.title')}
+          description={t('permissions.pi.modes.readonly.description')}
+          tone="info"
+        />
+      </div>
+    </div>
+  );
+}
+
+type PermissionsContentProps = ClaudePermissionsProps | CursorPermissionsProps | CodexPermissionsProps | ZcodePermissionsProps | PiPermissionsProps;
 
 /** Rendered by AgentCategoryContentSection for the "permissions" category, one variant per agent provider. */
 export default function PermissionsContent(props: PermissionsContentProps) {
@@ -590,6 +748,14 @@ export default function PermissionsContent(props: PermissionsContentProps) {
 
   if (props.agent === 'cursor') {
     return <CursorPermissions {...props} />;
+  }
+
+  if (props.agent === 'zcode') {
+    return <ZcodePermissions {...props} />;
+  }
+
+  if (props.agent === 'pi') {
+    return <PiPermissions {...props} />;
   }
 
   return <CodexPermissions {...props} />;

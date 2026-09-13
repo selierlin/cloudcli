@@ -1,4 +1,4 @@
-import type { AgentCategory, AgentContextByProvider, AgentProvider, AgentSettingsProject, ClaudePermissionsState, CodexPermissionMode, CursorPermissionsState, McpProject, SkillsProject, WorkbuddyPermissionMode } from '@/shared/types';
+import type { AgentCategory, AgentContextByProvider, AgentProvider, AgentSettingsProject, ClaudePermissionsState, CodexPermissionMode, CursorPermissionsState, McpProject, PiPermissionMode, SkillsProject, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
 import { McpServers } from '@/modules/mcp';
 import { ProviderSkills } from '@/modules/skills';
 import AccountContent from '@/modules/settings/tabs/agents-settings/sections/content/AccountContent';
@@ -17,6 +17,10 @@ type AgentCategoryContentSectionProps = {
   onCodexPermissionModeChange: (value: CodexPermissionMode) => void;
   workbuddyPermissionMode: WorkbuddyPermissionMode;
   onWorkbuddyPermissionModeChange: (value: WorkbuddyPermissionMode) => void;
+  zcodePermissionMode: ZcodePermissionMode;
+  onZcodePermissionModeChange: (value: ZcodePermissionMode) => void;
+  piPermissionMode: PiPermissionMode;
+  onPiPermissionModeChange: (value: PiPermissionMode) => void;
   projects: AgentSettingsProject[];
 };
 
@@ -33,6 +37,10 @@ export default function AgentCategoryContentSection({
   onCodexPermissionModeChange,
   workbuddyPermissionMode,
   onWorkbuddyPermissionModeChange,
+  zcodePermissionMode,
+  onZcodePermissionModeChange,
+  piPermissionMode,
+  onPiPermissionModeChange,
   projects,
 }: AgentCategoryContentSectionProps) {
   return (
@@ -97,6 +105,22 @@ export default function AgentCategoryContentSection({
           agent="workbuddy"
           permissionMode={workbuddyPermissionMode}
           onPermissionModeChange={onWorkbuddyPermissionModeChange}
+        />
+      )}
+
+      {selectedCategory === 'permissions' && selectedAgent === 'zcode' && (
+        <PermissionsContent
+          agent="zcode"
+          permissionMode={zcodePermissionMode}
+          onPermissionModeChange={onZcodePermissionModeChange}
+        />
+      )}
+
+      {selectedCategory === 'permissions' && selectedAgent === 'pi' && (
+        <PermissionsContent
+          agent="pi"
+          permissionMode={piPermissionMode}
+          onPermissionModeChange={onPiPermissionModeChange}
         />
       )}
 

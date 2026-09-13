@@ -12,7 +12,7 @@ import {
   writeUserPreferences,
 } from '@/shared/userSettings';
 import { useProviderAuthStatus } from '@/modules/provider-auth';
-import type { AgentProvider, ClaudePermissionsState, CodeEditorSettingsState, CodexPermissionMode, CursorPermissionsState, NotificationPreferencesState, ProjectSortOrder, SettingsMainTab, WorkbuddyPermissionMode } from '@/shared/types';
+import type { AgentProvider, ClaudePermissionsState, CodeEditorSettingsState, CodexPermissionMode, CursorPermissionsState, NotificationPreferencesState, PiPermissionMode, ProjectSortOrder, SettingsMainTab, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
 
 const DEFAULT_CURSOR_PERMISSIONS: CursorPermissionsState = {
   allowedCommands: [],
@@ -51,6 +51,14 @@ type WorkbuddySettingsStorage = {
   permissionMode?: WorkbuddyPermissionMode;
 };
 
+type ZcodeSettingsStorage = {
+  permissionMode?: ZcodePermissionMode;
+};
+
+type PiSettingsStorage = {
+  permissionMode?: PiPermissionMode;
+};
+
 type NotificationPreferencesResponse = {
   success?: boolean;
   preferences?: NotificationPreferencesState;
@@ -79,6 +87,23 @@ const toCodexPermissionMode = (value: unknown): CodexPermissionMode => {
 
 const toWorkbuddyPermissionMode = (value: unknown): WorkbuddyPermissionMode => {
   if (value === 'acceptEdits' || value === 'bypassPermissions' || value === 'plan') {
+    return value;
+  }
+
+  return 'default';
+};
+
+const toZcodePermissionMode = (value: unknown): ZcodePermissionMode => {
+  if (value === 'acceptEdits' || value === 'bypassPermissions' || value === 'plan') {
+    return value;
+  }
+
+  // ZCode's own default is `edit` (acceptEdits), unlike the other mode pickers.
+  return 'acceptEdits';
+};
+
+const toPiPermissionMode = (value: unknown): PiPermissionMode => {
+  if (value === 'readonly') {
     return value;
   }
 
@@ -167,6 +192,8 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
   const [workbuddyPermissionMode, setWorkbuddyPermissionMode] = useState<WorkbuddyPermissionMode>(
     readWorkbuddyPermissionMode,
   );
+  const [zcodePermissionMode, setZcodePermissionMode] = useState<ZcodePermissionMode>('acceptEdits');
+  const [piPermissionMode, setPiPermissionMode] = useState<PiPermissionMode>('default');
 
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginProvider, setLoginProvider] = useState<ActiveLoginProvider>('');
@@ -199,6 +226,11 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
       setCodexPermissionMode(toCodexPermissionMode(savedCodexSettings.permissionMode));
       setWorkbuddyPermissionMode(readWorkbuddyPermissionMode());
 
+      const savedZcodeSettings = readUserPreference<ZcodeSettingsStorage>('zcodePermissions', {});
+      setZcodePermissionMode(toZcodePermissionMode(savedZcodeSettings.permissionMode));
+      const savedPiSettings = readUserPreference<PiSettingsStorage>('piPermissions', {});
+      setPiPermissionMode(toPiPermissionMode(savedPiSettings.permissionMode));
+
       try {
         const notificationResponse = await api.settings.notificationPreferences();
         if (notificationResponse.ok) {
@@ -222,6 +254,8 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
       setNotificationPreferences(createDefaultNotificationPreferences());
       setCodexPermissionMode('default');
       setWorkbuddyPermissionMode('default');
+      setZcodePermissionMode('acceptEdits');
+      setPiPermissionMode('default');
       setProjectSortOrder('date');
     }
   }, []);
@@ -268,6 +302,12 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
         codexPermissions: {
           permissionMode: codexPermissionMode,
         },
+        zcodePermissions: {
+          permissionMode: zcodePermissionMode,
+        },
+        piPermissions: {
+          permissionMode: piPermissionMode,
+        },
       });
       localStorage.setItem('workbuddy-settings', JSON.stringify({ permissionMode: workbuddyPermissionMode }));
 
@@ -289,6 +329,8 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     claudePermissions.skipPermissions,
     codexPermissionMode,
     workbuddyPermissionMode,
+    zcodePermissionMode,
+    piPermissionMode,
     cursorPermissions.allowedCommands,
     cursorPermissions.disallowedCommands,
     cursorPermissions.skipPermissions,
@@ -351,6 +393,8 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     cursorPermissions.skipPermissions,
     codexPermissionMode,
     workbuddyPermissionMode,
+    zcodePermissionMode,
+    piPermissionMode,
     notificationPreferences,
     projectSortOrder,
   ]);
@@ -429,6 +473,10 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     setCodexPermissionMode,
     workbuddyPermissionMode,
     setWorkbuddyPermissionMode,
+    zcodePermissionMode,
+    setZcodePermissionMode,
+    piPermissionMode,
+    setPiPermissionMode,
     providerAuthStatus,
     openLoginForProvider,
     showLoginModal,
