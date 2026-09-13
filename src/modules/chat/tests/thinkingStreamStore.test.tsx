@@ -191,6 +191,35 @@ describe('thinking stream channel', () => {
     );
   });
 
+  it('keeps thinking traces on opposite sides of a tool boundary separate', async () => {
+    const { result } = await loadedStore();
+
+    act(() => {
+      result.current.updateStreaming('session-1', '工具前思考', 'zcode', 'thinking');
+      result.current.finalizeStreaming('session-1');
+      result.current.appendRealtime('session-1', {
+        id: 'tool-1',
+        kind: 'tool_use',
+        provider: 'zcode',
+        sessionId: 'session-1',
+        timestamp: '2026-01-01T00:00:11.000Z',
+        toolId: 'tool-1',
+        toolName: 'Bash',
+        toolInput: { command: 'pwd' },
+      });
+      result.current.updateStreaming('session-1', '工具后思考', 'zcode', 'thinking');
+      result.current.finalizeStreaming('session-1');
+    });
+
+    assert.deepEqual(
+      result.current
+        .getMessages('session-1')
+        .filter((message) => message.kind === 'thinking')
+        .map((message) => message.content),
+      ['工具前思考', '工具后思考'],
+    );
+  });
+
   it('does not double the trace when the server already persisted it', async () => {
     const { result } = await loadedStore();
 

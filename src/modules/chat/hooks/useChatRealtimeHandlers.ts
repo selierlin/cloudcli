@@ -216,6 +216,15 @@ export function useChatRealtimeHandlers({
         return;
       }
 
+      // A tool starts a new agent step. Seal any prose or reasoning that led
+      // to it so deltas emitted after the tool result render as a fresh block
+      // instead of continuing the pre-tool placeholder.
+      if (msg.kind === 'tool_use' && sid && streamBuffers.has(sid)) {
+        streamBuffers.flushNow(sid);
+        sessionStore.finalizeStreaming(sid);
+        streamBuffers.drop(sid);
+      }
+
       // --- All other messages: route to store ---
       const shouldPersist =
         msg.kind !== 'complete'
