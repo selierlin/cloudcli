@@ -186,18 +186,18 @@ export function groupConsecutiveTools(
       break;
     }
 
-    if (run.length >= TOOL_GROUP_THRESHOLD) {
-      items.push({
-        _isGroup: true,
-        toolName: message.toolName,
-        messages: run,
-        timestamp: message.timestamp,
-        preview: buildGroupPreview(run),
-        activitySummary: summarizeToolGroupActivity(run),
-      });
-    } else {
-      items.push(...run);
-    }
+    // A one-tool run deliberately uses the same container and key shape as a
+    // later multi-tool group. Otherwise arrival of tool two moves tool one to
+    // a different React subtree, losing its DOM identity, expanded output and
+    // measured height in one large layout jump.
+    items.push({
+      _isGroup: true,
+      toolName: message.toolName,
+      messages: run,
+      timestamp: message.timestamp,
+      preview: buildGroupPreview(run),
+      activitySummary: summarizeToolGroupActivity(run),
+    });
 
     index = nextIndex;
   }

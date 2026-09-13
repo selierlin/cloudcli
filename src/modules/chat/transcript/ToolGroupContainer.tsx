@@ -9,6 +9,7 @@ import { useIsExportingTranscript } from '@/modules/chat/context/TranscriptRende
 import { DiffStatsBadge } from '@/modules/chat/tools/DiffStatsBadge';
 import { ToolStatusBadge } from '@/modules/chat/tools/ToolStatusBadge';
 import { parseToolPayload, summarizeDiff } from '@/modules/chat/utils/messageTransforms';
+import { TOOL_GROUP_THRESHOLD } from '@/modules/chat/utils/toolGrouping';
 
 type ToolGroupContainerProps = {
   group: ToolGroupItem;
@@ -88,6 +89,7 @@ function ToolGroupContainer({
 }: ToolGroupContainerProps) {
   const { t } = useTranslation('chat');
   const isExporting = useIsExportingTranscript();
+  const isGrouped = group.messages.length >= TOOL_GROUP_THRESHOLD;
   const toolNames = useMemo(
     () => new Set(group.messages.map((message) => message.toolName || group.toolName)),
     [group.messages, group.toolName],
@@ -110,16 +112,16 @@ function ToolGroupContainer({
     }
     return undefined;
   }, [group.messages]);
-  // Collapsed on screen, always open in an export: the whole point of the
-  // group row is to hide detail the reader can ask for, and an exported file
-  // has no way to ask.
-  const [isExpanded, setIsExpanded] = useState(Boolean(groupIssueStatus));
+  // A live one-tool run starts open. If another tool joins it, retaining this
+  // state keeps the already-visible first tool mounted. Groups first loaded
+  // from history still start collapsed unless they contain an issue.
+  const [isExpanded, setIsExpanded] = useState(!isGrouped || Boolean(groupIssueStatus));
   useEffect(() => {
     if (groupIssueStatus) {
       setIsExpanded(true);
     }
   }, [groupIssueStatus]);
-  const showChildren = isExpanded || isExporting;
+  const showChildren = !isGrouped || isExpanded || isExporting;
   const config = getToolConfig(group.toolName).input;
   const label = hasMixedTools ? t('messageTypes.tool') : config.label || group.toolName;
   const borderClass = config.colorScheme?.border || 'border-border';
@@ -130,12 +132,14 @@ function ToolGroupContainer({
   const groupDiffStats = useGroupDiffStats(group.messages, createDiff);
 
   return (
-    <div className="chat-message tool px-3 sm:px-0" data-message-timestamp={group.timestamp || undefined}>
+    <div>
       <button
         type="button"
-        className={`group flex w-full items-center gap-2 border-l-2 ${borderClass} rounded-r-md bg-muted/25 px-3 py-2 text-left transition-colors hover:bg-muted/40 dark:bg-muted/10 dark:hover:bg-muted/20`}
+        className={`${isGrouped ? 'flex' : 'hidden'} group w-full items-center gap-2 border-l-2 ${borderClass} rounded-r-md bg-muted/25 px-3 py-2 text-left transition-colors hover:bg-muted/40 dark:bg-muted/10 dark:hover:bg-muted/20`}
         onClick={() => setIsExpanded((current) => !current)}
         aria-expanded={isExpanded}
+        aria-hidden={!isGrouped}
+        tabIndex={isGrouped ? 0 : -1}
       >
         <ChevronRight
           className={`h-3.5 w-3.5 flex-shrink-0 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`}
@@ -158,8 +162,9 @@ function ToolGroupContainer({
         {groupDiffStats && <DiffStatsBadge stats={groupDiffStats} className="ml-auto pl-2" />}
       </button>
 
-      {showChildren && (
-        <div className="mt-2 space-y-3 sm:space-y-4">
+      <div className={isGrouped ? 'mt-2 space-y-3 sm:space-y-4' : ''}>
+        {showChildren && (
+          <>
           {group.messages.map((message, index) => (
             <MessageComponent
               key={getMessageKey(message)}
@@ -175,8 +180,9 @@ function ToolGroupContainer({
               provider={provider}
             />
           ))}
-        </div>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
