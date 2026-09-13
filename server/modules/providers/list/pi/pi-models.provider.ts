@@ -70,6 +70,12 @@ export const getPiSessionsRoot = (): string => {
 /** Model value shared by the picker and the runtime's `--model` flag. */
 const modelValue = (provider: string, model: string): string => `${provider}/${model}`;
 
+/** Channel prefix of a channel-qualified `<provider>/<model>` value, when present. */
+const channelOf = (value: string): string | undefined => {
+  const separatorIndex = value.indexOf('/');
+  return separatorIndex > 0 ? value.slice(0, separatorIndex) : undefined;
+};
+
 /** Pi `--thinking` levels exposed as reasoning effort options. */
 const REASONING_EFFORT = {
   default: 'medium',
@@ -124,6 +130,7 @@ const collectProviderModels = (
     options.set(value, {
       value,
       label,
+      group: providerId,
       ...(entry.reasoning === true ? { effort: REASONING_EFFORT } : {}),
     });
   }
@@ -198,10 +205,18 @@ export class PiProviderModels implements IProviderModels {
       return catalog;
     }
 
+    const configuredChannel = channelOf(configuredModel);
     return {
       OPTIONS: catalog.OPTIONS.some((option) => option.value === configuredModel)
         ? catalog.OPTIONS
-        : [{ value: configuredModel, label: configuredModel }, ...catalog.OPTIONS],
+        : [
+            {
+              value: configuredModel,
+              label: configuredModel,
+              ...(configuredChannel ? { group: configuredChannel } : {}),
+            },
+            ...catalog.OPTIONS,
+          ],
       DEFAULT: configuredModel,
     };
   }

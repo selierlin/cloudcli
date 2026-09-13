@@ -371,6 +371,9 @@ function ModelsContent({
                   <span className="flex items-center justify-between gap-2">
                     <span className="break-words text-sm font-semibold text-foreground">{option.label || option.value}</span>
                     <span className="flex shrink-0 items-center gap-2">
+                      {option.group && (
+                        <Badge variant="secondary" className="rounded-full px-2 py-0 text-[9px]">{option.group}</Badge>
+                      )}
                       {option.isCustom && <Badge className="rounded-full px-2 py-0 text-[9px]">Custom</Badge>}
                       {isCurrent ? (
                         <BadgeCheck className="h-4 w-4 shrink-0 text-primary" />

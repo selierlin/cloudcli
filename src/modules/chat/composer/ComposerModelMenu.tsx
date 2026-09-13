@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight } from 'lucide-react';
@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { ProviderModelOption } from '@/shared/types';
 import { DEFAULT_EFFORT_VALUE } from '@/shared/constants';
 import { useComposerMenuAnchor } from '@/modules/chat/hooks/useComposerMenuAnchor';
+import { groupModelOptions } from '@/modules/chat/utils/modelGrouping';
 import {
   ComposerMenuHeading,
   ComposerMenuItem,
@@ -14,6 +15,15 @@ import {
 } from '@/modules/chat/composer/ComposerMenuPrimitives';
 
 type EffortOption = NonNullable<ProviderModelOption['effort']>['values'][number];
+
+/**
+ * Composer-side label for a model option. Pi exposes several channels whose ids
+ * can carry the same model, so prefix the channel to keep them distinguishable.
+ */
+function formatModelLabel(option: ProviderModelOption): string {
+  const label = option.label || option.value;
+  return option.group ? `${option.group} · ${label}` : label;
+}
 
 type ComposerModelMenuProps = {
   effort: string;
@@ -65,7 +75,13 @@ function ComposerModelMenu({
     () => modelOptions.find((option) => option.value === model) ?? null,
     [model, modelOptions],
   );
-  const modelLabel = selectedModelOption?.label || model;
+  const modelLabel = selectedModelOption ? formatModelLabel(selectedModelOption) : model;
+
+  // Options are split by channel so a multi-channel catalog stays scannable.
+  // A catalog with no channel tags yields one ungrouped section and the menu
+  // falls back to its original flat list.
+  const modelGroups = useMemo(() => groupModelOptions(modelOptions), [modelOptions]);
+  const hasChannelGroups = modelGroups.some((group) => group.key !== null);
 
   const hasEffortSection = resolvedEffortOptions.length > 0;
   const hasModelSection = modelOptions.length > 0 || modelsLoading;
@@ -140,24 +156,35 @@ function ComposerModelMenu({
 
               {isModelSectionOpen && (
                 <>
-                  <ComposerMenuHeading>
-                    {t('composer.model', { defaultValue: 'Model' })}
-                  </ComposerMenuHeading>
+                  {!hasChannelGroups && (
+                    <ComposerMenuHeading>
+                      {t('composer.model', { defaultValue: 'Model' })}
+                    </ComposerMenuHeading>
+                  )}
                   {modelOptions.length === 0 && modelsLoading && (
                     <p className="px-2.5 py-1.5 text-sm text-muted-foreground">
                       {t('composer.loadingModels', { defaultValue: 'Loading models…' })}
                     </p>
                   )}
-                  {modelOptions.map((option) => (
-                    <ComposerMenuItem
-                      key={option.value}
-                      label={option.label || option.value}
-                      isSelected={option.value === model}
-                      onSelect={() => {
-                        onSelectModel(option.value);
-                        setIsOpen(false);
-                      }}
-                    />
+                  {modelGroups.map((group) => (
+                    <Fragment key={group.key ?? '__ungrouped'}>
+                      {hasChannelGroups && (
+                        <ComposerMenuHeading>
+                          {group.key ?? t('composer.otherModels', { defaultValue: 'Other' })}
+                        </ComposerMenuHeading>
+                      )}
+                      {group.options.map((option) => (
+                        <ComposerMenuItem
+                          key={option.value}
+                          label={option.label || option.value}
+                          isSelected={option.value === model}
+                          onSelect={() => {
+                            onSelectModel(option.value);
+                            setIsOpen(false);
+                          }}
+                        />
+                      ))}
+                    </Fragment>
                   ))}
                 </>
               )}
