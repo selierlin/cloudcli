@@ -81,11 +81,12 @@ test('a group of more than two calls reports the remainder', () => {
   assert.equal(group.preview, '/a.ts, /b.ts, +2 more');
 });
 
-test('a single tool call is not grouped', () => {
+test('a single routine tool uses the stable run container before another tool arrives', () => {
   const items = groupConsecutiveTools([toolMessage('Read', { file_path: '/a.ts' })]);
 
   assert.equal(items.length, 1);
-  assert.equal(isToolGroupItem(items[0]), false);
+  assert.equal(isToolGroupItem(items[0]), true);
+  assert.equal(isToolGroupItem(items[0]) ? items[0].messages.length : 0, 1);
 });
 
 test('mixed routine tools are grouped into one compact activity row', () => {
@@ -109,7 +110,7 @@ test('interactive tools split otherwise groupable routine activity', () => {
   ]);
 
   assert.equal(items.length, 3);
-  assert.equal(items.every((item) => !isToolGroupItem(item)), true);
+  assert.equal(items.filter(isToolGroupItem).length, 2);
 });
 
 test('canonical checklist tools stay outside routine activity groups', () => {
@@ -120,7 +121,7 @@ test('canonical checklist tools stay outside routine activity groups', () => {
   ]);
 
   assert.equal(items.length, 3);
-  assert.equal(items.every((item) => !isToolGroupItem(item)), true);
+  assert.equal(items.filter(isToolGroupItem).length, 2);
 });
 
 test('a text turn splits a run', () => {
@@ -131,7 +132,7 @@ test('a text turn splits a run', () => {
   ]);
 
   assert.equal(items.length, 3);
-  assert.equal(items.filter(isToolGroupItem).length, 0);
+  assert.equal(items.filter(isToolGroupItem).length, 2);
 });
 
 test('an unparsable tool input does not throw while grouping', () => {
@@ -239,7 +240,7 @@ test('reasoning the user can see does split the run', () => {
   ], true);
 
   assert.equal(items.length, 3);
-  assert.equal(items.filter(isToolGroupItem).length, 0);
+  assert.equal(items.filter(isToolGroupItem).length, 2);
 });
 
 test('showThinking defaults to on, so a caller that omits it does not collapse a visible turn', () => {
