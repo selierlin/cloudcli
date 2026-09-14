@@ -253,7 +253,7 @@ function TranscriptLayoutFixture() {
         provider="codex"
         setProvider={() => undefined}
         textareaRef={textareaRef}
-        providerModels={{ claude: '', cursor: '', codex: 'gpt-5', opencode: '', dsh: '', workbuddy: '', pi: '' }}
+        providerModels={{ claude: '', cursor: '', codex: 'gpt-5', opencode: '', dsh: '', workbuddy: '', pi: '', zcode: '' }}
         setProviderModel={() => undefined}
         providerModelCatalog={{}}
         providerModelActions={providerModelActions}
