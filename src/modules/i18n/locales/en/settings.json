@@ -748,9 +748,9 @@
     "addGlobalDescription": "Add Global MCP Server writes one common server to every provider that accepts the chosen scope and transport, and shows which providers are skipped before saving.",
     "addProviderDescription": "Add {{provider}} MCP Server only changes {{provider}}.",
     "globalModalDescription": "Adds this MCP server to every provider at once. Providers that do not support the chosen scope or transport are skipped, and the next step shows exactly which ones.",
-    "globalBlocked": {
-      "harnessManaged": "Unavailable: this provider configures MCP inside its own harness",
-      "noNativeSupport": "Unavailable: this provider has no MCP support"
+    "addBlocked": {
+      "harnessManaged": "Unavailable: this harness configures its own MCP servers outside CloudCLI",
+      "noNativeSupport": "Unavailable: this provider has no built-in MCP support"
     },
     "globalPreview": {
       "title": "Review before adding",

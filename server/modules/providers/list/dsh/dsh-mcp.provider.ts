@@ -11,10 +11,16 @@ import { AppError } from '@/shared/utils.js';
  * persisted. Global MCP operations iterate every provider with per-provider
  * error capture, so this error only marks the `dsh` entry as failed rather
  * than aborting the whole operation.
+ *
+ * The declared transports mirror what the harness's ACP layer accepts when a
+ * client hands it a server list: a bare stdio declaration or `type: "http"`
+ * (streamable HTTP). It rejects SSE, and its handshake advertises only
+ * `mcpCapabilities: { http: true }`, so `sse` must not be declared here even
+ * though DSH itself can host MCP servers.
  */
 export class DshMcpProvider extends McpProvider {
   constructor() {
-    super('dsh', ['user', 'project'], ['stdio', 'http', 'sse']);
+    super('dsh', ['user', 'project'], ['stdio', 'http']);
   }
 
   protected async readScopedServers(_scope: McpScope, _workspacePath: string): Promise<Record<string, unknown>> {

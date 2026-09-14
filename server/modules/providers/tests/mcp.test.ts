@@ -362,6 +362,54 @@ test('providerMcpService handles cursor MCP JSON config formats', { concurrency:
 });
 
 /**
+ * This test covers the two providers that cannot store an app-managed MCP
+ * server: DSH keeps its MCP servers inside its harness composition and Pi has
+ * no MCP support, so both add entries are disabled in the UI and every write is
+ * rejected. DSH's declared transports are checked as well: its ACP layer takes
+ * stdio and streamable HTTP only, so `sse` has to fail capability validation
+ * instead of reaching the harness writer.
+ */
+test('providerMcpService rejects every DSH and Pi MCP write', { concurrency: false }, async () => {
+  await assert.rejects(
+    providerMcpService.upsertProviderMcpServer('dsh', {
+      name: 'dsh-stdio', scope: 'project', transport: 'stdio', command: 'node',
+    }),
+    (error: unknown) =>
+      error instanceof AppError &&
+      error.code === 'DSH_MCP_NOT_MANAGED' &&
+      error.statusCode === 400,
+  );
+
+  await assert.rejects(
+    providerMcpService.upsertProviderMcpServer('dsh', {
+      name: 'dsh-sse', scope: 'project', transport: 'sse', url: 'https://example.com/sse',
+    }),
+    (error: unknown) =>
+      error instanceof AppError &&
+      error.code === 'MCP_TRANSPORT_NOT_SUPPORTED' &&
+      error.statusCode === 400,
+  );
+
+  await assert.rejects(
+    providerMcpService.upsertProviderMcpServer('pi', {
+      name: 'pi-stdio', scope: 'project', transport: 'stdio', command: 'node',
+    }),
+    (error: unknown) =>
+      error instanceof AppError &&
+      error.code === 'MCP_SCOPE_NOT_SUPPORTED' &&
+      error.statusCode === 400,
+  );
+
+  // DSH declares scopes but reads none, so the list stays empty rather than
+  // offering rows the user could edit into a failing write.
+  const grouped = await providerMcpService.listProviderMcpServers('dsh');
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(grouped).map(([scope, servers]) => [scope, servers.length])),
+    { user: 0, local: 0, project: 0 },
+  );
+});
+
+/**
  * This test covers the global MCP adder requirement: one payload is written to
  * every provider, and a scope/transport only some providers accept still
  * reaches those providers instead of failing the whole request.
