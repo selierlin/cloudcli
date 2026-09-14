@@ -76,10 +76,25 @@ const dedupeProviderSkills = (skills: ProviderSkill[]): ProviderSkill[] => {
   });
 };
 
+// Skill commands group by their origin scope in the command menu. Providers
+// flag project-level skills as either "project" (claude/cursor/opencode/
+// workbuddy) or "repo" (codex/zcode/pi), so both map to the "project"
+// namespace; user-level skills map to "user". Any other scope (plugin, …)
+// falls back to the generic "skill" namespace.
+const skillScopeToNamespace = (scope: string): string => {
+  if (scope === 'project' || scope === 'repo') {
+    return 'project';
+  }
+  if (scope === 'user') {
+    return 'user';
+  }
+  return 'skill';
+};
+
 const mapSkillToSlashCommand = (skill: ProviderSkill): SlashCommand => ({
   name: skill.command,
   description: skill.description,
-  namespace: 'skill',
+  namespace: skillScopeToNamespace(skill.scope),
   path: skill.sourcePath,
   type: 'skill',
   metadata: {

@@ -168,8 +168,8 @@
       "frequent": "常用命令",
       "builtin": "内置命令",
       "skill": "技能",
-      "project": "项目命令",
-      "user": "用户命令",
+      "project": "项目级技能",
+      "user": "用户级技能",
       "other": "其他命令"
     },
     "empty": "没有可用命令",
