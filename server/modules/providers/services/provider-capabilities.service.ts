@@ -160,7 +160,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     // Effort maps onto Pi's `--thinking` levels for reasoning-capable models.
     supportsEffort: true,
     supportsMessageEditing: false,
-    supportsSessionForking: false,
+    supportsSessionForking: true,
   },
   zcode: {
     provider: 'zcode',
