@@ -67,6 +67,13 @@ export default {
           '0%': { backgroundPosition: '200% 0' },
           '100%': { backgroundPosition: '-200% 0' },
         },
+        'dot-bounce': {
+          // reduced-motion freezes the animation on this frame, so 0% must stay
+          // at the element's resting position; moving it would freeze the dots
+          // out of line.
+          '0%, 80%, 100%': { transform: 'translateY(0)' },
+          '40%': { transform: 'translateY(-3px)' },
+        },
         'dialog-overlay-show': {
           from: { opacity: '0' },
           to: { opacity: '1' },
@@ -82,6 +89,7 @@ export default {
       },
       animation: {
         shimmer: 'shimmer 2s linear infinite',
+        'dot-bounce': 'dot-bounce 1.2s ease-in-out infinite',
         'dialog-overlay-show': 'dialog-overlay-show 150ms ease-out',
         'dialog-content-show': 'dialog-content-show 150ms ease-out',
         'bottom-sheet-content-show': 'bottom-sheet-content-show 220ms cubic-bezier(0.22, 1, 0.36, 1)',

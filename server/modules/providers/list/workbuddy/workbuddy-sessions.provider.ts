@@ -9,9 +9,10 @@ import type {
   FetchHistoryResult,
   NormalizedMessage,
 } from '@/shared/types.js';
-import { createNormalizedMessage, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
+import { AppError, createNormalizedMessage, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 import { summarizeWorkbuddyTokenUsage } from '@/modules/providers/services/provider-token-usage.service.js';
 
+import { forkWorkbuddyTranscriptPrefix } from './workbuddy-fork.provider.js';
 import { getWorkbuddySessionRoots } from './workbuddy-storage.provider.js';
 
 /** Mirrors the engine's directory encoding: strip the leading slash, `/` → `-`. */
@@ -680,6 +681,147 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
     }
 
     return messages;
+  }
+
+  /** Resolves the safe transcript prefix that survives replacing one user turn. */
+  async resolveEditAnchor(
+    sessionId: string,
+    anchorId: string,
+  ): Promise<{ found: boolean; resumeThroughId: string | null }> {
+    const session = sessionsDb.getSessionById(sessionId);
+    if (!session?.jsonl_path) {
+      return { found: false, resumeThroughId: null };
+    }
+
+    const rows = await this.readTranscriptRows(session.jsonl_path);
+    const anchorIndex = rows.findIndex((row) => row.id === anchorId && this.isUserPrompt(row));
+    if (anchorIndex < 0) {
+      return { found: false, resumeThroughId: null };
+    }
+
+    const precedingRows = rows.slice(0, anchorIndex);
+    if (!precedingRows.some((row) => this.isUserPrompt(row))) {
+      return { found: true, resumeThroughId: null };
+    }
+
+    const boundary = this.findLastCompleteBoundary(precedingRows);
+    if (!boundary.latestId || boundary.hasPendingTools) {
+      throw new AppError('The conversation has no safe completed turn before this message.', {
+        code: 'EDIT_UNSAFE_BOUNDARY',
+        statusCode: 409,
+      });
+    }
+    return { found: true, resumeThroughId: boundary.latestId };
+  }
+
+  /** Repoints an app session to a copied WorkBuddy prefix before its replacement prompt is sent. */
+  async rewindSession(sessionId: string, keepThroughId: string | null): Promise<void> {
+    const session = sessionsDb.getSessionById(sessionId);
+    const providerSessionId = session?.provider_session_id;
+    if (!session || !providerSessionId) {
+      throw new AppError('This session has not produced a transcript yet.', {
+        code: 'EDIT_SOURCE_NOT_READY',
+        statusCode: 409,
+      });
+    }
+
+    if (keepThroughId === null) {
+      sessionsDb.markProviderSessionSuperseded({
+        providerSessionId,
+        provider: 'workbuddy',
+        sessionId,
+        jsonlPath: session.jsonl_path ?? null,
+      });
+      sessionsDb.detachProviderSession(sessionId);
+      return;
+    }
+
+    if (!session.jsonl_path) {
+      throw new AppError('The WorkBuddy transcript is unavailable.', {
+        code: 'EDIT_SOURCE_UNREADABLE',
+        statusCode: 409,
+      });
+    }
+
+    const forked = await forkWorkbuddyTranscriptPrefix({
+      providerSessionId,
+      jsonlPath: session.jsonl_path,
+      projectPath: session.project_path ?? '',
+      upToAnchorId: keepThroughId,
+    });
+    sessionsDb.markProviderSessionSuperseded({
+      providerSessionId,
+      provider: 'workbuddy',
+      sessionId,
+      jsonlPath: session.jsonl_path,
+    });
+    sessionsDb.repointSessionToProviderSession(sessionId, {
+      ...forked,
+      supersededProviderSessionId: providerSessionId,
+    });
+  }
+
+  private async readTranscriptRows(filePath: string): Promise<AnyRecord[]> {
+    let content: string;
+    try {
+      content = await fsp.readFile(filePath, 'utf8');
+    } catch {
+      throw new AppError('The WorkBuddy transcript could not be read.', {
+        code: 'EDIT_SOURCE_UNREADABLE',
+        statusCode: 409,
+      });
+    }
+    const rows: AnyRecord[] = [];
+    for (const line of content.split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      try {
+        rows.push(JSON.parse(line) as AnyRecord);
+      } catch {
+        throw new AppError('The WorkBuddy transcript contains a malformed row.', {
+          code: 'EDIT_SOURCE_CORRUPT',
+          statusCode: 409,
+        });
+      }
+    }
+    return rows;
+  }
+
+  private isUserPrompt(row: AnyRecord): boolean {
+    if (row.type !== 'message' || row.role !== 'user') return false;
+    const blocks = Array.isArray(row.content) ? row.content : [];
+    return Boolean(extractBlockText(blocks, 'input_text'));
+  }
+
+  private findLastCompleteBoundary(rows: AnyRecord[]): { latestId: string | null; hasPendingTools: boolean } {
+    const pendingToolCalls = new Set<string>();
+    let latestBoundary: string | null = null;
+    for (const row of rows) {
+      if (row.type === 'function_call') {
+        const callId = typeof row.callId === 'string' ? row.callId : typeof row.id === 'string' ? row.id : null;
+        if (callId) pendingToolCalls.add(callId);
+        continue;
+      }
+      if (row.type === 'function_call_result') {
+        const callId = typeof row.callId === 'string' ? row.callId : typeof row.id === 'string' ? row.id : null;
+        if (callId) pendingToolCalls.delete(callId);
+        continue;
+      }
+      if (row.type !== 'message') continue;
+      const blocks = Array.isArray(row.content) ? row.content : [];
+      for (const block of blocks) {
+        const record = readObjectRecord(block);
+        if (row.role === 'assistant' && record?.type === 'tool_use' && typeof record.id === 'string') {
+          pendingToolCalls.add(record.id);
+        }
+        if (row.role === 'user' && record?.type === 'tool_result' && typeof record.tool_use_id === 'string') {
+          pendingToolCalls.delete(record.tool_use_id);
+        }
+      }
+      if (pendingToolCalls.size === 0 && typeof row.id === 'string' && row.id) {
+        latestBoundary = row.id;
+      }
+    }
+    return { latestId: latestBoundary, hasPendingTools: pendingToolCalls.size > 0 };
   }
 
   async fetchHistory(sessionId: string, options: FetchHistoryOptions = {}): Promise<FetchHistoryResult> {

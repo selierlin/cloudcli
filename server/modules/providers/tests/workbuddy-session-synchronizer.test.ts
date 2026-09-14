@@ -136,6 +136,27 @@ test('synchronizer indexes sessions from both engine roots and uses ai-title as 
   });
 });
 
+test('synchronizer does not restore a transcript superseded by an edit', async () => {
+  await withIsolatedEnvironment(async (homeDir) => {
+    const cwd = path.join(homeDir, 'workspace', 'edited-session');
+    const sessionId = 'wb-superseded';
+    await writeSessionFile(homeDir, '.workbuddy', cwd, sessionId, [
+      makeUserMessage(sessionId, cwd, 'Old prompt', 1_700_000_000_000),
+    ]);
+    sessionsDb.markProviderSessionSuperseded({
+      providerSessionId: sessionId,
+      provider: 'workbuddy',
+      sessionId: 'app-current',
+      jsonlPath: null,
+    });
+
+    const processed = await new WorkbuddySessionSynchronizer().synchronize();
+
+    assert.equal(processed, 0);
+    assert.equal(sessionsDb.getSessionById(sessionId), null);
+  });
+});
+
 test('synchronizer skips subagent transcripts under session directories', async () => {
   await withIsolatedEnvironment(async (homeDir) => {
     const cwd = path.join(homeDir, 'workspace', 'project-b');

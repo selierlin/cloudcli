@@ -107,6 +107,72 @@ test('fetchHistory decodes the WorkBuddy transcript via the provider session id'
   });
 });
 
+test('editing a WorkBuddy user turn keeps the last completed turn before it', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const engineSessionId = 'wb-edit-safe';
+    const appSessionId = 'app-wb-edit-safe';
+    await writeTranscript(sessionsRoot, cwd, engineSessionId, [
+      userMessage('first', 1),
+      assistantMessage('first reply', 2),
+      userMessage('replace me', 3),
+    ]);
+    const transcriptPath = path.join(sessionsRoot, encodeCwd(cwd), `${engineSessionId}.jsonl`);
+    sessionsDb.createSession(appSessionId, 'workbuddy', cwd, 'Editable', new Date().toISOString(), new Date().toISOString(), transcriptPath);
+    sessionsDb.assignProviderSessionId(appSessionId, engineSessionId);
+
+    const anchor = await new WorkbuddySessionsProvider().resolveEditAnchor(appSessionId, 'user-3');
+    assert.deepEqual(anchor, { found: true, resumeThroughId: 'assistant-2' });
+  });
+});
+
+test('rewinding a WorkBuddy edit repoints the existing app session to its safe prefix', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const engineSessionId = 'wb-rewind-safe';
+    const appSessionId = 'app-wb-rewind-safe';
+    await writeTranscript(sessionsRoot, cwd, engineSessionId, [
+      userMessage('first', 1),
+      assistantMessage('first reply', 2),
+      userMessage('replace me', 3),
+    ]);
+    const transcriptPath = path.join(sessionsRoot, encodeCwd(cwd), `${engineSessionId}.jsonl`);
+    sessionsDb.createSession(appSessionId, 'workbuddy', cwd, 'Editable', new Date().toISOString(), new Date().toISOString(), transcriptPath);
+    sessionsDb.assignProviderSessionId(appSessionId, engineSessionId);
+
+    const provider = new WorkbuddySessionsProvider();
+    await provider.rewindSession(appSessionId, 'assistant-2');
+
+    const repointed = sessionsDb.getSessionById(appSessionId);
+    assert.ok(repointed?.provider_session_id);
+    assert.notEqual(repointed.provider_session_id, engineSessionId);
+    assert.ok(repointed.jsonl_path?.endsWith(`${repointed.provider_session_id}.jsonl`));
+  });
+});
+
+test('editing refuses a WorkBuddy prefix ending in an unresolved tool call', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const engineSessionId = 'wb-edit-unsafe';
+    const appSessionId = 'app-wb-edit-unsafe';
+    await writeTranscript(sessionsRoot, cwd, engineSessionId, [
+      userMessage('first', 1),
+      {
+        id: 'tool-call',
+        type: 'message',
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: 'call-1', name: 'Bash', input: { command: 'pwd' } }],
+      },
+      userMessage('replace me', 3),
+    ]);
+    const transcriptPath = path.join(sessionsRoot, encodeCwd(cwd), `${engineSessionId}.jsonl`);
+    sessionsDb.createSession(appSessionId, 'workbuddy', cwd, 'Unsafe', new Date().toISOString(), new Date().toISOString(), transcriptPath);
+    sessionsDb.assignProviderSessionId(appSessionId, engineSessionId);
+
+    await assert.rejects(
+      () => new WorkbuddySessionsProvider().resolveEditAnchor(appSessionId, 'user-3'),
+      (error: Error & { code?: string }) => error.code === 'EDIT_UNSAFE_BOUNDARY',
+    );
+  });
+});
+
 test('fetchHistory folds a background command notification into its Bash card', async () => {
   await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
     const engineSessionId = 'wb-background-command';

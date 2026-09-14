@@ -1,5 +1,6 @@
 import { AbstractProvider } from '@/modules/providers/shared/base/abstract.provider.js';
 import { PiProviderAuth } from '@/modules/providers/list/pi/pi-auth.provider.js';
+import { PiForkProvider } from '@/modules/providers/list/pi/pi-fork.provider.js';
 import { PiProviderModels } from '@/modules/providers/list/pi/pi-models.provider.js';
 import { PiMcpProvider } from '@/modules/providers/list/pi/pi-mcp.provider.js';
 import { piRuntime } from '@/modules/providers/list/pi/pi-runtime.provider.js';
@@ -8,6 +9,7 @@ import { PiSessionsProvider } from '@/modules/providers/list/pi/pi-sessions.prov
 import { PiSkillsProvider } from '@/modules/providers/list/pi/pi-skills.provider.js';
 import type {
   IProviderAuth,
+  IProviderFork,
   IProviderModels,
   IProviderRuntime,
   IProviderSessionSynchronizer,
@@ -23,6 +25,7 @@ export class PiProvider extends AbstractProvider {
   readonly skills: IProviderSkills = new PiSkillsProvider();
   readonly sessions: IProviderSessions = new PiSessionsProvider();
   readonly sessionSynchronizer: IProviderSessionSynchronizer = new PiSessionSynchronizer();
+  readonly fork: IProviderFork = new PiForkProvider();
 
   constructor() {
     super('pi');

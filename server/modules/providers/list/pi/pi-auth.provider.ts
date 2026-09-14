@@ -19,6 +19,7 @@ type CommandResolution = { command: string | null; source: 'override' | 'path' |
 let resolution: { value: CommandResolution; resolvedAt: number } | null = null;
 let versionProbe: { ok: boolean; checkedAt: number } | null = null;
 let authProbe: { status: 'ready' | 'unauthenticated' | 'unknown'; checkedAt: number } | null = null;
+let forkProbe: { supported: boolean; checkedAt: number } | null = null;
 
 /**
  * Resolves the `pi` executable: an explicit `PI_COMMAND` env override, then
@@ -72,6 +73,30 @@ export function resetPiCommandForTests(): void {
   resolution = null;
   versionProbe = null;
   authProbe = null;
+  forkProbe = null;
+}
+
+/**
+ * Verifies the installed Pi CLI still advertises its non-interactive fork flag.
+ * The fork provider calls this before creating an artifact so a global Pi
+ * upgrade fails clearly instead of yielding an unrelated empty session.
+ */
+export async function supportsPiFork(): Promise<boolean> {
+  if (forkProbe && Date.now() - forkProbe.checkedAt < VERSION_PROBE_TTL_MS) {
+    return forkProbe.supported;
+  }
+  const command = resolveCommand().command;
+  if (!command) {
+    forkProbe = { supported: false, checkedAt: Date.now() };
+    return false;
+  }
+  const supported = await new Promise<boolean>((resolve) => {
+    execFile(command, ['--help'], { timeout: VERSION_PROBE_TIMEOUT_MS }, (error, stdout = '') => {
+      resolve(!error && stdout.includes('--fork'));
+    });
+  });
+  forkProbe = { supported, checkedAt: Date.now() };
+  return supported;
 }
 
 /**

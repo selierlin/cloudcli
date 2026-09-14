@@ -199,6 +199,7 @@ export default function GitPanel({
               recentCommits={recentCommits}
               commitDiffs={commitDiffs}
               wrapText={wrapText}
+              onWrapTextChange={setWrapText}
               onFetchCommitDiff={fetchCommitDiff}
             />
           )}

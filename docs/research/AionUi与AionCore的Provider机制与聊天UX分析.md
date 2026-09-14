@@ -2,7 +2,7 @@
 
 > 分析日期：2026-08-29
 > 范围：AionUi（Electron 壳，Provider 前端视角 + 聊天 UX）+ AionCore（Rust 后端，Provider 后端视角 + 流式推送）
-> 相关：整体架构见 `aionui-analysis.md` / `aioncore-analysis.md`（本文件聚焦 Provider 链路 + 聊天交互细节）
+> 相关：整体架构见 `AionUi项目设计分析.md` / `AionCore后端引擎设计分析.md`（本文件聚焦 Provider 链路 + 聊天交互细节）
 > 用途：评估 Aion 的设计是否值得 cloudcli 借鉴
 
 ## 0. 双仓库身份

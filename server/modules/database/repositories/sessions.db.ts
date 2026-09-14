@@ -346,19 +346,30 @@ export const sessionsDb = {
    * existing `jsonl_path` on purpose, so a session repointed with it would
    * claim the new thread while still reading the old transcript.
    *
-   * The watcher may already have indexed the new transcript under its own id.
-   * That row is the same conversation this one is about to become, so it is
-   * replaced rather than left behind as a second sidebar entry.
+   * The watcher may already have indexed either the new transcript or the
+   * superseded source under its own id. Those rows are artifacts of the same
+   * app conversation, so both are removed instead of leaving duplicate
+   * sidebar entries.
    */
   repointSessionToProviderSession(
     sessionId: string,
-    input: { providerSessionId: string; jsonlPath: string },
+    input: { providerSessionId: string; jsonlPath: string; supersededProviderSessionId?: string },
   ): void {
     const db = getConnection();
 
     db.transaction(() => {
-      db.prepare('DELETE FROM sessions WHERE session_id = ? AND session_id <> ?')
-        .run(input.providerSessionId, sessionId);
+      db.prepare(
+        `DELETE FROM sessions
+         WHERE (session_id = ? OR provider_session_id = ?)
+           AND session_id <> ?`,
+      ).run(input.providerSessionId, input.providerSessionId, sessionId);
+      if (input.supersededProviderSessionId) {
+        db.prepare(
+          `DELETE FROM sessions
+           WHERE (session_id = ? OR provider_session_id = ?)
+             AND session_id <> ?`,
+        ).run(input.supersededProviderSessionId, input.supersededProviderSessionId, sessionId);
+      }
       db.prepare(
         `UPDATE sessions SET
            provider_session_id = ?,

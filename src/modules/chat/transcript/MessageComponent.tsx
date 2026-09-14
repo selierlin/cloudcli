@@ -87,6 +87,14 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     assistantCopyContent.trim().length > 0 &&
     !isCommandOrFileEditToolResponse &&
     !message.isThinking;
+  // The composer currently restores text only. Withholding edit for messages
+  // carrying attachments prevents a resend from silently dropping them.
+  const canEditUserMessage = Boolean(
+    onEditMessage
+    && message.transcriptAnchorId
+    && !message.images?.length
+    && !message.files?.length,
+  );
   const disclosureKey = reasoningPresentation?.disclosureKey;
   const handleReasoningUserOpenChange = useCallback((open: boolean) => {
     if (disclosureKey) onReasoningUserOpenChange?.(disclosureKey, open);
@@ -136,10 +144,10 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                   </Markdown>
                 </div>
                 <div className="mt-1 flex items-center justify-end gap-1 text-xs text-muted-foreground">
-                  {onEditMessage && message.transcriptAnchorId && (
+                  {canEditUserMessage && (
                     <button
                       type="button"
-                      onClick={() => onEditMessage(message)}
+                      onClick={() => onEditMessage?.(message)}
                       title={t('message.editAndResend')}
                       aria-label={t('message.editAndResend')}
                       className="rounded p-1 opacity-0 transition-opacity hover:bg-muted focus-visible:opacity-100 group-hover:opacity-100"
@@ -368,7 +376,11 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                           </div>
                           <div className="overflow-hidden rounded-lg border border-border bg-muted">
                             <pre className="overflow-x-auto p-4">
-                              <code className="block whitespace-pre font-mono text-sm text-foreground">
+                              {/* The JSON viewer wants pretty-printed, unwrapped lines that scroll
+                                horizontally. `whitespace-pre` cannot express that: the global
+                                `.chat-message code { white-space: pre-wrap !important }` outranks
+                                the utility, so this marker class is the opt-out. */}
+                              <code className="tool-terminal-output block font-mono text-sm text-foreground">
                                 {formatted}
                               </code>
                             </pre>
