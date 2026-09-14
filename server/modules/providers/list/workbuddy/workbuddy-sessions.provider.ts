@@ -59,6 +59,51 @@ function extractUserPrompt(inputText: string): string {
   return inputText.trim();
 }
 
+type WorkbuddyBackgroundTaskNotification = {
+  toolUseId?: string;
+  taskId?: string;
+  status: string;
+  summary: string;
+};
+
+/** Reads the text inside one simple WorkBuddy notification tag. */
+function readNotificationTag(content: string, tagName: string): string | undefined {
+  const match = new RegExp(`<${tagName}>([\\s\\S]*?)<\\/${tagName}>`).exec(content);
+  return match?.[1]?.trim() || undefined;
+}
+
+/** Decodes the HTML entities WorkBuddy uses inside task notification summaries. */
+function decodeNotificationHtml(text: string): string {
+  const entities: Record<string, string> = {
+    '&amp;': '&',
+    '&quot;': '"',
+    '&apos;': "'",
+    '&#39;': "'",
+    '&lt;': '<',
+    '&gt;': '>',
+  };
+  return text.replace(/&(amp|quot|apos|#39|lt|gt);/g, (entity) => entities[entity] || entity);
+}
+
+/**
+ * Parses the user-role notification emitted after a WorkBuddy background
+ * command ends. Its tool-use id identifies the original Bash card to update.
+ */
+function parseBackgroundTaskNotification(inputText: string): WorkbuddyBackgroundTaskNotification | null {
+  if (!inputText.trimStart().startsWith('<task-notification>')) {
+    return null;
+  }
+
+  return {
+    toolUseId: readNotificationTag(inputText, 'tool-use-id'),
+    taskId: readNotificationTag(inputText, 'task-id'),
+    status: readNotificationTag(inputText, 'status') || 'completed',
+    summary: decodeNotificationHtml(
+      readNotificationTag(inputText, 'summary') || 'Background task finished',
+    ),
+  };
+}
+
 function extractFunctionResultText(output: unknown): string {
   if (typeof output === 'string') {
     return output;
@@ -79,7 +124,7 @@ function extractFunctionResultText(output: unknown): string {
   if (record && typeof record.content === 'string') {
     return record.content;
   }
-  return output === undefined || output === null ? '' : JSON.stringify(output);
+  return output === undefined || output === null ? '' : JSON.stringify(output, null, 2);
 }
 
 function normalizeWorkbuddyTodoItems(record: AnyRecord): unknown[] | null {
@@ -773,6 +818,7 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
 
       if (event.role === 'user') {
         const text = extractBlockText(blocks, 'input_text');
+        const taskNotification = text ? parseBackgroundTaskNotification(text) : null;
         const images: Array<{ data: string; name?: string }> = [];
         for (const block of blocks) {
           const record = block as AnyRecord | null;
@@ -789,7 +835,37 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
             }
           }
         }
-        if (text || images.length > 0) {
+        if (taskNotification?.toolUseId) {
+          // This row follows the initial "running in background" Bash result.
+          // Reusing its call id lets the client replace that partial result on
+          // the original tool card instead of rendering a stray chat bubble.
+          collector.add(createNormalizedMessage({
+            id: eventAnchorId,
+            kind: 'tool_result',
+            role: 'user',
+            content: taskNotification.summary,
+            toolId: taskNotification.toolUseId,
+            isError: taskNotification.status !== 'completed',
+            status: taskNotification.status,
+            sessionId: appSessionId,
+            provider: 'workbuddy',
+            ...timestampField,
+          }));
+        } else if (taskNotification) {
+          // Keep malformed or unlinked notifications visible, but never expose
+          // their XML wrapper or encoded summary as a user message.
+          collector.add(createNormalizedMessage({
+            id: eventAnchorId,
+            kind: 'task_notification',
+            role: 'assistant',
+            summary: taskNotification.summary,
+            status: taskNotification.status,
+            taskId: taskNotification.taskId,
+            sessionId: appSessionId,
+            provider: 'workbuddy',
+            ...timestampField,
+          }));
+        } else if (text || images.length > 0) {
           collector.add(createNormalizedMessage({
             kind: 'text',
             role: 'user',

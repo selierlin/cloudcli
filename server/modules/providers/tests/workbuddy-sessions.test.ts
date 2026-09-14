@@ -107,6 +107,87 @@ test('fetchHistory decodes the WorkBuddy transcript via the provider session id'
   });
 });
 
+test('fetchHistory folds a background command notification into its Bash card', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const engineSessionId = 'wb-background-command';
+    const appSessionId = 'app-wb-background-command';
+    const time = 1_700_000_000_000;
+    const bashCallId = 'call-background-bash';
+    await writeTranscript(sessionsRoot, cwd, engineSessionId, [
+      {
+        type: 'function_call',
+        id: 'bash-call',
+        callId: bashCallId,
+        name: 'Bash',
+        arguments: { command: 'npm run lint', run_in_background: true },
+        timestamp: time,
+      },
+      {
+        type: 'function_call_result',
+        id: 'bash-background-result',
+        callId: bashCallId,
+        status: 'completed',
+        output: { type: 'text', text: 'Status: Running in background with task_id: task-1' },
+        timestamp: time + 10,
+      },
+      {
+        id: 'background-notification',
+        type: 'message',
+        role: 'user',
+        timestamp: time + 20,
+        content: [{
+          type: 'input_text',
+          text: [
+            '<task-notification>',
+            '<task-id>task-1</task-id>',
+            `<tool-use-id>${bashCallId}</tool-use-id>`,
+            '<status>completed</status>',
+            '<summary>Background command &quot;npm run lint &amp;&amp; npm test&quot; completed</summary>',
+            '</task-notification>',
+          ].join('\n'),
+        }],
+      },
+    ]);
+
+    sessionsDb.createAppSession(appSessionId, 'workbuddy', cwd, 'Background command');
+    sessionsDb.assignProviderSessionId(appSessionId, engineSessionId);
+
+    const result = await new WorkbuddySessionsProvider().fetchHistory(appSessionId);
+    const toolResults = result.messages.filter((message) => message.kind === 'tool_result');
+
+    assert.equal(result.messages.some((message) => message.kind === 'text' && message.content?.includes('task-notification')), false);
+    assert.equal(toolResults.length, 2);
+    assert.equal(toolResults[1]?.toolId, bashCallId);
+    assert.equal(toolResults[1]?.content, 'Background command "npm run lint && npm test" completed');
+    assert.equal(toolResults[1]?.status, 'completed');
+  });
+});
+
+test('fetchHistory keeps an unlinked background notification as a decoded status message', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const engineSessionId = 'wb-unlinked-background-notification';
+    const appSessionId = 'app-wb-unlinked-background-notification';
+    await writeTranscript(sessionsRoot, cwd, engineSessionId, [{
+      id: 'unlinked-notification',
+      type: 'message',
+      role: 'user',
+      timestamp: 1_700_000_000_000,
+      content: [{
+        type: 'input_text',
+        text: '<task-notification>\n<status>failed</status>\n<summary>Background command &quot;build&quot; failed</summary>\n</task-notification>',
+      }],
+    }]);
+
+    sessionsDb.createAppSession(appSessionId, 'workbuddy', cwd, 'Unlinked notification');
+    sessionsDb.assignProviderSessionId(appSessionId, engineSessionId);
+
+    const [notification] = (await new WorkbuddySessionsProvider().fetchHistory(appSessionId)).messages;
+    assert.equal(notification?.kind, 'task_notification');
+    assert.equal(notification?.summary, 'Background command "build" failed');
+    assert.equal(notification?.status, 'failed');
+  });
+});
+
 test('user and assistant text carry row ids so they can be forked', async () => {
   await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
     const engineSessionId = 'wb-anchor-ids';
