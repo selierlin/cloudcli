@@ -2,7 +2,7 @@
 
 > 分析日期：2026-08-29
 > 仓库：`/Users/selier/Projects/open_projects/aionui`（分支 `main`，v2.2.0）
-> 配套后端：AionCore（Rust），见 [aioncore-analysis.md](./aioncore-analysis.md)
+> 配套后端：AionCore（Rust），见 [AionCore后端引擎设计分析.md](./AionCore后端引擎设计分析.md)
 
 ## 1. 项目定位
 

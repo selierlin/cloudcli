@@ -2,7 +2,7 @@
 
 > **状态**：**路线 A 已实现并通过手工验收（2026-09-11）**。§8 前置实测已完成，结论已回填 §2.2 / §5-0 / §6-0 / §7-Q5。
 > **2026-09-11 二次定案**：Q1 由「路线 B」改判为**路线 A**。动工前复验发现路线 B 的立论前提「思考期间界面无反馈」不成立——指示器在发送瞬间即已点亮，B 为空操作（证据见 §2.4 / §2.5 / §7-Q1 及文末「作者复验追加」）。
-> **验收记录**：发送后约 5s（TTFT）开始流式输出思考内容并自动展开。原“思考结束约 1s 自动收起”已于 2026-09-13 被事件驱动披露替代：最终正文连续可见 2.5s 后收起；思考/工具交接采用 latest-wins 稳定窗口和最短展示时间，再以响应设备能力的动画收起；用户阅读和手动选择优先。详见 `docs/research/agent-activity-experience-optimization-plan.md`。
+> **验收记录**：发送后约 5s（TTFT）开始流式输出思考内容并自动展开。原“思考结束约 1s 自动收起”已于 2026-09-13 被事件驱动披露替代：最终正文连续可见 2.5s 后收起；思考/工具交接采用 latest-wins 稳定窗口和最短展示时间，再以响应设备能力的动画收起；用户阅读和手动选择优先。详见 `docs/research/思考过程与工具活动体验优化方案.md`。
 > **日期**：2026-09-11
 > **用途**：解决 Claude 在 extended thinking 阶段「界面完全无输出、整块思考内容一次弹出」的问题。本文档给出根因认定、两条可选路线与取舍，供其他 harness 审阅与批注。审阅时请重点检查：§2.1 的通道模型是否必要、§2.4 的路线推荐是否成立、§4 的风险是否被低估、§7 的开放问题是否该有明确默认。
 > **参考规范**：`docs/architecture/02-realtime-stream.md`（§Text streaming、§Cross-session behaviour）、`.agents/skills/backend-module-standards/SKILL.md`、`.agents/skills/frontend-module-standards/SKILL.md`
@@ -194,7 +194,7 @@ A 与 B 仍不互斥：B 的指示器保留为「思考内容被 redacted / disp
 
 ### 4.2 replay 缓冲压力比正文更甚（中高）
 
-思考 delta 同样是一条带 `seq` 的实时帧，也走 replay 缓冲（5000 事件/run，完成后保留 5 分钟）。思考通常与正文**同量级甚至更长**，两者叠加会让帧数翻倍。这与 `claude-streaming-root-fix-plan.md` §4.3 是同一个问题，**且本方案会让它更严重**。若采纳服务端 delta 合并，应把思考通道一并纳入。
+思考 delta 同样是一条带 `seq` 的实时帧，也走 replay 缓冲（5000 事件/run，完成后保留 5 分钟）。思考通常与正文**同量级甚至更长**，两者叠加会让帧数翻倍。这与 `Claude流式输出前端根治方案.md` §4.3 是同一个问题，**且本方案会让它更严重**。若采纳服务端 delta 合并，应把思考通道一并纳入。
 
 > **已实现（2026-09-11）**：服务端已加 `createDeltaBatcher`（`claude-runtime.provider.js`）——同一 run 内同会话、同通道的连续 `stream_delta` 按 50ms 时间窗（或 2048 字符阈值）合并后再发，非 delta 帧前强制 flush 保序，run 收尾 dispose 丢弃残帧。所有出站帧（含 permission/status/complete/error）统一走 batcher，顺序由构造保证。§7-Q5 就此落实。
 
