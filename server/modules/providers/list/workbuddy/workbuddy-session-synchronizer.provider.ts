@@ -62,6 +62,9 @@ export class WorkbuddySessionSynchronizer implements IProviderSessionSynchronize
           continue;
         }
         const sessionId = path.basename(filePath, '.jsonl');
+        if (sessionsDb.isProviderSessionSuperseded(sessionId, this.provider)) {
+          continue;
+        }
         const existing = sessionsDb.getSessionByProviderSessionId(sessionId)
           ?? sessionsDb.getSessionById(sessionId);
         const parsed = await this.processSessionFile(
@@ -103,6 +106,9 @@ export class WorkbuddySessionSynchronizer implements IProviderSessionSynchronize
     }
 
     const sessionId = path.basename(filePath, '.jsonl');
+    if (sessionsDb.isProviderSessionSuperseded(sessionId, this.provider)) {
+      return null;
+    }
     const existing = sessionsDb.getSessionByProviderSessionId(sessionId)
       ?? sessionsDb.getSessionById(sessionId);
     const parsed = await this.processSessionFile(
