@@ -19,6 +19,7 @@ type FixtureAction =
   | 'append-thinking'
   | 'append-text'
   | 'append-tool'
+  | 'seed-wrapping-samples'
   | 'finalize-stream'
   | 'set-processing'
   | 'scroll-bottom'
@@ -161,6 +162,53 @@ function TranscriptLayoutFixture() {
       case 'append-text': {
         const content = typeof step.payload === 'string' ? step.payload : '这是最终正文。';
         sessionStore.updateStreaming(SESSION_ID, content, 'codex', 'text');
+        await nextPaint();
+        return {};
+      }
+      case 'seed-wrapping-samples': {
+        // One message per line-break rule the message body can hit. The strings
+        // are picked so tool-content-wrapping.spec.ts can assert on word
+        // boundaries rather than on font-dependent break points.
+        appendRealtime({
+          id: 'wrap-words',
+          kind: 'text',
+          role: 'assistant',
+          // Inside inline code on purpose: the global rule only reaches
+          // `<pre>`/`<code>`, so a plain paragraph would not exercise it and
+          // the word-boundary assertion would pass either way.
+          content: `\`${'aaaaaaaaaa bbbbbbbbbb '.repeat(6).trim()}\``,
+          timestamp: nextTimestamp(),
+        });
+        appendRealtime({
+          id: 'wrap-overflow',
+          kind: 'text',
+          role: 'assistant',
+          content: `Long token: ${'c'.repeat(400)}`,
+          timestamp: nextTimestamp(),
+        });
+        appendRealtime({
+          id: 'wrap-inline',
+          kind: 'text',
+          role: 'assistant',
+          content: 'See `src/modules/chat/tools/ContentRenderers/TextContent.tsx` for the renderer behind this surface.',
+          timestamp: nextTimestamp(),
+        });
+        appendRealtime({
+          id: 'wrap-json',
+          kind: 'text',
+          role: 'assistant',
+          content: JSON.stringify({ key: 'd'.repeat(300) }),
+          timestamp: nextTimestamp(),
+        });
+        appendRealtime({
+          id: 'wrap-fenced',
+          kind: 'text',
+          role: 'assistant',
+          content: `\`\`\`ts
+const longLine = "${'e'.repeat(300)}";
+\`\`\``,
+          timestamp: nextTimestamp(),
+        });
         await nextPaint();
         return {};
       }

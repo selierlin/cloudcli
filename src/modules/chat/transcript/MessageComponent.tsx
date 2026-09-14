@@ -368,7 +368,11 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                           </div>
                           <div className="overflow-hidden rounded-lg border border-border bg-muted">
                             <pre className="overflow-x-auto p-4">
-                              <code className="block whitespace-pre font-mono text-sm text-foreground">
+                              {/* The JSON viewer wants pretty-printed, unwrapped lines that scroll
+                                horizontally. `whitespace-pre` cannot express that: the global
+                                `.chat-message code { white-space: pre-wrap !important }` outranks
+                                the utility, so this marker class is the opt-out. */}
+                              <code className="tool-terminal-output block font-mono text-sm text-foreground">
                                 {formatted}
                               </code>
                             </pre>

@@ -1,7 +1,7 @@
 # 工具换行漏项修复方案（G1–G3，评审稿）
 
-> **状态**：待多 harness 审阅，**尚未实施**。
-> **基线**：**当前工作区**。`HEAD` 仍是 `857f4a61`，但 L0–L6 的实现改动**尚未提交**（`git show HEAD:src/index.css` 中不存在 `tool-terminal-output` / `tool-diff-row`），因此本方案的 `文件:行号` **只在工作区成立**。审阅前请先读 §10.1。
+> **状态**：**G1–G3 已实施并验证**（见 §12 实施记录）。审阅已完成，结论见文末「牵头结论」。
+> **基线**：L0–L6 已提交为 `66f4ac03`（`fix(chat): 保留工具内容的行结构`），本方案的 `文件:行号` 以该提交为准；G1–G3 的改动在其上。
 > **承接**：`docs/research/tool-content-linebreak-rendering-review-plan.md`（L0–L6 已实施并验证）。
 > **范围**：L0–L6 落地后的补查中发现的 **3 个漏项（G1–G3）** + **1 个决策项（G4）**。
 
@@ -482,11 +482,22 @@ overflow-wrap: break-word
 
 ## 10. 引用复核记录
 
-本方案的全部 `文件:行号` 于 **2026-09-14** 在**当前工作区**上逐条复核。复核方式：`grep -n` 定位 + `sed -n` 阅读原文；CSS 相关结论另用一次性 Playwright 脚本对**真实构建产物**（`dist/assets/index-D474x3RN.css`）实测计算值与断行位置，脚本已删除。
+本方案的全部 `文件:行号` 于 **2026-09-14** 逐条复核（当时 L0–L6 仍是工作区改动；其后已提交为 `66f4ac03`，行号不变）。复核方式：`grep -n` 定位 + `sed -n` 阅读原文；CSS 相关结论另用一次性 Playwright 脚本对**真实构建产物**实测计算值与断行位置，脚本已删除。
 
-### 10.1 基线说明（审阅前必读）
+### 10.1 基线说明
 
-**L0–L6 的实现改动目前全部是未提交的工作区改动。**已验证：
+> **本节初稿写于 L0–L6 尚未提交时**，原标题为「审阅前必读」，正文要求审阅者「直接读工作区、禁止 `git checkout/stash/reset/clean`」。**该前提已经失效** —— 更新如下，原正文保留在折叠块里仅作历史记录。
+
+**现行事实**：L0–L6（`tool-terminal-output`、`tool-diff-row`、`break` 传递、3 处 `JSON.stringify(_, null, 2)` 等）已提交为 **`66f4ac03`**（`fix(chat): 保留工具内容的行结构`，24 个文件）。因此：
+
+1. 本方案的 `文件:行号`（`index.css:817-823`、`:849`、`:861`、`MessageComponent.tsx:370-371` 等）在 `66f4ac03` 上**直接成立**，不再需要「读工作区」这一前提。
+2. 审阅时**无需**任何特殊 git 操作；`git checkout` / `git stash` 不再有丢改动之虞。
+3. G1–G3 的实施改动叠加在 `66f4ac03` 之上，见 §12 实施记录。
+
+<details>
+<summary>初稿原文（L0–L6 未提交时的说明，仅作历史记录）</summary>
+
+**L0–L6 的实现改动当时全部是未提交的工作区改动。**已验证：
 
 ```
 $ git log --oneline -1
@@ -497,14 +508,9 @@ $ git show HEAD:src/index.css | grep -c "tool-diff-row"
 0
 ```
 
-受影响的未提交文件共 24 个（`git status --short`），其中与本方案引用直接相关的包括：`src/index.css`、`src/modules/chat/tools/BashCommandDisplay.tsx`、`ToolDiffViewer.tsx`、`ToolRenderer.tsx`、`ToolErrorDisplay.tsx`、`ContentRenderers/*`、`PlanDisplay.tsx`、`SubagentPanel.tsx`、`Queue.tsx`、`OneLineDisplay.tsx`、`transcript/Markdown.tsx`（经 `MarkdownContent`）、`hooks/useChatMessages.ts`，以及三个 provider 的服务端文件；新增未跟踪文件 `src/modules/chat/tests/toolCommandSingleLine.test.tsx`、`toolContentLineBreaks.test.tsx`。
+当时受影响的未提交文件共 24 个。据此提出的四点要求（引用只在工作区成立、禁止 git 改写、自检命令、「建议先提交再派发审阅」）中，**第 4 点已被采纳**：用户在本轮审阅后把 L0–L6 提交为 `66f4ac03`，基线从而可用一个 commit hash 指代 —— 这正是当时建议的目的。
 
-**因此**：
-
-1. 本方案的 `index.css:817-823`、`:849-853`、`:861-865`、`:900-903` 与 `MessageComponent.tsx:370-371` 等引用**只在工作区成立**；在 `857f4a61` 上核对会得到「引用不成立」的**假阳性**。
-2. **审阅时请直接阅读工作区文件，不要执行 `git checkout` / `git stash` / `git reset` / `git clean`** —— 这些操作会把 L0–L6 的未提交实现丢掉。
-3. 复核正确性的最小命令：`grep -n "tool-terminal-output\|word-break: break-all" src/index.css`。若结果为空，说明你不在工作区状态。
-4. **建议（待牵头确认）**：先把 L0–L6 提交为独立提交，再派发审阅，使基线可用一个 commit hash 指代。是否提交由用户决定，本轮文档不代为执行。
+</details>
 
 | 引用 | 复核结果 |
 | --- | --- |
@@ -544,6 +550,63 @@ $ git show HEAD:src/index.css | grep -c "tool-diff-row"
 | D4 | §6.2 的断言放在哪个 harness | `tests/transcript-layout/` / 源码守卫测试 | 前者（真实 CSS 层叠），后者为退路 |
 | D5 | G5（`TextContent` 死分支）/ G6 / G7 | 顺手清 / 记入待办 | 记入待办（与 G1–G3 不同源） |
 | D6 | G1 的 `q.header` 徽章 | 一起加类 / 不加 | 不加（单行标签，避免为假想数据加边界） |
+
+---
+
+## 12. 实施记录（2026-09-14）
+
+**结果**：G1、G2、G3 全部实施并验证；G4 按建议维持 B（本轮不改行为）。改动叠加在 `66f4ac03` 之上。
+
+### 12.1 代码改动
+
+| # | 文件 | 位置 | 改动 |
+| --- | --- | --- | --- |
+| 1 | `InteractiveRenderers/AskUserQuestionPanel.tsx` | `:221 / :255 / :263` | 三处各前置 `whitespace-pre-wrap break-words `（与 `QuestionAnswerContent.tsx:96` 逐字一致） |
+| 2 | `transcript/MessageComponent.tsx` | `:371` | 死类 `whitespace-pre` → `tool-terminal-output`；补一条注释说明为何类名表达不了该约束 |
+| 3 | `src/index.css` | `:821` | `word-break: break-all` → `normal`（`white-space: pre-wrap !important` 与 `overflow-wrap: break-word` 均未动） |
+| 4 | `src/index.css` | `:817`（原注释） | 重写为表达新语义；并说明它同时覆盖行内 `<code>` |
+| 5 | `src/index.css` | `:849` 上方注释 | 补上 JSON 查看器这第二个消费者与命名债（审阅第 9 条） |
+| 6 | `src/modules/chat/tests/toolWhitespaceGap.test.tsx` | 新增 | G1 + G2 + 行内 code 的 jsdom 类令牌断言（8 例） |
+| 7 | `tests/transcript-layout/tool-content-wrapping.spec.ts` | 新增 | G3/G2 的真实浏览器计算值与断行断言（5 场景 × 2 引擎） |
+| 8 | `tests/transcript-layout/fixture.tsx` | 新增 action | `seed-wrapping-samples`：每种断行规则各一条消息；另修一处**既有的** `providerModels` 缺 `zcode` 的类型错误（`typecheck:transcript` 在 `66f4ac03` 上即为红，见 §12.4） |
+| 9 | `tests/transcript-layout/tsconfig.json` | `include` | 收编新 spec，使其纳入 `typecheck:transcript` |
+| 10 | `docs/architecture/06-tool-view.md` | Gotchas | 新增 4 条：全局规则、JSON 查看器是标记类的第二消费者、面板在 `.chat-message` 之外 |
+| 11 | 本文件 + `tool-content-linebreak-rendering-review-plan.md` | §11.6 / §12 | 记录本轮与 L0–L6 的关系 |
+
+**未纳入**：G4（PowerShell，维持 B）、G5–G8（登记）、**G9**（审阅新增的 composer 兜底 `<pre>`，低优先，本轮未动）。
+
+**与 §5 的两处偏差**：
+
+- §5 第 8 项把浏览器场景写在既有的 `transcript-layout.spec.ts` 里；实施时改为**新增 `tool-content-wrapping.spec.ts`**。理由：原 spec 全篇服务于滚动几何（装有 `scrollLeft/scrollTop` 劫持与逐帧采样），把「计算样式 / 断行」混进去会让两件事共用一套仪器，读和改都更贵。新增文件同一 `testDir`、同一 fixture、同一 webServer，`npm run test:transcript` 一并执行。
+- §9 的验收模板仍按原计划写「`index.css:821`」，实施后 `word-break` 在 `:829`（注释加长使行号下移 8 行）。模板未改，以免掩盖这一事实。
+
+### 12.2 实施中自己抓到的两个错误（都不是审阅提出的）
+
+| # | 问题 | 怎么发现的 | 处置 |
+| --- | --- | --- | --- |
+| 1 | **「词边界断行」用例是空转的**：初版把样例文字放进普通段落，而 `.chat-message pre, .chat-message code` **只命中 `<pre>`/`<code>`** —— 段落改动前后计算值都是 `normal`。第一次跑「反证」时它**在未修复的 CSS 上照样通过** | 「把实现回退，看测试是否失败」这一步 | 样例文字改放进行内 code；再反证：未修复时该用例在两引擎下都失败 |
+| 2 | 把测量宽度直接钉在行内 `<code>` 上**无效**（行内盒不取 `width`），实际得到 818px | 探针里加了一条「回读并断言宽度」的守卫 | 改为钉在最近的非行内祖先上，并回读断言 |
+| 3 | **用错了 linter**：本仓的 `npm run lint` 跑的是 **`oxlint`**（`oxlint src/ server/`），而我用 `npx eslint <file>` 迭代类名顺序 —— 该命令只是打印一段 eslint 配置迁移提示后退出，**根本没跑任何规则**，于是「0 classnames-order」是假绿 | 用 `git worktree add` 拉一份 `e98a71cd` 的干净副本跑基线，发现总数 143 vs 142，再逐条比位置才定位到 `MessageComponent.tsx:375` 这条一直存在 | 改用 `npx oxlint <file>` 重试各排序；实测只有把 `tool-terminal-output` 放在**最前**才通过，已改为 `tool-terminal-output block font-mono text-sm text-foreground` |
+
+> **共同教训**：与 §10 记录的两次同源 —— **探针/测试/检查命令的条件必须与真实条件一致**，且**反证要在未修复的代码上跑一遍**。断言「通过」本身不构成证据；先确认**检查真的执行了**，再看结果。
+
+### 12.3 验证结果
+
+| 项 | 结果 |
+| --- | --- |
+| `toolWhitespaceGap.test.tsx` | 8 例通过（伴随 1 条 `NO_I18NEXT_INSTANCE` stderr 警告 —— 与既有 `messageStreamEnd.test.tsx` 相同，属仓库基线） |
+| `tool-content-wrapping.spec.ts` | **10 例通过**（5 场景 × Chromium/WebKit） |
+| 反证（把 G3 回退为 `break-all`） | **6 例失败**（词边界 ×2、行内 code ×2、JSON 查看器 ×2）；另 4 例通过，因为它们是**守卫**而非检测器：无溢出（改动前后都成立）与 fenced 豁免（改动前后都应成立） |
+| `npm run test:transcript` | **20 例通过**（10 几何 + 10 本轮），几何套件未受影响 |
+| `npm run typecheck` / `typecheck:transcript` | 干净（后者原为红，见 §12.4） |
+| `npm run lint` | 0 error；**142 warning，与 `e98a71cd` 的干净 worktree 基线一致**（比对方式：`git worktree add` + 按告警位置逐条 diff，确认无新增）；无 UTF-8 损坏 |
+| `npm run test:client` | **74 文件 / 531 用例全过**（基线 73 / 523，+1 文件 = 新增的 `toolWhitespaceGap.test.tsx` 的 8 例） |
+| `npm run build:client` | 干净；产物 CSS 中 `.chat-message pre,.chat-message code{…word-break:normal…}` 与 `tool-terminal-output` 均已入包 |
+| 编码 | 所有改动文件 `file -b` 为 UTF-8 |
+
+### 12.4 顺带发现的既有问题（非本轮引入）
+
+`npm run typecheck:transcript` 在 `66f4ac03` 上**即为失败**：`fixture.tsx` 的 `providerModels` 缺 `zcode`，而 `LLMProvider` 已含 `'zcode'`（提交 `19bdee1d` 引入）。主 `typecheck` 不覆盖 `tests/transcript-layout`，所以一直没暴露。已在 §12.1 第 8 项顺带修复（一个字段）。
 
 ---
 
