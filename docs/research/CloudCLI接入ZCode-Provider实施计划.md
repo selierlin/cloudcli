@@ -4,7 +4,7 @@
 > **日期**：2026-09-13
 > **审阅轮次**：v1 → Claude + Pi 批注（原文见文末「审阅批注」）→ 本 v2 修订正文并给出「牵头结论」（文末最后一节）。第一轮审阅期间针对争议项补做的实测统一记在「§第一轮审阅后补充实测」。
 > **用途**：本文档是 ZCode Provider（Z.AI / BigModel 的 ZCode CLI，v0.16.5，随 `/Applications/ZCode.app` 分发）接入 CloudCLI 的完整实施方案。审阅重点：ZCode 事实是否与实际行为相符、事件映射是否有遗漏或语义错误、权限模式映射是否安全、MCP 落点与写回是否有并发风险、触点清单是否有缺漏。
-> **参考规范**：`server/modules/providers/README.md`（How To Add A Provider 9 步流程）、`docs/provider-adapter-integration-sop.md`、同目录 `pi-provider-integration-plan.md`（上一份同类方案，格式模板）
+> **参考规范**：`server/modules/providers/README.md`（How To Add A Provider 9 步流程）、`docs/Provider接入与验收SOP.md`、同目录 `CloudCLI接入Pi-Provider实施计划.md`（上一份同类方案，格式模板）
 
 ## Context
 

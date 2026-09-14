@@ -586,6 +586,28 @@ memoized, and four with no other reason to know exports exist.
   forces `white-space: pre-wrap !important`, which defeats `truncate` and any single-line
   constraint. `BashCommandDisplay`, `OneLineDisplay` and `ToolErrorDisplay` all carry that
   comment.
+- **One global rule decides how every code surface in a message breaks lines.** In
+  `index.css`, `.chat-message pre, .chat-message code` sets `white-space: pre-wrap
+  !important` with `word-break: normal` and `overflow-wrap: break-word` — wrap, but at
+  word boundaries, and break a token only when it cannot fit on a line of its own. The
+  `!important` beats any Tailwind utility on the same property, which is why the surfaces
+  that must *not* wrap opt out through a marker class rather than `whitespace-pre`. Two
+  exceptions win on specificity: fenced code blocks (`.chat-message .markdown-code-block
+  pre`, `(0,2,1)`) and `tool-terminal-output` (`(0,2,0)`). `word-break` used to be
+  `break-all`, which split words mid-token even when the whole word would have fitted on
+  the next line, and which silently overruled the `break-words` those code surfaces
+  declare themselves.
+- **The pure-JSON reply block is the second consumer of `tool-terminal-output`.** A reply
+  that parses as JSON renders as a scrollable viewer of pretty-printed text, so it wants
+  the same "keep the source lines, scroll the overflow" treatment as terminal output — and
+  hit the same global rule: its `whitespace-pre` was dead, and the block wrapped instead.
+  The marker class is named for the first consumer only; treat it as "preserve source
+  lines", not "this is a terminal".
+- **The `AskUserQuestion` interaction panel is outside `.chat-message`, so no global rule
+  reaches it.** Its question, option label and option description each declare
+  `whitespace-pre-wrap break-words` explicitly. Without them the payload's newlines
+  collapsed to spaces — while the transcript's answer card for the *same* payload
+  (`QuestionAnswerContent`, inside `.chat-message`) kept them.
 - **A command is an identifier, not content: it occupies exactly one line.** Both the Bash
   row (`BashCommandDisplay`) and the terminal pill (`OneLineDisplay`) use
   `whitespace-nowrap` with `overflow-x-auto`, in the collapsed *and* expanded state. A

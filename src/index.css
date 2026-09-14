@@ -814,11 +814,19 @@
     hyphens: auto;
   }
 
-  /* Force wrap long URLs and code */
+  /* Raw code is content, not a terminal surface: wrap it, but at word
+     boundaries. This covers both fenced blocks' siblings and inline code
+     (`.chat-message code`), i.e. every <pre>/<code> the message body renders,
+     including the ones that already declare `break-words` themselves.
+     `break-all` used to sit on `word-break`, which split a word mid-token even
+     when the whole word would have fit on the next line -- the same defect the
+     terminal output and diff surfaces were each fixed for individually, and
+     why `break-words` on those elements had no effect. `overflow-wrap` stays:
+     a single token longer than the line still breaks rather than overflowing. */
   .chat-message pre,
   .chat-message code {
     white-space: pre-wrap !important;
-    word-break: break-all;
+    word-break: normal;
     overflow-wrap: break-word;
   }
 
@@ -838,9 +846,13 @@
     overflow-wrap: inherit;
   }
 
-  /* Terminal output follows the terminal metaphor rather than prose: it keeps
-     the source line structure so columns stay aligned, and reaches whatever
-     overflows by horizontal scroll (the element carries `overflow-auto`).
+  /* Preserve source lines instead of wrapping. Two consumers so far: terminal
+     output (`BashCommandDisplay`), which keeps columns aligned, and the pure
+     JSON reply block (`MessageComponent`), a scrollable viewer of
+     pretty-printed text. Both reach the overflow by horizontal scroll on the
+     element itself. The name is narrower than the role -- this really means
+     "keep the source line structure", not "this is a terminal" -- and the JSON
+     viewer's comment in `MessageComponent.tsx` points back here.
      A `whitespace-pre` utility cannot express this: Tailwind v3 flattens these
      blocks into plain CSS with no native at-layer, so `.chat-message pre`
      (0,1,1) outranks the utility on specificity and its `!important` wins.

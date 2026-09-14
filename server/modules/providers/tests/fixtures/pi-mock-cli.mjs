@@ -5,6 +5,8 @@
 // When PI_MOCK_ARGS_FILE is set, the full argv (excluding node/script) is
 // written there so tests can assert the spawn arguments precisely.
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 const mode = process.env.MOCK_MODE || 'success';
 const args = process.argv.slice(2);
@@ -25,6 +27,30 @@ if (process.env.PI_MOCK_ARGS_FILE) {
 }
 
 const emit = (o) => process.stdout.write(`${JSON.stringify(o)}\n`);
+
+if (args.includes('--help')) {
+  process.stdout.write('  --fork <session>  Create a child session\n');
+  process.exit(0);
+}
+
+const forkSource = readArg('--fork');
+if (forkSource) {
+  // Native Pi only completes a no-prompt fork after stdin closes. Keep this
+  // behavior in the fixture so provider tests catch a missing `stdin.end()`.
+  await new Promise((resolve) => {
+    process.stdin.once('end', resolve);
+    process.stdin.resume();
+  });
+  const forkId = 'mock-fork-session-uuid';
+  const sessionsRoot = process.env.PI_CODING_AGENT_SESSION_DIR
+    || path.join(os.homedir(), '.pi', 'agent', 'sessions');
+  const encodedCwd = `--${process.cwd().replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`;
+  const forkPath = path.join(sessionsRoot, encodedCwd, `2026-09-15T00-00-00.000Z_${forkId}.jsonl`);
+  fs.mkdirSync(path.dirname(forkPath), { recursive: true });
+  fs.writeFileSync(forkPath, `${JSON.stringify({ type: 'session', id: forkId, cwd: process.cwd(), parentSession: forkSource })}\n`);
+  emit({ type: 'session', version: 3, id: forkId, timestamp: '2026-09-15T00:00:00.000Z', cwd: process.cwd(), parentSession: forkSource });
+  process.exit(0);
+}
 
 const emitHeader = () => emit({
   type: 'session',
