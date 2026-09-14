@@ -12,6 +12,7 @@ type HistoryViewProps = {
   recentCommits: GitCommitSummary[];
   commitDiffs: GitDiffMap;
   wrapText: boolean;
+  onWrapTextChange: (wrapText: boolean) => void;
   onFetchCommitDiff: (commitHash: string) => Promise<void>;
 };
 
@@ -22,6 +23,7 @@ export default function HistoryView({
   recentCommits,
   commitDiffs,
   wrapText,
+  onWrapTextChange,
   onFetchCommitDiff,
 }: HistoryViewProps) {
   const { t } = useTranslation();
@@ -83,6 +85,7 @@ export default function HistoryView({
               wrapText={wrapText}
               graphRow={graphRows?.[index]}
               onToggle={() => toggleCommitExpanded(commit.hash)}
+              onToggleWrapText={() => onWrapTextChange(!wrapText)}
             />
           ))}
         </div>
