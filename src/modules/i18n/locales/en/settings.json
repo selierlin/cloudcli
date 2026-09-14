@@ -285,6 +285,8 @@
       "userProviderDescription": "Available across all projects on your machine",
       "localDescription": "Stored in Claude user settings for the selected project",
       "localProviderDescription": "Stored in {{provider}} settings for the selected project",
+      "localAllProviders": "Local (All Providers)",
+      "localAllProvidersDescription": "Writes into each supporting provider's config for the selected project",
       "projectAllProvidersDescription": "Writes to the selected project workspace for every provider",
       "projectProviderDescription": "Stored in the selected project workspace"
     },
@@ -743,9 +745,26 @@
     },
     "addGlobalButton": "Add Global MCP Server",
     "addProviderButton": "Add {{provider}} MCP Server",
-    "addGlobalDescription": "Add Global MCP Server writes one common stdio or HTTP server to Claude, Cursor, Codex, and OpenCode.",
+    "addGlobalDescription": "Add Global MCP Server writes one common server to every provider that accepts the chosen scope and transport, and shows which providers are skipped before saving.",
     "addProviderDescription": "Add {{provider}} MCP Server only changes {{provider}}.",
-    "globalModalDescription": "Adds this MCP server to every provider: Claude, Cursor, Codex, and OpenCode. Only stdio and HTTP transports are supported because the same config must work across all providers.",
+    "globalModalDescription": "Adds this MCP server to every provider at once. Providers that do not support the chosen scope or transport are skipped, and the next step shows exactly which ones.",
+    "globalBlocked": {
+      "harnessManaged": "Unavailable: this provider configures MCP inside its own harness",
+      "noNativeSupport": "Unavailable: this provider has no MCP support"
+    },
+    "globalPreview": {
+      "title": "Review before adding",
+      "description": "{{count}} of {{total}} providers will receive this server.",
+      "willWrite": "Will be written",
+      "back": "Back",
+      "confirm": "Add to {{count}} providers",
+      "reason": {
+        "scopeUnsupported": "Does not support {{scope}} scope",
+        "transportUnsupported": "Does not support {{transport}} transport",
+        "harnessManaged": "Configures MCP inside its own harness",
+        "noNativeSupport": "No native MCP support"
+      }
+    },
     "errors": {
       "loadFailed": "Failed to load {{provider}} MCP servers",
       "deleteFailed": "Failed to delete MCP server",
@@ -754,8 +773,7 @@
       "unknown": "Unknown error",
       "errorAlert": "Error: {{message}}",
       "selectProject": "Select a project for project-scoped MCP servers",
-      "globalScopeUnsupported": "Add MCP Server supports only user or project scope across all providers.",
-      "globalTransportUnsupported": "Add MCP Server supports only stdio and http across all providers, not {{transport}}.",
+      "globalTransportUnsupported": "Add MCP Server does not support the {{transport}} transport.",
       "providerTransportUnsupported": "{{provider}} does not support {{transport}} MCP servers",
       "deleteConfirm": "Are you sure you want to delete this MCP server?",
       "globalAddFailed": "Failed to add MCP server to all providers. {{details}}"

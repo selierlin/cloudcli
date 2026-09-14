@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { McpProject, McpProvider, McpScope, ProviderMcpServer } from '@/shared/types';
 import { IS_PLATFORM } from '@/shared/utils';
 import { ActionMenu, Badge, Button } from '@/shared/ui';
-import { MCP_GLOBAL_SUPPORTED_TRANSPORTS, MCP_PROVIDER_NAMES } from '@/shared/constants';
+import { MCP_GLOBAL_ADD_BLOCKED_REASON, MCP_GLOBAL_SUPPORTED_SCOPES, MCP_GLOBAL_SUPPORTED_TRANSPORTS, MCP_PROVIDER_NAMES } from '@/shared/constants';
 import { useMcpServers } from '@/modules/mcp/hooks/useMcpServers';
 import { maskSecret } from '@/modules/mcp/utils/mcpFormatting';
 import McpServerFormModal from '@/modules/mcp/McpServerFormModal';
@@ -13,8 +13,6 @@ type McpServersProps = {
   selectedProvider: McpProvider;
   currentProjects: McpProject[];
 };
-
-const MCP_GLOBAL_SUPPORTED_SCOPES: McpScope[] = ['user', 'project'];
 
 const MCP_PROVIDER_BUTTON_CLASSES: Record<McpProvider, string> = {
   claude: 'bg-primary text-primary-foreground hover:bg-primary/90',
@@ -134,7 +132,12 @@ export default function McpServers({ selectedProvider, currentProjects }: McpSer
   });
   const globalButtonLabel = t('mcpServers.addGlobalButton');
   const providerButtonLabel = t('mcpServers.addProviderButton', { provider: providerName });
-  const globalAddDescription = t('mcpServers.addGlobalDescription');
+  // dsh and pi can never persist a global MCP server, so the entry stays
+  // visible but disabled while naming the reason for the selected provider.
+  const globalAddBlockedReason = MCP_GLOBAL_ADD_BLOCKED_REASON[selectedProvider];
+  const globalAddDescription = globalAddBlockedReason
+    ? t(`mcpServers.globalBlocked.${globalAddBlockedReason}`)
+    : t('mcpServers.addGlobalDescription');
   const providerAddDescription = t('mcpServers.addProviderDescription', { provider: providerName });
   const globalModalDescription = t('mcpServers.globalModalDescription');
 
@@ -159,6 +162,7 @@ export default function McpServers({ selectedProvider, currentProjects }: McpSer
               label: globalButtonLabel,
               description: globalAddDescription,
               icon: Globe,
+              disabled: globalAddBlockedReason !== null,
               onSelect: openGlobalForm,
             },
             {

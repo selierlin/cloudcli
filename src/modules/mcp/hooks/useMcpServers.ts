@@ -469,13 +469,9 @@ export function useMcpServers({ selectedProvider, currentProjects }: UseMcpServe
         unsupportedTransportMessage: (transport) =>
           t('mcpServers.errors.globalTransportUnsupported', {
             transport,
-            defaultValue: `Add MCP Server supports only stdio and http across all providers, not ${transport}.`,
+            defaultValue: `Add MCP Server does not support the ${transport} transport.`,
           }),
       });
-
-      if (payload.scope === 'local') {
-        throw new Error(t('mcpServers.errors.globalScopeUnsupported', 'Add MCP Server supports only user or project scope across all providers.'));
-      }
 
       if (payload.scope !== 'user' && !payload.workspacePath) {
         throw new Error(t('mcpServers.errors.selectProject', 'Select a project for project-scoped MCP servers'));
