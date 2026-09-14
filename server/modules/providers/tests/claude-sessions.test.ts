@@ -460,6 +460,50 @@ test('parallel tool calls are not mistaken for an edit', { concurrency: false },
   }
 });
 
+test('indents a structured tool result so it does not arrive as one line', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'claude-structured-result-'));
+  const sessionId = 'claude-structured-result-session';
+
+  try {
+    const transcriptPath = path.join(tempRoot, `${sessionId}.jsonl`);
+    // A block-array result is not a string, so the provider has to serialize it.
+    // Compact JSON would reach the transcript as one unreadable line.
+    const blocks = [{ type: 'text', text: 'line one\nline two' }];
+    const rows = [
+      {
+        type: 'assistant', uuid: 'sa1', parentUuid: null, sessionId,
+        timestamp: '2026-08-23T11:00:00.000Z',
+        message: {
+          role: 'assistant', model: 'claude-opus-5',
+          content: [{ type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: '/a' } }],
+        },
+      },
+      {
+        type: 'user', uuid: 'sr1', parentUuid: 'sa1', sessionId,
+        timestamp: '2026-08-23T11:00:01.000Z',
+        message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: blocks }] },
+      },
+    ];
+    await writeFile(transcriptPath, `${rows.map((row) => JSON.stringify(row)).join('\n')}\n`, 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      const now = new Date().toISOString();
+      sessionsDb.createSession(sessionId, 'claude', tempRoot, 'Structured result', now, now, transcriptPath);
+
+      const history = await new ClaudeSessionsProvider().fetchHistory(sessionId, {
+        providerSessionId: sessionId,
+      });
+
+      const toolRow = history.messages.find((message) => message.kind === 'tool_use');
+      const content = String(toolRow?.toolResult?.content ?? '');
+      assert.ok(content.startsWith('[\n'), `expected an indented projection, got ${content}`);
+      assert.deepEqual(JSON.parse(content), blocks);
+    });
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('resolving an edit anchor returns the assistant turn before it', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'claude-edit-anchor-'));
 

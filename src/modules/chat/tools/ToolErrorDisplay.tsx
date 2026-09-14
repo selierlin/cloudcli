@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 
 import { cn } from '@/shared/utils';
-import { Markdown } from '@/modules/chat/transcript/Markdown';
+import { useIsExportingTranscript } from '@/modules/chat/context/TranscriptRenderContext';
 
 type ToolErrorDisplayProps = {
-  /** Full error text; rendered as markdown when expanded. */
+  /** Full error text; rendered as pre-wrapped plain text when expanded. */
   content: string;
   /** Localized "Error" label shown in the header. */
   label: string;
@@ -17,12 +17,20 @@ type ToolErrorDisplayProps = {
  * and a one-line preview that expands to the full error content. Errors are
  * signalled by the red styling — the details stay one click away.
  *
+ * The expanded body is runtime text, not markdown: it is rendered pre-wrapped
+ * so the payload's line structure survives. Markdown would collapse a single
+ * `\n` into a space and turn an unhandled stack trace into one long paragraph.
+ *
  * Rendered by chat's MessageComponent for failed tool results.
  */
 export const ToolErrorDisplay: React.FC<ToolErrorDisplayProps> = ({ content, label }) => {
   const trimmedContent = content.trim();
   const hasContent = trimmedContent.length > 0;
-  const [open, setOpen] = useState(false);
+  // An exported document has nobody to click "expand", so the error body must
+  // be rendered whole or it would come out empty.
+  const isExporting = useIsExportingTranscript();
+  const [openState, setOpen] = useState(false);
+  const open = openState || isExporting;
 
   const toggle = () => {
     if (hasContent) {
@@ -80,9 +88,13 @@ export const ToolErrorDisplay: React.FC<ToolErrorDisplayProps> = ({ content, lab
 
       {open && hasContent && (
         <div className="settings-content-enter border-t border-red-500/20 px-3 py-2 text-sm text-red-900 dark:text-red-100">
-          <Markdown className="prose prose-sm prose-red max-w-none font-serif dark:prose-invert">
+          {/* Not <code>/<pre>: the global `.chat-message code` rule's
+              `white-space: pre-wrap !important` would override the utilities
+              below. `pre-wrap` keeps the payload's newlines; `break-words`
+              keeps long paths and URLs inside the card. */}
+          <div className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed">
             {trimmedContent}
-          </Markdown>
+          </div>
         </div>
       )}
     </div>

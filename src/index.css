@@ -838,6 +838,32 @@
     overflow-wrap: inherit;
   }
 
+  /* Terminal output follows the terminal metaphor rather than prose: it keeps
+     the source line structure so columns stay aligned, and reaches whatever
+     overflows by horizontal scroll (the element carries `overflow-auto`).
+     A `whitespace-pre` utility cannot express this: Tailwind v3 flattens these
+     blocks into plain CSS with no native at-layer, so `.chat-message pre`
+     (0,1,1) outranks the utility on specificity and its `!important` wins.
+     This selector is (0,2,0) -- and placed after it, so source order agrees --
+     which is the same trick `.markdown-code-block pre` uses. */
+  .chat-message .tool-terminal-output {
+    white-space: pre !important;
+    word-break: normal;
+    overflow-wrap: normal;
+  }
+
+  /* A diff row must be as wide as its longest line, for two reasons: the
+     add/remove tint has to cover the whole line once the body is scrolled, and
+     the +/- gutter needs a containing block spanning the scroll range before
+     `position: sticky` can pin it. `.chat-message *` caps every descendant at
+     max-width 100%, so this needs its own selector rather than a utility class
+     -- same technique as `.tool-terminal-output` above. */
+  .chat-message .tool-diff-row {
+    max-width: none;
+    width: max-content;
+    min-width: 100%;
+  }
+
   .markdown-table-scroll-hint {
     display: none;
   }

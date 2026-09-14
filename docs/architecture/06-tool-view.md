@@ -40,10 +40,10 @@ Read [the realtime stream](./02-realtime-stream.md) first for how the frames arr
    not know either exists.
 7. **`Bash` is one card, not two.** Its input render owns the command and the output, and
    `MessageComponent` suppresses the separate result section for it by name.
-8. **Every collapsed surface reads `useIsExportingTranscript()` — except
-   `ToolErrorDisplay`.** An exported document has no chevron to click, so a section that
-   ignores the flag exports empty. `ToolErrorDisplay` ignores it, which is why an exported
-   failure shows only its truncated one-line preview.
+8. **Every collapsed surface reads `useIsExportingTranscript()`.** An exported document has
+   no chevron to click, so a section that ignores the flag exports empty. `ToolErrorDisplay`
+   used to be the exception — an exported failure showed only its truncated one-line
+   preview — and now reads the flag too, so the full error body reaches the document.
 
 ## The pieces
 
@@ -114,11 +114,10 @@ Three lookups happen before the switch, all inside `ToolRenderer`:
 | `type` | `'one-line' \| 'collapsible' \| 'plan' \| 'hidden'` | Picks the base pattern. `hidden` is declared but no entry uses it; it falls through the switch and renders nothing |
 | `label` | `string` | Text before the separator. Defaults to the display name |
 | `icon` | `string` | Replaces the label in `OneLineDisplay`. Only `'terminal'` is used, and every variant special-cases it |
-| `style` | `string` | `'terminal'` switches `OneLineDisplay` to the dark command pill |
+| `style` | `string` | `'terminal'` switches `OneLineDisplay` to the dark command pill, whose value is pinned to one line (`whitespace-nowrap`) with a horizontal scroll outlet |
 | `getValue` | `(input) => string` | The main text of a one-line row |
 | `getSecondary` | `(input) => string \| undefined` | Italic trailing text, such as Grep's `in <path>` |
 | `action` | `'copy' \| 'open-file' \| 'jump-to-results' \| 'none'` | What a click does, and which of the last three layouts renders |
-| `wrapText` | `boolean` | Wrap instead of truncate the value |
 | `colorScheme` | `{primary, secondary, background, border, icon}` | Tailwind classes. `border` and `icon` are also read by `ToolGroupContainer` for the collapsed group row |
 | `title` | `string \| (input) => string` | Header of a collapsible or plan card |
 | `defaultOpen` | `boolean` | Initial open state. Forced open while exporting |
@@ -271,7 +270,11 @@ The first pass builds `toolResultMap: Map<toolId, NormalizedMessage>` from every
 `tool_result` row and `toolUseIds: Set<toolId>` from every `tool_use` row. The second
 attaches `msg.toolResult || toolResultMap.get(msg.toolId)` to each call and runs the
 content through `formatToolResultContent`, which unwraps a
-`<tool_use_error>…</tool_use_error>` envelope.
+`<tool_use_error>…</tool_use_error>` envelope. A payload that is not already a string is
+serialized with `JSON.stringify(value, null, 2)` — the same indentation `toolInput` uses,
+so a structured result does not arrive as one unreadable line. Provider history projections
+that build the same string server-side (`claude`, `codex`, `workbuddy`) use the same
+indentation.
 
 A standalone `tool_result` row is then skipped twice over. If its id is in `toolUseIds` the
 call already carries it. **If it has any `toolId` at all it is skipped anyway** — an
@@ -400,7 +403,8 @@ Grep's `Found 3 files`, read off the result's `toolUseResult`; TodoRead's parsed
 `Default` entry's MCP block unwrapping. Feeding an error string to those shapers produces
 `Found 0 files` on a call that crashed. `ToolErrorDisplay` ignores the config entirely and
 renders one uniform collapsed red row: a truncated one-line preview that expands to the
-full text as markdown.
+full text as pre-wrapped plain text. The body is runtime text, not markdown — markdown
+would collapse the single newlines that carry the stack trace's structure.
 
 Errors deliberately do **not** auto-expand. The red border and the `Error` badge already
 signal the failure, and a stack trace should not push the rest of the transcript off screen.
@@ -480,11 +484,11 @@ the shaping lives in the config's `getContentProps`.
 
 | `contentType` | Component | Reached by | Notes |
 | --- | --- | --- | --- |
-| `diff` | `ToolDiffViewer.tsx` | Edit, Write, ApplyPatch inputs | Memoizes `createDiff(old, new)`. Renders nothing at all when no `createDiff` is passed |
-| `markdown` | `ContentRenderers/MarkdownContent.tsx` | Agent input, Task input and result | A thin wrapper over the transcript `Markdown` |
+| `diff` | `ToolDiffViewer.tsx` | Edit, Write, ApplyPatch inputs | Memoizes `createDiff(old, new)`. Renders nothing at all when no `createDiff` is passed. Diff content is code, not prose, so it does not wrap: each row carries `tool-diff-row`, which sizes it to its longest line — that is what lets the add/remove tint cover the whole line once the body scrolls, and what gives the `+`/`-` gutter (pinned with `sticky left-0`) a containing block spanning the scroll range |
+| `markdown` | `ContentRenderers/MarkdownContent.tsx` | Agent input, Task input and result | A thin wrapper over the transcript `Markdown`. Every call site passes `breaks`, so a single newline is a hard line break — model-authored bodies use single newlines as line separators |
 | `file-list` | `ContentRenderers/FileListContent.tsx` | Grep and Glob results | Comma-separated basenames, click to open, capped at `max-h-48` |
 | `todo-list` | `ContentRenderers/TodoListContent.tsx` → `TodoList.tsx` → `Queue.tsx` | TodoWrite input, TodoRead result | `TodoListContent` keeps only values with string `content` and `status`; `TodoList` normalizes the status and renders a `Queue` |
-| `task` | `ContentRenderers/TaskListContent.tsx` | TaskList and TaskGet results | Regex-parses `#15. [in_progress] Subject` lines out of plain text into rows |
+| `task` | `ContentRenderers/TaskListContent.tsx` | TaskList and TaskGet results | Splits the payload into ordered segments: runs of `#15. [in_progress] Subject` lines render as rows, everything else renders as source text, so no line is dropped. The row pattern is anchored to the line start (tolerating an optional `- ` prefix) so a prose mention of `#99` is not read as a task |
 | `question-answer` | `ContentRenderers/QuestionAnswerContent.tsx` | AskUserQuestion input | The only stateful renderer — it expands one question at a time. Guards every field, because transcript payloads are runtime data |
 | `text` | `ContentRenderers/TextContent.tsx` | Default, exec, WebSearch, WebFetch | `format` is `'plain' \| 'json' \| 'code'`; no config sets `'json'` |
 | `success-message` | inline SVG in `ToolRenderer` | nothing | The branch exists; no config sets the type or `getMessage` |
@@ -579,11 +583,21 @@ memoized, and four with no other reason to know exports exist.
   component reads the flag directly: `renderToStaticMarkup` runs no effects, so Bash output
   was missing from exports entirely (commit `e35476fd`).
 - **Collapsed rows avoid `<code>` and `<pre>` tags.** A global `.chat-message code` rule
-  forces `white-space: pre-wrap !important`, which defeats `truncate` and renders a
-  collapsed multi-line command in full. `BashCommandDisplay` and `ToolErrorDisplay` both
-  carry that comment.
-- **`ToolErrorDisplay` is the one collapsed surface that ignores `isExporting`.** An
-  exported failure therefore shows its truncated one-line preview and not the full text.
+  forces `white-space: pre-wrap !important`, which defeats `truncate` and any single-line
+  constraint. `BashCommandDisplay`, `OneLineDisplay` and `ToolErrorDisplay` all carry that
+  comment.
+- **A command is an identifier, not content: it occupies exactly one line.** Both the Bash
+  row (`BashCommandDisplay`) and the terminal pill (`OneLineDisplay`) use
+  `whitespace-nowrap` with `overflow-x-auto`, in the collapsed *and* expanded state. A
+  multi-line command's newlines therefore collapse to single spaces; the copy button still
+  hands back the original string. The Bash **output** is the same surface, not the
+  opposite: it carries `tool-terminal-output`, the `.chat-message pre` opt-out declared in
+  `index.css`, which pins `white-space: pre` so columns stay aligned and the overflow is
+  reachable by horizontal scroll. `break-all` is gone with it — it broke inside tokens.
+  The collapsed `errorPreview` deliberately still wraps: it is a peek, not the output.
+  `OneLineDisplay` renders its value in a `<span>`, not a `<code>`, for the reason above.
+- **`ToolErrorDisplay` reads `isExporting` like every other collapsed surface.** An exported
+  failure includes the full error body rather than just the preview.
 - **`PlanDisplay` matches a pending request by tool name only.** Nothing ties the request
   to the card's own `toolId`, so while a plan prompt is pending, every `ExitPlanMode` card
   in the transcript shows the Build and Revise footer, including older ones.

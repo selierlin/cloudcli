@@ -13,7 +13,6 @@ export type ToolDisplayConfig = {
     getSecondary?: (input: any) => string | undefined;
     action?: 'copy' | 'open-file' | 'jump-to-results' | 'none';
     style?: string;
-    wrapText?: boolean;
     colorScheme?: {
       primary?: string;
       secondary?: string;
@@ -119,7 +118,6 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       getSecondary: (input) => input.description,
       action: 'copy',
       style: 'terminal',
-      wrapText: true,
       colorScheme: {
         primary: 'text-green-400 font-mono',
         secondary: 'text-gray-400',
@@ -145,7 +143,6 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       getSecondary: (input) => input.description,
       action: 'copy',
       style: 'terminal',
-      wrapText: true,
       colorScheme: {
         primary: 'text-green-400 font-mono',
         secondary: 'text-gray-400',

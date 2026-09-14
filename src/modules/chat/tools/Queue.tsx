@@ -108,7 +108,7 @@ export const QueueItemContent = React.forwardRef<HTMLDivElement, React.HTMLAttri
         ref={ref}
         data-slot="queue-item-content"
         className={cn(
-          'min-w-0 flex-1 text-xs',
+          'min-w-0 flex-1 whitespace-pre-wrap break-words text-xs',
           status === 'completed' && 'text-muted-foreground line-through',
           status === 'in_progress' && 'font-medium text-foreground',
           status === 'pending' && 'text-foreground',

@@ -1,10 +1,11 @@
 # CloudCLI 工具内容换行与折行渲染评审优化方案
 
-> 状态：待评审（问题已定位到行，方案待定稿）
+> 状态：评审轮 1 已汇总并完成正文修订，待复审（Claude / ZCode 已批注；WorkBuddy / Pi 未提交）
 > 日期：2026-09-13
-> 范围：仅前端聊天转录区（`src/modules/chat/tools/**`、`src/modules/chat/transcript/**`）中工具卡片的换行/折行；含一处服务端历史投影的 JSON 序列化。不修改 Provider 协议、不改 WebSocket 事件格式、不改 `TOOL_CONFIGS` 的注册表语义。
+> 范围：仅前端聊天转录区（`src/modules/chat/tools/**`、`src/modules/chat/transcript/**`）中工具卡片的换行/折行；含**跨 Provider 历史投影**的 JSON 序列化（L3）。不修改 Provider 协议、不改 WebSocket 事件格式、不改 `TOOL_CONFIGS` 的注册表语义。
 > 关联文档：`docs/architecture/06-tool-view.md`（工具渲染链路权威说明）、`docs/architecture/04-message-store-and-lazy-loading.md`
-> 行号基准：`590b88f1`（2026-09-13 重新核对全部引用；此前基于 `353ab751` 的引用已失效并修正，见 §10）
+> 行号基准：`590b88f1`（2026-09-13 重新核对全部引用；`590b88f1..857f4a61` 间仅 `useChatRealtimeHandlers.ts` 有改动，不涉及本文引用文件，见 §10）
+> 评审结论：见文末「牵头结论」（累计 21 条批注：采纳 20、部分采纳 1、不采纳 0）
 
 ## 目录
 
@@ -32,19 +33,20 @@
 本方案的判断：
 
 1. **先按「这一行该不该换行」把表面分成两类，再谈怎么换行。**
-   - **命令（terminal 风格）**：`Bash`、`PowerShell` 的命令行 → **强制单行**，超宽时横向滚动，折叠/展开都不换行（`L0`）。
+   - **命令（terminal 风格）**：`Bash`、`PowerShell` 的命令行 → **强制单行**（`whitespace-nowrap` + `overflow-x-auto`），折叠/展开都不换行（`L0`）。
    - **正文（内容）**：报错、shell 输出、Plan、Subagent 结果、任务列表、diff、待办 → **保留换行**。
 2. **正文内部再按「文本来源」分流，而不是统一加一个 CSS 类。**
    - **运行时文本**（工具报错、shell 输出、堆栈）不是 Markdown，按纯文本 `whitespace-pre-wrap` 渲染，保留原样换行，杜绝 `#`、`*`、`|`、`\` 被当语法解析。
    - **模型撰写文本**（Plan、Subagent prompt/result）本身是 Markdown，走 Markdown 渲染但**必须打开 `remark-breaks`**，让单个 `\n` 成为硬换行，与用户消息的处理保持一致（`MessageComponent.tsx:131-132`）。
-3. **`TaskList` / `TaskGet` 的正则是信息丢失型缺陷**，不只是显示问题——它静默丢弃所有不匹配的行。这一条优先级高于「换行长什么样」。
+3. **`TaskList` / `TaskGet` 的正则是信息丢失型缺陷**，不只是显示问题——它既静默丢弃不匹配的行，又会把「备注：#15 …」误当成任务。这一条优先级高于「换行长什么样」。
 4. **标题/摘要行的一行化（`truncate`）是刻意设计，不在本次修改范围**；本方案只处理「正文」和「命令行」。
-5. 修完后需要能回答两句话：
+5. **单行化必然损失命令内的空白信息**：`whitespace-nowrap` 会把 `\n` 与连续多空格折叠为单个空格（`ls  -la` → `ls -la`）。这是「永远一行」的代价，**显式接受**；复制按钮复制的是原始 `command` prop（`BashCommandDisplay.tsx:103`），显示折叠不影响复制保真。
+6. 修完后需要能回答两句话：
    - *同一份 payload，在任何 Provider、任何展开状态下，行结构都不丢。*
    - *任何命令，在任何状态下都恰好占一行。*
    这是本方案的验收核心。
 
-优先级：`L0` 命令单行化（用户明确要求）> `L1` 报错正文 > `L4` 任务列表丢行 > `L2` Plan/Subagent 正文 > `L3` 结构化 JSON > `L5` diff 长行 > `L6` 待办/问答内换行。
+优先级：`L0` 命令单行化（用户明确要求）> `L1` 报错正文 > `L4` 任务列表丢行 > `L2` Plan/Subagent 正文 > `L3` 结构化 JSON（跨 Provider）> `L5` diff 长行 > `L6` 待办/问答内换行。
 
 ---
 
@@ -112,7 +114,10 @@ toolName === 'PowerShell' → OneLineDisplay   （terminal 分支）
     `PowerShell` 配置了 `wrapText: true`（`toolConfigs.ts:148`），**所以 PowerShell 命令行也换行**。
 - **影响工具**：`Bash`（走 `BashCommandDisplay`）、`PowerShell`（走 `OneLineDisplay` terminal 分支）。
   `Bash` 注册表里的 `wrapText: true`（`toolConfigs.ts:122`）对 Bash 本身是死代码——`ToolRenderer.tsx:145` 按名字把它特判到 `BashCommandDisplay`，该配置项只影响分组预览。
-- **需求行为**：命令行永远恰好一行；超出可用宽度时**横向滚动**查看完整命令，既不换行也不省略。
+- **需求行为**：命令行永远恰好一行；超出可用宽度时**横向滚动**查看完整命令，不因省略号截断。
+- **必须用 `whitespace-nowrap`，不能用 `whitespace-pre`**（评审修正，见文末「牵头结论」）：`white-space: pre` 的语义是「保留空白序列 + **在保留的换行符处断行**，仅不做自动换行」，因此 `git commit -m "a\nb"` 在 `pre` 下仍会渲染成两行，`overflow-x-auto` 只能兜横向溢出、管不到纵向。只有 `nowrap`（折叠空白序列 + 禁止换行）才能保证单行。**这是本方案在评审中修正的最关键一处。**
+- **代价（显式接受）**：`nowrap` 会把命令内的 `\n` 与连续多空格折叠为单个空格。复制按钮复制的是原始 `command` prop（`BashCommandDisplay.tsx:103`），显示折叠不影响复制保真。
+- **已记录、不采用的替代方案**：把换行符渲染成可见标记（如 `↵`）以同时保留「多行」信息与单行布局。未采用：需要改写展示文本，且与命令中字面出现的 `↵` 无法区分，收益不抵复杂度。
 - **必须一起处理的坑**：`OneLineDisplay.tsx:106` 用的是 `<code>`，会被 `index.css:818-823` 的
   `white-space: pre-wrap !important` 强制换行。**只改类名无效**，必须同时把 `<code>` 换成 `<span>`
   （`BashCommandDisplay.tsx:145-147` 已经踩过这个坑并留了注释）。
@@ -141,13 +146,24 @@ toolName === 'PowerShell' → OneLineDisplay   （terminal 分支）
 - **注意区分**：`Task` 的多字段分支用 `parts.join('\n\n')`（`toolConfigs.ts:607`），双换行是段落分隔，**仍然生效**；坏掉的是 prompt/plan 内部的单个 `\n`。
 - **文案风险**：Plan 是模型撰写的 Markdown（可能有列表、加粗），不能像 L1 那样退化成纯文本。所以 L1 和 L2 必须走**不同**的修法。
 
-#### L3 结构化结果被 `JSON.stringify` 压成单行
+#### L3 结构化结果被 `JSON.stringify` 压成单行（跨 Provider）
 
-- **位置**：
-  - `src/modules/chat/hooks/useChatMessages.ts:10`——`const text = typeof content === 'string' ? content : JSON.stringify(content);`
-  - `src/modules/chat/tools/SubagentPanel.tsx:68`——`JSON.stringify(content)`（`readResultText` 兜底分支）
-  - `server/modules/providers/list/claude/claude-sessions.provider.ts:1113`——`JSON.stringify(toolResult.content)`（Claude 历史里 `tool_result.content` 为内容块数组时）
-- **影响**：所有 result `content` 为数组/对象（而非预拼接字符串）的工具；对 Claude 历史而言是**每一个** content 为块数组的 `tool_result`。`Default` 只对 MCP 的 `type:'text'` 数组做了拆包（`toolConfigs.ts:771-806`），其余原样落到 `TextContent` plain，输出成一整行 JSON。
+- **位置（客户端 2 处 + 服务端历史投影 8 处）**：
+  - **客户端**：
+    - `src/modules/chat/hooks/useChatMessages.ts:10`——`const text = typeof content === 'string' ? content : JSON.stringify(content);`
+    - `src/modules/chat/tools/SubagentPanel.tsx:68`——`JSON.stringify(content)`（`readResultText` 兜底分支）
+  - **服务端历史投影**（全部是 `tool_result.content` / 工具输出文本的落点）：
+    - `server/modules/providers/list/claude/claude-sessions.provider.ts:149`——`tool.toolResult.content` 既非字符串也非数组时（配对用，仍需一致缩进）
+    - `claude-sessions.provider.ts:752`——`tool_result` 消息构造时 `part.content` 非字符串
+    - `claude-sessions.provider.ts:1113`——`tool_result.content` 为内容块数组时
+    - `server/modules/providers/list/codex/codex-sessions.provider.ts:324`——`extractCodexToolOutput` 的非数组兜底
+    - `codex-sessions.provider.ts:345`——MCP 错误记录兜底
+    - `codex-sessions.provider.ts:359`——`structured_content`（Codex MCP 结构化结果）
+    - `codex-sessions.provider.ts:2373`——`raw.result`；注意该处 `JSON.stringify(raw.result ?? '')` 对**字符串值也会套上引号**，属相邻瑕疵
+    - `server/modules/providers/list/workbuddy/workbuddy-sessions.provider.ts:82`——输出兜底（同上）
+  - **已正确的对照实现**：`zcode-sessions.provider.ts:61`、`opencode-sessions.provider.ts:58` 已经是 `JSON.stringify(value, null, 2)`——说明路线 A 是各 Provider 正在收敛的方向。
+  - **不在范围**：`dsh` 用 `.join('')` 拼接文本块（见下方「相邻问题」）；`provider.routes.ts:1017+` 的 `JSON.stringify` 是 SSE 事件协议载荷，不是展示文本。
+- **影响**：所有 result `content` 为数组/对象（而非预拼接字符串）的工具；对 Claude / Codex / WorkBuddy 历史而言是**每一个** content 为结构化值的 `tool_result`。`Default` 只对 MCP 的 `type:'text'` 数组做了拆包（`toolConfigs.ts:771-806`），其余原样落到 `TextContent` plain，输出成一整行 JSON。
 - **不一致证据**：`toolInput` 在所有地方都是 `JSON.stringify(x, null, 2)`（`useChatMessages.ts:288`、`toolConfigs.ts:737, 763, 796, 799, 824`）。输入缩进、输出不缩进，属于疏漏而非风格。
 - **相邻问题（值得知道，不在本方案范围）**：
   - `server/modules/providers/list/codex/codex-sessions.provider.ts:333`、`server/modules/providers/list/dsh/dsh-sessions.provider.ts:99` 用 `.join('')` 拼接多个文本块且**无分隔符**，块本身没有末尾换行时会直接粘连。
@@ -158,18 +174,21 @@ toolName === 'PowerShell' → OneLineDisplay   （terminal 分支）
 - **位置**：`src/modules/chat/tools/ContentRenderers/TaskListContent.tsx`
   - `:15-37` `parseTaskContent`：`content.split('\n')` 后逐行正则匹配，**不匹配的行被直接跳过**。
   - `:78-85` 兜底只在 `tasks.length === 0`（一行都没匹配上）时触发。于是**混合 payload 中，表头、空行、换行续写的主题、备注会被静默丢弃**，剩下的行看起来「很正常」，问题因此不易被发现。
-  - `:115` 主题用 `truncate`，且没有 `title` 属性，长主题被省略号截断后**无法查看原文**。
+  - `:115` 主题用 `truncate`，且没有 `title` 属性，长主题被省略号截断后**无法查看原文**（移动端无悬停，见 §1.4）。
+- **正则的第二重偏差（评审补充）**：`#(\d+)` 未加 `^` 锚定，因此「备注：#15 已完成」这类行会**被误当成任务**（`id=15`、`subject` 取 `#` 之后的部分），而纯表头/分隔线则被丢弃。修复时必须同时处理「误匹配」与「丢弃」两种偏差，只补回退逻辑不够。
 - **影响工具**：`TaskList` result（`toolConfigs.ts:514-522`）、`TaskGet` result（`toolConfigs.ts:537-545`）。注意服务端会把历史里的 `TaskCreate/Update/List/Get` 改写成 `TodoWrite`（`server/shared/message-unification.ts`），但**实时**的 `TaskList`/`TaskGet` 结果仍然走到这个渲染器。
 - **性质**：这是**信息丢失**，严重程度高于「换行不好看」。本方案把它排在 L2 之前。
 
 #### L5 diff 长行被裁切且无横向滚动出口
 
 - **位置**：`src/modules/chat/tools/ToolDiffViewer.tsx`
-  - `:45` 外层 `overflow-hidden rounded border ...`——**只有 `overflow-hidden`，没有 `overflow-x-auto`**。
+  - `:45` 外层卡片 `overflow-hidden rounded border ...`——**只有裁切，没有横向出口**。
+  - `:66` diff 行容器 `font-mono text-[11px] leading-[18px]`——**没有 `overflow-x-auto`**。
   - `:79-83` 行内容 `<span className="flex-1 whitespace-pre-wrap px-2 ...">`——flex 子项**没有 `min-w-0`**，其自动最小尺寸可能等于最长不可断 token。
 - **根因链**：`.chat-message { overflow-wrap: break-word }`（`index.css:811-815`）**不会**降低 min-content 尺寸，因此 flex 子项仍可能撑开；撑开后由 `.chat-message { contain: paint }`（`index.css:635-637`）、`.chat-messages-pane { contain: paint }`（`index.css:611-613`）和滚动容器的 `overflow-x-hidden`（`ChatMessagesPane.tsx:216`）三层裁掉。**横向溢出没有查看出口。**
 - **对照正确实现**：围栏代码块显式给了 `overflow-x: auto`（`index.css:826-832`）；表格给了 `overflow-x-auto` + 移动端滚动提示（`index.css:847-871`）。diff 是唯一漏掉这一处理的代码类正文。
-- **与 L0 的关系**：`L0` 的做法（单行 + `overflow-x-auto`）正是本条的参考实现；`L5` 则相反（优先换行，仅在不可断 token 时滚动）。**两者方向不同是刻意的**：命令是「标识符」，diff 是「内容」。
+- **与 L0 的关系**：`L0` 的做法（单行 + `overflow-x-auto`）是「命令不换行」的参考实现；`L5` 则相反（优先换行，仅在不可断 token 时滚动）。**两者方向不同是刻意的**：命令是「标识符」，diff 是「内容」。
+- **评审修正（见文末「牵头结论」）**：原方案打算写成 `overflow-hidden overflow-x-auto`，即在**同一个元素**上叠两个 overflow 工具类。已取消：横向出口改挂在 `:66` 的 diff 行容器上，`:45` 保留 `overflow-hidden` 做圆角裁切。这样既彻底消除同元素 overflow 冲突，又让文件头不随内容横向滚动。
 - **影响工具**：`Edit`、`Write`、`ApplyPatch` 的 diff 正文。
 
 #### L6 待办与问答文本内的换行被折叠成空格
@@ -194,6 +213,9 @@ toolName === 'PowerShell' → OneLineDisplay   （terminal 分支）
 | ZCode 的 patch 工具名是 `Patch`，注册表键是 `ApplyPatch` | `zcode-sessions.provider.ts:502` | 落到 `Default` 渲染，不是换行问题；是否补别名属独立决策 |
 | ZCode 未识别工具回退名是 `Tool` | `zcode-sessions.provider.ts:211, 468` | 同上，落到 `Default`；`Default` 正文本身是 pretty JSON，不受本方案影响 |
 | ZCode 未给注册表新增任何工具键 | `toolConfigs.ts` 的 25 个键与 `353ab751` 时一致 | 因此本轮新增 Provider 不改变 `L0`–`L6` 的工具范围 |
+| 移动端长任务主题无查看出口 | `TaskListContent.tsx:115` 的 `title` 在触屏不触发 | 属「移动端查看长文本」的通用问题（tooltip / 展开交互），需统一方案，不在本轮 |
+| 导出文档打印为 PDF 时命令单行可能溢出页面 | L0 的 `nowrap` + `overflow-x-auto` | 纸面无滚动语义。HTML 导出维持单行；打印场景记为已知限制（§9），不引入 `@media print` 规则 |
+| **Codex 的 `toolInput` 预序列化为紧凑 JSON，绕过了客户端缩进**（实施期新发现） | `codex-sessions.provider.ts` 的 10 处 `toolInput: JSON.stringify({...})`（`:832, 1591, 1632, 1656, 1703, 1739, 1795, 1810, 1823, 1869`） | 与 L3 同源但**方向不同**：L3 改的是 `tool_result.content`，这是 `toolInput`。客户端 `useChatMessages.ts:290` 只在 `toolInput` 为对象时才缩进，**字符串原样透传**，因此 Codex 的紧凑 JSON 会直接进入「原始参数」视图。其余 Provider 传对象、由客户端统一缩进，所以只有 Codex 分叉。改动是 10 处机械替换，但超出 L3 已批准的 8 个 result 落点，**留待用户决定是否并入** |
 
 ---
 
@@ -201,11 +223,11 @@ toolName === 'PowerShell' → OneLineDisplay   （terminal 分支）
 
 ### 2.1 目标
 
-1. **命令行（Bash / PowerShell）永远恰好一行**，超宽横向滚动，折叠/展开都不换行（`L0`）。
-2. **运行时文本（报错、shell 输出）保持字节级换行**——行数、空行、缩进与 payload 一致。
+1. **命令行（Bash / PowerShell）永远恰好一行**（`whitespace-nowrap` + `overflow-x-auto`），折叠/展开都不换行，全文可横向滚动到达（`L0`）。
+2. **运行时文本（报错、shell 输出）保持内部换行结构**——行数、**内部**空行、**内部**缩进与 payload 一致。首尾空白不在保证范围内：`ToolErrorDisplay.tsx:23` 的既有 `const trimmedContent = content.trim()` 会在渲染前剥离首尾空白与换行，且折叠预览（`:76`）与展开体（`:84`）都消费 `trimmedContent`——这是可接受且本方案不修改的既有行为。
 3. **模型撰写的 Markdown 文本，单个 `\n` 渲染为硬换行**，同时不破坏围栏代码块、表格、列表的既有渲染。
-4. **结构化结果不再以单行 JSON 呈现**，缩进风格与 `toolInput` 一致。
-5. **任何 payload 行都不因渲染而丢失**——解析器不认识的行必须以原文回退，而不是丢弃。
+4. **结构化结果不再以单行 JSON 呈现**，缩进风格与 `toolInput` 一致，且各 Provider 历史投影表现一致。
+5. **任何 payload 行都不因渲染而丢失**——解析器不认识的行必须按原文保留（分段渲染或回退），而不是丢弃；同时不得把不匹配的行误判成结构化条目。
 6. **超长不可断 token 有可见出口**（换行或横向滚动），不被静默裁切。
 7. 以上在**转录区、导出文档、Subagent 面板**三个渲染入口表现一致。
 8. 不引入新的全局 CSS `!important`，不改变既有标题/摘要的一行化设计。
@@ -214,16 +236,18 @@ toolName === 'PowerShell' → OneLineDisplay   （terminal 分支）
 
 | 指标 | 通过条件 |
 | --- | --- |
-| 命令单行（折叠） | 含 `\n` 的多行命令，折叠态渲染高度等于一行 |
-| 命令单行（展开） | 同一命令展开输出后，命令行仍为一行；容器存在 `overflow-x-auto`，滚动可达行尾 |
-| 命令不省略 | 命令行不使用 `text-overflow: ellipsis` 截断（`truncate` 仅允许出现在折叠态之外的一行摘要行） |
+| 命令单行（折叠） | 含 `\n` 的多行命令，命令行渲染高度等于一行；命令节点 `getComputedStyle(...).whiteSpace === 'nowrap'` |
+| 命令单行（展开） | 同一命令展开输出后，命令行仍为一行且类名不随 `open` 变化；`getComputedStyle(...).overflowX === 'auto'`，`scrollWidth > clientWidth` 时可滚动到行尾 |
+| 命令空白折叠（新增） | 多行命令的 `\n` 与连续多空格渲染为**单个空格**：`git commit -m "a\nb"` 显示为 `git commit -m "a b"`。这是预期行为，**不是缺陷** |
+| 命令不省略（改述） | 命令行**不因省略号截断**，且全文可通过横向滚动到达。窄容器内「一屏只显示命令前若干字符」属预期（可滚动查看全文），不计为失败 |
 | `wrapText` 清理 | 全仓 `wrapText` 在 chat tools 下无残留引用；`ToolDisplayConfig` 不再声明该字段 |
-| 报错换行 | 给定含 5 行（其中 2 行为空行）的报错文本，展开后 DOM 中换行位置与原文一一对应 |
+| 报错换行 | 给定含 5 行（其中 2 行为**内部**空行、首尾无空行）的报错文本，展开后 DOM 中换行位置与原文一一对应；首尾空白按 `ToolErrorDisplay.tsx:23` 的既有 `.trim()` 剥离，不计入断言 |
 | Markdown 硬换行 | 给定 `line1\nline2`，Plan/prompt 渲染为两个可见行（`<br>` 或 `whitespace-pre-wrap`），且围栏代码块内的 `\n` 语义不变 |
-| JSON 缩进 | 结构化 result 渲染输出包含换行且缩进为 2 空格，与同工具的 `toolInput` 展示一致 |
+| JSON 缩进 | 结构化 result 渲染输出包含换行且缩进为 2 空格，与同工具的 `toolInput` 展示一致；**且 Claude / Codex / WorkBuddy 三条历史投影路径表现一致** |
 | 无丢行 | 混合 payload（合法行 + 表头 + 空行 + 备注）渲染后，所有非空行文本都能在 DOM 中找到 |
+| 无误匹配 | 「备注：#15 已完成」不被渲染成一条 `id=15` 的任务 |
 | 长行可见 | 单行 500 字符的 diff 行在 DOM 中不被裁切（换行或存在可横向滚动的祖先） |
-| 导出等价 | `TranscriptExportDocument` 下同一 fixture 的断言与屏幕态一致（除强制展开外）；命令行的导出态同样单行 |
+| 导出等价 | `TranscriptExportDocument` 下同一 fixture 的断言与屏幕态一致（除强制展开外）；命令行的导出态同样单行（打印为 PDF 的场景见 §1.4 已知限制） |
 | 回归 | `toolGrouping.test.ts`、`transcriptExport.test.tsx`、`useChatMessages.test.ts` 全绿 |
 
 ### 2.3 非目标
@@ -231,11 +255,13 @@ toolName === 'PowerShell' → OneLineDisplay   （terminal 分支）
 1. 不改 `CollapsibleSection` / `ToolGroupContainer` / `ToolErrorDisplay` 折叠态的一行化设计；`OneLineDisplay` 只改 terminal 分支与 `wrapText` 清理，其余分支不动。
 2. 不改全局 `index.css` 的 `.chat-message pre, code` 与 `.markdown-code-block` 规则（`L0` 通过换标签规避，而不是改规则）。
 3. 不改变 `TOOL_CONFIGS` 的注册表结构、工具分类与既有字段语义；唯一例外是删除已无使用者的 `wrapText`（见 §4.0）。
-4. 不改服务端事件格式；L3 的服务端改动仅限历史投影的序列化缩进。
+4. 不改服务端事件格式；L3 的服务端改动仅限历史投影的序列化缩进（跨 claude / codex / workbuddy 共 8 处）。
 5. 不新增工具卡片类型、不调整分组阈值 `TOOL_GROUP_THRESHOLD`。
 6. 不处理 §1.4 的相邻问题（含 ZCode 的 `Patch` / `Tool` 别名）。
 7. 不做 Markdown 渲染器替换（不引入新的 markdown 库）。
 8. **不给命令加「换行 / 滚动」用户开关**（对齐 GitPanel 的交互留作后续可选项，见 §4.0）。
+9. 不新增 `@media print` 规则；导出文档打印为 PDF 的溢出场景记为已知限制（§1.4、§9）。
+10. 不修正 `codex-sessions.provider.ts:2373`、`workbuddy-sessions.provider.ts:82` 对**字符串值也套引号**的相邻瑕疵——L3 只统一缩进，不改变其包裹语义。
 
 ---
 
@@ -246,11 +272,16 @@ toolName === 'PowerShell' → OneLineDisplay   （terminal 分支）
 | 路线 | 做法 | 优点 | 缺点 |
 | --- | --- | --- | --- |
 | A | 折叠/展开都 `truncate`（省略号） | 改动最小 | 长命令看不全，与「观看效果好」相悖；`title` 提示只覆盖桌面悬停 |
-| **B（推荐）** | 折叠/展开统一 **单行 + `overflow-x-auto`**（`whitespace-pre`） | 命令永远一行且完整可达；与 `GitDiffViewer.tsx:53` 的既有非换行分支同构 | 长命令会出现横向滚动条（macOS 覆盖式滚动条默认不占位） |
+| **B（推荐）** | 折叠/展开统一 **单行 + `overflow-x-auto`**（`whitespace-nowrap`） | 命令永远一行且完整可达；与 `GitDiffViewer.tsx:53` 的既有非换行分支同构 | 长命令会出现横向滚动条（macOS 覆盖式滚动条默认不占位）；命令内空白被折叠 |
 | C | 折叠 `truncate`，展开单行滚动 | 保留折叠态的干净观感 | 两个状态行为不一致，用户要先展开才能看全命令 |
 | D | 给用户一个「换行 / 滚动」开关 | 兼顾两类偏好，对齐 `GitPanel.tsx:37` | 超出本轮范围；需要新增 UI 与持久化偏好 |
+| E | 单行 + 把 `\n` 渲染成可见标记（`↵`） | 同时保留「多行」信息与单行布局 | 需改写展示文本；与命令中字面 `↵` 无法区分。**已记录，不采用** |
 
 **决策：路线 B。** 折叠与展开统一单行滚动，行为一致、命令完整可达。路线 D 记为后续可选。
+
+**为什么必须是 `nowrap` 而不是 `pre`**（评审修正）：`GitDiffViewer.tsx:53` 的 `overflow-x-auto whitespace-pre` 之所以成立，是因为它渲染的是**已经按行拆开的单行文本**，行内没有 `\n`。而命令行拿到的是**含 `\n` 的完整字符串**，`pre` 会在换行符处断行，直接违背需求。因此这两处虽然外观同构，取值必须不同：`nowrap`。
+
+**代价（显式接受）**：`nowrap` 折叠空白序列，命令内的 `\n` 与连续多空格会变成单个空格。命令是「标识符」语义，且复制走原始 `command`，可接受。
 
 **配套决策（必须与 B 同时做）：**
 
@@ -262,13 +293,15 @@ toolName === 'PowerShell' → OneLineDisplay   （terminal 分支）
    - 非 terminal 分支：固定 `truncate`（与当前 `wrapText` 默认 `false` 的行为完全一致，无行为变化）。
 3. 不改 `BashCommandDisplay` 的输出区（`BashCommandDisplay.tsx:206-210` 继续 `whitespace-pre-wrap break-all`）——
    **输出要换行，命令不要换行**，这是本需求的核心区分。
+   > **后续变更（2026-09-14）**：本条已被用户追加需求推翻——输出区改走与命令相同的终端语义
+   > （保留源行结构 + 横向滚动）。原论证保留在此仅作评审历史，现行结论见 §11.4。
 
 ### 3.1 L1：报错正文用什么渲染
 
 | 路线 | 做法 | 优点 | 缺点 |
 | --- | --- | --- | --- |
 | A | `ToolErrorDisplay` 的 `<Markdown>` 加 `breaks` | 一行改动，与用户消息一致 | 报错仍是 Markdown，`#`/`*`/`|`/`\` 仍被解析，可能改写运行时原文 |
-| **B（推荐）** | 展开体改为纯文本 pre-wrap（复用 `TextContent format="plain"` 的样式），不再走 Markdown | 运行时文本字节级保真；与 `BashCommandDisplay` 的输出观感一致；不依赖 `remark-breaks` | 报错里若含 Markdown 语法（极罕见）不再渲染格式 |
+| **B（推荐）** | 展开体改为纯文本 pre-wrap（复用 `TextContent format="plain"` 的样式），不再走 Markdown | 运行时文本内部换行保真（首尾空白仍按既有 `.trim()` 剥离，§2.1）；与 `BashCommandDisplay` 的输出观感一致；不依赖 `remark-breaks` | 报错里若含 Markdown 语法（极罕见）不再渲染格式 |
 
 **决策：路线 B。** 依据「文本来源分流」原则：报错是运行时数据而非模型撰写内容。同时把折叠态 `truncate` 与导出态的 `isExporting` 一起修（导出强制展开正文），见 §4.1。
 
@@ -286,26 +319,46 @@ toolName === 'PowerShell' → OneLineDisplay   （terminal 分支）
 
 | 路线 | 做法 | 风险 |
 | --- | --- | --- |
-| **A（推荐）** | 在三个序列化点统一加 `null, 2` | 需确认下游消费方（`startsWith('[')`、正则解析）不被缩进破坏——已初步核对兼容：`TodoRead` 的 `content.startsWith('[')` 对缩进后的数组仍成立（`[\n  {...}`） |
+| **A（推荐）** | 在全部落点（客户端 2 + 服务端 8）统一加 `null, 2` | 需确认下游消费方（`startsWith('[')`、`JSON.parse` 递归、正则解析）不被缩进破坏——已核对兼容：缩进后的数组仍以 `[` 开头，`JSON.parse` 可还原 |
 | B | 只在展示层（`TextContent`）探测并美化 | 对 `TaskListContent` 等已先行取值的结果无效；「探测 JSON」是隐式魔法 |
+| C | 只在客户端改，服务端不动 | 历史会话（Claude / Codex / WorkBuddy）仍显示单行 JSON，屏幕态与历史态分裂 |
 
-**决策：路线 A**，但必须为三个点各补一个契约测试（§6.2），因为 L3 是唯一一处改动会跨前后端的。
+**决策：路线 A**，全部落点统一。L3 是本次唯一跨前后端、且跨 3 个 Provider 的改动，必须为每一类落点补契约测试（§6.2）。
+
+**范围说明（评审修正）**：原方案误判为「一处服务端改动」，评审后核实为 8 处。`zcode:61` / `opencode:58` 已是 `null, 2`，本方案是把其余 Provider 收敛到同一风格，而不是发明新约定。
 
 ### 3.4 L4：不匹配行怎么办
 
 | 路线 | 做法 | 说明 |
 | --- | --- | --- |
-| A | 严格化：任一行不匹配就整体回退为 `<pre>` | 无信息丢失；已匹配的合法列表也会退化成原文，观感不如表格 |
-| **B（推荐）** | 忽略空行后，若仍有不匹配行 → 整体回退为 `<pre>`；全部匹配 → 保留现在的可视化列表 | 空行不影响判定，避免「列表末尾多一个空行就退化」 |
-| C | 保留匹配行 + 把不匹配行渲染成原文块 | 信息保留最好，但布局最复杂，且需要定义顺序语义 |
+| A | 严格化：任一行不匹配就整体回退为 `<pre>` | 无信息丢失；已匹配的合法列表也退化成原文，观感不如表格 |
+| B | 忽略空行后，若仍有不匹配行 → 整体回退为 `<pre>`；全部匹配 → 保留可视化列表 | 比 A 温和，但仍是用「杀掉可视化列表」换取不丢行——任务输出只要带一行表头/备注就永远看不到列表与进度条 |
+| **C（推荐）** | **分段渲染**：连续匹配行 → 可视化列表；连续不匹配的非空行 → 原文块；两段按原行序交替 | 信息零丢失，且合法列表保持可视化。需要定义分段顺序语义，实现量中等 |
 
-**决策：路线 B**，并为 `truncate` 的主题补 `title` 属性（`TaskListContent.tsx:115`），让长主题至少可悬停查看。路线 C 记为后续可选优化。
+**决策：路线 C**（评审修正，原为路线 B）。理由：A/B 都是「二选一」——要么丢行、要么丢可视化列表；而真实 payload 里「合法任务行 + 一行备注」是常见组合，B 会让 L4 的修复退化成功能回退。C 是唯一同时满足「不丢行」与「不丢列表」的方案。
+
+**配套：**
+
+1. 正则补行首锚定（或改为逐行严格匹配），消除「备注：#15 …」被误判成任务的第二重偏差（§1.3 L4）；锚定须**容忍可选 `- ` 前缀与行首空白**，精确形态见 §4.4 第 1 条。
+2. 进度条按**全部匹配到的任务**计算，不受分段影响。
+3. 完全无匹配行时，行为与现状一致（整体 `<pre>`），属 C 的退化情形。
+4. `truncate` 的主题补 `title` 属性（`TaskListContent.tsx:115`）——桌面可用；移动端无悬停，记入 §1.4。
 
 ### 3.5 L5：diff 长行
 
-**决策：** 给行内容 flex 子项补 `min-w-0`（`ToolDiffViewer.tsx:79`），保持 `whitespace-pre-wrap break-words`（优先换行）；仅当仍存在不可断 token 时，外层由 `overflow-hidden` 改为 `overflow-x-auto`（`ToolDiffViewer.tsx:45`）。两步都做，因为只加 `min-w-0` 无法覆盖「500 字符无空格」的极端场景。
+**决策：三步。**
+
+1. 行内容 flex 子项补 `min-w-0`（`ToolDiffViewer.tsx:79`），并把 `whitespace-pre-wrap` 补成 `whitespace-pre-wrap break-words`——**这一步是主修复**，让长 token 真正断行；
+2. 横向出口挂在 **diff 行容器**（`ToolDiffViewer.tsx:66`）上：加 `overflow-x-auto`，作为不可断 token 的兜底；
+3. 外层卡片（`:45`）**保持 `overflow-hidden` 不动**，继续负责圆角裁切。
+
+**为什么不在外层叠两个 overflow 类**（评审修正）：原方案写的是 `overflow-hidden overflow-x-auto`，即同一个元素上两个 overflow 工具类。虽然实测在 Tailwind v3.4 下 `overflow-x-auto` 因注册顺序靠后而生效，但这是对生成顺序的隐式依赖，升级 v4 可能变化。把滚动放到 `:66` 既消除了该依赖，又让文件头不随 diff 内容横向滚动——比评审建议的「外层改单类」更干净。
 
 **明确不采用**：改全局 `.chat-message pre, code` 规则（影响面过大）、给 diff 加 `truncate`（等于丢内容）。
+
+> **后续变更（2026-09-14）**：上面的「优先断行、滚动仅作兜底」已被推翻——diff 改成**不换行**。理由：L5 把「内容」
+> 等同于「散文」了，但 diff 是**行结构化的代码**，`break-words` 仍会在长 token 中间劈开，且折下去的
+> 续行看起来像新的一行。现行结论见 §11.5。
 
 ### 3.6 L6：待办与问答
 
@@ -326,24 +379,25 @@ toolName === 'PowerShell' → OneLineDisplay   （terminal 分支）
 open ? 'whitespace-pre-wrap break-all' : 'truncate',
 ```
 
-改为单行 + 横向滚动（折叠/展开一致）：
+改为单行 + 横向滚动（折叠/展开一致，**类名不再随 `open` 变化**）：
 
 ```tsx
-'min-w-0 flex-1 overflow-x-auto whitespace-pre font-mono text-xs text-foreground',
+'min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-xs text-foreground',
 ```
 
 要点：
 
-- `whitespace-pre` 保留命令内的原始空白（多行命令里的 `\n` 不再产生换行，因为容器不换行，但也不会被压成空格）；
-- `overflow-x-auto` 必须挂在**命令 span 自身**上——外层卡片是 `overflow-hidden`（`:112`），挂在父级会被裁掉；flex 子项已有 `min-w-0 flex-1`，具备收缩条件；
+- **`whitespace-nowrap`（不是 `whitespace-pre`）**：折叠空白序列并禁止换行，`\n` 与连续多空格变成单个空格，命令永远一行。`pre` 会在换行符处断行，不能用（§3.0）；
+- `overflow-x-auto` 必须挂在**命令 span 自身**上——外层卡片是 `overflow-hidden`（`:112`），挂在父级会被裁掉；flex 子项已有 `min-w-0 flex-1`，具备收缩条件（flex 子项会被块化，`overflow` 生效）；
 - 该 span 不是 `<code>`/`<pre>`，不受 `index.css:818-823` 影响，这条已经满足；
 - 头部 `onClick`（`:123`）仍在父 div 上，命令区滚动不影响「点击展开输出」；`role="button"` / `aria-expanded` 不变。
 
 **4.0.2 `OneLineDisplay.tsx:104-109`（PowerShell 命令行）**
 
 1. `<code>` → `<span>`（**必须**，见 §3.0 第 1 条），并把 `$` 前缀保留在同一个 span 内；
-2. 类名固定为 `block overflow-x-auto whitespace-pre font-mono text-xs text-green-400`；
+2. 类名固定为 `block overflow-x-auto whitespace-nowrap font-mono text-xs text-green-400`；
 3. 外层深色容器（`:105`）已有 `min-w-0 flex-1`，无需改动。
+4. **已知差异（采纳 Pi `L0-7`，接受不改）**：Bash 的 `$` 是滚动容器**之外**的独立 `flex-shrink-0` span（`BashCommandDisplay.tsx:142`），长命令横向滚动时 `$` 固定不动；PowerShell 的 `$` 嵌在滚动容器**内部**（`OneLineDisplay.tsx:107`），会随命令一起移出视野。本方案采纳「接受该差异」——命令被视为整体标识符，把 `$` 移出滚动容器需额外结构调整而收益有限。§6.5 验收时**勿把此差异判为 Bash/PowerShell 渲染不一致的回归**。
 
 **4.0.3 删除 `wrapText`**
 
@@ -356,7 +410,8 @@ open ? 'whitespace-pre-wrap break-all' : 'truncate',
 
 **4.0.4 明确不改的部分**
 
-- `BashCommandDisplay` 的输出区（`:206-210`）：继续 `whitespace-pre-wrap break-all` + `max-h-80 overflow-auto`。
+- ~~`BashCommandDisplay` 的输出区（`:206-210`）：继续 `whitespace-pre-wrap break-all` + `max-h-80 overflow-auto`。~~
+  **已推翻（2026-09-14）**：输出区改为 `.tool-terminal-output`（`white-space: pre`）+ 保留 `max-h-80 overflow-auto`，见 §11.4。
 - `BashCommandDisplay` 的 `description` 行（`:189`）：已是 `truncate` 单行。
 - `ToolGroupContainer` 的组预览（`:159`）：已是 `truncate` 单行。
 - 分组预览对 Bash 的取值走 `getToolInputPreview` → `config.getValue`（`toolGrouping.ts:68`），拿到的是完整命令字符串，随后由 `truncate` 收成一行——**不需要额外改动**；多行命令在预览里仍是一行，符合需求。
@@ -365,8 +420,10 @@ open ? 'whitespace-pre-wrap break-all' : 'truncate',
 
 给定命令 `git commit -m "a\nb"`（或任何含换行的多行命令）：
 
-- 折叠态：命令行占一行；
-- 展开输出后：命令行仍占一行，且 `scrollWidth > clientWidth` 时可横向滚动到行尾；
+- 折叠态：命令行占一行，`whiteSpace` 计算值为 `nowrap`；
+- **折叠态文本内容**：`git commit -m "a b"`——`\n` 被折叠为单个空格，这是**预期结果**（§2.2「命令空白折叠」），不是缺陷；
+- 展开输出后：命令行仍占一行，且类名不随 `open` 变化；`scrollWidth > clientWidth` 时可横向滚动到行尾；
+- 复制按钮：复制出的仍是原始命令（含 `\n`），与显示文本不同属预期（`BashCommandDisplay.tsx:103`）；
 - 导出文档：命令行同样一行（`isExporting` 只影响展开态，不影响命令行的单行约束）。
 
 ### 4.1 L1 报错正文
@@ -374,7 +431,7 @@ open ? 'whitespace-pre-wrap break-all' : 'truncate',
 `ToolErrorDisplay.tsx`：
 
 1. 展开体（`:81-87`）不再使用 `<Markdown>`，改为与 `TextContent` plain 同构的纯文本容器：
-   `whitespace-pre-wrap break-words` + 保留红色主题类；不使用 `<pre>`/`<code>` 标签（避免 `index.css:820` 的 `!important` 影响折叠态的 `truncate`，与 `:73-74` 的既有注释保持一致）。
+   `whitespace-pre-wrap break-words font-mono` + 保留红色主题类；不使用 `<pre>`/`<code>` 标签（避免 `index.css:820` 的 `!important` 影响折叠态的 `truncate`，与 `:73-74` 的既有注释保持一致）。`font-mono` 是评审补充：原展开体走 `font-serif` prose，改纯文本后若无等宽字体，堆栈的缩进对齐感会下降。
 2. 折叠态预览（`:72-78`）保持 `truncate` 不变。
 3. 引入 `useIsExportingTranscript()`：导出时强制走展开体（`open || isExporting`），使导出文档包含完整报错，消除 `06-tool-view.md` 记录的「导出只剩一行预览」问题。
 4. 保留 `aria-expanded`、键盘交互与 `role="button"` 语义不变。
@@ -383,42 +440,91 @@ open ? 'whitespace-pre-wrap break-all' : 'truncate',
 
 ### 4.2 L2 Plan / Subagent 正文
 
-1. `MarkdownContent.tsx`：给 props 增加 `breaks?: boolean`，透传给 `<Markdown breaks={breaks}>`；**默认值保持 `false`**，避免影响既有调用方。
+1. `MarkdownContent.tsx`：给 props 增加 `breaks?: boolean`，透传给 `<Markdown breaks={breaks}>`；默认值保持 `false`，由调用点显式传 `true`。**理由（评审修正）**：`MarkdownContent` 全仓只有 3 个调用方（`ToolRenderer.tsx:259`、`PlanDisplay.tsx:87`、`SubagentPanel.tsx:279`），且都会传 `true`，因此「默认 `false` 以保护既有调用方」并不成立——真实理由是**显式优于隐式**，防止未来新增调用方意外继承 `true`。
 2. 显式传 `breaks` 的调用点：
-   - `ToolRenderer.tsx:259`（`contentType: 'markdown'` 分支）——覆盖 `Task`/`Agent` 的 input 与 result。
-   - `PlanDisplay.tsx:87`——`ExitPlanMode` / `exit_plan_mode`。
-   - `SubagentPanel.tsx:279`——subagent 结果。
+   - `ToolRenderer.tsx:259`（`contentType: 'markdown'` 分支）——该分支是**全部 markdown 工具的统一出口**，覆盖下列 5 个配置：
+     | 工具 | 配置位置 | 内容 |
+     | --- | --- | --- |
+     | `Agent` | `toolConfigs.ts:560` | `input.prompt` |
+     | `Task` | `toolConfigs.ts:577` | `input`（多字段拼接，`parts.join('\n\n')`） |
+     | `Task` | `toolConfigs.ts:619` | `result`（subagent 结果） |
+     | `exit_plan_mode` | `toolConfigs.ts:701` | `input.plan` |
+     | `ExitPlanMode` | `toolConfigs.ts:717` | `input.plan` |
+     影响面恰好是 `Agent` / `Task` / `exit_plan_mode` / `ExitPlanMode` 四个工具名，无遗漏、无误伤（评审 L2-1 核实）。
+   - `PlanDisplay.tsx:87`——`plan` 类型的输入渲染。
+   - `SubagentPanel.tsx:279`——subagent 面板内的最终结果。
 3. `toolConfigs.ts:703, 719` 的 `input.plan?.replace(/\\n/g, '\n')` **保留**——它仍是必要的（把 Provider 传来的转义换行还原），修复点在渲染层而非配置层。
 4. 回归关注：Markdown 表格单元格内的软换行、列表项内的续行。若发现某一类文本出现「过度断行」，退路是把该调用点的 `breaks` 关掉，改为依赖 `\n\n` 分段。
 
 ### 4.3 L3 结构化 JSON
 
+**客户端（2 处）**
+
 1. `useChatMessages.ts:10` → `JSON.stringify(content, null, 2)`。
 2. `SubagentPanel.tsx:68` → `JSON.stringify(content, null, 2)`。
-3. `claude-sessions.provider.ts:1113` → `JSON.stringify(toolResult.content, null, 2)`。
-4. **前置校验（必须做，而非可选）**：确认下列消费方在缩进后行为不变——
-   - `toolConfigs.ts:438-453`（`TodoRead`，`startsWith('[')` + `JSON.parse`）
-   - `toolConfigs.ts:771-806`（`Default` 的 MCP `type:'text'` 拆包，先 `JSON.parse` 再 `JSON.stringify(..., null, 2)`）
-   - `TaskListContent`（不该收 JSON，但需确认不会因缩进产生新的匹配行）
-   - 服务端 `formatToolResultContent` 的 `<tool_use_error>` 包裹剥离（`useChatMessages.ts:11`）——缩进发生在剥离之后，顺序不受影响
-5. 体积影响：对超大 result 会增加空白字符。服务端已有 oversized output 截断，暂不引入新的上限；在 §6.3 中加一条体积断言作为观察项。
 
-### 4.4 L4 任务列表
+**服务端历史投影（8 处，全部加 `null, 2`）**
 
-1. `parseTaskContent`（`TaskListContent.tsx:15-37`）返回值改为 `{ tasks, hasUnparsedLine }`：
-   - 遍历时跳过纯空白行；
-   - 任何非空且不匹配的行 → `hasUnparsedLine = true`。
-2. `TaskListContent` 组件（`:75-85`）：
-   - `hasUnparsedLine === true` → 用现有 `<pre className="whitespace-pre-wrap ...">` 渲染原文；
-   - 否则按现状渲染可视化列表。
-3. `:115` 主题 span 增加 `title={task.subject}`。
-4. 不改变「0 行匹配 → 回退原文」的既有行为（它是新逻辑的子集）。
+| # | 文件 | 位置 | 说明 |
+| --- | --- | --- | --- |
+| 3 | `claude-sessions.provider.ts` | `:149` | `tool.toolResult.content` 既非字符串也非数组 |
+| 4 | `claude-sessions.provider.ts` | `:752` | `tool_result` 消息构造，`part.content` 非字符串 |
+| 5 | `claude-sessions.provider.ts` | `:1113` | `tool_result.content` 为内容块数组 |
+| 6 | `codex-sessions.provider.ts` | `:324` | `extractCodexToolOutput` 非数组兜底 |
+| 7 | `codex-sessions.provider.ts` | `:345` | MCP 错误记录兜底 |
+| 8 | `codex-sessions.provider.ts` | `:359` | `structured_content` |
+| 9 | `codex-sessions.provider.ts` | `:2373` | `raw.result`（**不改变**其对字符串额外加引号的语义，见 §2.3 第 10 条） |
+| 10 | `workbuddy-sessions.provider.ts` | `:82` | 输出兜底（同上） |
+
+**前置校验（必须做，而非可选）**：确认下列消费方在缩进后行为不变——
+
+- `toolConfigs.ts:438-453`（`TodoRead`，`startsWith('[')` + `JSON.parse`）——缩进后仍以 `[` 开头。
+- `toolConfigs.ts:771-806`（`Default` 的 MCP `type:'text'` 拆包，先 `JSON.parse` 再 `JSON.stringify(..., null, 2)`）。
+- **`SubagentPanel.tsx:68-76`（改动点自身即下游消费方）**：`readResultText` 在 `JSON.stringify` 之后紧跟 `trimmed.startsWith('[')` + `JSON.parse` 递归。缩进后文本以 `[\n  ...` 开头，`startsWith('[')` 与 `JSON.parse` 均成立——路径安全，但**必须补测试**（§6.2），这是最容易被漏掉的一处。
+- **`TaskListContent` 的既有结论**：`TaskList` result 的 `content` 在 `useChatMessages.ts:10` 已被 `JSON.stringify` 成字符串，若原始值是数组，**当前**就走「单行 JSON → 正则全不匹配 → 回退 `<pre>`」路径，本就不进可视化列表。因此 L3 缩进只会让回退内容从单行变 pretty，**不会**造成「可视化列表消失」。
+- 服务端 `formatToolResultContent` 的 `<tool_use_error>` 包裹剥离（`useChatMessages.ts:11`）——缩进发生在剥离之后，顺序不受影响。
+
+**体积影响**：对超大 result 会增加空白字符。服务端已有 oversized output 截断，暂不引入新的上限；在 §6.3 中加一条体积断言作为观察项。
+
+### 4.4 L4 任务列表（路线 C：分段渲染）
+
+1. `parseTaskContent`（`TaskListContent.tsx:15-37`）改为返回**有序分段**，而不是单一数组：
+
+   ```ts
+   type TaskSegment =
+     | { kind: 'tasks'; items: TaskItem[] }
+     | { kind: 'text'; lines: string[] };
+
+   function parseTaskContent(content: string): TaskSegment[];
+   ```
+
+   - 逐行判定，**正则补行首锚定**（消除「备注：#15 …」误匹配，§1.3 L4）。锚定必须**同时容忍行首空白与可选 `- ` 列表前缀**，精确形态建议为
+     `/^\s*(?:-\s*)?#(\d+)\.?\s*(?:\[(\w+)\]\s*)?(.+?)(?:\s*\((?:owner:\s*\w+)?\))?$/`；
+     裸写 `^#(\d+)` 会误杀 `TaskListContent.tsx:20-21` 源码注释明确声明为合法的形态 `- #15 [in_progress] Subject (owner: agent)` 以及带缩进的真实任务行——**「修误匹配」会变成新的丢行**（§8 风险表已列，此处为给实现者的设计约束）；
+   - 连续匹配行合并为一个 `tasks` 段；连续的非空不匹配行合并为一个 `text` 段；
+   - 纯空白行：并入相邻的 `text` 段（保留空行信息）；若夹在两段之间且两侧都是 `tasks`，可省略。
+
+2. `TaskListContent` 组件（`:75-126`）按分段顺序渲染：
+   - `tasks` 段 → 现有的可视化列表（`:103-124` 的 `space-y-px` 块）；
+   - `text` 段 → 现有 `<pre className="whitespace-pre-wrap font-mono text-[11px] ...">`（`:81-83` 的兜底样式复用）；
+   - 进度条（`:92-102`）只统计**全部 `tasks` 段**里的任务，渲染在列表之前；若没有任何 `tasks` 段，则不渲染进度条。
+3. 完全无 `tasks` 段时，行为与现状一致（整体 `<pre>`），属路线 C 的退化情形。
+4. `:115` 主题 span 增加 `title={task.subject}`（桌面可悬停；移动端限制见 §1.4）。
+5. 不改动 status 图标 / badge 的既有映射（`statusConfig`，`:39-67`）。
 
 ### 4.5 L5 diff 长行
 
-1. `ToolDiffViewer.tsx:79` 的行内容 span：`flex-1 whitespace-pre-wrap` → `min-w-0 flex-1 whitespace-pre-wrap break-words`。
-2. `ToolDiffViewer.tsx:45` 外层：`overflow-hidden` → `overflow-hidden overflow-x-auto`（保留圆角裁切，同时给不可断 token 一个滚动出口）。
-3. 行号列（`w-6 flex-shrink-0`）不动，滚动时随内容一起横向移动属于可接受行为；若评审认为行号应固定，改为 `sticky left-0`（列为可选项，默认不做）。
+1. ~~`ToolDiffViewer.tsx:79` 的行内容 span：`flex-1 whitespace-pre-wrap` → `min-w-0 flex-1 whitespace-pre-wrap break-words`（主修复：让 500 字符无空格 token 也能断行）。~~
+   ****后续变更（2026-09-14）****：改为 `min-w-0 flex-1 whitespace-pre`——不换行（§11.5）。
+2. `ToolDiffViewer.tsx:66` 的 diff 行容器：`font-mono text-[11px] leading-[18px]` → 追加 `overflow-x-auto`（兜底：极端不可断场景仍可横向查看）。
+3. `ToolDiffViewer.tsx:45` 外层卡片：**保持 `overflow-hidden` 不变**（继续负责圆角裁切）。**不再**改成 `overflow-hidden overflow-x-auto`——同元素两个 overflow 工具类的生效顺序依赖 Tailwind 内部注册顺序，不应依赖（§3.5）。
+4. 行号列（`w-6 flex-shrink-0`，`:69-77`）不动，滚动时随内容一起横向移动属于可接受行为；若评审认为行号应固定，改为 `sticky left-0`（列为可选项，默认不做）。
+   ****后续变更（2026-09-14）****：已采纳该可选项（`sticky left-0`）。注意它必须与 §11.5 的 `tool-diff-row` 同时生效——
+   行宽不撑到内容宽度时，sticky 的包含块只有一屏宽，滚过一屏后行号仍会滑走。
+5. ~~补一条断言：行内容容器含 `min-w-0` + `break-words`~~，diff 行容器含 `overflow-x-auto`，外层卡片仍含 `overflow-hidden` 且**不含** `overflow-x-auto`。
+   ****后续变更（2026-09-14）****：改为断言行内容含 `whitespace-pre`（**不含** `whitespace-pre-wrap` / `break-words`），
+   且行 div 含 `tool-diff-row`、行号 span 含 `sticky left-0`。
+   **实施修正（2026-09-13）**：原计划写的是 `getComputedStyle(行容器).overflowX === 'auto'`——jsdom 无 CSS 引擎，计算值恒为空，故改为断言类令牌（与 L0 同一处理，见 §6.1）。
 
 ### 4.6 L6 待办与问答
 
@@ -432,25 +538,29 @@ open ? 'whitespace-pre-wrap break-all' : 'truncate',
 
 | # | 文件 | 改动 | 对应条目 |
 | --- | --- | --- | --- |
-| 0a | `src/modules/chat/tools/BashCommandDisplay.tsx` | 命令 span 改单行 + `overflow-x-auto`（`:148-155`） | L0 |
-| 0b | `src/modules/chat/tools/OneLineDisplay.tsx` | terminal 分支 `<code>`→`<span>`、单行滚动；删除 `wrapText` props/默认值/两处分支（`:19, 48, 106, 185`） | L0 |
+| 0a | `src/modules/chat/tools/BashCommandDisplay.tsx` | 命令 span 改 `overflow-x-auto whitespace-nowrap`，类名不再随 `open` 变化（`:148-155`） | L0 |
+| 0b | `src/modules/chat/tools/OneLineDisplay.tsx` | terminal 分支 `<code>`→`<span>`、`overflow-x-auto whitespace-nowrap`；删除 `wrapText` props/默认值/两处分支（`:19, 48, 106, 185`） | L0 |
 | 0c | `src/modules/chat/tools/configs/toolConfigs.ts` | 删除 `wrapText` 类型与 Bash/PowerShell 赋值（`:16, 122, 148`） | L0 |
 | 0d | `src/modules/chat/tools/ToolRenderer.tsx` | 删除 `wrapText` prop 传递（`:193`） | L0 |
 | 0e | `src/modules/chat/tools/README.md` | 同步删除 `wrapText` 声明（`:162`） | L0、文档同步 |
-| 1 | `src/modules/chat/tools/ToolErrorDisplay.tsx` | 展开体改纯文本 pre-wrap；接入 `useIsExportingTranscript` | L1 |
-| 2 | `src/modules/chat/tools/ContentRenderers/MarkdownContent.tsx` | 新增 `breaks?: boolean`（默认 false） | L2 |
-| 3 | `src/modules/chat/tools/ToolRenderer.tsx` | markdown 分支传 `breaks` | L2 |
+| 1 | `src/modules/chat/tools/ToolErrorDisplay.tsx` | 展开体改纯文本 `whitespace-pre-wrap break-words font-mono`；接入 `useIsExportingTranscript` | L1 |
+| 2 | `src/modules/chat/tools/ContentRenderers/MarkdownContent.tsx` | 新增 `breaks?: boolean`（默认 false，调用点显式传 true） | L2 |
+| 3 | `src/modules/chat/tools/ToolRenderer.tsx` | markdown 分支传 `breaks`（覆盖 5 个 markdown 配置） | L2 |
 | 4 | `src/modules/chat/tools/PlanDisplay.tsx` | 传 `breaks` | L2 |
 | 5 | `src/modules/chat/tools/SubagentPanel.tsx` | 结果区传 `breaks`；`readResultText` 缩进 | L2、L3 |
 | 6 | `src/modules/chat/hooks/useChatMessages.ts` | `formatToolResultContent` 缩进 | L3 |
-| 7 | `server/modules/providers/list/claude/claude-sessions.provider.ts` | 历史投影序列化缩进 | L3 |
-| 8 | `src/modules/chat/tools/ContentRenderers/TaskListContent.tsx` | 不匹配行检测 + 回退 + `title` | L4 |
-| 9 | `src/modules/chat/tools/ToolDiffViewer.tsx` | `min-w-0` + `overflow-x-auto` | L5 |
+| 7a | `server/modules/providers/list/claude/claude-sessions.provider.ts` | 历史投影序列化缩进（`:149, :752, :1113`） | L3 |
+| 7b | `server/modules/providers/list/codex/codex-sessions.provider.ts` | 历史投影序列化缩进（`:324, :345, :359, :2373`） | L3 |
+| 7c | `server/modules/providers/list/workbuddy/workbuddy-sessions.provider.ts` | 历史投影序列化缩进（`:82`） | L3 |
+| 8 | `src/modules/chat/tools/ContentRenderers/TaskListContent.tsx` | 分段渲染（`tasks` / `text` 段）+ 正则行首锚定（容忍 `- ` 前缀与行首空白，§4.4）+ `title` | L4 |
+| 9 | `src/modules/chat/tools/ToolDiffViewer.tsx` | **§11.5 修订**：行内容 `min-w-0` + `whitespace-pre`（`:79`）；行 div 加 `tool-diff-row`；行号 span 加 `sticky left-0`；行容器 `overflow-x-auto`（`:66`）；外层 `:45` 不动 | L5 |
 | 10 | `src/modules/chat/tools/Queue.tsx` | `whitespace-pre-wrap` | L6 |
 | 11 | `src/modules/chat/tools/ContentRenderers/QuestionAnswerContent.tsx` | `whitespace-pre-wrap` | L6 |
-| 12 | `src/modules/chat/tests/toolContentLineBreaks.test.tsx`（新增） | 见 §6 | 全部 |
-| 13 | `src/modules/chat/tests/toolCommandSingleLine.test.tsx`（新增） | 见 §6.1 | L0 |
-| 14 | `docs/architecture/06-tool-view.md` | 更新「报错展开体」「MarkdownContent」「命令行单行」三处描述 | 文档同步 |
+| 12 | `src/modules/chat/tests/toolContentLineBreaks.test.tsx`（新增） | L1 / L2 / L4 / L5 / L6 屏幕态用例，见 §6.1 | L1–L6（除 L3） |
+| 13 | `src/modules/chat/tests/toolCommandSingleLine.test.tsx`（新增） | L0 用例，见 §6.1 | L0 |
+| 14 | `src/modules/chat/tests/useChatMessages.test.ts`（扩展） | L3 客户端契约：结构化 result 缩进、`toolInput` 缩进、`<tool_use_error>` 剥离不变，见 §6.2 | L3 |
+| 15 | `server/modules/providers/tests/claude-sessions.test.ts`（扩展） | L3 服务端契约：块数组 result 投影为缩进 JSON，见 §6.2 | L3 |
+| 16 | `docs/architecture/06-tool-view.md` | 更新「报错展开体」「MarkdownContent」「命令行单行」三处描述 | 文档同步 |
 
 ---
 
@@ -467,36 +577,57 @@ open ? 'whitespace-pre-wrap break-all' : 'truncate',
 
 **L0（`toolCommandSingleLine.test.tsx`）**
 
+> 评审修正：断言锚定**行为**，而不是任意类名。
+>
+> **实施修正（2026-09-13）**：jsdom 不加载 CSS，`getComputedStyle` 对 Tailwind 类只会返回浏览器默认值（全为 `''`），`offsetHeight` / `scrollWidth` 也无布局可算。因此 L0 测试实际断言的是**编码该行为的类令牌**（`whitespace-nowrap` + `overflow-x-auto`，且不含 `whitespace-pre-wrap` / `truncate`）——这是 jsdom 下唯一可断言的等价物；「长命令确实能横向滚动」这一布局行为由 transcript Playwright 套件（`npm run test:transcript`）覆盖。测试用「文本内容匹配的最深元素」定位命令节点，不引入 `data-testid`（本仓 `src/` 无此约定）。
+
 | 用例 | fixture | 断言 |
 | --- | --- | --- |
-| Bash 折叠态单行 | 含 `\n` 的 `git commit -m "a\nb"` | 命令 span 存在 `whitespace-pre` + `overflow-x-auto`；不含 `whitespace-pre-wrap` |
-| Bash 展开态仍单行 | 同上 + 有输出，点击展开 | 展开后命令 span 的类名不变（不因 `open` 切换）；输出区仍含 `whitespace-pre-wrap` |
-| PowerShell 单行 | 含 `\n` 的命令 | 命令节点是 `<span>` 而非 `<code>`（否则会被全局 `!important` 击败）；含 `overflow-x-auto` |
-| 无 `wrapText` 残留 | — | 对 `OneLineDisplay` 传 `wrapText` 不再是合法 prop（类型层面）；渲染非 terminal 分支仍为 `truncate` |
-| 导出态单行 | 导出文档 | 命令行同样单行 |
+| Bash 折叠态单行 | 含 `\n` 的 `git commit -m "a\nb"` | 命令节点 class 含 `whitespace-nowrap` + `overflow-x-auto`；不含 `whitespace-pre-wrap`；不含 `truncate` |
+| Bash 展开态仍单行 | 同上 + 有输出，点击展开 | 展开前后命令节点 class **完全一致**（不随 `open` 切换）；输出区 `<pre>` 含 `tool-terminal-output`（命令与输出同属一个终端面，§11.4） |
+| Bash 复制保真 | 同上 | `navigator.clipboard.writeText` 收到的是**原始**命令（含 `\n`），与折叠后的显示文本不同 |
+| PowerShell 单行 | 含 `\n` 的命令 | 命令节点 `tagName === 'SPAN'`（不是 `CODE`，否则被全局 `!important` 击败）；含 `whitespace-nowrap` + `overflow-x-auto` |
+| PowerShell 走注册表 | 经 `ToolRenderer` 渲染 `PowerShell` | 与上一条一致，确认注册表路径未被绕过 |
+| 非 terminal 分支不变 | `Read` 等普通 one-line | class 含 `truncate`，不含 `whitespace-pre-wrap`（删除 `wrapText` 后无行为变化） |
+| `wrapText` 清理 | — | 由 `npm run typecheck` 保证：字段删除后传该 prop 不再是合法类型；`grep -rn wrapText src/modules/chat/` 无残留 |
 
 **L1–L6（`toolContentLineBreaks.test.tsx`）**
 
+> **实施修正（2026-09-13）**：与 L0 同理，jsdom 无 CSS 引擎，涉及样式的断言（L5 / L6）改为断言类令牌；L1 / L2 / L4 断言的是 DOM 结构与文本内容，不依赖 CSS。L4 另用「文本内容为 `#<id>` 的最深元素」计数任务行，不引入 `data-testid`。
+
 | 用例 | fixture | 断言 |
 | --- | --- | --- |
-| L1 报错展开 | 5 行含 2 空行的报错 | 展开后文本节点保留 `\n`（或容器 class 含 `whitespace-pre-wrap`），且不产生 `<p>`/`<strong>` 等 Markdown 元素 |
+| L1 报错展开 | 5 行含 2 个**内部**空行（首尾不带空行）的报错 | 展开后文本节点保留 `\n`（或容器 class 含 `whitespace-pre-wrap`），且不产生 `<p>`/`<strong>` 等 Markdown 元素；首尾空白按既有 `.trim()` 剥离，不纳入断言 |
+| L1 报错字体 | 含堆栈的报错 | 容器 class 含 `font-mono` |
 | L2 Plan 硬换行 | `line1\nline2` | 渲染出两个可见行；围栏代码块内 `\n` 不被额外转换 |
 | L2 Subagent 结果 | 同上报错形态的 result | 与 Plan 一致 |
+| L2 markdown 分支覆盖 | 5 个 `contentType: 'markdown'` 配置各一条 | 全部走 `breaks` 生效路径（防止未来新增 markdown 工具漏传） |
 | L3 JSON 缩进 | `[{ "a": 1 }]` 结构化 result | 输出含缩进换行；`JSON.parse` 仍可还原 |
-| L4 混合 payload | 合法行 + 表头 + 空行 + 备注 | 所有非空行文本都能在 DOM 中命中；不含可视化列表进度条 |
-| L4 全合法 payload | 3 条合法任务 | 仍渲染可视化列表（不因新增逻辑而回退） |
-| L5 长 diff 行 | 单行 500 字符 | 行内容容器为 `min-w-0`，外层存在 `overflow-x-auto` |
-| L6 待办换行 | 含 `\n` 的 todo item | 文本节点保留换行 |
+| L4 混合 payload | 合法行 + 表头 + 空行 + 备注 | **可视化列表与原文块同时存在**；所有非空行文本都能在 DOM 中命中；进度条按合法任务计数 |
+| L4 全合法 payload | 3 条合法任务 | 只渲染可视化列表，无多余原文块 |
+| L4 误匹配 | 「备注：#15 已完成」+ 合法任务行 | 不产生 `id=15` 的任务条目 |
+| L4 前缀形态（锚定回归护栏） | `- #15 [in_progress] Fix it (owner: agent)` + `#16. [pending] Other` | 两行**都**被识别为任务（锚定容忍可选 `- ` 前缀与行首空白）；不产生原文块 |
+| L4 全不匹配 payload | 无任何 `#<id>` 行 | 整体回退为 `<pre>`（现状行为不变） |
+| L5 长 diff 行 | 单行 500 字符无空格 token | 行内容容器含 `min-w-0` + `whitespace-pre` 且**不含** `whitespace-pre-wrap` / `break-words`；行 div 含 `tool-diff-row`；行号 span 含 `sticky` + `left-0`；diff 行容器含 `overflow-x-auto`；外层卡片含 `overflow-hidden` 且不含 `overflow-x-auto`（类令牌断言，jsdom 无 CSS 引擎） |
+| L6 待办换行 | 含 `\n` 的 todo item（`QueueItem` + `QueueItemContent`） | 内容节点含 `whitespace-pre-wrap` + `break-words` |
+| L6 问答换行 | 含 `\n` 的问题与选项（展开后） | 问题文本、选项 label、选项 description 三处均含 `whitespace-pre-wrap` |
 
 ### 6.2 L3 跨层契约测试
 
 - 客户端：新增/扩展 `useChatMessages` 测试，断言结构化 `toolResult.content` 投影后为带缩进的字符串，且 `formatToolResultContent` 对 `<tool_use_error>` 的剥离仍然生效。
-- 服务端：在 Claude 历史 provider 的既有测试中加一条断言——content 为块数组时输出含换行缩进，且 `toolResultMap` 配对结果不变。
+- **客户端（改动点自身即消费方）**：为 `SubagentPanel.readResultText` 加一条——缩进后的 `[\n  ...` 仍能被 `startsWith('[')` + `JSON.parse` 递归还原（`SubagentPanel.tsx:68-76`）。
+- 服务端：**三个 Provider 各加一条**断言，content 为结构化值时输出含换行缩进——
+  - Claude：`:149` / `:752` / `:1113` 三条路径，且 `toolResultMap` 配对结果不变；
+  - Codex：`:324` / `:345` / `:359` / `:2373`；
+  - WorkBuddy：`:82`。
 - 兼容性：为 `TodoRead` 的 `startsWith('[')` 与 `Default` 的 MCP 拆包各加一条「缩进输入」用例。
+- **TaskList 既有结论**：加一条断言固化「数组输入本就回退 `<pre>`，缩进只改变回退内容可读性」——避免后续实现者把它误当成 L4 的回归（§4.3）。
 
 ### 6.3 导出等价测试
 
 在 `transcriptExport.test.tsx` 补一条：失败的非 Bash 工具在导出文档中**包含完整报错正文**（验证 L1 的 `isExporting` 接入）。这是本次唯一会改变导出内容的改动，必须显式覆盖。
+
+打印场景：导出为 PDF 时命令行的横向滚动无意义（§1.4 已知限制），本轮不引入 `@media print`，因此**不设打印态断言**；如后续需要，在导出样式表中单独处理。
 
 ### 6.4 既有回归
 
@@ -506,13 +637,17 @@ open ? 'whitespace-pre-wrap break-all' : 'truncate',
 
 | 场景 | 入口 | 期望 |
 | --- | --- | --- |
-| 多行命令（Bash） | 折叠 + 展开 + 导出 | 命令行始终一行；可横向滚动到行尾；输出区仍正常换行 |
-| 多行命令（PowerShell） | 屏幕 + 导出 | 同上 |
-| 工具报错（非 Bash） | 屏幕展开 | 行结构与原文一致；导出同样完整 |
+| 多行命令（Bash） | 折叠 + 展开 + 导出 | 命令行始终一行；可横向滚动到行尾；**输出区同样保留源行结构、横向滚动**（§11.4）；折叠态文本里 `\n` 显示为空格 |
+| Bash 错误命令的折叠预览 | 折叠态 | `errorPreview`（`BashCommandDisplay.tsx:194-198`）**本就是多行**（输出末 3 行，`<pre>` + 全局 `pre-wrap`）。属既有设计，**不计入 L0 判定**，勿误报为回归。§11.4 之后**仍**保持换行——它是折叠态的 peek，不是输出区本身，勿因与展开态不一致而误报 |
+| 多行命令（PowerShell） | 屏幕 + 导出 | 同 Bash；命令节点是 `<span>` 而非 `<code>`；长命令滚动时 `$` 随命令移出视野属**已知差异**（Bash 的 `$` 固定），不计入 L0 判定（§4.0.2 第 4 条） |
+| 工具报错（非 Bash） | 屏幕展开 | 行结构与原文一致；等宽字体；导出同样完整 |
 | Plan 卡片 | 屏幕 + 导出 | prompt 内单换行可见；列表/加粗仍渲染 |
 | Subagent 结果 | 面板内 | 同 Plan |
-| `TaskList` 混合 payload | 屏幕展开 | 原文回退，无丢行 |
-| 长 diff 行 | 编辑类工具展开 | 换行或可横向滚动，不裁切 |
+| `TaskList` 混合 payload（合法行 + 备注） | 屏幕展开 | **可视化列表与原文块并存**，无丢行；进度条按合法任务计数 |
+| `TaskList` 备注含 `#<数字>` | 屏幕展开 | 不被误判成任务 |
+| `TaskList` 带 `- ` 前缀的任务行 | 屏幕展开 | 仍被识别为任务（锚定容忍 `- ` 前缀与行首空白），不落入原文块 |
+| `TaskList` 全不匹配 payload | 屏幕展开 | 整体回退 `<pre>`（与现状一致） |
+| 长 diff 行 | 编辑类工具展开 | **不换行**、保持源行；横向可滚动到行尾；加/减底色铺满整行；`+`/`-` 行号滚动时固定不动；文件头不随内容横向滚动（§11.5） |
 | 待办含换行 | 验证清单展开 | 换行可见 |
 | 长会话滚动/折叠 | 全部 | 无新增布局跳动、无横向滚动条出现在聊天区 |
 
@@ -524,9 +659,9 @@ open ? 'whitespace-pre-wrap break-all' : 'truncate',
 | --- | --- | --- |
 | 阶段 0 | 为 L0、L1、L4 各写一个**失败**测试 | L0 是用户明确要求；L1/L4 是信息丢失型缺陷。先固化现象 |
 | 阶段 1 | **L0（命令单行化）** | 用户明确要求，且改动集中（`BashCommandDisplay` + `OneLineDisplay` + `wrapText` 清理），独立发布便于验证观感 |
-| 阶段 2 | L1 + L2（同一根因：Markdown `breaks`） | 同一发布，避免「报错修了但 Plan 没修」的中间态 |
-| 阶段 3 | L4（丢行） | 信息丢失，优先级高于观感类问题 |
-| 阶段 4 | L3（含服务端） | 唯一跨前后端改动，单独发布便于回滚 |
+| 阶段 2 | L1 + L2 | 同属 Markdown 渲染路径的调整（L1 是**弃用** Markdown 改纯文本，L2 是**开启** `breaks`），修法不同源；同发布只为避免「报错修了但 Plan 没修」的中间态 |
+| 阶段 3 | L4（丢行 + 误匹配） | 信息丢失，优先级高于观感类问题 |
+| 阶段 4 | L3（跨 Provider，客户端 2 + 服务端 8 处落点） | 唯一跨前后端、跨 3 个 Provider 的改动；建议按 Provider 分提交（客户端 → claude → codex → workbuddy），便于逐个回滚 |
 | 阶段 5 | L5 + L6（纯 CSS） | 低风险，可合并为一个发布 |
 | 阶段 6 | 文档同步（`06-tool-view.md` + `tools/README.md`）+ 人工验收矩阵 | 收尾 |
 
@@ -538,10 +673,14 @@ open ? 'whitespace-pre-wrap break-all' : 'truncate',
 | --- | --- | --- |
 | `breaks` 造成过度断行 | 模型在 Markdown 段落里大量使用软换行 | 只对工具卡片显式传 `breaks`；`Markdown` 默认值不变，助手正文不受影响 |
 | 报错改纯文本后丢失格式 | 报错内含 Markdown 语法 | 接受；运行时文本保真优先。如出现具体反例，再对单个调用点回退为 `breaks` 方案 |
-| JSON 缩进破坏下游解析 | 某处依赖单行 JSON | §4.3 第 4 条的前置校验 + §6.2 契约测试；缩进改动集中在 3 个点，回滚成本低 |
+| **命令空白被折叠引发误解** | 命令含 `\n` 或连续多空格（`ls  -la`） | 这是单行化的必然代价，已写入 §2.2 指标与 §4.0.5 验收锚点；复制按钮取原始命令，复制保真 |
+| **命令单行在打印/PDF 下溢出** | 导出文档打印 | HTML 导出维持单行；打印记为已知限制（§1.4、§9），不引入 `@media print` |
+| **L3 漏改某个 Provider 导致风格分叉** | 只改 claude 忘了 codex / workbuddy | §4.3 已列全 10 处落点；§6.2 要求三个 Provider 各补断言；建议按 Provider 分提交，逐个回滚 |
+| JSON 缩进破坏下游解析 | 某处依赖单行 JSON | §4.3 前置校验（含 `SubagentPanel` 自身的 `startsWith('[')` 递归）+ §6.2 契约测试 |
 | JSON 缩进放大 DOM/导出体积 | 超大结构化 result | 服务端已有 oversized output 截断；把体积变化记为观察指标而非门槛 |
-| 任务列表回退过于激进 | 合法列表混入了备注行 | `ignore 空行` 已排除最常见误判；如需更细粒度，走路线 C（后续可选） |
-| `overflow-x-auto` 引入 diff 卡片内滚动条 | 长行场景 | 优先走换行（`break-words`），滚动仅覆盖不可断 token 的极端场景 |
+| **L4 分段渲染的顺序语义** | 合法行与备注行交错 | 按原行序交替渲染（§4.4）；进度条只统计 `tasks` 段。若实现成本超预期，退路是路线 B（整体回退）并接受可视化列表消失 |
+| **L4 正则补锚定后误杀** | 真实任务行不以 `#` 起始（带缩进 / `- ` 前缀） | 源码注释已声明 `- #15 [in_progress] …` 为合法形态（`TaskListContent.tsx:20-21`），故锚定必须写成 `^\s*(?:-\s*)?#…`；精确形态与理由见 §4.4 第 1 条；§6.1 补「`- #15 …` 仍被识别为任务」用例 |
+| `overflow-x-auto` 引入 diff 行区滚动条 | 长行场景 | 优先走换行（`break-words` + `min-w-0`），滚动仅覆盖不可断 token 的极端场景 |
 | 命令行的横向滚动条被误读为「布局坏了」 | 长命令场景 | 折叠/展开行为一致；滚动条仅在超宽时出现，macOS 覆盖式滚动条默认不占位。人工验收矩阵显式覆盖 |
 | 命令区滚动与「点击展开输出」冲突 | 命令区位于可点击头部内 | 命令区滚轮/触控板滚动不触发点击；点击仍冒泡到父 div 切换展开，行为不变。若实测冲突，退路是只对命令区 `stopPropagation` 的滚动事件，不动点击 |
 | 删除 `wrapText` 影响未知调用方 | 有仓外/未检索到的调用 | 已全仓检索：仅 `toolConfigs.ts`（2 处赋值）、`OneLineDisplay.tsx`（4 处）、`ToolRenderer.tsx`（1 处）、`README.md`（1 处）；无测试引用。删除前再跑一次 `grep -rn wrapText src/` 确认 |
@@ -558,12 +697,22 @@ open ? 'whitespace-pre-wrap break-all' : 'truncate',
 ```
 条目覆盖：L0 / L1 / L2 / L3 / L4 / L5 / L6  ✔/✘
 命令单行：Bash 折叠 ✔/✘   Bash 展开 ✔/✘   PowerShell ✔/✘   导出 ✔/✘
+命令空白折叠（`\n` → 空格）符合预期 ✔/✘
 wrapText 清理：无残留引用 ✔/✘
+L3 Provider 覆盖：claude ✔/✘   codex ✔/✘   workbuddy ✔/✘   客户端 ✔/✘
+L4 分段渲染：列表与原文块并存 ✔/✘   误匹配已消除 ✔/✘
 新增测试：toolCommandSingleLine.test.tsx __ 条 / toolContentLineBreaks.test.tsx __ 条
 导出等价：包含完整报错正文 ✔/✘
 回归：toolGrouping / liveSubagentGrouping / useChatMessages / transcriptExport  ✔/✘
-人工矩阵（§6.5）通过：__ / 9
-未处理（记录在案）：Grep/Glob 匹配行、TodoRead 空输出、codex/dsh join 分隔符、ZCode 的 Patch/Tool 别名
+人工矩阵（§6.5）通过：__ / 13
+未处理（记录在案）：
+  - Grep/Glob 匹配行内容不展示
+  - TodoRead 空输出静默
+  - codex/dsh 多文本块 `.join('')` 无分隔符
+  - ZCode 的 Patch / Tool 别名未映射
+  - 移动端长任务主题无查看出口（title 不触发）
+  - 导出打印为 PDF 时命令单行溢出
+  - codex:2373 / workbuddy:82 对字符串值额外加引号
 ```
 
 ---
@@ -587,24 +736,291 @@ wrapText 清理：无残留引用 ✔/✘
 
 > 若后续再有提交，请以本节的核对清单为准重新跑一遍 `grep`，不要直接信任本文行号。
 
+### 10.1 评审轮 1 的行号复核（2026-09-13）
+
+评审轮 1 由 ZCode 在 `857f4a61` 上复核，结论：**本文原有引用全部成立**。`590b88f1..857f4a61` 之间只有 `src/modules/chat/hooks/useChatRealtimeHandlers.ts` 有改动（9 行新增），不涉及本文引用的任何文件。
+
+本轮**新增**的引用（§1.3 L3 的服务端落点与 §4.2 的 markdown 配置，均已逐条核实）：
+
+| 文件 | 行号 | 已核实的内容 |
+| --- | --- | --- |
+| `claude-sessions.provider.ts` | `149`、`752`、`1113` | 三处 `JSON.stringify`，均无缩进 |
+| `codex-sessions.provider.ts` | `324`、`345`、`359`、`2373` | 四处 `JSON.stringify`，均无缩进 |
+| `workbuddy-sessions.provider.ts` | `82` | 输出兜底 `JSON.stringify`，无缩进 |
+| `zcode-sessions.provider.ts` / `opencode-sessions.provider.ts` | `61` / `58` | 已是 `JSON.stringify(value, null, 2)`，作为收敛方向佐证 |
+| `toolConfigs.ts` | `560`、`577`、`619`、`701`、`717` | `contentType: 'markdown'` 的全部 5 个配置（`Agent` / `Task` ×2 / `exit_plan_mode` / `ExitPlanMode`） |
+| `TaskListContent.tsx` | `23` | 正则 `#(\d+)` 未锚定行首，可误匹配「备注：#15 …」 |
+| `BashCommandDisplay.tsx` | `103` | 复制按钮取原始 `command` prop，显示折叠不影响复制 |
+
+---
+
+## 11. 实施记录（2026-09-13）
+
+代码已按 §7 的顺序落地，`git status` 的改动全部在 §5 清单内。
+
+| 阶段 | 内容 | 状态 |
+| --- | --- | --- |
+| 0 | 先写失败测试（L0 / L1 / L4，后续补齐 L2 / L5 / L6） | 完成 |
+| 1 | L0 命令单行化（`BashCommandDisplay` + `OneLineDisplay` + 删除 `wrapText`） | 完成 |
+| 2 | L1 报错纯文本化 + L2 Markdown `breaks` | 完成 |
+| 3 | L4 分段渲染 + 行首锚定 + `title` | 完成 |
+| 4 | L3 缩进（客户端 2 + 服务端 8 处落点） | 完成 |
+| 5 | L5 diff 长行 + L6 待办/问答换行 | 完成 |
+| 6 | 文档同步（`06-tool-view.md`） | 完成 |
+
+### 11.1 与计划的偏差（均已在上文对应小节记录）
+
+1. **jsdom 无 CSS 引擎**：§6.1 原计划用 `getComputedStyle` 断言单行与滚动，实际改为断言类令牌。涉及 L0（§6.1 L0 注）与 L5（§4.5 第 5 条、§6.1 L5 行）。布局行为（长命令真的能滚）留给 transcript Playwright 套件。
+2. **不引入 `data-testid`**：本仓 `src/` 无此约定，测试改为按「文本内容匹配的最深元素」定位节点。
+3. **新增两个契约测试文件/用例**（§5 第 14/15 项）：L3 的跨层契约原计划只描述思路，落地为 `useChatMessages.test.ts` 与 `claude-sessions.test.ts` 中的具体用例。
+
+### 11.2 验证结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `npx vitest run src/modules/chat/tests/toolCommandSingleLine.test.tsx` | 6 passed |
+| `npx vitest run src/modules/chat/tests/toolContentLineBreaks.test.tsx` | 15 passed |
+| `npx vitest run src/modules/chat/tests/useChatMessages.test.ts` | 8 passed |
+| `npm run test:client` | 73 files / 519 tests passed |
+| `npx tsx --tsconfig server/tsconfig.json --test <claude,codex,workbuddy>-sessions.test.ts` | 51 passed（11 + 30 分两次跑） |
+| `npm test` | 736 tests, 726 pass / 9 fail / 1 skip |
+| `npm run typecheck` | 通过（前后端） |
+| `npm run lint` | 本次改动文件无新增告警 |
+| `npm run build` / `npm run build:client` | 通过 |
+
+**关于 `npm test` 的 9 个失败**：全部落在 `dsh-sessions`（会话标题命名）、WorkBuddy 引擎探测、`codexbuddy`/CLI 可执行文件探测、Windows 路径解析——与本次改动无关，且与本机既有基线一致（见 memory：本机 `npm test` 有 9 个基线失败）。改动涉及的三个 Provider 测试文件单独跑全绿。
+
+### 11.3 实施期新发现（未处理，待决策）
+
+Codex 的 `toolInput` 是 10 处预序列化的紧凑 JSON，绕过客户端缩进——已记入 §1.4，属 L3 同源但方向不同的问题，未并入本轮。
+
+### 11.4 后续变更：输出区改为单行终端面（2026-09-14，用户追加需求）
+
+**需求**：用户看到 L0 的落地效果后追加「输出区可以不换行吗」。§3.0 第 3 条与 §4.0.4 原本把「输出换行」当作需求核心区分，本节记录该决定被推翻的经过。
+
+**决策**：命令与输出视为**同一个终端面**——都是同一条命令行的产物，都保留源行结构、都靠横向滚动取溢出。`break-all` 随之删除，它会在 token 中间断开，正是列对不齐的直接原因。
+
+**范围**：仅 `BashCommandDisplay` 的展开态输出区。以下刻意保持换行，勿判为遗漏：
+
+- 折叠态 `errorPreview`（`BashCommandDisplay.tsx:193-197`）：它是 peek 而非输出区本身，3 行预览换行更易读；
+- `ToolErrorDisplay`（L1）、`MarkdownContent`（L2）、结构化 JSON（L3）、`TaskList`（L4）、待办/问答（L6）：均为**内容面**，不是终端面。
+  （diff（L5）原列于此，但已于 §11.5 改为不换行——它属行结构，不属终端面。）
+
+**实现（不能靠 Tailwind 类）**：`index.css:818-822` 有 `.chat-message pre, .chat-message code { white-space: pre-wrap !important }`，特异性 `(0,1,1)`。**Tailwind v3 不输出原生 `@layer`**（实测 3.4.17 构建产物中 `@layer` 出现 0 次；`@layer components` 只是被打平到 `@tailwind components` 的位置），因此层序不参与判定、由**特异性**决断：`whitespace-pre` 只有 `(0,1,0)`，必然落败，加 `!` 前缀也一样。做法是给 `<pre>` 加标记类 `tool-terminal-output`，再补一条**更高特异性**的规则（`.chat-message .tool-terminal-output` = `(0,2,0)` ＞ `(0,1,1)`），且置于其后使源序一致——与仓库既有的 `.markdown-code-block pre`（`(0,2,1)`）完全同构。
+
+> **实施修正（2026-09-14）**：本节初稿把机制写成「`!important` 先比层序、后比特异性，且 important 场景下层序反转」。该描述在**有**原生 `@layer` 时成立，但本仓 Tailwind v3 的产物里没有原生层，实际由特异性决断——结论不变，理由已按实测改写。
+
+**落点**：
+
+| 文件 | 改动 |
+| --- | --- |
+| `src/index.css`（`.markdown-code-block pre code` 之后） | 新增 `.chat-message .tool-terminal-output { white-space: pre !important; word-break: normal; overflow-wrap: normal }` |
+| `src/modules/chat/tools/BashCommandDisplay.tsx`（展开态 `<pre>`） | `whitespace-pre-wrap break-all` → `tool-terminal-output`；`max-h-80 overflow-auto` 保留 |
+| `src/modules/chat/tests/toolCommandSingleLine.test.tsx` | 原「命令单行、输出不单行」的边界断言反转；新增 4 条输出区用例，含「折叠预览仍换行」这条边界 |
+| `docs/architecture/06-tool-view.md` | 「Bash 输出是反面」的表述同步 |
+
+**已知代价（显式接受）**：超长行（日志、单行 JSON、minified、base64）需横向滚动；`overflow-auto` 让纵横向滚动共处一个容器，触控板斜向手势易被横向吃掉。若后续反馈强烈，退路是给输出区加「换行 / 不换行」切换（默认沿用当前），而不是回退到 `break-all`。
+
+### 11.5 后续变更：diff 改为不换行（2026-09-14，用户追加需求）
+
+**需求**：用户在「输出区不换行」之后追问「还有 write 这个工具呢」。核查后确认 `Write` **没有独立渲染器**——
+`toolConfigs.ts:251-272` 把它声明为 `contentType: 'diff'`（`oldContent: ''` + `newContent: input.content`），
+即整份文件当成全 `+` 的 diff，与 `Edit`、`ApplyPatch` 共用 `ToolDiffViewer`。因此这不是覆盖缺口，而是**策略反转**。
+
+**决策**：diff 是行结构化的**代码**，不是散文——不换行、保持源行、横向滚动。§3.5 的「优先断行」被推翻，
+理由见下表。
+
+**与 L0/L1 的关系**：三者是同一原则的三次应用——**按「这一行是不是行结构」决定换不换行**。
+命令行（不换行）、shell 输出（不换行）、diff（不换行）都属于行结构；报错正文、Plan/Subagent 正文、
+待办与问答才是散文，保持换行。
+
+**实现（发现两个必须一起解决的布局缺陷）**：
+1. 行内容 span：`whitespace-pre-wrap break-words` → `whitespace-pre`。这里**不需要**标记类——
+   `ToolDiffViewer` 全程用 `div`/`span`，`index.css:818` 的 `.chat-message pre, code` `!important` 规则够不着它。
+2. **底色掉队**：`flex-1 min-w-0` 的 span 盒宽只有一屏宽，本句内容溢出到盒外，底色（`bg-green-50/50`）
+   只铺到盒宽。实测（600px 容器 + 411 字符行）行宽 2762px 时，**未着色带宽 2156px**——恰恰在最长的行上
+   丢失了加/减底色。
+3. **行号滑走**：只加 `sticky left-0` 不够，其包含块（行 div）同样只有一屏宽，滚过约一屏后行号仍会滑出。
+   只有把行宽撑到内容宽度，sticky 才有横跨整个滚动区间的包含块。
+4. 修法：给行 div 加标记类 `tool-diff-row`，在 `index.css` 补
+   `.chat-message .tool-diff-row { max-width: none; width: max-content; min-width: 100% }`。
+   必须覆盖 `.chat-message * { max-width: 100% }`（`(0,1,0)`，`index.css:874-877`）——本选择器 `(0,2,0)` 胜出，
+   与 `.tool-terminal-output`、`.markdown-code-block pre` 同一手法，**不依赖 Tailwind 类的注册顺序**（§3.5 的告诫）。
+   `min-width: 100%` 保证短行仍铺满整宽（实测 598px = 容器宽），不改变原观感。
+
+**实测（Playwright + 真实构建产物 CSS，jsdom 无法验证布局）**：
+
+| 指标 | 只改 `whitespace-pre` | 加 `tool-diff-row` + `sticky` |
+| --- | --- | --- |
+| 可横向滚动 | 是 | 是 |
+| 未着色带宽 | **2156px** | **0** |
+| 行号是否固定 | 否 | 是 |
+| 短行铺满整宽 | 是 | 是（598px） |
+
+**落点**：`src/modules/chat/tools/ToolDiffViewer.tsx`（行内容 span、行 div、行号 span）、
+`src/index.css`（新增 `.tool-diff-row`）、`src/modules/chat/tests/toolContentLineBreaks.test.tsx`（L5 用例反转）、
+`docs/architecture/06-tool-view.md`（`diff` contentType 行）。
+
+**已知代价（显式接受）**：极长的单行文件（minified）需要横向拖动；窄屏/手机同理。
+退路与 §11.4 一致——加「换行 / 不换行」切换，而不是回退到 `break-words`。
+
 ---
 
 ## 审阅批注
 
-> 本节供多 harness 交叉审阅使用。请补充：编号（如 `L1-1`）、严重级别、证据（文件:行号）、建议。
+> 本节供多 harness 交叉审阅使用。请在**自己的小节内**追加批注，不要修改方案正文。
+>
+> 每条批注请包含四要素：**编号**（如 `L1-1`，对应 §1.3 的缺陷 ID）、**严重级别**、**证据**（`文件:行号` 或可复现步骤）、**建议**。
+> 风险等级建议使用 GitHub admonition：`> [!NOTE]` 补充 / `> [!TIP]` 建议 / `> [!IMPORTANT]` 关键 / `> [!WARNING]` 风险 / `> [!CAUTION]` 严重（数据丢失、故障）。
+> 审阅重点建议覆盖：① 缺陷是否真实存在（请独立复核行号，基线 `590b88f1`）；② 有无遗漏的同类表面；③ L0 命令单行化的边界（输出区是否应保持换行）；④ 路线取舍是否成立。
 
 ### Claude
 
+> [!CAUTION] **L0-1 · `whitespace-pre` 实现不了「命令永远一行」，建议改用 `whitespace-nowrap`**（§4.0.1、§4.0.2、§1.3 L0、§2.2 指标）
+> 证据：CSS `white-space: pre` 的语义是「保留空白序列 + **在保留的换行符处断行**，仅不做自动换行」（CSS Text L3）。方案自己的验收锚点 `git commit -m "a\nb"` 在 `pre` 下 `\n` **仍会换行**，`overflow-x-auto` 只兜横向溢出，纵向照样被多行命令撑开。§4.0.1 所述「多行命令里的 `\n` 不再产生换行」是对该属性的误解。`nowrap` 才是「折叠 `\n` 为空格 + 禁止换行」，配合 `overflow-x-auto` 才是真正的单行滚动。
+> 建议：L0 两处（`BashCommandDisplay.tsx:150-152`、`OneLineDisplay.tsx:106`）改 `whitespace-nowrap`；`toolCommandSingleLine.test.tsx` 与 §2.2 指标同步把 `whitespace-pre` 断言改成 `whitespace-nowrap`。同时**明确接受 tradeoff**：`nowrap` 会把多行命令的 `\n` 与命令内连续多空格折叠为单个空格（`ls  -la` → `ls -la`），对命令这类「标识符」可接受，但需写进方案以免评审/验收时被质疑。
+
+> [!WARNING] **L5-1 · `overflow-hidden overflow-x-auto` 是互相冲突的 Tailwind 类，横向出口可能不生效**（§4.5、`ToolDiffViewer.tsx:45`）
+> 证据：`overflow-hidden` 展开为 `overflow: hidden`（简写同时写死 `overflow-x`/`overflow-y`），`overflow-x-auto` 展开为 `overflow-x: auto`。二者同为单类、特异性相等，最终生效值取决于 Tailwind 生成样式表的先后顺序——行为不可靠，存在 `overflow-x` 仍是 `hidden`、滚动出口不生效的风险，且无法从源码静态断言。
+> 建议：外层直接改为 `overflow-x-auto` 单类（`auto` 同样是滚动容器，配合 `rounded` 仍做圆角裁切；当 `overflow-x` 非 visible 时 `overflow-y` 计算值为 `auto`，需顺手确认纵向不会冒出意外滚动条），并加一条断言 `getComputedStyle(el).overflowX === 'auto'` 的测试。
+
+> [!WARNING] **L4-2 · 「备注行触发整体回退」的边界需补验收用例**（§3.4 路线 B、§4.4、`TaskListContent.tsx:23`）
+> 证据：`parseTaskContent` 的正则要求行以 `#<id>` 开头，表头/备注/分隔线全不匹配；§3.4 路线 B 下**任一行非空不匹配**即整体回退 `<pre>`。「忽略空行」只排除空行，备注行仍会触发。任务列表 result 中出现备注/分隔线的概率不低，回退后可视化列表与进度条消失，观感变化明显。
+> 建议：至少在 §6.5 人工验收矩阵加一条「合法列表 + 1 行备注」用例实测回退频率；若高频，考虑路线 B 的变体（如「不匹配行超过 N 行才回退」）或直接评估路线 C。
+
+> [!IMPORTANT] **L0-2 · 命令「单行」与「不省略」两指标在窄容器下互斥，验收需明确取舍**（§2.2「命令单行」「命令不省略」、§3.0 路线 B）
+> 证据：路线 B 承诺「不换行也不省略」，但 `overflow-x-auto` 只是把不可见内容移到滚动区；在窄卡片里用户看到的仍是「一屏只露命令前几十字符」——这本质上是「视口内省略 + 可滚动查看全文」，与折叠态 `truncate` 的观感差异只在「能否滚动/悬停」。
+> 建议：§2.2 的「命令不省略」指标建议改述为「不因省略号截断且全文可滚动可达」，避免验收时把「屏内只显示前缀」误判为失败。
+
+> [!NOTE] **L3-2 · 服务端只核了 claude provider，其他 provider 的历史投影是否也有 `JSON.stringify` 未检索**（§4.3、§1.3 L3）
+> 证据：方案仅列出 `claude-sessions.provider.ts:1113`。`codex/dsh` 用 `.join('')` 拼文本块（§1.3 相邻问题），但 zcode 等其他 provider 历史 `tool_result.content` 的序列化方式未覆盖。
+> 建议：加一行 `grep -rn "JSON.stringify" server/modules/providers/` 确认「唯一改动点」成立，避免跨 provider 历史投影缩进风格分叉。
+
+> [!NOTE] **L4-1 · 建议把「L3 缩进对 TaskList 的影响」结论补进方案，我核实后是安全的**（§4.3 第 4 条、§4.4、`toolConfigs.ts:519-521`）
+> 证据：`TaskList` result 的 `content` 在 `useChatMessages.ts:10` 已被 `JSON.stringify` 转成字符串；若原始是数组，**当前**就是「单行 JSON → `parseTaskContent` 全不匹配 → 回退 `<pre>`」，本就不走可视化列表。L3 缩进后只是回退内容从单行变 pretty，不会造成「可视化列表消失」。
+> 建议：§4.3 第 4 条补一句结论「数组输入本就走回退路径，缩进仅改善回退可读性」，并把它列入 §6.2 断言，避免后续实现者重复排查。
+
+> [!NOTE] **L2-1 · `ToolRenderer.tsx:259` 是 `contentType: 'markdown'` 的统一出口，传 `breaks` 影响面不止 Task/Agent**（§1.3 L2、§3.2 路线 A）
+> 证据：该分支是所有 markdown 类型工具的统一渲染点（`toolConfigs.ts:560, 577, 619` 只是其中 Task/Agent），在分支层传 `breaks` 会波及该分支下全部工具。
+> 建议：在 §4.2 列出 `contentType: 'markdown'` 的全部工具清单并逐一评估，避免漏网之鱼或误伤非 Plan 类 markdown 正文。
+
+> [!NOTE] **§7-1 · 阶段 2 的「同一根因：Markdown breaks」描述不准确**（§7 阶段 2）
+> 证据：L1 路线 B 是「弃用 Markdown、改纯文本 pre-wrap」（§3.1），与 `breaks` 无关；只有 L2 才是开 breaks。两者修法不同源，同发布可以，但理由写错了。
+> 建议：阶段 2 理由改为「同属 Markdown 渲染路径调整，同发布避免『报错修了但 Plan 没修』的中间态」，不写「同一根因」。
+
+> [!NOTE] **L0-3 · 导出态的命令单行在打印/PDF 场景可能溢出页面**（§4.0.5、§6.3）
+> 证据：导出文档若打印为 PDF，`whitespace-nowrap` + `overflow-x-auto` 的横向滚动在纸面上无意义，超长命令会直接溢出/裁切。
+> 建议：明确导出态策略——HTML 导出维持单行可接受；PDF 场景建议导出态退化为 `pre-wrap`，或在 §6.3 导出测试中显式覆盖打印场景。
+
+> [!TIP] **L0-4 · 单行命令测试应断言行为而非类名**（§6.1 L0 用例表）
+> 证据：用例断言「命令 span 含 `whitespace-pre`」——一旦按 L0-1 修正为 `nowrap`，断言又要跟着改，测试对实现细节过敏感。
+> 建议：改用 `getComputedStyle` 断言 `white-space`/`overflow-x` 计算值，或断言 `scrollWidth === clientWidth`，让测试锚定「单行 + 可滚动」的行为本身。
+
+> [!TIP] **L1-1 · 报错正文纯文本化后建议补 `font-mono`**（§4.1、`ToolErrorDisplay.tsx:83`）
+> 证据：现在展开体走 `font-serif` prose；改纯文本 `whitespace-pre-wrap break-words` 后若无等宽字体，报错/堆栈的缩进对齐感下降。
+> 建议：纯文本容器加 `font-mono`，与 `BashCommandDisplay` 输出区（`:206-210`）观感一致。
+
+### WorkBuddy · `（sessionId）`
+
 （待补充）
 
-### WorkBuddy
+### Pi · `01a09ab7-76f8-701f-b210-e53c2bb4708a`
 
-（待补充）
+> 独立复核基准：`857f4a61`（当前 HEAD）。已逐条核对 L0–L6 的核心行号引用（`BashCommandDisplay.tsx:148-155`、`OneLineDisplay.tsx:106`、`ToolErrorDisplay.tsx:83`、`MarkdownContent.tsx:22`、`ToolRenderer.tsx:142-145/193/259`、`SubagentPanel.tsx:68/279`、`PlanDisplay.tsx:87`、`useChatMessages.ts:10`、`TaskListContent.tsx:15-37/78-85/115`、`ToolDiffViewer.tsx:45/66/79`、`Queue.tsx:107-114`、`QuestionAnswerContent.tsx:96-98/162-170`）均成立。全仓检索确认：`wrapText` 在 chat tools 下恰为 8 处（与 §4.0.3 一致；git-panel 的 `wrapText` 属另一模块、不在范围）；L3 服务端无缩进 `JSON.stringify` 落点恰为 8 处（claude:149/752/1113、codex:324/345/359/2373、workbuddy:82），与 §4.3 清单完全吻合；`MarkdownContent` 全仓仅 3 个调用方（`ToolRenderer.tsx:259`、`PlanDisplay.tsx:87`、`SubagentPanel.tsx:279`）。以下为增量问题。
 
-### Pi
+> [!IMPORTANT] **L4-4 · §4.4 的「正则补 `^` 锚定」与源码注释声明的合法形态冲突，实现细节未写进设计节**（§4.4 第 1 条、§8 风险表、`TaskListContent.tsx:20-23`）
+> 证据：`parseTaskContent` 源码注释明确声明 `- #15 [in_progress] Subject (owner: agent)` 是合法形态（`TaskListContent.tsx:20`）；当前正则无 `^` 锚定，靠「任意位置搜到 `#`」才匹配到该形态。一旦按 §4.4 第 1 条只写「补 `^` 锚定」，`- #15 …` 与带缩进的真实任务行会被 `^` 直接误杀，变成新的「丢行」。而「容忍可选前导 `- ` / 缩进」目前只出现在 §8 风险表的缓解栏，§4.4（真正给实现者的设计节）只字未提。
+> 建议：§4.4 第 1 条把正则写成精确形态（如 `^(?:-\s*)?#(\d+)\.?…`），或至少显式引用 §8 风险表并说明「锚定必须同时容忍可选 `- ` 前缀与行首空白」；否则实现者按 §4.4 独立实施时会引入新的丢行回归，§6.1 的「误匹配」用例兜不住这一侧。
 
-（待补充）
+> [!NOTE] **L1-2 · 「字节级换行」措辞与 `ToolErrorDisplay` 既有的 `.trim()` 相冲突**（§2.1 目标 2、`ToolErrorDisplay.tsx:20`）
+> 证据：`ToolErrorDisplay.tsx:20` 的 `const trimmedContent = content.trim()` 会在进入渲染前剥离报错文本首尾的空白与换行（折叠预览与展开体都消费 `trimmedContent`）。因此 §2.1 目标 2 的「保持字节级换行——行数、空行、缩进与 payload 一致」只能对**内部**行结构成立，首尾空行/缩进本就被裁掉。
+> 建议：把「字节级」措辞收窄为「内部换行结构（行数、内部空行、内部缩进）与 payload 一致」，或在 §2.2 的「报错换行」指标注明 fixture 的空行必须是内部空行；无需改代码（`.trim()` 对报错首尾空白是可接受的既有行为）。
+
+> [!TIP] **L0-7 · PowerShell 的 `$` 前缀会随命令一起横向滚出视野，与 Bash 的固定前缀不一致**（§4.0.2、`OneLineDisplay.tsx:106-107`、对照 `BashCommandDisplay.tsx:142`）
+> 证据：Bash 的 `$` 是命令 span 之外的独立 `flex-shrink-0` span（`BashCommandDisplay.tsx:142`），长命令滚动时 `$` 固定不动；而 `OneLineDisplay` terminal 分支的 `$` 嵌在将被改成 `overflow-x-auto` 的元素内部（`OneLineDisplay.tsx:106-107` 的嵌套 `<span>`），滚动时会随命令一起移出视野。
+> 建议：二选一——①接受该差异（改动最小，符合「命令是整体标识符」的语义，默认建议此条）；②若追求观感一致，把 `$` 移到滚动容器外作固定前缀（需额外结构调整）。无论选哪种，建议在 §4.0.2 补一句说明，避免验收时被当成 Bash/PowerShell 渲染不一致的回归。
+
+### ZCode
+
+> 独立复核基准：`857f4a61`（方案基线 `590b88f1`，其后 3 个提交的代码变动集中在 `settings/**`、`shared/types.ts`、流式测试与 i18n，不触及本方案引用的任何文件，§10 的行号声明仍成立）。L0–L6 的行号引用逐一核对无误；`wrapText` 全仓 8 处引用与 §4.0.3 清单完全一致；`TodoList.tsx:60` 确认经 `QueueItemContent` 渲染，L6 改动点覆盖 TodoWrite 链路成立；`parseToolPayload` 会把 JSON 字符串还原为对象（`messageTransforms.ts:112-123`），故 Default 拆包收到的是字符串 content、单行 JSON 原样落 plain，L3 的影响面论断准确。以下为增量问题。
+
+> [!CAUTION] **L0-5 · `whitespace-pre` 使方案无法通过它自己的验收指标——与 Claude L0-1 同结论，独立复核确认并补充**（§4.0.1、§4.0.2、§2.2）
+> 证据：CSS Text L3 中 `white-space: pre` 保留换行符并**在换行符处强制断行**——`\n` 产生的是纵向多行而非横向溢出，`overflow-x-auto` 管不到。因此 §4.0.1 要点「多行命令里的 `\n` 不再产生换行」不成立；§2.2 指标「含 `\n` 的多行命令折叠态渲染高度等于一行」按该实现**必失败**——实现与验收指标自相矛盾，无需运行即可判定。
+> 建议：两处改 `whitespace-nowrap`（同 Claude L0-1）。补充两点：① 复制按钮复制的是原始 `command` prop（`BashCommandDisplay.tsx:103`），`nowrap` 仅影响显示、不影响复制保真，可放心接受空白折叠；② §2.2 需同步补一条期望值——多行命令的 `\n` 渲染为单个空格（`git commit -m "a\nb"` 显示为 `git commit -m "a b"`），否则验收时会把「符合预期的空格替换」误判为缺陷。
+
+> [!WARNING] **L3-3 · 服务端序列化点不止 `claude-sessions.provider.ts:1113` 一处，清单不完整会造成跨 Provider 缩进分叉**（§4.3、§1.3 L3）
+> 证据：全仓检索 provider 历史投影中的 `JSON.stringify` 落点：`codex-sessions.provider.ts:359`（`structured_content` 非空时无缩进 stringify，与 claude:1113 完全同类）、同文件 `:324`（非数组 output 兜底）与 `:345`（errorRecord 兜底）；`claude-sessions.provider.ts:752`（`tool_result` 消息构造时 `part.content` 非字符串的 stringify，是 :1113 之外的另一条路径）。对照：`zcode-sessions.provider.ts:61` 已经是 `JSON.stringify(value, null, 2)`。
+> 建议：上述落点逐一纳入清单或显式记录不改（尤其 codex:359——否则 Codex MCP 历史的结构化结果在 L3 落地后仍是单行，zcode/claude/codex 三家缩进风格分叉）。zcode 的既有实现恰好佐证路线 A 是各 Provider 收敛的方向。
+
+> [!IMPORTANT] **L5-2 · `overflow-hidden overflow-x-auto` 在 Tailwind v3.4 下行为确定，Claude L5-1 的「不可靠」表述需修正**（§4.5、`ToolDiffViewer.tsx:45`）
+> 证据：本仓 tailwindcss 为 `^3.4.0`（`package.json:262`）。其 `corePlugins.js` 中 `overflow` 工具先注册（`:1524-1530`）、`overflow-x-*` 后注册（`:1531` 起），生成的样式表里 `.overflow-x-auto { overflow-x: auto }` 排在 `.overflow-hidden { overflow: hidden }` 之后，同特异性下后者胜出——最终计算值确定为 `overflow-x: auto; overflow-y: hidden`，**恰好是方案想要的效果**，并非随机行为。
+> 建议：仍建议改为单类（消除对 Tailwind 内部注册顺序的隐式依赖——该顺序不受契约保障，升级 v4 可能变化），但把理由从「可能不生效」修正为「确定生效但依赖实现细节」；若保留组合写法，§6.1 必须加 `getComputedStyle(el).overflowX === 'auto'` 断言（与 Claude L5-1 的测试建议一致）。
+
+> [!NOTE] **L3-4 · §4.3 前置校验的消费方清单漏了 SubagentPanel 自身的递归解析**（§4.3 第 4 条、`SubagentPanel.tsx:68-76`）
+> 证据：`readResultText` 兜底 `JSON.stringify(content)`（`:68`）之后紧跟 `trimmed.startsWith('[')` + `JSON.parse` 递归（`:70-76`）。`:68` 加缩进后 `[\n  ...` 仍以 `[` 开头，`JSON.parse` 可还原 pretty JSON，路径安全。
+> 建议：把该点补进 §4.3 第 4 条与 §6.2 契约测试——这是「改动点自身即下游消费方」的特殊位置，按现有清单实现时会漏测。
+
+> [!NOTE] **L4-3 · `title` 补全在移动端不可用，长主题在 H5 上仍无查看出口**（§3.4、§4.4 第 3 条、`TaskListContent.tsx:115`）
+> 证据：CloudCLI 存在 iOS H5 入口（Capacitor 打包），`title` 悬停提示在触屏上不触发；`truncate` 截断后移动端长主题依旧看不全。
+> 建议：接受 title 作为桌面方案即可，但把「移动端长主题无出口」记入 §1.4 相邻问题表或 §9 未处理清单，避免后续被当成方案遗漏。
+
+> [!NOTE] **L0-6 · Bash 错误折叠态的 `errorPreview` 本就是多行，验收时勿误判为 L0 回归**（§4.0.5、§6.5、`BashCommandDisplay.tsx:194-198`）
+> 证据：错误且未展开时渲染的 `errorPreview`（输出末 3 行）用 `<pre>`（`:195`），无 whitespace 类，受全局 `.chat-message pre { white-space: pre-wrap !important }`（`index.css:818-823`）影响会换行显示——这是折叠态唯一多行的表面，属既有设计（错误末行预览有信息价值），不在 L0 范围。
+> 建议：§6.5 人工验收矩阵的 Bash 折叠态一行补注「错误命令的折叠预览多行为既有行为，不计入 L0 判定」，避免验收误报。
+
+> [!TIP] **L2-2 · `MarkdownContent` 全仓仅 3 个调用方且与 §4.2 计划传 `breaks` 的点完全重合，「默认 false 保护既有调用方」论据实为空集**（§4.2、`MarkdownContent.tsx`）
+> 证据：grep 全仓，`MarkdownContent` 的调用方仅 `ToolRenderer.tsx:259`、`PlanDisplay.tsx:87`、`SubagentPanel.tsx:279`——不存在「不传 `breaks` 的既有调用方」。
+> 建议：两个等价做法任选——维持 §4.2（显式传 `breaks`，防未来调用方意外继承 `true`，更显式）或让 `MarkdownContent` 默认 `breaks = true`（更少样板）。把该事实记录在案供牵头定夺即可；另注意 `ToolRenderer.tsx:259` 是 `contentType: 'markdown'` 的统一出口（同 Claude L2-1），该分支下全部工具都会被波及。
 
 ### 牵头结论
 
-（待补充）
+> 汇总轮次：2026-09-13 · 轮 1 + 轮 2｜审阅者：Claude（11 条）、ZCode（7 条）、Pi（3 条）｜WorkBuddy 未提交批注
+> 复核基准：`857f4a61`（方案基线 `590b88f1`；方案与该基准之间只有 `useChatRealtimeHandlers.ts` 等非引用文件变动，不涉及本文引用文件）
+> 批注原文一字未改，全部保留在各自小节内。
+> 轮 2（Pi）3 条经独立复核全部采纳，其中 `L4-4` 是实现级缺陷（按原 §4.4 实施会引入新的丢行回归）。
+
+**采纳（20 条）**
+
+| 批注 | 来源 | 处理 |
+| --- | --- | --- |
+| `L0-1` `L0-5` | Claude / ZCode | **本轮最关键的修正**。`whitespace-pre` 改为 `whitespace-nowrap`。原 §4.0.1 断言「`\n` 不再产生换行」是对 CSS 的误解——`pre` 会在换行符处断行，实现无法通过 §2.2 自己的验收指标。已同步 §1.3 L0、§2.2、§3.0、§4.0.1、§4.0.2、§4.0.5、§5、§6.1、§8 |
+| `L0-5` 补充 | ZCode | 显式写入「`\n` 与连续多空格折叠为单个空格」的代价，新增 §2.2 指标行与 §4.0.5 验收锚点，避免验收误判；说明复制走原始 `command`（`BashCommandDisplay.tsx:103`）不受影响 |
+| `L0-2` | Claude | §2.2「命令不省略」改述为「不因省略号截断，且全文可横向滚动到达」，并注明窄容器内只显示前缀属预期 |
+| `L0-4` | Claude | L0 测试改为断言计算样式（`whiteSpace` / `overflowX`）与滚动行为，不再锚定类名 |
+| `L0-6` | ZCode | §6.5 增加注记：Bash 错误折叠态的 `errorPreview`（`BashCommandDisplay.tsx:194-198`）本就是多行，不计入 L0 判定 |
+| `L5-1` `L5-2` | Claude / ZCode | 取消同元素 `overflow-hidden overflow-x-auto` 组合。修订比两位建议更进一步：横向出口放到 diff 行容器（`ToolDiffViewer.tsx:66`），外层 `:45` 保留 `overflow-hidden`——既消除对 Tailwind 注册顺序的隐式依赖，又让文件头不随内容横向滚动。ZCode 关于 v3.4 下实际生效顺序确定的复核被接受，故不再以「可能不生效」为由 |
+| `L3-2` `L3-3` | Claude / ZCode | 「服务端唯一改动点」不成立。牵头复核后确认为**客户端 2 + 服务端 8**，比 ZCode 列出的更多（新增 `claude:149`、`codex:2373`、`workbuddy:82`）。L3 由「一处服务端改动」升级为跨 Provider 一致性改动，§1.3、§3.3、§4.3、§5、§6.2、§7、§8、§10.1 同步更新 |
+| `L3-4` | ZCode | §4.3 前置校验补入 `SubagentPanel.readResultText` 的 `startsWith('[')` + `JSON.parse` 递归（`:68-76`），并列入 §6.2 |
+| `L4-1` | Claude | §4.3 补入结论「数组输入本就走回退路径，缩进仅改善回退可读性」，并列入 §6.2 断言 |
+| `L4-2` | Claude | **路线变更 B → C**。原路线 B（任一行不匹配即整体回退）等于用「杀掉可视化列表」换不丢行；改采分段渲染：匹配行渲染列表、不匹配非空行按原文块追加，进度条按合法任务计数。§1.3、§3.4、§4.4、§6.1、§6.5、§8 同步更新 |
+| `L2-1` | Claude | §4.2 列出 `contentType: 'markdown'` 全部 5 个配置，确认影响面恰为 `Agent` / `Task` / `exit_plan_mode` / `ExitPlanMode`，无遗漏、无误伤 |
+| `L2-2` | ZCode | 接受「3 个调用方全都会传 `true`，『默认 false 保护既有调用方』是空集」的事实。**决定保留显式传参**，但把理由改写为「显式优于隐式、防未来调用方意外继承」，不再声称保护既有调用方 |
+| `L1-1` | Claude | §4.1 纯文本容器补 `font-mono`，与 `BashCommandDisplay` 输出区观感一致 |
+| `§7-1` | Claude | 阶段 2 理由更正：L1 走纯文本、L2 走 `breaks`，两者**不是**同一根因，只是同属 Markdown 渲染路径调整 |
+| `L4-3` | ZCode | 移动端 `title` 不触发的问题记入 §1.4 与 §9 未处理清单 |
+| `L4-4` | Pi（轮 2） | **实现级修正**。原 §4.4 只写「正则补 `^` 锚定」，但 `TaskListContent.tsx:20-21` 的源码注释明确声明 `- #15 [in_progress] Subject (owner: agent)` 为合法形态，裸锚定会**误杀真实任务行**——把「修误匹配」变成新的丢行，且 §6.1 原有用例只兜误匹配一侧。§4.4 第 1 条改写为精确形态 `/^\s*(?:-\s*)?#(\d+)\.?…/`，§3.4、§5、§6.1（新增「`- #15 …` 仍识别为任务」护栏用例）、§6.5、§8 同步 |
+| `L1-2` | Pi（轮 2） | 「字节级换行」措辞收窄为「内部换行结构」——`ToolErrorDisplay.tsx:23` 的既有 `content.trim()` 会在渲染前剥离首尾空白，且折叠预览（`:76`）与展开体（`:84`）都消费 `trimmedContent`。§2.1 目标 2、§2.2 报错换行指标、§3.1 路线 B 理由、§6.1 L1 fixture 同步为「内部空行 / 首尾不计入断言」；**不改代码** |
+| `L0-7` | Pi（轮 2） | 采纳选项①（接受差异）。Bash 的 `$` 在滚动容器**外**（`BashCommandDisplay.tsx:142`，`flex-shrink-0`），PowerShell 的 `$` 在滚动容器**内**（`OneLineDisplay.tsx:107`），长命令横向滚动时表现不同。§4.0.2 补第 4 条说明，§6.5 PowerShell 行补注「勿判为回归」；选项②（把 `$` 移出滚动容器）不采用 |
+
+**部分采纳（1 条）**
+
+| 批注 | 来源 | 处理 |
+| --- | --- | --- |
+| `L0-3` | Claude | 采纳「明确导出态策略」的诉求，但**不采纳**「PDF 场景导出态退化为 `pre-wrap`」——那会让导出与屏幕态不一致。改为：HTML 导出维持单行，打印场景记为已知限制（§1.4、§6.3、§9），本轮不引入 `@media print` |
+
+**不采纳（0 条）**
+
+两位审阅者未提出被完全否决的意见。`L4-2` 中「不匹配行超过 N 行才回退」的阈值变体未采用——阈值缺乏依据，且分段渲染（路线 C）是无损方案，优于任何阈值折中。
+
+**修订说明**
+
+- 轮 1 正文修订涉及 §0、§1.3（L0/L3/L4/L5）、§1.4、§2.1、§2.2、§2.3、§3.0、§3.3、§3.4、§3.5、§4.0–§4.5、§5、§6.1–§6.3、§6.5、§7、§8、§9、§10、§10.1。
+- 轮 2（Pi）追加修订：§2.1、§2.2、§3.1、§3.4、§4.0.2、§4.4、§5、§6.1、§6.5、§8、§9.1 验收模板（矩阵行数 12 → 13）。
+- 审阅批注原文（Claude / ZCode / Pi 三节）一字未改。
+- 行号复核更正：Pi `L1-2` 引用 `ToolErrorDisplay.tsx:20` 为 `content.trim()`，实测 `:20` 是该组件的 JSDoc 注释、`.trim()` 在 `:23`；结论不受影响，正文按 `:23` 书写。
+- 新增待确认事项：无。`L4` 正则锚定需容忍可选 `- ` 前缀，已同时写入 §4.4（设计约束）与 §8（风险缓解）。
+- 行号基准未变（§10.1）。
+
+**待办**
+
+- WorkBuddy 若需参与，请在其小节追加批注后重跑本流程；轮 1 + 轮 2 结论已足够收敛，不阻塞实施。
