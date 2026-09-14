@@ -1029,34 +1029,6 @@
     "saveFailed": "Failed to save Browser settings",
     "installFailed": "Failed to install browser runtime"
   },
-  "mcpServersAdd": {
-    "menuLabel": "Add MCP Server",
-    "globalButtonLabel": "Add Global MCP Server",
-    "providerButtonLabel": "Add {{provider}} MCP Server",
-    "globalAddDescription": "Add Global MCP Server writes one common stdio or HTTP server to Claude, Cursor, Codex, and OpenCode.",
-    "providerAddDescription": "{{button}} only changes {{provider}}.",
-    "globalModalDescription": "Adds this MCP server to every provider: Claude, Cursor, Codex, and OpenCode. Only stdio and HTTP transports are supported because the same config must work across all providers.",
-    "refreshingScopes": "Refreshing project scopes...",
-    "loadingServers": "Loading MCP servers...",
-    "configCwd": "Cwd",
-    "configEnvVars": "Env Vars"
-  },
-  "mcpTeamCard": {
-    "title": "Team MCP Configs",
-    "description": "Share MCP server configurations across your team. Everyone stays in sync automatically.",
-    "proLink": "Available with CloudCLI Pro"
-  },
-  "mcpServersAddErrors": {
-    "loadFailedProvider": "Failed to load {{provider}} MCP servers",
-    "deleteFailed": "Failed to delete MCP server",
-    "saveFailed": "Failed to save MCP server",
-    "saveGlobalFailed": "Failed to save MCP server to all providers",
-    "selectProjectRequired": "Select a project for project-scoped MCP servers",
-    "globalScopeUnsupported": "Add MCP Server supports only user or project scope across all providers.",
-    "globalAddFailed": "Failed to add MCP server to all providers. {{details}}",
-    "deleteConfirm": "Are you sure you want to delete this MCP server?",
-    "unknownError": "Unknown error"
-  },
   "about": {
     "tagline": "Open-source AI coding assistant interface",
     "starOnGitHub": "Star on GitHub",
