@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowDownIcon } from 'lucide-react';
 
 import { useTasksSettings } from '@/modules/task-master';
 import { useWebSocket } from '@/shared/context/WebSocketContext';
@@ -29,6 +28,7 @@ import {
 import ChatMessagesPane from '@/modules/chat/transcript/ChatMessagesPane';
 import ChatComposer from '@/modules/chat/composer/ChatComposer';
 import CommandResultModal from '@/modules/chat/modals/CommandResultModal';
+import ScrollToBottomAffordance from '@/modules/chat/ScrollToBottomAffordance';
 
 type ChatInterfaceProps = {
   isActive: boolean;
@@ -427,7 +427,9 @@ function ChatInterface({
 
   // Mirrors ChatComposer's own visibility check so the message pane can
   // reserve enough bottom space to keep the floating status tab from
-  // overlapping the last message.
+  // overlapping the last message. The scroll-to-bottom button reads the same
+  // flag for its glyph, so the two indicators can never disagree about whether
+  // the turn is running.
   const hasActivityIndicator = Boolean(sessionActivity && pendingPermissionRequests.length === 0);
 
   const selectedProviderLabel = getChatProviderLabel(provider, t);
@@ -508,15 +510,10 @@ function ChatInterface({
         <div className="relative flex-shrink-0">
           {isUserScrolledUp && chatMessages.length > 0 && (
             <div className="pointer-events-none absolute -top-11 left-0 right-0 z-20 flex justify-center">
-              <button
-                type="button"
-                onClick={scrollToBottomAndReset}
-                aria-label={t('input.scrollToBottom', { defaultValue: 'Scroll to bottom' })}
-                className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full border border-border/50 bg-card text-muted-foreground shadow-sm transition-all duration-200 hover:bg-accent hover:text-foreground"
-                title={t('input.scrollToBottom', { defaultValue: 'Scroll to bottom' })}
-              >
-                <ArrowDownIcon className="h-4 w-4" aria-hidden />
-              </button>
+              <ScrollToBottomAffordance
+                isThinking={hasActivityIndicator}
+                onScrollToBottom={scrollToBottomAndReset}
+              />
             </div>
           )}
 
