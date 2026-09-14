@@ -120,7 +120,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsPermissionRequests: false,
     supportsTokenUsage: true,
     supportsEffort: true,
-    supportsMessageEditing: false,
+    supportsMessageEditing: true,
     // Forking is materialised in WorkbuddyForkProvider: the engine cannot cut
     // at a row itself, so the provider copies the transcript prefix into a new
     // session file that the next `--resume` picks up.

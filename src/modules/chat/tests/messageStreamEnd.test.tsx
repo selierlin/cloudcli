@@ -134,3 +134,26 @@ test('an assistant message exposes the fork-from-here action', () => {
   (button as HTMLButtonElement).click();
   assert.equal(forkedMessage, message);
 });
+
+test('a user message with attachments does not expose edit-and-resend', () => {
+  const message: ChatMessage = {
+    type: 'user',
+    content: '请看图片',
+    timestamp: '2026-08-21T10:00:00.000Z',
+    transcriptAnchorId: 'user-anchor',
+    images: [{ data: 'data:image/png;base64,AA==', mimeType: 'image/png' }],
+  };
+  const { container } = render(
+    <UiPreferencesProvider>
+      <MessageComponent
+        message={message}
+        prevMessage={null}
+        createDiff={createDiff}
+        provider="workbuddy"
+        onEditMessage={() => {}}
+      />
+    </UiPreferencesProvider>,
+  );
+
+  assert.equal(container.querySelector('button[aria-label="message.editAndResend"]'), null);
+});

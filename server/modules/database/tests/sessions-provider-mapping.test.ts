@@ -102,6 +102,27 @@ test('assignProviderSessionId merges a watcher-created duplicate into the app ro
   });
 });
 
+test('repointing an edited session removes stale rows for both source and child provider ids', async () => {
+  await withIsolatedDatabase(() => {
+    // The source was first indexed from disk. The app row is the conversation
+    // the user actually edited, and must be the sole row left after rewind.
+    sessionsDb.createSession('source-thread', 'workbuddy', '/workspace/demo', 'Stale source');
+    sessionsDb.createAppSession('app-id-edit', 'workbuddy', '/workspace/demo', 'Current conversation');
+    sessionsDb.createSession('child-thread', 'workbuddy', '/workspace/demo', 'Watcher child');
+
+    sessionsDb.repointSessionToProviderSession('app-id-edit', {
+      providerSessionId: 'child-thread',
+      jsonlPath: '/fake/child-thread.jsonl',
+      supersededProviderSessionId: 'source-thread',
+    });
+
+    const rows = sessionsDb.getAllSessions();
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.session_id, 'app-id-edit');
+    assert.equal(rows[0]?.provider_session_id, 'child-thread');
+  });
+});
+
 test('provider sync does not overwrite a manually renamed app session', async () => {
   await withIsolatedDatabase(() => {
     sessionsDb.createAppSession('app-id-manual', 'claude', '/workspace/demo', 'Initial');

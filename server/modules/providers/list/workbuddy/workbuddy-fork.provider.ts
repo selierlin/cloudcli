@@ -108,3 +108,17 @@ export class WorkbuddyForkProvider implements IProviderFork {
     return anchorIndex + 1;
   }
 }
+
+/**
+ * Creates a WorkBuddy transcript prefix for the sessions adapter's edit-rewind
+ * path. The adapter owns deciding which row is a safe boundary; this helper
+ * owns only the validated artifact materialisation shared with normal forks.
+ */
+export async function forkWorkbuddyTranscriptPrefix(input: {
+  providerSessionId: string;
+  jsonlPath: string;
+  projectPath: string;
+  upToAnchorId: string;
+}): Promise<{ providerSessionId: string; jsonlPath: string }> {
+  return new WorkbuddyForkProvider().forkSession(input);
+}

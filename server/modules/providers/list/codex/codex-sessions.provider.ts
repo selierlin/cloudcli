@@ -2105,6 +2105,7 @@ export class CodexSessionsProvider implements IProviderSessions {
     sessionsDb.repointSessionToProviderSession(sessionId, {
       providerSessionId: fork.threadId,
       jsonlPath: fork.path,
+      supersededProviderSessionId: supersededThreadId,
     });
   }
 
