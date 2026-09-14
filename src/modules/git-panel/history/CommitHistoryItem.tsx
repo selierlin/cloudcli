@@ -47,6 +47,7 @@ type CommitHistoryItemProps = {
   wrapText: boolean;
   graphRow?: CommitGraphRow;
   onToggle: () => void;
+  onToggleWrapText: () => void;
 };
 
 /** Rendered by HistoryView for one commit, expanding to its changed-file summary and diff. */
@@ -58,6 +59,7 @@ export default function CommitHistoryItem({
   wrapText,
   graphRow,
   onToggle,
+  onToggleWrapText,
 }: CommitHistoryItemProps) {
   const { t, i18n } = useTranslation();
   const fileSummary = useMemo(() => {
@@ -183,6 +185,25 @@ export default function CommitHistoryItem({
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Wrap/scroll switch for this commit's diff. Mobile only: on
+                desktop the diff is always `whitespace-pre` with horizontal
+                scroll, so the switch could not change anything. `ChangesView`
+                renders the same switch once per file row; history has no file
+                rows, so it needs its own — without it a phone user was stuck
+                with wrapping and no way back to scroll. */}
+            {isMobile && (
+              <div className="mb-1 flex justify-end">
+                <button
+                  type="button"
+                  onClick={onToggleWrapText}
+                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  title={wrapText ? t('git:item.switchToScroll') : t('git:item.switchToWrap')}
+                >
+                  {wrapText ? t('git:item.scroll') : t('git:item.wrap')}
+                </button>
               </div>
             )}
 
