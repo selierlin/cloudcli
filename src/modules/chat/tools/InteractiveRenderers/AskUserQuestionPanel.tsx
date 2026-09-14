@@ -218,7 +218,7 @@ export const AskUserQuestionPanel: React.FC<PermissionPanelProps> = ({
           )}
 
           {/* Question text */}
-          <p className="text-[14px] font-medium leading-snug text-gray-900 dark:text-gray-100">
+          <p className="whitespace-pre-wrap break-words text-[14px] font-medium leading-snug text-gray-900 dark:text-gray-100">
             {q.question}
           </p>
           {multi && (
@@ -252,7 +252,7 @@ export const AskUserQuestionPanel: React.FC<PermissionPanelProps> = ({
                   </kbd>
 
                   <div className="min-w-0 flex-1">
-                    <div className={`text-[13px] leading-tight transition-colors duration-150 ${
+                    <div className={`whitespace-pre-wrap break-words text-[13px] leading-tight transition-colors duration-150 ${
                       isSelected
                         ? 'font-medium text-gray-900 dark:text-gray-100'
                         : 'text-gray-700 dark:text-gray-300'
@@ -260,7 +260,7 @@ export const AskUserQuestionPanel: React.FC<PermissionPanelProps> = ({
                       {opt.label}
                     </div>
                     {opt.description && (
-                      <div className={`text-[11px] leading-snug transition-colors duration-150 ${
+                      <div className={`whitespace-pre-wrap break-words text-[11px] leading-snug transition-colors duration-150 ${
                         isSelected
                           ? 'text-blue-600/70 dark:text-blue-300/70'
                           : 'text-gray-400 dark:text-gray-500'

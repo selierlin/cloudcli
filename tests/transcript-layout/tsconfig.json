@@ -8,6 +8,7 @@
     "../../src/vite-env.d.ts",
     "./fixture.tsx",
     "./transcript-layout.spec.ts",
+    "./tool-content-wrapping.spec.ts",
     "./vite.config.ts"
   ]
 }
