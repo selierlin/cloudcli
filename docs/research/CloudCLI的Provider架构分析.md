@@ -3,7 +3,7 @@
 > 分析日期：2026-08-29
 > 范围：`server/modules/providers/` + `server/shared/` + WebSocket 服务层 + 前端消费链路
 > 权威源：`server/modules/providers/README.md`（新增 Provider 的操作文档）+ 代码实读
-> 相关：WorkBuddy 接入执行清单见 `docs/provider-adapter-integration-sop.md`（本文件是架构参考，那份是执行清单）
+> 相关：WorkBuddy 接入执行清单见 `docs/Provider接入与验收SOP.md`（本文件是架构参考，那份是执行清单）
 
 ## 1. 项目身份
 

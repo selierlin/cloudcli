@@ -2,7 +2,7 @@
 
 > 分析日期：2026-08-29
 > 仓库：`/Users/selier/Projects/open_projects/AionCore`（分支 `main`，浅克隆）
-> 配套前端：AionUi（Electron 薄壳），见 [aionui-analysis.md](./aionui-analysis.md)
+> 配套前端：AionUi（Electron 薄壳），见 [AionUi项目设计分析.md](./AionUi项目设计分析.md)
 
 ## 1. 项目定位
 

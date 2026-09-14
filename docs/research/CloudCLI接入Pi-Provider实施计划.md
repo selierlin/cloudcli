@@ -3,7 +3,7 @@
 > **状态**：待审阅（计划阶段产出，尚未开始实现）
 > **日期**：2026-09-09
 > **用途**：本文档是 PI Provider（pi.dev / `@earendil-works/pi-coding-agent@0.85.1`）接入 CloudCLI 的完整实施方案，供其他 harness 审阅与批注。审阅时请重点检查：「已实测确认的 PI 事实」是否与实际行为相符、事件映射是否有遗漏或语义错误、触点清单是否有缺漏、风险项是否处理得当。批注请直接以评论或追加段落形式写入本文档。
-> **参考规范**：`server/modules/providers/README.md`（How To Add A Provider 9 步流程）、`docs/provider-adapter-integration-sop.md`
+> **参考规范**：`server/modules/providers/README.md`（How To Add A Provider 9 步流程）、`docs/Provider接入与验收SOP.md`
 
 ## Context
 
