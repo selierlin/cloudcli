@@ -1,4 +1,4 @@
-import { MCP_GLOBAL_ADD_BLOCKED_REASON, MCP_PROVIDER_NAMES, MCP_SUPPORTED_SCOPES, MCP_SUPPORTED_TRANSPORTS } from '@/shared/constants';
+import { MCP_ADD_BLOCKED_REASON, MCP_PROVIDER_NAMES, MCP_SUPPORTED_SCOPES, MCP_SUPPORTED_TRANSPORTS } from '@/shared/constants';
 import type { McpGlobalImpactEntry, McpProvider, McpScope, McpTransport } from '@/shared/types';
 
 // Reuse the provider-name map as the canonical provider order so a new provider
@@ -20,7 +20,7 @@ export const getGlobalMcpImpact = (
   transport: McpTransport,
 ): McpGlobalImpactEntry[] => (
   mcpProviderOrder.map((provider) => {
-    const blockedReason = MCP_GLOBAL_ADD_BLOCKED_REASON[provider];
+    const blockedReason = MCP_ADD_BLOCKED_REASON[provider];
     if (blockedReason) {
       return { provider, supported: false, reason: blockedReason };
     }

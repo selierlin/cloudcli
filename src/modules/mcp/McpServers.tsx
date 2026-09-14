@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { McpProject, McpProvider, McpScope, ProviderMcpServer } from '@/shared/types';
 import { IS_PLATFORM } from '@/shared/utils';
 import { ActionMenu, Badge, Button } from '@/shared/ui';
-import { MCP_GLOBAL_ADD_BLOCKED_REASON, MCP_GLOBAL_SUPPORTED_SCOPES, MCP_GLOBAL_SUPPORTED_TRANSPORTS, MCP_PROVIDER_NAMES } from '@/shared/constants';
+import { MCP_ADD_BLOCKED_REASON, MCP_GLOBAL_SUPPORTED_SCOPES, MCP_GLOBAL_SUPPORTED_TRANSPORTS, MCP_PROVIDER_NAMES } from '@/shared/constants';
 import { useMcpServers } from '@/modules/mcp/hooks/useMcpServers';
 import { maskSecret } from '@/modules/mcp/utils/mcpFormatting';
 import McpServerFormModal from '@/modules/mcp/McpServerFormModal';
@@ -132,13 +132,15 @@ export default function McpServers({ selectedProvider, currentProjects }: McpSer
   });
   const globalButtonLabel = t('mcpServers.addGlobalButton');
   const providerButtonLabel = t('mcpServers.addProviderButton', { provider: providerName });
-  // dsh and pi can never persist a global MCP server, so the entry stays
+  // dsh and pi can never persist an MCP server, so both add entries stay
   // visible but disabled while naming the reason for the selected provider.
-  const globalAddBlockedReason = MCP_GLOBAL_ADD_BLOCKED_REASON[selectedProvider];
-  const globalAddDescription = globalAddBlockedReason
-    ? t(`mcpServers.globalBlocked.${globalAddBlockedReason}`)
-    : t('mcpServers.addGlobalDescription');
-  const providerAddDescription = t('mcpServers.addProviderDescription', { provider: providerName });
+  const addBlockedReason = MCP_ADD_BLOCKED_REASON[selectedProvider];
+  const addBlockedDescription = addBlockedReason
+    ? t(`mcpServers.addBlocked.${addBlockedReason}`)
+    : null;
+  const globalAddDescription = addBlockedDescription ?? t('mcpServers.addGlobalDescription');
+  const providerAddDescription = addBlockedDescription
+    ?? t('mcpServers.addProviderDescription', { provider: providerName });
   const globalModalDescription = t('mcpServers.globalModalDescription');
 
   return (
@@ -162,7 +164,7 @@ export default function McpServers({ selectedProvider, currentProjects }: McpSer
               label: globalButtonLabel,
               description: globalAddDescription,
               icon: Globe,
-              disabled: globalAddBlockedReason !== null,
+              disabled: addBlockedReason !== null,
               onSelect: openGlobalForm,
             },
             {
@@ -170,6 +172,7 @@ export default function McpServers({ selectedProvider, currentProjects }: McpSer
               label: providerButtonLabel,
               description: providerAddDescription,
               icon: Server,
+              disabled: addBlockedReason !== null,
               onSelect: () => openForm(),
             },
           ]}

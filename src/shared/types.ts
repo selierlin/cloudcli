@@ -1047,11 +1047,11 @@ export type UpsertProviderMcpServerPayload = {
 /** Whether the MCP server form is being filled in field by field or pasted in as raw JSON, which selects the form's input mode. */
 type McpImportMode = 'form' | 'json';
 
-/** Why a provider never takes part in the global (all-providers) MCP add: `harnessManaged` means it configures MCP inside its own harness rather than an app-managed config file, `noNativeSupport` means it has no MCP support at all. */
-export type McpGlobalAddBlockedReason = 'harnessManaged' | 'noNativeSupport';
+/** Why a provider can never store an app-managed MCP server, so neither the provider-level nor the global add can work: `harnessManaged` means it configures MCP inside its own harness rather than an app-managed config file, `noNativeSupport` means it has no MCP support at all. */
+export type McpAddBlockedReason = 'harnessManaged' | 'noNativeSupport';
 
 /** Why the global MCP add is expected to skip one provider: either that provider never takes part in a global add, or it rejects the scope or transport selected in the form. */
-export type McpGlobalImpactReason = McpGlobalAddBlockedReason | 'scopeUnsupported' | 'transportUnsupported';
+export type McpGlobalImpactReason = McpAddBlockedReason | 'scopeUnsupported' | 'transportUnsupported';
 
 /** One provider's expected outcome of a global (all-providers) MCP add, used to show which providers take the server and which are skipped before the request is sent; a skipped provider always carries the reason it is skipped. */
 export type McpGlobalImpactEntry =

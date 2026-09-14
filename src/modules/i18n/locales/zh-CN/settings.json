@@ -731,9 +731,9 @@
     "addGlobalDescription": "添加全局 MCP 服务器会为所有接受所选作用域与传输方式的 Provider 写入同一个服务器，并在保存前列出被跳过的 Provider。",
     "addProviderDescription": "添加 {{provider}} MCP 服务器仅更改 {{provider}}。",
     "globalModalDescription": "将此 MCP 服务器一次性添加到所有 Provider。不支持所选作用域或传输方式的 Provider 会被跳过，下一步会明确列出具体是哪些。",
-    "globalBlocked": {
-      "harnessManaged": "不可用：该 Provider 在自己的 harness 内部配置 MCP",
-      "noNativeSupport": "不可用：该 Provider 不支持 MCP"
+    "addBlocked": {
+      "harnessManaged": "不可用：该 harness 在 CloudCLI 之外自行配置 MCP 服务器",
+      "noNativeSupport": "不可用：该 Provider 没有内置 MCP 支持"
     },
     "globalPreview": {
       "title": "添加前确认影响面",
