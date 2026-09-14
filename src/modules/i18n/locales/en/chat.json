@@ -175,8 +175,8 @@
       "frequent": "Frequently Used",
       "builtin": "Built-in Commands",
       "skill": "Skills",
-      "project": "Project Commands",
-      "user": "User Commands",
+      "project": "Project Skills",
+      "user": "User Skills",
       "other": "Other Commands"
     },
     "empty": "No commands available",
