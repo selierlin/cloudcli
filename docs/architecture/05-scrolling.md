@@ -188,10 +188,13 @@ the flag still `false`.
 **RULE: the only ways back are explicit — scroll down, press the button, or send a
 message.**
 
-While `isUserScrolledUp` is true, `ChatInterface.tsx` renders one round `ArrowDownIcon`
-button floating just above the composer, gated on `isUserScrolledUp && chatMessages.length > 0`.
-There is **no unread count and no new-message indicator**; the button is the whole
-affordance.
+While `isUserScrolledUp` is true, `ChatInterface.tsx` renders one round
+`ScrollToBottomAffordance` button floating just above the composer, gated on
+`isUserScrolledUp && chatMessages.length > 0`. Its glyph also reports whether the turn is
+still running: three staggered bouncing dots while `hasActivityIndicator` holds, the
+`ArrowDownIcon` otherwise. Both glyphs stay mounted in a single grid cell and cross-fade, so
+switching states never changes the button's footprint. There is **no unread count and no
+new-message indicator**; the button is the whole affordance.
 
 Its handler is `scrollToBottomAndReset`, not `scrollToBottom`. The difference matters: when
 `allMessagesLoaded` is set (the user pulled the whole transcript in), it also drops
