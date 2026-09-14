@@ -190,7 +190,6 @@ export const ToolRenderer: React.FC<ToolRendererProps> = memo(({
         action={displayConfig.action}
         onAction={handleAction}
         style={displayConfig.style}
-        wrapText={displayConfig.wrapText}
         colorScheme={displayConfig.colorScheme}
         resultId={mode === 'input' ? `tool-result-${toolId}` : undefined}
         status={toolStatus !== 'completed' ? toolStatus : undefined}
@@ -256,7 +255,7 @@ export const ToolRenderer: React.FC<ToolRendererProps> = memo(({
         break;
 
       case 'markdown':
-        contentComponent = <MarkdownContent content={contentProps.content || ''} />;
+        contentComponent = <MarkdownContent content={contentProps.content || ''} breaks />;
         break;
 
       case 'file-list':

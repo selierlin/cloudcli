@@ -7,7 +7,9 @@ import type { ChatMessage,NormalizedMessage,SubagentActivity } from '@/shared/ty
 import { formatUsageLimitText } from '@/modules/chat/utils/chatFormatting';
 
 function formatToolResultContent(content: unknown): string {
-  const text = typeof content === 'string' ? content : JSON.stringify(content);
+  // Indented to match how `toolInput` is serialized (see `normalizedToChatMessages`):
+  // a structured result must not arrive as one unreadable line.
+  const text = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
   const toolUseErrorMatch = /^<tool_use_error>([\s\S]*)<\/tool_use_error>$/.exec(text.trim());
   return toolUseErrorMatch ? toolUseErrorMatch[1] : text;
 }

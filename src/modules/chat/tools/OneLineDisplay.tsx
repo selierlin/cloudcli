@@ -16,7 +16,6 @@ type OneLineDisplayProps = {
   action?: ActionType;
   onAction?: () => void;
   style?: string;
-  wrapText?: boolean;
   colorScheme?: {
     primary?: string;
     secondary?: string;
@@ -45,7 +44,6 @@ export const OneLineDisplay: React.FC<OneLineDisplayProps> = ({
   action = 'none',
   onAction,
   style,
-  wrapText = false,
   colorScheme = {
     primary: 'text-foreground',
     secondary: 'text-muted-foreground',
@@ -103,9 +101,13 @@ export const OneLineDisplay: React.FC<OneLineDisplayProps> = ({
           </div>
           <div className="flex min-w-0 flex-1 items-start gap-2">
             <div className="min-w-0 flex-1 rounded bg-gray-900 px-2.5 py-1 dark:bg-black">
-              <code className={`font-mono text-xs text-green-400 ${wrapText ? 'whitespace-pre-wrap break-all' : 'block truncate'}`}>
+              {/* Not a <code> tag: the global `.chat-message code` rule forces
+                  `white-space: pre-wrap !important`, which would defeat the
+                  single-line constraint. `nowrap` collapses a multi-line
+                  command's newlines into single spaces; overflow scrolls. */}
+              <span className="block overflow-x-auto whitespace-nowrap font-mono text-xs text-green-400">
                 <span className="select-none text-green-600 dark:text-green-500">$ </span>{value}
-              </code>
+              </span>
             </div>
             {status && <ToolStatusBadge status={status} className="mt-0.5" />}
             {action === 'copy' && renderCopyButton()}
@@ -182,7 +184,7 @@ export const OneLineDisplay: React.FC<OneLineDisplayProps> = ({
       {(icon || label || toolName) && (
         <span className="text-[10px] text-muted-foreground/40">/</span>
       )}
-      <span className={`font-mono text-xs ${wrapText ? 'whitespace-pre-wrap break-all' : 'truncate'} min-w-0 flex-1 ${colorScheme.primary}`}>
+      <span className={`min-w-0 flex-1 truncate font-mono text-xs ${colorScheme.primary}`}>
         {value}
       </span>
       {secondary && (

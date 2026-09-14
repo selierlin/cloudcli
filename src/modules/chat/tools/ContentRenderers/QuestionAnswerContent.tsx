@@ -93,7 +93,7 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
                     </span>
                   )}
                 </div>
-                <div className="mt-0.5 text-xs leading-snug text-gray-600 dark:text-gray-400">
+                <div className="mt-0.5 whitespace-pre-wrap break-words text-xs leading-snug text-gray-600 dark:text-gray-400">
                   {q.question}
                 </div>
 
@@ -159,11 +159,11 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <span className={wasSelected ? 'font-medium text-gray-900 dark:text-gray-100' : ''}>
+                          <span className={`whitespace-pre-wrap break-words ${wasSelected ? 'font-medium text-gray-900 dark:text-gray-100' : ''}`}>
                             {opt.label}
                           </span>
                           {opt.description && (
-                            <span className={`mt-0.5 block text-[11px] ${
+                            <span className={`mt-0.5 block whitespace-pre-wrap break-words text-[11px] ${
                               wasSelected ? 'text-blue-600/70 dark:text-blue-300/70' : 'text-gray-400 dark:text-gray-600'
                             }`}>
                               {opt.description}

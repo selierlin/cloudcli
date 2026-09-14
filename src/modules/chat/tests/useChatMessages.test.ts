@@ -131,3 +131,65 @@ test('preserves both UI objects produced by an unchanged task notification', () 
   assert.equal(updated[1]?.isTaskNotificationResult, true);
   assert.equal(updated[1]?.content, 'Detailed result');
 });
+
+// `NormalizedMessage['content']` is declared as `string`, but providers do send
+// structured tool results. These fixtures cast because they exercise exactly
+// that gap — the projection must serialize such a payload, not drop it.
+const structuredContent = (value: unknown): string => value as unknown as string;
+
+const projectToolResult = (content: unknown): string => {
+  const toolUse = message('tool-use', {
+    kind: 'tool_use',
+    toolId: 'tool-1',
+    toolName: 'Task',
+    toolInput: { prompt: 'inspect' },
+  });
+  const toolResult = message('tool-result', {
+    kind: 'tool_result',
+    toolId: 'tool-1',
+    content: structuredContent(content),
+  });
+
+  const [row] = normalizedToChatMessages([toolUse, toolResult]);
+  return String(row?.toolResult?.content ?? '');
+};
+
+test('indents a structured tool result instead of collapsing it to one line', () => {
+  const blocks = [{ type: 'text', text: 'line one\nline two' }];
+  const content = projectToolResult(blocks);
+
+  assert.ok(content.includes('\n'), 'expected a multi-line projection');
+  assert.deepEqual(JSON.parse(content), blocks);
+  // Indented to match the `toolInput` convention, which the next test locks.
+  assert.ok(content.startsWith('[\n'));
+});
+
+test('indents a structured object tool result', () => {
+  const payload = { files: ['a.ts', 'b.ts'], truncated: false };
+  const content = projectToolResult(payload);
+
+  assert.ok(content.startsWith('{\n'));
+  assert.deepEqual(JSON.parse(content), payload);
+});
+
+test('indents tool input the same way', () => {
+  const toolUse = message('tool-use', {
+    kind: 'tool_use',
+    toolId: 'tool-1',
+    toolName: 'Task',
+    toolInput: { prompt: 'inspect', nested: { deep: true } },
+  });
+
+  const [row] = normalizedToChatMessages([toolUse]);
+
+  assert.equal(
+    row?.toolInput,
+    JSON.stringify({ prompt: 'inspect', nested: { deep: true } }, null, 2),
+  );
+});
+
+test('still strips the tool_use_error wrapper from a string result', () => {
+  const content = projectToolResult('<tool_use_error>boom\nsecond line</tool_use_error>');
+
+  assert.equal(content, 'boom\nsecond line');
+});

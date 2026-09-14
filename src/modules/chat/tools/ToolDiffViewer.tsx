@@ -62,12 +62,17 @@ export const ToolDiffViewer: React.FC<ToolDiffViewerProps> = ({
         </span>
       </div>
 
-      {/* Diff lines */}
-      <div className="font-mono text-[11px] leading-[18px]">
+      {/* Diff lines. `overflow-x-auto` here (not on the card) so the file header
+          above stays put while a long line scrolls, and so no single element
+          carries two competing `overflow` utilities. */}
+      <div className="overflow-x-auto font-mono text-[11px] leading-[18px]">
         {diffLines.map((diffLine, i) => (
-          <div key={i} className="flex">
+          <div key={i} className="tool-diff-row flex">
+            {/* Pinned so the add/remove marker survives scrolling to the end
+                of a long line; its own background hides the text sliding
+                underneath. */}
             <span
-              className={`w-6 flex-shrink-0 select-none text-center ${
+              className={`sticky left-0 w-6 flex-shrink-0 select-none text-center ${
                 diffLine.type === 'removed'
                   ? 'bg-red-50 text-red-400 dark:bg-red-950/30 dark:text-red-500'
                   : 'bg-green-50 text-green-400 dark:bg-green-950/30 dark:text-green-500'
@@ -75,8 +80,12 @@ export const ToolDiffViewer: React.FC<ToolDiffViewerProps> = ({
             >
               {diffLine.type === 'removed' ? '-' : '+'}
             </span>
+            {/* Diff content is code, not prose: it keeps its source lines and the
+                body above owns the horizontal scroll. Plain `whitespace-pre` is
+                enough here -- unlike Bash's output this is a <span>, so the
+                global `.chat-message code` rule cannot reach it. */}
             <span
-              className={`flex-1 whitespace-pre-wrap px-2 ${
+              className={`min-w-0 flex-1 whitespace-pre px-2 ${
                 diffLine.type === 'removed'
                   ? 'bg-red-50/50 text-red-800 dark:bg-red-950/20 dark:text-red-200'
                   : 'bg-green-50/50 text-green-800 dark:bg-green-950/20 dark:text-green-200'

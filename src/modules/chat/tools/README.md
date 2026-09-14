@@ -159,7 +159,6 @@ type ToolDisplayConfig = {
     getSecondary?: (input) => string | undefined;
     action?: 'copy' | 'open-file' | 'jump-to-results' | 'none';
     style?: string;                              // 'terminal' for Bash
-    wrapText?: boolean;
     colorScheme?: {
       primary?: string;
       secondary?: string;

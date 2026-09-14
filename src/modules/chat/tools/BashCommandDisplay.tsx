@@ -142,13 +142,16 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
         <span className="flex-shrink-0 select-none font-mono text-xs font-semibold text-emerald-500 dark:text-emerald-400">
           $
         </span>
-        {/* Not a <code> tag: the global `.chat-message code` rule forces
-            `white-space: pre-wrap !important`, which would defeat `truncate`
-            and render collapsed multi-line commands in full. */}
+        {/* The command is an identifier while the row is collapsed, so it stays
+            on one line and overflow scrolls horizontally. Once the output is
+            expanded the command is content: it wraps so the full text reads in
+            place. Not a <code> tag: the global `.chat-message code` rule forces
+            `white-space: pre-wrap !important`, which would defeat the
+            single-line constraint. */}
         <span
           className={cn(
             'min-w-0 flex-1 font-mono text-xs text-foreground',
-            open ? 'whitespace-pre-wrap break-all' : 'truncate',
+            open ? 'whitespace-pre-wrap break-all' : 'whitespace-nowrap overflow-x-auto',
           )}
         >
           {command}
@@ -203,9 +206,14 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
           {description && (
             <div className="px-3 pt-2 text-[11px] italic text-muted-foreground/70">{description}</div>
           )}
+          {/* Output is a terminal surface, not prose: it keeps the source line
+              structure so columns stay aligned, and the rest is reachable by
+              horizontal scroll. The `tool-terminal-output` marker is the
+              opt-out from the global `.chat-message pre { white-space:
+              pre-wrap !important }` rule, which no utility class can beat. */}
           <pre
             className={cn(
-              'max-h-80 overflow-auto whitespace-pre-wrap break-all px-3 py-2 font-mono text-xs leading-relaxed',
+              'max-h-80 overflow-auto tool-terminal-output px-3 py-2 font-mono text-xs leading-relaxed',
               isError ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground',
             )}
           >

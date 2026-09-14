@@ -321,7 +321,7 @@ function extractCodexToolOutput(output: unknown): string {
   }
 
   if (!Array.isArray(output)) {
-    return output == null ? '' : JSON.stringify(output);
+    return output == null ? '' : JSON.stringify(output, null, 2);
   }
 
   return output
@@ -342,7 +342,7 @@ function normalizeCodexMcpResult(
     return {
       content: typeof errorRecord.message === 'string'
         ? errorRecord.message
-        : JSON.stringify(errorRecord),
+        : JSON.stringify(errorRecord, null, 2),
       isError: true,
     };
   }
@@ -356,7 +356,7 @@ function normalizeCodexMcpResult(
     content: extractCodexToolOutput(resultRecord.content)
       || (resultRecord.structured_content == null
         ? ''
-        : JSON.stringify(resultRecord.structured_content)),
+        : JSON.stringify(resultRecord.structured_content, null, 2)),
     isError: false,
     toolUseResult: resultRecord.structured_content,
   };
@@ -2370,7 +2370,7 @@ export class CodexSessionsProvider implements IProviderSessions {
             toolId: itemId,
             content: raw.error
               ? String((raw.error as AnyRecord)?.message ?? raw.error)
-              : JSON.stringify(raw.result ?? ''),
+              : JSON.stringify(raw.result ?? '', null, 2),
             isError: Boolean(raw.error) || raw.status === 'failed',
           })];
         }
