@@ -314,11 +314,11 @@ test('top chrome bars swap without moving the transcript', async ({ page }, test
   const rowTops = bars.map((bar) => bar.firstRowTop);
   expect(Math.max(...rowTops) - Math.min(...rowTops), JSON.stringify(bars)).toBeLessThanOrEqual(1);
 
-  // Dropping the bar entirely still moves the rows by the slot that stops
-  // reserving space. That residual is deliberate - reserving the slot in every
-  // session means a blank strip above every transcript, which is a product
-  // decision, not a geometry fix - so this only bounds its size.
-  expect(Math.abs(withoutBar.firstRowTop - bars[0].firstRowTop)).toBeLessThanOrEqual(Math.max(...heights) + 1);
+  // The "no bar showing" state is not a special case: the slot stays mounted
+  // after the last page loads, because unmounting it would move the rows by the
+  // slot plus its space-y gap at exactly the moment the reader is up there.
+  expect(Math.abs(withoutBar.firstRowTop - bars[0].firstRowTop), JSON.stringify({ bars, withoutBar })).toBeLessThanOrEqual(1);
+  expect(Math.abs(withoutBar.slotHeight - bars[0].slotHeight)).toBeLessThanOrEqual(1);
 });
 
 test('top chrome bars stay equal on a phone viewport', async ({ page }, testInfo) => {
@@ -345,13 +345,44 @@ test('top chrome bars stay equal on a phone viewport', async ({ page }, testInfo
   expect(Math.abs(loading.slotHeight - counting.slotHeight)).toBeLessThanOrEqual(1);
   expect(Math.abs(loading.firstRowTop - counting.firstRowTop)).toBeLessThanOrEqual(1);
 
-  // Known gap, measured here rather than assumed: the legacy bar carries a full
-  // sentence plus two buttons, so on a phone its text takes a second line and
-  // the slot grows past the ones above (40px to 57px at 390px wide). Rows below
-  // therefore still move by that much when the last page finishes loading.
-  // Closing it means changing that bar's mobile layout, which is a product
-  // call, so this bounds the overshoot to one line instead of pre-empting it.
-  expect(legacy.slotHeight - counting.slotHeight).toBeLessThanOrEqual(20);
+  // The legacy bar drops its count sentence on narrow viewports for this
+  // reason: with it the sentence plus two buttons wrapped to a second line and
+  // the slot grew to 57px against the others' 40px, so rows moved when the last
+  // page finished loading. It has to match the other two exactly, not "by less
+  // than a line".
+  expect(legacy.slotHeight).toBe(loading.slotHeight);
+  expect(legacy.slotHeight).toBe(counting.slotHeight);
+  expect(Math.abs(legacy.firstRowTop - counting.firstRowTop)).toBeLessThanOrEqual(1);
+  await expect(page.locator('[data-transcript-top-chrome] button')).toHaveCount(2);
+});
+
+test('top chrome slot holds its height in the longest locale', async ({ page }, testInfo) => {
+  // Russian is the wordiest of the bundled locales, and the only one that grew
+  // the slot in all four states. The zh-CN measurements above catch the legacy
+  // bar but not the counting one: at 390px the Chinese text stays at 40px while
+  // de/fr/es/it/ru/tr wrap that row to 57px.
+  await page.addInitScript(() => {
+    localStorage.setItem('user-preferences', JSON.stringify({ userLanguage: 'ru' }));
+  });
+
+  for (const width of [390, 640]) {
+    await page.setViewportSize({ width, height: 844 });
+    await openFixture(page);
+
+    const samples: TopChromeSample[] = [];
+    for (const state of ['none', 'loading', 'counting', 'legacy']) {
+      samples.push(await sampleTopChrome(page, state));
+    }
+    await testInfo.attach(`top-chrome-ru-${width}.json`, {
+      body: Buffer.from(JSON.stringify({ browserName: testInfo.project.name, samples }, null, 2)),
+      contentType: 'application/json',
+    });
+
+    // No state may be a pixel taller than the others: a row that wraps is the
+    // whole bug, and an ellipsis is the acceptable way for it not to.
+    expect(new Set(samples.map((sample) => sample.slotHeight)).size, JSON.stringify(samples)).toBe(1);
+    expect(new Set(samples.map((sample) => sample.firstRowTop)).size, JSON.stringify(samples)).toBe(1);
+  }
 });
 
 test('load-all overlay shows and hides without moving the transcript', async ({ page }, testInfo) => {
