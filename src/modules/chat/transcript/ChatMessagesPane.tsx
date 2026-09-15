@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { memo, useCallback, useLayoutEffect, useMemo, useReducer } from 'react';
+import { Fragment, memo, useCallback, useLayoutEffect, useMemo, useReducer, useRef } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 
 import type { ChatMessage,
@@ -9,6 +9,7 @@ import type { ChatMessage,
   ProviderModelActions,
   ProviderModelsDefinition } from '@/shared/types';
 import { getIntrinsicMessageKey } from '@/modules/chat/utils/messageKeys';
+import { deriveExecutionProcessProjection } from '@/modules/chat/utils/executionProcess';
 import { groupConsecutiveTools, isToolGroupItem } from '@/modules/chat/utils/toolGrouping';
 import { deriveReasoningPresentations } from '@/modules/chat/utils/reasoningDisclosure';
 import {
@@ -21,6 +22,7 @@ import MessageComponent from '@/modules/chat/transcript/MessageComponent';
 import ProviderSelectionEmptyState from '@/modules/chat/transcript/ProviderSelectionEmptyState';
 import ToolGroupContainer from '@/modules/chat/transcript/ToolGroupContainer';
 import LoadAllMessagesOverlay from '@/modules/chat/transcript/LoadAllMessagesOverlay';
+import ExecutionProcessSummary from '@/modules/chat/transcript/ExecutionProcessSummary';
 
 /**
  * How many of the newest rows mount with real content on the first commit,
@@ -28,6 +30,20 @@ import LoadAllMessagesOverlay from '@/modules/chat/transcript/LoadAllMessagesOve
  * near the viewport. Covers a bit more than one screen of typical rows.
  */
 const INITIAL_MOUNTED_TAIL_ROWS = 30;
+
+type ExecutionDisclosure = 'user_open' | 'user_closed';
+type ExecutionDisclosureAction =
+  | { type: 'reset' }
+  | { type: 'toggle'; turnKey: string; open: boolean };
+
+function executionDisclosureReducer(
+  state: Record<string, ExecutionDisclosure>,
+  action: ExecutionDisclosureAction,
+): Record<string, ExecutionDisclosure> {
+  if (action.type === 'reset') return {};
+  if (state[action.turnKey] === (action.open ? 'user_open' : 'user_closed')) return state;
+  return { ...state, [action.turnKey]: action.open ? 'user_open' : 'user_closed' };
+}
 
 type ChatMessagesPaneProps = {
   scrollContainerRef: RefObject<HTMLDivElement>;
@@ -139,6 +155,8 @@ function ChatMessagesPane({
     sessionId,
     entries: {},
   });
+  // Keeps a user's process disclosure choice while stream updates recompute the projection.
+  const [executionDisclosure, dispatchExecutionDisclosure] = useReducer(executionDisclosureReducer, {});
   const reasoningPresentations = useMemo(
     () => deriveReasoningPresentations(visibleMessages, sessionId ?? 'no-session', isProcessing),
     [isProcessing, sessionId, visibleMessages],
@@ -146,6 +164,7 @@ function ChatMessagesPane({
 
   useLayoutEffect(() => {
     dispatchDisclosure({ type: 'reset', sessionId });
+    dispatchExecutionDisclosure({ type: 'reset' });
   }, [sessionId]);
 
   useLayoutEffect(() => {
@@ -171,11 +190,6 @@ function ChatMessagesPane({
     onReasoningAutoCollapseStart?.();
     dispatchDisclosure({ type: 'program_collapse', key });
   }, [onReasoningAutoCollapseStart]);
-  const groupedVisibleMessages = useMemo(
-    () => groupConsecutiveTools(visibleMessages, Boolean(showThinking)),
-    [visibleMessages, showThinking],
-  );
-
   // Stable, deterministic keys for the messages rendered this pass.
   //
   // A server refresh can replace source records with equivalent new objects, so
@@ -192,21 +206,49 @@ function ChatMessagesPane({
       occurrences.set(intrinsicKey, seen + 1);
       keys.set(message, seen === 0 ? intrinsicKey : `${intrinsicKey}__${seen}`);
     };
-    for (const item of groupedVisibleMessages) {
-      if (isToolGroupItem(item)) {
-        item.messages.forEach(assign);
-      } else {
-        assign(item);
-      }
-    }
+    visibleMessages.forEach(assign);
     return keys;
-  }, [groupedVisibleMessages]);
+  }, [visibleMessages]);
 
   const getMessageKey = useCallback(
     (message: ChatMessage) =>
       messageKeyMap.get(message) ?? getIntrinsicMessageKey(message) ?? 'message-generated',
     [messageKeyMap],
   );
+  const executionProjection = useMemo(
+    () => deriveExecutionProcessProjection(
+      visibleMessages,
+      getMessageKey,
+      isProcessing,
+      (turnKey) => !isUserScrolledUp && executionDisclosure[turnKey] !== 'user_open',
+    ),
+    [executionDisclosure, getMessageKey, isProcessing, isUserScrolledUp, visibleMessages],
+  );
+  const groupedVisibleMessages = useMemo(
+    () => groupConsecutiveTools(visibleMessages, Boolean(showThinking)),
+    [visibleMessages, showThinking],
+  );
+  const collapsedProcessSignature = useMemo(() => (
+    [...executionProjection.groups.values()]
+      .filter((group) => executionDisclosure[group.turnKey] === 'user_closed'
+        || (!group.hasAttention && executionDisclosure[group.turnKey] !== 'user_open'))
+      .map((group) => `${group.turnKey}:${[...group.memberKeys].join(',')}`)
+      .join('|')
+  ), [executionDisclosure, executionProjection]);
+  const previousCollapsedProcessSignature = useRef('');
+
+  useLayoutEffect(() => {
+    const changed = previousCollapsedProcessSignature.current !== collapsedProcessSignature;
+    previousCollapsedProcessSignature.current = collapsedProcessSignature;
+    if (changed && collapsedProcessSignature && !isUserScrolledUp) {
+      // ChatInterface coalesces this with reasoning disclosure changes in one frame.
+      onReasoningAutoCollapseStart?.();
+    }
+  }, [collapsedProcessSignature, isUserScrolledUp, onReasoningAutoCollapseStart]);
+
+  const toggleExecutionProcess = useCallback((turnKey: string, currentlyCollapsed: boolean) => {
+    dispatchExecutionDisclosure({ type: 'toggle', turnKey, open: currentlyCollapsed });
+  }, []);
 
   return (
     <div
@@ -303,28 +345,51 @@ function ChatMessagesPane({
               if (isToolGroupItem(item)) {
                 const groupPrevMessage = prevMessage;
                 prevMessage = item.messages[item.messages.length - 1] || prevMessage;
+                const itemMessageKeys = item.messages.map(getMessageKey);
+                const executionTurnKey = itemMessageKeys
+                  .map((key) => executionProjection.memberTurnKeys.get(key))
+                  .find(Boolean);
+                const executionGroup = executionTurnKey
+                  ? executionProjection.groups.get(executionTurnKey)
+                  : undefined;
+                const isProcessCollapsed = Boolean(executionGroup && (
+                  executionDisclosure[executionGroup.turnKey] === 'user_closed'
+                  || (!executionGroup.hasAttention && executionDisclosure[executionGroup.turnKey] !== 'user_open')
+                ));
+                const shouldRenderSummary = Boolean(
+                  executionGroup && executionGroup.firstMemberKey === itemMessageKeys[0],
+                );
 
                 return (
-                  <LazyMessageRow
-                    key={`tool-group-${getMessageKey(item.messages[0])}`}
-                    lazyRows={lazyRows}
-                    timestamp={item.timestamp}
-                    initiallyNearViewport={initiallyNearViewport}
-                  >
-                    <ToolGroupContainer
-                      group={item}
-                      prevMessage={groupPrevMessage}
-                      createDiff={createDiff}
-                      getMessageKey={getMessageKey}
-                      onFileOpen={onFileOpen}
-                      onShowSettings={onShowSettings}
-                      onGrantToolPermission={onGrantToolPermission}
-                      showRawParameters={showRawParameters}
-                      showThinking={showThinking}
-                      selectedProject={selectedProject}
-                      provider={provider}
-                    />
-                  </LazyMessageRow>
+                  <Fragment key={`tool-group-${getMessageKey(item.messages[0])}`}>
+                    {shouldRenderSummary && executionGroup && (
+                      <ExecutionProcessSummary
+                        collapsed={isProcessCollapsed}
+                        hasAttention={executionGroup.hasAttention}
+                        onToggle={() => toggleExecutionProcess(executionGroup.turnKey, isProcessCollapsed)}
+                      />
+                    )}
+                    <LazyMessageRow
+                      lazyRows={lazyRows}
+                      timestamp={item.timestamp}
+                      initiallyNearViewport={initiallyNearViewport}
+                      isProcessCollapsed={isProcessCollapsed}
+                    >
+                      <ToolGroupContainer
+                        group={item}
+                        prevMessage={groupPrevMessage}
+                        createDiff={createDiff}
+                        getMessageKey={getMessageKey}
+                        onFileOpen={onFileOpen}
+                        onShowSettings={onShowSettings}
+                        onGrantToolPermission={onGrantToolPermission}
+                        showRawParameters={showRawParameters}
+                        showThinking={showThinking}
+                        selectedProject={selectedProject}
+                        provider={provider}
+                      />
+                    </LazyMessageRow>
+                  </Fragment>
                 );
               }
 
@@ -339,35 +404,53 @@ function ChatMessagesPane({
                     String(item.content || ''),
                   )
                 : undefined;
+              const messageKey = getMessageKey(item);
+              const executionTurnKey = executionProjection.memberTurnKeys.get(messageKey);
+              const executionGroup = executionTurnKey
+                ? executionProjection.groups.get(executionTurnKey)
+                : undefined;
+              const isProcessCollapsed = Boolean(executionGroup && (
+                executionDisclosure[executionGroup.turnKey] === 'user_closed'
+                || (!executionGroup.hasAttention && executionDisclosure[executionGroup.turnKey] !== 'user_open')
+              ));
 
               return (
-                <LazyMessageRow
-                  key={getMessageKey(item)}
-                  lazyRows={lazyRows}
-                  timestamp={item.timestamp}
-                  initiallyNearViewport={initiallyNearViewport}
-                >
-                  <MessageComponent
-                    message={item}
-                    prevMessage={messagePrevMessage}
-                    createDiff={createDiff}
-                    onFileOpen={onFileOpen}
-                    onShowSettings={onShowSettings}
-                    onGrantToolPermission={onGrantToolPermission}
-                    showRawParameters={showRawParameters}
-                    showThinking={showThinking}
-                    selectedProject={selectedProject}
-                    provider={provider}
-                    reasoningPresentation={reasoningPresentation}
-                    reasoningDisclosureState={reasoningDisclosureState}
-                    suppressReasoningAutoCollapse={isUserScrolledUp}
-                    onReasoningUserOpenChange={handleReasoningUserOpenChange}
-                    onReasoningProgramOpen={handleReasoningProgramOpen}
-                    onReasoningProgramCollapse={handleReasoningProgramCollapse}
-                    onEditMessage={onEditMessage}
-                    onForkFromMessage={onForkFromMessage}
-                  />
-                </LazyMessageRow>
+                <Fragment key={messageKey}>
+                  {executionGroup?.firstMemberKey === messageKey && (
+                    <ExecutionProcessSummary
+                      collapsed={isProcessCollapsed}
+                      hasAttention={executionGroup.hasAttention}
+                      onToggle={() => toggleExecutionProcess(executionGroup.turnKey, isProcessCollapsed)}
+                    />
+                  )}
+                  <LazyMessageRow
+                    lazyRows={lazyRows}
+                    timestamp={item.timestamp}
+                    initiallyNearViewport={initiallyNearViewport}
+                    isProcessCollapsed={isProcessCollapsed}
+                  >
+                    <MessageComponent
+                      message={item}
+                      prevMessage={messagePrevMessage}
+                      createDiff={createDiff}
+                      onFileOpen={onFileOpen}
+                      onShowSettings={onShowSettings}
+                      onGrantToolPermission={onGrantToolPermission}
+                      showRawParameters={showRawParameters}
+                      showThinking={showThinking}
+                      selectedProject={selectedProject}
+                      provider={provider}
+                      reasoningPresentation={reasoningPresentation}
+                      reasoningDisclosureState={reasoningDisclosureState}
+                      suppressReasoningAutoCollapse={isUserScrolledUp}
+                      onReasoningUserOpenChange={handleReasoningUserOpenChange}
+                      onReasoningProgramOpen={handleReasoningProgramOpen}
+                      onReasoningProgramCollapse={handleReasoningProgramCollapse}
+                      onEditMessage={onEditMessage}
+                      onForkFromMessage={onForkFromMessage}
+                    />
+                  </LazyMessageRow>
+                </Fragment>
               );
             });
           })()}

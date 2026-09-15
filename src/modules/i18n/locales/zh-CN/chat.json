@@ -66,6 +66,12 @@
     "title": "思考中...",
     "emoji": "💭 思考中..."
   },
+  "transcript": {
+    "executionProcess": {
+      "summary": "执行过程",
+      "attention": "执行过程需要处理"
+    }
+  },
   "json": {
     "response": "JSON 响应"
   },
