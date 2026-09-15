@@ -48,6 +48,12 @@ const buildMessage = (index: number, timestamp: string): NormalizedMessage => ({
   timestamp,
 } as NormalizedMessage);
 
+/** A transcript long enough that the render window is a strict tail slice. */
+const buildMessages = (count: number): NormalizedMessage[] => Array.from(
+  { length: count },
+  (_, index) => buildMessage(index, new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString()),
+);
+
 /**
  * jsdom has no layout, so scrollHeight/clientHeight are always 0 and assigning
  * scrollTop emits nothing. These are the exact reads the scroll code makes.
@@ -447,6 +453,110 @@ describe('search jump ownership', () => {
       container.element.querySelectorAll('.search-highlight-flash').length,
       0,
       'and must not flash the search highlight on one of its rows',
+    );
+  });
+});
+
+describe('render-window growth restore', () => {
+  it('keeps the pinned row in place when "load earlier" widens the window', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, buildMessages(300)],
+    ]);
+    const store = createStore(messages);
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    // The container has to be in the document for the pinned row to stay
+    // connected, which is what the restore checks before using it.
+    document.body.appendChild(container.element);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    // jsdom has no layout, so the pinned row's rect is scripted. Capturing the
+    // baseline reads it twice (once to pick the row, once for its offset) and
+    // applying the correction reads it once more, so the first two reads report
+    // 120px below the container top and the correction reads 320px — the 200px
+    // that inserting 100 rows above the row costs it.
+    const row = document.createElement('div');
+    row.className = 'chat-message';
+    let rowReads = 0;
+    row.getBoundingClientRect = () => {
+      const top = rowReads++ < 2 ? 120 : 320;
+      return { top, bottom: top + 100 } as DOMRect;
+    };
+    container.element.appendChild(row);
+
+    act(() => {
+      result.current.loadEarlierMessages();
+    });
+
+    assert.deepEqual(
+      container.writes,
+      [4700],
+      'the restore must follow the pinned row down by the 200px the inserted rows cost it',
+    );
+
+    container.element.remove();
+  });
+
+  it('restores within the "load all" commit and never moves the viewport afterwards', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, buildMessages(300)],
+    ]);
+    const store = createStore(messages);
+    const { result, rerender } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+    assert.equal(result.current.currentSessionId, SESSION_A);
+
+    // The reader is up in the transcript, which is where the "load all" prompt
+    // appears and where ownership must stay with them.
+    act(() => {
+      result.current.setIsUserScrolledUp(true);
+    });
+    container.writes.length = 0;
+
+    // Every message is already in the store, so widening the window to all of
+    // them changes no store length anywhere — the geometry is the only signal.
+    const slot = store.getSessionSlot(SESSION_A);
+    let resolveFetch: (() => void) | null = null;
+    store.fetchFromServer.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveFetch = () => resolve(slot);
+    }));
+
+    act(() => {
+      void result.current.loadAllMessages();
+    });
+    container.setScrollHeight(9000);
+    await act(async () => {
+      resolveFetch?.();
+    });
+
+    assert.deepEqual(
+      container.writes,
+      [8500],
+      'the restore must complete in the commit that mounts the full window',
+    );
+
+    // A row streams in afterwards. The restore is spent, so nothing may move.
+    messages.set(SESSION_A, [
+      ...messages.get(SESSION_A)!,
+      buildMessage(300, '2026-01-01T00:05:00.000Z'),
+    ]);
+    act(() => {
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: true });
+    });
+
+    assert.deepEqual(
+      container.writes,
+      [8500],
+      'an armed restore must not outlive its own commit and fire on a later one',
     );
   });
 });

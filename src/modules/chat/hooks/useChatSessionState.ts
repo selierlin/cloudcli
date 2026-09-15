@@ -203,6 +203,18 @@ export function useChatSessionState({
   const [isLoadingAllMessages, setIsLoadingAllMessages] = useState(false);
   const [loadAllJustFinished, setLoadAllJustFinished] = useState(false);
   const [showLoadAllOverlay, setShowLoadAllOverlay] = useState(false);
+  /**
+   * Bumped by every arm of `pendingScrollRestoreRef`.
+   *
+   * It is the consuming layout effect's dependency because the restore must land
+   * on the commit that mounts the widened render window, and nothing else in the
+   * dependency space reliably changes then: widening the window (pagination,
+   * "load earlier", "load all") changes geometry while the store — and therefore
+   * `chatMessages.length` — stays the same. Keying the effect on that length left
+   * the armed state alive past its own commit, so it fired on a later, unrelated
+   * one (a streamed row) and moved the viewport.
+   */
+  const [scrollRestoreEpoch, setScrollRestoreEpoch] = useState(0);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const wasNearTopRef = useRef(false);
@@ -515,6 +527,22 @@ export function useChatSessionState({
     return scrollHeight - scrollTop - clientHeight < 50;
   }, []);
 
+  /**
+   * Arms the one-shot restore that every render-window change needs: pagination
+   * widening, "load earlier", and "load all" all insert rows and change the
+   * transcript's geometry, and the reader's position must survive that.
+   *
+   * The state captured by `captureScrollRestoreState` is the baseline, so it is
+   * taken before the window is widened — the caller may hold it across an await
+   * and hand it in once the page has landed. Bumping the epoch is what makes the
+   * restore land on that commit (see `scrollRestoreEpoch`).
+   */
+  const armScrollRestore = useCallback((state: ScrollRestoreState | null) => {
+    if (!state) return;
+    pendingScrollRestoreRef.current = state;
+    setScrollRestoreEpoch((previous) => previous + 1);
+  }, []);
+
   const loadOlderMessages = useCallback(
     async (container: HTMLDivElement) => {
       if (!isActive) return false;
@@ -555,7 +583,7 @@ export function useChatSessionState({
           return false;
         }
 
-        pendingScrollRestoreRef.current = scrollRestoreState;
+        armScrollRestore(scrollRestoreState);
         setVisibleMessageCount((prev) => prev + SESSION_MESSAGES_PAGE_SIZE);
         if (!slot.hasMore) {
           allMessagesLoadedRef.current = true;
@@ -572,7 +600,7 @@ export function useChatSessionState({
         setIsLoadingMoreMessages(false);
       }
     },
-    [hasMoreMessages, isActive, isLoadingMoreMessages, selectedProject, selectedSession, sessionStore],
+    [armScrollRestore, hasMoreMessages, isActive, isLoadingMoreMessages, selectedProject, selectedSession, sessionStore],
   );
 
   const handleScroll = useCallback(async () => {
@@ -617,6 +645,10 @@ export function useChatSessionState({
   }, [hasMoreMessages, isActive, isNearBottom, loadOlderMessages, setIsUserScrolledUp]);
 
   const wasChatActiveRef = useRef(isActive);
+  // Consumes the armed restore on the commit that follows arming. The epoch (not
+  // the store length) is the driver: the window can be widened without the store
+  // changing, and an armed state that outlives its own commit would move the
+  // viewport on some later one.
   useLayoutEffect(() => {
     const becameActive = isActive && !wasChatActiveRef.current;
     wasChatActiveRef.current = isActive;
@@ -643,7 +675,7 @@ export function useChatSessionState({
         ? scrollPositionRef.current.top
         : container.scrollHeight;
     }
-  }, [chatMessages.length, isActive, isUserScrolledUp]);
+  }, [isActive, isUserScrolledUp, scrollRestoreEpoch]);
 
   // Reset scroll/pagination state on session change
   useEffect(() => {
@@ -1134,9 +1166,7 @@ export function useChatSessionState({
       if (currentSessionId !== requestSessionId) return;
 
       if (slot) {
-        if (scrollRestoreState) {
-          pendingScrollRestoreRef.current = scrollRestoreState;
-        }
+        armScrollRestore(scrollRestoreState);
 
         setHasMoreMessages(false);
         setTotalMessages(slot.total);
@@ -1163,11 +1193,18 @@ export function useChatSessionState({
       isLoadingMoreRef.current = false;
       setIsLoadingAllMessages(false);
     }
-  }, [isActive, selectedSession, selectedProject, isLoadingAllMessages, currentSessionId, sessionStore]);
+  }, [armScrollRestore, isActive, selectedSession, selectedProject, isLoadingAllMessages, currentSessionId, sessionStore]);
 
   const loadEarlierMessages = useCallback(() => {
+    // Pure render-window growth: the store already holds every message, so this
+    // only inserts rows above the viewport. Without a captured baseline the
+    // widened commit leaves the reader looking at a row they never chose — the
+    // browser's own scroll anchoring is the only thing covering WebKit, and it
+    // does not exist there.
+    const container = scrollContainerRef.current;
+    armScrollRestore(container ? captureScrollRestoreState(container) : null);
     setVisibleMessageCount((prev) => prev + 100);
-  }, []);
+  }, [armScrollRestore]);
 
   return {
     chatMessages,
