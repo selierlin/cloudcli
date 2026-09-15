@@ -1,11 +1,13 @@
-import { FolderOpen, Globe, X } from 'lucide-react';
+import { useState } from 'react';
+import { Check, FolderOpen, Globe, X, XCircle } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
 import { Button, Input } from '@/shared/ui';
 import { MCP_PROVIDER_NAMES, MCP_SUPPORTED_SCOPES, MCP_SUPPORTED_TRANSPORTS, MCP_SUPPORTS_WORKING_DIRECTORY } from '@/shared/constants';
 import { useMcpServerForm } from '@/modules/mcp/hooks/useMcpServerForm';
-import type { McpFormState, McpProject, McpProvider, McpScope, McpTransport, ProviderMcpServer } from '@/shared/types';
+import { getGlobalMcpImpact } from '@/modules/mcp/utils/mcpGlobalImpact';
+import type { McpFormState, McpGlobalImpactEntry, McpGlobalImpactReason, McpProject, McpProvider, McpScope, McpTransport, ProviderMcpServer } from '@/shared/types';
 
 type McpFormMode = 'provider' | 'global';
 
@@ -34,6 +36,10 @@ const getScopeLabel = (
   }
 
   if (scope === 'local') {
+    if (mode === 'global') {
+      return t('mcpForm.scope.localAllProviders');
+    }
+
     return provider === 'claude'
       ? t('mcpForm.scope.claudeLocal')
       : t('mcpForm.scope.localProvider');
@@ -55,6 +61,10 @@ const getScopeDescription = (
   }
 
   if (scope === 'local') {
+    if (mode === 'global') {
+      return t('mcpForm.scope.localAllProvidersDescription');
+    }
+
     return provider === 'claude'
       ? t('mcpForm.scope.localDescription')
       : t('mcpForm.scope.localProviderDescription', {
@@ -85,6 +95,20 @@ export default function McpServerFormModal({
   const isGlobalMode = mode === 'global';
   const availableScopes = supportedScopes ?? MCP_SUPPORTED_SCOPES[provider];
   const availableTransports = supportedTransports ?? MCP_SUPPORTED_TRANSPORTS[provider];
+  // A global add rewrites the config file of every provider at once, so the
+  // first submit only predicts each provider's outcome. Holding the prediction
+  // here means the same modal renders either the form or the confirmation step.
+  const [globalImpact, setGlobalImpact] = useState<McpGlobalImpactEntry[] | null>(null);
+
+  const handleFormSubmit = async (formData: McpFormState, server: ProviderMcpServer | null) => {
+    if (isGlobalMode && globalImpact === null) {
+      setGlobalImpact(getGlobalMcpImpact(formData.scope, formData.transport));
+      return;
+    }
+
+    await onSubmit(formData, server);
+  };
+
   const {
     formData,
     multilineText,
@@ -108,7 +132,7 @@ export default function McpServerFormModal({
     unsupportedTransportMessage: isGlobalMode
       ? (transport) => t('mcpServers.errors.globalTransportUnsupported', { transport })
       : undefined,
-    onSubmit,
+    onSubmit: handleFormSubmit,
   });
 
   const providerName = MCP_PROVIDER_NAMES[provider];
@@ -118,6 +142,79 @@ export default function McpServerFormModal({
   const supportsHttpHeaders = formData.transport === 'http' || formData.transport === 'sse';
   const supportsWorkingDirectory = !isGlobalMode && MCP_SUPPORTS_WORKING_DIRECTORY[provider];
   const showCodexOnlyFields = provider === 'codex' && !isGlobalMode;
+
+  if (isGlobalMode && globalImpact) {
+    const supportedCount = globalImpact.filter((entry) => entry.supported).length;
+    const describeSkipReason = (reason: McpGlobalImpactReason): string => {
+      if (reason === 'scopeUnsupported') {
+        return t('mcpServers.globalPreview.reason.scopeUnsupported', {
+          scope: t(`mcpServers.scope.${formData.scope}`),
+        });
+      }
+
+      if (reason === 'transportUnsupported') {
+        return t('mcpServers.globalPreview.reason.transportUnsupported', { transport: formData.transport });
+      }
+
+      return t(`mcpServers.globalPreview.reason.${reason}`);
+    };
+
+    return createPortal(
+      <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-4">
+        <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-border bg-background">
+          <div className="flex items-center justify-between border-b border-border p-4">
+            <h3 className="text-lg font-medium text-foreground">{t('mcpServers.globalPreview.title')}</h3>
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4 p-4">
+            <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+              {t('mcpServers.globalPreview.description', { count: supportedCount, total: globalImpact.length })}
+            </div>
+
+            <ul className="space-y-2">
+              {globalImpact.map((entry) => (
+                <li
+                  key={entry.provider}
+                  className="flex items-start gap-3 rounded-lg border border-border bg-card/50 px-3 py-2"
+                >
+                  {entry.supported
+                    ? <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-600" />
+                    : <XCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-foreground">{MCP_PROVIDER_NAMES[entry.provider]}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {entry.supported
+                        ? t('mcpServers.globalPreview.willWrite')
+                        : describeSkipReason(entry.reason)}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => setGlobalImpact(null)}>
+                {t('mcpServers.globalPreview.back')}
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {isSubmitting
+                  ? t('mcpForm.actions.saving')
+                  : t('mcpServers.globalPreview.confirm', { count: supportedCount })}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
 
   return createPortal(
     <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-4">

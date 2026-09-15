@@ -1,6 +1,5 @@
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import type { LLMProvider, McpScope, ProviderMcpServer, UpsertProviderMcpServerInput } from '@/shared/types.js';
-import { AppError } from '@/shared/utils.js';
 
 
 export const providerMcpService = {
@@ -50,18 +49,18 @@ export const providerMcpService = {
   },
 
   /**
-   * Adds one HTTP/stdio MCP server to every provider.
+   * Adds one MCP server to every provider on a best-effort basis.
+   *
+   * The scope and transport are validated by each provider, not here, so a
+   * combination that only some providers accept (a `local` scope, or an `sse`
+   * transport) still reaches the providers that support it. Every provider
+   * that rejects the request is reported as `created: false` with its own
+   * error rather than aborting the whole operation, which lets the caller
+   * report exactly which providers were skipped.
    */
   async addMcpServerToAllProviders(
-    input: Omit<UpsertProviderMcpServerInput, 'scope'> & { scope?: Exclude<McpScope, 'local'> },
+    input: Omit<UpsertProviderMcpServerInput, 'scope'> & { scope?: McpScope },
   ): Promise<Array<{ provider: LLMProvider; created: boolean; error?: string }>> {
-    if (input.transport !== 'stdio' && input.transport !== 'http') {
-      throw new AppError('Global MCP add supports only "stdio" and "http".', {
-        code: 'INVALID_GLOBAL_MCP_TRANSPORT',
-        statusCode: 400,
-      });
-    }
-
     const scope = input.scope ?? 'project';
     const results: Array<{ provider: LLMProvider; created: boolean; error?: string }> = [];
     const providers = providerRegistry.listProviders();

@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 
-import type { FileStatusCode, LLMProvider, McpProvider, McpScope, McpTransport, SettingsMainTab } from '@/shared/types';
+import type { FileStatusCode, LLMProvider, McpAddBlockedReason, McpProvider, McpScope, McpTransport, SettingsMainTab } from '@/shared/types';
 import type { UserPreferenceKey } from '@/shared/userSettings';
 
 /** The four buckets the git changes view sorts working-tree files into. */
@@ -144,14 +144,31 @@ export const MCP_SUPPORTED_TRANSPORTS: Record<McpProvider, McpTransport[]> = {
   cursor: ['stdio', 'http'],
   codex: ['stdio', 'http'],
   opencode: ['stdio', 'http'],
-  dsh: ['stdio', 'http', 'sse'],
+  // DSH's ACP layer takes stdio and streamable HTTP only and rejects SSE, even
+  // though the harness can host MCP servers itself.
+  dsh: ['stdio', 'http'],
   workbuddy: ['stdio', 'http', 'sse'],
   pi: [],
   zcode: ['stdio', 'http', 'sse'],
 };
 
-/** Transports offered when configuring a global (provider-agnostic) MCP server. */
-export const MCP_GLOBAL_SUPPORTED_TRANSPORTS: McpTransport[] = ['stdio', 'http'];
+/** Transports offered when configuring a global (provider-agnostic) MCP server; each provider accepts or rejects them individually, so the global entry does not narrow the list. */
+export const MCP_GLOBAL_SUPPORTED_TRANSPORTS: McpTransport[] = ['stdio', 'http', 'sse'];
+
+/** Scopes offered when configuring a global (provider-agnostic) MCP server; a provider that does not support the chosen scope reports a per-provider failure instead of failing the whole add. */
+export const MCP_GLOBAL_SUPPORTED_SCOPES: McpScope[] = ['user', 'project', 'local'];
+
+/** Why a provider cannot store an app-managed MCP server at all, or null when it can; drives the disabled add entries and the pre-submit impact preview. */
+export const MCP_ADD_BLOCKED_REASON: Record<McpProvider, McpAddBlockedReason | null> = {
+  claude: null,
+  cursor: null,
+  codex: null,
+  opencode: null,
+  dsh: 'harnessManaged',
+  workbuddy: null,
+  pi: 'noNativeSupport',
+  zcode: null,
+};
 
 /** Whether a provider honours an MCP server's working-directory setting; the form hides the field when it does not. */
 export const MCP_SUPPORTS_WORKING_DIRECTORY: Record<McpProvider, boolean> = {

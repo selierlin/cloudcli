@@ -766,17 +766,9 @@ router.post(
   '/mcp/servers/global',
   asyncHandler(async (req: Request, res: Response) => {
     const payload = parseMcpUpsertPayload(req.body);
-    if (payload.scope === 'local') {
-      throw new AppError('Global MCP add supports only "user" or "project" scopes.', {
-        code: 'INVALID_GLOBAL_MCP_SCOPE',
-        statusCode: 400,
-      });
-    }
-
-    const results = await providerMcpService.addMcpServerToAllProviders({
-      ...payload,
-      scope: payload.scope === 'user' ? 'user' : 'project',
-    });
+    // The scope is passed through unchanged: providers that cannot accept it
+    // report a per-provider error instead of failing the whole request.
+    const results = await providerMcpService.addMcpServerToAllProviders(payload);
     res.status(201).json(createApiSuccessResponse({ results }));
   }),
 );

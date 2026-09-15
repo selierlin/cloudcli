@@ -285,6 +285,8 @@
       "userProviderDescription": "在您机器上的所有项目中可用",
       "localDescription": "存储在 Claude 用户设置中，仅对所选项目生效",
       "localProviderDescription": "存储在 {{provider}} 设置中，仅对所选项目生效",
+      "localAllProviders": "本地（所有 Provider）",
+      "localAllProvidersDescription": "为每个支持该作用域的 Provider 写入所选项目的配置",
       "projectAllProvidersDescription": "为每个 Provider 写入所选项目的工作区",
       "projectProviderDescription": "存储在所选项目的工作区中"
     },
@@ -726,9 +728,26 @@
     },
     "addGlobalButton": "添加全局 MCP 服务器",
     "addProviderButton": "添加 {{provider}} MCP 服务器",
-    "addGlobalDescription": "添加全局 MCP 服务器会为 Claude、Cursor、Codex 和 OpenCode 写入一个通用的 stdio 或 HTTP 服务器。",
+    "addGlobalDescription": "添加全局 MCP 服务器会为所有接受所选作用域与传输方式的 Provider 写入同一个服务器，并在保存前列出被跳过的 Provider。",
     "addProviderDescription": "添加 {{provider}} MCP 服务器仅更改 {{provider}}。",
-    "globalModalDescription": "将此 MCP 服务器添加到每个 Provider：Claude、Cursor、Codex 和 OpenCode。由于同一份配置需要兼容所有 Provider，因此仅支持 stdio 和 HTTP 传输方式。",
+    "globalModalDescription": "将此 MCP 服务器一次性添加到所有 Provider。不支持所选作用域或传输方式的 Provider 会被跳过，下一步会明确列出具体是哪些。",
+    "addBlocked": {
+      "harnessManaged": "不可用：该 harness 在 CloudCLI 之外自行配置 MCP 服务器",
+      "noNativeSupport": "不可用：该 Provider 没有内置 MCP 支持"
+    },
+    "globalPreview": {
+      "title": "添加前确认影响面",
+      "description": "{{total}} 个 Provider 中有 {{count}} 个会收到此服务器。",
+      "willWrite": "将写入",
+      "back": "返回",
+      "confirm": "添加到 {{count}} 个 Provider",
+      "reason": {
+        "scopeUnsupported": "不支持 {{scope}} 作用域",
+        "transportUnsupported": "不支持 {{transport}} 传输方式",
+        "harnessManaged": "在自己的 harness 内部配置 MCP",
+        "noNativeSupport": "无原生 MCP 支持"
+      }
+    },
     "errors": {
       "loadFailed": "加载 {{provider}} MCP 服务器失败",
       "deleteFailed": "删除 MCP 服务器失败",
@@ -737,8 +756,7 @@
       "unknown": "未知错误",
       "errorAlert": "错误：{{message}}",
       "selectProject": "请为项目级 MCP 服务器选择一个项目",
-      "globalScopeUnsupported": "添加 MCP 服务器跨所有 Provider 仅支持用户或项目范围。",
-      "globalTransportUnsupported": "添加 MCP 服务器跨所有 Provider 仅支持 stdio 和 http，不支持 {{transport}}。",
+      "globalTransportUnsupported": "添加 MCP 服务器不支持 {{transport}} 传输方式。",
       "providerTransportUnsupported": "{{provider}} 不支持 {{transport}} MCP 服务器",
       "deleteConfirm": "确定要删除这个 MCP 服务器吗？",
       "globalAddFailed": "添加 MCP 服务器到所有 Provider 失败。{{details}}"
