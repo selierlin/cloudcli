@@ -362,10 +362,59 @@ test('providerMcpService handles cursor MCP JSON config formats', { concurrency:
 });
 
 /**
- * This test covers the global MCP adder requirement: only http/stdio are allowed and
- * one payload is written to all providers.
+ * This test covers the two providers that cannot store an app-managed MCP
+ * server: DSH keeps its MCP servers inside its harness composition and Pi has
+ * no MCP support, so both add entries are disabled in the UI and every write is
+ * rejected. DSH's declared transports are checked as well: its ACP layer takes
+ * stdio and streamable HTTP only, so `sse` has to fail capability validation
+ * instead of reaching the harness writer.
  */
-test('providerMcpService global adder writes to all providers and rejects unsupported transports', { concurrency: false }, async () => {
+test('providerMcpService rejects every DSH and Pi MCP write', { concurrency: false }, async () => {
+  await assert.rejects(
+    providerMcpService.upsertProviderMcpServer('dsh', {
+      name: 'dsh-stdio', scope: 'project', transport: 'stdio', command: 'node',
+    }),
+    (error: unknown) =>
+      error instanceof AppError &&
+      error.code === 'DSH_MCP_NOT_MANAGED' &&
+      error.statusCode === 400,
+  );
+
+  await assert.rejects(
+    providerMcpService.upsertProviderMcpServer('dsh', {
+      name: 'dsh-sse', scope: 'project', transport: 'sse', url: 'https://example.com/sse',
+    }),
+    (error: unknown) =>
+      error instanceof AppError &&
+      error.code === 'MCP_TRANSPORT_NOT_SUPPORTED' &&
+      error.statusCode === 400,
+  );
+
+  await assert.rejects(
+    providerMcpService.upsertProviderMcpServer('pi', {
+      name: 'pi-stdio', scope: 'project', transport: 'stdio', command: 'node',
+    }),
+    (error: unknown) =>
+      error instanceof AppError &&
+      error.code === 'MCP_SCOPE_NOT_SUPPORTED' &&
+      error.statusCode === 400,
+  );
+
+  // DSH declares scopes but reads none, so the list stays empty rather than
+  // offering rows the user could edit into a failing write.
+  const grouped = await providerMcpService.listProviderMcpServers('dsh');
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(grouped).map(([scope, servers]) => [scope, servers.length])),
+    { user: 0, local: 0, project: 0 },
+  );
+});
+
+/**
+ * This test covers the global MCP adder requirement: one payload is written to
+ * every provider, and a scope/transport only some providers accept still
+ * reaches those providers instead of failing the whole request.
+ */
+test('providerMcpService global adder writes to every provider and degrades per provider', { concurrency: false }, async () => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-mcp-global-'));
   const workspacePath = path.join(tempRoot, 'workspace');
   await fs.mkdir(workspacePath, { recursive: true });
@@ -414,18 +463,46 @@ test('providerMcpService global adder writes to all providers and rejects unsupp
     assert.ok((zcodeProject.mcp as Record<string, unknown>).servers
       && ((zcodeProject.mcp as Record<string, unknown>).servers as Record<string, unknown>)['global-http']);
 
-    await assert.rejects(
-      providerMcpService.addMcpServerToAllProviders({
-        name: 'global-sse',
-        scope: 'project',
-        transport: 'sse',
-        url: 'https://example.com/sse',
-        workspacePath,
-      }),
-      (error: unknown) =>
-        error instanceof AppError &&
-        error.code === 'INVALID_GLOBAL_MCP_TRANSPORT' &&
-        error.statusCode === 400,
+    // `sse` is accepted globally: only the providers that declare it persist it,
+    // and the rest report a per-provider error.
+    const sseResult = await providerMcpService.addMcpServerToAllProviders({
+      name: 'global-sse',
+      scope: 'project',
+      transport: 'sse',
+      url: 'https://example.com/sse',
+      workspacePath,
+    });
+
+    assert.equal(sseResult.length, 8);
+    assert.deepEqual(
+      sseResult.filter((entry) => entry.created).map((entry) => entry.provider).sort(),
+      ['claude', 'workbuddy', 'zcode'],
+    );
+    assert.ok(
+      sseResult
+        .filter((entry) => !entry.created)
+        .every((entry) => Boolean(entry.error)),
+    );
+    const claudeSseProject = await readJson(path.join(workspacePath, '.mcp.json'));
+    assert.equal(
+      ((claudeSseProject.mcpServers as Record<string, unknown>)['global-sse'] as Record<string, unknown>).type,
+      'sse',
+    );
+
+    // `local` scope is likewise accepted globally and lands only on the
+    // providers that support a local scope.
+    const localResult = await providerMcpService.addMcpServerToAllProviders({
+      name: 'global-local',
+      scope: 'local',
+      transport: 'http',
+      url: 'https://local.example.com/mcp',
+      workspacePath,
+    });
+
+    assert.equal(localResult.length, 8);
+    assert.deepEqual(
+      localResult.filter((entry) => entry.created).map((entry) => entry.provider).sort(),
+      ['claude', 'workbuddy'],
     );
   } finally {
     if (registeredProject) {
