@@ -73,6 +73,12 @@
     "title": "Thinking...",
     "emoji": "💭 Thinking..."
   },
+  "transcript": {
+    "executionProcess": {
+      "summary": "Execution process",
+      "attention": "Execution process needs attention"
+    }
+  },
   "json": {
     "response": "JSON Response"
   },

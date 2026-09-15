@@ -34,6 +34,8 @@ type LazyMessageRowProps = {
    * placeholder and mounts when scrolled toward.
    */
   initiallyNearViewport: boolean;
+  /** Hides a process member without unmounting its stateful transcript subtree. */
+  isProcessCollapsed?: boolean;
   children: ReactNode;
 };
 
@@ -41,6 +43,7 @@ export default function LazyMessageRow({
   lazyRows,
   timestamp,
   initiallyNearViewport,
+  isProcessCollapsed = false,
   children,
 }: LazyMessageRowProps) {
   const [isNearViewport, setIsNearViewport] = useState(initiallyNearViewport);
@@ -71,6 +74,10 @@ export default function LazyMessageRow({
     <div
       ref={elementRef}
       data-message-timestamp={timestamp || undefined}
+      aria-hidden={isProcessCollapsed || undefined}
+      // `hidden` removes the parent's `space-y` gap while retaining this row's
+      // React subtree and its tool/thinking disclosure state.
+      className={isProcessCollapsed ? 'hidden' : undefined}
       style={isMounted ? undefined : { height: measuredHeight ?? ESTIMATED_ROW_HEIGHT_PX }}
     >
       {isMounted ? children : null}

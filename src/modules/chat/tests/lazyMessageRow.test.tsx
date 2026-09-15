@@ -48,7 +48,13 @@ function fireIntersection(
   });
 }
 
-function Harness({ initiallyNearViewport }: { initiallyNearViewport: boolean }) {
+function Harness({
+  initiallyNearViewport,
+  isProcessCollapsed = false,
+}: {
+  initiallyNearViewport: boolean;
+  isProcessCollapsed?: boolean;
+}) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const lazyRows = useLazyRowObserver(scrollContainerRef);
   return (
@@ -57,6 +63,7 @@ function Harness({ initiallyNearViewport }: { initiallyNearViewport: boolean }) 
         lazyRows={lazyRows}
         timestamp="2026-01-01T00:00:00.000Z"
         initiallyNearViewport={initiallyNearViewport}
+        isProcessCollapsed={isProcessCollapsed}
       >
         <span data-testid="row-content">expensive content</span>
       </LazyMessageRow>
@@ -117,5 +124,15 @@ describe('LazyMessageRow', () => {
 
     expect(queryByTestId('row-content')).not.toBeNull();
     expect(StubIntersectionObserver.instances).toHaveLength(0);
+  });
+
+  it('removes a collapsed process row from layout without unmounting its content', () => {
+    const { container, queryByTestId } = render(
+      <Harness initiallyNearViewport isProcessCollapsed />,
+    );
+
+    const wrapper = container.querySelector('[data-message-timestamp="2026-01-01T00:00:00.000Z"]');
+    expect(wrapper?.classList.contains('hidden')).toBe(true);
+    expect(queryByTestId('row-content')).not.toBeNull();
   });
 });

@@ -1,13 +1,5 @@
 import type { ChatMessage, ReasoningPresentation } from '@/shared/types';
-
-function isFinalAnswerCandidate(message: ChatMessage): boolean {
-  return message.type === 'assistant'
-    && !message.isThinking
-    && !message.isToolUse
-    && !message.isTaskNotification
-    && !message.isTaskNotificationResult
-    && String(message.content || '').trim().length > 0;
-}
+import { isAssistantTextFocusCandidate, isVisibleUserTurnStart } from '@/modules/chat/utils/executionProcess';
 
 function createDisclosureKey(
   sessionId: string,
@@ -45,7 +37,7 @@ export function deriveReasoningPresentations(
     const latestThinkingIndex = thinkingIndexes[thinkingIndexes.length - 1];
     const answerCandidates: number[] = [];
     for (let index = latestThinkingIndex + 1; index < end; index += 1) {
-      if (isFinalAnswerCandidate(messages[index])) answerCandidates.push(index);
+      if (isAssistantTextFocusCandidate(messages[index])) answerCandidates.push(index);
     }
     const lastCandidateIndex = answerCandidates.at(-1);
     const hasToolAfterCandidate = lastCandidateIndex !== undefined
@@ -74,7 +66,7 @@ export function deriveReasoningPresentations(
   };
 
   for (let index = 0; index <= messages.length; index += 1) {
-    if (index === messages.length || messages[index]?.type === 'user') {
+    if (index === messages.length || isVisibleUserTurnStart(messages[index])) {
       processTurn(turnStart, index);
       turnStart = index + 1;
     }
