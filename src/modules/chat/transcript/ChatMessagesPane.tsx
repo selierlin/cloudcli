@@ -35,6 +35,23 @@ import ExecutionProcessSummary from '@/modules/chat/transcript/ExecutionProcessS
  */
 const INITIAL_MOUNTED_TAIL_ROWS = 30;
 
+/**
+ * Outer geometry shared by the three mutually exclusive bars above the
+ * transcript (loading older messages, "showing N of M", legacy count). They
+ * swap while the reader is parked near them, so any difference in padding,
+ * border or height moves every row below and drifts the reading position. They
+ * previously rendered as separate elements with `py-3` and `py-2`, a 7px jump
+ * on every finished page.
+ *
+ * `min-h-10` is a spacing token standing in for a designed slot height: it is
+ * the tallest natural variant height in the current locales, not a decided
+ * value. The absolute slot height and the whitespace it reserves still need
+ * product/design sign-off, and a wrapping locale can exceed it on narrow
+ * viewports (the legacy bar carries a longer sentence plus two buttons).
+ */
+const TOP_CHROME_SLOT_CLASS =
+  'min-h-10 border-b border-gray-200 py-2 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400';
+
 type ExecutionDisclosure = 'user_open' | 'user_closed';
 type ExecutionDisclosureAction =
   | { type: 'reset' }
@@ -373,17 +390,23 @@ function ChatMessagesPane({
         <>
           {/* Loading indicator for older messages (hide when load-all is active) */}
           {isLoadingMoreMessages && !isLoadingAllMessages && !allMessagesLoaded && (
-            <div className="py-3 text-center text-gray-500 dark:text-gray-400">
+            <div
+              className={`${TOP_CHROME_SLOT_CLASS} flex items-center justify-center`}
+              data-transcript-top-chrome
+            >
               <div className="flex items-center justify-center space-x-2">
                 <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-gray-400" />
-                <p className="text-sm">{t('session.loading.olderMessages')}</p>
+                <p>{t('session.loading.olderMessages')}</p>
               </div>
             </div>
           )}
 
           {/* Indicator showing there are more messages to load (hide when all loaded) */}
           {hasMoreMessages && !isLoadingMoreMessages && !allMessagesLoaded && (
-            <div className="border-b border-gray-200 py-2 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+            <div
+              className={`${TOP_CHROME_SLOT_CLASS} flex items-center justify-center`}
+              data-transcript-top-chrome
+            >
               {totalMessages > 0 && (
                 <span>
                   {t('session.messages.showingOf', { shown: sessionMessagesCount, total: totalMessages })}{' '}
@@ -393,17 +416,9 @@ function ChatMessagesPane({
             </div>
           )}
 
-          <LoadAllMessagesOverlay
-            showLoadAllOverlay={showLoadAllOverlay}
-            isLoadingAllMessages={isLoadingAllMessages}
-            loadAllJustFinished={loadAllJustFinished}
-            totalMessages={totalMessages}
-            onLoadAllMessages={loadAllMessages}
-          />
-
           {/* Legacy message count indicator (for non-paginated view) */}
           {!hasMoreMessages && chatMessages.length > visibleMessageCount && (
-            <div className="border-b border-gray-200 py-2 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+            <div className={TOP_CHROME_SLOT_CLASS} data-transcript-top-chrome>
               {t('session.messages.showingLast', { count: visibleMessageCount, total: chatMessages.length })} |
               <button className="ml-1 text-blue-600 underline hover:text-blue-700" onClick={loadEarlierMessages}>
                 {t('session.messages.loadEarlier')}
@@ -417,6 +432,18 @@ function ChatMessagesPane({
               </button>
             </div>
           )}
+
+          {/* Rendered after every bar: a zero-height sticky sibling that sits
+              before the rows would otherwise take the space-y first-child slot
+              from whichever bar is showing and push the rows down by that gap
+              when the legacy count is the visible one. */}
+          <LoadAllMessagesOverlay
+            showLoadAllOverlay={showLoadAllOverlay}
+            isLoadingAllMessages={isLoadingAllMessages}
+            loadAllJustFinished={loadAllJustFinished}
+            totalMessages={totalMessages}
+            onLoadAllMessages={loadAllMessages}
+          />
 
           {(() => {
             let prevMessage: ChatMessage | null = null;
