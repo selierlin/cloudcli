@@ -37,17 +37,25 @@ const INITIAL_MOUNTED_TAIL_ROWS = 30;
 
 /**
  * Outer geometry shared by the three mutually exclusive bars above the
- * transcript (loading older messages, "showing N of M", legacy count). They
- * swap while the reader is parked near them, so any difference in padding,
- * border or height moves every row below and drifts the reading position. They
- * previously rendered as separate elements with `py-3` and `py-2`, a 7px jump
- * on every finished page.
+ * transcript (loading older messages, "showing N of M", legacy count) and by
+ * the empty slot that stands in for them when none is showing. They swap while
+ * the reader is parked near them, so all four states keep one height: any
+ * difference in padding, border or height moves every row below and drifts the
+ * reading position. They previously rendered as separate elements with `py-3`
+ * and `py-2`, a 7px jump on every finished page.
  *
- * `min-h-10` is a spacing token standing in for a designed slot height: it is
- * the tallest natural variant height in the current locales, not a decided
- * value. The absolute slot height and the whitespace it reserves still need
- * product/design sign-off, and a wrapping locale can exceed it on narrow
- * viewports (the legacy bar carries a longer sentence plus two buttons).
+ * Keeping the slot mounted while no bar shows costs a strip of whitespace above
+ * the first row, and that is the deliberate price of never moving the rows: the
+ * count bar disappears the moment the last page loads, so unmounting the slot
+ * with it would shift the transcript by the slot plus its `space-y` gap.
+ *
+ * Every variant is a single flex row whose text can shrink, because a wrapped
+ * line would grow the slot past `min-h-10` and move the rows below again: the
+ * longest locales wrap both count bars at phone widths and the legacy bar up to
+ * tablet widths. The parts a reader can do without give up their room first —
+ * the hint, then the sentence — and only the button labels themselves ellipsize
+ * if a phone still cannot fit them. `min-h-10` is still a spacing token standing
+ * in for a designed slot height rather than a value the design has signed off on.
  */
 const TOP_CHROME_SLOT_CLASS =
   'min-h-10 border-b border-gray-200 py-2 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400';
@@ -388,50 +396,54 @@ function ChatMessagesPane({
         />
       ) : (
         <>
-          {/* Loading indicator for older messages (hide when load-all is active) */}
-          {isLoadingMoreMessages && !isLoadingAllMessages && !allMessagesLoaded && (
-            <div
-              className={`${TOP_CHROME_SLOT_CLASS} flex items-center justify-center`}
-              data-transcript-top-chrome
-            >
-              <div className="flex items-center justify-center space-x-2">
-                <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-gray-400" />
-                <p>{t('session.loading.olderMessages')}</p>
+          {/* One slot, always rendered: the three bars swap and the count bar
+              disappears when the last page loads, so the slot has to survive
+              all of those or the rows below move with it. */}
+          <div className={TOP_CHROME_SLOT_CLASS} data-transcript-top-chrome>
+            {isLoadingMoreMessages && !isLoadingAllMessages && !allMessagesLoaded ? (
+              <div className="flex items-center justify-center gap-2">
+                <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-b-2 border-gray-400" />
+                <p className="min-w-0 truncate">{t('session.loading.olderMessages')}</p>
               </div>
-            </div>
-          )}
-
-          {/* Indicator showing there are more messages to load (hide when all loaded) */}
-          {hasMoreMessages && !isLoadingMoreMessages && !allMessagesLoaded && (
-            <div
-              className={`${TOP_CHROME_SLOT_CLASS} flex items-center justify-center`}
-              data-transcript-top-chrome
-            >
-              {totalMessages > 0 && (
-                <span>
-                  {t('session.messages.showingOf', { shown: sessionMessagesCount, total: totalMessages })}{' '}
-                  <span className="text-xs">{t('session.messages.scrollToLoad')}</span>
+            ) : hasMoreMessages && !isLoadingMoreMessages && !allMessagesLoaded ? (
+              totalMessages > 0 && (
+                <div className="flex items-center justify-center gap-2">
+                  <span className="min-w-0 truncate">
+                    {t('session.messages.showingOf', { shown: sessionMessagesCount, total: totalMessages })}
+                  </span>
+                  <span className="hidden min-w-0 truncate text-xs sm:inline-block">
+                    {t('session.messages.scrollToLoad')}
+                  </span>
+                </div>
+              )
+            ) : !hasMoreMessages && chatMessages.length > visibleMessageCount ? (
+              <div className="flex items-center justify-center gap-2">
+                {/* Everything with text here shrinks rather than wraps. The
+                    sentence gives up its room first; the button labels are the
+                    last resort, and the longest locales need more room for them
+                    than a phone can give. */}
+                <span className="hidden min-w-0 truncate md:inline-block">
+                  {t('session.messages.showingLast', {
+                    count: visibleMessageCount,
+                    total: chatMessages.length,
+                  })}
                 </span>
-              )}
-            </div>
-          )}
-
-          {/* Legacy message count indicator (for non-paginated view) */}
-          {!hasMoreMessages && chatMessages.length > visibleMessageCount && (
-            <div className={TOP_CHROME_SLOT_CLASS} data-transcript-top-chrome>
-              {t('session.messages.showingLast', { count: visibleMessageCount, total: chatMessages.length })} |
-              <button className="ml-1 text-blue-600 underline hover:text-blue-700" onClick={loadEarlierMessages}>
-                {t('session.messages.loadEarlier')}
-              </button>
-              {' | '}
-              <button
-                className="text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                onClick={loadAllMessages}
-              >
-                {t('session.messages.loadAll')}
-              </button>
-            </div>
-          )}
+                <button
+                  className="min-w-0 truncate text-blue-600 underline hover:text-blue-700"
+                  onClick={loadEarlierMessages}
+                >
+                  {t('session.messages.loadEarlier')}
+                </button>
+                <span className="shrink-0">|</span>
+                <button
+                  className="min-w-0 truncate text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                  onClick={loadAllMessages}
+                >
+                  {t('session.messages.loadAll')}
+                </button>
+              </div>
+            ) : null}
+          </div>
 
           {/* Rendered after every bar: a zero-height sticky sibling that sits
               before the rows would otherwise take the space-y first-child slot
