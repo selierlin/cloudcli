@@ -9,7 +9,11 @@ import type { ChatMessage,
   ProviderModelActions,
   ProviderModelsDefinition } from '@/shared/types';
 import { getIntrinsicMessageKey } from '@/modules/chat/utils/messageKeys';
-import { deriveExecutionProcessProjection } from '@/modules/chat/utils/executionProcess';
+import {
+  deriveExecutionProcessProjection,
+  getRightmostVisibleTurnKey,
+} from '@/modules/chat/utils/executionProcess';
+import type { ExecutionTailClosure } from '@/modules/chat/utils/executionProcess';
 import { groupConsecutiveTools, isToolGroupItem } from '@/modules/chat/utils/toolGrouping';
 import { deriveReasoningPresentations } from '@/modules/chat/utils/reasoningDisclosure';
 import {
@@ -34,15 +38,46 @@ const INITIAL_MOUNTED_TAIL_ROWS = 30;
 type ExecutionDisclosure = 'user_open' | 'user_closed';
 type ExecutionDisclosureAction =
   | { type: 'reset' }
-  | { type: 'toggle'; turnKey: string; open: boolean };
+  | { type: 'toggle'; disclosureKey: string; open: boolean };
 
 function executionDisclosureReducer(
   state: Record<string, ExecutionDisclosure>,
   action: ExecutionDisclosureAction,
 ): Record<string, ExecutionDisclosure> {
   if (action.type === 'reset') return {};
-  if (state[action.turnKey] === (action.open ? 'user_open' : 'user_closed')) return state;
-  return { ...state, [action.turnKey]: action.open ? 'user_open' : 'user_closed' };
+  if (state[action.disclosureKey] === (action.open ? 'user_open' : 'user_closed')) return state;
+  return { ...state, [action.disclosureKey]: action.open ? 'user_open' : 'user_closed' };
+}
+
+type ExecutionTailClosureAction =
+  | { type: 'reset' }
+  | { type: 'decide'; disclosureKey: string; closure: ExecutionTailClosure };
+
+function executionTailClosureReducer(
+  state: Record<string, ExecutionTailClosure>,
+  action: ExecutionTailClosureAction,
+): Record<string, ExecutionTailClosure> {
+  if (action.type === 'reset') return {};
+  if (state[action.disclosureKey] === action.closure) return state;
+  return { ...state, [action.disclosureKey]: action.closure };
+}
+
+type ActiveRunState = { sessionId: string | null; hasActiveRun: boolean };
+type ActiveRunAction =
+  | { type: 'reset'; sessionId: string | null }
+  | { type: 'started' }
+  | { type: 'completed' };
+
+function activeRunReducer(state: ActiveRunState, action: ActiveRunAction): ActiveRunState {
+  if (action.type === 'reset') {
+    return state.sessionId === action.sessionId && !state.hasActiveRun
+      ? state
+      : { sessionId: action.sessionId, hasActiveRun: false };
+  }
+  if (action.type === 'started') {
+    return state.hasActiveRun ? state : { ...state, hasActiveRun: true };
+  }
+  return state.hasActiveRun ? { ...state, hasActiveRun: false } : state;
 }
 
 type ChatMessagesPaneProps = {
@@ -157,6 +192,13 @@ function ChatMessagesPane({
   });
   // Keeps a user's process disclosure choice while stream updates recompute the projection.
   const [executionDisclosure, dispatchExecutionDisclosure] = useReducer(executionDisclosureReducer, {});
+  // Records each live turn's completion decision so later scrolling cannot re-open its tail.
+  const [executionTailClosures, dispatchExecutionTailClosures] = useReducer(executionTailClosureReducer, {});
+  // Distinguishes an initially completed historical view from the render where a live run just ended.
+  const [activeRun, dispatchActiveRun] = useReducer(activeRunReducer, {
+    sessionId,
+    hasActiveRun: isProcessing,
+  });
   const reasoningPresentations = useMemo(
     () => deriveReasoningPresentations(visibleMessages, sessionId ?? 'no-session', isProcessing),
     [isProcessing, sessionId, visibleMessages],
@@ -165,6 +207,8 @@ function ChatMessagesPane({
   useLayoutEffect(() => {
     dispatchDisclosure({ type: 'reset', sessionId });
     dispatchExecutionDisclosure({ type: 'reset' });
+    dispatchExecutionTailClosures({ type: 'reset' });
+    dispatchActiveRun({ type: 'reset', sessionId });
   }, [sessionId]);
 
   useLayoutEffect(() => {
@@ -206,7 +250,12 @@ function ChatMessagesPane({
       occurrences.set(intrinsicKey, seen + 1);
       keys.set(message, seen === 0 ? intrinsicKey : `${intrinsicKey}__${seen}`);
     };
-    visibleMessages.forEach(assign);
+    // Number collisions from the tail so prepending historical pages never
+    // changes an already-rendered row's key or its local React state.
+    for (let index = visibleMessages.length - 1; index >= 0; index -= 1) {
+      const message = visibleMessages[index];
+      if (message) assign(message);
+    }
     return keys;
   }, [visibleMessages]);
 
@@ -219,10 +268,13 @@ function ChatMessagesPane({
     () => deriveExecutionProcessProjection(
       visibleMessages,
       getMessageKey,
-      isProcessing,
-      (turnKey) => !isUserScrolledUp && executionDisclosure[turnKey] !== 'user_open',
+      {
+        isProcessing,
+        isLiveCompletionPending: !isProcessing && activeRun.hasActiveRun,
+        tailClosures: executionTailClosures,
+      },
     ),
-    [executionDisclosure, getMessageKey, isProcessing, isUserScrolledUp, visibleMessages],
+    [activeRun.hasActiveRun, executionTailClosures, getMessageKey, isProcessing, visibleMessages],
   );
   const groupedVisibleMessages = useMemo(
     () => groupConsecutiveTools(visibleMessages, Boolean(showThinking)),
@@ -230,9 +282,13 @@ function ChatMessagesPane({
   );
   const collapsedProcessSignature = useMemo(() => (
     [...executionProjection.groups.values()]
-      .filter((group) => executionDisclosure[group.turnKey] === 'user_closed'
-        || (!group.hasAttention && executionDisclosure[group.turnKey] !== 'user_open'))
-      .map((group) => `${group.turnKey}:${[...group.memberKeys].join(',')}`)
+      .filter((group) => {
+        const disclosure = executionDisclosure[group.disclosureKey]
+          ?? group.disclosureAliases.map((key) => executionDisclosure[key]).find(Boolean);
+        return disclosure === 'user_closed'
+          || ((group.isWindowTruncated || !group.hasAttention) && disclosure !== 'user_open');
+      })
+      .map((group) => `${group.disclosureKey}:${[...group.memberKeys].join(',')}`)
       .join('|')
   ), [executionDisclosure, executionProjection]);
   const previousCollapsedProcessSignature = useRef('');
@@ -246,9 +302,39 @@ function ChatMessagesPane({
     }
   }, [collapsedProcessSignature, isUserScrolledUp, onReasoningAutoCollapseStart]);
 
-  const toggleExecutionProcess = useCallback((turnKey: string, currentlyCollapsed: boolean) => {
-    dispatchExecutionDisclosure({ type: 'toggle', turnKey, open: currentlyCollapsed });
+  useLayoutEffect(() => {
+    if (isProcessing) {
+      dispatchActiveRun({ type: 'started' });
+      return;
+    }
+    if (!activeRun.hasActiveRun) return;
+    const disclosureKey = getRightmostVisibleTurnKey(visibleMessages);
+    if (disclosureKey) {
+      dispatchExecutionTailClosures({
+        type: 'decide',
+        disclosureKey,
+        closure: isUserScrolledUp || executionDisclosure[disclosureKey] === 'user_open'
+          ? 'deferred_live'
+          : 'closed_live',
+      });
+    }
+    dispatchActiveRun({ type: 'completed' });
+  }, [activeRun.hasActiveRun, executionDisclosure, isProcessing, isUserScrolledUp, visibleMessages]);
+
+  const toggleExecutionProcess = useCallback((disclosureKey: string, currentlyCollapsed: boolean) => {
+    dispatchExecutionDisclosure({ type: 'toggle', disclosureKey, open: currentlyCollapsed });
   }, []);
+  const isExecutionProcessCollapsed = useCallback((group: {
+    disclosureKey: string;
+    disclosureAliases: string[];
+    hasAttention: boolean;
+    isWindowTruncated: boolean;
+  }) => {
+    const disclosure = executionDisclosure[group.disclosureKey]
+      ?? group.disclosureAliases.map((key) => executionDisclosure[key]).find(Boolean);
+    return disclosure === 'user_closed'
+      || ((group.isWindowTruncated || !group.hasAttention) && disclosure !== 'user_open');
+  }, [executionDisclosure]);
 
   return (
     <div
@@ -346,16 +432,13 @@ function ChatMessagesPane({
                 const groupPrevMessage = prevMessage;
                 prevMessage = item.messages[item.messages.length - 1] || prevMessage;
                 const itemMessageKeys = item.messages.map(getMessageKey);
-                const executionTurnKey = itemMessageKeys
-                  .map((key) => executionProjection.memberTurnKeys.get(key))
+                const executionDisclosureKey = itemMessageKeys
+                  .map((key) => executionProjection.memberDisclosureKeys.get(key))
                   .find(Boolean);
-                const executionGroup = executionTurnKey
-                  ? executionProjection.groups.get(executionTurnKey)
+                const executionGroup = executionDisclosureKey
+                  ? executionProjection.groups.get(executionDisclosureKey)
                   : undefined;
-                const isProcessCollapsed = Boolean(executionGroup && (
-                  executionDisclosure[executionGroup.turnKey] === 'user_closed'
-                  || (!executionGroup.hasAttention && executionDisclosure[executionGroup.turnKey] !== 'user_open')
-                ));
+                const isProcessCollapsed = Boolean(executionGroup && isExecutionProcessCollapsed(executionGroup));
                 const shouldRenderSummary = Boolean(
                   executionGroup && executionGroup.firstMemberKey === itemMessageKeys[0],
                 );
@@ -366,7 +449,8 @@ function ChatMessagesPane({
                       <ExecutionProcessSummary
                         collapsed={isProcessCollapsed}
                         hasAttention={executionGroup.hasAttention}
-                        onToggle={() => toggleExecutionProcess(executionGroup.turnKey, isProcessCollapsed)}
+                        isWindowTruncated={executionGroup.isWindowTruncated}
+                        onToggle={() => toggleExecutionProcess(executionGroup.disclosureKey, isProcessCollapsed)}
                       />
                     )}
                     <LazyMessageRow
@@ -405,14 +489,11 @@ function ChatMessagesPane({
                   )
                 : undefined;
               const messageKey = getMessageKey(item);
-              const executionTurnKey = executionProjection.memberTurnKeys.get(messageKey);
-              const executionGroup = executionTurnKey
-                ? executionProjection.groups.get(executionTurnKey)
+              const executionDisclosureKey = executionProjection.memberDisclosureKeys.get(messageKey);
+              const executionGroup = executionDisclosureKey
+                ? executionProjection.groups.get(executionDisclosureKey)
                 : undefined;
-              const isProcessCollapsed = Boolean(executionGroup && (
-                executionDisclosure[executionGroup.turnKey] === 'user_closed'
-                || (!executionGroup.hasAttention && executionDisclosure[executionGroup.turnKey] !== 'user_open')
-              ));
+              const isProcessCollapsed = Boolean(executionGroup && isExecutionProcessCollapsed(executionGroup));
 
               return (
                 <Fragment key={messageKey}>
@@ -420,7 +501,8 @@ function ChatMessagesPane({
                     <ExecutionProcessSummary
                       collapsed={isProcessCollapsed}
                       hasAttention={executionGroup.hasAttention}
-                      onToggle={() => toggleExecutionProcess(executionGroup.turnKey, isProcessCollapsed)}
+                      isWindowTruncated={executionGroup.isWindowTruncated}
+                      onToggle={() => toggleExecutionProcess(executionGroup.disclosureKey, isProcessCollapsed)}
                     />
                   )}
                   <LazyMessageRow
