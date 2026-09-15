@@ -22,10 +22,20 @@ type FixtureAction =
   | 'seed-wrapping-samples'
   | 'finalize-stream'
   | 'set-processing'
+  | 'set-top-chrome'
+  | 'set-load-all-overlay'
   | 'scroll-bottom'
   | 'inject-negative-gap'
   | 'clear-negative-gap'
   | 'block-main-thread';
+
+/**
+ * Which of the three mutually exclusive bars above the transcript is showing.
+ * The fixture viewport is the only place their real heights can be measured, so
+ * the RS06 geometry assertions drive them from here instead of from pagination
+ * timing.
+ */
+type FixtureTopChrome = 'none' | 'loading' | 'counting' | 'legacy';
 
 type FixtureStep = {
   action: FixtureAction;
@@ -76,6 +86,11 @@ function TranscriptLayoutFixture() {
   const [isProcessing, setIsProcessing] = useState(true);
   // Captures explicit fixture input so automatic following can be disabled by future ownership scenarios.
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
+  // Selects which top bar renders, so the geometry assertions can compare their
+  // real heights without waiting for pagination to produce each state.
+  const [topChrome, setTopChrome] = useState<FixtureTopChrome>('none');
+  // Drives the load-all pill independently: it can appear while any top bar is showing.
+  const [showLoadAllOverlay, setShowLoadAllOverlay] = useState(false);
 
   sessionStore.setActiveSession(SESSION_ID);
   const normalizedMessages = sessionStore.getMessages(SESSION_ID);
@@ -83,6 +98,23 @@ function TranscriptLayoutFixture() {
     () => normalizedToChatMessages(normalizedMessages),
     [normalizedMessages],
   );
+
+  // Each entry below is the production condition for one of the pane's three
+  // mutually exclusive top bars, or for none of them.
+  const topChromeProps = useMemo(() => {
+    const tailVisibleCount = chatMessages.length;
+    switch (topChrome) {
+      case 'loading':
+        return { isLoadingMoreMessages: true, hasMoreMessages: true, allMessagesLoaded: false, visibleMessageCount: tailVisibleCount };
+      case 'counting':
+        return { isLoadingMoreMessages: false, hasMoreMessages: true, allMessagesLoaded: false, visibleMessageCount: tailVisibleCount };
+      case 'legacy':
+        return { isLoadingMoreMessages: false, hasMoreMessages: false, allMessagesLoaded: false, visibleMessageCount: Math.max(1, tailVisibleCount - 1) };
+      case 'none':
+      default:
+        return { isLoadingMoreMessages: false, hasMoreMessages: false, allMessagesLoaded: true, visibleMessageCount: tailVisibleCount };
+    }
+  }, [chatMessages.length, topChrome]);
 
   const nextTimestamp = useCallback(() => {
     sequenceRef.current += 1;
@@ -235,6 +267,16 @@ const longLine = "${'e'.repeat(300)}";
         setIsProcessing(Boolean(step.payload));
         await nextPaint();
         return {};
+      case 'set-top-chrome': {
+        const next = step.payload as FixtureTopChrome;
+        setTopChrome(next);
+        await nextPaint();
+        return {};
+      }
+      case 'set-load-all-overlay':
+        setShowLoadAllOverlay(Boolean(step.payload));
+        await nextPaint();
+        return {};
       case 'scroll-bottom':
         scrollToBottom();
         await nextPaint();
@@ -309,18 +351,18 @@ const longLine = "${'e'.repeat(300)}";
         tasksEnabled={false}
         isTaskMasterInstalled={false}
         setInput={() => undefined}
-        isLoadingMoreMessages={false}
-        hasMoreMessages={false}
+        isLoadingMoreMessages={topChromeProps.isLoadingMoreMessages}
+        hasMoreMessages={topChromeProps.hasMoreMessages}
         totalMessages={chatMessages.length}
         sessionMessagesCount={chatMessages.length}
-        visibleMessageCount={chatMessages.length}
+        visibleMessageCount={topChromeProps.visibleMessageCount}
         visibleMessages={chatMessages}
         loadEarlierMessages={() => undefined}
         loadAllMessages={() => undefined}
-        allMessagesLoaded
+        allMessagesLoaded={topChromeProps.allMessagesLoaded}
         isLoadingAllMessages={false}
         loadAllJustFinished={false}
-        showLoadAllOverlay={false}
+        showLoadAllOverlay={showLoadAllOverlay}
         createDiff={emptyDiff}
         onGrantToolPermission={() => ({ success: true })}
         showThinking

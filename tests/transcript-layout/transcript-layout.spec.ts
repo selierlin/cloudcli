@@ -256,3 +256,145 @@ test('long reasoning collapse stays pinned while final prose takes over', async 
 
   expect(positiveBottomGapSpike(samples)).toBeLessThanOrEqual(24);
 });
+
+type TopChromeSample = {
+  state: string;
+  scrollTop: number;
+  slotHeight: number;
+  firstRowTop: number;
+  overlayWrapperHeight: number;
+};
+
+/**
+ * Applies one top-chrome state and reads the three boxes RS06 is about: the
+ * bar's own outer box, the first transcript row below it, and the load-all
+ * overlay's wrapper height in normal flow.
+ */
+async function sampleTopChrome(page: Page, state: string): Promise<TopChromeSample> {
+  return page.evaluate(async (name) => {
+    await (window as InstrumentedWindow).__TRANSCRIPT_FIXTURE__?.dispatch({
+      action: 'set-top-chrome',
+      payload: name,
+    });
+    const container = document.querySelector<HTMLElement>('.chat-messages-pane');
+    const slot = container?.querySelector<HTMLElement>('[data-transcript-top-chrome]');
+    const overlay = container?.querySelector<HTMLElement>('[data-transcript-top-chrome-overlay]');
+    const firstRow = container?.querySelector<HTMLElement>('[data-message-timestamp]');
+    if (!container || !firstRow) throw new Error('transcript fixture is not mounted');
+    return {
+      state: name,
+      scrollTop: container.scrollTop,
+      slotHeight: slot?.getBoundingClientRect().height ?? 0,
+      firstRowTop: firstRow.getBoundingClientRect().top,
+      overlayWrapperHeight: overlay?.getBoundingClientRect().height ?? -1,
+    };
+  }, state);
+}
+
+test('top chrome bars swap without moving the transcript', async ({ page }, testInfo) => {
+  await openFixture(page);
+
+  const bars: TopChromeSample[] = [];
+  for (const state of ['loading', 'counting', 'legacy']) {
+    bars.push(await sampleTopChrome(page, state));
+  }
+  const withoutBar = await sampleTopChrome(page, 'none');
+  await testInfo.attach('top-chrome.json', {
+    body: Buffer.from(JSON.stringify({ browserName: testInfo.project.name, bars, withoutBar }, null, 2)),
+    contentType: 'application/json',
+  });
+
+  // A moving transcript would make every comparison below meaningless.
+  expect(new Set([...bars, withoutBar].map((sample) => sample.scrollTop)).size).toBe(1);
+
+  const heights = bars.map((bar) => bar.slotHeight);
+  expect(heights.every((height) => height > 0)).toBe(true);
+  expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1);
+
+  const rowTops = bars.map((bar) => bar.firstRowTop);
+  expect(Math.max(...rowTops) - Math.min(...rowTops), JSON.stringify(bars)).toBeLessThanOrEqual(1);
+
+  // Dropping the bar entirely still moves the rows by the slot that stops
+  // reserving space. That residual is deliberate - reserving the slot in every
+  // session means a blank strip above every transcript, which is a product
+  // decision, not a geometry fix - so this only bounds its size.
+  expect(Math.abs(withoutBar.firstRowTop - bars[0].firstRowTop)).toBeLessThanOrEqual(Math.max(...heights) + 1);
+});
+
+test('top chrome bars stay equal on a phone viewport', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openFixture(page);
+
+  const loading = await sampleTopChrome(page, 'loading');
+  const counting = await sampleTopChrome(page, 'counting');
+  const legacy = await sampleTopChrome(page, 'legacy');
+  await testInfo.attach('top-chrome-phone.json', {
+    body: Buffer.from(JSON.stringify({
+      browserName: testInfo.project.name,
+      loading,
+      counting,
+      legacy,
+    }, null, 2)),
+    contentType: 'application/json',
+  });
+
+  expect(new Set([loading, counting, legacy].map((sample) => sample.scrollTop)).size).toBe(1);
+
+  // The per-page-load swap is the one a reader hits repeatedly, so it has to
+  // hold on the narrow viewport too.
+  expect(Math.abs(loading.slotHeight - counting.slotHeight)).toBeLessThanOrEqual(1);
+  expect(Math.abs(loading.firstRowTop - counting.firstRowTop)).toBeLessThanOrEqual(1);
+
+  // Known gap, measured here rather than assumed: the legacy bar carries a full
+  // sentence plus two buttons, so on a phone its text takes a second line and
+  // the slot grows past the ones above (40px to 57px at 390px wide). Rows below
+  // therefore still move by that much when the last page finishes loading.
+  // Closing it means changing that bar's mobile layout, which is a product
+  // call, so this bounds the overshoot to one line instead of pre-empting it.
+  expect(legacy.slotHeight - counting.slotHeight).toBeLessThanOrEqual(20);
+});
+
+test('load-all overlay shows and hides without moving the transcript', async ({ page }, testInfo) => {
+  await openFixture(page);
+  await page.evaluate(() => {
+    document
+      .querySelector('[data-transcript-top-chrome-overlay]')
+      ?.setAttribute('data-overlay-probe', 'original');
+  });
+
+  const before = await sampleTopChrome(page, 'counting');
+  await page.evaluate(async () => {
+    await (window as InstrumentedWindow).__TRANSCRIPT_FIXTURE__?.dispatch({
+      action: 'set-load-all-overlay',
+      payload: true,
+    });
+  });
+  const overlay = page.locator('[data-transcript-top-chrome-overlay]');
+  await expect(overlay.locator('button')).toBeVisible();
+  const shown = await sampleTopChrome(page, 'counting');
+
+  await page.evaluate(async () => {
+    await (window as InstrumentedWindow).__TRANSCRIPT_FIXTURE__?.dispatch({
+      action: 'set-load-all-overlay',
+      payload: false,
+    });
+  });
+  const hidden = await sampleTopChrome(page, 'counting');
+
+  await testInfo.attach('load-all-overlay.json', {
+    body: Buffer.from(JSON.stringify({ browserName: testInfo.project.name, before, shown, hidden }, null, 2)),
+    contentType: 'application/json',
+  });
+
+  // The wrapper has to survive the pill: unmounting it removes a sticky element
+  // from inside the scroll container, which drops the rows below by its margin
+  // and suppresses native scroll anchoring while it is gone.
+  await expect(overlay).toHaveAttribute('data-overlay-probe', 'original');
+  expect(shown.overlayWrapperHeight).toBe(0);
+  expect(hidden.overlayWrapperHeight).toBe(0);
+  expect(new Set([before.scrollTop, shown.scrollTop, hidden.scrollTop]).size).toBe(1);
+  expect(Math.abs(shown.firstRowTop - before.firstRowTop)).toBeLessThanOrEqual(1);
+  expect(Math.abs(hidden.firstRowTop - before.firstRowTop)).toBeLessThanOrEqual(1);
+  expect(Math.abs(shown.slotHeight - before.slotHeight)).toBeLessThanOrEqual(1);
+  await expect(overlay.locator('button')).toHaveCount(0);
+});
