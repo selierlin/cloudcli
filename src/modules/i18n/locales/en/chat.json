@@ -76,7 +76,8 @@
   "transcript": {
     "executionProcess": {
       "summary": "Execution process",
-      "attention": "Execution process needs attention"
+      "attention": "Execution process needs attention",
+      "truncated": "Execution process (earlier history not loaded)"
     }
   },
   "json": {

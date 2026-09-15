@@ -4,6 +4,7 @@ import { ChevronRight } from 'lucide-react';
 type ExecutionProcessSummaryProps = {
   collapsed: boolean;
   hasAttention: boolean;
+  isWindowTruncated: boolean;
   onToggle: () => void;
 };
 
@@ -11,10 +12,13 @@ type ExecutionProcessSummaryProps = {
 export default function ExecutionProcessSummary({
   collapsed,
   hasAttention,
+  isWindowTruncated,
   onToggle,
 }: ExecutionProcessSummaryProps) {
   const { t } = useTranslation('chat');
-  const label = hasAttention
+  const label = isWindowTruncated
+    ? t('transcript.executionProcess.truncated', { defaultValue: 'Execution process (earlier history not loaded)' })
+    : hasAttention
     ? t('transcript.executionProcess.attention', { defaultValue: 'Execution process needs attention' })
     : t('transcript.executionProcess.summary', { defaultValue: 'Execution process' });
 
