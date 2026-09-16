@@ -6,6 +6,7 @@ import type { ChatMessage,
   Project,
   ProjectSession,
   LLMProvider,
+  TranscriptRevealRequest,
   ProviderModelActions,
   ProviderModelsDefinition } from '@/shared/types';
 import { getIntrinsicMessageKey } from '@/modules/chat/utils/messageKeys';
@@ -36,6 +37,39 @@ import ExecutionProcessSummary from '@/modules/chat/transcript/ExecutionProcessS
  */
 const INITIAL_MOUNTED_TAIL_ROWS = 30;
 
+const clampEstimatedRowHeight = (height: number, maximum: number) =>
+  Math.min(maximum, Math.max(64, Math.round(height)));
+
+function estimateTextLines(value: unknown): number {
+  const text = typeof value === 'string' ? value : '';
+  if (!text) return 1;
+  return text.split('\n').reduce(
+    (total, line) => total + Math.max(1, Math.ceil(line.length / 72)),
+    0,
+  );
+}
+
+/** Reserves plausible geometry before an old row has entered the render band. */
+function estimateMessageRowHeight(message: ChatMessage): number {
+  if (message.isToolUse) return 112;
+
+  const lines = estimateTextLines(message.displayText || message.content || message.reasoning);
+  if (message.isThinking) return clampEstimatedRowHeight(48 + lines * 18, 420);
+  if (message.type === 'user') return clampEstimatedRowHeight(44 + lines * 20, 420);
+  if (message.isCompactSummary) return clampEstimatedRowHeight(64 + lines * 19, 480);
+  return clampEstimatedRowHeight(56 + lines * 21, 680);
+}
+
+function estimateToolGroupRowHeight(messages: ChatMessage[]): number {
+  const hasIssue = messages.some((message) => message.toolResult?.isError
+    || ['error', 'denied', 'stopped'].includes(String(message.toolStatus || '')));
+  if (messages.length >= 2 && !hasIssue) return 64;
+  return clampEstimatedRowHeight(
+    messages.reduce((height, message) => height + estimateMessageRowHeight(message), 0),
+    680,
+  );
+}
+
 /**
  * Outer geometry shared by the three mutually exclusive bars above the
  * transcript (loading older messages, "showing N of M", legacy count) and by
@@ -61,18 +95,41 @@ const INITIAL_MOUNTED_TAIL_ROWS = 30;
 const TOP_CHROME_SLOT_CLASS =
   'min-h-10 border-b border-gray-200 py-2 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400';
 
-type ExecutionDisclosure = 'user_open' | 'user_closed';
+const PROCESS_AUTO_COLLAPSE_DELAY_MS = 800;
+
+type ExecutionDisclosure = 'auto_open' | 'auto_closed' | 'search_open' | 'user_open' | 'user_closed';
+type ExecutionDisclosureRegistry = Record<string, Record<string, ExecutionDisclosure>>;
+const EMPTY_EXECUTION_DISCLOSURE: Record<string, ExecutionDisclosure> = {};
 type ExecutionDisclosureAction =
-  | { type: 'reset' }
-  | { type: 'toggle'; disclosureKey: string; open: boolean };
+  | { type: 'toggle'; sessionKey: string; disclosureKey: string; open: boolean }
+  | { type: 'program_open' | 'program_close' | 'search_open'; sessionKey: string; disclosureKey: string };
 
 function executionDisclosureReducer(
-  state: Record<string, ExecutionDisclosure>,
+  state: ExecutionDisclosureRegistry,
   action: ExecutionDisclosureAction,
-): Record<string, ExecutionDisclosure> {
-  if (action.type === 'reset') return {};
-  if (state[action.disclosureKey] === (action.open ? 'user_open' : 'user_closed')) return state;
-  return { ...state, [action.disclosureKey]: action.open ? 'user_open' : 'user_closed' };
+): ExecutionDisclosureRegistry {
+  const sessionEntries = state[action.sessionKey] ?? {};
+  const nextDisclosure = action.type === 'toggle'
+    ? (action.open ? 'user_open' : 'user_closed')
+    : action.type === 'program_open'
+      ? 'auto_open'
+      : action.type === 'program_close'
+        ? 'auto_closed'
+        : 'search_open';
+  const existing = sessionEntries[action.disclosureKey];
+  if (existing === nextDisclosure) return state;
+  if (
+    action.type !== 'toggle'
+    && action.type !== 'search_open'
+    && existing?.startsWith('user_')
+  ) return state;
+  return {
+    ...state,
+    [action.sessionKey]: {
+      ...sessionEntries,
+      [action.disclosureKey]: nextDisclosure,
+    },
+  };
 }
 
 type ExecutionTailClosureAction =
@@ -117,6 +174,8 @@ type ChatMessagesPaneProps = {
   isUserScrolledUp?: boolean;
   /** Asks the chat-owned scroll writer to follow an automatic reasoning collapse. */
   onReasoningAutoCollapseStart?: () => void;
+  /** Search hit that must be visible before the scroll/highlight step runs. */
+  searchRevealRequest?: TranscriptRevealRequest | null;
   /** True while ChatComposer's floating activity/stop tab is rendered above the input. */
   hasActivityIndicator?: boolean;
   chatMessages: ChatMessage[];
@@ -171,6 +230,7 @@ function ChatMessagesPane({
   isProcessing = false,
   isUserScrolledUp = false,
   onReasoningAutoCollapseStart,
+  searchRevealRequest,
   hasActivityIndicator = false,
   chatMessages,
   selectedSession,
@@ -209,19 +269,25 @@ function ChatMessagesPane({
   selectedProject,
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
-  const lazyRows = useLazyRowObserver(scrollContainerRef);
+  const sessionId = selectedSession?.id ?? null;
+  const sessionDisclosureKey = sessionId ?? 'no-session';
+  const lazyRows = useLazyRowObserver(scrollContainerRef, sessionId);
   // Keyboard/composer/window resizes move the container's bottom edge; this
   // keeps the transcript rows glued to it so the content beside the input
   // follows the input instead of being clipped behind it.
   useBottomEdgeResizeCompensation(scrollContainerRef);
-  const sessionId = selectedSession?.id ?? null;
   // Retains user ownership and visible duration across lazy row unmounts.
   const [disclosureRegistry, dispatchDisclosure] = useReducer(disclosureRegistryReducer, {
     sessionId,
     entries: {},
   });
   // Keeps a user's process disclosure choice while stream updates recompute the projection.
-  const [executionDisclosure, dispatchExecutionDisclosure] = useReducer(executionDisclosureReducer, {});
+  const [executionDisclosureRegistry, dispatchExecutionDisclosure] = useReducer(
+    executionDisclosureReducer,
+    {},
+  );
+  const executionDisclosure = executionDisclosureRegistry[sessionDisclosureKey]
+    ?? EMPTY_EXECUTION_DISCLOSURE;
   // Records each live turn's completion decision so later scrolling cannot re-open its tail.
   const [executionTailClosures, dispatchExecutionTailClosures] = useReducer(executionTailClosureReducer, {});
   // Distinguishes an initially completed historical view from the render where a live run just ended.
@@ -236,7 +302,6 @@ function ChatMessagesPane({
 
   useLayoutEffect(() => {
     dispatchDisclosure({ type: 'reset', sessionId });
-    dispatchExecutionDisclosure({ type: 'reset' });
     dispatchExecutionTailClosures({ type: 'reset' });
     dispatchActiveRun({ type: 'reset', sessionId });
   }, [sessionId]);
@@ -310,17 +375,97 @@ function ChatMessagesPane({
     () => groupConsecutiveTools(visibleMessages, Boolean(showThinking)),
     [visibleMessages, showThinking],
   );
+  const revealedMessageKey = useMemo(() => {
+    if (!searchRevealRequest || searchRevealRequest.sessionId !== sessionId) return undefined;
+    const target = visibleMessages.find((message) => (
+      String(message.timestamp) === String(searchRevealRequest.timestamp)
+    ));
+    return target ? getMessageKey(target) : undefined;
+  }, [getMessageKey, searchRevealRequest, sessionId, visibleMessages]);
+  const resolveExecutionDisclosure = useCallback((group: {
+    disclosureKey: string;
+    disclosureAliases: string[];
+  }) => executionDisclosure[group.disclosureKey]
+    ?? group.disclosureAliases.map((key) => executionDisclosure[key]).find(Boolean),
+  [executionDisclosure]);
+
+  useLayoutEffect(() => {
+    executionProjection.groups.forEach((group) => {
+      if (
+        !group.defaultCollapsed
+        && !group.hasAttention
+        && resolveExecutionDisclosure(group) === undefined
+      ) {
+        dispatchExecutionDisclosure({
+          type: 'program_open',
+          sessionKey: sessionDisclosureKey,
+          disclosureKey: group.disclosureKey,
+        });
+      }
+    });
+  }, [executionProjection, resolveExecutionDisclosure, sessionDisclosureKey]);
+
+  useLayoutEffect(() => {
+    if (!revealedMessageKey || !searchRevealRequest) return;
+    const disclosureKey = executionProjection.memberDisclosureKeys.get(revealedMessageKey);
+    if (!disclosureKey) return;
+    dispatchExecutionDisclosure({
+      type: 'search_open',
+      sessionKey: sessionDisclosureKey,
+      disclosureKey,
+    });
+  }, [
+    executionProjection,
+    revealedMessageKey,
+    searchRevealRequest,
+    sessionDisclosureKey,
+  ]);
+
+  useLayoutEffect(() => {
+    if (isUserScrolledUp) return undefined;
+    const keysToCollapse = [...executionProjection.groups.values()]
+      .filter((group) => (
+        group.defaultCollapsed
+        && !group.hasAttention
+        && !group.hasActiveSegments
+        && resolveExecutionDisclosure(group) === 'auto_open'
+      ))
+      .map((group) => group.disclosureKey);
+    if (keysToCollapse.length === 0) return undefined;
+
+    const timer = window.setTimeout(() => {
+      onReasoningAutoCollapseStart?.();
+      keysToCollapse.forEach((disclosureKey) => {
+        dispatchExecutionDisclosure({
+          type: 'program_close',
+          sessionKey: sessionDisclosureKey,
+          disclosureKey,
+        });
+      });
+    }, PROCESS_AUTO_COLLAPSE_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [
+    executionProjection,
+    isUserScrolledUp,
+    onReasoningAutoCollapseStart,
+    resolveExecutionDisclosure,
+    sessionDisclosureKey,
+  ]);
   const collapsedProcessSignature = useMemo(() => (
     [...executionProjection.groups.values()]
       .filter((group) => {
-        const disclosure = executionDisclosure[group.disclosureKey]
-          ?? group.disclosureAliases.map((key) => executionDisclosure[key]).find(Boolean);
+        const disclosure = resolveExecutionDisclosure(group);
+        if (group.hasAttention || group.hasActiveSegments) return false;
         return disclosure === 'user_closed'
-          || ((group.isWindowTruncated || !group.hasAttention) && disclosure !== 'user_open');
+          || disclosure === 'auto_closed'
+          || (group.defaultCollapsed
+            && disclosure !== 'user_open'
+            && disclosure !== 'auto_open'
+            && disclosure !== 'search_open');
       })
       .map((group) => `${group.disclosureKey}:${[...group.memberKeys].join(',')}`)
       .join('|')
-  ), [executionDisclosure, executionProjection]);
+  ), [executionProjection, resolveExecutionDisclosure]);
   const previousCollapsedProcessSignature = useRef('');
 
   useLayoutEffect(() => {
@@ -352,19 +497,30 @@ function ChatMessagesPane({
   }, [activeRun.hasActiveRun, executionDisclosure, isProcessing, isUserScrolledUp, visibleMessages]);
 
   const toggleExecutionProcess = useCallback((disclosureKey: string, currentlyCollapsed: boolean) => {
-    dispatchExecutionDisclosure({ type: 'toggle', disclosureKey, open: currentlyCollapsed });
-  }, []);
+    dispatchExecutionDisclosure({
+      type: 'toggle',
+      sessionKey: sessionDisclosureKey,
+      disclosureKey,
+      open: currentlyCollapsed,
+    });
+  }, [sessionDisclosureKey]);
   const isExecutionProcessCollapsed = useCallback((group: {
     disclosureKey: string;
     disclosureAliases: string[];
     hasAttention: boolean;
+    hasActiveSegments: boolean;
+    defaultCollapsed: boolean;
     isWindowTruncated: boolean;
   }) => {
-    const disclosure = executionDisclosure[group.disclosureKey]
-      ?? group.disclosureAliases.map((key) => executionDisclosure[key]).find(Boolean);
+    const disclosure = resolveExecutionDisclosure(group);
+    if (group.hasAttention || group.hasActiveSegments) return false;
     return disclosure === 'user_closed'
-      || ((group.isWindowTruncated || !group.hasAttention) && disclosure !== 'user_open');
-  }, [executionDisclosure]);
+      || disclosure === 'auto_closed'
+      || (group.defaultCollapsed
+        && disclosure !== 'user_open'
+        && disclosure !== 'auto_open'
+        && disclosure !== 'search_open');
+  }, [resolveExecutionDisclosure]);
 
   return (
     <div
@@ -494,13 +650,17 @@ function ChatMessagesPane({
                         collapsed={isProcessCollapsed}
                         hasAttention={executionGroup.hasAttention}
                         isWindowTruncated={executionGroup.isWindowTruncated}
+                        labelKind={executionGroup.labelKind}
+                        toolCount={executionGroup.toolCount}
                         onToggle={() => toggleExecutionProcess(executionGroup.disclosureKey, isProcessCollapsed)}
                       />
                     )}
                     <LazyMessageRow
                       lazyRows={lazyRows}
+                      rowKey={`${sessionId ?? 'no-session'}:tool-group:${getMessageKey(item.messages[0])}`}
                       timestamp={item.timestamp}
                       initiallyNearViewport={initiallyNearViewport}
+                      estimatedHeight={estimateToolGroupRowHeight(item.messages)}
                       isProcessCollapsed={isProcessCollapsed}
                     >
                       <ToolGroupContainer
@@ -515,6 +675,9 @@ function ChatMessagesPane({
                         showThinking={showThinking}
                         selectedProject={selectedProject}
                         provider={provider}
+                        revealRequestId={revealedMessageKey && itemMessageKeys.includes(revealedMessageKey)
+                          ? searchRevealRequest?.requestId
+                          : undefined}
                       />
                     </LazyMessageRow>
                   </Fragment>
@@ -546,13 +709,17 @@ function ChatMessagesPane({
                       collapsed={isProcessCollapsed}
                       hasAttention={executionGroup.hasAttention}
                       isWindowTruncated={executionGroup.isWindowTruncated}
+                      labelKind={executionGroup.labelKind}
+                      toolCount={executionGroup.toolCount}
                       onToggle={() => toggleExecutionProcess(executionGroup.disclosureKey, isProcessCollapsed)}
                     />
                   )}
                   <LazyMessageRow
                     lazyRows={lazyRows}
+                    rowKey={`${sessionId ?? 'no-session'}:${messageKey}`}
                     timestamp={item.timestamp}
                     initiallyNearViewport={initiallyNearViewport}
+                    estimatedHeight={estimateMessageRowHeight(item)}
                     isProcessCollapsed={isProcessCollapsed}
                   >
                     <MessageComponent
@@ -568,6 +735,7 @@ function ChatMessagesPane({
                       provider={provider}
                       reasoningPresentation={reasoningPresentation}
                       reasoningDisclosureState={reasoningDisclosureState}
+                      isProcessStageMember={Boolean(executionGroup)}
                       suppressReasoningAutoCollapse={isUserScrolledUp}
                       onReasoningUserOpenChange={handleReasoningUserOpenChange}
                       onReasoningProgramOpen={handleReasoningProgramOpen}

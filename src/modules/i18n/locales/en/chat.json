@@ -75,9 +75,11 @@
   },
   "transcript": {
     "executionProcess": {
-      "summary": "Execution process",
-      "attention": "Execution process needs attention",
-      "truncated": "Execution process (earlier history not loaded)"
+      "reasoning": "Thinking process",
+      "execution": "Execution process",
+      "toolCount": "{{count}} tool calls",
+      "attention": "needs attention",
+      "truncated": "earlier history not loaded"
     }
   },
   "json": {

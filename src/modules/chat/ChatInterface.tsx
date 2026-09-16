@@ -175,6 +175,7 @@ function ChatInterface({
     followTranscriptLayout,
     handleScroll,
     requestLatestMessages,
+    searchRevealRequest,
   } = useChatSessionState({
     isActive,
     selectedProject,
@@ -466,6 +467,7 @@ function ChatInterface({
           isProcessing={isProcessing}
           isUserScrolledUp={isUserScrolledUp}
           onReasoningAutoCollapseStart={handleReasoningAutoCollapseStart}
+          searchRevealRequest={searchRevealRequest}
           hasActivityIndicator={hasActivityIndicator}
           chatMessages={chatMessages}
           selectedSession={selectedSession}

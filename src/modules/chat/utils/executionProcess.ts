@@ -1,5 +1,10 @@
-import type { ChatMessage } from '@/shared/types';
+import type { ChatMessage, TranscriptSegment } from '@/shared/types';
 import { getIntrinsicMessageKey } from '@/modules/chat/utils/messageKeys';
+import {
+  isAssistantTextFocusCandidate,
+  isVisibleUserTurnStart,
+  projectTranscriptTurns,
+} from '@/modules/chat/utils/transcriptProjection';
 
 export type ExecutionTailClosure = 'closed_live' | 'deferred_live';
 
@@ -14,6 +19,12 @@ export type ExecutionProcessGroup = {
   memberKeys: Set<string>;
   firstMemberKey: string;
   hasAttention: boolean;
+  hasActiveSegments: boolean;
+  /** Reasoning-only stages use a quieter label; every other process stage is execution. */
+  labelKind: 'reasoning' | 'execution';
+  toolCount: number;
+  /** Program default only; a user-owned disclosure always overrides it. */
+  defaultCollapsed: boolean;
 };
 
 export type ExecutionProcessProjection = {
@@ -28,10 +39,7 @@ export type ExecutionProcessOptions = {
   tailClosures: Record<string, ExecutionTailClosure>;
 };
 
-/** True only for user messages that start a visible conversational turn. */
-export function isVisibleUserTurnStart(message: ChatMessage): boolean {
-  return message.type === 'user' && !message.isLocalCommand;
-}
+export { isAssistantTextFocusCandidate, isVisibleUserTurnStart };
 
 /** Finds the user anchor for the only turn that may still be live at the tail. */
 export function getRightmostVisibleTurnKey(messages: ChatMessage[]): string | null {
@@ -44,37 +52,8 @@ export function getRightmostVisibleTurnKey(messages: ChatMessage[]): string | nu
   return null;
 }
 
-/** Shared answer predicate for reasoning handoff and execution-process focus. */
-export function isAssistantTextFocusCandidate(message: ChatMessage): boolean {
-  return message.type === 'assistant'
-    && !message.isThinking
-    && !message.isToolUse
-    && !message.isTaskNotification
-    && !message.isTaskNotificationResult
-    && !message.isCompactSummary
-    && !message.isLocalCommandStdout
-    && String(message.content || '').trim().length > 0;
-}
-
-function requiresAttention(message: ChatMessage): boolean {
-  if (message.isSubagentContainer && ['running', 'failed'].includes(message.subagent?.status || '')) {
-    return true;
-  }
-  if (['AskUserQuestion', 'exit_plan_mode', 'ExitPlanMode'].includes(message.toolName || '')) {
-    return true;
-  }
-  return message.toolResult?.isError === true
-    || ['running', 'error', 'denied', 'stopped'].includes(String(message.toolStatus || ''));
-}
-
-function canBecomeProcessMember(message: ChatMessage): boolean {
-  return !isVisibleUserTurnStart(message) && !requiresAttention(message);
-}
-
-function findFocusOffset(messages: ChatMessage[]): number | undefined {
-  return messages.reduce<number | undefined>((latest, message, index) => (
-    isAssistantTextFocusCandidate(message) ? index : latest
-  ), undefined);
+function isProcessSegment(segment: TranscriptSegment): boolean {
+  return segment.kind !== 'answer';
 }
 
 function registerGroup(
@@ -98,21 +77,70 @@ export function deriveExecutionProcessProjection(
 ): ExecutionProcessProjection {
   const groups = new Map<string, ExecutionProcessGroup>();
   const memberDisclosureKeys = new Map<string, string>();
-  let turnStartIndex: number | null = null;
+  const turns = projectTranscriptTurns(messages, getMessageKey).turns;
 
-  const processFullTurn = (start: number, end: number) => {
-    const userMessage = messages[start];
-    const turnKey = userMessage ? getIntrinsicMessageKey(userMessage) : null;
-    if (!turnKey) return;
+  for (let turnIndex = 0; turnIndex < turns.length; turnIndex += 1) {
+    const turn = turns[turnIndex];
+    let stageMembers: TranscriptSegment[] = [];
+    let stageStartOffset = 0;
 
-    const turnMessages = messages.slice(start + 1, end);
-    const focusOffset = findFocusOffset(turnMessages);
-    if (focusOffset === undefined) return;
+    const registerStage = (
+      members: TranscriptSegment[],
+      disclosureKey: string,
+      aliases: string[],
+      isWindowTruncated: boolean,
+      boundaryClosed: boolean,
+    ) => {
+      if (members.length === 0) return;
+      const hasAttention = members.some((segment) => segment.lifecycle === 'attention');
+      const hasActiveSegments = members.some((segment) => segment.lifecycle === 'active');
+      const toolCount = members.filter((segment) => segment.kind === 'tool').length;
+      registerGroup(groups, memberDisclosureKeys, {
+        disclosureKey,
+        disclosureAliases: aliases,
+        isWindowTruncated,
+        memberKeys: new Set(members.map((segment) => segment.id)),
+        firstMemberKey: members[0].id,
+        hasAttention,
+        hasActiveSegments,
+        labelKind: members.every((segment) => segment.kind === 'reasoning')
+          ? 'reasoning'
+          : 'execution',
+        toolCount,
+        defaultCollapsed: boundaryClosed && !hasAttention && !hasActiveSegments,
+      });
+    };
 
-    const focus = turnMessages[focusOffset];
-    const disclosureKey = turnKey;
-    const isRightmostTurn = end === messages.length;
-    const tailClosure = options.tailClosures[disclosureKey];
+    for (const [segmentOffset, segment] of turn.segments.entries()) {
+      if (segment.kind !== 'answer') {
+        if (stageMembers.length === 0) stageStartOffset = segmentOffset;
+        stageMembers.push(segment);
+        continue;
+      }
+
+      const members = stageMembers.filter(isProcessSegment);
+      if (members.length > 0) {
+        const disclosureKey = `process:before:${segment.id}`;
+        registerStage(
+          members,
+          disclosureKey,
+          [`process:tail:${members[0].id}`],
+          turn.boundary === 'partial' && stageStartOffset === 0,
+          segment.lifecycle === 'complete',
+        );
+      }
+      stageMembers = [];
+      stageStartOffset = segmentOffset + 1;
+    }
+
+    const trailingMembers = stageMembers.filter(isProcessSegment);
+    if (trailingMembers.length === 0) continue;
+
+    const turnKey = turn.userMessage ? getIntrinsicMessageKey(turn.userMessage) : null;
+    const isRightmostTurn = turnIndex === turns.length - 1;
+    const disclosureKey = `process:tail:${trailingMembers[0].id}`;
+    const tailClosure = options.tailClosures[disclosureKey]
+      ?? (turnKey ? options.tailClosures[turnKey] : undefined);
     const isLiveTail = isRightmostTurn && (
       options.isProcessing || options.isLiveCompletionPending || tailClosure !== undefined
     );
@@ -121,73 +149,13 @@ export function deriveExecutionProcessProjection(
       || tailClosure === 'closed_live'
       || (!options.isProcessing && !options.isLiveCompletionPending && tailClosure === undefined)
     );
-    const members = turnMessages.slice(0, focusOffset).filter(canBecomeProcessMember);
-    if (mayCloseTail) members.push(...turnMessages.slice(focusOffset + 1).filter(canBecomeProcessMember));
-    if (members.length === 0) return;
-
-    registerGroup(groups, memberDisclosureKeys, {
-      turnKey,
+    registerStage(
+      trailingMembers,
       disclosureKey,
-      disclosureAliases: [`truncated:${getMessageKey(focus)}`],
-      isWindowTruncated: false,
-      memberKeys: new Set(members.map(getMessageKey)),
-      firstMemberKey: getMessageKey(members[0]),
-      hasAttention: turnMessages.some(requiresAttention),
-    });
-  };
-
-  const firstVisibleUserIndex = messages.findIndex(isVisibleUserTurnStart);
-  if (firstVisibleUserIndex === 0) {
-    turnStartIndex = 0;
-  } else if (firstVisibleUserIndex > 0) {
-    const truncatedMessages = messages.slice(0, firstVisibleUserIndex);
-    const focusOffset = findFocusOffset(truncatedMessages);
-    // A prefix before a later user is an older completed turn even while the
-    // provider works on that later turn. A right-edge prefix is safe only when
-    // this view is a completed historical snapshot.
-    const isCompletedPrefix = !options.isProcessing || firstVisibleUserIndex < messages.length;
-    if (focusOffset !== undefined && isCompletedPrefix) {
-      const focus = truncatedMessages[focusOffset];
-      const members = [...truncatedMessages.slice(0, focusOffset), ...truncatedMessages.slice(focusOffset + 1)]
-        .filter(canBecomeProcessMember);
-      if (members.length > 0) {
-        const disclosureKey = `truncated:${getMessageKey(focus)}`;
-        registerGroup(groups, memberDisclosureKeys, {
-          disclosureKey,
-          disclosureAliases: [],
-          isWindowTruncated: true,
-          memberKeys: new Set(members.map(getMessageKey)),
-          firstMemberKey: getMessageKey(members[0]),
-          hasAttention: truncatedMessages.some(requiresAttention),
-        });
-      }
-    }
-    turnStartIndex = firstVisibleUserIndex;
-  } else if (firstVisibleUserIndex === -1 && !options.isProcessing) {
-    const focusOffset = findFocusOffset(messages);
-    if (focusOffset !== undefined) {
-      const focus = messages[focusOffset];
-      const members = [...messages.slice(0, focusOffset), ...messages.slice(focusOffset + 1)]
-        .filter(canBecomeProcessMember);
-      if (members.length > 0) {
-        const disclosureKey = `truncated:${getMessageKey(focus)}`;
-        registerGroup(groups, memberDisclosureKeys, {
-          disclosureKey,
-          disclosureAliases: [],
-          isWindowTruncated: true,
-          memberKeys: new Set(members.map(getMessageKey)),
-          firstMemberKey: getMessageKey(members[0]),
-          hasAttention: messages.some(requiresAttention),
-        });
-      }
-    }
-  }
-
-  for (let index = turnStartIndex ?? messages.length; index <= messages.length; index += 1) {
-    if (index === messages.length || isVisibleUserTurnStart(messages[index])) {
-      if (turnStartIndex !== null && index > turnStartIndex) processFullTurn(turnStartIndex, index);
-      turnStartIndex = index === messages.length ? null : index;
-    }
+      turnKey ? [turnKey] : [],
+      turn.boundary === 'partial' && stageStartOffset === 0,
+      mayCloseTail,
+    );
   }
 
   return { groups, memberDisclosureKeys };

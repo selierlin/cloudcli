@@ -21,7 +21,7 @@ const completedHistory = {
 };
 
 describe('execution process projection', () => {
-  it('keeps the latest assistant text visible and projects prior activity into its turn', () => {
+  it('unifies reasoning and tool activity inside one local process stage', () => {
     const user = message({ id: 'u1', type: 'user', content: 'question' });
     const thought = message({ id: 'thinking', content: 'checking', isThinking: true });
     const tool = message({ id: 'tool', type: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'completed' });
@@ -35,12 +35,29 @@ describe('execution process projection', () => {
       },
     );
 
-    const group = projection.groups.get('message-user-u1');
+    const group = projection.groups.get('process:before:answer');
     expect(group?.memberKeys).toEqual(new Set(['thinking', 'tool']));
+    expect(group).toMatchObject({ labelKind: 'execution', toolCount: 1 });
     expect(projection.memberDisclosureKeys.get('answer')).toBeUndefined();
+    expect(projection.memberDisclosureKeys.get('thinking')).toBe('process:before:answer');
   });
 
-  it('keeps a live deferred tail visible but closes completed history', () => {
+  it('labels a reasoning-only stage as thinking without inventing tool activity', () => {
+    const user = message({ id: 'u1', type: 'user', content: 'question' });
+    const thought = message({ id: 'thinking', content: 'checking', isThinking: true });
+    const answer = message({ id: 'answer', content: 'final' });
+
+    const projection = deriveExecutionProcessProjection(
+      [user, thought, answer], keyFor, completedHistory,
+    );
+
+    expect(projection.groups.get('process:before:answer')).toMatchObject({
+      labelKind: 'reasoning',
+      toolCount: 0,
+    });
+  });
+
+  it('keeps a live deferred tail expanded but closes completed history', () => {
     const user = message({ id: 'u1', type: 'user', content: 'question' });
     const answer = message({ id: 'answer', content: 'final' });
     const tailTool = message({ id: 'tail', type: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'completed' });
@@ -52,12 +69,17 @@ describe('execution process projection', () => {
         tailClosures: { 'message-user-u1': 'deferred_live' },
       },
     );
-    expect(whileReading.groups.size).toBe(0);
+    expect(whileReading.groups.get('process:tail:tail')).toMatchObject({
+      defaultCollapsed: false,
+    });
 
     const atTail = deriveExecutionProcessProjection(
       [user, answer, tailTool], keyFor, completedHistory,
     );
-    expect(atTail.groups.get('message-user-u1')?.memberKeys).toEqual(new Set(['tail']));
+    expect(atTail.groups.get('process:tail:tail')).toMatchObject({
+      memberKeys: new Set(['tail']),
+      defaultCollapsed: true,
+    });
   });
 
   it('does not let local command stdout or compact summaries become focus', () => {
@@ -78,10 +100,32 @@ describe('execution process projection', () => {
         tailClosures: {},
       },
     );
-    expect(projection.groups.get('message-user-u1')?.memberKeys).toEqual(new Set(['preamble', 'command']));
+    expect(projection.groups.get('process:before:answer')?.memberKeys).toEqual(new Set(['command']));
+    expect(projection.memberDisclosureKeys.get('preamble')).toBeUndefined();
   });
 
-  it('keeps attention rows outside the collapsed process', () => {
+  it('keeps every answer visible and gives each surrounding process stage independent disclosure', () => {
+    const user = message({ id: 'u1', type: 'user', content: 'question' });
+    const preamble = message({ id: 'preamble', content: 'I will inspect the files.' });
+    const firstTool = message({ id: 'tool-1', type: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'completed' });
+    const explanation = message({ id: 'explanation', content: 'The first file points to another module.' });
+    const secondTool = message({ id: 'tool-2', type: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'completed' });
+    const conclusion = message({ id: 'conclusion', content: 'Here is the result.' });
+
+    const projection = deriveExecutionProcessProjection(
+      [user, preamble, firstTool, explanation, secondTool, conclusion],
+      keyFor,
+      completedHistory,
+    );
+
+    expect(projection.groups.get('process:before:explanation')?.memberKeys).toEqual(new Set(['tool-1']));
+    expect(projection.groups.get('process:before:conclusion')?.memberKeys).toEqual(new Set(['tool-2']));
+    expect(projection.memberDisclosureKeys.get('preamble')).toBeUndefined();
+    expect(projection.memberDisclosureKeys.get('explanation')).toBeUndefined();
+    expect(projection.memberDisclosureKeys.get('conclusion')).toBeUndefined();
+  });
+
+  it('keeps an attention stage present and expanded', () => {
     const user = message({ id: 'u1', type: 'user', content: 'question' });
     const failedTool = message({ id: 'failed', type: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'error' });
     const answer = message({ id: 'answer', content: 'final' });
@@ -93,7 +137,11 @@ describe('execution process projection', () => {
         tailClosures: {},
       },
     );
-    expect(projection.groups.size).toBe(0);
+    expect(projection.groups.get('process:before:answer')).toMatchObject({
+      memberKeys: new Set(['failed']),
+      hasAttention: true,
+      defaultCollapsed: false,
+    });
   });
 
   it('folds a completed left-truncated history window before its user anchor loads', () => {
@@ -102,12 +150,12 @@ describe('execution process projection', () => {
     const answer = message({ id: 'answer', content: 'final' });
 
     const projection = deriveExecutionProcessProjection([thought, tool, answer], keyFor, completedHistory);
-    const group = projection.groups.get('truncated:answer');
+    const group = projection.groups.get('process:before:answer');
     expect(group).toMatchObject({ isWindowTruncated: true, firstMemberKey: 'thought' });
     expect(group?.memberKeys).toEqual(new Set(['thought', 'tool']));
   });
 
-  it('does not fold a left-truncated active turn whose focus can still move', () => {
+  it('keeps a left-truncated active stage expanded while its boundary can still move', () => {
     const tool = message({ id: 'tool', type: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'completed' });
     const answer = message({ id: 'answer', content: 'partial', isStreaming: true });
 
@@ -116,15 +164,21 @@ describe('execution process projection', () => {
       isLiveCompletionPending: false,
       tailClosures: {},
     });
-    expect(projection.groups.size).toBe(0);
+    expect(projection.groups.get('process:before:answer')).toMatchObject({
+      isWindowTruncated: true,
+      defaultCollapsed: false,
+    });
   });
 
-  it('keeps a truncated disclosure alias when pagination reveals its user anchor', () => {
+  it('keeps the same answer-anchored disclosure key when pagination reveals its user anchor', () => {
     const user = message({ id: 'u1', type: 'user', content: 'question' });
-    const thought = message({ id: 'thought', content: 'checking', isThinking: true });
+    const tool = message({ id: 'tool', type: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'completed' });
     const answer = message({ id: 'answer', content: 'final' });
 
-    const projection = deriveExecutionProcessProjection([user, thought, answer], keyFor, completedHistory);
-    expect(projection.groups.get('message-user-u1')?.disclosureAliases).toContain('truncated:answer');
+    const projection = deriveExecutionProcessProjection([user, tool, answer], keyFor, completedHistory);
+    expect(projection.groups.get('process:before:answer')).toMatchObject({
+      disclosureKey: 'process:before:answer',
+      isWindowTruncated: false,
+    });
   });
 });

@@ -51,22 +51,30 @@ function fireIntersection(
 function Harness({
   initiallyNearViewport,
   isProcessCollapsed = false,
+  renderRow = true,
+  estimatedHeight,
 }: {
   initiallyNearViewport: boolean;
   isProcessCollapsed?: boolean;
+  renderRow?: boolean;
+  estimatedHeight?: number;
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const lazyRows = useLazyRowObserver(scrollContainerRef);
   return (
     <div ref={scrollContainerRef}>
-      <LazyMessageRow
-        lazyRows={lazyRows}
-        timestamp="2026-01-01T00:00:00.000Z"
-        initiallyNearViewport={initiallyNearViewport}
-        isProcessCollapsed={isProcessCollapsed}
-      >
-        <span data-testid="row-content">expensive content</span>
-      </LazyMessageRow>
+      {renderRow && (
+        <LazyMessageRow
+          lazyRows={lazyRows}
+          rowKey="session-1:message-1"
+          timestamp="2026-01-01T00:00:00.000Z"
+          initiallyNearViewport={initiallyNearViewport}
+          estimatedHeight={estimatedHeight}
+          isProcessCollapsed={isProcessCollapsed}
+        >
+          <span data-testid="row-content">expensive content</span>
+        </LazyMessageRow>
+      )}
     </div>
   );
 }
@@ -105,6 +113,39 @@ describe('LazyMessageRow', () => {
     fireIntersection(observer, wrapper, true);
     expect(queryByTestId('row-content')).not.toBeNull();
     expect(wrapper.style.height).toBe('');
+  });
+
+  it('reuses the measured height when the same stable row is mounted again', () => {
+    vi.stubGlobal('IntersectionObserver', StubIntersectionObserver);
+
+    const view = render(<Harness initiallyNearViewport />);
+    const observer = StubIntersectionObserver.instances[0];
+    const wrapper = observer.observed[0] as HTMLElement;
+    Object.defineProperty(wrapper, 'offsetHeight', { value: 246, configurable: true });
+
+    fireIntersection(observer, wrapper, false);
+    expect(wrapper.style.height).toBe('246px');
+
+    view.rerender(<Harness initiallyNearViewport={false} renderRow={false} />);
+    view.rerender(<Harness initiallyNearViewport={false} />);
+
+    const remountedWrapper = view.container.querySelector(
+      '[data-message-timestamp="2026-01-01T00:00:00.000Z"]',
+    ) as HTMLElement;
+    expect(remountedWrapper.style.height).toBe('246px');
+  });
+
+  it('uses the caller estimate until an unseen row has a measured height', () => {
+    vi.stubGlobal('IntersectionObserver', StubIntersectionObserver);
+
+    const { container } = render(
+      <Harness initiallyNearViewport={false} estimatedHeight={320} />,
+    );
+
+    const wrapper = container.querySelector(
+      '[data-message-timestamp="2026-01-01T00:00:00.000Z"]',
+    ) as HTMLElement;
+    expect(wrapper.style.height).toBe('320px');
   });
 
   it('ignores the zero-rect non-intersections a hidden tab reports', () => {

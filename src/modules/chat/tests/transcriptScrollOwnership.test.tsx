@@ -87,6 +87,7 @@ function createContainer(scrollHeight: number, clientHeight: number) {
 type SlotOverrides = {
   hasMore?: boolean;
   total?: number;
+  newerCursor?: string | null;
 };
 
 function createStore(
@@ -103,12 +104,22 @@ function createStore(
       total: overrides.total ?? count,
       hasMore: overrides.hasMore ?? false,
       offset: count,
+      turnPageInfo: overrides.newerCursor === undefined
+        ? null
+        : {
+            mode: 'turns' as const,
+            snapshotVersion: 'snapshot-1',
+            nextCursor: null,
+            newerCursor: overrides.newerCursor,
+            partial: { older: false, newer: false },
+          },
     };
   };
 
   return {
-    fetchFromServer: vi.fn(async (sessionId: string) => slotFor(sessionId)),
+    fetchFromServer: vi.fn(async (sessionId: string, _options?: unknown) => slotFor(sessionId)),
     fetchMore: vi.fn(async (sessionId: string) => ({ slot: slotFor(sessionId), prependedCount: 0 })),
+    fetchNewer: vi.fn(async (sessionId: string) => ({ slot: slotFor(sessionId), appendedCount: 0 })),
     appendRealtime: vi.fn(),
     refreshLatestFromServer: vi.fn(async (sessionId: string) => ({
       slot: slotFor(sessionId),
@@ -414,6 +425,41 @@ describe('deferred scroll-to-bottom', () => {
 });
 
 describe('search jump ownership', () => {
+  it('requests a bounded Turn seek instead of loading the full transcript', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
+    ]);
+    const store = createStore(messages);
+    const searchSession = {
+      id: SESSION_A,
+      __searchTargetSnippet: 'message 0 target',
+      __searchTargetTimestamp: '2026-01-01T00:00:00.000Z',
+      __searchTargetAnchorId: 'uuid-1',
+    } as unknown as ProjectSession;
+
+    await renderChatSessionState({ session: searchSession, store });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const searchRequest = store.fetchFromServer.mock.calls.find(
+      ([, options]) => Boolean((options as { seek?: unknown } | undefined)?.seek),
+    );
+    assert.ok(searchRequest);
+    const options = searchRequest?.[1] as {
+      pageMode?: string;
+      seek?: unknown;
+      limit?: number | null;
+    };
+    assert.equal(options.pageMode, 'turns');
+    assert.deepEqual(options.seek, {
+      snippet: 'message 0 target',
+      timestamp: '2026-01-01T00:00:00.000Z',
+      transcriptAnchorId: 'uuid-1',
+    });
+    assert.equal('limit' in options, false);
+  });
+
   it('does not follow the user into the next session', { timeout: 20_000 }, async () => {
     const messages = new Map<string, NormalizedMessage[]>([
       [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
@@ -469,6 +515,64 @@ describe('search jump ownership', () => {
 });
 
 describe('paging at the top of the loaded window', () => {
+  it('loads the next newer Turn page when the reader wheels down at a sought window bottom', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([[SESSION_A, buildMessages(2)]]);
+    const store = createStore(messages, { total: 6, newerCursor: 'newer-1' });
+    const { result, rerender } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+    const container = createContainer(1000, 500);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+    rerender({ session: { id: SESSION_A } as ProjectSession, isActive: true });
+
+    await act(async () => {
+      container.element.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
+      await Promise.resolve();
+    });
+
+    assert.equal(store.fetchNewer.mock.calls.length, 1);
+  });
+
+  it('does not mark a sought window complete after only its older side reaches the start', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([[SESSION_A, buildMessages(2)]]);
+    const store = createStore(messages, {
+      hasMore: true,
+      total: 6,
+      newerCursor: 'newer-1',
+    });
+    store.fetchMore.mockImplementation(async (sessionId: string) => ({
+      slot: {
+        ...store.getSessionSlot(sessionId),
+        hasMore: false,
+        turnPageInfo: {
+          mode: 'turns' as const,
+          snapshotVersion: 'snapshot-1',
+          nextCursor: null,
+          newerCursor: 'newer-1',
+          partial: { older: false, newer: false },
+        },
+      },
+      prependedCount: 2,
+    }));
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+    const container = createContainer(1000, 500);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+    await act(async () => undefined);
+
+    container.element.scrollTop = 0;
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+      await Promise.resolve();
+    });
+
+    assert.equal(store.fetchMore.mock.calls.length, 1);
+    assert.equal(result.current.allMessagesLoaded, false);
+  });
+
   /**
    * The reader sits at the top of a 20-message first page, which is where the
    * "showing N of M" bar is on screen. Every page below it in this session is
@@ -510,6 +614,7 @@ describe('paging at the top of the loaded window', () => {
           total: 1941,
           hasMore: true,
           offset: messages.get(sessionId)?.length ?? 0,
+          turnPageInfo: null,
         },
         prependedCount: older.length,
       };
@@ -585,6 +690,7 @@ describe('paging at the top of the loaded window', () => {
           total: 1941,
           hasMore: true,
           offset: messages.get(sessionId)?.length ?? 0,
+          turnPageInfo: null,
         },
         prependedCount: older.length,
       };

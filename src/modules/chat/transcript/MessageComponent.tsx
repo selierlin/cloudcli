@@ -29,6 +29,8 @@ type MessageComponentProps = {
   provider: LLMProvider | string;
   reasoningPresentation?: ReasoningPresentation;
   reasoningDisclosureState?: ReasoningDisclosureState;
+  /** The parent stage owns disclosure, so reasoning renders as timeline content instead of a nested accordion. */
+  isProcessStageMember?: boolean;
   suppressReasoningAutoCollapse?: boolean;
   onReasoningUserOpenChange?: (key: string, open: boolean) => void;
   onReasoningProgramOpen?: (key: string) => void;
@@ -52,7 +54,7 @@ const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
  * Rendered by chat's ChatMessagesPane and ToolGroupContainer to draw one
  * transcript entry — user turn, assistant turn, or a tool call and its result.
  */
-const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, reasoningPresentation, reasoningDisclosureState, suppressReasoningAutoCollapse, onReasoningUserOpenChange, onReasoningProgramOpen, onReasoningProgramCollapse, onEditMessage, onForkFromMessage }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, reasoningPresentation, reasoningDisclosureState, isProcessStageMember, suppressReasoningAutoCollapse, onReasoningUserOpenChange, onReasoningProgramOpen, onReasoningProgramCollapse, onEditMessage, onForkFromMessage }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -305,6 +307,19 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                   )
                 )}
               </>
+            ) : message.isThinking && isProcessStageMember ? (
+              <div className="text-sm text-muted-foreground">
+                <StreamingMarkdown
+                  content={String(message.content || '')}
+                  isStreaming={Boolean(message.isStreaming)}
+                  className="prose prose-sm prose-gray max-w-none font-serif dark:prose-invert"
+                />
+                {!isExporting && (
+                  <div className="mt-3 flex items-center text-[11px]">
+                    <MessageCopyControl content={String(message.content || '')} messageType="assistant" />
+                  </div>
+                )}
+              </div>
             ) : message.isThinking ? (
               /* Thinking messages — Reasoning component (ai-elements pattern).
                  A streaming reasoning row is left to open itself (Reasoning

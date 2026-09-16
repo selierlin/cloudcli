@@ -38,9 +38,10 @@ it.
    becomes a row.
 3. **A streaming reply is one row, not many.** `updateStreamingBatch` writes a row with the id
    `__streaming_<sessionId>` and replaces it in place on every flush. The transcript's
-   row count stays flat while the text grows. `finalizeStreaming` rewrites that same array
-   slot — new id, `kind: 'text'`, `role: 'assistant'` — so React reconciles instead of
-   remounting.
+   row count stays flat while the text grows. The row also receives a stable client-side
+   `segmentId`; `finalizeStreaming` may replace the store id while preserving that projection
+   identity, and the persisted echo inherits it during reconciliation, so React does not
+   remount the rendered row.
 4. **Whether you see deltas at all depends on the provider.** Claude, Cursor, OpenCode,
    Pi and WorkBuddy currently run token deltas through `createDeltaBatcher`; Codex does
    not use that path. New token-stream Providers must emit appendable deltas rather than
@@ -253,7 +254,8 @@ stateDiagram-v2
 `Finalized` and `Reconciled` are different rows in the same array position at different
 times. Finalising swaps the synthetic `__streaming_` id for a unique
 `text_<timestamp>_<random>` one and flips `kind` to `text`; the persisted reply that
-arrives moments later has yet another id. The store collapses the pair —
+arrives moments later has yet another id. Their client-side `segmentId` remains stable.
+The store collapses the pair —
 `pruneRealtimeSupersededByServer` drops the live row when the same assistant text is
 already in the persisted turn, and `dedupeAdjacentAssistantEchoes` catches whatever slips
 past into `merged`. Without both, every completed reply would briefly appear twice.

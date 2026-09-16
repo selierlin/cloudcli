@@ -826,7 +826,7 @@ type SidebarContentProps = {
   onDeleteArchivedSession: (session: ArchivedSessionListItem) => void;
   // Conversation result clicks pass back the DB projectId (or null when the
   // server couldn't resolve it). Consumers must handle the null case.
-  onConversationResultClick: (projectId: string | null, sessionId: string, provider: string, messageTimestamp?: string | null, messageSnippet?: string | null, isArchived?: boolean) => void;
+  onConversationResultClick: (projectId: string | null, sessionId: string, provider: string, messageTimestamp?: string | null, messageSnippet?: string | null, isArchived?: boolean, messageAnchorId?: string | null) => void;
   /** Renames a session reached from the recent-conversations list. */
   onRenameRecentSession: (sessionId: string, summary: string, provider: LLMProvider) => void;
   onToggleSessionPinned: (sessionId: string, isPinned: boolean) => void;
@@ -1235,7 +1235,8 @@ export default function SidebarContent({
                               session.provider || session.matches[0]?.provider || 'claude',
                               session.matches[0]?.timestamp,
                               session.matches[0]?.snippet,
-                              session.isArchived
+                              session.isArchived,
+                              session.matches[0]?.messageUuid,
                             )}
                             onRestore={restoreContentSearchHit}
                             onDelete={projectListProps.onDeleteSession}

@@ -10,6 +10,10 @@ export type LazyRowObserver = {
     element: Element,
     onNearViewportChange: (isNearViewport: boolean) => void,
   ) => () => void;
+  /** Returns the last non-zero rendered height recorded for one stable row. */
+  readHeight: (rowKey: string) => number | undefined;
+  /** Keeps measured geometry available when a lazy row is later remounted. */
+  writeHeight: (rowKey: string, height: number) => void;
 };
 
 /**
@@ -20,15 +24,21 @@ export type LazyRowObserver = {
  */
 export function useLazyRowObserver(
   scrollContainerRef: RefObject<HTMLDivElement>,
+  heightCacheScope?: string | null,
 ): LazyRowObserver | null {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const callbacksRef = useRef(new Map<Element, (isNearViewport: boolean) => void>());
+  const heightsRef = useRef(new Map<string, number>());
   const isSupported = typeof IntersectionObserver !== 'undefined';
 
   useEffect(() => () => {
     observerRef.current?.disconnect();
     observerRef.current = null;
   }, []);
+
+  useEffect(() => {
+    heightsRef.current.clear();
+  }, [heightCacheScope]);
 
   const observe = useCallback<LazyRowObserver['observe']>((element, onNearViewportChange) => {
     if (!observerRef.current) {
@@ -60,6 +70,14 @@ export function useLazyRowObserver(
     };
   }, [scrollContainerRef]);
 
+  const readHeight = useCallback((rowKey: string) => heightsRef.current.get(rowKey), []);
+  const writeHeight = useCallback((rowKey: string, height: number) => {
+    if (height > 0) heightsRef.current.set(rowKey, height);
+  }, []);
+
   // Identity-stable so each row's observe effect runs once, not per render.
-  return useMemo(() => (isSupported ? { observe } : null), [isSupported, observe]);
+  return useMemo(
+    () => (isSupported ? { observe, readHeight, writeHeight } : null),
+    [isSupported, observe, readHeight, writeHeight],
+  );
 }

@@ -315,6 +315,8 @@ export type ReasoningPresentation = {
 
 /** One rendered entry in a chat transcript — user turn, assistant turn, tool call and result, local command output, or subagent container — and the shape the chat message list and message components consume. */
 export type ChatMessage = {
+  /** Stable identity of this projected transcript segment; content updates must not change it. */
+  id?: string;
   type: string;
   content?: string;
   displayText?: string;
@@ -361,6 +363,48 @@ export type ChatMessage = {
   /** Lifecycle the provider reported for this tool call, when it reports one; otherwise the status is inferred from whether a result has arrived. */
   toolStatus?: string;
   [key: string]: unknown;
+};
+
+/** Provider-agnostic role a rendered transcript segment plays inside a conversational turn. */
+export type TranscriptSegmentKind =
+  | 'answer'
+  | 'reasoning'
+  | 'tool'
+  | 'progress'
+  | 'summary'
+  | 'error';
+
+/** UI lifecycle that determines whether a transcript segment may be folded automatically. */
+export type TranscriptSegmentLifecycle = 'active' | 'complete' | 'attention';
+
+/** One stable rendered segment projected from a normalized chat message. */
+export type TranscriptSegment = {
+  id: string;
+  kind: TranscriptSegmentKind;
+  lifecycle: TranscriptSegmentLifecycle;
+  message: ChatMessage;
+};
+
+/** One visible conversational turn, including a partial turn at a paginated window boundary. */
+export type TranscriptTurn = {
+  id: string;
+  boundary: 'synthetic' | 'partial';
+  userMessage?: ChatMessage;
+  segments: TranscriptSegment[];
+  hasActiveSegments: boolean;
+  hasAttention: boolean;
+};
+
+/** Ordered provider-agnostic turns projected for the chat presentation layer. */
+export type TranscriptTurnProjection = {
+  turns: TranscriptTurn[];
+};
+
+/** One search navigation request that may need to disclose its containing process/tool group. */
+export type TranscriptRevealRequest = {
+  sessionId: string;
+  timestamp: ChatMessage['timestamp'];
+  requestId: number;
 };
 
 /** The user's locally persisted Claude preferences (allowed and disallowed tool lists, permission skipping and project sort order) read from and written back to browser storage. */
@@ -469,6 +513,8 @@ export type TurnHistoryPageInfo = {
 /** A provider-agnostic transcript event as normalized by the backend adapters, with all kind-specific fields kept flat; it is the shape the session store holds and that chat converts into ChatMessage for rendering, so treat it as the wire contract rather than a view model. */
 export type NormalizedMessage = {
   id: string;
+  /** Client projection identity retained while a live stream is finalized and reconciled. */
+  segmentId?: string;
   /**
    * The provider's own id for the transcript row behind this message, when the
    * provider has stable per-row identity (today: Claude). Sent back as the

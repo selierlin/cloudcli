@@ -13,11 +13,14 @@ import { api } from '@/shared/api';
 import type {
   LLMProvider,
   NormalizedMessage,
+  SessionMessagesRequestOptions,
   StreamChannel,
   StreamingChannelUpdate,
+  TurnHistoryPageInfo,
 } from '@/shared/types';
 import { removeOptimisticUserEchoes, upsertRealtimeMessages } from '@/modules/chat/utils/sessionMessageReconciliation';
 import {
+  findLatestPageOverlapLength,
   hasReachedCachedTailTimeBoundary,
   isOlderPageShifted,
   mergeLatestServerPage,
@@ -27,7 +30,6 @@ import {
   resolveLatestPagePagination,
   SESSION_MESSAGES_PAGE_SIZE,
 } from '@/modules/chat/utils/sessionMessagePagination';
-import type { SessionMessagesRequestOptions } from '@/modules/chat/utils/sessionMessagePagination';
 
 // ─── NormalizedMessage (mirrors server/adapters/types.js) ────────────────────
 
@@ -54,6 +56,10 @@ export type SessionSlot = {
   hasMore: boolean;
   offset: number;
   tokenUsage: unknown;
+  /** Continuation state for the active snapshot when this slot was loaded through Turn pagination. */
+  turnPageInfo: TurnHistoryPageInfo | null;
+  /** Byte budget repeated on continuation requests so every page uses the same policy. */
+  turnPageByteBudget?: number;
 };
 
 const EMPTY: NormalizedMessage[] = [];
@@ -71,6 +77,7 @@ function createEmptySlot(): SessionSlot {
     total: 0,
     hasMore: false,
     offset: 0,
+    turnPageInfo: null,
     // `undefined` means "no page has reported usage for this session yet", and
     // every consumer distinguishes that from a reported `null`. Initialising it
     // to `null` made the two indistinguishable, so a provider whose history
@@ -87,7 +94,51 @@ type SessionHistoryPage = {
   total: number;
   hasMore: boolean;
   tokenUsage?: unknown;
+  pageInfo?: TurnHistoryPageInfo;
 };
+
+class SessionHistoryRequestError extends Error {
+  readonly code?: string;
+  readonly status: number;
+
+  constructor(status: number, code?: string) {
+    super(`HTTP ${status}`);
+    this.name = 'SessionHistoryRequestError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+function readTurnHistoryPageInfo(value: unknown): TurnHistoryPageInfo | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const pageInfo = value as Record<string, unknown>;
+  const partial = pageInfo.partial;
+  const newerCursor = pageInfo.newerCursor;
+  if (
+    pageInfo.mode !== 'turns'
+    || typeof pageInfo.snapshotVersion !== 'string'
+    || (typeof pageInfo.nextCursor !== 'string' && pageInfo.nextCursor !== null)
+    || (newerCursor !== undefined && typeof newerCursor !== 'string' && newerCursor !== null)
+    || !partial
+    || typeof partial !== 'object'
+  ) {
+    return undefined;
+  }
+  const partialRecord = partial as Record<string, unknown>;
+  if (typeof partialRecord.older !== 'boolean' || typeof partialRecord.newer !== 'boolean') {
+    return undefined;
+  }
+  return {
+    mode: 'turns',
+    snapshotVersion: pageInfo.snapshotVersion,
+    nextCursor: pageInfo.nextCursor,
+    newerCursor: typeof newerCursor === 'string' ? newerCursor : null,
+    partial: {
+      older: partialRecord.older,
+      newer: partialRecord.newer,
+    },
+  };
+}
 
 function enqueueHistoryMutation<T>(
   slot: SessionSlot,
@@ -108,16 +159,27 @@ async function requestSessionHistoryPage(
   const response = await api.providers.sessionMessages(sessionId, options, {
     signal: AbortSignal.timeout(SESSION_HISTORY_REQUEST_TIMEOUT_MS),
   });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  if (!response.ok) {
+    let code: string | undefined;
+    try {
+      const errorBody = await response.json();
+      code = typeof errorBody?.error?.code === 'string' ? errorBody.error.code : undefined;
+    } catch {
+      // A non-JSON failure still carries its HTTP status.
+    }
+    throw new SessionHistoryRequestError(response.status, code);
+  }
 
   const body = await response.json();
   const data = body?.data ?? body;
   const messages: NormalizedMessage[] = Array.isArray(data.messages) ? data.messages : [];
+  const pageInfo = readTurnHistoryPageInfo(data.pageInfo);
 
   return {
     messages,
     total: typeof data.total === 'number' ? data.total : messages.length,
     hasMore: Boolean(data.hasMore),
+    ...(pageInfo ? { pageInfo } : {}),
     ...(
       data && typeof data === 'object' && 'tokenUsage' in data
         ? { tokenUsage: data.tokenUsage }
@@ -232,26 +294,26 @@ function findServerTurnRangeByOrdinal(
   return { start, end };
 }
 
-function isContentEchoedInSameTurnOnServer(
+function findContentEchoInSameTurnOnServer(
   message: NormalizedMessage,
   serverMessages: NormalizedMessage[],
   realtimeMessages: NormalizedMessage[],
   matchesServerRow: (serverMessage: NormalizedMessage) => boolean,
-): boolean {
+): NormalizedMessage | undefined {
   const assistantText = (message.content || '').trim();
   if (!assistantText) {
-    return false;
+    return undefined;
   }
 
   const turnOrdinal = getUserTurnOrdinalBefore(message, serverMessages, realtimeMessages);
   const turnRange = findServerTurnRangeByOrdinal(serverMessages, turnOrdinal);
   if (!turnRange) {
-    return false;
+    return undefined;
   }
 
   return serverMessages
     .slice(turnRange.start + 1, turnRange.end)
-    .some((serverMessage) =>
+    .find((serverMessage) =>
       matchesServerRow(serverMessage)
       && (serverMessage.content || '').trim() === assistantText,
     );
@@ -262,12 +324,12 @@ function isAssistantTextEchoedInSameTurnOnServer(
   serverMessages: NormalizedMessage[],
   realtimeMessages: NormalizedMessage[],
 ): boolean {
-  return isContentEchoedInSameTurnOnServer(
+  return Boolean(findContentEchoInSameTurnOnServer(
     message,
     serverMessages,
     realtimeMessages,
     (serverMessage) => serverMessage.kind === 'text' && serverMessage.role === 'assistant',
-  );
+  ));
 }
 
 /**
@@ -281,12 +343,56 @@ function isThinkingEchoedInSameTurnOnServer(
   serverMessages: NormalizedMessage[],
   realtimeMessages: NormalizedMessage[],
 ): boolean {
-  return isContentEchoedInSameTurnOnServer(
+  return Boolean(findContentEchoInSameTurnOnServer(
     message,
     serverMessages,
     realtimeMessages,
     (serverMessage) => serverMessage.kind === 'thinking',
+  ));
+}
+
+/** Keeps the UI segment mounted when a persisted row replaces its live echo. */
+function carrySegmentIdentitiesIntoServerMessages(
+  serverMessages: NormalizedMessage[],
+  previousServerMessages: NormalizedMessage[],
+  realtimeMessages: NormalizedMessage[],
+): NormalizedMessage[] {
+  const previousSegmentIds = new Map(
+    previousServerMessages
+      .filter((message) => message.segmentId)
+      .map((message) => [message.id, message.segmentId] as const),
   );
+  let next = serverMessages.map((message) => {
+    const segmentId = previousSegmentIds.get(message.id);
+    return segmentId && message.segmentId !== segmentId
+      ? { ...message, segmentId }
+      : message;
+  });
+
+  for (const realtimeMessage of realtimeMessages) {
+    if (!realtimeMessage.segmentId) continue;
+    const persistedMatch = realtimeMessage.kind === 'thinking'
+      ? findContentEchoInSameTurnOnServer(
+          realtimeMessage,
+          next,
+          realtimeMessages,
+          (message) => message.kind === 'thinking',
+        )
+      : realtimeMessage.kind === 'text' && realtimeMessage.role === 'assistant'
+        ? findContentEchoInSameTurnOnServer(
+            realtimeMessage,
+            next,
+            realtimeMessages,
+            (message) => message.kind === 'text' && message.role === 'assistant',
+          )
+        : undefined;
+    if (!persistedMatch || persistedMatch.segmentId === realtimeMessage.segmentId) continue;
+    next = next.map((message) => message === persistedMatch
+      ? { ...message, segmentId: realtimeMessage.segmentId }
+      : message);
+  }
+
+  return next;
 }
 
 /**
@@ -305,7 +411,9 @@ function dedupeAdjacentAssistantEchoes(merged: NormalizedMessage[]): NormalizedM
         const ps = (prev.content || '').trim();
         const ms = (m.content || '').trim();
         if (ps.length > 0 && ps === ms) {
-          out[out.length - 1] = m;
+          out[out.length - 1] = prev.segmentId && !m.segmentId
+            ? { ...m, segmentId: prev.segmentId }
+            : m;
           continue;
         }
       }
@@ -317,7 +425,9 @@ function dedupeAdjacentAssistantEchoes(merged: NormalizedMessage[]): NormalizedM
         const ps = (prev.content || '').trim();
         const ms = (m.content || '').trim();
         if (ps.length > 0 && ps === ms) {
-          out[out.length - 1] = m;
+          out[out.length - 1] = prev.segmentId && !m.segmentId
+            ? { ...m, segmentId: prev.segmentId }
+            : m;
           continue;
         }
       }
@@ -578,7 +688,11 @@ async function refreshLatestSlotFromServer(
     return { applied: false, changed, deferred: false };
   }
 
-  slot.serverMessages = nextServerMessages;
+  slot.serverMessages = carrySegmentIdentitiesIntoServerMessages(
+    nextServerMessages,
+    previousServerMessages,
+    slot.realtimeMessages,
+  );
   slot.total = latestPage.total;
   slot.offset = nextServerMessages.length;
   slot.hasMore = nextHasMore;
@@ -602,6 +716,8 @@ const MAX_REALTIME_MESSAGES = 500;
 
 export function useSessionStore() {
   const storeRef = useRef(new Map<string, SessionSlot>());
+  // Allocates a new stable projected identity for each streaming cycle in a channel.
+  const streamingSegmentSequenceRef = useRef(new Map<string, number>());
   const activeSessionIdRef = useRef<string | null>(null);
   // Bump to force re-render — only when the active session's data changes.
   // Session ids are stable for the whole conversation lifetime (the backend
@@ -634,9 +750,7 @@ export function useSessionStore() {
    */
   const fetchFromServer = useCallback(async (
     sessionId: string,
-    opts: {
-      limit?: number | null;
-      offset?: number;
+    opts: SessionMessagesRequestOptions & {
       canRequest?: CanRequestHistory;
     } = {},
   ) => {
@@ -654,10 +768,18 @@ export function useSessionStore() {
 
       try {
         const data = await requestSessionHistoryPage(sessionId, requestOptions);
-        slot.serverMessages = data.messages;
+        slot.serverMessages = carrySegmentIdentitiesIntoServerMessages(
+          data.messages,
+          slot.serverMessages,
+          slot.realtimeMessages,
+        );
         slot.total = data.total;
         slot.hasMore = data.hasMore;
         slot.offset = (requestOptions.offset ?? 0) + data.messages.length;
+        slot.turnPageInfo = requestOptions.pageMode === 'turns' && data.pageInfo
+          ? data.pageInfo
+          : null;
+        slot.turnPageByteBudget = slot.turnPageInfo ? requestOptions.byteBudget : undefined;
         slot.fetchedAt = Date.now();
         slot.status = 'idle';
         slot.realtimeMessages = pruneRealtimeSupersededByServer(
@@ -698,6 +820,68 @@ export function useSessionStore() {
       if (!slot.hasMore || !canRequest()) return { slot, prependedCount };
 
       try {
+        if (slot.turnPageInfo) {
+          const cursor = slot.turnPageInfo.nextCursor;
+          const newerCursor = slot.turnPageInfo.newerCursor;
+          if (!cursor) {
+            slot.hasMore = false;
+            return { slot, prependedCount };
+          }
+          const turnRequestOptions: SessionMessagesRequestOptions = {
+            pageMode: 'turns',
+            ...(slot.turnPageByteBudget === undefined
+              ? {}
+              : { byteBudget: slot.turnPageByteBudget }),
+          };
+          let data: SessionHistoryPage;
+          try {
+            data = await requestSessionHistoryPage(sessionId, {
+              ...turnRequestOptions,
+              cursor,
+            });
+          } catch (error) {
+            if (!(error instanceof SessionHistoryRequestError) || error.code !== 'STALE_HISTORY_CURSOR') {
+              throw error;
+            }
+            const fresh = await requestSessionHistoryPage(sessionId, turnRequestOptions);
+            slot.serverMessages = carrySegmentIdentitiesIntoServerMessages(
+              fresh.messages,
+              slot.serverMessages,
+              slot.realtimeMessages,
+            );
+            slot.turnPageInfo = fresh.pageInfo ?? null;
+            slot.hasMore = fresh.hasMore && Boolean(fresh.pageInfo?.nextCursor);
+            slot.total = fresh.total;
+            slot.offset = fresh.messages.length;
+            slot.fetchedAt = Date.now();
+            slot.realtimeMessages = pruneRealtimeSupersededByServer(
+              slot.serverMessages,
+              slot.realtimeMessages,
+            );
+            if (fresh.tokenUsage !== undefined) {
+              slot.tokenUsage = fresh.tokenUsage;
+            }
+            recomputeMergedIfNeeded(slot);
+            notify(sessionId);
+            return { slot, prependedCount };
+          }
+          const olderMerge = mergeOlderServerPage(slot.serverMessages, data.messages);
+          slot.serverMessages = olderMerge.messages;
+          slot.turnPageInfo = data.pageInfo
+            ? { ...data.pageInfo, newerCursor }
+            : null;
+          slot.hasMore = data.hasMore && Boolean(data.pageInfo?.nextCursor);
+          slot.total = Math.max(slot.total, data.total);
+          slot.offset = slot.serverMessages.length;
+          prependedCount = olderMerge.prependedCount;
+          if (data.tokenUsage !== undefined) {
+            slot.tokenUsage = data.tokenUsage;
+          }
+          recomputeMergedIfNeeded(slot);
+          notify(sessionId);
+          return { slot, prependedCount };
+        }
+
         // A tail-relative offset can shift while JSONL is still growing. One
         // bounded latest-page reconciliation realigns the cache, after which
         // the older-page request is retried once with the new raw-row offset.
@@ -754,6 +938,71 @@ export function useSessionStore() {
     });
   }, [getSlot, notify]);
 
+  /** Appends the next bounded Turn page when a search seek opened a middle history window. */
+  const fetchNewer = useCallback(async (
+    sessionId: string,
+    opts: { canRequest?: CanRequestHistory } = {},
+  ) => {
+    const slot = getSlot(sessionId);
+    return enqueueHistoryMutation(slot, async () => {
+      const cursor = slot.turnPageInfo?.newerCursor;
+      const canRequest = opts.canRequest ?? (() => true);
+      if (!cursor || !canRequest()) return { slot, appendedCount: 0 };
+
+      const turnRequestOptions: SessionMessagesRequestOptions = {
+        pageMode: 'turns',
+        ...(slot.turnPageByteBudget === undefined
+          ? {}
+          : { byteBudget: slot.turnPageByteBudget }),
+      };
+      try {
+        const data = await requestSessionHistoryPage(sessionId, {
+          ...turnRequestOptions,
+          cursor,
+        });
+        const overlapLength = findLatestPageOverlapLength(slot.serverMessages, data.messages);
+        const appendedMessages = data.messages.slice(overlapLength);
+        const olderCursor = slot.turnPageInfo?.nextCursor ?? null;
+        slot.serverMessages = [...slot.serverMessages, ...appendedMessages];
+        slot.turnPageInfo = data.pageInfo
+          ? { ...data.pageInfo, nextCursor: olderCursor }
+          : null;
+        slot.hasMore = Boolean(olderCursor);
+        slot.total = Math.max(slot.total, data.total);
+        slot.offset = slot.serverMessages.length;
+        slot.fetchedAt = Date.now();
+        if (data.tokenUsage !== undefined) slot.tokenUsage = data.tokenUsage;
+        recomputeMergedIfNeeded(slot);
+        notify(sessionId);
+        return { slot, appendedCount: appendedMessages.length };
+      } catch (error) {
+        if (error instanceof SessionHistoryRequestError && error.code === 'STALE_HISTORY_CURSOR') {
+          const fresh = await requestSessionHistoryPage(sessionId, turnRequestOptions);
+          slot.serverMessages = carrySegmentIdentitiesIntoServerMessages(
+            fresh.messages,
+            slot.serverMessages,
+            slot.realtimeMessages,
+          );
+          slot.turnPageInfo = fresh.pageInfo ?? null;
+          slot.hasMore = fresh.hasMore && Boolean(fresh.pageInfo?.nextCursor);
+          slot.total = fresh.total;
+          slot.offset = fresh.messages.length;
+          slot.fetchedAt = Date.now();
+          slot.realtimeMessages = pruneRealtimeSupersededByServer(
+            slot.serverMessages,
+            slot.realtimeMessages,
+          );
+          if (fresh.tokenUsage !== undefined) slot.tokenUsage = fresh.tokenUsage;
+          recomputeMergedIfNeeded(slot);
+          notify(sessionId);
+          return { slot, appendedCount: 0 };
+        }
+        console.error(`[SessionStore] newer-page fetch failed for ${sessionId}:`, error);
+        return { slot, appendedCount: 0 };
+      }
+    });
+  }, [getSlot, notify]);
+
   /**
    * Append a realtime (WebSocket) message to the correct session slot.
    * This works regardless of which session is actively viewed.
@@ -797,6 +1046,8 @@ export function useSessionStore() {
     // anyway, but leaving it high makes the pager offer pages that do not exist.
     slot.total = slot.serverMessages.length;
     slot.offset = slot.serverMessages.length;
+    slot.turnPageInfo = null;
+    slot.turnPageByteBudget = undefined;
     recomputeMergedIfNeeded(slot);
     notify(sessionId);
   }, [notify]);
@@ -874,8 +1125,16 @@ export function useSessionStore() {
         ? `__streaming_thinking_${sessionId}`
         : `__streaming_${sessionId}`;
       const idx = next.findIndex(message => message.id === streamId);
+      const sequenceKey = `${sessionId}:${update.channel}`;
+      let segmentId = idx >= 0 ? next[idx].segmentId : undefined;
+      if (!segmentId) {
+        const sequence = (streamingSegmentSequenceRef.current.get(sequenceKey) ?? 0) + 1;
+        streamingSegmentSequenceRef.current.set(sequenceKey, sequence);
+        segmentId = `stream-segment:${sequenceKey}:${sequence}`;
+      }
       const msg: NormalizedMessage = {
         id: streamId,
+        segmentId,
         sessionId,
         // Each row freezes its own first timestamp. Existing rows stay in
         // place; new rows append in batch order even when timestamps match.
@@ -965,6 +1224,7 @@ export function useSessionStore() {
   return useMemo(() => ({
     fetchFromServer,
     fetchMore,
+    fetchNewer,
     appendRealtime,
     truncateAt,
     refreshLatestFromServer,
@@ -976,7 +1236,7 @@ export function useSessionStore() {
     getMessages,
     getSessionSlot,
   }), [
-    fetchFromServer, fetchMore, appendRealtime, truncateAt, refreshLatestFromServer,
+    fetchFromServer, fetchMore, fetchNewer, appendRealtime, truncateAt, refreshLatestFromServer,
     setActiveSession, isStale, updateStreamingBatch, updateStreaming, finalizeStreaming,
     getMessages, getSessionSlot,
   ]);

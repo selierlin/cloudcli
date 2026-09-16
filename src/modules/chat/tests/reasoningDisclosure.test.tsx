@@ -99,6 +99,27 @@ describe('reasoning presentation derivation', () => {
     const settledKey = deriveReasoningPresentations([settled], 's1', false).get(settled)?.disclosureKey;
     expect(settledKey).toBe(liveKey);
   });
+
+  it('keeps the disclosure key stable when hydration rewrites the timestamp of the same segment', () => {
+    const live = message({
+      id: 'reasoning-segment-1',
+      content: 'partial',
+      isThinking: true,
+      isStreaming: true,
+      timestamp: '2026-09-13T10:00:00.000Z',
+    });
+    const hydrated = {
+      ...live,
+      content: 'partial and complete',
+      isStreaming: false,
+      timestamp: '2026-09-13T10:00:00.500Z',
+    };
+
+    const liveKey = deriveReasoningPresentations([live], 's1', true).get(live)?.disclosureKey;
+    const hydratedKey = deriveReasoningPresentations([hydrated], 's1', false).get(hydrated)?.disclosureKey;
+
+    expect(hydratedKey).toBe(liveKey);
+  });
 });
 
 describe('Reasoning disclosure behavior', () => {

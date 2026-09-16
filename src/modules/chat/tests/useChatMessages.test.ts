@@ -40,6 +40,25 @@ test('preserves historical UI message identity when only the stream record chang
   assert.equal(updated[2]?.content, 'Part one and two');
 });
 
+test('preserves the source event identity while streaming content grows', () => {
+  // The store stamps every streaming cycle with a stable client segmentId;
+  // the provider row id is deliberately not a rendered identity.
+  const firstStream = message('stream-text', {
+    kind: 'stream_delta',
+    segmentId: 'stream-segment:session-1:main:1',
+    content: 'Part one',
+  });
+
+  const [initial] = normalizedToChatMessages([firstStream]);
+  const [updated] = normalizedToChatMessages([{
+    ...firstStream,
+    content: 'Part one and two',
+  }]);
+
+  assert.equal(initial?.id, 'stream-segment:session-1:main:1');
+  assert.equal(updated?.id, 'stream-segment:session-1:main:1');
+});
+
 test('rebuilds a tool-use UI message when its separately received result changes', () => {
   const toolUse = message('tool-use', {
     kind: 'tool_use',
@@ -110,6 +129,7 @@ test('preserves existing UI objects when an older message is prepended', () => {
 test('preserves both UI objects produced by an unchanged task notification', () => {
   const notification = message('task-notification', {
     role: 'user',
+    segmentId: 'stream-segment:session-1:main:2',
     content: [
       '<task-notification>',
       '<status>completed</status>',
@@ -127,6 +147,8 @@ test('preserves both UI objects produced by an unchanged task notification', () 
 
   assert.strictEqual(updated[0], initial[0]);
   assert.strictEqual(updated[1], initial[1]);
+  assert.equal(updated[0]?.id, 'stream-segment:session-1:main:2:summary');
+  assert.equal(updated[1]?.id, 'stream-segment:session-1:main:2:result');
   assert.equal(updated[0]?.isTaskNotification, true);
   assert.equal(updated[1]?.isTaskNotificationResult, true);
   assert.equal(updated[1]?.content, 'Detailed result');

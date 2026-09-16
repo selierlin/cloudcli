@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { MutableRefObject } from 'react';
 
 import { api } from '@/shared/api';
-import type { MarkSessionIdle, SessionActivityMap,Project,ProjectSession,LLMProvider,NormalizedMessage,ChatMessage,DiffCalculator } from '@/shared/types';
+import type { MarkSessionIdle, SessionActivityMap,Project,ProjectSession,LLMProvider,NormalizedMessage,ChatMessage,DiffCalculator,TranscriptRevealRequest } from '@/shared/types';
 import type { SessionStore } from '@/modules/chat/hooks/useSessionStore';
 import { SESSION_MESSAGES_PAGE_SIZE } from '@/modules/chat/utils/sessionMessagePagination';
 import { createMessageHistoryRefreshCoordinator } from '@/modules/chat/utils/messageHistoryRefreshCoordinator';
@@ -259,6 +259,11 @@ export function useChatSessionState({
   // State rather than a ref because resolving it widens the render window,
   // and it is cleared once the row is on screen or the retries run out.
   const [searchTarget, setSearchTarget] = useState<SearchTarget | null>(null);
+  // Identifies the search hit the pane must reveal (expand its process stage
+  // and tool group) before the scroll/highlight step runs; the rising
+  // requestId lets the pane distinguish a new hit from a repeated one.
+  const [searchRevealRequest, setSearchRevealRequest] = useState<TranscriptRevealRequest | null>(null);
+  const searchRevealRequestIdRef = useRef(0);
   const searchScrollActiveRef = useRef(false);
   /**
    * The pending step of the search-jump retry chain, so a session change can
@@ -628,7 +633,7 @@ export function useChatSessionState({
         }
 
         if (prependedCount === 0) {
-          if (!slot.hasMore) {
+          if (!slot.hasMore && !slot.turnPageInfo?.newerCursor) {
             allMessagesLoadedRef.current = true;
             setAllMessagesLoaded(true);
             if (loadAllOverlayTimerRef.current) {
@@ -643,8 +648,12 @@ export function useChatSessionState({
         // The lock that keeps this to one page per visit is applied by the
         // restore, once the page's geometry is known (see `armScrollRestore`).
         armScrollRestore(scrollRestoreState);
-        setVisibleMessageCount((prev) => prev + SESSION_MESSAGES_PAGE_SIZE);
-        if (!slot.hasMore) {
+        // A Turn page holds however many rows fit the byte budget — often far
+        // more than the legacy row-page size — so the render window must grow
+        // by the rows actually prepended, or the window top would fall further
+        // behind the loaded content on every upward page.
+        setVisibleMessageCount((prev) => prev + Math.max(prependedCount, SESSION_MESSAGES_PAGE_SIZE));
+        if (!slot.hasMore && !slot.turnPageInfo?.newerCursor) {
           allMessagesLoadedRef.current = true;
           setAllMessagesLoaded(true);
           if (loadAllOverlayTimerRef.current) {
@@ -660,6 +669,40 @@ export function useChatSessionState({
     },
     [armScrollRestore, hasMoreMessages, isActive, isLoadingMoreMessages, selectedProject, selectedSession, sessionStore],
   );
+
+  const loadNewerMessages = useCallback(async () => {
+    if (!isActive || !selectedSession || !selectedProject) return;
+    if (isLoadingMoreRef.current || isLoadingMoreMessages) return;
+    const currentSlot = sessionStore.getSessionSlot(selectedSession.id);
+    if (!currentSlot?.turnPageInfo?.newerCursor) return;
+
+    isLoadingMoreRef.current = true;
+    setIsLoadingMoreMessages(true);
+    try {
+      const { slot, appendedCount } = await sessionStore.fetchNewer(selectedSession.id, {
+        canRequest: () => (
+          isActiveRef.current
+          && activeSessionIdRef.current === selectedSession.id
+        ),
+      });
+      setHasMoreMessages(slot.hasMore);
+      setTotalMessages(slot.total);
+      messagesOffsetRef.current = slot.offset;
+      if (slot.tokenUsage !== undefined) {
+        setTokenBudget((slot.tokenUsage as Record<string, unknown> | null) ?? null);
+      }
+      if (appendedCount > 0) {
+        setVisibleMessageCount((previous) => previous + appendedCount);
+      }
+
+      const loadedEveryDirection = !slot.hasMore && !slot.turnPageInfo?.newerCursor;
+      allMessagesLoadedRef.current = loadedEveryDirection;
+      setAllMessagesLoaded(loadedEveryDirection);
+    } finally {
+      isLoadingMoreRef.current = false;
+      setIsLoadingMoreMessages(false);
+    }
+  }, [isActive, isLoadingMoreMessages, selectedProject, selectedSession, sessionStore]);
 
   const handleScroll = useCallback(async () => {
     if (!isActive) return;
@@ -945,8 +988,7 @@ export function useChatSessionState({
     // Fetch from server → store updates → chatMessages re-derives automatically
     setIsLoadingSessionMessages(true);
     sessionStore.fetchFromServer(selectedSessionId, {
-      limit: SESSION_MESSAGES_PAGE_SIZE,
-      offset: 0,
+      pageMode: 'turns',
       canRequest: () => (
         isActiveRef.current
         && activeSessionIdRef.current === selectedSessionId
@@ -1026,11 +1068,15 @@ export function useChatSessionState({
     const session = selectedSession as Record<string, unknown> | null;
     const targetSnippet = session?.__searchTargetSnippet;
     const targetTimestamp = session?.__searchTargetTimestamp;
+    const targetAnchorId = session?.__searchTargetAnchorId;
     if (typeof targetSnippet === 'string' && targetSnippet) {
       searchScrollActiveRef.current = true;
       setSearchTarget({
         snippet: targetSnippet,
         timestamp: typeof targetTimestamp === 'string' ? targetTimestamp : undefined,
+        ...(typeof targetAnchorId === 'string'
+          ? { transcriptAnchorId: targetAnchorId }
+          : {}),
       });
     }
   }, [selectedSession]);
@@ -1045,24 +1091,25 @@ export function useChatSessionState({
     const scrollToTarget = async () => {
       if (!allMessagesLoadedRef.current && selectedSession && selectedProject) {
           try {
-            // Load all messages into the store for search navigation
+            // Open one bounded Turn window around the hit. The page carries
+            // independent older/newer cursors, so search never needs to pull
+            // the entire transcript into the browser.
             const slot = await sessionStore.fetchFromServer(selectedSession.id, {
-              limit: null,
-              offset: 0,
+              pageMode: 'turns',
+              seek: target,
               canRequest: () => (
                 isActiveRef.current
                 && activeSessionIdRef.current === selectedSession.id
               ),
             });
             if (slot) {
-              // Fetch the whole transcript so an old hit can be found, but do
-              // not render all of it — the window below is widened to exactly
-              // what the resolved target needs.
-              setHasMoreMessages(false);
+              const hasNewerMessages = Boolean(slot.turnPageInfo?.newerCursor);
+              setHasMoreMessages(slot.hasMore);
               setTotalMessages(slot.total);
               messagesOffsetRef.current = slot.offset;
-              setAllMessagesLoaded(true);
-              allMessagesLoadedRef.current = true;
+              const loadedEveryDirection = !slot.hasMore && !hasNewerMessages;
+              setAllMessagesLoaded(loadedEveryDirection);
+              allMessagesLoadedRef.current = loadedEveryDirection;
             } else if (!isActiveRef.current) {
               setSearchTarget(target);
               return;
@@ -1095,6 +1142,14 @@ export function useChatSessionState({
       setVisibleMessageCount((previous) => Math.max(previous, requiredVisibleCount));
 
       const targetTimestamp = messagesForSearch[targetIndex].timestamp;
+      if (selectedSession) {
+        searchRevealRequestIdRef.current += 1;
+        setSearchRevealRequest({
+          sessionId: selectedSession.id,
+          timestamp: targetTimestamp,
+          requestId: searchRevealRequestIdRef.current,
+        });
+      }
 
       const scrollToRenderedTarget = (retriesLeft: number) => {
         const container = scrollContainerRef.current;
@@ -1240,6 +1295,7 @@ export function useChatSessionState({
     };
     const handleWheel = (event: WheelEvent) => {
       if (event.deltaY < 0) armUpwardIntent();
+      if (event.deltaY > 0 && isNearBottom()) void loadNewerMessages();
     };
     const handleTouchStart = (event: TouchEvent) => {
       touchOriginYRef.current = event.touches[0]?.clientY ?? null;
@@ -1251,6 +1307,9 @@ export function useChatSessionState({
       // heading toward older messages.
       if (originY !== null && currentY !== undefined && currentY - originY > TOUCH_UP_INTENT_MIN_TRAVEL_PX) {
         armUpwardIntent();
+      }
+      if (originY !== null && currentY !== undefined && originY - currentY > TOUCH_UP_INTENT_MIN_TRAVEL_PX && isNearBottom()) {
+        void loadNewerMessages();
       }
     };
     const handleTouchEnd = () => {
@@ -1270,7 +1329,7 @@ export function useChatSessionState({
       container.removeEventListener('touchend', handleTouchEnd);
       container.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [handleScroll]);
+  }, [handleScroll, isNearBottom, loadNewerMessages]);
 
   // "Load all" overlay visibility is driven by scroll-to-top in handleScroll;
   // timers are cleared on session change via the reset effect above.
@@ -1376,5 +1435,6 @@ export function useChatSessionState({
     followTranscriptLayout,
     handleScroll,
     requestLatestMessages,
+    searchRevealRequest,
   };
 }
