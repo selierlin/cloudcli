@@ -1,17 +1,25 @@
 import type { ChatMessage, ReasoningPresentation } from '@/shared/types';
-import { isAssistantTextFocusCandidate, isVisibleUserTurnStart } from '@/modules/chat/utils/executionProcess';
+import {
+  isAssistantTextFocusCandidate,
+  isVisibleUserTurnStart,
+} from '@/modules/chat/utils/transcriptProjection';
 
 function createDisclosureKey(
   sessionId: string,
   message: ChatMessage,
   fallbackIndex: number,
+  ordinal: number,
 ): string {
+  const segmentId = typeof message.id === 'string' ? message.id.trim() : '';
+  if (segmentId) {
+    return `${sessionId}:thinking:${segmentId}`;
+  }
   const timestamp = message.timestamp instanceof Date
     ? message.timestamp.toISOString()
     : String(message.timestamp || '');
   return timestamp
-    ? `${sessionId}:thinking:${timestamp}`
-    : `${sessionId}:thinking-window:${fallbackIndex}`;
+    ? `${sessionId}:thinking:${timestamp}:${ordinal}`
+    : `${sessionId}:thinking-window:${fallbackIndex}:${ordinal}`;
 }
 
 /**
@@ -53,7 +61,7 @@ export function deriveReasoningPresentations(
       const message = messages[thinkingIndex];
       const isLatest = thinkingIndex === latestThinkingIndex;
       result.set(message, {
-        disclosureKey: `${createDisclosureKey(sessionId, message, thinkingIndex)}:${ordinal}`,
+        disclosureKey: createDisclosureKey(sessionId, message, thinkingIndex, ordinal),
         handoffSequence: end - thinkingIndex - 1,
         finalAnswerStarted: isLatest && finalAnswerStarted,
         isAutoCollapseCandidate: isLatest && finalAnswerStarted,

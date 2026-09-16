@@ -26,6 +26,8 @@ const ESTIMATED_ROW_HEIGHT_PX = 100;
 
 type LazyMessageRowProps = {
   lazyRows: LazyRowObserver | null;
+  /** Stable within one session, so measured geometry survives row remounts and prepends. */
+  rowKey: string;
   /** Mirrors the row's own `data-message-timestamp`, present even while unmounted. */
   timestamp: ChatMessage['timestamp'] | undefined;
   /**
@@ -34,6 +36,8 @@ type LazyMessageRowProps = {
    * placeholder and mounts when scrolled toward.
    */
   initiallyNearViewport: boolean;
+  /** Content-aware placeholder height used until this row has rendered once. */
+  estimatedHeight?: number;
   /** Hides a process member without unmounting its stateful transcript subtree. */
   isProcessCollapsed?: boolean;
   children: ReactNode;
@@ -41,13 +45,17 @@ type LazyMessageRowProps = {
 
 export default function LazyMessageRow({
   lazyRows,
+  rowKey,
   timestamp,
   initiallyNearViewport,
+  estimatedHeight = ESTIMATED_ROW_HEIGHT_PX,
   isProcessCollapsed = false,
   children,
 }: LazyMessageRowProps) {
   const [isNearViewport, setIsNearViewport] = useState(initiallyNearViewport);
-  const [measuredHeight, setMeasuredHeight] = useState<number | null>(null);
+  const [measuredHeight, setMeasuredHeight] = useState<number | null>(
+    () => lazyRows?.readHeight(rowKey) ?? null,
+  );
   const elementRef = useRef<HTMLDivElement | null>(null);
 
   const handleNearViewportChange = useCallback((nextIsNearViewport: boolean) => {
@@ -56,11 +64,12 @@ export default function LazyMessageRow({
       // placeholder that replaces it occupies exactly the same space.
       const height = elementRef.current?.offsetHeight ?? 0;
       if (height > 0) {
+        lazyRows?.writeHeight(rowKey, height);
         setMeasuredHeight(height);
       }
     }
     setIsNearViewport(nextIsNearViewport);
-  }, []);
+  }, [lazyRows, rowKey]);
 
   useEffect(() => {
     const element = elementRef.current;
@@ -78,7 +87,7 @@ export default function LazyMessageRow({
       // `hidden` removes the parent's `space-y` gap while retaining this row's
       // React subtree and its tool/thinking disclosure state.
       className={isProcessCollapsed ? 'hidden' : undefined}
-      style={isMounted ? undefined : { height: measuredHeight ?? ESTIMATED_ROW_HEIGHT_PX }}
+      style={isMounted ? undefined : { height: measuredHeight ?? estimatedHeight }}
     >
       {isMounted ? children : null}
     </div>

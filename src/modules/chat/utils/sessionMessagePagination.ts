@@ -2,11 +2,6 @@ import type { NormalizedMessage } from '@/shared/types';
 
 export const SESSION_MESSAGES_PAGE_SIZE = 20;
 
-export type SessionMessagesRequestOptions = {
-  limit?: number | null;
-  offset?: number;
-};
-
 export type LatestPageMergeResult = {
   messages: NormalizedMessage[];
   overlapLength: number;

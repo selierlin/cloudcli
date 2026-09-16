@@ -186,7 +186,13 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
     }
 
     const convertedStart = converted.length;
+    // Only the client-owned segmentId is stable enough to become the rendered
+    // row identity. Provider row ids are NOT: Codex synthesizes a fresh id on
+    // every history read, which would remount rows on each tail refresh.
+    // Rows without a segmentId fall through to the intrinsic key fallbacks.
+    const stableSegmentId = msg.segmentId;
     const sharedMetadata = {
+      ...(stableSegmentId ? { id: stableSegmentId } : {}),
       displayText: msg.displayText,
       commandName: msg.commandName,
       commandMessage: msg.commandMessage,
@@ -218,6 +224,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
               isTaskNotification: true,
               taskStatus: taskNotif.status,
               ...sharedMetadata,
+              ...(stableSegmentId ? { id: `${stableSegmentId}:summary` } : {}),
             });
             // Render the agent's result as a normal assistant message so its
             // markdown displays correctly instead of leaking raw XML.
@@ -228,6 +235,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
                 timestamp: msg.timestamp,
                 isTaskNotificationResult: true,
                 ...sharedMetadata,
+                ...(stableSegmentId ? { id: `${stableSegmentId}:result` } : {}),
               });
             }
           } else {

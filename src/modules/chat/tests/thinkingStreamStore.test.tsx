@@ -191,6 +191,33 @@ describe('thinking stream channel', () => {
     );
   });
 
+  it('keeps each streaming segment identity when the stream finalizes', async () => {
+    const { result } = await loadedStore();
+
+    act(() => {
+      result.current.updateStreaming('session-1', '推理中', 'claude', 'thinking');
+      result.current.updateStreaming('session-1', '正文中', 'claude', 'text');
+    });
+    const streamingSegments = result.current
+      .getMessages('session-1')
+      .filter((message) => message.kind === 'stream_delta');
+    const streamingIds = streamingSegments.map((message) => message.segmentId);
+    assert.ok(streamingIds.every(Boolean), 'streaming rows need stable projected identities');
+
+    act(() => {
+      result.current.finalizeStreaming('session-1');
+    });
+
+    const finalizedSegments = result.current
+      .getMessages('session-1')
+      .filter((message) => ['thinking', 'text'].includes(message.kind))
+      .slice(-2);
+    assert.deepEqual(
+      finalizedSegments.map((message) => message.segmentId),
+      streamingIds,
+    );
+  });
+
   it('keeps thinking traces on opposite sides of a tool boundary separate', async () => {
     const { result } = await loadedStore();
 

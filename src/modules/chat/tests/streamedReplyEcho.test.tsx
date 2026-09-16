@@ -104,6 +104,10 @@ describe('streamed reply echo', () => {
     act(() => {
       result.current.updateStreaming('session-1', '正文Y', 'claude', 'text');
     });
+    const live = result.current
+      .getMessages('session-1')
+      .find((message) => message.content === '正文Y');
+    assert.ok(live?.segmentId, 'the live row needs a stable segment identity');
 
     act(() => {
       result.current.appendRealtime('session-1', echoedReply('正文Y'));
@@ -114,5 +118,30 @@ describe('streamed reply echo', () => {
       .filter((message) => message.content === '正文Y');
 
     assert.equal(rows.length, 1, 'the live row must be replaced by the echoed reply, not kept beside it');
+    assert.equal(rows[0]?.segmentId, live.segmentId);
+  });
+
+  it('carries the live segment identity onto its persisted replacement', async () => {
+    const { result } = await loadedStore();
+
+    act(() => {
+      result.current.updateStreaming('session-1', '正文Z', 'claude', 'text');
+      result.current.finalizeStreaming('session-1');
+    });
+    const live = result.current
+      .getMessages('session-1')
+      .find((message) => message.content === '正文Z');
+    assert.ok(live?.segmentId, 'the finalized live reply needs a segment identity');
+
+    mockHistory([...HISTORY, echoedReply('正文Z')]);
+    await act(async () => {
+      await result.current.refreshLatestFromServer('session-1');
+    });
+
+    const persisted = result.current
+      .getMessages('session-1')
+      .find((message) => message.content === '正文Z');
+    assert.equal(persisted?.id, 'uuid-reply-1');
+    assert.equal(persisted?.segmentId, live.segmentId);
   });
 });

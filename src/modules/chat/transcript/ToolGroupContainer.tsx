@@ -23,6 +23,8 @@ type ToolGroupContainerProps = {
   showThinking?: boolean;
   selectedProject?: Project | null;
   provider: LLMProvider | string;
+  /** Changes whenever search targets one of this group's tools. */
+  revealRequestId?: number;
 };
 
 /**
@@ -86,6 +88,7 @@ function ToolGroupContainer({
   showThinking,
   selectedProject,
   provider,
+  revealRequestId,
 }: ToolGroupContainerProps) {
   const { t } = useTranslation('chat');
   const isExporting = useIsExportingTranscript();
@@ -121,6 +124,14 @@ function ToolGroupContainer({
       setIsExpanded(true);
     }
   }, [groupIssueStatus]);
+  useEffect(() => {
+    if (revealRequestId !== undefined) {
+      // Search navigation is an external imperative request; retaining it in
+      // local state lets the reader close the group normally after the jump.
+      // oxlint-disable-next-line react/set-state-in-effect
+      setIsExpanded(true);
+    }
+  }, [revealRequestId]);
   const showChildren = !isGrouped || isExpanded || isExporting;
   const config = getToolConfig(group.toolName).input;
   const label = hasMixedTools ? t('messageTypes.tool') : config.label || group.toolName;

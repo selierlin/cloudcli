@@ -41,6 +41,32 @@ test('automatic latest-history URL is explicitly bounded to the newest page', ()
   );
 });
 
+test('turn-history URL carries its byte budget and opaque continuation cursor', () => {
+  assert.equal(
+    buildSessionMessagesUrl('session/1', {
+      pageMode: 'turns',
+      byteBudget: 262_144,
+      cursor: 'opaque+/=',
+    }),
+    '/api/providers/sessions/session%2F1/messages?pageMode=turns&byteBudget=262144&cursor=opaque%2B%2F%3D',
+  );
+});
+
+test('turn-history URL carries a bounded seek target without requesting the full transcript', () => {
+  assert.equal(
+    buildSessionMessagesUrl('session/1', {
+      pageMode: 'turns',
+      byteBudget: 262_144,
+      seek: {
+        timestamp: '2026-09-16T10:00:02.000Z',
+        snippet: 'target text',
+        transcriptAnchorId: 'uuid/1',
+      },
+    }),
+    '/api/providers/sessions/session%2F1/messages?pageMode=turns&byteBudget=262144&seekTimestamp=2026-09-16T10%3A00%3A02.000Z&seekSnippet=target+text&seekAnchorId=uuid%2F1',
+  );
+});
+
 test('overlapping latest page retains loaded older messages and replaces the tail', () => {
   const cached = range(21, 40);
   const latest = range(31, 50);

@@ -20,6 +20,7 @@ const MAX_SNIPPET_LENGTH = 80;
 export type SearchTarget = {
   snippet?: string;
   timestamp?: string;
+  transcriptAnchorId?: string;
 };
 
 /** Every field of a message that ends up as rendered text. */

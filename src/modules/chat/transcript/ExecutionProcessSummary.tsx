@@ -5,6 +5,8 @@ type ExecutionProcessSummaryProps = {
   collapsed: boolean;
   hasAttention: boolean;
   isWindowTruncated: boolean;
+  labelKind: 'reasoning' | 'execution';
+  toolCount: number;
   onToggle: () => void;
 };
 
@@ -13,14 +15,28 @@ export default function ExecutionProcessSummary({
   collapsed,
   hasAttention,
   isWindowTruncated,
+  labelKind,
+  toolCount,
   onToggle,
 }: ExecutionProcessSummaryProps) {
   const { t } = useTranslation('chat');
-  const label = isWindowTruncated
-    ? t('transcript.executionProcess.truncated', { defaultValue: 'Execution process (earlier history not loaded)' })
-    : hasAttention
-    ? t('transcript.executionProcess.attention', { defaultValue: 'Execution process needs attention' })
-    : t('transcript.executionProcess.summary', { defaultValue: 'Execution process' });
+  const label = labelKind === 'reasoning'
+    ? t('transcript.executionProcess.reasoning', { defaultValue: 'Thinking process' })
+    : t('transcript.executionProcess.execution', { defaultValue: 'Execution process' });
+  const details = [
+    toolCount > 0
+      ? t('transcript.executionProcess.toolCount', {
+          count: toolCount,
+          defaultValue: '{{count}} tool calls',
+        })
+      : null,
+    hasAttention
+      ? t('transcript.executionProcess.attention', { defaultValue: 'needs attention' })
+      : null,
+    isWindowTruncated
+      ? t('transcript.executionProcess.truncated', { defaultValue: 'earlier history not loaded' })
+      : null,
+  ].filter(Boolean);
 
   return (
     <button
@@ -33,7 +49,7 @@ export default function ExecutionProcessSummary({
         aria-hidden="true"
         className={`h-3.5 w-3.5 shrink-0 transition-transform duration-150 ${collapsed ? '' : 'rotate-90'}`}
       />
-      <span>{label}</span>
+      <span>{[label, ...details].join(' · ')}</span>
     </button>
   );
 }

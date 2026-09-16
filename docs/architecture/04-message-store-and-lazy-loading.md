@@ -10,8 +10,8 @@ what actually renders. History is paginated from the *newest* row backwards: ope
 fetches the last 20 rows, scrolling up prepends 20 more. On the server those pages are sliced
 out of a full-transcript cache keyed by the transcript file's `stat`, so a multi-megabyte
 JSONL is parsed once, not once per page. On the client every rendered row is wrapped in a
-`LazyMessageRow` that keeps a fixed-height placeholder in the DOM and mounts its expensive
-markdown/tool subtree only inside a band around the viewport. That last part is why "Load all"
+`LazyMessageRow` that keeps a measured or content-estimated placeholder in the DOM and mounts
+its expensive markdown/tool subtree only inside a band around the viewport. That last part is why "Load all"
 on a 29k-row session costs ~112 MB instead of ~1 GB.
 
 ## Mental model
@@ -62,8 +62,8 @@ on a 29k-row session costs ~112 MB instead of ~1 GB.
 | `src/modules/chat/utils/messageHistoryRefreshCoordinator.ts` | Coalesces automatic tail refreshes; keeps hidden sessions dirty instead of fetching. |
 | `src/modules/chat/utils/searchTargetLocator.ts` | `findSearchTargetIndex` and `resolveSearchWindowSize` — resolves a sidebar hit against the loaded list, then says how wide the window must be. |
 | `src/modules/chat/transcript/ChatMessagesPane.tsx` | Renders `visibleMessages`, wraps each row in `LazyMessageRow`. |
-| `src/modules/chat/transcript/LazyMessageRow.tsx` | Placeholder-or-content per row; remembers the height it last measured. |
-| `src/modules/chat/hooks/useLazyRowObserver.ts` | One shared `IntersectionObserver` per pane, rooted at the scroll container. |
+| `src/modules/chat/transcript/LazyMessageRow.tsx` | Placeholder-or-content per row; consumes the shared measured-height cache and caller estimate. |
+| `src/modules/chat/hooks/useLazyRowObserver.ts` | One shared `IntersectionObserver` and measured-height cache per pane, rooted at the scroll container and scoped to the open session. |
 | `src/modules/chat/transcript/LoadAllMessagesOverlay.tsx` | The "Load all (N)" pill shown at the top of a partially-loaded transcript. |
 | `src/modules/chat/transcript/ChatExportMenu.tsx` | Calls `onLoadFullTranscript` before building a file. |
 | `server/modules/providers/provider.routes.ts` | `GET /api/providers/sessions/:sessionId/messages` — parses `limit`/`offset`. |
@@ -87,7 +87,7 @@ runtime.
 | `MAX_REALTIME_MESSAGES` | 500 | `src/modules/chat/hooks/useSessionStore.ts` | `realtimeMessages` per slot; the front is dropped. |
 | `INITIAL_MOUNTED_TAIL_ROWS` | 30 | `src/modules/chat/transcript/ChatMessagesPane.tsx` | Newest rendered rows that mount content on the first commit. |
 | `LAZY_ROW_VIEWPORT_MARGIN_PX` | 1200 | `src/modules/chat/hooks/useLazyRowObserver.ts` | How far outside the scroll container a row stays mounted. |
-| `ESTIMATED_ROW_HEIGHT_PX` | 100 | `src/modules/chat/transcript/LazyMessageRow.tsx` | Placeholder height for a row that has never been measured. |
+| `ESTIMATED_ROW_HEIGHT_PX` | 100 | `src/modules/chat/transcript/LazyMessageRow.tsx` | Last-resort placeholder height when the pane supplies no content-aware estimate. |
 | `MAX_CACHED_TRANSCRIPT_FILE_BYTES` | 256 MB | `server/modules/providers/services/session-history-cache.service.ts` | Source-file bytes held by the server's full-transcript cache. |
 | `MAX_CACHE_ENTRIES` | 8 | `server/modules/providers/services/session-history-cache.service.ts` | Sessions held by that cache. |
 
@@ -160,7 +160,7 @@ These eleven names are the whole surface `useSessionStore` returns. There is no 
 
 | Call | What it does | Called from |
 | --- | --- | --- |
-| `fetchFromServer(sessionId, {limit, offset, canRequest})` | Replaces `serverMessages` with one page. `limit: null` means the whole transcript. Sets `total`/`hasMore`/`offset`/`fetchedAt`, prunes realtime. | Session open, "Load all", search jump, `loadFullTranscript`. |
+| `fetchFromServer(sessionId, options)` | Replaces `serverMessages` with one page. `pageMode: 'turns'` may open the newest page or seek to a bounded middle window; `limit: null` remains the explicit whole-transcript escape hatch. | Session open, search jump, "Load all", `loadFullTranscript`. |
 | `fetchMore(sessionId, {limit, canRequest})` | Fetches the page at `slot.offset` and prepends it via `mergeOlderServerPage`. Returns `{slot, prependedCount}`. | `loadOlderMessages` on scroll-to-top. |
 | `refreshLatestFromServer(sessionId, {limit, canRequest})` | Re-fetches the newest page and stitches it onto the cached suffix without refetching the transcript. Returns `{slot, applied, changed, deferred}`. | Only `latestRefreshExecutorRef`, i.e. everything routed through `requestLatestMessages`: `complete`, websocket reconnect, external update, stale re-activation. |
 | `appendRealtime(sessionId, msg)` | Pushes one row onto `realtimeMessages`, re-stamping `sessionId` if the frame disagreed. Trims to `MAX_REALTIME_MESSAGES`. | `useChatRealtimeHandlers`, from its catch-all branch, plus three explicit calls. See the note below the table. |
@@ -218,14 +218,14 @@ and a hidden tab fails it — except export, which is allowed to finish.**
 
 | Trigger | Call | Notes |
 | --- | --- | --- |
-| Session selected (not already hydrated) | `fetchFromServer(limit: SESSION_MESSAGES_PAGE_SIZE, offset: 0)` | Guarded by `lastLoadedSessionKeyRef` = `sessionId:projectId` plus `slot.fetchedAt`, so tab switches do not refetch. |
+| Session selected (not already hydrated) | `fetchFromServer(pageMode: 'turns')` | Guarded by `lastLoadedSessionKeyRef` = `sessionId:projectId` plus `slot.fetchedAt`, so tab switches do not refetch. |
 | Session re-activated and stale | `requestLatestMessages` | Only when `isStale`. |
 | `complete` frame for the viewed session | `requestLatestMessages` | In `useChatRealtimeHandlers`. |
 | `websocket_reconnected` | `requestLatestMessages`, awaited, then `chat.subscribe` | `ChatInterface.tsx` `handleWebSocketReconnect`. |
 | `externalMessageUpdate` bumped by the sidebar | `requestLatestMessages` | Skipped while the session is processing. |
 | Scroll within 100 px of the top | `fetchMore` | Locked by `topLoadLockRef` until `scrollTop > 20`. |
 | "Load all" clicked | `fetchFromServer(limit: null)` | Also sets `visibleMessageCount = Infinity`. |
-| Search jump, unless the transcript is already fully loaded | `fetchFromServer(limit: null)` | Fetches everything; widens the window only as far as the hit needs. |
+| Search jump, unless the transcript is already fully loaded | `fetchFromServer(pageMode: 'turns', seek: target)` | Opens a byte-budgeted window around the hit with older and newer continuations. |
 | Export | `loadFullTranscript` → `fetchFromServer(limit: null)` | Does not touch the render window. |
 
 Each of these passes a `canRequest` predicate, and all but one are
@@ -263,19 +263,52 @@ a 5000-row session would have to know its length before it could ask for the las
 every appended turn would shift every page boundary. With tail pages, `offset: 0` is always
 "what the user is about to look at", and appends only affect the page nobody has scrolled to.
 
+### Turn pages
+
+The same endpoint also accepts `pageMode=turns`, an optional `byteBudget`, and the opaque
+`cursor` returned by the previous page. The chat's initial load and upward pagination use
+this mode. It remains additive at the API boundary: bounded tail refresh, load-all, export,
+and callers that keep using `limit`/`offset` receive the legacy row-page response
+unchanged.
+
+`turn-history-pagination.service.ts` walks backward from the newest visible user Turn and
+adds complete Turns until the serialized byte budget is reached. A single oversized Turn is
+split only at normalized-message boundaries; `pageInfo.partial.older` and `.newer` state which
+side of that Turn is absent. `pageInfo.snapshotVersion` hashes stable transcript facts while
+excluding transport ids that providers such as Codex may regenerate on each read.
+
+Each cursor records the first request's snapshot length, version, direction and boundary. New
+Turns appended after page one therefore do not shift either continuation. The server hashes the original
+prefix again before serving a continuation: append-only growth is accepted, while a rewrite
+or truncation returns `STALE_HISTORY_CURSOR` instead of silently joining incompatible pages.
+The cursor is deliberately opaque to the client and scoped to one app session. The session
+store retains independent older/newer cursors with the slot; `fetchMore` prepends and
+`fetchNewer` appends without overwriting the opposite continuation. A stale cursor restarts
+from a fresh newest Turn page, replacing the incompatible cached window instead of leaving
+either pager in a permanent retry loop.
+
+A search seek resolves `transcriptAnchorId` first, then the rendered snippet, then exact or
+nearest timestamp. Snippet outranks timestamp because several provider events may share one
+timestamp. The returned page contains the matching Turn within the same byte budget and may
+carry cursors on both sides. If that Turn itself is oversized, the bounded window is built around
+the hit instead of taking the Turn's tail; a matching tool-use row stays with a tool result so the
+client can render and locate the result. Upward scrolling follows the older cursor; a deliberate
+downward wheel or touch gesture at the bottom follows the newer cursor until the snapshot tail is
+reached.
+
 ```mermaid
 flowchart TD
-  A["Session selected in the chat pane"] --> B["fetchFromServer limit 20 offset 0"]
+  A["Session selected in the chat pane"] --> B["fetchFromServer pageMode turns"]
   B --> C["GET sessions id messages"]
-  C --> D["sliceTailPage returns the newest 20 rows and hasMore"]
-  D --> E["slot.serverMessages set, offset set to rows held"]
+  C --> D["Turn page returns byte-budgeted newest Turns and cursor"]
+  D --> E["slot.serverMessages and turnPageInfo stored"]
   E --> F["merged recomputed, transcript renders and scrolls to bottom"]
   F --> G{"scrollTop under 100px and the top-load lock is open"}
   G -->|"no"| Z["nothing is fetched"]
   G -->|"yes"| H{"slot.hasMore"}
   H -->|"false"| K["allMessagesLoaded, pager stops"]
-  H -->|"true"| I["fetchMore at offset equals rows already held"]
-  I --> J["mergeOlderServerPage prepends, offset grows, window grows by 20"]
+  H -->|"true"| I["fetchMore with the stored opaque cursor"]
+  I --> J["mergeOlderServerPage prepends, cursor advances, render window grows"]
   J --> L["layout effect re-pins the anchor row, no scroll to bottom"]
   L --> M["top-load lock closes until scrollTop passes 20"]
   M --> G
@@ -297,9 +330,9 @@ sequenceDiagram
   U->>SC: scrolls to within 100px of the top
   SC->>VS: loadOlderMessages
   VS->>VS: captureScrollRestoreState picks a visible anchor row
-  VS->>ST: fetchMore limit 20
-  ST->>API: GET messages with limit 20 and the tail offset
-  API-->>ST: page plus total plus hasMore
+  VS->>ST: fetchMore
+  ST->>API: GET messages with pageMode turns and cursor
+  API-->>ST: older Turn page plus next cursor
   ST->>ST: mergeOlderServerPage then recomputeMergedIfNeeded
   ST-->>VS: slot and prependedCount
   VS->>VS: sets pendingScrollRestore and widens the window by 20
@@ -361,7 +394,7 @@ slices with that same helper. Either way the caller cannot tell which path serve
 | --- | --- |
 | Key | App session id. |
 | Validity | `transcriptPath` + `mtimeMs` + `size` from one `fsp.stat` per request. A mismatch re-parses. |
-| Eligible providers | Claude and Codex only — they parse `session.jsonl_path` itself. Cursor (`store.db`) and OpenCode (shared SQLite) pass `transcriptPath: null` and bypass the cache, because the JSONL's stat says nothing about their history. |
+| Eligible providers | Claude, Codex, WorkBuddy and Pi — they parse `session.jsonl_path` itself. Cursor (`store.db`), OpenCode (shared SQLite), DSH and ZCode pass `transcriptPath: null` and bypass the cache because the JSONL's stat says nothing about their history. |
 | Budget | `MAX_CACHED_TRANSCRIPT_FILE_BYTES = 256 MB` of source-file bytes and `MAX_CACHE_ENTRIES = 8`, LRU by re-insertion. The newest entry is never evicted. |
 | Concurrency | `pendingLoads` — concurrent requests for one session share a single parse. |
 | Invalidation | None, by design. Anything that changes history (a turn, an edit, a rewind, a fork) touches the file, so the next `stat` misses. |
@@ -387,7 +420,7 @@ normalizer never emits one. This does not hold for live frames — see
 
 **RULE: the wrapper element is permanent; only its children come and go.**
 
-`ChatMessagesPane.tsx` creates one observer with `useLazyRowObserver(scrollContainerRef)` and
+`ChatMessagesPane.tsx` creates one observer with `useLazyRowObserver(scrollContainerRef, sessionId)` and
 wraps every rendered row — a `MessageComponent` or a `ToolGroupContainer` — in a
 `LazyMessageRow`.
 
@@ -401,7 +434,7 @@ below the visible area, not 1200 px total.
 stateDiagram-v2
     [*] --> Placeholder: first commit, row older than the newest 30
     [*] --> Mounted: first commit, row inside the newest 30
-    Placeholder: no children, fixed 100px estimate, timestamp still addressable
+    Placeholder: no children, content-aware estimate, timestamp still addressable
     MeasuredPlaceholder: no children, fixed height equal to the last measured offsetHeight
     Mounted: real markdown or tool subtree, no inline height
     Placeholder --> Mounted: entered the band around the viewport
@@ -421,6 +454,14 @@ Three details make this safe rather than jumpy:
   placeholder. The placeholder occupies exactly the space the content did, so scrolling back
   through seen content changes no scroll geometry at all. A measurement of 0 is discarded, so
   a row that unmounts while it has no box keeps whatever height it had before.
+- **Measurements belong to the pane, not the component instance.** Every row passes a stable,
+  session-scoped key. `useLazyRowObserver` keeps the last non-zero height under that key, so a
+  React remount or history prepend does not send a previously measured row back to an estimate.
+  The cache is cleared when the selected session changes.
+- **Unseen rows reserve content-shaped space.** `ChatMessagesPane` estimates text rows from
+  wrapped line count and message kind. Routine multi-tool groups reserve only their collapsed
+  summary height; single or attention-bearing groups reserve their expanded estimate. The
+  100px constant remains only as a generic fallback.
 - **The tail starts mounted.** `initiallyNearViewport` is
   `index >= rowCount - INITIAL_MOUNTED_TAIL_ROWS`, so the initial scroll-to-bottom measures
   real heights instead of estimates.
@@ -433,11 +474,12 @@ Three details make this safe rather than jumpy:
 `LazyMessageRow` treats `lazyRows === null` as "always mounted" — the pre-existing behaviour,
 so component tests are unaffected.
 
-`src/modules/chat/tests/lazyMessageRow.test.tsx` covers exactly these four behaviours:
+`src/modules/chat/tests/lazyMessageRow.test.tsx` covers these behaviours:
 *"starts far rows as an addressable placeholder instead of mounting content"*, *"unmounts to a
-placeholder of the measured height and remounts when near again"*, *"ignores the zero-rect
-non-intersections a hidden tab reports"*, and *"keeps every row mounted where
-IntersectionObserver does not exist"*.
+placeholder of the measured height and remounts when near again"*, *"reuses the measured
+height when the same stable row is mounted again"*, *"uses the caller estimate until an unseen
+row has a measured height"*, *"ignores the zero-rect non-intersections a hidden tab reports"*,
+and *"keeps every row mounted where IntersectionObserver does not exist"*.
 
 This layers on top of CSS containment, not instead of it: `.chat-message` in `src/index.css`
 carries `contain: layout style paint` and `content-visibility: auto` with
@@ -461,18 +503,17 @@ in `useChatSessionState`. It appears when `handleScroll` first sees `scrollTop <
 suppressed while the load is actually running, so the spinner does not fade out from under
 the user — and once the load finishes it swaps to a confirmation tick for another 2500 ms.
 
-Three callers need the full array, and they differ only in what they do to the render window:
+Two callers need the full array, and they differ only in what they do to the render window:
 
 | Consumer | Path | Window |
 | --- | --- | --- |
 | "Load all" click | `loadAllMessages` → `fetchFromServer(limit: null)` | `visibleMessageCount = Infinity` — the user asked to see it. |
-| Search jump | the search effect → `fetchFromServer(limit: null)` | Grown to at least `resolveSearchWindowSize` = `length - targetIndex + SEARCH_TARGET_CONTEXT_MESSAGES`; never shrunk, because the window is a `Math.max` against what was already showing. |
 | Export | `loadFullTranscript` → `fetchFromServer(limit: null)` | Untouched. Export reads the returned array, never the DOM. |
 
-Search needs it because a hit resolved by the sidebar may live in a page that was never
-fetched, and `findSearchTargetIndex` resolves against the loaded transcript rather than the
-DOM. Export needs it because otherwise exporting a long conversation silently produced a file
-containing only its last page.
+Search no longer uses this escape hatch. It opens a bounded Turn window around the result and
+resolves `findSearchTargetIndex` against that window. Export still needs the complete array;
+otherwise exporting a long conversation would silently produce a file containing only the
+currently loaded pages.
 
 There is a fourth way the window grows, and it fetches nothing. Once `hasMoreMessages` is
 false but the projected list is still longer than `visibleMessageCount`, `ChatMessagesPane`
@@ -575,7 +616,8 @@ of ~1 GB with seven thousand.
   [conversation handoff](./03-conversation-handoff.md) — so nothing downstream re-keys a slot.
 - **The observer's `root` is captured on the first `observe`, not on every render.**
   `useLazyRowObserver` builds the `IntersectionObserver` lazily inside `observe` and keeps it
-  until the hook unmounts, and it returns an identity-stable `{ observe }` object. Without
+  until the hook unmounts, and it returns an identity-stable
+  `{ observe, readHeight, writeHeight }` object. Without
   that stability every row's observe effect would re-run on every render, re-registering a
   few thousand elements per commit. The consequence to know: swapping the scroll container
   element under a live pane would leave the observer rooted at the old one.
@@ -598,5 +640,5 @@ of ~1 GB with seven thousand.
 | The history cache's key or validity check | `sessions.service.test.ts` and the Cursor/OpenCode bypass — their history does not live in `jsonl_path`. |
 | `prepareTranscriptMessages` | The live-vs-history divergence documented in [the realtime stream](./02-realtime-stream.md) and the tool grouping in [the tool view](./06-tool-view.md). |
 | `truncateAt` or `replacesAnchorId` | `history_truncated` emission order in the gateway ([websocket transport](./01-websocket-transport.md)) and `removeOptimisticUserEchoes`. |
-| `visibleMessageCount` or who writes it | All four writers: `INITIAL_VISIBLE_MESSAGES` on session change, `+SESSION_MESSAGES_PAGE_SIZE` on prepend, `Infinity` on "Load all", `Math.max` with `resolveSearchWindowSize` on a search jump, plus `loadEarlierMessages` stepping 100. A shrink anywhere can scroll the transcript out from under the user. |
+| `visibleMessageCount` or who writes it | `INITIAL_VISIBLE_MESSAGES` on session change, growth by prepended/appended pages, `Infinity` on "Load all", `Math.max` with `resolveSearchWindowSize` inside a bounded search window, plus `loadEarlierMessages` stepping 100. A shrink anywhere can scroll the transcript out from under the user. |
 | `messagesRepresentSamePersistedRow` | Every other helper in `sessionMessagePagination.ts` — all overlap detection funnels through it, so loosening it silently glues unrelated pages together and tightening it turns every refresh into a full bridge walk. |

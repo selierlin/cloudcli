@@ -340,7 +340,7 @@ function Sidebar({
                 { isArchived: true },
               );
             }}
-            onConversationResultClick={(projectId: string | null, sessionId: string, provider: string, messageTimestamp?: string | null, messageSnippet?: string | null, isArchived?: boolean) => {
+            onConversationResultClick={(projectId: string | null, sessionId: string, provider: string, messageTimestamp?: string | null, messageSnippet?: string | null, isArchived?: boolean, messageAnchorId?: string | null) => {
               // `projectId` (DB key) is the canonical identifier post-migration.
               // The server emits null when it can't resolve a project row for
               // the search hit; treat that as "no project" and still navigate
@@ -353,7 +353,11 @@ function Sidebar({
               if (!project && isArchived && projectId) {
                 project = archivedProjects.find(p => p.projectId === projectId) ?? null;
               }
-              const searchTarget = { __searchTargetTimestamp: messageTimestamp || null, __searchTargetSnippet: messageSnippet || null };
+              const searchTarget = {
+                __searchTargetTimestamp: messageTimestamp || null,
+                __searchTargetSnippet: messageSnippet || null,
+                __searchTargetAnchorId: messageAnchorId || null,
+              };
               const sessionObj = {
                 id: sessionId,
                 __provider: resolvedProvider,
