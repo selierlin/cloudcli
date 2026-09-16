@@ -5,6 +5,7 @@ import {
 } from '@/shared/authToken';
 import { IS_PLATFORM } from '@/shared/utils';
 import { readVoiceConfig, voiceConfigHeaders } from '@/shared/voiceConfig';
+import type { SessionMessagesRequestOptions } from '@/shared/types';
 
 // Headers are a plain record rather than the full `HeadersInit` union so the
 // defaults below can be merged with a caller's headers by spreading.
@@ -138,9 +139,26 @@ const del = withBody('DELETE');
  */
 export const sessionMessagesUrl = (
   sessionId: string,
-  { limit = null, offset = 0 }: { limit?: number | null; offset?: number } = {},
+  {
+    limit = null,
+    offset = 0,
+    pageMode = 'rows',
+    byteBudget,
+    cursor,
+    seek,
+  }: SessionMessagesRequestOptions = {},
 ): string => {
   const base = `/api/providers/sessions/${encodeURIComponent(sessionId)}/messages`;
+  if (pageMode === 'turns') {
+    return `${base}${query({
+      pageMode,
+      byteBudget,
+      cursor,
+      seekTimestamp: seek?.timestamp,
+      seekSnippet: seek?.snippet,
+      seekAnchorId: seek?.transcriptAnchorId,
+    })}`;
+  }
   return limit === null || limit === undefined
     ? base
     : `${base}${query({ limit, offset: offset ?? 0 })}`;
@@ -381,7 +399,7 @@ export const api = {
     }) => post('/api/providers/sessions', payload),
     sessionMessages: (
       sessionId: string,
-      pagination: { limit?: number | null; offset?: number } = {},
+      pagination: SessionMessagesRequestOptions = {},
       options: ApiRequestOptions = {},
     ) => get(sessionMessagesUrl(sessionId, pagination), options),
     sessionOutline: (sessionId: string) =>

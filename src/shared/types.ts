@@ -436,6 +436,36 @@ type QuestionOption = {
 
 //----------------- CHAT SESSION STORE ------------
 
+/** Query options for persisted session history, covering legacy row pages and opt-in Turn pages. */
+export type SessionMessagesRequestOptions = {
+  limit?: number | null;
+  offset?: number;
+  pageMode?: 'rows' | 'turns';
+  byteBudget?: number;
+  cursor?: string;
+  seek?: SessionHistorySeekTarget;
+};
+
+/** Stable facts from a search result used to request a bounded history window around it. */
+export type SessionHistorySeekTarget = {
+  transcriptAnchorId?: string;
+  timestamp?: string;
+  snippet?: string;
+};
+
+/** Snapshot continuation metadata returned by the server for one byte-budgeted Turn page. */
+export type TurnHistoryPageInfo = {
+  mode: 'turns';
+  snapshotVersion: string;
+  nextCursor: string | null;
+  /** Opaque continuation toward newer Turns from a middle history window. */
+  newerCursor: string | null;
+  partial: {
+    older: boolean;
+    newer: boolean;
+  };
+};
+
 /** A provider-agnostic transcript event as normalized by the backend adapters, with all kind-specific fields kept flat; it is the shape the session store holds and that chat converts into ChatMessage for rendering, so treat it as the wire contract rather than a view model. */
 export type NormalizedMessage = {
   id: string;

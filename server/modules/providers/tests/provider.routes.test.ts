@@ -536,6 +536,464 @@ test('session messages route compresses large history responses', async (t) => {
   });
 });
 
+test('turn pagination cursor keeps the original snapshot when a newer turn is appended', async (t) => {
+  await withProviderServer(async (baseUrl, workspacePath) => {
+    sessionsDb.createAppSession('turn-page-session', 'claude', workspacePath);
+    sessionsDb.assignProviderSessionId('turn-page-session', 'claude-native-turn-page');
+
+    const transcriptMessage = (
+      id: string,
+      role: 'user' | 'assistant',
+      label: string,
+      ordinal: number,
+    ) => ({
+      id,
+      sessionId: 'claude-native-turn-page',
+      timestamp: new Date(Date.UTC(2026, 8, 16, 10, 0, ordinal)).toISOString(),
+      provider: 'claude' as const,
+      kind: 'text' as const,
+      role,
+      content: `${label}:${'x'.repeat(10_000)}`,
+    });
+    const history = [
+      transcriptMessage('u1', 'user', 'first question', 0),
+      transcriptMessage('a1', 'assistant', 'first answer', 1),
+      transcriptMessage('u2', 'user', 'second question', 2),
+      transcriptMessage('a2', 'assistant', 'second answer', 3),
+      transcriptMessage('u3', 'user', 'third question', 4),
+      transcriptMessage('a3', 'assistant', 'third answer', 5),
+    ];
+
+    mock.method(providerRegistry, 'resolveProvider', (() => ({
+      sessions: {
+        fetchHistory: async () => ({
+          messages: [...history],
+          total: history.length,
+          hasMore: false,
+          offset: 0,
+          limit: null,
+        }),
+      },
+    })) as unknown as typeof providerRegistry.resolveProvider);
+    t.after(() => mock.reset());
+
+    const firstResponse = await fetch(
+      `${baseUrl}/api/providers/sessions/turn-page-session/messages?pageMode=turns&byteBudget=25000`,
+    );
+    const firstPayload = await firstResponse.json() as {
+      data: {
+        messages: Array<{ id: string }>;
+        total: number;
+        pageInfo: { snapshotVersion: string; nextCursor: string | null };
+      };
+    };
+
+    assert.equal(firstResponse.status, 200);
+    assert.deepEqual(firstPayload.data.messages.map((message) => message.id), ['u3', 'a3']);
+    assert.equal(firstPayload.data.total, 6);
+    assert.ok(firstPayload.data.pageInfo.snapshotVersion);
+    assert.ok(firstPayload.data.pageInfo.nextCursor);
+
+    history.push(
+      transcriptMessage('u4', 'user', 'fourth question', 6),
+      transcriptMessage('a4', 'assistant', 'fourth answer', 7),
+    );
+    const secondResponse = await fetch(
+      `${baseUrl}/api/providers/sessions/turn-page-session/messages?pageMode=turns&byteBudget=25000&cursor=${encodeURIComponent(firstPayload.data.pageInfo.nextCursor!)}`,
+    );
+    const secondPayload = await secondResponse.json() as typeof firstPayload;
+
+    assert.equal(secondResponse.status, 200);
+    assert.deepEqual(secondPayload.data.messages.map((message) => message.id), ['u2', 'a2']);
+    assert.equal(secondPayload.data.total, 6);
+    assert.equal(
+      secondPayload.data.pageInfo.snapshotVersion,
+      firstPayload.data.pageInfo.snapshotVersion,
+    );
+  });
+});
+
+test('turn pagination can seek to one bounded middle turn with continuations on both sides', async (t) => {
+  await withProviderServer(async (baseUrl, workspacePath) => {
+    sessionsDb.createAppSession('turn-seek-session', 'claude', workspacePath);
+    sessionsDb.assignProviderSessionId('turn-seek-session', 'claude-native-turn-seek');
+
+    const history = Array.from({ length: 3 }, (_, turnIndex) => [
+      {
+        id: `u${turnIndex + 1}`,
+        sessionId: 'claude-native-turn-seek',
+        timestamp: `2026-09-16T10:00:0${turnIndex * 2}.000Z`,
+        provider: 'claude' as const,
+        kind: 'text' as const,
+        role: 'user' as const,
+        content: `question ${turnIndex + 1}:${'q'.repeat(10_000)}`,
+      },
+      {
+        id: `a${turnIndex + 1}`,
+        sessionId: 'claude-native-turn-seek',
+        timestamp: `2026-09-16T10:00:0${turnIndex * 2 + 1}.000Z`,
+        provider: 'claude' as const,
+        kind: 'text' as const,
+        role: 'assistant' as const,
+        content: `answer ${turnIndex + 1}:${'a'.repeat(10_000)}`,
+      },
+    ]).flat();
+
+    mock.method(providerRegistry, 'resolveProvider', (() => ({
+      sessions: {
+        fetchHistory: async () => ({
+          messages: history,
+          total: history.length,
+          hasMore: false,
+          offset: 0,
+          limit: null,
+        }),
+      },
+    })) as unknown as typeof providerRegistry.resolveProvider);
+    t.after(() => mock.reset());
+
+    const response = await fetch(
+      `${baseUrl}/api/providers/sessions/turn-seek-session/messages?pageMode=turns&byteBudget=25000&seekTimestamp=${encodeURIComponent('2026-09-16T10:00:00.000Z')}&seekSnippet=${encodeURIComponent('question 2:')}`,
+    );
+    const payload = await response.json() as {
+      data: {
+        messages: Array<{ id: string }>;
+        pageInfo: {
+          nextCursor: string | null;
+          newerCursor: string | null;
+          partial: { older: boolean; newer: boolean };
+        };
+      };
+    };
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(payload.data.messages.map((message) => message.id), ['u2', 'a2']);
+    assert.ok(payload.data.pageInfo.nextCursor, 'older continuation should be available');
+    assert.ok(payload.data.pageInfo.newerCursor, 'newer continuation should be available');
+    assert.deepEqual(payload.data.pageInfo.partial, { older: false, newer: false });
+
+    const newerResponse = await fetch(
+      `${baseUrl}/api/providers/sessions/turn-seek-session/messages?pageMode=turns&byteBudget=25000&cursor=${encodeURIComponent(payload.data.pageInfo.newerCursor!)}`,
+    );
+    const newerPayload = await newerResponse.json() as typeof payload;
+    assert.equal(newerResponse.status, 200);
+    assert.deepEqual(newerPayload.data.messages.map((message) => message.id), ['u3', 'a3']);
+    assert.equal(newerPayload.data.pageInfo.newerCursor, null);
+  });
+});
+
+test('seek keeps an interior hit visible when its turn is larger than the byte budget', async (t) => {
+  await withProviderServer(async (baseUrl, workspacePath) => {
+    sessionsDb.createAppSession('oversized-seek-session', 'claude', workspacePath);
+    sessionsDb.assignProviderSessionId('oversized-seek-session', 'claude-native-oversized-seek');
+
+    const history = [
+      {
+        id: 'oversized-user',
+        sessionId: 'claude-native-oversized-seek',
+        timestamp: '2026-09-16T10:00:00.000Z',
+        provider: 'claude' as const,
+        kind: 'text' as const,
+        role: 'user' as const,
+        content: `question:${'q'.repeat(7_000)}`,
+      },
+      {
+        id: 'tool-use',
+        sessionId: 'claude-native-oversized-seek',
+        timestamp: '2026-09-16T10:00:01.000Z',
+        provider: 'claude' as const,
+        kind: 'tool_use' as const,
+        role: 'assistant' as const,
+        toolId: 'call-1',
+        toolName: 'Read',
+        toolInput: { file_path: '/tmp/example.txt' },
+      },
+      {
+        id: 'tool-result',
+        sessionId: 'claude-native-oversized-seek',
+        timestamp: '2026-09-16T10:00:02.000Z',
+        provider: 'claude' as const,
+        kind: 'tool_result' as const,
+        role: 'user' as const,
+        toolId: 'call-1',
+        content: `unique interior seek result:${'r'.repeat(3_000)}`,
+      },
+      {
+        id: 'oversized-answer',
+        sessionId: 'claude-native-oversized-seek',
+        timestamp: '2026-09-16T10:00:03.000Z',
+        provider: 'claude' as const,
+        kind: 'text' as const,
+        role: 'assistant' as const,
+        content: `answer:${'a'.repeat(7_000)}`,
+      },
+    ];
+
+    mock.method(providerRegistry, 'resolveProvider', (() => ({
+      sessions: {
+        fetchHistory: async () => ({
+          messages: history,
+          total: history.length,
+          hasMore: false,
+          offset: 0,
+          limit: null,
+        }),
+      },
+    })) as unknown as typeof providerRegistry.resolveProvider);
+    t.after(() => mock.reset());
+
+    const response = await fetch(
+      `${baseUrl}/api/providers/sessions/oversized-seek-session/messages?pageMode=turns&byteBudget=5000&seekSnippet=${encodeURIComponent('unique interior seek result:')}`,
+    );
+    const payload = await response.json() as {
+      data: {
+        messages: Array<{ id: string }>;
+        pageInfo: {
+          nextCursor: string | null;
+          newerCursor: string | null;
+          partial: { older: boolean; newer: boolean };
+        };
+      };
+    };
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(
+      payload.data.messages.map((message) => message.id),
+      ['tool-use', 'tool-result'],
+      'the bounded page should keep the result searchable and attachable to its tool call',
+    );
+    assert.ok(payload.data.pageInfo.nextCursor, 'the omitted prefix should remain pageable');
+    assert.ok(payload.data.pageInfo.newerCursor, 'the omitted suffix should remain pageable');
+    assert.deepEqual(payload.data.pageInfo.partial, { older: true, newer: true });
+  });
+});
+
+test('an oversized turn reports which side is missing across byte-budget pages', async (t) => {
+  await withProviderServer(async (baseUrl, workspacePath) => {
+    sessionsDb.createAppSession('oversized-turn-session', 'claude', workspacePath);
+    sessionsDb.assignProviderSessionId('oversized-turn-session', 'claude-native-oversized');
+
+    const history = [
+      {
+        id: 'oversized-user',
+        sessionId: 'claude-native-oversized',
+        timestamp: '2026-09-16T10:00:00.000Z',
+        provider: 'claude' as const,
+        kind: 'text' as const,
+        role: 'user' as const,
+        content: `question:${'q'.repeat(10_000)}`,
+      },
+      {
+        id: 'oversized-answer',
+        sessionId: 'claude-native-oversized',
+        timestamp: '2026-09-16T10:00:01.000Z',
+        provider: 'claude' as const,
+        kind: 'text' as const,
+        role: 'assistant' as const,
+        content: `answer:${'a'.repeat(10_000)}`,
+      },
+    ];
+
+    mock.method(providerRegistry, 'resolveProvider', (() => ({
+      sessions: {
+        fetchHistory: async () => ({
+          messages: history,
+          total: history.length,
+          hasMore: false,
+          offset: 0,
+          limit: null,
+        }),
+      },
+    })) as unknown as typeof providerRegistry.resolveProvider);
+    t.after(() => mock.reset());
+
+    const firstResponse = await fetch(
+      `${baseUrl}/api/providers/sessions/oversized-turn-session/messages?pageMode=turns&byteBudget=5000`,
+    );
+    const firstPayload = await firstResponse.json() as {
+      data: {
+        messages: Array<{ id: string }>;
+        pageInfo: {
+          nextCursor: string | null;
+          partial: { older: boolean; newer: boolean };
+        };
+      };
+    };
+    assert.deepEqual(firstPayload.data.messages.map((message) => message.id), ['oversized-answer']);
+    assert.deepEqual(firstPayload.data.pageInfo.partial, { older: true, newer: false });
+
+    const secondResponse = await fetch(
+      `${baseUrl}/api/providers/sessions/oversized-turn-session/messages?pageMode=turns&byteBudget=5000&cursor=${encodeURIComponent(firstPayload.data.pageInfo.nextCursor!)}`,
+    );
+    const secondPayload = await secondResponse.json() as typeof firstPayload;
+    assert.deepEqual(secondPayload.data.messages.map((message) => message.id), ['oversized-user']);
+    assert.deepEqual(secondPayload.data.pageInfo.partial, { older: false, newer: true });
+    assert.equal(secondPayload.data.pageInfo.nextCursor, null);
+  });
+});
+
+test('turn pagination snapshot ignores provider ids regenerated on each history read', async (t) => {
+  await withProviderServer(async (baseUrl, workspacePath) => {
+    sessionsDb.createAppSession('regenerated-id-session', 'codex', workspacePath);
+    sessionsDb.assignProviderSessionId('regenerated-id-session', 'codex-native-regenerated');
+
+    const semanticHistory = [
+      { role: 'user' as const, content: `first question:${'q'.repeat(10_000)}` },
+      { role: 'assistant' as const, content: `first answer:${'a'.repeat(10_000)}` },
+      { role: 'user' as const, content: `second question:${'q'.repeat(10_000)}` },
+      { role: 'assistant' as const, content: `second answer:${'a'.repeat(10_000)}` },
+    ];
+    let readCount = 0;
+    mock.method(providerRegistry, 'resolveProvider', (() => ({
+      sessions: {
+        fetchHistory: async () => {
+          readCount += 1;
+          return {
+            messages: semanticHistory.map((entry, index) => ({
+              ...entry,
+              id: `read-${readCount}-row-${index}`,
+              sessionId: 'codex-native-regenerated',
+              timestamp: new Date(Date.UTC(2026, 8, 16, 10, 0, index)).toISOString(),
+              provider: 'codex' as const,
+              kind: 'text' as const,
+            })),
+            total: semanticHistory.length,
+            hasMore: false,
+            offset: 0,
+            limit: null,
+          };
+        },
+      },
+    })) as unknown as typeof providerRegistry.resolveProvider);
+    t.after(() => mock.reset());
+
+    const firstResponse = await fetch(
+      `${baseUrl}/api/providers/sessions/regenerated-id-session/messages?pageMode=turns&byteBudget=25000`,
+    );
+    const firstPayload = await firstResponse.json() as {
+      data: { pageInfo: { nextCursor: string | null } };
+    };
+    const secondResponse = await fetch(
+      `${baseUrl}/api/providers/sessions/regenerated-id-session/messages?pageMode=turns&byteBudget=25000&cursor=${encodeURIComponent(firstPayload.data.pageInfo.nextCursor!)}`,
+    );
+    const secondPayload = await secondResponse.json() as {
+      data?: { messages: Array<{ content: string }> };
+      error?: { code: string };
+    };
+
+    assert.equal(secondResponse.status, 200);
+    assert.deepEqual(
+      secondPayload.data?.messages.map((message) => message.content.split(':')[0]),
+      ['first question', 'first answer'],
+    );
+  });
+});
+
+test('turn pagination returns page metadata before a new session has provider history', async () => {
+  await withProviderServer(async (baseUrl, workspacePath) => {
+    sessionsDb.createAppSession('empty-turn-page-session', 'claude', workspacePath);
+
+    const response = await fetch(
+      `${baseUrl}/api/providers/sessions/empty-turn-page-session/messages?pageMode=turns`,
+    );
+    const payload = await response.json() as {
+      data: {
+        messages: unknown[];
+        pageInfo: {
+          mode: string;
+          snapshotVersion: string;
+          nextCursor: string | null;
+          newerCursor: string | null;
+          partial: { older: boolean; newer: boolean };
+        };
+      };
+    };
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(payload.data.messages, []);
+    assert.deepEqual(payload.data.pageInfo, {
+      mode: 'turns',
+      snapshotVersion: '47DEQpj8HBSa-_TImW-5JC',
+      nextCursor: null,
+      newerCursor: null,
+      partial: { older: false, newer: false },
+    });
+  });
+});
+
+test('turn pagination rejects a fabricated newer cursor at the snapshot tail', async (t) => {
+  await withProviderServer(async (baseUrl, workspacePath) => {
+    sessionsDb.createAppSession('fabricated-cursor-session', 'claude', workspacePath);
+    sessionsDb.assignProviderSessionId('fabricated-cursor-session', 'claude-native-fabricated-cursor');
+
+    const history = [
+      {
+        id: 'u1',
+        sessionId: 'claude-native-fabricated-cursor',
+        timestamp: '2026-09-16T10:00:00.000Z',
+        provider: 'claude' as const,
+        kind: 'text' as const,
+        role: 'user' as const,
+        content: 'question 1',
+      },
+      {
+        id: 'a1',
+        sessionId: 'claude-native-fabricated-cursor',
+        timestamp: '2026-09-16T10:00:01.000Z',
+        provider: 'claude' as const,
+        kind: 'text' as const,
+        role: 'assistant' as const,
+        content: 'answer 1',
+      },
+    ];
+
+    mock.method(providerRegistry, 'resolveProvider', (() => ({
+      sessions: {
+        fetchHistory: async () => ({
+          messages: history,
+          total: history.length,
+          hasMore: false,
+          offset: 0,
+          limit: null,
+        }),
+      },
+    })) as unknown as typeof providerRegistry.resolveProvider);
+    t.after(() => mock.reset());
+
+    const response = await fetch(
+      `${baseUrl}/api/providers/sessions/fabricated-cursor-session/messages?pageMode=turns`,
+    );
+    const payload = await response.json() as {
+      data: {
+        total: number;
+        pageInfo: { snapshotVersion: string };
+      };
+    };
+    assert.equal(response.status, 200);
+
+    // The server only issues newer cursors strictly inside the snapshot. A
+    // client that fabricates one at the tail boundary used to crash pagination
+    // with an out-of-bounds read; it must be rejected as an invalid cursor.
+    const fabricatedCursor = Buffer.from(JSON.stringify({
+      version: 1,
+      sessionId: 'fabricated-cursor-session',
+      snapshotTotal: payload.data.total,
+      snapshotVersion: payload.data.pageInfo.snapshotVersion,
+      direction: 'newer',
+      boundary: payload.data.total,
+    }), 'utf8').toString('base64url');
+
+    const rejected = await fetch(
+      `${baseUrl}/api/providers/sessions/fabricated-cursor-session/messages?pageMode=turns&cursor=${encodeURIComponent(fabricatedCursor)}`,
+    );
+    const rejectedPayload = await rejected.json() as {
+      error: { code: string };
+    };
+    assert.equal(rejected.status, 400);
+    assert.equal(rejectedPayload.error.code, 'INVALID_HISTORY_CURSOR');
+  });
+});
+
 test('session outline route reports unknown sessions as 404', async () => {
   await withProviderServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/api/providers/sessions/nope/outline`);

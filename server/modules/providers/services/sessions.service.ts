@@ -6,6 +6,7 @@ import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { broadcastSessionUpserted, chatRunRegistry } from '@/modules/websocket/index.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import { sessionHistoryCache } from '@/modules/providers/services/session-history-cache.service.js';
+import { paginateHistoryByTurn } from '@/modules/providers/services/turn-history-pagination.service.js';
 import type {
   FetchHistoryOptions,
   FetchHistoryResult,
@@ -543,7 +544,7 @@ export const sessionsService = {
 
   async fetchHistory(
     sessionId: string,
-    options: Pick<FetchHistoryOptions, 'limit' | 'offset'> = {},
+    options: Pick<FetchHistoryOptions, 'limit' | 'offset' | 'pageMode' | 'byteBudget' | 'cursor' | 'seek'> = {},
   ): Promise<FetchHistoryResult> {
     const session = sessionsDb.getSessionById(sessionId);
     if (!session) {
@@ -556,13 +557,22 @@ export const sessionsService = {
     // App-created sessions that never produced a provider transcript yet
     // (e.g. first message still streaming) simply have no history.
     if (!session.provider_session_id) {
-      return {
+      const emptyHistory: FetchHistoryResult = {
         messages: [],
         total: 0,
         hasMore: false,
         offset: options.offset ?? 0,
         limit: options.limit ?? null,
       };
+      return options.pageMode === 'turns'
+        ? paginateHistoryByTurn({
+            sessionId,
+            history: emptyHistory,
+            byteBudget: options.byteBudget ?? 256 * 1024,
+            cursor: options.cursor,
+            seek: options.seek,
+          })
+        : emptyHistory;
     }
 
     const provider = session.provider as LLMProvider;
@@ -571,6 +581,7 @@ export const sessionsService = {
     const projectPath = session.project_path ?? '';
     const requestedLimit = options.limit ?? null;
     const requestedOffset = options.offset ?? 0;
+    const usesTurnPagination = options.pageMode === 'turns';
 
     // Claude, Codex and WorkBuddy history readers parse `jsonl_path` itself, so
     // a page can be sliced from the stat-validated full-transcript cache instead
@@ -593,22 +604,36 @@ export const sessionsService = {
 
     let result: FetchHistoryResult;
     if (fullHistory) {
-      // Providers slice with this same helper, so a cached page is identical
-      // to what a direct `(limit, offset)` read would have returned.
-      const { page, hasMore } = sliceTailPage(fullHistory.messages, requestedLimit, Math.max(0, requestedOffset));
-      result = {
-        ...fullHistory,
-        messages: page,
-        hasMore,
-        offset: requestedOffset,
-        limit: requestedLimit,
-      };
+      if (usesTurnPagination) {
+        result = fullHistory;
+      } else {
+        // Providers slice with this same helper, so a cached page is identical
+        // to what a direct `(limit, offset)` read would have returned.
+        const { page, hasMore } = sliceTailPage(fullHistory.messages, requestedLimit, Math.max(0, requestedOffset));
+        result = {
+          ...fullHistory,
+          messages: page,
+          hasMore,
+          offset: requestedOffset,
+          limit: requestedLimit,
+        };
+      }
     } else {
       result = await providerSessions.fetchHistory(sessionId, {
-        limit: requestedLimit,
-        offset: requestedOffset,
+        limit: usesTurnPagination ? null : requestedLimit,
+        offset: usesTurnPagination ? 0 : requestedOffset,
         projectPath,
         providerSessionId,
+      });
+    }
+
+    if (usesTurnPagination) {
+      result = paginateHistoryByTurn({
+        sessionId,
+        history: result,
+        byteBudget: options.byteBudget ?? 256 * 1024,
+        cursor: options.cursor,
+        seek: options.seek,
       });
     }
 
