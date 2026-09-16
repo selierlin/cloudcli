@@ -493,6 +493,14 @@ export function useChatSessionState({
 
   const followTranscriptLayout = useCallback((durationMs = 0) => {
     const scheduledSessionId = activeSessionIdRef.current;
+    // The gesture term keeps this writer out of the reader's way. A wheel notch
+    // or a drag is applied to `scrollTop` before the browser dispatches the
+    // `scroll` event, and the event is dispatched after this commit — so a write
+    // here puts the reader back at the bottom first, and `handleScroll` then
+    // measures a zero gap and never learns that they moved. A deliberate pull
+    // must therefore survive until it can be measured: standing down leaves the
+    // gap in place, and the ordinary rule latches on it once it passes 50 px.
+    // Only the input's own direction arms this, so growth on its own never can.
     const cannotFollow = (
       !isActiveRef.current
       || !scheduledSessionId
@@ -501,6 +509,7 @@ export function useChatSessionState({
       || pendingScrollRestoreRef.current !== null
       || searchScrollActiveRef.current
       || isUserScrolledUpRef.current
+      || Date.now() < upwardIntentUntilRef.current
     );
     if (cannotFollow) return;
 
@@ -524,6 +533,7 @@ export function useChatSessionState({
         || isLoadingMoreRef.current
         || pendingScrollRestoreRef.current
         || searchScrollActiveRef.current
+        || Date.now() < upwardIntentUntilRef.current
       ) {
         followUntilRef.current = 0;
         followGeometryRef.current = null;

@@ -164,6 +164,20 @@ only way back was the jump-to-bottom button. Ownership is taken only on
 
 Both are gated on the 50 px band, so a nudge near the bottom still counts as "at the bottom".
 
+**RULE: the follow stands down while the reader is pulling away, so the pull survives to be
+measured.**
+
+That gate alone is not enough, and this is the half that makes a mouse wheel work. The
+browser applies a wheel notch or a drag to `scrollTop` *before* it dispatches the `scroll`
+event, and it dispatches that event *after* the commit that runs the follow — so on a
+streaming answer the follow writes the bottom first, `handleScroll` then measures a zero gap,
+and the reader's movement is never seen. Only a flick fast enough to outrun the write escaped
+it. `followTranscriptLayout` therefore declines while `Date.now() < upwardIntentUntilRef`, and
+so does the frame `tick`: a deliberate pull must stay in the geometry until the event that
+reports it arrives. Nothing but the reader's own input arms that window, so growth can never
+stand the follow down. The instinct that the follow should re-pin anyway is wrong here — a
+write is what destroys the evidence, and the reader asked first.
+
 **RULE: `handleScroll` releases ownership on one condition — the reader is back at the
 bottom.**
 
@@ -185,8 +199,10 @@ flowchart TD
   E -->|"yes"| Z
   E -->|"no"| F{"isUserScrolledUp"}
   F -->|"true"| Z
-  F -->|"false"| G["Arm one requestAnimationFrame; reuse it for further updates"]
-  G --> H{"Session/claims still match and isUserScrolledUpRef is false"}
+  F -->|"false"| F2{"A reader gesture is currently pulling the transcript down"}
+  F2 -->|"yes"| Z
+  F2 -->|"no"| G["Arm one requestAnimationFrame; reuse it for further updates"]
+  G --> H{"Session/claims still match, isUserScrolledUpRef is false and no gesture is pulling"}
   H -->|"no"| Z
   H -->|"yes"| I["Set scrollTop to scrollHeight"]
 ```
@@ -195,6 +211,10 @@ That is the whole auto-follow. New rows and streamed rewrites both produce a fre
 `chatMessages` array, but any number of changes before the browser's next frame still
 produce one `scrollTop` write. Because `isUserScrolledUp` is a dependency, dropping back
 inside the 50 px band arms one more frame that finishes the trip to the bottom.
+
+The gesture gate on the way in is what keeps the follow from erasing a pull before
+`handleScroll` can measure it; see *"the follow stands down while the reader is pulling
+away"* above.
 
 ### Follow and detached
 
@@ -245,7 +265,8 @@ sequenceDiagram
     participant S as Store
     participant E as FollowEffect
 
-    U->>P: drag toward older messages
+    U->>P: wheel notch, or a drag toward older messages
+    P->>H: the gesture arms the stand-down window
     P->>H: scroll event, scrollTop has fallen
     H->>H: gap is 50 px or more and the reader moved, set isUserScrolledUp true
     W->>S: latest streaming state published
@@ -267,7 +288,7 @@ anything.**
 
 | Where | Delay | Re-checks? |
 | --- | --- | --- |
-| Streaming follow effect (`useChatSessionState.ts`) | next animation frame | yes — session, loading/restore/search claims and `isUserScrolledUpRef` are all rechecked |
+| Streaming follow effect (`useChatSessionState.ts`) | next animation frame | yes — session, loading/restore/search claims, `isUserScrolledUpRef` and the reader's active pull are all rechecked |
 | Initial settle loop (same file) | up to 60 animation frames | yes — user detachment stops the loop immediately |
 | External-update refresh (same file, the `externalMessageUpdate` effect) | 200 ms | yes — same guard, and only armed when `isNearBottom()` held before the refetch |
 | Composer send (`useChatComposerState.ts` → `handleSubmit`) | 100 ms | **no** — it sets the flag false itself, then calls `scrollToBottom()` unconditionally |
@@ -575,6 +596,14 @@ a scroll event.
   grows after the follow write"* drives a real `scroll` event into the production handler for
   exactly that ordering, and the *"still hands ownership to a gesture the growing answer
   outruns"* case pins the other direction.
+- **The follow has to lose a race on purpose, and that is not a bug.** A wheel notch or a drag
+  is applied to `scrollTop` before the `scroll` event is dispatched, and the dispatch happens
+  after the commit that runs the follow. So the follow is guaranteed to see the reader's new
+  position *first* and would put them back at the bottom before any handler could measure the
+  movement — which is why scrolling up mid-stream used to need a flick fast enough to outrun
+  the write. It stands down for `SCROLL_UP_INTENT_WINDOW_MS` after an upward gesture instead.
+  Do not "fix" that by making the follow unconditional: the write is what destroys the
+  evidence, and the reader's input arrived first.
 - **The pager's two thresholds are deliberately different.** You enter the trigger zone at
   `scrollTop < 100` but only release `topLoadLockRef` at `scrollTop > 20`. If both were 100,
   the restore after a prepend — which lands you near the top by design — would immediately
@@ -620,7 +649,7 @@ a scroll event.
 | If you touch | Also check |
 | --- | --- |
 | The 50 px threshold in `isNearBottom` | The follow effect, the tab-reactivation branch and the jump-to-bottom button all read the same flag. |
-| The ownership rule in `handleScroll`, `SCROLL_UP_EPSILON_PX`, `SCROLL_UP_INTENT_WINDOW_MS` or `TOUCH_UP_INTENT_MIN_TRAVEL_PX` | `transcriptScrollOwnership.test.tsx` → *"scroll ownership while the answer is streaming"* pins both directions. Testing the gap alone latches the follow off mid-answer; dropping the gesture window breaks a reader drag that a fast stream outruns. |
+| The ownership rule in `handleScroll`, `SCROLL_UP_EPSILON_PX`, `SCROLL_UP_INTENT_WINDOW_MS` or `TOUCH_UP_INTENT_MIN_TRAVEL_PX` | `transcriptScrollOwnership.test.tsx` → *"scroll ownership while the answer is streaming"* pins all three directions: the gap alone latches the follow off mid-answer, dropping the gesture window breaks a reader drag that a fast stream outruns, and dropping the stand-down in `followTranscriptLayout` lets a wheel notch be overwritten before it can be measured. |
 | The `< 100` top zone or the `> 20` lock release | `topLoadLockRef` must still need an explicit move away from the top, or paging runs away. |
 | `chatMessages` shape or identity | Streaming follow intentionally keys on array identity so same-row growth is visible; restore/reactivation still protects session and claim ownership. |
 | Anything that adds a deferred scroll | It must re-read `isUserScrolledUpRef` and session/claim refs at fire time, or `transcriptScrollOwnership.test.tsx` should fail. |
