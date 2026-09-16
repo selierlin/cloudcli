@@ -530,6 +530,36 @@ export type FetchHistoryOptions = {
   limit?: number | null;
   offset?: number;
   providerSessionId?: string;
+  /** Opts into complete-turn, byte-budget pagination while the legacy row mode remains the default. */
+  pageMode?: 'rows' | 'turns';
+  /** Approximate maximum serialized bytes returned by one turn page. */
+  byteBudget?: number;
+  /** Opaque continuation token returned by the previous turn page. */
+  cursor?: string;
+  /** Stable facts from a search hit used to open a bounded Turn page around it. */
+  seek?: HistorySeekTarget;
+};
+
+/** Identifies one normalized history row without depending on volatile transport ids. */
+export type HistorySeekTarget = {
+  transcriptAnchorId?: string;
+  timestamp?: string;
+  snippet?: string;
+};
+
+/** Snapshot and continuation metadata returned only for complete-turn history pages. */
+export type TurnHistoryPageInfo = {
+  mode: 'turns';
+  snapshotVersion: string;
+  nextCursor: string | null;
+  /** Opaque continuation toward newer Turns; non-null only for a middle history window. */
+  newerCursor: string | null;
+  partial: {
+    /** The page starts inside a Turn whose older prefix is not included. */
+    older: boolean;
+    /** The page ends inside a Turn whose newer suffix is not included. */
+    newer: boolean;
+  };
 };
 
 /**
@@ -544,6 +574,7 @@ export type FetchHistoryResult = {
   offset: number;
   limit: number | null;
   tokenUsage?: unknown;
+  pageInfo?: TurnHistoryPageInfo;
 };
 
 /**

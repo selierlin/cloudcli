@@ -963,10 +963,41 @@ router.get(
     const sessionId = parseSessionId(req.params.sessionId);
     const limit = parseBoundedIntegerQuery(req.query.limit, 'limit', null, 0);
     const offset = parseBoundedIntegerQuery(req.query.offset, 'offset', 0, 0);
+    const requestedPageMode = readOptionalQueryString(req.query.pageMode);
+    if (requestedPageMode && requestedPageMode !== 'rows' && requestedPageMode !== 'turns') {
+      throw new AppError('pageMode must be "rows" or "turns".', {
+        code: 'INVALID_QUERY_PARAMETER',
+        statusCode: 400,
+      });
+    }
+    const pageMode = requestedPageMode === 'turns' ? 'turns' : 'rows';
+    const byteBudget = pageMode === 'turns'
+      ? parseBoundedIntegerQuery(req.query.byteBudget, 'byteBudget', 256 * 1024, 1024, 5 * 1024 * 1024)
+      : undefined;
+    const cursor = pageMode === 'turns' ? readOptionalQueryString(req.query.cursor) : undefined;
+    const seekTimestamp = pageMode === 'turns'
+      ? readOptionalQueryString(req.query.seekTimestamp)
+      : undefined;
+    const seekSnippet = pageMode === 'turns'
+      ? readOptionalQueryString(req.query.seekSnippet)
+      : undefined;
+    const seekAnchorId = pageMode === 'turns'
+      ? readOptionalQueryString(req.query.seekAnchorId)
+      : undefined;
 
     const result = await sessionsService.fetchHistory(sessionId, {
       limit,
       offset,
+      pageMode,
+      byteBudget,
+      cursor,
+      seek: seekTimestamp || seekSnippet || seekAnchorId
+        ? {
+            ...(seekTimestamp ? { timestamp: seekTimestamp } : {}),
+            ...(seekSnippet ? { snippet: seekSnippet } : {}),
+            ...(seekAnchorId ? { transcriptAnchorId: seekAnchorId } : {}),
+          }
+        : undefined,
     });
     res.json(createApiSuccessResponse(result));
   }),
