@@ -774,6 +774,12 @@ describe('scroll ownership while the answer is streaming', () => {
     });
     act(() => runAnimationFrame());
     act(() => runAnimationFrame());
+
+    // The write's own event reaches the handler, which is what makes the bottom
+    // the position the next sample is compared against.
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
     container.writes.length = 0;
 
     return { container, result };
@@ -806,6 +812,44 @@ describe('scroll ownership while the answer is streaming', () => {
       container.writes.at(-1),
       6600,
       'the next flush must still be followed',
+    );
+  });
+
+  it('stands down while the reader pulls, so the pull survives to be measured', async () => {
+    const { container, result } = await renderAtBottom();
+    container.setScrollHeight(6000);
+
+    // The reader turns the wheel. The browser applies that scroll to `scrollTop`
+    // before it dispatches the `scroll` event, and the event is dispatched after
+    // this commit — so a follow write here would put them back at the bottom
+    // first, and `handleScroll` would then measure a zero gap and never learn
+    // that they moved. That race is why a pull had to be fast to escape.
+    const wheel = new Event('wheel');
+    Object.defineProperty(wheel, 'deltaY', { value: -120 });
+    act(() => {
+      container.element.dispatchEvent(wheel);
+    });
+
+    act(() => {
+      result.current.followTranscriptLayout();
+    });
+    assert.deepEqual(
+      container.writes,
+      [],
+      'the follow must not overwrite the position the reader is pulling away from',
+    );
+
+    // The browser finishes applying that notch, and the event it queues reaches
+    // the handler with the movement still in the geometry.
+    container.element.scrollTop -= 120;
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+
+    assert.equal(
+      result.current.isUserScrolledUp,
+      true,
+      'the pull must be measurable once the follow has stopped overwriting it',
     );
   });
 
