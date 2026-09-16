@@ -71,7 +71,13 @@ function ProjectWorkspaceShell({
 
   return (
     <div
-      className="fixed inset-0 flex bg-background"
+      // `bottom` tracks --keyboard-height, so the virtual keyboard lifts the
+      // shell. The transition animates that lift, and the transcript's
+      // bottom-edge scroll compensation runs per frame inside the same
+      // transition, which is what keeps the chat rows gliding in lockstep
+      // with the input rather than snapping. The global reduced-motion rule
+      // disables it for those users.
+      className="fixed inset-0 flex bg-background transition-[bottom] duration-[250ms] ease-out"
       style={{ bottom: 'var(--keyboard-height, 0px)' }}
       onTouchStart={handleEdgeSwipeStart}
       onTouchMove={handleEdgeSwipeMove}

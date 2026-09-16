@@ -20,6 +20,7 @@ import {
   disclosureRegistryReducer,
   resolveReasoningDisclosureState,
 } from '@/modules/chat/utils/reasoningDisclosureRegistry';
+import { useBottomEdgeResizeCompensation } from '@/modules/chat/hooks/useBottomEdgeResizeCompensation';
 import { useLazyRowObserver } from '@/modules/chat/hooks/useLazyRowObserver';
 import LazyMessageRow from '@/modules/chat/transcript/LazyMessageRow';
 import MessageComponent from '@/modules/chat/transcript/MessageComponent';
@@ -209,6 +210,10 @@ function ChatMessagesPane({
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
   const lazyRows = useLazyRowObserver(scrollContainerRef);
+  // Keyboard/composer/window resizes move the container's bottom edge; this
+  // keeps the transcript rows glued to it so the content beside the input
+  // follows the input instead of being clipped behind it.
+  useBottomEdgeResizeCompensation(scrollContainerRef);
   const sessionId = selectedSession?.id ?? null;
   // Retains user ownership and visible duration across lazy row unmounts.
   const [disclosureRegistry, dispatchDisclosure] = useReducer(disclosureRegistryReducer, {

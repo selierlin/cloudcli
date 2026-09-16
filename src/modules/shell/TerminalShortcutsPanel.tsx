@@ -109,7 +109,10 @@ export default function TerminalShortcutsPanel({
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 z-20 px-2 md:hidden"
+      // Same keyboard-edge transition as the workspace shell: this panel
+      // floats above the shell's terminal region, so both must move together
+      // or the panel pops while the shell glides.
+      className="pointer-events-none fixed inset-x-0 z-20 px-2 transition-[bottom] duration-[250ms] ease-out md:hidden"
       style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--keyboard-height, 0px))' }}
     >
       <div className="pointer-events-auto flex items-center gap-1 overflow-x-auto rounded-lg border border-gray-700/80 bg-gray-900/95 px-1.5 py-1.5 shadow-lg backdrop-blur-sm [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
