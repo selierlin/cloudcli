@@ -11,7 +11,8 @@ The transcript is one scrolling `div`, and five separate pieces of code write it
 coordinated by a handful of refs that each one checks before acting. The shared truth is
 `isUserScrolledUp` — `false` means "the user is parked at the bottom, keep them there",
 `true` means "the user is reading, do not move them" — and it is recomputed only from
-`scroll`, `wheel` and `touchmove`, never from a height change. Every deferred automatic
+`scroll`, `wheel` and `touchmove`, never from a height change, and only from evidence that
+the *reader* moved rather than from the gap alone. Every deferred automatic
 scroll re-reads that intent through `isUserScrolledUpRef` at the moment it fires, because
 the value it was armed with may be seconds stale. Everything else — the settle after
 opening a session, the position restore after older history is prepended, the jump to a
@@ -32,10 +33,12 @@ settle loop is separate but now obeys the same synchronous user-intent ref.
 3. **`isUserScrolledUp` is the shared decision.** The follow frame, initial-settle loop,
    tab-reactivation branch and jump-to-bottom button all obey it. If the flag is `true`,
    queued automatic follow work is cancelled and the round arrow button is on screen.
-4. **The flag is only recomputed from an input event.** `handleScroll` runs on `scroll`,
-   `wheel` and `touchmove`, and applies one test — `scrollHeight - scrollTop - clientHeight
-   < 50`. Content that grows *below* the fold does not move `scrollTop`, emits no event, and
-   therefore leaves the flag stale.
+4. **The flag is only recomputed from an input event, and only from a movement.** `handleScroll`
+   runs on `scroll`, `wheel` and `touchmove`. Ownership is taken when the reader moved —
+   `scrollTop` fell by more than `SCROLL_UP_EPSILON_PX`, or a gesture is pulling the
+   transcript down — while the viewport is 50 px or more from the bottom. Content that grows
+   *below* the fold does not move `scrollTop`, emits no event, and therefore leaves the flag
+   stale.
 5. **A deferred scroll must re-read intent at fire time.** The public setter writes
    `isUserScrolledUpRef` synchronously before updating React state, so a queued frame or
    timer can ask whether the user has scrolled away since it was armed. Adding deferred
@@ -70,7 +73,7 @@ settle loop is separate but now obeys the same synchronous user-intent ref.
 | `src/index.css` | `.chat-messages-pane` / `.chat-message` containment, mobile `touch-action`, document-level overscroll containment, `.search-highlight-flash`. |
 | `src/modules/project-workspace/hooks/useVisualViewportKeyboardOffset.ts` | Publishes `--keyboard-height` so the shell shrinks above the iOS keyboard. |
 | `src/shared/ui/ScrollArea.tsx` | **Not used by chat.** `FileTree.tsx` and `SidebarContent.tsx` only. |
-| `src/modules/chat/tests/transcriptScrollOwnership.test.tsx` | Pins the two ownership bugs — the deferred scroll and the cross-session search jump. |
+| `src/modules/chat/tests/transcriptScrollOwnership.test.tsx` | Pins the three ownership bugs — the deferred scroll, the cross-session search jump, and growth being mistaken for the reader scrolling up. |
 | `src/modules/chat/tests/lazyMessageRow.test.tsx` | Pins placeholder height and the hidden-tab zero-rect case. |
 | `src/modules/chat/tests/searchTargetLocator.test.ts` | Pins snippet-first resolution, the timestamp fallback and the window size. |
 
@@ -132,11 +135,42 @@ then the only way for the user to reach the top pager or the "load all" overlay.
 `useChatSessionState.ts` → `isNearBottom` returns
 `scrollHeight - scrollTop - clientHeight < 50`, and `false` when there is no container.
 `handleScroll` calls it on every `scroll`, `wheel` and `touchmove` (after bailing out when
-the Chat tab is inactive), writes `setIsUserScrolledUp(!nearBottom)`, and records the
-current `{height, top}` into `scrollPositionRef` for the tab-reactivation restore. A
-single `setIsUserScrolledUp` wrapper writes `isUserScrolledUpRef` first and React state
-second. `handleScroll`, session reset and the composer all use that wrapper, so queued
-frames observe the new intent without waiting for a React effect.
+the Chat tab is inactive), and records the current `{height, top}` into `scrollPositionRef`
+for the tab-reactivation restore. A single `setIsUserScrolledUp` wrapper writes
+`isUserScrolledUpRef` first and React state second. `handleScroll`, session reset and the
+composer all use that wrapper, so queued frames observe the new intent without waiting for
+a React effect.
+
+**RULE: the 50 px gap does not on its own take ownership away from the follow.**
+
+A gap says nothing about *who* moved the viewport. A follow write only ever moves `scrollTop`
+down to the new bottom, and an answer that grows below a stationary viewport does not move
+`scrollTop` at all — while the browser dispatches the write's own `scroll` event
+asynchronously, so by the time `handleScroll` reads the geometry the gap already includes
+everything that arrived in between. Testing the gap alone therefore let one sample of growth
+read as "the reader scrolled up": the transcript followed, then stopped mid-answer, and the
+only way back was the jump-to-bottom button. Ownership is taken only on
+
+- a **fall** in `scrollTop` of more than `SCROLL_UP_EPSILON_PX = 2` since the previous sample.
+  A real drag and the momentum that follows it both make `scrollTop` fall; a follow write and
+  a height change both cannot; or
+- a gesture that is **pulling the transcript down**, within `SCROLL_UP_INTENT_WINDOW_MS = 800`
+  of it happening — a `wheel` with `deltaY < 0`, or a finger that has travelled more than
+  `TOUCH_UP_INTENT_MIN_TRAVEL_PX = 10` downwards since `touchstart`. A fast stream can outrun
+  a slow drag, so a sample may never fall even though the reader is deliberately pulling away;
+  the gesture is then the only evidence that survives. These listeners sit on the container
+  next to the `scroll` listener and are not the `onWheel`/`onTouchMove` props the pane is
+  handed: those re-enter `handleScroll`, while these record only the direction of travel.
+
+Both are gated on the 50 px band, so a nudge near the bottom still counts as "at the bottom".
+
+**RULE: `handleScroll` releases ownership on one condition — the reader is back at the
+bottom.**
+
+The reader may keep reading further up while the answer grows below them, so a rule that
+re-evaluated both directions from the gap would read that growth as "back at the bottom" and
+drag them down mid-read. Session reset and the composer clear the flag separately; inside
+`handleScroll` nothing but `nearBottom` does.
 
 **RULE: an append only scrolls when the user has not scrolled away, and it re-checks
 before it moves.**
@@ -168,7 +202,7 @@ inside the 50 px band arms one more frame that finishes the trip to the bottom.
 flowchart LR
   S["Settling — pendingInitialScrollRef is set"] -->|"height stable for 3 frames or 60 frames elapsed"| F["Following — isUserScrolledUp is false"]
   S -->|"a search target was armed for this session"| J["Jumping — searchScrollActiveRef is set"]
-  F -->|"input event and the gap from the bottom is 50 px or more"| D["Detached — isUserScrolledUp is true"]
+  F -->|"input event, gap of 50 px or more, and scrollTop fell or a gesture is pulling down"| D["Detached — isUserScrolledUp is true"]
   D -->|"input event and the gap is under 50 px"| F
   D -->|"jump-to-bottom button"| F
   D -->|"user sends a message"| F
@@ -211,9 +245,9 @@ sequenceDiagram
     participant S as Store
     participant E as FollowEffect
 
-    U->>P: drag upward
-    P->>H: scroll event
-    H->>H: gap is 50 px or more, set isUserScrolledUp true
+    U->>P: drag toward older messages
+    P->>H: scroll event, scrollTop has fallen
+    H->>H: gap is 50 px or more and the reader moved, set isUserScrolledUp true
     W->>S: latest streaming state published
     S->>E: same row rewritten with a fresh message-array identity
     E->>E: user intent is detached, so no follow frame is scheduled
@@ -533,6 +567,14 @@ a scroll event.
   through `handleScroll` and rewrites the flag. That is why the deferred writers guard
   themselves — an unguarded write both moves the user *and* erases the evidence that they
   had scrolled away.
+- **A `scroll` event cannot say who moved the viewport, and it arrives late.** The browser
+  dispatches it asynchronously, so the geometry it reports may already include content that
+  landed after the write which caused it. A follow write is therefore indistinguishable from
+  growth by position alone, and reading the gap as ownership latches the follow off for the
+  rest of the answer. `transcriptScrollOwnership.test.tsx` → *"keeps following when the answer
+  grows after the follow write"* drives a real `scroll` event into the production handler for
+  exactly that ordering, and the *"still hands ownership to a gesture the growing answer
+  outruns"* case pins the other direction.
 - **The pager's two thresholds are deliberately different.** You enter the trigger zone at
   `scrollTop < 100` but only release `topLoadLockRef` at `scrollTop > 20`. If both were 100,
   the restore after a prepend — which lands you near the top by design — would immediately
@@ -578,6 +620,7 @@ a scroll event.
 | If you touch | Also check |
 | --- | --- |
 | The 50 px threshold in `isNearBottom` | The follow effect, the tab-reactivation branch and the jump-to-bottom button all read the same flag. |
+| The ownership rule in `handleScroll`, `SCROLL_UP_EPSILON_PX`, `SCROLL_UP_INTENT_WINDOW_MS` or `TOUCH_UP_INTENT_MIN_TRAVEL_PX` | `transcriptScrollOwnership.test.tsx` → *"scroll ownership while the answer is streaming"* pins both directions. Testing the gap alone latches the follow off mid-answer; dropping the gesture window breaks a reader drag that a fast stream outruns. |
 | The `< 100` top zone or the `> 20` lock release | `topLoadLockRef` must still need an explicit move away from the top, or paging runs away. |
 | `chatMessages` shape or identity | Streaming follow intentionally keys on array identity so same-row growth is visible; restore/reactivation still protects session and claim ownership. |
 | Anything that adds a deferred scroll | It must re-read `isUserScrolledUpRef` and session/claim refs at fire time, or `transcriptScrollOwnership.test.tsx` should fail. |

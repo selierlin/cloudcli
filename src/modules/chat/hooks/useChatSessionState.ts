@@ -14,6 +14,23 @@ import type { SearchTarget } from '@/modules/chat/utils/searchTargetLocator';
 
 const INITIAL_VISIBLE_MESSAGES = 100;
 
+/**
+ * Height a page must insert above the reader before the pager latches its
+ * one-page-per-visit guard, and the distance the reader must move back down to
+ * release it.
+ *
+ * Both sides are the same number on purpose: latching on a page that the reader
+ * cannot scroll through would make the release condition unreachable and the
+ * pager would never serve another page. A page can insert nothing at all — a
+ * truncated window collapses every execution row into a `display:none` member of
+ * its turn's process group, and that group's summary row is drawn at its first
+ * member, which lives in an older page that is not loaded yet. The store then
+ * grows while the screen does not move, the reader stays pinned at the top, and
+ * every later wheel/touch event is swallowed by the guard while the "showing N
+ * of M" bar stays on screen.
+ */
+const TOP_LOAD_LOCK_MIN_PROGRESS_PX = 20;
+
 /** Messages kept below a search hit so it lands mid-viewport rather than at the edge. */
 const SEARCH_TARGET_CONTEXT_MESSAGES = 20;
 
@@ -24,6 +41,26 @@ const SEARCH_TARGET_CONTEXT_MESSAGES = 20;
  */
 const SEARCH_SCROLL_RETRIES = 20;
 const SEARCH_SCROLL_RETRY_DELAY_MS = 150;
+
+/**
+ * How far `scrollTop` must fall between two `scroll` samples before the move
+ * counts as the reader scrolling up rather than geometry changing underneath a
+ * stationary viewport. Sub-pixel jitter and momentum rounding both sit well
+ * below this.
+ */
+const SCROLL_UP_EPSILON_PX = 2;
+
+/**
+ * How long a gesture that pulls the transcript down keeps counting as upward
+ * intent. Streaming can grow the transcript faster than a slow drag moves the
+ * viewport, so between two samples `scrollTop` may not fall at all even though
+ * the reader is deliberately pulling away from the bottom; the gesture is then
+ * the only evidence that the reader, not the layout, owns the viewport.
+ */
+const SCROLL_UP_INTENT_WINDOW_MS = 800;
+
+/** Downward finger travel that makes a touch a read-up gesture rather than a tap. */
+const TOUCH_UP_INTENT_MIN_TRAVEL_PX = 10;
 
 /**
  * Finds the rendered row for a resolved search target.
@@ -230,6 +267,16 @@ export function useChatSessionState({
   const searchScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Latest user scroll ownership, read synchronously by queued animation frames. */
   const isUserScrolledUpRef = useRef(false);
+  /**
+   * `scrollTop` at the previous `scroll` sample. A programmatic follow write and
+   * content growth both produce `scroll` events, and neither means the reader
+   * asked to stop following; a fall between samples does.
+   */
+  const lastScrollTopSampleRef = useRef<number | null>(null);
+  /** Deadline until which a reader gesture counts as upward intent. */
+  const upwardIntentUntilRef = useRef(0);
+  /** `clientY` where the current touch drag began, or null between drags. */
+  const touchOriginYRef = useRef<number | null>(null);
   /** The sole queued streaming follow write, shared across transcript updates. */
   const followFrameRef = useRef<number | null>(null);
   /** Minimum deadline before an animated handoff may be considered settled. */
@@ -545,10 +592,10 @@ export function useChatSessionState({
 
   const loadOlderMessages = useCallback(
     async (container: HTMLDivElement) => {
-      if (!isActive) return false;
-      if (!container || isLoadingMoreRef.current || isLoadingMoreMessages) return false;
-      if (allMessagesLoadedRef.current) return false;
-      if (!hasMoreMessages || !selectedSession || !selectedProject) return false;
+      if (!isActive) return;
+      if (!container || isLoadingMoreRef.current || isLoadingMoreMessages) return;
+      if (allMessagesLoadedRef.current) return;
+      if (!hasMoreMessages || !selectedSession || !selectedProject) return;
 
       isLoadingMoreRef.current = true;
       setIsLoadingMoreMessages(true);
@@ -580,9 +627,11 @@ export function useChatSessionState({
             }
             setShowLoadAllOverlay(false);
           }
-          return false;
+          return;
         }
 
+        // The lock that keeps this to one page per visit is applied by the
+        // restore, once the page's geometry is known (see `armScrollRestore`).
         armScrollRestore(scrollRestoreState);
         setVisibleMessageCount((prev) => prev + SESSION_MESSAGES_PAGE_SIZE);
         if (!slot.hasMore) {
@@ -594,7 +643,6 @@ export function useChatSessionState({
           }
           setShowLoadAllOverlay(false);
         }
-        return true;
       } finally {
         isLoadingMoreRef.current = false;
         setIsLoadingMoreMessages(false);
@@ -609,7 +657,30 @@ export function useChatSessionState({
     if (!container) return;
 
     const nearBottom = isNearBottom();
-    setIsUserScrolledUp(!nearBottom);
+    const previousTop = lastScrollTopSampleRef.current;
+    lastScrollTopSampleRef.current = container.scrollTop;
+
+    // A `scroll` event cannot say who moved the viewport. A follow write only
+    // ever moves it down to the new bottom, and content arriving below a
+    // stationary viewport leaves `scrollTop` untouched, so a mere gap is not
+    // evidence that the reader took over — reading it as such is what let a
+    // single sample of growth latch the transcript out of following for the rest
+    // of the answer. Only a fall since the previous sample, or a gesture that is
+    // pulling the transcript down, counts.
+    const movedUp = (
+      previousTop !== null
+      && container.scrollTop < previousTop - SCROLL_UP_EPSILON_PX
+    );
+    const readerOwnsViewport = movedUp || Date.now() < upwardIntentUntilRef.current;
+    if (isUserScrolledUpRef.current) {
+      // Latching stays sticky. The reader may keep reading further up while the
+      // answer grows below them, and that growth must not read as "back at the
+      // bottom" and drag them down.
+      if (nearBottom) setIsUserScrolledUp(false);
+    } else if (!nearBottom && readerOwnsViewport) {
+      setIsUserScrolledUp(true);
+    }
+
     scrollPositionRef.current = {
       height: container.scrollHeight,
       top: container.scrollTop,
@@ -636,11 +707,16 @@ export function useChatSessionState({
     if (!allMessagesLoadedRef.current) {
       if (!scrolledNearTop) { topLoadLockRef.current = false; return; }
       if (topLoadLockRef.current) {
-        if (container.scrollTop > 20) topLoadLockRef.current = false;
+        // The reader moved back down through the page that was just inserted, so
+        // the next reach for the top is a new request. A latched guard is always
+        // releasable here: it is only set by a page that inserted more than this
+        // much above the reader (see TOP_LOAD_LOCK_MIN_PROGRESS_PX).
+        if (container.scrollTop > TOP_LOAD_LOCK_MIN_PROGRESS_PX) {
+          topLoadLockRef.current = false;
+        }
         return;
       }
-      const didLoad = await loadOlderMessages(container);
-      if (didLoad) topLoadLockRef.current = true;
+      await loadOlderMessages(container);
     }
   }, [hasMoreMessages, isActive, isNearBottom, loadOlderMessages, setIsUserScrolledUp]);
 
@@ -657,15 +733,22 @@ export function useChatSessionState({
     const container = scrollContainerRef.current;
     if (pendingScrollRestoreRef.current) {
       const { height, top, anchor, anchorOffset } = pendingScrollRestoreRef.current;
+      let insertedAbove: number;
       if (anchor?.isConnected && anchorOffset !== null) {
         const nextAnchorOffset = (
           anchor.getBoundingClientRect().top
           - container.getBoundingClientRect().top
         );
-        container.scrollTop += nextAnchorOffset - anchorOffset;
+        insertedAbove = nextAnchorOffset - anchorOffset;
+        container.scrollTop += insertedAbove;
       } else {
-        container.scrollTop = top + Math.max(container.scrollHeight - height, 0);
+        insertedAbove = Math.max(container.scrollHeight - height, 0);
+        container.scrollTop = top + insertedAbove;
       }
+      // Latching the pager's guard belongs to this commit rather than to the
+      // request that armed it: only here is the page's geometry known, and only
+      // a page the reader can actually scroll through may latch it.
+      topLoadLockRef.current = insertedAbove > TOP_LOAD_LOCK_MIN_PROGRESS_PX;
       pendingScrollRestoreRef.current = null;
       return;
     }
@@ -701,6 +784,9 @@ export function useChatSessionState({
     topLoadLockRef.current = false;
     pendingScrollRestoreRef.current = null;
     wasNearTopRef.current = false;
+    lastScrollTopSampleRef.current = null;
+    upwardIntentUntilRef.current = 0;
+    touchOriginYRef.current = null;
     setIsUserScrolledUp(false);
   }, [selectedProject?.projectId, selectedSession?.id, setIsUserScrolledUp]);
 
@@ -1129,8 +1215,51 @@ export function useChatSessionState({
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
+    // A sample only means something relative to the previous one, so the attach
+    // that starts the stream of samples is also what seeds the first of them.
+    lastScrollTopSampleRef.current = container.scrollTop;
     container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
+
+    // Gestures are the one piece of evidence a `scroll` sample cannot always
+    // carry: a follow write landing between the reader's movement and the event
+    // puts `scrollTop` back at the bottom, and a fast stream can grow the
+    // transcript faster than a slow drag moves it. Both leave a sample that
+    // looks untouched, so the gesture is tracked separately.
+    const armUpwardIntent = () => {
+      upwardIntentUntilRef.current = Date.now() + SCROLL_UP_INTENT_WINDOW_MS;
+    };
+    const handleWheel = (event: WheelEvent) => {
+      if (event.deltaY < 0) armUpwardIntent();
+    };
+    const handleTouchStart = (event: TouchEvent) => {
+      touchOriginYRef.current = event.touches[0]?.clientY ?? null;
+    };
+    const handleTouchMove = (event: TouchEvent) => {
+      const originY = touchOriginYRef.current;
+      const currentY = event.touches[0]?.clientY;
+      // A finger travelling down pulls the transcript down, so the reader is
+      // heading toward older messages.
+      if (originY !== null && currentY !== undefined && currentY - originY > TOUCH_UP_INTENT_MIN_TRAVEL_PX) {
+        armUpwardIntent();
+      }
+    };
+    const handleTouchEnd = () => {
+      touchOriginYRef.current = null;
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: true });
+    container.addEventListener('touchstart', handleTouchStart, { passive: true });
+    container.addEventListener('touchmove', handleTouchMove, { passive: true });
+    container.addEventListener('touchend', handleTouchEnd, { passive: true });
+    container.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      container.removeEventListener('wheel', handleWheel);
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+      container.removeEventListener('touchcancel', handleTouchEnd);
+    };
   }, [handleScroll]);
 
   // "Load all" overlay visibility is driven by scroll-to-top in handleScroll;

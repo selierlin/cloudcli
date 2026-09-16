@@ -84,16 +84,27 @@ function createContainer(scrollHeight: number, clientHeight: number) {
   };
 }
 
-function createStore(messagesBySession: Map<string, NormalizedMessage[]>) {
+type SlotOverrides = {
+  hasMore?: boolean;
+  total?: number;
+};
+
+function createStore(
+  messagesBySession: Map<string, NormalizedMessage[]>,
+  overrides: SlotOverrides = {},
+) {
   // A hydrated slot, so the session-loading effect takes its early return
   // instead of re-fetching on every render.
-  const slotFor = (sessionId: string) => ({
-    fetchedAt: 1,
-    status: 'idle' as const,
-    total: messagesBySession.get(sessionId)?.length ?? 0,
-    hasMore: false,
-    offset: messagesBySession.get(sessionId)?.length ?? 0,
-  });
+  const slotFor = (sessionId: string) => {
+    const count = messagesBySession.get(sessionId)?.length ?? 0;
+    return {
+      fetchedAt: 1,
+      status: 'idle' as const,
+      total: overrides.total ?? count,
+      hasMore: overrides.hasMore ?? false,
+      offset: count,
+    };
+  };
 
   return {
     fetchFromServer: vi.fn(async (sessionId: string) => slotFor(sessionId)),
@@ -457,6 +468,166 @@ describe('search jump ownership', () => {
   });
 });
 
+describe('paging at the top of the loaded window', () => {
+  /**
+   * The reader sits at the top of a 20-message first page, which is where the
+   * "showing N of M" bar is on screen. Every page below it in this session is
+   * execution rows (thinking / tool calls / tool results), and a truncated
+   * window collapses those into `display:none` members whose summary row lives
+   * at the group's first member — an older row that has not been loaded yet.
+   * The store therefore grows by 20 rows while the rendered geometry above the
+   * reader grows by nothing at all.
+   */
+  it('keeps loading older pages when a page lands without adding scrollable height', async () => {
+    const tail = buildMessages(20);
+    const older = buildMessages(20).map((message, index) => ({
+      ...message,
+      id: `older-${index}`,
+    }));
+    const messages = new Map<string, NormalizedMessage[]>([[SESSION_A, tail]]);
+    const store = createStore(messages, { hasMore: true, total: 1941 });
+
+    const { result, rerender } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    // The scroll listener attaches on the effect that follows the first page's
+    // load, so the container has to be in place before that state flush.
+    const container = createContainer(5000, 500);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+    await act(async () => undefined);
+
+    container.element.scrollTop = 0;
+    container.writes.length = 0;
+
+    store.fetchMore.mockImplementation(async (sessionId: string) => {
+      messages.set(sessionId, [...older, ...(messages.get(sessionId) ?? [])]);
+      return {
+        slot: {
+          fetchedAt: 1,
+          status: 'idle' as const,
+          total: 1941,
+          hasMore: true,
+          offset: messages.get(sessionId)?.length ?? 0,
+        },
+        prependedCount: older.length,
+      };
+    });
+
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+    act(() => {
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: true });
+    });
+
+    assert.equal(
+      store.fetchMore.mock.calls.length,
+      1,
+      'reaching the top must request the next page',
+    );
+
+    // Nothing appeared above the reader, so they push up again. That gesture is
+    // a new request; a guard that latched on the invisible page would swallow it
+    // and leave the pager dead while its bar stayed on screen.
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+
+    assert.equal(
+      store.fetchMore.mock.calls.length,
+      2,
+      'a page that inserted nothing the reader can scroll through must not lock the pager',
+    );
+  });
+
+  it('still serves one page per visit when the page does add scrollable height', async () => {
+    const tail = buildMessages(20);
+    const older = buildMessages(20).map((message, index) => ({
+      ...message,
+      id: `older-${index}`,
+    }));
+    const messages = new Map<string, NormalizedMessage[]>([[SESSION_A, tail]]);
+    const store = createStore(messages, { hasMore: true, total: 1941 });
+
+    const { result, rerender } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    document.body.appendChild(container.element);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+    await act(async () => undefined);
+
+    container.element.scrollTop = 0;
+    container.writes.length = 0;
+
+    // The pinned row, scripted as in the render-window tests: 100px below the
+    // container top before the page lands, 150px after — a page that pushes the
+    // reader down far enough to release the guard, but not out of the top zone.
+    const row = document.createElement('div');
+    row.className = 'chat-message';
+    let rowReads = 0;
+    row.getBoundingClientRect = () => {
+      const top = rowReads++ < 2 ? 100 : 150;
+      return { top, bottom: top + 100 } as DOMRect;
+    };
+    container.element.appendChild(row);
+
+    store.fetchMore.mockImplementation(async (sessionId: string) => {
+      messages.set(sessionId, [...older, ...(messages.get(sessionId) ?? [])]);
+      return {
+        slot: {
+          fetchedAt: 1,
+          status: 'idle' as const,
+          total: 1941,
+          hasMore: true,
+          offset: messages.get(sessionId)?.length ?? 0,
+        },
+        prependedCount: older.length,
+      };
+    });
+
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+    act(() => {
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: true });
+    });
+
+    assert.equal(
+      container.element.scrollTop,
+      50,
+      'the restore must move the reader down by the 50px the page inserted',
+    );
+
+    // Still inside the top zone, so the guard holds this gesture off...
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+    assert.equal(
+      store.fetchMore.mock.calls.length,
+      1,
+      'a page with real content above the reader keeps the one-page-per-visit rule',
+    );
+
+    // ...and releases on it, so the gesture after that is served: latching is
+    // only ever done by a page that can move the reader past the release point.
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+    assert.equal(
+      store.fetchMore.mock.calls.length,
+      2,
+      'a latched guard must stay releasable by the reader moving down',
+    );
+
+    container.element.remove();
+  });
+});
+
 describe('render-window growth restore', () => {
   it('keeps the pinned row in place when "load earlier" widens the window', async () => {
     const messages = new Map<string, NormalizedMessage[]>([
@@ -557,6 +728,118 @@ describe('render-window growth restore', () => {
       container.writes,
       [8500],
       'an armed restore must not outlive its own commit and fire on a later one',
+    );
+  });
+});
+
+describe('scroll ownership while the answer is streaming', () => {
+  /**
+   * A follow write and the reader's own movement both arrive as `scroll` events
+   * on the same element, so the handler has to tell them apart without a
+   * `wheel`/`touch` event to lean on. jsdom cannot lay out a transcript, so the
+   * geometry is scripted: the follow write puts `scrollTop` at the bottom, the
+   * answer then grows before the browser dispatches that write's own event, and
+   * the latch is reached through a real `scroll` event into the production
+   * handler rather than by calling `setIsUserScrolledUp` directly.
+   */
+  async function renderAtBottom() {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
+    ]);
+    const store = createStore(messages);
+    const { result, rerender } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+    await act(async () => undefined);
+    // The container listeners attach on the effect that follows a `handleScroll`
+    // identity change, so re-render with a fresh session object to make that
+    // effect re-run now that the container is in place.
+    await act(async () => {
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: true });
+    });
+
+    // The reader is at the bottom and has been sampled there.
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+
+    // A flush lands and the follow writes the new bottom.
+    act(() => {
+      container.setScrollHeight(5200);
+      result.current.followTranscriptLayout();
+    });
+    act(() => runAnimationFrame());
+    act(() => runAnimationFrame());
+    container.writes.length = 0;
+
+    return { container, result };
+  }
+
+  it('keeps following when the answer grows after the follow write', async () => {
+    const { container, result } = await renderAtBottom();
+
+    // The answer grows again before the browser gets round to dispatching the
+    // write's own `scroll` event. A handler that reads this as "the reader moved"
+    // latches the transcript out of following for the rest of the answer, which
+    // is the reported symptom: the follow works, then stops mid-answer and only
+    // the "scroll to bottom" affordance can bring it back.
+    container.setScrollHeight(6000);
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+
+    assert.equal(
+      result.current.isUserScrolledUp,
+      false,
+      'growth underneath a stationary viewport is not the reader taking over',
+    );
+
+    act(() => {
+      container.setScrollHeight(6600);
+      result.current.followTranscriptLayout();
+    });
+    assert.equal(
+      container.writes.at(-1),
+      6600,
+      'the next flush must still be followed',
+    );
+  });
+
+  it('still hands ownership to a gesture the growing answer outruns', async () => {
+    const { container, result } = await renderAtBottom();
+
+    // The reader pulls toward older messages. Here the follow write lands
+    // between their movement and the event and puts `scrollTop` back at the
+    // bottom, so the gesture is the only evidence left that they took over —
+    // without it the transcript would drag them back down mid-read.
+    container.setScrollHeight(6000);
+    const wheel = new Event('wheel');
+    Object.defineProperty(wheel, 'deltaY', { value: -120 });
+    act(() => {
+      container.element.dispatchEvent(wheel);
+    });
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+
+    assert.equal(
+      result.current.isUserScrolledUp,
+      true,
+      'a reader gesture must still take ownership away from the follow',
+    );
+
+    act(() => {
+      container.setScrollHeight(6600);
+      result.current.followTranscriptLayout();
+    });
+    assert.deepEqual(
+      container.writes,
+      [],
+      'a latched transcript must not be pulled back down',
     );
   });
 });
