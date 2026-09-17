@@ -2,10 +2,12 @@ type OpenCodeLogoProps = {
   className?: string;
 };
 
-/** Rendered by the shared LLMProviderLogo when the provider is OpenCode. */
+/** Rendered by the shared LLMProviderLogo when the provider is OpenCode.
+ * The viewBox is the tile's own bounds (the original artwork sat at 2.5,2.5 with
+ * ~10% padding on every side), so the tile fills the square slot like Claude/Pi. */
 const OpenCodeLogo = ({ className = 'w-5 h-5' }: OpenCodeLogoProps) => (
   <svg
-    viewBox="0 0 24 24"
+    viewBox="2.5 2.5 19 19"
     role="img"
     aria-label="OpenCode"
     className={className}

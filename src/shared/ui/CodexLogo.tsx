@@ -2,10 +2,13 @@ type CodexLogoProps = {
   className?: string;
 };
 
-/** Rendered by the shared LLMProviderLogo when the provider is Codex. */
+/** Rendered by the shared LLMProviderLogo when the provider is Codex.
+ * The viewBox is the mark's own bounds (the original artwork sat inside a
+ * 100,100 520x520 canvas with padding on every side), so the mark fills the
+ * square slot instead of rendering ~7% smaller than the tiled logos. */
 const CodexLogo = ({ className = 'w-5 h-5' }: CodexLogoProps) => (
   <svg
-    viewBox="100 100 520 520"
+    viewBox="118.557 119.958 484.139 479.818"
     role="img"
     aria-label="Codex"
     className={className}
