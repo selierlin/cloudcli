@@ -183,7 +183,7 @@ function SidebarSessionItem({
                 isSelected && 'bg-primary/10',
               )}
             >
-              <LLMProviderLogo provider={session.__provider} className="h-3.5 w-3.5" />
+              <LLMProviderLogo provider={session.__provider} className="h-4 w-4" />
             </div>
 
             <div className="min-w-0 flex-1">
@@ -438,7 +438,7 @@ function SidebarSessionItem({
                 isSelected && 'bg-primary/10',
               )}
             >
-              <LLMProviderLogo provider={session.__provider} className="h-3.5 w-3.5" />
+              <LLMProviderLogo provider={session.__provider} className="h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
