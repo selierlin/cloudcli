@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import zlib from 'node:zlib';
@@ -18,12 +18,50 @@ import { getDshSessionsRoot } from './dsh-models.provider.js';
 // ---------- DSH JSONL session-log decoding ----------
 //
 // The DSH ACP server persists one session as `<sessions-root>/--<project-key>--/
-// <session-id>/session.jsonl.zstd`: a concatenation of independent Zstandard frames (one header
+// <session-id>/session[.vN].jsonl.zstd`: a concatenation of independent Zstandard frames (one header
 // frame plus one frame per append batch). Directory naming mirrors
 // `@deepseek-ai/dsh-session-persistence-jsonl/src/format.ts`.
 
 const ZSTD_FRAME_MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd]);
-export const SESSION_LOG_FILE = 'session.jsonl.zstd';
+
+// The harness names the log after the immutable Session format generation:
+// version 0 keeps the original suffix-only `session.jsonl.zstd`, every later
+// generation inserts a lowercase `.vN` component (`session.v1.jsonl.zstd`,
+// `session.v3.jsonl.zstd`, …). Discovery therefore has to match the pattern
+// instead of one hardcoded name, or every session migrated to a newer
+// generation silently reads as empty history.
+const SESSION_LOG_PATTERN = /^session(?:\.v(\d+))?\.jsonl\.zstd$/;
+
+/** True when a file name is any DSH session-log format generation. */
+export function isDshSessionLogFile(fileName: string): boolean {
+  return SESSION_LOG_PATTERN.test(fileName);
+}
+
+/** Format generation encoded in a session-log file name (0 when the `.vN` part is absent). */
+function sessionLogGeneration(fileName: string): number {
+  const generation = SESSION_LOG_PATTERN.exec(fileName)?.[1];
+  return generation ? Number.parseInt(generation, 10) : 0;
+}
+
+/**
+ * Picks the log to read inside one session directory: the highest format
+ * generation present. A session migrated to a newer generation keeps the same
+ * directory, so a leftover older log must not shadow the current one.
+ */
+export function findDshSessionLogPath(sessionDir: string): string | null {
+  let names: string[];
+  try {
+    names = readdirSync(sessionDir).filter(isDshSessionLogFile);
+  } catch {
+    // Missing or unreadable directory: no session log to read.
+    return null;
+  }
+  if (names.length === 0) {
+    return null;
+  }
+  names.sort((a, b) => sessionLogGeneration(b) - sessionLogGeneration(a));
+  return path.join(sessionDir, names[0]);
+}
 
 /** Escapes one raw session id into a single safe path segment (`~XXXX` for unsafe code units). */
 export function encodeSessionSegment(raw: string): string {
@@ -101,13 +139,11 @@ export function extractText(content: unknown): string {
 
 /** Resolves the session-log path for one ACP session id under a project cwd. */
 function resolveSessionLogPath(acpSessionId: string, cwd: string): string | null {
-  const candidate = path.join(
+  return findDshSessionLogPath(path.join(
     getDshSessionsRoot(),
     projectKey(cwd),
     encodeSessionSegment(acpSessionId),
-    SESSION_LOG_FILE,
-  );
-  return existsSync(candidate) ? candidate : null;
+  ));
 }
 
 /**
@@ -132,12 +168,7 @@ function findNewestSessionLog(cwd: string): string | null {
     return null;
   }
 
-  const candidate = path.join(projectDir, entries[0], SESSION_LOG_FILE);
-  try {
-    return statSync(candidate).isFile() ? candidate : null;
-  } catch {
-    return null;
-  }
+  return findDshSessionLogPath(path.join(projectDir, entries[0]));
 }
 
 /** Converts one decoded session log into app messages, oldest first (chronological). */
