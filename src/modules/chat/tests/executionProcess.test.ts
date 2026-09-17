@@ -14,71 +14,110 @@ const message = (overrides: Partial<ChatMessage>): ChatMessage => ({
 });
 
 const keyFor = (entry: ChatMessage) => String(entry.id);
-const completedHistory = {
-  isProcessing: false,
-  isLiveCompletionPending: false,
-  tailClosures: {},
-};
+const completedHistory = { isProcessing: false };
 
 describe('execution process projection', () => {
-  it('unifies reasoning and tool activity inside one local process stage', () => {
+  it('projects one process run for all ordinary segments before the final answer', () => {
     const user = message({ id: 'u1', type: 'user', content: 'question' });
     const thought = message({ id: 'thinking', content: 'checking', isThinking: true });
-    const tool = message({ id: 'tool', type: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'completed' });
-    const answer = message({ id: 'answer', content: 'final', isStreaming: true });
-
-    const projection = deriveExecutionProcessProjection(
-      [user, thought, tool, answer], keyFor, {
-        isProcessing: true,
-        isLiveCompletionPending: false,
-        tailClosures: {},
-      },
-    );
-
-    const group = projection.groups.get('process:before:answer');
-    expect(group?.memberKeys).toEqual(new Set(['thinking', 'tool']));
-    expect(group).toMatchObject({ labelKind: 'execution', toolCount: 1 });
-    expect(projection.memberDisclosureKeys.get('answer')).toBeUndefined();
-    expect(projection.memberDisclosureKeys.get('thinking')).toBe('process:before:answer');
-  });
-
-  it('labels a reasoning-only stage as thinking without inventing tool activity', () => {
-    const user = message({ id: 'u1', type: 'user', content: 'question' });
-    const thought = message({ id: 'thinking', content: 'checking', isThinking: true });
+    const firstTool = message({ id: 'tool-1', isToolUse: true, toolName: 'Read', toolStatus: 'completed' });
+    const narration = message({ id: 'narration', content: 'Now I will run the tests.' });
+    const secondTool = message({ id: 'tool-2', isToolUse: true, toolName: 'Bash', toolStatus: 'completed' });
     const answer = message({ id: 'answer', content: 'final' });
 
     const projection = deriveExecutionProcessProjection(
-      [user, thought, answer], keyFor, completedHistory,
+      [user, thought, firstTool, narration, secondTool, answer],
+      keyFor,
+      completedHistory,
     );
 
-    expect(projection.groups.get('process:before:answer')).toMatchObject({
+    expect(projection.groups.size).toBe(1);
+    const group = projection.groups.get('process:turn:message-user-u1');
+    expect(group).toMatchObject({
+      memberKeys: new Set(['thinking', 'tool-1', 'narration', 'tool-2']),
+      narrationKeys: new Set(['narration']),
+      labelKind: 'execution',
+      activityLabel: 'Now I will run the tests.',
+      toolCount: 2,
+      defaultCollapsed: true,
+    });
+    expect(projection.memberDisclosureKeys.get('narration')).toBe(group?.disclosureKey);
+    expect(projection.memberDisclosureKeys.get('answer')).toBeUndefined();
+  });
+
+  it('labels reasoning-only and narration-only runs without inventing tool activity', () => {
+    const user = message({ id: 'u1', type: 'user', content: 'question' });
+    const thought = message({ id: 'thinking', content: 'checking', isThinking: true });
+    const answer = message({ id: 'answer', content: 'final' });
+    const reasoning = deriveExecutionProcessProjection(
+      [user, thought, answer], keyFor, completedHistory,
+    );
+    expect(reasoning.groups.get('process:turn:message-user-u1')).toMatchObject({
       labelKind: 'reasoning',
+      toolCount: 0,
+    });
+
+    const progress = message({ id: 'progress', content: 'Checkpoint complete.' });
+    const narration = deriveExecutionProcessProjection(
+      [user, progress, answer], keyFor, completedHistory,
+    );
+    expect(narration.groups.get('process:turn:message-user-u1')).toMatchObject({
+      labelKind: 'narration',
       toolCount: 0,
     });
   });
 
-  it('keeps a live deferred tail expanded but closes completed history', () => {
+  it('keeps a provisional tail answer visible until later activity absorbs it', () => {
     const user = message({ id: 'u1', type: 'user', content: 'question' });
-    const answer = message({ id: 'answer', content: 'final' });
-    const tailTool = message({ id: 'tail', type: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'completed' });
+    const provisionalAnswer = message({ id: 'progress', content: 'I will inspect the files.' });
 
-    const whileReading = deriveExecutionProcessProjection(
-      [user, answer, tailTool], keyFor, {
-        isProcessing: false,
-        isLiveCompletionPending: false,
-        tailClosures: { 'message-user-u1': 'deferred_live' },
-      },
+    const provisional = deriveExecutionProcessProjection(
+      [user, provisionalAnswer], keyFor, { isProcessing: true },
     );
-    expect(whileReading.groups.get('process:tail:tail')).toMatchObject({
-      defaultCollapsed: false,
+    expect(provisional.groups.size).toBe(0);
+
+    const tool = message({ id: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'running' });
+    const continued = deriveExecutionProcessProjection(
+      [user, provisionalAnswer, tool], keyFor, { isProcessing: true },
+    );
+    expect(continued.groups.get('process:turn:message-user-u1')).toMatchObject({
+      memberKeys: new Set(['progress', 'tool']),
+      activityLabel: 'I will inspect the files.',
+      isActiveRun: true,
+      defaultCollapsed: true,
+    });
+  });
+
+  it('marks attention members without forcing the whole process run open', () => {
+    const user = message({ id: 'u1', type: 'user', content: 'question' });
+    const tool = message({ id: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'completed' });
+    const failedTool = message({ id: 'failed', isToolUse: true, toolName: 'Bash', toolStatus: 'error' });
+    const answer = message({ id: 'answer', content: 'final' });
+
+    const projection = deriveExecutionProcessProjection(
+      [user, tool, failedTool, answer], keyFor, completedHistory,
+    );
+    expect(projection.groups.get('process:turn:message-user-u1')).toMatchObject({
+      attentionKeys: new Set(['failed']),
+      hasAttention: true,
+      defaultCollapsed: true,
+    });
+  });
+
+  it('uses a partial identity until pagination reveals the user anchor and retains it as an alias', () => {
+    const tool = message({ id: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'completed' });
+    const answer = message({ id: 'answer', content: 'final' });
+    const partial = deriveExecutionProcessProjection([tool, answer], keyFor, completedHistory);
+    expect(partial.groups.get('process:before:answer')).toMatchObject({
+      isWindowTruncated: true,
+      memberKeys: new Set(['tool']),
     });
 
-    const atTail = deriveExecutionProcessProjection(
-      [user, answer, tailTool], keyFor, completedHistory,
-    );
-    expect(atTail.groups.get('process:tail:tail')).toMatchObject({
-      memberKeys: new Set(['tail']),
-      defaultCollapsed: true,
+    const user = message({ id: 'u1', type: 'user', content: 'question' });
+    const complete = deriveExecutionProcessProjection([user, tool, answer], keyFor, completedHistory);
+    expect(complete.groups.get('process:turn:message-user-u1')).toMatchObject({
+      isWindowTruncated: false,
+      disclosureAliases: expect.arrayContaining(['process:before:answer']),
     });
   });
 
@@ -89,96 +128,15 @@ describe('execution process projection', () => {
 
   it('does not let a local command echo split the surrounding user turn', () => {
     const user = message({ id: 'u1', type: 'user', content: 'question' });
-    const preamble = message({ id: 'preamble', content: 'checking' });
+    const narration = message({ id: 'narration', content: 'checking' });
     const commandEcho = message({ id: 'command', type: 'user', content: '/model', isLocalCommand: true });
     const answer = message({ id: 'answer', content: 'final' });
 
     const projection = deriveExecutionProcessProjection(
-      [user, preamble, commandEcho, answer], keyFor, {
-        isProcessing: true,
-        isLiveCompletionPending: false,
-        tailClosures: {},
-      },
+      [user, narration, commandEcho, answer], keyFor, completedHistory,
     );
-    expect(projection.groups.get('process:before:answer')?.memberKeys).toEqual(new Set(['command']));
-    expect(projection.memberDisclosureKeys.get('preamble')).toBeUndefined();
-  });
-
-  it('keeps every answer visible and gives each surrounding process stage independent disclosure', () => {
-    const user = message({ id: 'u1', type: 'user', content: 'question' });
-    const preamble = message({ id: 'preamble', content: 'I will inspect the files.' });
-    const firstTool = message({ id: 'tool-1', type: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'completed' });
-    const explanation = message({ id: 'explanation', content: 'The first file points to another module.' });
-    const secondTool = message({ id: 'tool-2', type: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'completed' });
-    const conclusion = message({ id: 'conclusion', content: 'Here is the result.' });
-
-    const projection = deriveExecutionProcessProjection(
-      [user, preamble, firstTool, explanation, secondTool, conclusion],
-      keyFor,
-      completedHistory,
+    expect(projection.groups.get('process:turn:message-user-u1')?.memberKeys).toEqual(
+      new Set(['narration', 'command']),
     );
-
-    expect(projection.groups.get('process:before:explanation')?.memberKeys).toEqual(new Set(['tool-1']));
-    expect(projection.groups.get('process:before:conclusion')?.memberKeys).toEqual(new Set(['tool-2']));
-    expect(projection.memberDisclosureKeys.get('preamble')).toBeUndefined();
-    expect(projection.memberDisclosureKeys.get('explanation')).toBeUndefined();
-    expect(projection.memberDisclosureKeys.get('conclusion')).toBeUndefined();
-  });
-
-  it('keeps an attention stage present and expanded', () => {
-    const user = message({ id: 'u1', type: 'user', content: 'question' });
-    const failedTool = message({ id: 'failed', type: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'error' });
-    const answer = message({ id: 'answer', content: 'final' });
-
-    const projection = deriveExecutionProcessProjection(
-      [user, failedTool, answer], keyFor, {
-        isProcessing: true,
-        isLiveCompletionPending: false,
-        tailClosures: {},
-      },
-    );
-    expect(projection.groups.get('process:before:answer')).toMatchObject({
-      memberKeys: new Set(['failed']),
-      hasAttention: true,
-      defaultCollapsed: false,
-    });
-  });
-
-  it('folds a completed left-truncated history window before its user anchor loads', () => {
-    const thought = message({ id: 'thought', content: 'checking', isThinking: true });
-    const tool = message({ id: 'tool', type: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'completed' });
-    const answer = message({ id: 'answer', content: 'final' });
-
-    const projection = deriveExecutionProcessProjection([thought, tool, answer], keyFor, completedHistory);
-    const group = projection.groups.get('process:before:answer');
-    expect(group).toMatchObject({ isWindowTruncated: true, firstMemberKey: 'thought' });
-    expect(group?.memberKeys).toEqual(new Set(['thought', 'tool']));
-  });
-
-  it('keeps a left-truncated active stage expanded while its boundary can still move', () => {
-    const tool = message({ id: 'tool', type: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'completed' });
-    const answer = message({ id: 'answer', content: 'partial', isStreaming: true });
-
-    const projection = deriveExecutionProcessProjection([tool, answer], keyFor, {
-      isProcessing: true,
-      isLiveCompletionPending: false,
-      tailClosures: {},
-    });
-    expect(projection.groups.get('process:before:answer')).toMatchObject({
-      isWindowTruncated: true,
-      defaultCollapsed: false,
-    });
-  });
-
-  it('keeps the same answer-anchored disclosure key when pagination reveals its user anchor', () => {
-    const user = message({ id: 'u1', type: 'user', content: 'question' });
-    const tool = message({ id: 'tool', type: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'completed' });
-    const answer = message({ id: 'answer', content: 'final' });
-
-    const projection = deriveExecutionProcessProjection([user, tool, answer], keyFor, completedHistory);
-    expect(projection.groups.get('process:before:answer')).toMatchObject({
-      disclosureKey: 'process:before:answer',
-      isWindowTruncated: false,
-    });
   });
 });

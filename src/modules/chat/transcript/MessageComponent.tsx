@@ -29,8 +29,10 @@ type MessageComponentProps = {
   provider: LLMProvider | string;
   reasoningPresentation?: ReasoningPresentation;
   reasoningDisclosureState?: ReasoningDisclosureState;
-  /** The parent stage owns disclosure, so reasoning renders as timeline content instead of a nested accordion. */
-  isProcessStageMember?: boolean;
+  /** The message belongs to a Process Run, where reasoning stays folded beneath the visible narration spine. */
+  isProcessRunMember?: boolean;
+  /** Search temporarily reveals this reasoning block without taking disclosure ownership from the user. */
+  isReasoningSearchTarget?: boolean;
   suppressReasoningAutoCollapse?: boolean;
   onReasoningUserOpenChange?: (key: string, open: boolean) => void;
   onReasoningProgramOpen?: (key: string) => void;
@@ -54,7 +56,7 @@ const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
  * Rendered by chat's ChatMessagesPane and ToolGroupContainer to draw one
  * transcript entry — user turn, assistant turn, or a tool call and its result.
  */
-const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, reasoningPresentation, reasoningDisclosureState, isProcessStageMember, suppressReasoningAutoCollapse, onReasoningUserOpenChange, onReasoningProgramOpen, onReasoningProgramCollapse, onEditMessage, onForkFromMessage }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, reasoningPresentation, reasoningDisclosureState, isProcessRunMember, isReasoningSearchTarget, suppressReasoningAutoCollapse, onReasoningUserOpenChange, onReasoningProgramOpen, onReasoningProgramCollapse, onEditMessage, onForkFromMessage }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -307,40 +309,32 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                   )
                 )}
               </>
-            ) : message.isThinking && isProcessStageMember ? (
-              <div className="text-sm text-muted-foreground">
-                <StreamingMarkdown
-                  content={String(message.content || '')}
-                  isStreaming={Boolean(message.isStreaming)}
-                  className="prose prose-sm prose-gray max-w-none font-serif dark:prose-invert"
-                />
-                {!isExporting && (
-                  <div className="mt-3 flex items-center text-[11px]">
-                    <MessageCopyControl content={String(message.content || '')} messageType="assistant" />
-                  </div>
-                )}
-              </div>
             ) : message.isThinking ? (
               /* Thinking messages — Reasoning component (ai-elements pattern).
-                 A streaming reasoning row is left to open itself (Reasoning
-                 falls back to `isStreaming`); settled rows stay collapsed and
-                 export opens everything. The body uses StreamingMarkdown so a
-                 growing reasoning pass only re-parses its open tail, same as a
-                 reply — and the element type never changes across the
-                 streaming→settled switch, so the DOM is not rebuilt. */
+                 Standalone streaming reasoning opens itself; reasoning inside
+                 a Process Run stays folded so narration remains the visible
+                 spine. Export and a matching search reveal override the fold.
+                 The body keeps one element type across streaming completion. */
               <Reasoning
-                open={isExporting ? true : undefined}
+                open={isExporting
+                  ? true
+                  : isProcessRunMember
+                    ? Boolean(
+                        isReasoningSearchTarget
+                        || reasoningDisclosureState?.ownership === 'user_open'
+                      )
+                    : undefined}
                 isStreaming={Boolean(message.isStreaming)}
-                handoffSequence={reasoningPresentation?.handoffSequence}
-                finalAnswerStarted={reasoningPresentation?.finalAnswerStarted}
-                isAutoCollapseCandidate={reasoningPresentation?.isAutoCollapseCandidate}
-                isSupersededThinking={reasoningPresentation?.isSupersededThinking}
-                toolActivityStarted={reasoningPresentation?.toolActivityStarted}
+                handoffSequence={isProcessRunMember ? 0 : reasoningPresentation?.handoffSequence}
+                finalAnswerStarted={isProcessRunMember ? false : reasoningPresentation?.finalAnswerStarted}
+                isAutoCollapseCandidate={isProcessRunMember ? false : reasoningPresentation?.isAutoCollapseCandidate}
+                isSupersededThinking={isProcessRunMember ? false : reasoningPresentation?.isSupersededThinking}
+                toolActivityStarted={isProcessRunMember ? false : reasoningPresentation?.toolActivityStarted}
                 suppressAutoCollapse={Boolean(suppressReasoningAutoCollapse || isExporting)}
                 disclosureState={reasoningDisclosureState}
                 onUserOpenChange={handleReasoningUserOpenChange}
-                onProgramOpen={handleReasoningProgramOpen}
-                onProgramCollapse={handleReasoningProgramCollapse}
+                onProgramOpen={isProcessRunMember ? undefined : handleReasoningProgramOpen}
+                onProgramCollapse={isProcessRunMember ? undefined : handleReasoningProgramCollapse}
               >
                 <ReasoningTrigger />
                 <ReasoningContent lazyMount>
@@ -356,6 +350,17 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                   )}
                 </ReasoningContent>
               </Reasoning>
+            ) : isProcessRunMember && message.type === 'assistant' ? (
+              <div
+                dir="auto"
+                className="process-run-narration text-xs text-muted-foreground"
+              >
+                <StreamingMarkdown
+                  content={formattedMessageContent}
+                  isStreaming={Boolean(message.isStreaming)}
+                  className="prose prose-sm prose-gray max-w-none font-serif text-muted-foreground dark:prose-invert [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm"
+                />
+              </div>
             ) : (
               <div dir="auto" className="text-sm text-gray-700 dark:text-gray-300">
                 {/* Reasoning accordion */}

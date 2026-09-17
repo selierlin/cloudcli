@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -13,6 +13,11 @@ import { TOOL_GROUP_THRESHOLD } from '@/modules/chat/utils/toolGrouping';
 
 type ToolGroupContainerProps = {
   group: ToolGroupItem;
+  /** Process runs fold even a one-tool batch so opening the run reveals its outline first. */
+  collapseSingleTool?: boolean;
+  /** Lets the parent Process Run retain this batch's user-owned disclosure across unmounts. */
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
   prevMessage: ChatMessage | null;
   createDiff: (oldStr: string, newStr: string) => DiffLine[];
   getMessageKey: (message: ChatMessage) => string;
@@ -78,6 +83,9 @@ function getToolGroupIcon(icon: string | undefined, toolName: string): string {
  */
 function ToolGroupContainer({
   group,
+  collapseSingleTool = false,
+  expanded,
+  onExpandedChange,
   prevMessage,
   createDiff,
   getMessageKey,
@@ -92,7 +100,7 @@ function ToolGroupContainer({
 }: ToolGroupContainerProps) {
   const { t } = useTranslation('chat');
   const isExporting = useIsExportingTranscript();
-  const isGrouped = group.messages.length >= TOOL_GROUP_THRESHOLD;
+  const isGrouped = collapseSingleTool || group.messages.length >= TOOL_GROUP_THRESHOLD;
   const toolNames = useMemo(
     () => new Set(group.messages.map((message) => message.toolName || group.toolName)),
     [group.messages, group.toolName],
@@ -115,23 +123,19 @@ function ToolGroupContainer({
     }
     return undefined;
   }, [group.messages]);
-  // A live one-tool run starts open. If another tool joins it, retaining this
-  // state keeps the already-visible first tool mounted. Groups first loaded
-  // from history still start collapsed unless they contain an issue.
-  const [isExpanded, setIsExpanded] = useState(!isGrouped || Boolean(groupIssueStatus));
-  useEffect(() => {
-    if (groupIssueStatus) {
-      setIsExpanded(true);
-    }
-  }, [groupIssueStatus]);
-  useEffect(() => {
-    if (revealRequestId !== undefined) {
-      // Search navigation is an external imperative request; retaining it in
-      // local state lets the reader close the group normally after the jump.
-      // oxlint-disable-next-line react/set-state-in-effect
-      setIsExpanded(true);
-    }
-  }, [revealRequestId]);
+  // Standalone batches own their toggle locally; Process Run batches lift it
+  // so closing the outer disclosure does not discard the user's reading state.
+  const [internalExpanded, setInternalExpanded] = useState(!isGrouped);
+  const isExpanded = Boolean(
+    groupIssueStatus
+    || revealRequestId !== undefined
+    || (expanded ?? internalExpanded)
+  );
+  const toggleExpanded = () => {
+    const nextExpanded = !isExpanded;
+    if (expanded === undefined) setInternalExpanded(nextExpanded);
+    onExpandedChange?.(nextExpanded);
+  };
   const showChildren = !isGrouped || isExpanded || isExporting;
   const config = getToolConfig(group.toolName).input;
   const label = hasMixedTools ? t('messageTypes.tool') : config.label || group.toolName;
@@ -147,7 +151,7 @@ function ToolGroupContainer({
       <button
         type="button"
         className={`${isGrouped ? 'flex' : 'hidden'} group w-full items-center gap-2 border-l-2 ${borderClass} rounded-r-md bg-muted/25 px-3 py-2 text-left transition-colors hover:bg-muted/40 dark:bg-muted/10 dark:hover:bg-muted/20`}
-        onClick={() => setIsExpanded((current) => !current)}
+        onClick={toggleExpanded}
         aria-expanded={isExpanded}
         aria-hidden={!isGrouped}
         tabIndex={isGrouped ? 0 : -1}

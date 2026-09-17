@@ -167,13 +167,13 @@ describe('LazyMessageRow', () => {
     expect(StubIntersectionObserver.instances).toHaveLength(0);
   });
 
-  it('removes a collapsed process row from layout without unmounting its content', () => {
+  it('removes and unmounts a collapsed process row while retaining its timestamp anchor', () => {
     const { container, queryByTestId } = render(
       <Harness initiallyNearViewport isProcessCollapsed />,
     );
 
     const wrapper = container.querySelector('[data-message-timestamp="2026-01-01T00:00:00.000Z"]');
     expect(wrapper?.classList.contains('hidden')).toBe(true);
-    expect(queryByTestId('row-content')).not.toBeNull();
+    expect(queryByTestId('row-content')).toBeNull();
   });
 });

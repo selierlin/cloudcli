@@ -1,4 +1,4 @@
-import type { ChatMessage, TranscriptSegment } from '@/shared/types';
+import type { ChatMessage } from '@/shared/types';
 import { getIntrinsicMessageKey } from '@/modules/chat/utils/messageKeys';
 import {
   isAssistantTextFocusCandidate,
@@ -6,24 +6,28 @@ import {
   projectTranscriptTurns,
 } from '@/modules/chat/utils/transcriptProjection';
 
-export type ExecutionTailClosure = 'closed_live' | 'deferred_live';
-
 export type ExecutionProcessGroup = {
   /** The user-message anchor, absent while the visible window starts mid-turn. */
   turnKey?: string;
-  /** Stable UI identity: user key for a full turn, focus key for a truncated one. */
+  /** Stable UI identity for the turn's one ordinary process run. */
   disclosureKey: string;
-  /** Temporary truncated identities this full turn absorbs after pagination. */
+  /** Earlier partial identities absorbed when pagination reveals more of the turn. */
   disclosureAliases: string[];
   isWindowTruncated: boolean;
   memberKeys: Set<string>;
+  attentionKeys: Set<string>;
   firstMemberKey: string;
   hasAttention: boolean;
   hasActiveSegments: boolean;
-  /** Reasoning-only stages use a quieter label; every other process stage is execution. */
-  labelKind: 'reasoning' | 'execution';
+  isActiveRun: boolean;
+  /** The summary distinguishes thinking, tool-backed execution and prose-only process records. */
+  labelKind: 'reasoning' | 'execution' | 'narration';
+  /** Stable assistant prose rows absorbed after later activity proves they were intermediate. */
+  narrationKeys: Set<string>;
+  /** Latest intermediate prose used as the live run's compact activity label. */
+  activityLabel?: string;
   toolCount: number;
-  /** Program default only; a user-owned disclosure always overrides it. */
+  /** Ordinary process runs start folded; user and search ownership may reveal them. */
   defaultCollapsed: boolean;
 };
 
@@ -34,26 +38,12 @@ export type ExecutionProcessProjection = {
 
 export type ExecutionProcessOptions = {
   isProcessing: boolean;
-  /** True for the render between a live run ending and its closure decision committing. */
-  isLiveCompletionPending: boolean;
-  tailClosures: Record<string, ExecutionTailClosure>;
 };
 
 export { isAssistantTextFocusCandidate, isVisibleUserTurnStart };
 
-/** Finds the user anchor for the only turn that may still be live at the tail. */
-export function getRightmostVisibleTurnKey(messages: ChatMessage[]): string | null {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message && isVisibleUserTurnStart(message)) {
-      return getIntrinsicMessageKey(message);
-    }
-  }
-  return null;
-}
-
-function isProcessSegment(segment: TranscriptSegment): boolean {
-  return segment.kind !== 'answer';
+function uniqueAliases(disclosureKey: string, aliases: Array<string | undefined>): string[] {
+  return [...new Set(aliases.filter((alias): alias is string => Boolean(alias && alias !== disclosureKey)))];
 }
 
 function registerGroup(
@@ -66,9 +56,9 @@ function registerGroup(
 }
 
 /**
- * Projects visible transcript rows without requiring the page to include the
- * user anchor for a completed turn. Existing rows remain in their original
- * order; callers only use this result to control visibility and summaries.
+ * Projects each visible Turn into at most one ordinary Process Run. The final
+ * rightmost prose remains outside as the Answer; every earlier segment keeps
+ * its original order inside the run instead of becoming a separate stage.
  */
 export function deriveExecutionProcessProjection(
   messages: ChatMessage[],
@@ -79,84 +69,57 @@ export function deriveExecutionProcessProjection(
   const memberDisclosureKeys = new Map<string, string>();
   const turns = projectTranscriptTurns(messages, getMessageKey).turns;
 
-  for (let turnIndex = 0; turnIndex < turns.length; turnIndex += 1) {
-    const turn = turns[turnIndex];
-    let stageMembers: TranscriptSegment[] = [];
-    let stageStartOffset = 0;
+  turns.forEach((turn, turnIndex) => {
+    const finalAnswer = turn.segments.at(-1)?.kind === 'answer'
+      ? turn.segments.at(-1)
+      : undefined;
+    const members = finalAnswer ? turn.segments.slice(0, -1) : turn.segments;
+    if (members.length === 0) return;
 
-    const registerStage = (
-      members: TranscriptSegment[],
-      disclosureKey: string,
-      aliases: string[],
-      isWindowTruncated: boolean,
-      boundaryClosed: boolean,
-    ) => {
-      if (members.length === 0) return;
-      const hasAttention = members.some((segment) => segment.lifecycle === 'attention');
-      const hasActiveSegments = members.some((segment) => segment.lifecycle === 'active');
-      const toolCount = members.filter((segment) => segment.kind === 'tool').length;
-      registerGroup(groups, memberDisclosureKeys, {
-        disclosureKey,
-        disclosureAliases: aliases,
-        isWindowTruncated,
-        memberKeys: new Set(members.map((segment) => segment.id)),
-        firstMemberKey: members[0].id,
-        hasAttention,
-        hasActiveSegments,
-        labelKind: members.every((segment) => segment.kind === 'reasoning')
-          ? 'reasoning'
-          : 'execution',
-        toolCount,
-        defaultCollapsed: boundaryClosed && !hasAttention && !hasActiveSegments,
-      });
-    };
-
-    for (const [segmentOffset, segment] of turn.segments.entries()) {
-      if (segment.kind !== 'answer') {
-        if (stageMembers.length === 0) stageStartOffset = segmentOffset;
-        stageMembers.push(segment);
-        continue;
-      }
-
-      const members = stageMembers.filter(isProcessSegment);
-      if (members.length > 0) {
-        const disclosureKey = `process:before:${segment.id}`;
-        registerStage(
-          members,
-          disclosureKey,
-          [`process:tail:${members[0].id}`],
-          turn.boundary === 'partial' && stageStartOffset === 0,
-          segment.lifecycle === 'complete',
-        );
-      }
-      stageMembers = [];
-      stageStartOffset = segmentOffset + 1;
-    }
-
-    const trailingMembers = stageMembers.filter(isProcessSegment);
-    if (trailingMembers.length === 0) continue;
-
-    const turnKey = turn.userMessage ? getIntrinsicMessageKey(turn.userMessage) : null;
-    const isRightmostTurn = turnIndex === turns.length - 1;
-    const disclosureKey = `process:tail:${trailingMembers[0].id}`;
-    const tailClosure = options.tailClosures[disclosureKey]
-      ?? (turnKey ? options.tailClosures[turnKey] : undefined);
-    const isLiveTail = isRightmostTurn && (
-      options.isProcessing || options.isLiveCompletionPending || tailClosure !== undefined
+    const turnKey = turn.userMessage
+      ? getIntrinsicMessageKey(turn.userMessage) ?? undefined
+      : undefined;
+    const firstMemberKey = members[0].id;
+    const partialKey = finalAnswer
+      ? `process:before:${finalAnswer.id}`
+      : `process:tail:${firstMemberKey}`;
+    const disclosureKey = turnKey ? `process:turn:${turnKey}` : partialKey;
+    const narrationSegments = members.filter((segment) => segment.kind === 'answer');
+    const attentionKeys = new Set(
+      members.filter((segment) => segment.lifecycle === 'attention').map((segment) => segment.id),
     );
-    const mayCloseTail = tailClosure !== 'deferred_live' && (
-      !isLiveTail
-      || tailClosure === 'closed_live'
-      || (!options.isProcessing && !options.isLiveCompletionPending && tailClosure === undefined)
-    );
-    registerStage(
-      trailingMembers,
+    const toolCount = members.filter((segment) => segment.kind === 'tool').length;
+
+    registerGroup(groups, memberDisclosureKeys, {
+      turnKey,
       disclosureKey,
-      turnKey ? [turnKey] : [],
-      turn.boundary === 'partial' && stageStartOffset === 0,
-      mayCloseTail,
-    );
-  }
+      disclosureAliases: uniqueAliases(disclosureKey, [
+        partialKey,
+        `process:tail:${firstMemberKey}`,
+        finalAnswer ? `process:before:${finalAnswer.id}` : undefined,
+      ]),
+      isWindowTruncated: turn.boundary === 'partial',
+      memberKeys: new Set(members.map((segment) => segment.id)),
+      attentionKeys,
+      firstMemberKey,
+      hasAttention: attentionKeys.size > 0,
+      hasActiveSegments: members.some((segment) => segment.lifecycle === 'active'),
+      isActiveRun: turnIndex === turns.length - 1 && options.isProcessing,
+      labelKind: toolCount > 0
+        ? 'execution'
+        : members.every((segment) => segment.kind === 'reasoning')
+          ? 'reasoning'
+          : members.every((segment) => segment.kind === 'answer')
+            ? 'narration'
+            : 'execution',
+      narrationKeys: new Set(narrationSegments.map((segment) => segment.id)),
+      activityLabel: narrationSegments.at(-1)?.message.content
+        ? String(narrationSegments.at(-1)?.message.content)
+        : undefined,
+      toolCount,
+      defaultCollapsed: true,
+    });
+  });
 
   return { groups, memberDisclosureKeys };
 }

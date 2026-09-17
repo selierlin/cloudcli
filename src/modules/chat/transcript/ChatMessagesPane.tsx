@@ -10,11 +10,7 @@ import type { ChatMessage,
   ProviderModelActions,
   ProviderModelsDefinition } from '@/shared/types';
 import { getIntrinsicMessageKey } from '@/modules/chat/utils/messageKeys';
-import {
-  deriveExecutionProcessProjection,
-  getRightmostVisibleTurnKey,
-} from '@/modules/chat/utils/executionProcess';
-import type { ExecutionTailClosure } from '@/modules/chat/utils/executionProcess';
+import { deriveExecutionProcessProjection } from '@/modules/chat/utils/executionProcess';
 import { groupConsecutiveTools, isToolGroupItem } from '@/modules/chat/utils/toolGrouping';
 import { deriveReasoningPresentations } from '@/modules/chat/utils/reasoningDisclosure';
 import {
@@ -95,34 +91,27 @@ function estimateToolGroupRowHeight(messages: ChatMessage[]): number {
 const TOP_CHROME_SLOT_CLASS =
   'min-h-10 border-b border-gray-200 py-2 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400';
 
-const PROCESS_AUTO_COLLAPSE_DELAY_MS = 800;
-
-type ExecutionDisclosure = 'auto_open' | 'auto_closed' | 'search_open' | 'user_open' | 'user_closed';
+type ExecutionDisclosure = 'user_open' | 'user_closed';
 type ExecutionDisclosureRegistry = Record<string, Record<string, ExecutionDisclosure>>;
 const EMPTY_EXECUTION_DISCLOSURE: Record<string, ExecutionDisclosure> = {};
 type ExecutionDisclosureAction =
-  | { type: 'toggle'; sessionKey: string; disclosureKey: string; open: boolean }
-  | { type: 'program_open' | 'program_close' | 'search_open'; sessionKey: string; disclosureKey: string };
+  | { type: 'reset_session'; sessionKey: string }
+  | { type: 'toggle'; sessionKey: string; disclosureKey: string; open: boolean };
 
 function executionDisclosureReducer(
   state: ExecutionDisclosureRegistry,
   action: ExecutionDisclosureAction,
 ): ExecutionDisclosureRegistry {
+  if (action.type === 'reset_session') {
+    if (!(action.sessionKey in state)) return state;
+    const nextState = { ...state };
+    delete nextState[action.sessionKey];
+    return nextState;
+  }
   const sessionEntries = state[action.sessionKey] ?? {};
-  const nextDisclosure = action.type === 'toggle'
-    ? (action.open ? 'user_open' : 'user_closed')
-    : action.type === 'program_open'
-      ? 'auto_open'
-      : action.type === 'program_close'
-        ? 'auto_closed'
-        : 'search_open';
+  const nextDisclosure = action.open ? 'user_open' : 'user_closed';
   const existing = sessionEntries[action.disclosureKey];
   if (existing === nextDisclosure) return state;
-  if (
-    action.type !== 'toggle'
-    && action.type !== 'search_open'
-    && existing?.startsWith('user_')
-  ) return state;
   return {
     ...state,
     [action.sessionKey]: {
@@ -130,37 +119,6 @@ function executionDisclosureReducer(
       [action.disclosureKey]: nextDisclosure,
     },
   };
-}
-
-type ExecutionTailClosureAction =
-  | { type: 'reset' }
-  | { type: 'decide'; disclosureKey: string; closure: ExecutionTailClosure };
-
-function executionTailClosureReducer(
-  state: Record<string, ExecutionTailClosure>,
-  action: ExecutionTailClosureAction,
-): Record<string, ExecutionTailClosure> {
-  if (action.type === 'reset') return {};
-  if (state[action.disclosureKey] === action.closure) return state;
-  return { ...state, [action.disclosureKey]: action.closure };
-}
-
-type ActiveRunState = { sessionId: string | null; hasActiveRun: boolean };
-type ActiveRunAction =
-  | { type: 'reset'; sessionId: string | null }
-  | { type: 'started' }
-  | { type: 'completed' };
-
-function activeRunReducer(state: ActiveRunState, action: ActiveRunAction): ActiveRunState {
-  if (action.type === 'reset') {
-    return state.sessionId === action.sessionId && !state.hasActiveRun
-      ? state
-      : { sessionId: action.sessionId, hasActiveRun: false };
-  }
-  if (action.type === 'started') {
-    return state.hasActiveRun ? state : { ...state, hasActiveRun: true };
-  }
-  return state.hasActiveRun ? { ...state, hasActiveRun: false } : state;
 }
 
 type ChatMessagesPaneProps = {
@@ -288,13 +246,6 @@ function ChatMessagesPane({
   );
   const executionDisclosure = executionDisclosureRegistry[sessionDisclosureKey]
     ?? EMPTY_EXECUTION_DISCLOSURE;
-  // Records each live turn's completion decision so later scrolling cannot re-open its tail.
-  const [executionTailClosures, dispatchExecutionTailClosures] = useReducer(executionTailClosureReducer, {});
-  // Distinguishes an initially completed historical view from the render where a live run just ended.
-  const [activeRun, dispatchActiveRun] = useReducer(activeRunReducer, {
-    sessionId,
-    hasActiveRun: isProcessing,
-  });
   const reasoningPresentations = useMemo(
     () => deriveReasoningPresentations(visibleMessages, sessionId ?? 'no-session', isProcessing),
     [isProcessing, sessionId, visibleMessages],
@@ -302,9 +253,8 @@ function ChatMessagesPane({
 
   useLayoutEffect(() => {
     dispatchDisclosure({ type: 'reset', sessionId });
-    dispatchExecutionTailClosures({ type: 'reset' });
-    dispatchActiveRun({ type: 'reset', sessionId });
-  }, [sessionId]);
+    dispatchExecutionDisclosure({ type: 'reset_session', sessionKey: sessionDisclosureKey });
+  }, [sessionDisclosureKey, sessionId]);
 
   useLayoutEffect(() => {
     dispatchDisclosure({
@@ -363,14 +313,17 @@ function ChatMessagesPane({
     () => deriveExecutionProcessProjection(
       visibleMessages,
       getMessageKey,
-      {
-        isProcessing,
-        isLiveCompletionPending: !isProcessing && activeRun.hasActiveRun,
-        tailClosures: executionTailClosures,
-      },
+      { isProcessing },
     ),
-    [activeRun.hasActiveRun, executionTailClosures, getMessageKey, isProcessing, visibleMessages],
+    [getMessageKey, isProcessing, visibleMessages],
   );
+  // Detects a provisional answer becoming process narration so the scroll
+  // owner can compensate for the row disappearing into the folded run.
+  const previousProcessNarrationsRef = useRef<{
+    sessionId: string | null;
+    initialized: boolean;
+    keys: Set<string>;
+  }>({ sessionId, initialized: false, keys: new Set() });
   const groupedVisibleMessages = useMemo(
     () => groupConsecutiveTools(visibleMessages, Boolean(showThinking)),
     [visibleMessages, showThinking],
@@ -390,111 +343,30 @@ function ChatMessagesPane({
   [executionDisclosure]);
 
   useLayoutEffect(() => {
+    const previous = previousProcessNarrationsRef.current;
+    const nextKeys = new Set<string>();
     executionProjection.groups.forEach((group) => {
-      if (
-        !group.defaultCollapsed
-        && !group.hasAttention
-        && resolveExecutionDisclosure(group) === undefined
-      ) {
-        dispatchExecutionDisclosure({
-          type: 'program_open',
-          sessionKey: sessionDisclosureKey,
-          disclosureKey: group.disclosureKey,
-        });
-      }
+      group.narrationKeys.forEach((key) => nextKeys.add(key));
     });
-  }, [executionProjection, resolveExecutionDisclosure, sessionDisclosureKey]);
-
-  useLayoutEffect(() => {
-    if (!revealedMessageKey || !searchRevealRequest) return;
-    const disclosureKey = executionProjection.memberDisclosureKeys.get(revealedMessageKey);
-    if (!disclosureKey) return;
-    dispatchExecutionDisclosure({
-      type: 'search_open',
-      sessionKey: sessionDisclosureKey,
-      disclosureKey,
-    });
-  }, [
-    executionProjection,
-    revealedMessageKey,
-    searchRevealRequest,
-    sessionDisclosureKey,
-  ]);
-
-  useLayoutEffect(() => {
-    if (isUserScrolledUp) return undefined;
-    const keysToCollapse = [...executionProjection.groups.values()]
-      .filter((group) => (
-        group.defaultCollapsed
-        && !group.hasAttention
-        && !group.hasActiveSegments
-        && resolveExecutionDisclosure(group) === 'auto_open'
-      ))
-      .map((group) => group.disclosureKey);
-    if (keysToCollapse.length === 0) return undefined;
-
-    const timer = window.setTimeout(() => {
+    const sameSession = previous.sessionId === sessionId;
+    const absorbedNarration = sameSession
+      && previous.initialized
+      && [...nextKeys].some((key) => !previous.keys.has(key));
+    previousProcessNarrationsRef.current = { sessionId, initialized: true, keys: nextKeys };
+    if (absorbedNarration && isProcessing && !isUserScrolledUp) {
       onReasoningAutoCollapseStart?.();
-      keysToCollapse.forEach((disclosureKey) => {
-        dispatchExecutionDisclosure({
-          type: 'program_close',
-          sessionKey: sessionDisclosureKey,
-          disclosureKey,
-        });
-      });
-    }, PROCESS_AUTO_COLLAPSE_DELAY_MS);
-    return () => window.clearTimeout(timer);
+    }
   }, [
     executionProjection,
+    isProcessing,
     isUserScrolledUp,
     onReasoningAutoCollapseStart,
-    resolveExecutionDisclosure,
-    sessionDisclosureKey,
+    sessionId,
   ]);
-  const collapsedProcessSignature = useMemo(() => (
-    [...executionProjection.groups.values()]
-      .filter((group) => {
-        const disclosure = resolveExecutionDisclosure(group);
-        if (group.hasAttention || group.hasActiveSegments) return false;
-        return disclosure === 'user_closed'
-          || disclosure === 'auto_closed'
-          || (group.defaultCollapsed
-            && disclosure !== 'user_open'
-            && disclosure !== 'auto_open'
-            && disclosure !== 'search_open');
-      })
-      .map((group) => `${group.disclosureKey}:${[...group.memberKeys].join(',')}`)
-      .join('|')
-  ), [executionProjection, resolveExecutionDisclosure]);
-  const previousCollapsedProcessSignature = useRef('');
 
-  useLayoutEffect(() => {
-    const changed = previousCollapsedProcessSignature.current !== collapsedProcessSignature;
-    previousCollapsedProcessSignature.current = collapsedProcessSignature;
-    if (changed && collapsedProcessSignature && !isUserScrolledUp) {
-      // ChatInterface coalesces this with reasoning disclosure changes in one frame.
-      onReasoningAutoCollapseStart?.();
-    }
-  }, [collapsedProcessSignature, isUserScrolledUp, onReasoningAutoCollapseStart]);
-
-  useLayoutEffect(() => {
-    if (isProcessing) {
-      dispatchActiveRun({ type: 'started' });
-      return;
-    }
-    if (!activeRun.hasActiveRun) return;
-    const disclosureKey = getRightmostVisibleTurnKey(visibleMessages);
-    if (disclosureKey) {
-      dispatchExecutionTailClosures({
-        type: 'decide',
-        disclosureKey,
-        closure: isUserScrolledUp || executionDisclosure[disclosureKey] === 'user_open'
-          ? 'deferred_live'
-          : 'closed_live',
-      });
-    }
-    dispatchActiveRun({ type: 'completed' });
-  }, [activeRun.hasActiveRun, executionDisclosure, isProcessing, isUserScrolledUp, visibleMessages]);
+  const revealedExecutionDisclosureKey = revealedMessageKey
+    ? executionProjection.memberDisclosureKeys.get(revealedMessageKey)
+    : undefined;
 
   const toggleExecutionProcess = useCallback((disclosureKey: string, currentlyCollapsed: boolean) => {
     dispatchExecutionDisclosure({
@@ -507,20 +379,12 @@ function ChatMessagesPane({
   const isExecutionProcessCollapsed = useCallback((group: {
     disclosureKey: string;
     disclosureAliases: string[];
-    hasAttention: boolean;
-    hasActiveSegments: boolean;
     defaultCollapsed: boolean;
-    isWindowTruncated: boolean;
   }) => {
     const disclosure = resolveExecutionDisclosure(group);
-    if (group.hasAttention || group.hasActiveSegments) return false;
-    return disclosure === 'user_closed'
-      || disclosure === 'auto_closed'
-      || (group.defaultCollapsed
-        && disclosure !== 'user_open'
-        && disclosure !== 'auto_open'
-        && disclosure !== 'search_open');
-  }, [resolveExecutionDisclosure]);
+    if (revealedExecutionDisclosureKey === group.disclosureKey) return false;
+    return disclosure !== 'user_open' && group.defaultCollapsed;
+  }, [resolveExecutionDisclosure, revealedExecutionDisclosureKey]);
 
   return (
     <div
@@ -639,16 +503,29 @@ function ChatMessagesPane({
                   ? executionProjection.groups.get(executionDisclosureKey)
                   : undefined;
                 const isProcessCollapsed = Boolean(executionGroup && isExecutionProcessCollapsed(executionGroup));
+                const hasAttentionMember = Boolean(
+                  executionGroup
+                  && itemMessageKeys.some((key) => executionGroup.attentionKeys.has(key)),
+                );
+                const shouldHideProcessItem = isProcessCollapsed && !hasAttentionMember;
                 const shouldRenderSummary = Boolean(
                   executionGroup && executionGroup.firstMemberKey === itemMessageKeys[0],
                 );
+                const toolDisclosureKey = executionGroup
+                  ? `process-tools:${itemMessageKeys[0]}`
+                  : undefined;
+                const toolDisclosure = toolDisclosureKey
+                  ? executionDisclosure[toolDisclosureKey]
+                  : undefined;
 
                 return (
                   <Fragment key={`tool-group-${getMessageKey(item.messages[0])}`}>
                     {shouldRenderSummary && executionGroup && (
                       <ExecutionProcessSummary
                         collapsed={isProcessCollapsed}
+                        activityLabel={executionGroup.activityLabel}
                         hasAttention={executionGroup.hasAttention}
+                        isActiveRun={executionGroup.isActiveRun}
                         isWindowTruncated={executionGroup.isWindowTruncated}
                         labelKind={executionGroup.labelKind}
                         toolCount={executionGroup.toolCount}
@@ -661,10 +538,20 @@ function ChatMessagesPane({
                       timestamp={item.timestamp}
                       initiallyNearViewport={initiallyNearViewport}
                       estimatedHeight={estimateToolGroupRowHeight(item.messages)}
-                      isProcessCollapsed={isProcessCollapsed}
+                      isProcessCollapsed={shouldHideProcessItem}
                     >
                       <ToolGroupContainer
                         group={item}
+                        collapseSingleTool={Boolean(executionGroup)}
+                        expanded={executionGroup ? toolDisclosure === 'user_open' : undefined}
+                        onExpandedChange={toolDisclosureKey
+                          ? (open) => dispatchExecutionDisclosure({
+                              type: 'toggle',
+                              sessionKey: sessionDisclosureKey,
+                              disclosureKey: toolDisclosureKey,
+                              open,
+                            })
+                          : undefined}
                         prevMessage={groupPrevMessage}
                         createDiff={createDiff}
                         getMessageKey={getMessageKey}
@@ -701,13 +588,20 @@ function ChatMessagesPane({
                 ? executionProjection.groups.get(executionDisclosureKey)
                 : undefined;
               const isProcessCollapsed = Boolean(executionGroup && isExecutionProcessCollapsed(executionGroup));
+              const shouldHideProcessItem = Boolean(
+                executionGroup
+                && isProcessCollapsed
+                && !executionGroup.attentionKeys.has(messageKey),
+              );
 
               return (
                 <Fragment key={messageKey}>
                   {executionGroup?.firstMemberKey === messageKey && (
                     <ExecutionProcessSummary
                       collapsed={isProcessCollapsed}
+                      activityLabel={executionGroup.activityLabel}
                       hasAttention={executionGroup.hasAttention}
+                      isActiveRun={executionGroup.isActiveRun}
                       isWindowTruncated={executionGroup.isWindowTruncated}
                       labelKind={executionGroup.labelKind}
                       toolCount={executionGroup.toolCount}
@@ -720,7 +614,7 @@ function ChatMessagesPane({
                     timestamp={item.timestamp}
                     initiallyNearViewport={initiallyNearViewport}
                     estimatedHeight={estimateMessageRowHeight(item)}
-                    isProcessCollapsed={isProcessCollapsed}
+                    isProcessCollapsed={shouldHideProcessItem}
                   >
                     <MessageComponent
                       message={item}
@@ -735,7 +629,10 @@ function ChatMessagesPane({
                       provider={provider}
                       reasoningPresentation={reasoningPresentation}
                       reasoningDisclosureState={reasoningDisclosureState}
-                      isProcessStageMember={Boolean(executionGroup)}
+                      isProcessRunMember={Boolean(executionGroup)}
+                      isReasoningSearchTarget={Boolean(
+                        item.isThinking && revealedMessageKey === messageKey
+                      )}
                       suppressReasoningAutoCollapse={isUserScrolledUp}
                       onReasoningUserOpenChange={handleReasoningUserOpenChange}
                       onReasoningProgramOpen={handleReasoningProgramOpen}

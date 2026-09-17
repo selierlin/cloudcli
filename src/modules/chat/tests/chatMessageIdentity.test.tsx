@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { createRef } from 'react';
 import type { ComponentProps } from 'react';
-import { act, fireEvent, render } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 import { test, vi } from 'vitest';
 
 import type {
@@ -15,6 +15,7 @@ import type {
 import { normalizedToChatMessages } from '@/modules/chat/hooks/useChatMessages';
 import ChatMessagesPane from '@/modules/chat/transcript/ChatMessagesPane';
 import { UiPreferencesProvider } from '@/shared/context/UiPreferencesContext';
+import type * as SharedUiModule from '@/shared/ui';
 
 vi.mock('@/modules/chat/tools', () => ({
   ToolRenderer: () => null,
@@ -24,8 +25,24 @@ vi.mock('@/modules/chat/tools', () => ({
 }));
 
 vi.mock('@/modules/chat/transcript/ToolGroupContainer', () => ({
-  default: ({ group }: { group: ToolGroupItem }) => (
+  default: ({
+    group,
+    expanded,
+    onExpandedChange,
+  }: {
+    group: ToolGroupItem;
+    expanded?: boolean;
+    onExpandedChange?: (expanded: boolean) => void;
+  }) => (
     <div data-testid="tool-group">
+      <button
+        type="button"
+        data-testid="tool-group-toggle"
+        aria-expanded={expanded}
+        onClick={() => onExpandedChange?.(!expanded)}
+      >
+        tools
+      </button>
       {group.messages.map((entry) => `${entry.id}:${entry.toolStatus}`).join('|')}
     </div>
   ),
@@ -35,9 +52,13 @@ vi.mock('@/modules/chat/transcript/ProviderSelectionEmptyState', () => ({
   default: () => null,
 }));
 
-vi.mock('@/shared/ui', () => ({
-  LLMProviderLogo: () => null,
-}));
+vi.mock('@/shared/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof SharedUiModule>();
+  return {
+    ...actual,
+    LLMProviderLogo: () => null,
+  };
+});
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -186,7 +207,6 @@ test('manually closing completed process rows never hides an attention tool in t
     </UiPreferencesProvider>,
   );
 
-  fireEvent.click(view.getByRole('button', { name: /transcript.executionProcess.execution/ }));
   view.rerender(
     <UiPreferencesProvider>
       <ChatMessagesPane {...paneProps([user, completedTool, failedTool, answer])} isProcessing={false} />
@@ -198,7 +218,7 @@ test('manually closing completed process rows never hides an attention tool in t
   assert.equal(groupContent.parentElement?.classList.contains('hidden'), false);
 });
 
-test('one process disclosure reveals reasoning and tools without a nested thought disclosure', () => {
+test('an opened process run shows narration while reasoning and tools remain folded evidence', () => {
   const user: ChatMessage = {
     id: 'user', type: 'user', content: 'Inspect the code', timestamp: '2026-09-16T10:00:00.000Z',
   };
@@ -234,12 +254,133 @@ test('one process disclosure reveals reasoning and tools without a nested though
 
   fireEvent.click(view.getByRole('button', { name: /transcript.executionProcess.execution/ }));
 
-  assert.match(view.container.textContent ?? '', /private reasoning detail/);
-  assert.equal(view.queryByRole('button', { name: /Thought for/ }), null);
+  assert.doesNotMatch(view.container.textContent ?? '', /private reasoning detail/);
+  const reasoningToggle = view.getByRole('button', { name: /Thought for/ });
+  assert.equal(reasoningToggle.getAttribute('aria-expanded'), 'false');
   assert.ok(view.getByTestId('tool-group'));
+
+  fireEvent.click(reasoningToggle);
+
+  assert.match(view.container.textContent ?? '', /private reasoning detail/);
+  assert.equal(reasoningToggle.getAttribute('aria-expanded'), 'true');
+
+  const processToggle = view.getByRole('button', { name: /transcript.executionProcess.execution/ });
+  fireEvent.click(processToggle);
+  fireEvent.click(processToggle);
+
+  assert.equal(view.getByRole('button', { name: /Thought for/ }).getAttribute('aria-expanded'), 'true');
+  assert.match(view.container.textContent ?? '', /private reasoning detail/);
 });
 
-test('keeps a user-opened process stage open after switching away and back', () => {
+test('retains an opened tool batch after its outer process run closes and reopens', () => {
+  const user: ChatMessage = {
+    id: 'user', type: 'user', content: 'Inspect', timestamp: '2026-09-16T10:00:00.000Z',
+  };
+  const tool: ChatMessage = {
+    id: 'tool', type: 'assistant', content: '', timestamp: '2026-09-16T10:00:01.000Z',
+    isToolUse: true, toolName: 'Read', toolInput: { file_path: '/repo/a.ts' }, toolStatus: 'completed',
+  };
+  const answer: ChatMessage = {
+    id: 'answer', type: 'assistant', content: 'Done', timestamp: '2026-09-16T10:00:02.000Z',
+  };
+  const view = render(
+    <UiPreferencesProvider>
+      <ChatMessagesPane {...paneProps([user, tool, answer])} isProcessing={false} />
+    </UiPreferencesProvider>,
+  );
+  const processToggle = view.getByRole('button', { name: /transcript.executionProcess.execution/ });
+
+  fireEvent.click(processToggle);
+  const toolToggle = view.getByTestId('tool-group-toggle');
+  assert.equal(toolToggle.getAttribute('aria-expanded'), 'false');
+  fireEvent.click(toolToggle);
+  assert.equal(toolToggle.getAttribute('aria-expanded'), 'true');
+
+  fireEvent.click(processToggle);
+  assert.equal(view.queryByTestId('tool-group'), null);
+  fireEvent.click(processToggle);
+
+  assert.equal(view.getByTestId('tool-group-toggle').getAttribute('aria-expanded'), 'true');
+});
+
+test('search opens only the targeted reasoning inside its process run', () => {
+  const user: ChatMessage = {
+    id: 'user', type: 'user', content: 'Inspect the code', timestamp: '2026-09-16T10:00:00.000Z',
+  };
+  const firstReasoning: ChatMessage = {
+    id: 'reasoning-1', type: 'assistant', content: 'first private detail',
+    timestamp: '2026-09-16T10:00:01.000Z', isThinking: true,
+  };
+  const secondReasoning: ChatMessage = {
+    id: 'reasoning-2', type: 'assistant', content: 'target private detail',
+    timestamp: '2026-09-16T10:00:02.000Z', isThinking: true,
+  };
+  const answer: ChatMessage = {
+    id: 'answer', type: 'assistant', content: 'Finished.', timestamp: '2026-09-16T10:00:03.000Z',
+  };
+  const view = render(
+    <UiPreferencesProvider>
+      <ChatMessagesPane
+        {...paneProps([user, firstReasoning, secondReasoning, answer])}
+        isProcessing={false}
+        showThinking
+        searchRevealRequest={{
+          sessionId: 'session-1',
+          timestamp: secondReasoning.timestamp,
+          requestId: 1,
+        }}
+      />
+    </UiPreferencesProvider>,
+  );
+
+  const reasoningToggles = view.getAllByRole('button', { name: /Thought for/ });
+  assert.equal(reasoningToggles.length, 2);
+  assert.equal(reasoningToggles[0]?.getAttribute('aria-expanded'), 'false');
+  assert.equal(reasoningToggles[1]?.getAttribute('aria-expanded'), 'true');
+  assert.doesNotMatch(view.container.textContent ?? '', /first private detail/);
+  assert.match(view.container.textContent ?? '', /target private detail/);
+});
+
+test('keeps only the final assistant prose visible until its single process run is opened', () => {
+  const user: ChatMessage = {
+    id: 'user', type: 'user', content: 'Review and commit', timestamp: '2026-09-16T10:00:00.000Z',
+  };
+  const tool: ChatMessage = {
+    id: 'tool', type: 'assistant', content: '', timestamp: '2026-09-16T10:00:01.000Z',
+    isToolUse: true, toolName: 'Read', toolInput: { file_path: '/repo/a.ts' }, toolStatus: 'completed',
+  };
+  const progress: ChatMessage = {
+    id: 'progress', type: 'assistant', content: 'Commit 3: sediment docs.', timestamp: '2026-09-16T10:00:02.000Z',
+  };
+  const nextTool: ChatMessage = {
+    id: 'next-tool', type: 'assistant', content: '', timestamp: '2026-09-16T10:00:03.000Z',
+    isToolUse: true, toolName: 'Read', toolInput: { file_path: '/repo/b.ts' }, toolStatus: 'completed',
+  };
+  const finalAnswer: ChatMessage = {
+    id: 'final', type: 'assistant', content: 'Review and commits completed.', timestamp: '2026-09-16T10:00:04.000Z',
+  };
+  const view = render(
+    <UiPreferencesProvider>
+      <ChatMessagesPane
+        {...paneProps([user, tool, progress, nextTool, finalAnswer])}
+        isProcessing={false}
+      />
+    </UiPreferencesProvider>,
+  );
+
+  assert.match(view.container.textContent ?? '', /Review and commits completed/);
+  const progressRow = view.container.querySelector(
+    '[data-message-timestamp="2026-09-16T10:00:02.000Z"]',
+  );
+  assert.equal(progressRow?.getAttribute('aria-hidden'), 'true');
+
+  fireEvent.click(view.getAllByRole('button', { name: /transcript.executionProcess.execution/ })[0]);
+
+  assert.notEqual(progressRow?.getAttribute('aria-hidden'), 'true');
+  assert.ok(progressRow?.querySelector('.process-run-narration'));
+});
+
+test('restores the default folded process state after switching away and back', () => {
   const user: ChatMessage = {
     id: 'user', type: 'user', content: 'Inspect', timestamp: '2026-09-16T10:00:00.000Z',
   };
@@ -276,52 +417,79 @@ test('keeps a user-opened process stage open after switching away and back', () 
     </UiPreferencesProvider>,
   );
 
-  const groupContent = view.getByTestId('tool-group');
-  assert.equal(groupContent.parentElement?.classList.contains('hidden'), false);
+  assert.equal(view.queryByTestId('tool-group'), null);
+  assert.equal(
+    view.getByRole('button', { name: /transcript.executionProcess.execution/ }).getAttribute('aria-expanded'),
+    'false',
+  );
 });
 
-test('waits for a stable answer before auto-collapsing its preceding process stage', () => {
-  vi.useFakeTimers();
-  try {
+test('keeps the process folded across streaming completion without a delayed auto-open', () => {
+  const user: ChatMessage = {
+    id: 'user', type: 'user', content: 'Inspect', timestamp: '2026-09-16T10:00:00.000Z',
+  };
+  const tool: ChatMessage = {
+    id: 'tool', type: 'assistant', content: '', timestamp: '2026-09-16T10:00:01.000Z',
+    isToolUse: true, toolName: 'Read', toolInput: { file_path: '/repo/a.ts' }, toolStatus: 'completed',
+  };
+  const streamingAnswer: ChatMessage = {
+    id: 'answer', type: 'assistant', content: 'Almost done', timestamp: '2026-09-16T10:00:02.000Z',
+    isStreaming: true,
+  };
+  const completedAnswer = { ...streamingAnswer, content: 'Done', isStreaming: false };
+  const view = render(
+    <UiPreferencesProvider>
+      <ChatMessagesPane {...paneProps([user, tool, streamingAnswer])} />
+    </UiPreferencesProvider>,
+  );
+  assert.equal(view.queryByTestId('tool-group'), null);
+
+  view.rerender(
+    <UiPreferencesProvider>
+      <ChatMessagesPane {...paneProps([user, tool, completedAnswer])} isProcessing={false} />
+    </UiPreferencesProvider>,
+  );
+  assert.equal(view.queryByTestId('tool-group'), null);
+});
+
+test('folds newly absorbed provisional prose immediately and promotes it to the live summary', () => {
     const user: ChatMessage = {
       id: 'user', type: 'user', content: 'Inspect', timestamp: '2026-09-16T10:00:00.000Z',
     };
-    const tool: ChatMessage = {
-      id: 'tool', type: 'assistant', content: '', timestamp: '2026-09-16T10:00:01.000Z',
+    const firstTool: ChatMessage = {
+      id: 'tool-1', type: 'assistant', content: '', timestamp: '2026-09-16T10:00:01.000Z',
       isToolUse: true, toolName: 'Read', toolInput: { file_path: '/repo/a.ts' }, toolStatus: 'completed',
     };
-    const streamingAnswer: ChatMessage = {
-      id: 'answer', type: 'assistant', content: 'Almost done', timestamp: '2026-09-16T10:00:02.000Z',
-      isStreaming: true,
+    const provisionalAnswer: ChatMessage = {
+      id: 'progress', type: 'assistant', content: 'First checkpoint complete.', timestamp: '2026-09-16T10:00:02.000Z',
     };
-    const completedAnswer = { ...streamingAnswer, content: 'Done', isStreaming: false };
+    const nextTool: ChatMessage = {
+      id: 'tool-2', type: 'assistant', content: '', timestamp: '2026-09-16T10:00:03.000Z',
+      isToolUse: true, toolName: 'Read', toolInput: { file_path: '/repo/b.ts' }, toolStatus: 'running',
+    };
     const view = render(
       <UiPreferencesProvider>
-        <ChatMessagesPane {...paneProps([user, tool, streamingAnswer])} />
+        <ChatMessagesPane {...paneProps([user, firstTool, provisionalAnswer])} />
       </UiPreferencesProvider>,
     );
+    const provisionalRow = view.container.querySelector(
+      '[data-message-timestamp="2026-09-16T10:00:02.000Z"]',
+    );
+    assert.notEqual(provisionalRow?.getAttribute('aria-hidden'), 'true');
 
     view.rerender(
       <UiPreferencesProvider>
-        <ChatMessagesPane {...paneProps([user, tool, completedAnswer])} isProcessing={false} />
+        <ChatMessagesPane {...paneProps([user, firstTool, provisionalAnswer, nextTool])} />
       </UiPreferencesProvider>,
     );
-    let groupContent = view.getByTestId('tool-group');
-    assert.equal(groupContent.parentElement?.classList.contains('hidden'), false);
-
-    act(() => vi.advanceTimersByTime(799));
-    groupContent = view.getByTestId('tool-group');
-    assert.equal(groupContent.parentElement?.classList.contains('hidden'), false);
-
-    act(() => vi.advanceTimersByTime(1));
-    groupContent = view.getByTestId('tool-group');
-    assert.equal(groupContent.parentElement?.classList.contains('hidden'), true);
-  } finally {
-    vi.useRealTimers();
-  }
+    assert.equal(provisionalRow?.getAttribute('aria-hidden'), 'true');
+    assert.match(
+      view.getByRole('button', { name: /First checkpoint complete/ }).textContent ?? '',
+      /First checkpoint complete/,
+    );
 });
 
-test('opens only the completed process stage containing a search target', () => {
+test('search opens the turn\'s single process run containing the target', () => {
   const user: ChatMessage = {
     id: 'user', type: 'user', content: 'Inspect', timestamp: '2026-09-16T10:00:00.000Z',
   };
@@ -354,6 +522,8 @@ test('opens only the completed process stage containing a search target', () => 
   );
 
   const toolGroups = view.getAllByTestId('tool-group');
-  assert.equal(toolGroups[0]?.parentElement?.classList.contains('hidden'), true);
+  assert.equal(toolGroups.length, 2);
+  assert.equal(toolGroups[0]?.parentElement?.classList.contains('hidden'), false);
   assert.equal(toolGroups[1]?.parentElement?.classList.contains('hidden'), false);
+  assert.equal(view.getAllByRole('button', { name: /transcript.executionProcess.execution/ }).length, 1);
 });

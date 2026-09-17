@@ -15,7 +15,7 @@ CloudCLI supports harnesses whose streaming boundaries, reasoning delivery and t
 ## Decisions
 
 - Every rendered Segment has a deterministic identity derived from stable source facts. Content growth, realtime finalization, persistence reconciliation, pagination and lazy unmounting must not change that identity.
-- A Turn may contain multiple Answer Segments. Process Segments between answers may fold only after their boundary is closed; a whole-turn summary may collapse only after the Turn completes.
+- A Turn may emit multiple assistant prose Segments, but only its rightmost provisional prose remains an Answer. Earlier prose becomes Phase Narration in the Turn's single Process Run as defined by [ADR 0003](./0003-merge-turn-process-into-one-run.md).
 - Attention Segments remain visible while unrelated completed Process Segments may fold.
 - User disclosure ownership survives updates during the current open session and outranks automatic defaults. It is not persisted across application restarts.
 - Historical pages prefer complete Turns within a byte budget. Oversized Turns may be partial, but must expose stable identity, missing direction and an opaque continuation cursor.
