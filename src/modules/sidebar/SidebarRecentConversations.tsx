@@ -174,7 +174,7 @@ function RecentConversationRow({
       <span
         className={cn(
           'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md',
-          isSelected ? 'bg-primary/10' : 'bg-muted/60',
+          isSelected && 'bg-primary/10',
         )}
       >
         <LLMProviderLogo provider={conversation.provider} className="h-3.5 w-3.5" />
