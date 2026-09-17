@@ -180,7 +180,7 @@ function SidebarSessionItem({
             <div
               className={cn(
                 'w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0',
-                isSelected ? 'bg-primary/10' : 'bg-muted/50',
+                isSelected && 'bg-primary/10',
               )}
             >
               <LLMProviderLogo provider={session.__provider} className="h-3.5 w-3.5" />
@@ -435,7 +435,7 @@ function SidebarSessionItem({
             <div
               className={cn(
                 'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md',
-                isSelected ? 'bg-primary/10' : 'bg-muted/50',
+                isSelected && 'bg-primary/10',
               )}
             >
               <LLMProviderLogo provider={session.__provider} className="h-3.5 w-3.5" />

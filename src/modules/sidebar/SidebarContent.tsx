@@ -184,7 +184,7 @@ function ConversationTitleResultRow({
             className="flex min-w-0 flex-1 items-center gap-2 text-left"
             onClick={() => onOpen(session.projectId, session.sessionId, session.provider, session.isArchived)}
           >
-            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-muted/60">
+            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md">
               <LLMProviderLogo provider={session.provider} className="h-3.5 w-3.5" />
             </span>
             <span className="min-w-0 flex-1">
@@ -392,7 +392,7 @@ function ConversationTitleResultRow({
             className="flex min-w-0 flex-1 items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => onOpen(session.projectId, session.sessionId, session.provider, session.isArchived)}
           >
-            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-muted/60">
+            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md">
               <LLMProviderLogo provider={session.provider} className="h-3.5 w-3.5" />
             </span>
             <span className="min-w-0 flex-1">
