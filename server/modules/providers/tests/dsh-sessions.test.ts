@@ -55,10 +55,12 @@ async function writeSessionLog(
   cwd: string,
   acpSessionId: string,
   events: unknown[],
+  options: { logFileName?: string; headerVersion?: number } = {},
 ): Promise<void> {
+  const { logFileName = 'session.jsonl.zstd', headerVersion = 0 } = options;
   const header = {
     type: 'session',
-    version: 0,
+    version: headerVersion,
     id: acpSessionId,
     createdAt: Date.now(),
     cwd,
@@ -69,7 +71,7 @@ async function writeSessionLog(
 
   const logDir = path.join(sessionsRoot, projectKey(cwd), encodeSessionSegment(acpSessionId));
   await mkdir(logDir, { recursive: true });
-  await writeFile(path.join(logDir, 'session.jsonl.zstd'), Buffer.concat(frames));
+  await writeFile(path.join(logDir, logFileName), Buffer.concat(frames));
 }
 
 const userMessage = (text: string, seq: number, time: number) => ({
@@ -130,6 +132,54 @@ test('fetchHistory decodes the DSH JSONL session log via the provider session id
     assert.equal(result.messages[1]?.role, 'assistant');
     assert.equal(result.messages[1]?.content, 'Hi! How can I help?');
     assert.equal(result.messages[1]?.provider, 'dsh');
+  });
+});
+
+test('fetchHistory decodes a generation-named (v3) session log', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const acpSessionId = 'abcd-1234-v3';
+    const appSessionId = 'app-session-v3';
+    const time = Date.now();
+    await writeSessionLog(sessionsRoot, cwd, acpSessionId, [
+      userMessage('hello from v3', 1, time),
+      assistantMessage('v3 reply', 2, time + 100),
+    ], { logFileName: 'session.v3.jsonl.zstd', headerVersion: 3 });
+
+    sessionsDb.createAppSession(appSessionId, 'dsh', cwd, 'V3 session');
+    sessionsDb.assignProviderSessionId(appSessionId, acpSessionId);
+
+    const provider = new DshSessionsProvider();
+    const result = await provider.fetchHistory(appSessionId);
+
+    assert.equal(result.total, 2);
+    assert.equal(result.messages[0]?.content, 'hello from v3');
+    assert.equal(result.messages[1]?.content, 'v3 reply');
+  });
+});
+
+test('fetchHistory prefers the newest log generation when generations coexist', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const acpSessionId = 'abcd-1234-mixed';
+    const appSessionId = 'app-session-mixed';
+    const time = Date.now();
+    await writeSessionLog(sessionsRoot, cwd, acpSessionId, [
+      userMessage('stale v0 content', 1, time),
+    ]);
+    await writeSessionLog(sessionsRoot, cwd, acpSessionId, [
+      userMessage('current v3 content', 1, time),
+      assistantMessage('current v3 reply', 2, time + 100),
+    ], { logFileName: 'session.v3.jsonl.zstd', headerVersion: 3 });
+
+    sessionsDb.createAppSession(appSessionId, 'dsh', cwd, 'Mixed');
+    sessionsDb.assignProviderSessionId(appSessionId, acpSessionId);
+
+    const provider = new DshSessionsProvider();
+    const result = await provider.fetchHistory(appSessionId);
+
+    assert.deepEqual(
+      result.messages.map((message) => message.content),
+      ['current v3 content', 'current v3 reply'],
+    );
   });
 });
 
@@ -261,6 +311,47 @@ test('synchronizer indexes session logs for registered projects', async () => {
     assert.equal(indexed?.project_path, cwd);
     assert.equal(indexed?.custom_name, 'Build a CLI tool');
     assert.ok(indexed?.jsonl_path?.endsWith('session.jsonl.zstd'));
+  });
+});
+
+test('synchronizer indexes a generation-named (v3) session log', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const acpSessionId = 'dsh-session-v3-index';
+    await writeSessionLog(sessionsRoot, cwd, acpSessionId, [
+      userMessage('V3 index prompt', 1, Date.now()),
+    ], { logFileName: 'session.v3.jsonl.zstd', headerVersion: 3 });
+    projectsDb.createProjectPath(cwd);
+
+    const synchronizer = new DshSessionSynchronizer();
+    const processed = await synchronizer.synchronize();
+
+    assert.equal(processed, 1);
+    const indexed = sessionsDb.getSessionById(acpSessionId);
+    assert.equal(indexed?.provider, 'dsh');
+    assert.equal(indexed?.custom_name, 'V3 index prompt');
+    assert.ok(indexed?.jsonl_path?.endsWith('session.v3.jsonl.zstd'));
+  });
+});
+
+test('synchronizeFile and resolveTranscriptPath accept a generation-named (v3) log path', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const acpSessionId = 'dsh-session-v3-file';
+    await writeSessionLog(sessionsRoot, cwd, acpSessionId, [
+      userMessage('V3 file trigger', 1, Date.now()),
+    ], { logFileName: 'session.v3.jsonl.zstd', headerVersion: 3 });
+    projectsDb.createProjectPath(cwd);
+
+    const logPath = path.join(
+      sessionsRoot,
+      projectKey(cwd),
+      encodeSessionSegment(acpSessionId),
+      'session.v3.jsonl.zstd',
+    );
+    const synchronizer = new DshSessionSynchronizer();
+
+    assert.equal(await synchronizer.synchronizeFile(logPath), acpSessionId);
+    assert.equal(sessionsDb.getSessionById(acpSessionId)?.project_path, cwd);
+    assert.equal(await synchronizer.resolveTranscriptPath(acpSessionId, cwd), logPath);
   });
 });
 

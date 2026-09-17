@@ -6,6 +6,7 @@ import chokidar, { type FSWatcher } from 'chokidar';
 
 import { sessionSynchronizerService } from '@/modules/providers/services/session-synchronizer.service.js';
 import { getDshSessionsRoot } from '@/modules/providers/list/dsh/dsh-models.provider.js';
+import { isDshSessionLogFile } from '@/modules/providers/list/dsh/dsh-sessions.provider.js';
 import { getPiSessionsRoot } from '@/modules/providers/list/pi/pi-models.provider.js';
 import { getWorkbuddySessionRoots } from '@/modules/providers/list/workbuddy/workbuddy-storage.provider.js';
 import { getZcodeHomeDir } from '@/modules/providers/list/zcode/zcode-models.provider.js';
@@ -121,7 +122,7 @@ function isWatcherTargetFile(provider: LLMProvider, filePath: string): boolean {
   }
 
   if (provider === 'dsh') {
-    return path.basename(filePath) === 'session.jsonl.zstd';
+    return isDshSessionLogFile(path.basename(filePath));
   }
 
   if (provider === 'zcode') {

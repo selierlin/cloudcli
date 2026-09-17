@@ -10,16 +10,17 @@ CloudCLI 只读 DeepSeek Harness（DSH）写入的会话日志。Harness 升级�
 ## 范围与不变量
 
 - 数据源为 `DSH_SESSIONS_ROOT`；未设置时为 `${DSH_HOME:-~/.dsh}/sessions`。npm 版 `dsh --profile acp` 把会话写在 `~/.dsh/sessions`（旧的 dsh-desktop 桌面版 harness 目录已被取代），CloudCLI 的 `getDshHome()` 默认 `~/.dsh`，与此一致。只读，绝不修改日志。
-- 当前 CloudCLI 读取固定路径：`<root>/--<project-key>--/<encoded-session-id>/session.jsonl.zstd`。
+- 会话日志按 Session 格式世代命名，CloudCLI 读取 `<root>/--<project-key>--/<encoded-session-id>/session[.vN].jsonl.zstd` 中**世代号最大**的那份（`session.jsonl.zstd` 为 v0，`session.v3.jsonl.zstd` 为 v3）。世代号是文件名的一部分，发现逻辑必须按模式匹配；写死单个文件名会让升级后的会话静默读成空历史。
 - 日志由多个独立 Zstandard 帧顺序拼接；每帧解压后合为逻辑 JSONL。部分写入或损坏的末帧只应丢弃该帧，保留此前可读内容。
 - 检查目标：
-  - `server/modules/providers/list/dsh/dsh-sessions.provider.ts`：`decodeZstdFrames()`、`decodeSessionLog()`、`extractText()`。
+  - `server/modules/providers/list/dsh/dsh-sessions.provider.ts`：`isDshSessionLogFile()`、`findDshSessionLogPath()`、`decodeZstdFrames()`、`decodeSessionLog()`、`extractText()`。
   - `server/modules/providers/list/dsh/dsh-session-synchronizer.provider.ts`：会话发现、会话名和 project key 映射。
   - `server/modules/providers/list/dsh/dsh-models.provider.ts`：会话根目录覆盖。
+  - `server/modules/providers/services/sessions-watcher.service.ts`：watcher 目标文件过滤。
 
 ## 当前基线
 
-物理文件是 `session.jsonl.zstd`；首条逻辑 JSONL 为 `{ type: "session", version: 0, ... }`。`session.jsonl` 表示 Harness 切换为未压缩写入，而当前 CloudCLI 不会发现或读取它，必须适配。
+已确认的 header 版本为 `0`（旧，物理文件 `session.jsonl.zstd`）与 `3`（当前，物理文件 `session.v3.jsonl.zstd`）；两者的事件结构一致，同一套解码逻辑可读。`session.jsonl` 表示 Harness 切换为未压缩写入，而当前 CloudCLI 不会发现或读取它，必须适配。DSH 用一次迁移把会话重命名到新世代，因此升级后同一项目下的**全部**历史会一起失效。
 
 CloudCLI 历史渲染的唯一事件是：
 
@@ -30,7 +31,7 @@ CloudCLI 历史渲染的唯一事件是：
 
 `user/message` 的 `data.source.kind === "user"` 才是真实用户输入。`plugin`、`agent-instructions`、`skill-catalog` 等非 user 来源是 Harness 注入上下文，CloudCLI 会跳过。`source.kind` 缺失仍会被当前代码当作用户消息渲染，是最高优先级的兼容性信号。
 
-已知但不渲染的内容块为 `reasoning`、`tool-call`、`image`；当前历史读取只展示 `text`。日志中常见的生命周期、工具、压缩行和标题事件也仅作元数据处理。已在真实日志中确认的无害元数据事件：`session/end-seed`（种子阶段结束，`data: {}`）、`session/title-llm-request`（内部标题生成请求）、`model/selection`（模型选择），三者均不携带需展示的历史内容。出现未分类事件或 block 时，不要猜测格式，以真实样本确认其是否携带需要展示的历史内容。
+已知但不渲染的内容块为 `reasoning`、`tool-call`、`image`；当前历史读取只展示 `text`。日志中常见的生命周期、工具、压缩行和标题事件也仅作元数据处理。已在真实日志中确认的无害元数据事件：`session/end-seed`（种子阶段结束，`data: {}`）、`session/title-llm-request`（内部标题生成请求）、`model/selection`（模型选择）、`system/message`（`role: system` 的系统提示词，非用户输入）、`assistant/attempt`（LLM 尝试记录：`data.stream[].chunk` 为流式 chunk 或失败 finish 原因，不携带助手正文，故调用失败且无 `assistant/message` 的会话在历史里只有用户提问）。出现未分类事件或 block 时，不要猜测格式，以真实样本确认其是否携带需要展示的历史内容。
 
 ## 工作流
 
@@ -39,7 +40,7 @@ CloudCLI 历史渲染的唯一事件是：
 ```bash
 node .agents/skills/dsh-compat-check/check-dsh-format.mjs
 node .agents/skills/dsh-compat-check/check-dsh-format.mjs --all
-node .agents/skills/dsh-compat-check/check-dsh-format.mjs /absolute/path/to/session.jsonl.zstd
+node .agents/skills/dsh-compat-check/check-dsh-format.mjs /absolute/path/to/session[.vN].jsonl.zstd
 ```
 
 - 默认检查最新日志；`--all` 检查最近 5 个。
@@ -53,7 +54,7 @@ node .agents/skills/dsh-compat-check/check-dsh-format.mjs /absolute/path/to/sess
 
 1. 新的真实用户/助手事件或文本字段：修改 `decodeSessionLog()`，保留现有分支以兼容旧日志。
 2. 新注入来源：收紧用户来源判断，并同步 `DshSessionSynchronizer.extractSessionName()`，避免污染历史和会话名。
-3. 新的压缩或文件名：同时修改 `resolveSessionLogPath()`、同步器的扫描和 watcher 规则；不能只改历史读取。
+3. 新的压缩或文件名：同时修改 `findDshSessionLogPath()`/`resolveSessionLogPath()`、同步器的扫描与删除路径、以及 watcher 规则；不能只改历史读取。
 4. 新 block：仅当用户确实需要在历史中看到它时扩展 `extractText()` 或归一化模型；不要把 tool/reasoning 元数据误当正文。
 5. 在 `server/modules/providers/tests/dsh-sessions.test.ts` 增加使用新格式的 fixture，运行：
 

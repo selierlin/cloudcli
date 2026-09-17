@@ -2,8 +2,9 @@
 /**
  * DSH session-log format compatibility checker.
  *
- * Reads DeepSeek Harness session.jsonl.zstd files and compares their logical
- * JSONL records with CloudCLI's dsh-sessions.provider.ts history decoder.
+ * Reads DeepSeek Harness session session[.vN].jsonl.zstd files and compares
+ * their logical JSONL records with CloudCLI's dsh-sessions.provider.ts history
+ * decoder.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -11,12 +12,19 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 
 const ZSTD_FRAME_MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd]);
-const COMPRESSED_LOG = 'session.jsonl.zstd';
+// The harness names the log after the Session format generation: version 0 keeps
+// the suffix-only `session.jsonl.zstd`, later generations insert `.vN`.
+const COMPRESSED_LOG_PATTERN = /^session(?:\.v(\d+))?\.jsonl\.zstd$/;
+const COMPRESSED_LOG_HINT = 'session[.vN].jsonl.zstd';
 const PLAIN_LOG = 'session.jsonl';
+// Generations observed in real logs. The decoder reads both; an unknown (newer)
+// generation must be confirmed against a real sample before being trusted.
+const KNOWN_HEADER_VERSIONS = new Set([0, 3]);
 const KNOWN_RENDERED_TYPES = new Set(['user/message', 'assistant/message']);
 const KNOWN_NOT_READ_TYPES = new Map([
   ['session', '会话头（元数据）'],
   ['assistant/chunk', '流式增量已汇总到 assistant/message'],
+  ['assistant/attempt', 'LLM 尝试记录（流式 chunk 与失败原因），不携带助手正文'],
   ['agent/inbox/spliced', '上下文拼接元数据'],
   ['step/start', '步骤生命周期'], ['step/end', '步骤生命周期'],
   ['tool/call', '工具元数据'], ['tool/result', '工具元数据'],
@@ -26,6 +34,7 @@ const KNOWN_NOT_READ_TYPES = new Map([
   ['permission/preset', '权限预设元数据'], ['session/title', '会话标题元数据'],
   ['session/title-llm-request', '标题生成 LLM 请求元数据'],
   ['session/end-seed', '种子阶段结束生命周期'], ['model/selection', '模型选择元数据'],
+  ['system/message', '系统提示词（role: system，非用户输入）'],
   ['reasoning-chunks', '压缩后的推理增量'], ['text-chunks', '压缩后的文本增量'],
   ['tool-call-chunks', '压缩后的工具调用增量'],
   ['hook/invoked', 'Hook 生命周期'], ['hook/result', 'Hook 生命周期'],
@@ -91,7 +100,9 @@ function analyze(text) {
     increment(types, type);
     if (type === 'session') {
       headers += 1;
-      if (event.version !== 0) issues.push(`session header version 为 ${String(event.version)}（当前基线为 0）`);
+      if (!KNOWN_HEADER_VERSIONS.has(event.version)) {
+        issues.push(`session header version 为 ${String(event.version)}（已确认的基线为 ${[...KNOWN_HEADER_VERSIONS].join('/')}）`);
+      }
       continue;
     }
     const data = event?.data && typeof event.data === 'object' ? event.data : {};
@@ -116,6 +127,10 @@ function collectBlocks(content, blocks) {
   }
 }
 
+function isSessionLogFile(name) {
+  return COMPRESSED_LOG_PATTERN.test(name) || name === PLAIN_LOG;
+}
+
 function findLogs(limit) {
   const root = sessionsRoot();
   if (!fs.existsSync(root)) return [];
@@ -124,7 +139,7 @@ function findLogs(limit) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
-      else if (entry.name === COMPRESSED_LOG || entry.name === PLAIN_LOG) logs.push(full);
+      else if (isSessionLogFile(entry.name)) logs.push(full);
     }
   };
   walk(root);
@@ -150,7 +165,7 @@ function printReport(filePath) {
 
   console.log(`\n=== DSH transcript 格式兼容性检查 ===\n\n检查文件: ${filePath}`);
   console.log(`文件修改时间: ${fs.statSync(filePath).mtime.toISOString()}，逻辑 JSONL ${data.parsedLines} 行`);
-  if (plain) console.log(`  ⚠️ 发现未压缩 ${PLAIN_LOG}：CloudCLI 当前只发现并读取 ${COMPRESSED_LOG}`);
+  if (plain) console.log(`  ⚠️ 发现未压缩 ${PLAIN_LOG}：CloudCLI 当前只发现并读取 ${COMPRESSED_LOG_HINT}`);
   if (!plain) console.log(`  ℹ️ Zstandard 帧: ${decoded.frames} 个成功${decoded.badFrames ? `，${decoded.badFrames} 个不可读` : ''}`);
   if (data.badLines) console.log(`  ⚠️ 解压后有 ${data.badLines} 条无效 JSONL 行`);
 
@@ -187,7 +202,7 @@ const explicitPath = args.find((arg) => !arg.startsWith('--'));
 const files = explicitPath ? [path.resolve(explicitPath)] : findLogs(args.includes('--all') ? 5 : 1);
 if (files.length === 0) {
   console.log(`未找到 DSH session log。请先使用 DSH，或设置 DSH_SESSIONS_ROOT；当前目录：${sessionsRoot()}`);
-  console.log(`也可指定文件：node check-dsh-format.mjs /absolute/path/to/${COMPRESSED_LOG}`);
+  console.log(`也可指定文件：node check-dsh-format.mjs /absolute/path/to/${COMPRESSED_LOG_HINT}`);
   process.exitCode = 1;
 } else {
   let compatible = true;

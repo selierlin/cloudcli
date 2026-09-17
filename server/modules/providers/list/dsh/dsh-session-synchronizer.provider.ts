@@ -11,8 +11,9 @@ import {
   decodeZstdFrames,
   encodeSessionSegment,
   extractText,
+  findDshSessionLogPath,
+  isDshSessionLogFile,
   projectKey,
-  SESSION_LOG_FILE,
 } from './dsh-sessions.provider.js';
 
 const FALLBACK_SESSION_NAME = 'Untitled DSH Session';
@@ -21,7 +22,7 @@ const FALLBACK_SESSION_NAME = 'Untitled DSH Session';
  * Session indexer for DSH harness JSONL transcripts.
  *
  * The harness persists one session as
- * `<sessions-root>/--<project-key>--/<session-id>/session.jsonl.zstd`. The
+ * `<sessions-root>/--<project-key>--/<session-id>/session[.vN].jsonl.zstd`. The
  * project-key directory name is a one-way encoding of the session cwd (see
  * `projectKey`), so cwds are resolved by mapping every registered project path
  * through the same encoder instead of trying to reverse the slug.
@@ -59,7 +60,10 @@ export class DshSessionSynchronizer implements IProviderSessionSynchronizer {
       }
 
       for (const sessionDirName of sessionDirNames) {
-        const logPath = path.join(projectDir, sessionDirName, SESSION_LOG_FILE);
+        const logPath = findDshSessionLogPath(path.join(projectDir, sessionDirName));
+        if (!logPath) {
+          continue;
+        }
         try {
           const indexedSessionId = await this.upsertSessionLog(logPath, projectPath, sessionDirName);
           if (indexedSessionId) {
@@ -84,7 +88,7 @@ export class DshSessionSynchronizer implements IProviderSessionSynchronizer {
    * Indexes one DSH session log triggered by the filesystem watcher.
    */
   async synchronizeFile(filePath: string): Promise<string | null> {
-    if (path.basename(filePath) !== SESSION_LOG_FILE) {
+    if (!isDshSessionLogFile(path.basename(filePath))) {
       return null;
     }
 
@@ -113,18 +117,11 @@ export class DshSessionSynchronizer implements IProviderSessionSynchronizer {
    * before the watcher indexed the row. Returns null when no log exists yet.
    */
   async resolveTranscriptPath(providerSessionId: string, projectPath: string): Promise<string | null> {
-    const logPath = path.join(
+    return findDshSessionLogPath(path.join(
       getDshSessionsRoot(),
       projectKey(projectPath),
       encodeSessionSegment(providerSessionId),
-      SESSION_LOG_FILE,
-    );
-    try {
-      await fsp.access(logPath);
-      return logPath;
-    } catch {
-      return null;
-    }
+    ));
   }
 
   private async upsertSessionLog(
