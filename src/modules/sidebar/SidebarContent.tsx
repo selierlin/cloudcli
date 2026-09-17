@@ -185,7 +185,7 @@ function ConversationTitleResultRow({
             onClick={() => onOpen(session.projectId, session.sessionId, session.provider, session.isArchived)}
           >
             <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md">
-              <LLMProviderLogo provider={session.provider} className="h-3.5 w-3.5" />
+              <LLMProviderLogo provider={session.provider} className="h-4 w-4" />
             </span>
             <span className="min-w-0 flex-1">
               <span className="flex min-w-0 items-center gap-1.5">
@@ -393,7 +393,7 @@ function ConversationTitleResultRow({
             onClick={() => onOpen(session.projectId, session.sessionId, session.provider, session.isArchived)}
           >
             <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md">
-              <LLMProviderLogo provider={session.provider} className="h-3.5 w-3.5" />
+              <LLMProviderLogo provider={session.provider} className="h-4 w-4" />
             </span>
             <span className="min-w-0 flex-1">
               <span className="flex min-w-0 items-center gap-1.5">
@@ -1482,7 +1482,7 @@ export default function SidebarContent({
                             })}
                           >
                             <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-background/70">
-                              <LLMProviderLogo provider={session.__provider} className="h-3.5 w-3.5" />
+                              <LLMProviderLogo provider={session.__provider} className="h-4 w-4" />
                             </span>
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-xs text-foreground">
@@ -1598,7 +1598,7 @@ export default function SidebarContent({
                               </span>
                             )}
                             <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-background/70">
-                              <LLMProviderLogo provider={session.provider} className="h-3.5 w-3.5" />
+                              <LLMProviderLogo provider={session.provider} className="h-4 w-4" />
                             </span>
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-xs text-foreground">
