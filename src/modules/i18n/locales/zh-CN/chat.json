@@ -69,8 +69,11 @@
   "transcript": {
     "executionProcess": {
       "reasoning": "思考过程",
+      "narration": "过程记录",
       "execution": "执行过程",
+      "inProgress": "执行中",
       "toolCount": "{{count}} 次工具调用",
+      "loadedToolCount": "已加载 {{count}} 次工具调用",
       "attention": "需要处理",
       "truncated": "较早记录未加载"
     }

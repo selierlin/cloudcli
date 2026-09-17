@@ -38,7 +38,7 @@ type LazyMessageRowProps = {
   initiallyNearViewport: boolean;
   /** Content-aware placeholder height used until this row has rendered once. */
   estimatedHeight?: number;
-  /** Hides a process member without unmounting its stateful transcript subtree. */
+  /** Hides and unmounts a folded process member while retaining its timestamp anchor. */
   isProcessCollapsed?: boolean;
   children: ReactNode;
 };
@@ -84,12 +84,13 @@ export default function LazyMessageRow({
       ref={elementRef}
       data-message-timestamp={timestamp || undefined}
       aria-hidden={isProcessCollapsed || undefined}
-      // `hidden` removes the parent's `space-y` gap while retaining this row's
-      // React subtree and its tool/thinking disclosure state.
+      // `hidden` removes the parent's `space-y` gap. Folded process content is
+      // deliberately unmounted so a long run does not retain hundreds of
+      // markdown and tool-detail subtrees behind its one-line summary.
       className={isProcessCollapsed ? 'hidden' : undefined}
       style={isMounted ? undefined : { height: measuredHeight ?? estimatedHeight }}
     >
-      {isMounted ? children : null}
+      {isMounted && !isProcessCollapsed ? children : null}
     </div>
   );
 }

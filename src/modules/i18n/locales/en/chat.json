@@ -76,8 +76,11 @@
   "transcript": {
     "executionProcess": {
       "reasoning": "Thinking process",
+      "narration": "Process record",
       "execution": "Execution process",
+      "inProgress": "Running",
       "toolCount": "{{count}} tool calls",
+      "loadedToolCount": "{{count}} loaded tool calls",
       "attention": "needs attention",
       "truncated": "earlier history not loaded"
     }

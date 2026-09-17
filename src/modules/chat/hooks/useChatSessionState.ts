@@ -259,7 +259,7 @@ export function useChatSessionState({
   // State rather than a ref because resolving it widens the render window,
   // and it is cleared once the row is on screen or the retries run out.
   const [searchTarget, setSearchTarget] = useState<SearchTarget | null>(null);
-  // Identifies the search hit the pane must reveal (expand its process stage
+  // Identifies the search hit the pane must reveal (expand its process run
   // and tool group) before the scroll/highlight step runs; the rising
   // requestId lets the pane distinguish a new hit from a repeated one.
   const [searchRevealRequest, setSearchRevealRequest] = useState<TranscriptRevealRequest | null>(null);
