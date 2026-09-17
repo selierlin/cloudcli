@@ -1250,6 +1250,33 @@ export type ProviderAuthStatusMap = Record<LLMProvider, ProviderAuthStatus>;
 
 // ---------------------------
 
+//----------------- PROVIDER QUOTA ------------
+
+/** One rolling rate-limit window reported by a provider account; `usedPercent` is consumption of that window, not a billed amount, so it matches the figure the provider's own CLI shows its user. */
+export type ProviderQuotaWindow = {
+  /** Share of the window already consumed, from 0 to 100. */
+  usedPercent: number;
+  /** Length of the window in minutes, or null when the provider omits it. */
+  windowMinutes: number | null;
+  /** Unix timestamp in seconds when the window resets, or null when unknown. */
+  resetsAt: number | null;
+};
+
+/** Point-in-time quota snapshot for one provider account, returned by the provider quota endpoint; a null snapshot means the provider has nothing to display - not that the request failed - so callers render no quota panel instead of an error. */
+export type ProviderQuota = {
+  provider: LLMProvider;
+  /** Rolling windows ordered shortest first, so index 0 is the burst window. */
+  windows: ProviderQuotaWindow[];
+  /** Plan the account is on as named by the provider, or null when unreported. */
+  planType: string | null;
+  /** Prepaid credit balance, or null when the account has no credits to show. */
+  credits: string | null;
+  /** Unix timestamp in milliseconds when this snapshot was read. */
+  fetchedAt: number;
+};
+
+// ---------------------------
+
 //----------------- QUICK SETTINGS PANEL ------------
 
 /** Identifier of a boolean user preference exposed in the quick settings panel; use it as the key when reading or writing one preference. */

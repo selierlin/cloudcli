@@ -350,6 +350,19 @@
       "loggedInAs": "Angemeldet als {{email}}",
       "authenticatedUser": "authentifizierte:r Benutzer:in"
     },
+    "quota": {
+      "title": "Kontingent",
+      "window": "{{duration}}-Fenster",
+      "remaining": "{{percent}} % verbleibend",
+      "resetsAt": "Zuruecksetzung am {{time}}",
+      "resetsIn": "in {{duration}}",
+      "credits": "Verbleibende Credits: {{balance}}",
+      "duration": {
+        "minutes": "{{value}} Min.",
+        "hours": "{{value}} Std.",
+        "days": "{{value}} Tage"
+      }
+    },
     "account": {
       "claude": {
         "description": "Anthropic Claude KI-Assistent"

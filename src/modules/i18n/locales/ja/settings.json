@@ -350,6 +350,19 @@
       "loggedInAs": "{{email}}でログイン中",
       "authenticatedUser": "認証済みユーザー"
     },
+    "quota": {
+      "title": "クォータ",
+      "window": "{{duration}}枠",
+      "remaining": "残り {{percent}}%",
+      "resetsAt": "リセット {{time}}",
+      "resetsIn": "{{duration}}後",
+      "credits": "残りクレジット: {{balance}}",
+      "duration": {
+        "minutes": "{{value}} 分",
+        "hours": "{{value}} 時間",
+        "days": "{{value}} 日"
+      }
+    },
     "account": {
       "claude": {
         "description": "Anthropic Claude AIアシスタント"

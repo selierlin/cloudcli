@@ -3,6 +3,7 @@ import { stat } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import readline from 'node:readline';
 
+import type { ProviderQuota, ProviderQuotaWindow } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 
 /**
@@ -40,6 +41,26 @@ type JsonRpcResponse = {
 export type CodexThreadFork = {
   threadId: string;
   path: string;
+};
+
+/**
+ * The part of the `account/rateLimits/read` reply this app reads.
+ *
+ * Declared structurally rather than imported from the generated protocol
+ * types: those travel with the CLI package while this shape has to keep
+ * compiling when a field the server no longer sends goes missing.
+ */
+type CodexRateLimitWindow = {
+  usedPercent?: number | null;
+  windowDurationMins?: number | null;
+  resetsAt?: number | null;
+};
+
+type CodexAccountRateLimits = {
+  primary?: CodexRateLimitWindow | null;
+  secondary?: CodexRateLimitWindow | null;
+  credits?: { hasCredits?: boolean | null; balance?: string | null } | null;
+  planType?: string | null;
 };
 
 /**
@@ -191,6 +212,22 @@ async function withAppServer<T>(
   }
 }
 
+/**
+ * Normalizes one reported window, or drops it when the server sent no usable
+ * percentage. A window without a consumption figure has nothing to render, and
+ * keeping it would force every consumer to guard the same field.
+ */
+function toQuotaWindow(raw: CodexRateLimitWindow | null | undefined): ProviderQuotaWindow | null {
+  if (!raw || typeof raw.usedPercent !== 'number' || !Number.isFinite(raw.usedPercent)) {
+    return null;
+  }
+  return {
+    usedPercent: raw.usedPercent,
+    windowMinutes: typeof raw.windowDurationMins === 'number' ? raw.windowDurationMins : null,
+    resetsAt: typeof raw.resetsAt === 'number' ? raw.resetsAt : null,
+  };
+}
+
 export const codexAppServer = {
   /**
    * Copies a thread into a new one that ends at `lastTurnId`, or copies the
@@ -238,6 +275,48 @@ export const codexAppServer = {
       }
 
       return { threadId, path };
+    });
+  },
+
+  /**
+   * Reads the signed-in account's rolling rate limits.
+   *
+   * This is the call Codex's own `/status` uses, so the numbers agree with what
+   * the CLI shows its user, and reading it consumes no quota. Used by
+   * providerQuotaService to back the settings-page quota panel.
+   */
+  async readQuota(): Promise<ProviderQuota> {
+    return withAppServer(async (call) => {
+      const result = await call('account/rateLimits/read', {}) as
+        | { rateLimits?: CodexAccountRateLimits | null }
+        | undefined;
+
+      const snapshot = result?.rateLimits ?? null;
+      if (!snapshot) {
+        throw new AppError('Codex returned no rate-limit snapshot for this account.', {
+          code: 'CODEX_QUOTA_UNAVAILABLE',
+          statusCode: 502,
+        });
+      }
+
+      // `primary` is the burst window and `secondary` the long one. A plan may
+      // report only one of them, and the order is what labels them in the UI.
+      const windows = [toQuotaWindow(snapshot.primary), toQuotaWindow(snapshot.secondary)]
+        .filter((window): window is ProviderQuotaWindow => window !== null);
+
+      // A zero balance is the normal state on plans without prepaid credits,
+      // and showing "0" there reads as an exhausted budget.
+      const credits = snapshot.credits?.hasCredits && typeof snapshot.credits.balance === 'string'
+        ? snapshot.credits.balance
+        : null;
+
+      return {
+        provider: 'codex',
+        windows,
+        planType: typeof snapshot.planType === 'string' ? snapshot.planType : null,
+        credits,
+        fetchedAt: Date.now(),
+      };
     });
   },
 };

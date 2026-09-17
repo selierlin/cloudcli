@@ -375,6 +375,19 @@
       "loggedInAs": "{{email}}(으)로 로그인됨",
       "authenticatedUser": "인증된 사용자"
     },
+    "quota": {
+      "title": "할당량",
+      "window": "{{duration}} 창",
+      "remaining": "남은 {{percent}}%",
+      "resetsAt": "재설정 {{time}}",
+      "resetsIn": "{{duration}} 후",
+      "credits": "남은 크레딧: {{balance}}",
+      "duration": {
+        "minutes": "{{value}}분",
+        "hours": "{{value}}시간",
+        "days": "{{value}}일"
+      }
+    },
     "account": {
       "claude": {
         "description": "Anthropic Claude AI 어시스턴트"

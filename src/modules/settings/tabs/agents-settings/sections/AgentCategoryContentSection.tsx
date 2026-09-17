@@ -4,6 +4,7 @@ import { ProviderSkills } from '@/modules/skills';
 import AccountContent from '@/modules/settings/tabs/agents-settings/sections/content/AccountContent';
 import ClaudeSettingsSourceSection from '@/modules/settings/tabs/agents-settings/sections/content/ClaudeSettingsSourceSection';
 import PermissionsContent from '@/modules/settings/tabs/agents-settings/sections/content/PermissionsContent';
+import ProviderQuotaSection from '@/modules/settings/tabs/agents-settings/sections/content/ProviderQuotaSection';
 
 type AgentCategoryContentSectionProps = {
   selectedAgent: AgentProvider;
@@ -52,6 +53,7 @@ export default function AgentCategoryContentSection({
             authStatus={agentContextById[selectedAgent].authStatus}
             onLogin={agentContextById[selectedAgent].onLogin}
           />
+          <ProviderQuotaSection agent={selectedAgent} />
           {selectedAgent === 'claude' && <ClaudeSettingsSourceSection />}
         </div>
       )}

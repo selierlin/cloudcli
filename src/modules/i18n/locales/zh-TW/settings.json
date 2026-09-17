@@ -393,6 +393,19 @@
       "loggedInAs": "登入為 {{email}}",
       "authenticatedUser": "已驗證使用者"
     },
+    "quota": {
+      "title": "額度",
+      "window": "{{duration}}視窗",
+      "remaining": "剩餘 {{percent}}%",
+      "resetsAt": "重置時間 {{time}}",
+      "resetsIn": "{{duration}}後",
+      "credits": "剩餘積分 {{balance}}",
+      "duration": {
+        "minutes": "{{value}} 分鐘",
+        "hours": "{{value}} 小時",
+        "days": "{{value}} 天"
+      }
+    },
     "account": {
       "claude": {
         "description": "Anthropic Claude AI 助手"

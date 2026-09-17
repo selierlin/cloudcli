@@ -790,6 +790,42 @@ export type ProviderAuthStatus = {
 };
 
 // ---------------------------
+//----------------- PROVIDER QUOTA TYPES ------------
+/**
+ * One rolling rate-limit window reported by a provider account.
+ *
+ * Windows describe consumption of a rolling budget rather than a billed
+ * amount: `usedPercent` is what the provider's own CLI shows its user.
+ */
+export type ProviderQuotaWindow = {
+  /** Share of the window already consumed, from 0 to 100. */
+  usedPercent: number;
+  /** Length of the rolling window in minutes, or null when the provider omits it. */
+  windowMinutes: number | null;
+  /** Unix timestamp in seconds when the window resets, or null when unknown. */
+  resetsAt: number | null;
+};
+
+/**
+ * Point-in-time quota snapshot for one provider account.
+ *
+ * Only providers with a readable quota source produce this. Callers treat a
+ * missing snapshot as "nothing to display" rather than as a failure, so a
+ * provider that is signed out or unsupported simply renders no quota.
+ */
+export type ProviderQuota = {
+  provider: LLMProvider;
+  /** Rolling windows ordered shortest first, so index 0 is the burst window. */
+  windows: ProviderQuotaWindow[];
+  /** Plan the account is on as named by the provider, or null when unreported. */
+  planType: string | null;
+  /** Prepaid credit balance, or null when the account has no credits to show. */
+  credits: string | null;
+  /** Unix timestamp in milliseconds when this snapshot was read. */
+  fetchedAt: number;
+};
+
+// ---------------------------
 //----------------- SHARED DATABASE CREDENTIAL TYPES ------------
 /**
  * Safe credential view returned by credential listing APIs.

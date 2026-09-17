@@ -351,6 +351,19 @@
       "loggedInAs": "{{email}} olarak giriş yapıldı",
       "authenticatedUser": "kimliği doğrulanmış kullanıcı"
     },
+    "quota": {
+      "title": "Kota",
+      "window": "{{duration}} penceresi",
+      "remaining": "%{{percent}} kaldi",
+      "resetsAt": "{{time}} tarihinde sifirlanir",
+      "resetsIn": "{{duration}} sonra",
+      "credits": "Kalan kredi: {{balance}}",
+      "duration": {
+        "minutes": "{{value}} dk",
+        "hours": "{{value}} sa",
+        "days": "{{value}} g"
+      }
+    },
     "account": {
       "claude": {
         "description": "Anthropic Claude AI asistanı"
