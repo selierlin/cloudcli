@@ -452,6 +452,19 @@
       "loggedInAs": "Logged in as {{email}}",
       "authenticatedUser": "authenticated user"
     },
+    "quota": {
+      "title": "Quota",
+      "window": "{{duration}} window",
+      "remaining": "{{percent}}% remaining",
+      "resetsAt": "Resets at {{time}}",
+      "resetsIn": "in {{duration}}",
+      "credits": "Credits remaining: {{balance}}",
+      "duration": {
+        "minutes": "{{value}}m",
+        "hours": "{{value}}h",
+        "days": "{{value}}d"
+      }
+    },
     "account": {
       "claude": {
         "description": "Anthropic Claude AI assistant"

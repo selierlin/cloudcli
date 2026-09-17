@@ -350,6 +350,19 @@
       "loggedInAs": "Вошли как {{email}}",
       "authenticatedUser": "аутентифицированный пользователь"
     },
+    "quota": {
+      "title": "Квота",
+      "window": "Окно {{duration}}",
+      "remaining": "Осталось {{percent}}%",
+      "resetsAt": "Сброс {{time}}",
+      "resetsIn": "через {{duration}}",
+      "credits": "Осталось кредитов: {{balance}}",
+      "duration": {
+        "minutes": "{{value}} мин",
+        "hours": "{{value}} ч",
+        "days": "{{value}} д"
+      }
+    },
     "account": {
       "claude": {
         "description": "AI-ассистент Anthropic Claude"

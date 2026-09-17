@@ -375,6 +375,19 @@
       "loggedInAs": "Sesión iniciada como {{email}}",
       "authenticatedUser": "usuario autenticado"
     },
+    "quota": {
+      "title": "Cuota",
+      "window": "Ventana de {{duration}}",
+      "remaining": "{{percent}} % restante",
+      "resetsAt": "Se restablece el {{time}}",
+      "resetsIn": "en {{duration}}",
+      "credits": "Creditos restantes: {{balance}}",
+      "duration": {
+        "minutes": "{{value}} min",
+        "hours": "{{value}} h",
+        "days": "{{value}} d"
+      }
+    },
     "account": {
       "claude": {
         "description": "Asistente de IA Claude de Anthropic"
