@@ -580,6 +580,14 @@ router.get(
 );
 
 router.get(
+  '/available',
+  asyncHandler(async (_req: Request, res: Response) => {
+    const providers = await providerAuthService.listInstalledProviders();
+    res.json(createApiSuccessResponse({ providers }));
+  }),
+);
+
+router.get(
   '/:provider/quota',
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
