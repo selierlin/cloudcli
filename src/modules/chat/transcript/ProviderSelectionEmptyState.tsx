@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, Plus } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 
@@ -29,6 +29,7 @@ import {
 import ModelLibraryPanel from "@/modules/chat/modals/ModelLibraryPanel";
 import { groupModelOptions } from "@/modules/chat/utils/modelGrouping";
 import { writeSelectedProvider } from '@/shared/selectedProvider';
+import { useAvailableProviders } from '@/modules/chat/hooks/useAvailableProviders';
 
 const PROVIDER_META: { id: LLMProvider; name: string }[] = [
   { id: "claude", name: "Anthropic" },
@@ -136,6 +137,20 @@ export default function ProviderSelectionEmptyState({
   const { t } = useTranslation("chat");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [modelLibraryOpen, setModelLibraryOpen] = useState(false);
+  const availableProviders = useAvailableProviders();
+
+  const visibleProviders = useMemo(
+    () => PROVIDER_META.filter(({ id }) => availableProviders?.has(id)),
+    [availableProviders],
+  );
+
+  useEffect(() => {
+    const fallbackProvider = visibleProviders[0]?.id;
+    if (fallbackProvider && !availableProviders?.has(provider)) {
+      setProvider(fallbackProvider);
+      writeSelectedProvider(fallbackProvider);
+    }
+  }, [availableProviders, provider, setProvider, visibleProviders]);
 
   const nextTaskPrompt = t("tasks.nextTaskPrompt", {
     defaultValue: "Start the next task",
@@ -218,7 +233,7 @@ export default function ProviderSelectionEmptyState({
               {t("providerSelection.chooseTool", { defaultValue: "1 · Choose your tool" })}
             </p>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              {PROVIDER_META.map((p) => {
+              {visibleProviders.map((p) => {
                 const isActive = provider === p.id;
                 const toolModelLabel = getModelLabel(p.id, providerModels[p.id], providerModelCatalog);
                 return (
@@ -251,6 +266,16 @@ export default function ProviderSelectionEmptyState({
                   </button>
                 );
               })}
+              {availableProviders === null && (
+                <p className="col-span-2 py-4 text-center text-xs text-muted-foreground">
+                  {t('providerSelection.checkingTools', { defaultValue: 'Checking installed tools…' })}
+                </p>
+              )}
+              {availableProviders && visibleProviders.length === 0 && (
+                <p className="col-span-2 py-4 text-center text-xs text-muted-foreground">
+                  {t('providerSelection.noInstalledTools', { defaultValue: 'No supported tools are installed.' })}
+                </p>
+              )}
             </div>
           </div>
 

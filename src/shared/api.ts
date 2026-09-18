@@ -381,6 +381,7 @@ export const api = {
   // Provider (coding agent) endpoints — models, capabilities, sessions, MCP, skills.
   providers: {
     capabilities: () => get('/api/providers/capabilities'),
+    available: () => get('/api/providers/available'),
     authStatus: (provider: string) =>
       get(`/api/providers/${encodeURIComponent(provider)}/auth/status`),
     quota: (provider: string) =>

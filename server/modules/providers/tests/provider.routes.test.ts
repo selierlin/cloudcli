@@ -79,6 +79,31 @@ test('session creation route names a CloudCLI session from the initial message',
   });
 });
 
+test('available providers route returns only installed harnesses', async () => {
+  const listProviders = mock.method(providerRegistry, 'listProviders', () => [
+    {
+      id: 'claude',
+      auth: { getStatus: async () => ({ installed: true }) },
+    },
+    {
+      id: 'opencode',
+      auth: { getStatus: async () => ({ installed: false }) },
+    },
+  ] as any);
+
+  try {
+    await withProviderServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/providers/available`);
+      const payload = await response.json() as { data: { providers: string[] } };
+
+      assert.equal(response.status, 200);
+      assert.deepEqual(payload.data.providers, ['claude']);
+    });
+  } finally {
+    listProviders.mock.restore();
+  }
+});
+
 test('session pin route persists the requested state and validates its body', async () => {
   await withProviderServer(async (baseUrl, workspacePath) => {
     sessionsDb.createAppSession('pinned-session', 'codex', workspacePath, 'Pin me');
