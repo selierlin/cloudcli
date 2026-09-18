@@ -6,7 +6,7 @@ import {
   normalizeAttachmentDescriptors
 } from '@/shared/image-attachments.js';
 import { notifyRunFailed, notifyRunStopped } from '@/modules/notifications/index.js';
-import { createCompleteMessage, createDeltaBatcher, createNormalizedMessage, flattenPromptForWindowsShell } from '@/shared/utils.js';
+import { createCompleteMessage, createDeltaBatcher, createNormalizedMessage, flattenPromptForWindowsShell, stripAnsiSequences } from '@/shared/utils.js';
 
 // cross-spawn resolves .cmd shims/PATHEXT on Windows and delegates to
 // child_process.spawn everywhere else.
@@ -315,7 +315,14 @@ async function spawnCursor(command, options = {}, ws, context) {
           return;
         }
 
-        send(createNormalizedMessage({ kind: 'error', content: stderrText, sessionId: capturedSessionId || sessionId || null, provider: 'cursor' }));
+        // The CLI styles its stderr for a terminal; the chat renders plain
+        // text, so the escapes have to go before the text is surfaced.
+        const cleanedStderrText = stripAnsiSequences(stderrText);
+        if (!cleanedStderrText.trim()) {
+          return;
+        }
+
+        send(createNormalizedMessage({ kind: 'error', content: cleanedStderrText, sessionId: capturedSessionId || sessionId || null, provider: 'cursor' }));
       });
 
       // Handle process completion

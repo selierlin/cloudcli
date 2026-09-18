@@ -243,6 +243,39 @@ function extractCodexTextContent(content: unknown): string {
     .join('\n');
 }
 
+/** Reads image inputs from a typed UserMessage item. */
+function extractCodexTypedUserImages(
+  content: unknown,
+): Array<{ path?: string; data?: string }> | undefined {
+  if (!Array.isArray(content)) {
+    return undefined;
+  }
+
+  const attachments: Array<{ path?: string; data?: string }> = [];
+  for (const rawEntry of content) {
+    const entry = readObjectRecord(rawEntry);
+    if (!entry) {
+      continue;
+    }
+
+    const value = entry.type === 'local_image'
+      ? readNonEmptyString(entry.path)
+      : entry.type === 'image'
+        ? readNonEmptyString(entry.image_url)
+        : undefined;
+    if (!value) {
+      continue;
+    }
+    if (value.startsWith('data:')) {
+      attachments.push({ data: value });
+    } else {
+      attachments.push(...toImageAttachments([value]));
+    }
+  }
+
+  return attachments.length > 0 ? attachments : undefined;
+}
+
 /**
  * Reads the markdown out of Codex's `<proposed_plan>` envelope.
  *
@@ -1469,7 +1502,10 @@ async function getCodexSessionMessages(sessionId: string): Promise<CodexHistoryR
       if (payload.type === 'item_completed' && payload.item?.type === 'UserMessage') {
         const content = extractCodexTextContent(payload.item.content);
         const turnId = readNonEmptyString(payload.turn_id);
-        const images = turnId ? pendingUserImagesByTurnId.get(turnId) : undefined;
+        // Typed rows are the authoritative image source (#1277); the pending map
+        // captured from the wire echo covers rollouts whose typed row has none.
+        const images = extractCodexTypedUserImages(payload.item.content)
+          ?? (turnId ? pendingUserImagesByTurnId.get(turnId) : undefined);
         if (turnId) {
           pendingUserImagesByTurnId.delete(turnId);
         }
