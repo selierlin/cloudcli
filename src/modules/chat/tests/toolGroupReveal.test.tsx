@@ -44,6 +44,33 @@ describe('tool group search reveal', () => {
     expect(view.getByRole('button', { name: /Read/ }).getAttribute('aria-expanded')).toBe('false');
   });
 
+  it('does not repeat the process harness identity when its tool batch opens', () => {
+    const [group] = groupConsecutiveTools([{
+      id: 'tool-1', type: 'assistant', content: '', timestamp: '2026-09-16T10:00:01.000Z',
+      isToolUse: true, toolName: 'Read', toolInput: { file_path: '/repo/a.ts' }, toolStatus: 'completed',
+    }], true);
+    expect(isToolGroupItem(group)).toBe(true);
+    if (!isToolGroupItem(group)) return;
+
+    const view = render(
+      <UiPreferencesProvider>
+        <ToolGroupContainer
+          group={group}
+          collapseSingleTool
+          expanded
+          hidesProcessIdentity
+          prevMessage={null}
+          createDiff={() => []}
+          getMessageKey={(message) => String(message.id)}
+          selectedProject={project}
+          provider="claude"
+        />
+      </UiPreferencesProvider>,
+    );
+
+    expect(view.queryByText('messageTypes.claude')).toBeNull();
+  });
+
   it('expands the targeted group when a reveal request arrives', () => {
     const messages: ChatMessage[] = [
       {

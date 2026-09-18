@@ -378,6 +378,7 @@ test('keeps only the final assistant prose visible until its single process run 
 
   assert.notEqual(progressRow?.getAttribute('aria-hidden'), 'true');
   assert.ok(progressRow?.querySelector('.process-run-narration'));
+  assert.equal(view.getAllByText('messageTypes.claude').length, 1);
 });
 
 test('restores the default folded process state after switching away and back', () => {

@@ -15,6 +15,8 @@ type ToolGroupContainerProps = {
   group: ToolGroupItem;
   /** Process runs fold even a one-tool batch so opening the run reveals its outline first. */
   collapseSingleTool?: boolean;
+  /** The containing Process Run already renders the harness identity for this tool batch. */
+  hidesProcessIdentity?: boolean;
   /** Lets the parent Process Run retain this batch's user-owned disclosure across unmounts. */
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
@@ -84,6 +86,7 @@ function getToolGroupIcon(icon: string | undefined, toolName: string): string {
 function ToolGroupContainer({
   group,
   collapseSingleTool = false,
+  hidesProcessIdentity = false,
   expanded,
   onExpandedChange,
   prevMessage,
@@ -193,6 +196,7 @@ function ToolGroupContainer({
               showThinking={showThinking}
               selectedProject={selectedProject}
               provider={provider}
+              hidesProcessIdentity={hidesProcessIdentity}
             />
           ))}
           </>
