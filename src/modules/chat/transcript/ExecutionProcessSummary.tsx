@@ -1,5 +1,10 @@
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronRight } from 'lucide-react';
+
+import type { LLMProvider } from '@/shared/types';
+import { LLMProviderLogo } from '@/shared/ui';
+import { getChatProviderLabel } from '@/modules/chat/utils/chatProviderLabel';
 
 type ExecutionProcessSummaryProps = {
   collapsed: boolean;
@@ -8,6 +13,10 @@ type ExecutionProcessSummaryProps = {
   isActiveRun: boolean;
   isWindowTruncated: boolean;
   labelKind: 'reasoning' | 'execution' | 'narration';
+  /** The process belongs to this harness even after its member rows unmount. */
+  provider: LLMProvider;
+  /** Matches the inert marker immediately after this process's final member. */
+  processEndKey: string;
   toolCount: number;
   onToggle: () => void;
 };
@@ -34,10 +43,60 @@ export default function ExecutionProcessSummary({
   isActiveRun,
   isWindowTruncated,
   labelKind,
+  provider,
+  processEndKey,
   toolCount,
   onToggle,
 }: ExecutionProcessSummaryProps) {
   const { t } = useTranslation('chat');
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  // The summary remains a transcript sibling, so member rows retain their DOM
+  // identity as a live run grows. This state turns sticky positioning off once
+  // the inert end marker reaches the panel top, limiting it to the process.
+  const [isSticky, setIsSticky] = useState(!collapsed);
+
+  useLayoutEffect(() => {
+    if (collapsed) {
+      return;
+    }
+
+    const button = buttonRef.current;
+    const scrollContainer = button?.closest<HTMLElement>('.chat-messages-pane');
+    if (!button || !scrollContainer) {
+      return;
+    }
+
+    const endMarker = [...scrollContainer.querySelectorAll<HTMLElement>('[data-execution-process-end]')]
+      .find((marker) => marker.dataset.executionProcessEnd === processEndKey);
+    if (!endMarker) {
+      return;
+    }
+
+    const updateSticky = () => {
+      const panelRect = scrollContainer.getBoundingClientRect();
+      const buttonRect = button.getBoundingClientRect();
+      const endRect = endMarker.getBoundingClientRect();
+      const nextIsSticky = buttonRect.top <= panelRect.top
+        && endRect.top > panelRect.top + buttonRect.height;
+      setIsSticky((current) => (current === nextIsSticky ? current : nextIsSticky));
+    };
+
+    scrollContainer.addEventListener('scroll', updateSticky, { passive: true });
+    window.addEventListener('resize', updateSticky);
+    const resizeObserver = typeof ResizeObserver === 'undefined'
+      ? undefined
+      : new ResizeObserver(updateSticky);
+    resizeObserver?.observe(button);
+    resizeObserver?.observe(endMarker);
+    updateSticky();
+
+    return () => {
+      scrollContainer.removeEventListener('scroll', updateSticky);
+      window.removeEventListener('resize', updateSticky);
+      resizeObserver?.disconnect();
+    };
+  }, [collapsed, processEndKey]);
+  const providerLabel = getChatProviderLabel(provider, t);
   const settledLabel = labelKind === 'reasoning'
     ? t('transcript.executionProcess.reasoning', { defaultValue: 'Thinking process' })
     : labelKind === 'narration'
@@ -65,17 +124,26 @@ export default function ExecutionProcessSummary({
   ].filter(Boolean);
 
   return (
-    <button
-      type="button"
-      className="group flex min-h-7 w-full items-center gap-1.5 rounded-md px-1.5 text-left text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-      aria-expanded={!collapsed}
-      onClick={onToggle}
-    >
-      <ChevronRight
-        aria-hidden="true"
-        className={`h-3.5 w-3.5 shrink-0 transition-transform duration-150 ${collapsed ? '' : 'rotate-90'}`}
-      />
-      <span className="min-w-0 truncate">{[label, ...details].join(' · ')}</span>
-    </button>
+    <>
+      <div className="mb-2 flex items-center space-x-3 px-3">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full p-1 text-sm text-foreground">
+          <LLMProviderLogo provider={provider} className="h-full w-full" />
+        </div>
+        <div className="text-sm font-medium text-gray-900 dark:text-white">{providerLabel}</div>
+      </div>
+      <button
+        ref={buttonRef}
+        type="button"
+        className={`group flex min-h-7 w-full items-center gap-1.5 rounded-md px-1.5 text-left text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200 ${!collapsed && isSticky ? 'sticky top-0 z-10 bg-background/95 backdrop-blur-sm' : ''}`}
+        aria-expanded={!collapsed}
+        onClick={onToggle}
+      >
+        <ChevronRight
+          aria-hidden="true"
+          className={`h-3.5 w-3.5 shrink-0 transition-transform duration-150 ${collapsed ? '' : 'rotate-90'}`}
+        />
+        <span className="min-w-0 truncate">{[label, ...details].join(' · ')}</span>
+      </button>
+    </>
   );
 }

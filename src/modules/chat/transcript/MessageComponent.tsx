@@ -31,6 +31,8 @@ type MessageComponentProps = {
   reasoningDisclosureState?: ReasoningDisclosureState;
   /** The message belongs to a Process Run, where reasoning stays folded beneath the visible narration spine. */
   isProcessRunMember?: boolean;
+  /** The containing process renders the harness header once for all of its assistant messages. */
+  hidesProcessIdentity?: boolean;
   /** Search temporarily reveals this reasoning block without taking disclosure ownership from the user. */
   isReasoningSearchTarget?: boolean;
   suppressReasoningAutoCollapse?: boolean;
@@ -56,7 +58,7 @@ const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
  * Rendered by chat's ChatMessagesPane and ToolGroupContainer to draw one
  * transcript entry — user turn, assistant turn, or a tool call and its result.
  */
-const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, reasoningPresentation, reasoningDisclosureState, isProcessRunMember, isReasoningSearchTarget, suppressReasoningAutoCollapse, onReasoningUserOpenChange, onReasoningProgramOpen, onReasoningProgramCollapse, onEditMessage, onForkFromMessage }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, reasoningPresentation, reasoningDisclosureState, isProcessRunMember, hidesProcessIdentity, isReasoningSearchTarget, suppressReasoningAutoCollapse, onReasoningUserOpenChange, onReasoningProgramOpen, onReasoningProgramCollapse, onEditMessage, onForkFromMessage }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -200,7 +202,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
       ) : (
         /* Claude/Error/Tool messages on the left */
         <div className="w-full">
-          {!isGrouped && (
+          {!isGrouped && !hidesProcessIdentity && (
             <div className="mb-2 flex items-center space-x-3">
               {message.type === 'error' ? (
                 <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-red-600 text-sm text-white">

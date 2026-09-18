@@ -2,15 +2,19 @@ import { useTranslation } from 'react-i18next';
 import { Fragment, memo, useCallback, useLayoutEffect, useMemo, useReducer, useRef } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 
-import type { ChatMessage,
+import type {
+  ChatMessage,
   Project,
   ProjectSession,
   LLMProvider,
   TranscriptRevealRequest,
   ProviderModelActions,
-  ProviderModelsDefinition } from '@/shared/types';
+  ProviderModelsDefinition,
+} from '@/shared/types';
 import { getIntrinsicMessageKey } from '@/modules/chat/utils/messageKeys';
-import { deriveExecutionProcessProjection } from '@/modules/chat/utils/executionProcess';
+import {
+  deriveExecutionProcessProjection,
+} from '@/modules/chat/utils/executionProcess';
 import { groupConsecutiveTools, isToolGroupItem } from '@/modules/chat/utils/toolGrouping';
 import { deriveReasoningPresentations } from '@/modules/chat/utils/reasoningDisclosure';
 import {
@@ -39,10 +43,7 @@ const clampEstimatedRowHeight = (height: number, maximum: number) =>
 function estimateTextLines(value: unknown): number {
   const text = typeof value === 'string' ? value : '';
   if (!text) return 1;
-  return text.split('\n').reduce(
-    (total, line) => total + Math.max(1, Math.ceil(line.length / 72)),
-    0,
-  );
+  return text.split('\n').reduce((total, line) => total + Math.max(1, Math.ceil(line.length / 72)), 0);
 }
 
 /** Reserves plausible geometry before an old row has entered the render band. */
@@ -57,8 +58,11 @@ function estimateMessageRowHeight(message: ChatMessage): number {
 }
 
 function estimateToolGroupRowHeight(messages: ChatMessage[]): number {
-  const hasIssue = messages.some((message) => message.toolResult?.isError
-    || ['error', 'denied', 'stopped'].includes(String(message.toolStatus || '')));
+  const hasIssue = messages.some(
+    (message) =>
+      message.toolResult?.isError ||
+      ['error', 'denied', 'stopped'].includes(String(message.toolStatus || '')),
+  );
   if (messages.length >= 2 && !hasIssue) return 64;
   return clampEstimatedRowHeight(
     messages.reduce((height, message) => height + estimateMessageRowHeight(message), 0),
@@ -68,17 +72,11 @@ function estimateToolGroupRowHeight(messages: ChatMessage[]): number {
 
 /**
  * Outer geometry shared by the three mutually exclusive bars above the
- * transcript (loading older messages, "showing N of M", legacy count) and by
- * the empty slot that stands in for them when none is showing. They swap while
- * the reader is parked near them, so all four states keep one height: any
- * difference in padding, border or height moves every row below and drifts the
- * reading position. They previously rendered as separate elements with `py-3`
- * and `py-2`, a 7px jump on every finished page.
- *
- * Keeping the slot mounted while no bar shows costs a strip of whitespace above
- * the first row, and that is the deliberate price of never moving the rows: the
- * count bar disappears the moment the last page loads, so unmounting the slot
- * with it would shift the transcript by the slot plus its `space-y` gap.
+ * transcript (loading older messages, "showing N of M", legacy count). They
+ * swap while the reader is parked near them, so all visible variants keep one
+ * height: any difference in padding, border or height moves every row below
+ * and drifts the reading position. They previously rendered as separate
+ * elements with `py-3` and `py-2`, a 7px jump on every finished page.
  *
  * Every variant is a single flex row whose text can shrink, because a wrapped
  * line would grow the slot past `min-h-10` and move the rows below again: the
@@ -96,7 +94,12 @@ type ExecutionDisclosureRegistry = Record<string, Record<string, ExecutionDisclo
 const EMPTY_EXECUTION_DISCLOSURE: Record<string, ExecutionDisclosure> = {};
 type ExecutionDisclosureAction =
   | { type: 'reset_session'; sessionKey: string }
-  | { type: 'toggle'; sessionKey: string; disclosureKey: string; open: boolean };
+  | {
+      type: 'toggle';
+      sessionKey: string;
+      disclosureKey: string;
+      open: boolean;
+    };
 
 function executionDisclosureReducer(
   state: ExecutionDisclosureRegistry,
@@ -165,7 +168,9 @@ type ChatMessagesPaneProps = {
   createDiff: any;
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
   onShowSettings?: () => void;
-  onGrantToolPermission: (suggestion: { entry: string; toolName: string }) => { success: boolean };
+  onGrantToolPermission: (suggestion: { entry: string; toolName: string }) => {
+    success: boolean;
+  };
   showRawParameters?: boolean;
   showThinking?: boolean;
   selectedProject: Project;
@@ -244,8 +249,7 @@ function ChatMessagesPane({
     executionDisclosureReducer,
     {},
   );
-  const executionDisclosure = executionDisclosureRegistry[sessionDisclosureKey]
-    ?? EMPTY_EXECUTION_DISCLOSURE;
+  const executionDisclosure = executionDisclosureRegistry[sessionDisclosureKey] ?? EMPTY_EXECUTION_DISCLOSURE;
   const reasoningPresentations = useMemo(
     () => deriveReasoningPresentations(visibleMessages, sessionId ?? 'no-session', isProcessing),
     [isProcessing, sessionId, visibleMessages],
@@ -253,7 +257,10 @@ function ChatMessagesPane({
 
   useLayoutEffect(() => {
     dispatchDisclosure({ type: 'reset', sessionId });
-    dispatchExecutionDisclosure({ type: 'reset_session', sessionKey: sessionDisclosureKey });
+    dispatchExecutionDisclosure({
+      type: 'reset_session',
+      sessionKey: sessionDisclosureKey,
+    });
   }, [sessionDisclosureKey, sessionId]);
 
   useLayoutEffect(() => {
@@ -275,10 +282,13 @@ function ChatMessagesPane({
   const handleReasoningProgramOpen = useCallback((key: string) => {
     dispatchDisclosure({ type: 'program_open', key, now: Date.now() });
   }, []);
-  const handleReasoningProgramCollapse = useCallback((key: string) => {
-    onReasoningAutoCollapseStart?.();
-    dispatchDisclosure({ type: 'program_collapse', key });
-  }, [onReasoningAutoCollapseStart]);
+  const handleReasoningProgramCollapse = useCallback(
+    (key: string) => {
+      onReasoningAutoCollapseStart?.();
+      dispatchDisclosure({ type: 'program_collapse', key });
+    },
+    [onReasoningAutoCollapseStart],
+  );
   // Stable, deterministic keys for the messages rendered this pass.
   //
   // A server refresh can replace source records with equivalent new objects, so
@@ -310,11 +320,10 @@ function ChatMessagesPane({
     [messageKeyMap],
   );
   const executionProjection = useMemo(
-    () => deriveExecutionProcessProjection(
-      visibleMessages,
-      getMessageKey,
-      { isProcessing },
-    ),
+    () =>
+      deriveExecutionProcessProjection(visibleMessages, getMessageKey, {
+        isProcessing,
+      }),
     [getMessageKey, isProcessing, visibleMessages],
   );
   // Detects a provisional answer becoming process narration so the scroll
@@ -330,17 +339,17 @@ function ChatMessagesPane({
   );
   const revealedMessageKey = useMemo(() => {
     if (!searchRevealRequest || searchRevealRequest.sessionId !== sessionId) return undefined;
-    const target = visibleMessages.find((message) => (
-      String(message.timestamp) === String(searchRevealRequest.timestamp)
-    ));
+    const target = visibleMessages.find(
+      (message) => String(message.timestamp) === String(searchRevealRequest.timestamp),
+    );
     return target ? getMessageKey(target) : undefined;
   }, [getMessageKey, searchRevealRequest, sessionId, visibleMessages]);
-  const resolveExecutionDisclosure = useCallback((group: {
-    disclosureKey: string;
-    disclosureAliases: string[];
-  }) => executionDisclosure[group.disclosureKey]
-    ?? group.disclosureAliases.map((key) => executionDisclosure[key]).find(Boolean),
-  [executionDisclosure]);
+  const resolveExecutionDisclosure = useCallback(
+    (group: { disclosureKey: string; disclosureAliases: string[] }) =>
+      executionDisclosure[group.disclosureKey] ??
+      group.disclosureAliases.map((key) => executionDisclosure[key]).find(Boolean),
+    [executionDisclosure],
+  );
 
   useLayoutEffect(() => {
     const previous = previousProcessNarrationsRef.current;
@@ -349,42 +358,45 @@ function ChatMessagesPane({
       group.narrationKeys.forEach((key) => nextKeys.add(key));
     });
     const sameSession = previous.sessionId === sessionId;
-    const absorbedNarration = sameSession
-      && previous.initialized
-      && [...nextKeys].some((key) => !previous.keys.has(key));
-    previousProcessNarrationsRef.current = { sessionId, initialized: true, keys: nextKeys };
+    const absorbedNarration =
+      sameSession && previous.initialized && [...nextKeys].some((key) => !previous.keys.has(key));
+    previousProcessNarrationsRef.current = {
+      sessionId,
+      initialized: true,
+      keys: nextKeys,
+    };
     if (absorbedNarration && isProcessing && !isUserScrolledUp) {
       onReasoningAutoCollapseStart?.();
     }
-  }, [
-    executionProjection,
-    isProcessing,
-    isUserScrolledUp,
-    onReasoningAutoCollapseStart,
-    sessionId,
-  ]);
+  }, [executionProjection, isProcessing, isUserScrolledUp, onReasoningAutoCollapseStart, sessionId]);
 
   const revealedExecutionDisclosureKey = revealedMessageKey
     ? executionProjection.memberDisclosureKeys.get(revealedMessageKey)
     : undefined;
+  const hasTopChrome =
+    (isLoadingMoreMessages && !isLoadingAllMessages && !allMessagesLoaded) ||
+    (hasMoreMessages && !isLoadingMoreMessages && !allMessagesLoaded && totalMessages > 0) ||
+    (!hasMoreMessages && chatMessages.length > visibleMessageCount);
 
-  const toggleExecutionProcess = useCallback((disclosureKey: string, currentlyCollapsed: boolean) => {
-    dispatchExecutionDisclosure({
-      type: 'toggle',
-      sessionKey: sessionDisclosureKey,
-      disclosureKey,
-      open: currentlyCollapsed,
-    });
-  }, [sessionDisclosureKey]);
-  const isExecutionProcessCollapsed = useCallback((group: {
-    disclosureKey: string;
-    disclosureAliases: string[];
-    defaultCollapsed: boolean;
-  }) => {
-    const disclosure = resolveExecutionDisclosure(group);
-    if (revealedExecutionDisclosureKey === group.disclosureKey) return false;
-    return disclosure !== 'user_open' && group.defaultCollapsed;
-  }, [resolveExecutionDisclosure, revealedExecutionDisclosureKey]);
+  const toggleExecutionProcess = useCallback(
+    (disclosureKey: string, currentlyCollapsed: boolean) => {
+      dispatchExecutionDisclosure({
+        type: 'toggle',
+        sessionKey: sessionDisclosureKey,
+        disclosureKey,
+        open: currentlyCollapsed,
+      });
+    },
+    [sessionDisclosureKey],
+  );
+  const isExecutionProcessCollapsed = useCallback(
+    (group: { disclosureKey: string; disclosureAliases: string[]; defaultCollapsed: boolean }) => {
+      const disclosure = resolveExecutionDisclosure(group);
+      if (revealedExecutionDisclosureKey === group.disclosureKey) return false;
+      return disclosure !== 'user_open' && group.defaultCollapsed;
+    },
+    [resolveExecutionDisclosure, revealedExecutionDisclosureKey],
+  );
 
   return (
     <div
@@ -396,257 +408,276 @@ function ChatMessagesPane({
       }`}
     >
       <div className="mx-auto w-full max-w-[54.25rem] space-y-3 px-4 sm:space-y-4">
-      {(isLoadingSessionMessages || isProcessing) && chatMessages.length === 0 ? (
-        <div className="mt-8 text-center text-gray-500 dark:text-gray-400">
-          <div className="flex items-center justify-center space-x-2">
-            <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-gray-400" />
-            <p>{t('session.loading.sessionMessages')}</p>
+        {(isLoadingSessionMessages || isProcessing) && chatMessages.length === 0 ? (
+          <div className="mt-8 text-center text-gray-500 dark:text-gray-400">
+            <div className="flex items-center justify-center space-x-2">
+              <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-gray-400" />
+              <p>{t('session.loading.sessionMessages')}</p>
+            </div>
           </div>
-        </div>
-      ) : chatMessages.length === 0 ? (
-        <ProviderSelectionEmptyState
-          selectedSession={selectedSession}
-          provider={provider}
-          setProvider={setProvider}
-          textareaRef={textareaRef}
-          providerModels={providerModels}
-          setProviderModel={setProviderModel}
-          providerModelCatalog={providerModelCatalog}
-          providerModelActions={providerModelActions}
-          providerModelsLoading={providerModelsLoading}
-          tasksEnabled={tasksEnabled}
-          isTaskMasterInstalled={isTaskMasterInstalled}
-          onShowAllTasks={onShowAllTasks}
-          setInput={setInput}
-        />
-      ) : (
-        <>
-          {/* One slot, always rendered: the three bars swap and the count bar
-              disappears when the last page loads, so the slot has to survive
-              all of those or the rows below move with it. */}
-          <div className={TOP_CHROME_SLOT_CLASS} data-transcript-top-chrome>
-            {isLoadingMoreMessages && !isLoadingAllMessages && !allMessagesLoaded ? (
-              <div className="flex items-center justify-center gap-2">
-                <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-b-2 border-gray-400" />
-                <p className="min-w-0 truncate">{t('session.loading.olderMessages')}</p>
-              </div>
-            ) : hasMoreMessages && !isLoadingMoreMessages && !allMessagesLoaded ? (
-              totalMessages > 0 && (
-                <div className="flex items-center justify-center gap-2">
-                  <span className="min-w-0 truncate">
-                    {t('session.messages.showingOf', { shown: sessionMessagesCount, total: totalMessages })}
-                  </span>
-                  <span className="hidden min-w-0 truncate text-xs sm:inline-block">
-                    {t('session.messages.scrollToLoad')}
-                  </span>
-                </div>
-              )
-            ) : !hasMoreMessages && chatMessages.length > visibleMessageCount ? (
-              <div className="flex items-center justify-center gap-2">
-                {/* Everything with text here shrinks rather than wraps. The
+        ) : chatMessages.length === 0 ? (
+          <ProviderSelectionEmptyState
+            selectedSession={selectedSession}
+            provider={provider}
+            setProvider={setProvider}
+            textareaRef={textareaRef}
+            providerModels={providerModels}
+            setProviderModel={setProviderModel}
+            providerModelCatalog={providerModelCatalog}
+            providerModelActions={providerModelActions}
+            providerModelsLoading={providerModelsLoading}
+            tasksEnabled={tasksEnabled}
+            isTaskMasterInstalled={isTaskMasterInstalled}
+            onShowAllTasks={onShowAllTasks}
+            setInput={setInput}
+          />
+        ) : (
+          <>
+            {hasTopChrome && (
+              <div className={TOP_CHROME_SLOT_CLASS} data-transcript-top-chrome>
+                {isLoadingMoreMessages && !isLoadingAllMessages && !allMessagesLoaded ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-b-2 border-gray-400" />
+                    <p className="min-w-0 truncate">{t('session.loading.olderMessages')}</p>
+                  </div>
+                ) : hasMoreMessages && !isLoadingMoreMessages && !allMessagesLoaded ? (
+                  totalMessages > 0 && (
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="min-w-0 truncate">
+                        {t('session.messages.showingOf', {
+                          shown: sessionMessagesCount,
+                          total: totalMessages,
+                        })}
+                      </span>
+                      <span className="hidden min-w-0 truncate text-xs sm:inline-block">
+                        {t('session.messages.scrollToLoad')}
+                      </span>
+                    </div>
+                  )
+                ) : !hasMoreMessages && chatMessages.length > visibleMessageCount ? (
+                  <div className="flex items-center justify-center gap-2">
+                    {/* Everything with text here shrinks rather than wraps. The
                     sentence gives up its room first; the button labels are the
                     last resort, and the longest locales need more room for them
                     than a phone can give. */}
-                <span className="hidden min-w-0 truncate md:inline-block">
-                  {t('session.messages.showingLast', {
-                    count: visibleMessageCount,
-                    total: chatMessages.length,
-                  })}
-                </span>
-                <button
-                  className="min-w-0 truncate text-blue-600 underline hover:text-blue-700"
-                  onClick={loadEarlierMessages}
-                >
-                  {t('session.messages.loadEarlier')}
-                </button>
-                <span className="shrink-0">|</span>
-                <button
-                  className="min-w-0 truncate text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                  onClick={loadAllMessages}
-                >
-                  {t('session.messages.loadAll')}
-                </button>
+                    <span className="hidden min-w-0 truncate md:inline-block">
+                      {t('session.messages.showingLast', {
+                        count: visibleMessageCount,
+                        total: chatMessages.length,
+                      })}
+                    </span>
+                    <button
+                      className="min-w-0 truncate text-blue-600 underline hover:text-blue-700"
+                      onClick={loadEarlierMessages}
+                    >
+                      {t('session.messages.loadEarlier')}
+                    </button>
+                    <span className="shrink-0">|</span>
+                    <button
+                      className="min-w-0 truncate text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                      onClick={loadAllMessages}
+                    >
+                      {t('session.messages.loadAll')}
+                    </button>
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-          </div>
+            )}
 
-          {/* Rendered after every bar: a zero-height sticky sibling that sits
+            {/* Rendered after every bar: a zero-height sticky sibling that sits
               before the rows would otherwise take the space-y first-child slot
               from whichever bar is showing and push the rows down by that gap
               when the legacy count is the visible one. */}
-          <LoadAllMessagesOverlay
-            showLoadAllOverlay={showLoadAllOverlay}
-            isLoadingAllMessages={isLoadingAllMessages}
-            loadAllJustFinished={loadAllJustFinished}
-            totalMessages={totalMessages}
-            onLoadAllMessages={loadAllMessages}
-          />
+            <LoadAllMessagesOverlay
+              showLoadAllOverlay={showLoadAllOverlay}
+              isLoadingAllMessages={isLoadingAllMessages}
+              loadAllJustFinished={loadAllJustFinished}
+              totalMessages={totalMessages}
+              onLoadAllMessages={loadAllMessages}
+            />
 
-          {(() => {
-            let prevMessage: ChatMessage | null = null;
-            const rowCount = groupedVisibleMessages.length;
+            {(() => {
+              let prevMessage: ChatMessage | null = null;
+              const rowCount = groupedVisibleMessages.length;
+              return groupedVisibleMessages.map((item, index) => {
+                  // Rows near the tail mount their content on first commit so the
+                  // initial scroll-to-bottom measures real heights; older rows
+                  // start as placeholders and mount when scrolled toward.
+                  const initiallyNearViewport = index >= rowCount - INITIAL_MOUNTED_TAIL_ROWS;
 
-            return groupedVisibleMessages.map((item, index) => {
-              // Rows near the tail mount their content on first commit so the
-              // initial scroll-to-bottom measures real heights; older rows
-              // start as placeholders and mount when scrolled toward.
-              const initiallyNearViewport = index >= rowCount - INITIAL_MOUNTED_TAIL_ROWS;
+                  if (isToolGroupItem(item)) {
+                    const groupPrevMessage = prevMessage;
+                    prevMessage = item.messages[item.messages.length - 1] || prevMessage;
+                    const itemMessageKeys = item.messages.map(getMessageKey);
+                    const executionDisclosureKey = itemMessageKeys
+                      .map((key) => executionProjection.memberDisclosureKeys.get(key))
+                      .find(Boolean);
+                    const executionGroup = executionDisclosureKey
+                      ? executionProjection.groups.get(executionDisclosureKey)
+                      : undefined;
+                    const isProcessCollapsed = Boolean(
+                      executionGroup && isExecutionProcessCollapsed(executionGroup),
+                    );
+                    const hasAttentionMember = Boolean(
+                      executionGroup && itemMessageKeys.some((key) => executionGroup.attentionKeys.has(key)),
+                    );
+                    const shouldHideProcessItem = isProcessCollapsed && !hasAttentionMember;
+                    const toolDisclosureKey = executionGroup
+                      ? `process-tools:${itemMessageKeys[0]}`
+                      : undefined;
+                    const toolDisclosure = toolDisclosureKey
+                      ? executionDisclosure[toolDisclosureKey]
+                      : undefined;
+                    const processEndKey = executionGroup
+                      ? [...executionGroup.memberKeys].at(-1)
+                      : undefined;
 
-              if (isToolGroupItem(item)) {
-                const groupPrevMessage = prevMessage;
-                prevMessage = item.messages[item.messages.length - 1] || prevMessage;
-                const itemMessageKeys = item.messages.map(getMessageKey);
-                const executionDisclosureKey = itemMessageKeys
-                  .map((key) => executionProjection.memberDisclosureKeys.get(key))
-                  .find(Boolean);
-                const executionGroup = executionDisclosureKey
-                  ? executionProjection.groups.get(executionDisclosureKey)
-                  : undefined;
-                const isProcessCollapsed = Boolean(executionGroup && isExecutionProcessCollapsed(executionGroup));
-                const hasAttentionMember = Boolean(
-                  executionGroup
-                  && itemMessageKeys.some((key) => executionGroup.attentionKeys.has(key)),
-                );
-                const shouldHideProcessItem = isProcessCollapsed && !hasAttentionMember;
-                const shouldRenderSummary = Boolean(
-                  executionGroup && executionGroup.firstMemberKey === itemMessageKeys[0],
-                );
-                const toolDisclosureKey = executionGroup
-                  ? `process-tools:${itemMessageKeys[0]}`
-                  : undefined;
-                const toolDisclosure = toolDisclosureKey
-                  ? executionDisclosure[toolDisclosureKey]
-                  : undefined;
+                    return (
+                      <Fragment key={`tool-group-${getMessageKey(item.messages[0])}`}>
+                        {executionGroup?.firstMemberKey === itemMessageKeys[0] && (
+                          <ExecutionProcessSummary
+                            collapsed={isProcessCollapsed}
+                            activityLabel={executionGroup.activityLabel}
+                            hasAttention={executionGroup.hasAttention}
+                            isActiveRun={executionGroup.isActiveRun}
+                            isWindowTruncated={executionGroup.isWindowTruncated}
+                            labelKind={executionGroup.labelKind}
+                            provider={provider}
+                            processEndKey={executionGroup.disclosureKey}
+                            toolCount={executionGroup.toolCount}
+                            onToggle={() => toggleExecutionProcess(executionGroup.disclosureKey, isProcessCollapsed)}
+                          />
+                        )}
+                        <LazyMessageRow
+                          lazyRows={lazyRows}
+                          rowKey={`${sessionId ?? 'no-session'}:tool-group:${getMessageKey(item.messages[0])}`}
+                          timestamp={item.timestamp}
+                          initiallyNearViewport={initiallyNearViewport}
+                          estimatedHeight={estimateToolGroupRowHeight(item.messages)}
+                          isProcessCollapsed={shouldHideProcessItem}
+                        >
+                          <ToolGroupContainer
+                            group={item}
+                            collapseSingleTool={Boolean(executionGroup)}
+                            hidesProcessIdentity={Boolean(executionGroup)}
+                            expanded={executionGroup ? toolDisclosure === 'user_open' : undefined}
+                            onExpandedChange={
+                              toolDisclosureKey
+                                ? (open) =>
+                                    dispatchExecutionDisclosure({
+                                      type: 'toggle',
+                                      sessionKey: sessionDisclosureKey,
+                                      disclosureKey: toolDisclosureKey,
+                                      open,
+                                    })
+                                : undefined
+                            }
+                            prevMessage={groupPrevMessage}
+                            createDiff={createDiff}
+                            getMessageKey={getMessageKey}
+                            onFileOpen={onFileOpen}
+                            onShowSettings={onShowSettings}
+                            onGrantToolPermission={onGrantToolPermission}
+                            showRawParameters={showRawParameters}
+                            showThinking={showThinking}
+                            selectedProject={selectedProject}
+                            provider={provider}
+                            revealRequestId={
+                              revealedMessageKey && itemMessageKeys.includes(revealedMessageKey)
+                                ? searchRevealRequest?.requestId
+                                : undefined
+                            }
+                          />
+                        </LazyMessageRow>
+                        {processEndKey && itemMessageKeys.includes(processEndKey) && (
+                          <div data-execution-process-end={executionGroup?.disclosureKey} aria-hidden="true" />
+                        )}
+                      </Fragment>
+                    );
+                  }
 
-                return (
-                  <Fragment key={`tool-group-${getMessageKey(item.messages[0])}`}>
-                    {shouldRenderSummary && executionGroup && (
-                      <ExecutionProcessSummary
-                        collapsed={isProcessCollapsed}
-                        activityLabel={executionGroup.activityLabel}
-                        hasAttention={executionGroup.hasAttention}
-                        isActiveRun={executionGroup.isActiveRun}
-                        isWindowTruncated={executionGroup.isWindowTruncated}
-                        labelKind={executionGroup.labelKind}
-                        toolCount={executionGroup.toolCount}
-                        onToggle={() => toggleExecutionProcess(executionGroup.disclosureKey, isProcessCollapsed)}
-                      />
-                    )}
-                    <LazyMessageRow
-                      lazyRows={lazyRows}
-                      rowKey={`${sessionId ?? 'no-session'}:tool-group:${getMessageKey(item.messages[0])}`}
-                      timestamp={item.timestamp}
-                      initiallyNearViewport={initiallyNearViewport}
-                      estimatedHeight={estimateToolGroupRowHeight(item.messages)}
-                      isProcessCollapsed={shouldHideProcessItem}
-                    >
-                      <ToolGroupContainer
-                        group={item}
-                        collapseSingleTool={Boolean(executionGroup)}
-                        expanded={executionGroup ? toolDisclosure === 'user_open' : undefined}
-                        onExpandedChange={toolDisclosureKey
-                          ? (open) => dispatchExecutionDisclosure({
-                              type: 'toggle',
-                              sessionKey: sessionDisclosureKey,
-                              disclosureKey: toolDisclosureKey,
-                              open,
-                            })
-                          : undefined}
-                        prevMessage={groupPrevMessage}
-                        createDiff={createDiff}
-                        getMessageKey={getMessageKey}
-                        onFileOpen={onFileOpen}
-                        onShowSettings={onShowSettings}
-                        onGrantToolPermission={onGrantToolPermission}
-                        showRawParameters={showRawParameters}
-                        showThinking={showThinking}
-                        selectedProject={selectedProject}
-                        provider={provider}
-                        revealRequestId={revealedMessageKey && itemMessageKeys.includes(revealedMessageKey)
-                          ? searchRevealRequest?.requestId
-                          : undefined}
-                      />
-                    </LazyMessageRow>
-                  </Fragment>
-                );
-              }
+                  const messagePrevMessage = prevMessage;
+                  prevMessage = item;
+                  const reasoningPresentation = reasoningPresentations.get(item);
+                  const reasoningDisclosureState =
+                    reasoningPresentation && disclosureRegistry.sessionId === sessionId
+                      ? resolveReasoningDisclosureState(
+                          disclosureRegistry,
+                          reasoningPresentation.disclosureKey,
+                          String(item.content || ''),
+                        )
+                      : undefined;
+                  const messageKey = getMessageKey(item);
+                  const executionDisclosureKey = executionProjection.memberDisclosureKeys.get(messageKey);
+                  const executionGroup = executionDisclosureKey
+                    ? executionProjection.groups.get(executionDisclosureKey)
+                    : undefined;
+                  const isProcessCollapsed = Boolean(
+                    executionGroup && isExecutionProcessCollapsed(executionGroup),
+                  );
+                  const shouldHideProcessItem = Boolean(
+                    executionGroup && isProcessCollapsed && !executionGroup.attentionKeys.has(messageKey),
+                  );
 
-              const messagePrevMessage = prevMessage;
-              prevMessage = item;
-              const reasoningPresentation = reasoningPresentations.get(item);
-              const reasoningDisclosureState = reasoningPresentation
-                && disclosureRegistry.sessionId === sessionId
-                ? resolveReasoningDisclosureState(
-                    disclosureRegistry,
-                    reasoningPresentation.disclosureKey,
-                    String(item.content || ''),
-                  )
-                : undefined;
-              const messageKey = getMessageKey(item);
-              const executionDisclosureKey = executionProjection.memberDisclosureKeys.get(messageKey);
-              const executionGroup = executionDisclosureKey
-                ? executionProjection.groups.get(executionDisclosureKey)
-                : undefined;
-              const isProcessCollapsed = Boolean(executionGroup && isExecutionProcessCollapsed(executionGroup));
-              const shouldHideProcessItem = Boolean(
-                executionGroup
-                && isProcessCollapsed
-                && !executionGroup.attentionKeys.has(messageKey),
-              );
-
-              return (
-                <Fragment key={messageKey}>
-                  {executionGroup?.firstMemberKey === messageKey && (
-                    <ExecutionProcessSummary
-                      collapsed={isProcessCollapsed}
-                      activityLabel={executionGroup.activityLabel}
-                      hasAttention={executionGroup.hasAttention}
-                      isActiveRun={executionGroup.isActiveRun}
-                      isWindowTruncated={executionGroup.isWindowTruncated}
-                      labelKind={executionGroup.labelKind}
-                      toolCount={executionGroup.toolCount}
-                      onToggle={() => toggleExecutionProcess(executionGroup.disclosureKey, isProcessCollapsed)}
-                    />
-                  )}
-                  <LazyMessageRow
-                    lazyRows={lazyRows}
-                    rowKey={`${sessionId ?? 'no-session'}:${messageKey}`}
-                    timestamp={item.timestamp}
-                    initiallyNearViewport={initiallyNearViewport}
-                    estimatedHeight={estimateMessageRowHeight(item)}
-                    isProcessCollapsed={shouldHideProcessItem}
-                  >
-                    <MessageComponent
-                      message={item}
-                      prevMessage={messagePrevMessage}
-                      createDiff={createDiff}
-                      onFileOpen={onFileOpen}
-                      onShowSettings={onShowSettings}
-                      onGrantToolPermission={onGrantToolPermission}
-                      showRawParameters={showRawParameters}
-                      showThinking={showThinking}
-                      selectedProject={selectedProject}
-                      provider={provider}
-                      reasoningPresentation={reasoningPresentation}
-                      reasoningDisclosureState={reasoningDisclosureState}
-                      isProcessRunMember={Boolean(executionGroup)}
-                      isReasoningSearchTarget={Boolean(
-                        item.isThinking && revealedMessageKey === messageKey
+                  return (
+                    <Fragment key={messageKey}>
+                      {executionGroup?.firstMemberKey === messageKey && (
+                        <ExecutionProcessSummary
+                          collapsed={isProcessCollapsed}
+                          activityLabel={executionGroup.activityLabel}
+                          hasAttention={executionGroup.hasAttention}
+                          isActiveRun={executionGroup.isActiveRun}
+                          isWindowTruncated={executionGroup.isWindowTruncated}
+                          labelKind={executionGroup.labelKind}
+                          provider={provider}
+                          processEndKey={executionGroup.disclosureKey}
+                          toolCount={executionGroup.toolCount}
+                          onToggle={() => toggleExecutionProcess(executionGroup.disclosureKey, isProcessCollapsed)}
+                        />
                       )}
-                      suppressReasoningAutoCollapse={isUserScrolledUp}
-                      onReasoningUserOpenChange={handleReasoningUserOpenChange}
-                      onReasoningProgramOpen={handleReasoningProgramOpen}
-                      onReasoningProgramCollapse={handleReasoningProgramCollapse}
-                      onEditMessage={onEditMessage}
-                      onForkFromMessage={onForkFromMessage}
-                    />
-                  </LazyMessageRow>
-                </Fragment>
-              );
-            });
-          })()}
-        </>
-      )}
+                      <LazyMessageRow
+                        lazyRows={lazyRows}
+                        rowKey={`${sessionId ?? 'no-session'}:${messageKey}`}
+                        timestamp={item.timestamp}
+                        initiallyNearViewport={initiallyNearViewport}
+                        estimatedHeight={estimateMessageRowHeight(item)}
+                        isProcessCollapsed={shouldHideProcessItem}
+                      >
+                        <MessageComponent
+                          message={item}
+                          prevMessage={messagePrevMessage}
+                          createDiff={createDiff}
+                          onFileOpen={onFileOpen}
+                          onShowSettings={onShowSettings}
+                          onGrantToolPermission={onGrantToolPermission}
+                          showRawParameters={showRawParameters}
+                          showThinking={showThinking}
+                          selectedProject={selectedProject}
+                          provider={provider}
+                          reasoningPresentation={reasoningPresentation}
+                          reasoningDisclosureState={reasoningDisclosureState}
+                          isProcessRunMember={Boolean(executionGroup)}
+                          hidesProcessIdentity={Boolean(executionGroup && item.type === 'assistant')}
+                          isReasoningSearchTarget={Boolean(
+                            item.isThinking && revealedMessageKey === messageKey,
+                          )}
+                          suppressReasoningAutoCollapse={isUserScrolledUp}
+                          onReasoningUserOpenChange={handleReasoningUserOpenChange}
+                          onReasoningProgramOpen={handleReasoningProgramOpen}
+                          onReasoningProgramCollapse={handleReasoningProgramCollapse}
+                          onEditMessage={onEditMessage}
+                          onForkFromMessage={onForkFromMessage}
+                        />
+                      </LazyMessageRow>
+                      {executionGroup && [...executionGroup.memberKeys].at(-1) === messageKey && (
+                        <div data-execution-process-end={executionGroup.disclosureKey} aria-hidden="true" />
+                      )}
+                    </Fragment>
+                  );
+              });
+            })()}
+          </>
+        )}
       </div>
     </div>
   );
