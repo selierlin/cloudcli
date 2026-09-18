@@ -14,7 +14,7 @@ import { PaperclipIcon, MessageSquareIcon, XIcon, Loader2, ArrowUpIcon, PencilIc
 
 import { useVoiceInput } from '@/modules/chat/hooks/useVoiceInput';
 import { useVoiceAvailable } from '@/modules/chat/hooks/useVoiceAvailable';
-import type { QueuedDraft, ScheduledMessage, SlashCommand,SessionActivity,PendingPermissionRequest,PermissionMode,ProviderModelOption, LLMProvider } from '@/shared/types';
+import type { QueuedDraft, QuickReply, ScheduledMessage, SlashCommand,SessionActivity,PendingPermissionRequest,PermissionMode,ProviderModelOption, LLMProvider } from '@/shared/types';
 import {
   PromptInput,
   PromptInputHeader,
@@ -36,6 +36,7 @@ import { ScheduleMessagePopover } from '@/modules/chat/composer/ScheduleMessageP
 import { ScheduledMessageList } from '@/modules/chat/composer/ScheduledMessageList';
 import ComposerModelMenu from '@/modules/chat/composer/ComposerModelMenu';
 import ComposerPermissionMenu from '@/modules/chat/composer/ComposerPermissionMenu';
+import QuickReplyMenu from '@/modules/chat/composer/QuickReplyMenu';
 
 type MentionableFile = {
   name: string;
@@ -69,6 +70,8 @@ type ChatComposerProps = {
   onShowTokenUsage: () => void;
   slashCommandsCount: number;
   onToggleCommandMenu: () => void;
+  /** Inserts a saved snippet into the composer box; the composer state owns how. */
+  onInsertQuickReply: (reply: QuickReply) => void;
   hasInput: boolean;
   onClearInput: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement> | MouseEvent<HTMLButtonElement> | TouchEvent<HTMLButtonElement>) => void;
@@ -147,6 +150,7 @@ export default function ChatComposer({
   onShowTokenUsage,
   slashCommandsCount,
   onToggleCommandMenu,
+  onInsertQuickReply,
   hasInput,
   onClearInput,
   onSubmit,
@@ -467,6 +471,8 @@ export default function ChatComposer({
                 </span>
               )}
             </PromptInputButton>
+
+            <QuickReplyMenu onInsert={onInsertQuickReply} />
 
             {hasInput && (
               <PromptInputButton

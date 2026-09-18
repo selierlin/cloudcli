@@ -120,6 +120,7 @@
     "git": "Git",
     "apiTokens": "API 和令牌",
     "voice": "语音",
+    "quickReplies": "快捷回复",
     "tasks": "任务",
     "browser": "浏览器",
     "notifications": "通知",
@@ -871,5 +872,20 @@
     "installAriaLabel": "插件 git 仓库 URL",
     "tab": "标签",
     "runningStatus": "运行中"
+  },
+  "quickRepliesSettings": {
+    "title": "快捷回复",
+    "description": "可以一键填入聊天输入框的短语。它们保存在你的账号里，因此每台设备上看到的都是同一份列表。",
+    "empty": "还没有快捷回复，先在下面添加一条。",
+    "labelPlaceholder": "按钮名（可留空）",
+    "textPlaceholder": "填入的内容",
+    "labelField": "快捷回复按钮名",
+    "textField": "填入的内容",
+    "add": "添加",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "remove": "删除",
+    "limit": "已用 {{used}} / {{max}} 条",
+    "limitReached": "已达到 {{max}} 条上限"
   }
 }

@@ -542,5 +542,43 @@
     "tokensLabel_other": "tokens",
     "escClosesModal": "Esc closes the modal.",
     "close": "Close"
+  },
+  "quickReplies": {
+    "button": "Quick replies",
+    "defaults": {
+      "continue": "Continue",
+      "goAhead": "Go ahead",
+      "confirm": "Confirm",
+      "ok": "ok",
+      "fixIt": "Fix it",
+      "commit": "Commit",
+      "push": "Push",
+      "done": "Done",
+      "dontActYet": "Don't act yet",
+      "assessImpact": {
+        "label": "Assess impact first",
+        "text": "Assess the impact first, don't change anything yet"
+      },
+      "planFirst": {
+        "label": "Plan before acting",
+        "text": "Don't start yet, produce a plan first"
+      },
+      "analyze": {
+        "label": "Analyze",
+        "text": "Help me analyze a problem:"
+      },
+      "debug": {
+        "label": "Investigate",
+        "text": "Help me debug a problem:"
+      },
+      "resumeInterrupted": {
+        "label": "Resume interrupted",
+        "text": "That run was interrupted just now, continue"
+      },
+      "howToVerify": {
+        "label": "How to verify",
+        "text": "How do I try out what you changed?"
+      }
+    }
   }
 }

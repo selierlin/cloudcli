@@ -253,6 +253,7 @@ function ChatInterface({
     editQueuedDraft,
     deleteQueuedDraft,
     handleVoiceTranscript,
+    handleQuickReplyInsert,
     handleInputChange,
     handleKeyDown,
     handlePaste,
@@ -547,6 +548,7 @@ function ChatInterface({
           onCancelScheduledMessage={cancelScheduledMessage}
           slashCommandsCount={slashCommandsCount}
           onToggleCommandMenu={handleToggleCommandMenu}
+          onInsertQuickReply={handleQuickReplyInsert}
           hasInput={Boolean(input.trim())}
           onClearInput={handleClearInput}
           onSubmit={handleSubmit}

@@ -1,5 +1,6 @@
 import { api } from '@/shared/api';
 import { CODE_EDITOR_STORAGE_KEYS } from '@/shared/constants';
+import type { QuickReply } from '@/shared/types';
 
 /**
  * The one reader and writer for the settings that used to live in browser
@@ -31,6 +32,8 @@ export type UserPreferences = {
   zcodePermissions: unknown;
   codeEditorSettings: unknown;
   uiPreferences: unknown;
+  /** The composer's saved snippets; only `@/shared/quickReplies` reads or writes them. */
+  quickReplies: QuickReply[];
   selectedProvider: string;
 };
 
@@ -77,6 +80,10 @@ const LEGACY_STORAGE_KEYS: Record<UserPreferenceKey, string> = {
   // read by readLegacyCodeEditorSettings instead.
   codeEditorSettings: '',
   uiPreferences: 'uiPreferences',
+  // Quick replies never had a browser-local home, and an empty legacy key is
+  // what leaves the preference unset so the shipped snippets keep being
+  // rendered from i18n instead of being frozen into the user's own list.
+  quickReplies: '',
   selectedProvider: 'selected-provider',
 };
 
