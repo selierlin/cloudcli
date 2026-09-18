@@ -120,6 +120,7 @@
     "git": "Git",
     "apiTokens": "API & Tokens",
     "voice": "Voice",
+    "quickReplies": "Quick Replies",
     "tasks": "Tasks",
     "browser": "Browser",
     "notifications": "Notifications",
@@ -1056,5 +1057,20 @@
     "teamManagementDescription": "Multiple users, role-based access, and shared projects for your team.",
     "licensed": "Licensed under AGPL-3.0",
     "proCta": "Available with CloudCLI Pro"
+  },
+  "quickRepliesSettings": {
+    "title": "Quick replies",
+    "description": "Snippets you can drop into the composer with one tap. They are stored with your account, so every device shows the same list.",
+    "empty": "No quick replies yet. Add the first one below.",
+    "labelPlaceholder": "Name (optional)",
+    "textPlaceholder": "Text to insert",
+    "labelField": "Quick reply name",
+    "textField": "Text to insert",
+    "add": "Add",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "remove": "Remove",
+    "limit": "{{used}} of {{max}} used",
+    "limitReached": "The limit of {{max}} quick replies is reached"
   }
 }

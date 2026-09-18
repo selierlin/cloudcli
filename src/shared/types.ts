@@ -718,12 +718,31 @@ export type QueuedDraft = {
   options?: QueuedSendOptions;
 };
 
-/** Viewport-relative placement box (right/bottom offsets plus max height and width) computed for a composer popover so the model and permission menus stay inside the window. */
+/**
+ * Viewport-relative placement box computed for a composer popover so the model,
+ * permission, schedule and quick reply menus stay inside the window.
+ *
+ * `side` names the viewport edge the menu is pinned to and `offset` is that
+ * edge's distance in px, so the menu grows away from it — the composer's
+ * right-hand tool cluster pins to 'right', the left-hand cluster flips to
+ * 'left' when pinning right would push the menu off-screen. 'both' pins both
+ * edges at `offset`, the full-width sheet a phone opens instead. `bottom` is
+ * measured from the viewport's bottom edge.
+ */
 export type ComposerMenuAnchor = {
-  right: number;
+  side: 'left' | 'right' | 'both';
+  offset: number;
   bottom: number;
   maxHeight: number;
   maxWidth: number;
+};
+
+/** One user-defined composer snippet ("quick reply"): the name its row shows and the text it inserts. Stored, edited and rendered through `@/shared/quickReplies`. */
+export type QuickReply = {
+  /** Row name; omitted when the row is named by the text it inserts. */
+  label?: string;
+  /** Text inserted into the composer. */
+  text: string;
 };
 
 /** One selectable slash command — built-in, user-defined or skill-backed — as listed in the chat composer's command menu and executed when the user picks it. */
@@ -1313,7 +1332,7 @@ export type AgentContext = {
 };
 
 /** Identifier of a top-level section in the settings dialog; use it whenever a tab is stored, compared or requested so deep links, the sidebar and the command palette all agree on the same set of names. */
-export type SettingsMainTab = 'agents' | 'appearance' | 'git' | 'api' | 'voice' | 'tasks' | 'browser' | 'notifications' | 'plugins' | 'about';
+export type SettingsMainTab = 'agents' | 'appearance' | 'git' | 'api' | 'voice' | 'quickReplies' | 'tasks' | 'browser' | 'notifications' | 'plugins' | 'about';
 
 /** The coding-agent CLI a settings screen is configuring, aliasing LLMProvider so agent-scoped settings read as being about an agent rather than a chat model. */
 export type AgentProvider = LLMProvider;

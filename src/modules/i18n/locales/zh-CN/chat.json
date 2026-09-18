@@ -471,5 +471,43 @@
     "failed": "未发送 — {{reason}}",
     "cancel": "取消定时消息",
     "dismiss": "关闭失败提示"
+  },
+  "quickReplies": {
+    "button": "快捷回复",
+    "defaults": {
+      "continue": "继续",
+      "goAhead": "可以",
+      "confirm": "确认",
+      "ok": "ok",
+      "fixIt": "修复下",
+      "commit": "提交吧",
+      "push": "推送",
+      "done": "好了",
+      "dontActYet": "先不要着急操作",
+      "assessImpact": {
+        "label": "先评估影响面",
+        "text": "你评估下影响面，先不要改"
+      },
+      "planFirst": {
+        "label": "先方案再动手",
+        "text": "先别急着动手，先生成方案"
+      },
+      "analyze": {
+        "label": "分析起手",
+        "text": "帮我分析一个问题："
+      },
+      "debug": {
+        "label": "排查起手",
+        "text": "帮我排查一个问题："
+      },
+      "resumeInterrupted": {
+        "label": "中断恢复",
+        "text": "刚刚中断了，继续吧"
+      },
+      "howToVerify": {
+        "label": "怎么验收",
+        "text": "我要怎么体验你改的内容"
+      }
+    }
   }
 }

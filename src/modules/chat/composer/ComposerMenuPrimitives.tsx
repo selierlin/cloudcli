@@ -5,10 +5,12 @@ import { cn } from '@/shared/utils';
 import type { ComposerMenuAnchor } from '@/shared/types';
 
 /**
- * Shared shell for the composer popovers (model/effort and permissions) so both
- * menus share one surface, one heading style and one row style.
+ * Shared shell for the composer popovers (schedule, model/effort, permissions
+ * and quick replies) so they share one surface, one heading style and one row
+ * style.
  *
- * Used by chat's ComposerModelMenu and ComposerPermissionMenu.
+ * Used by chat's ScheduleMessagePopover, ComposerModelMenu,
+ * ComposerPermissionMenu and QuickReplyMenu.
  */
 export function ComposerMenuSurface({
   anchor,
@@ -21,14 +23,24 @@ export function ComposerMenuSurface({
   ariaLabel: string;
   children: ReactNode;
 }) {
+  // The pinned edge decides which side the box is measured from, so the menu
+  // grows away from its trigger's cluster instead of off that side of the screen.
+  // 'both' pins the two opposite edges, which stretches the box across them.
+  const pinnedEdges =
+    anchor.side === 'both'
+      ? { left: anchor.offset, right: anchor.offset }
+      : anchor.side === 'left'
+        ? { left: anchor.offset }
+        : { right: anchor.offset };
+
   return (
     <div
       ref={menuRef}
       role="menu"
       aria-label={ariaLabel}
-      className="fixed z-[100] min-w-48 overflow-y-auto overscroll-contain rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-xl"
+      className="fixed z-[100] min-w-48 overflow-y-auto overscroll-contain rounded-lg border border-border bg-popover/95 p-1 text-popover-foreground shadow-xl backdrop-blur-md"
       style={{
-        right: anchor.right,
+        ...pinnedEdges,
         bottom: anchor.bottom,
         maxHeight: anchor.maxHeight,
         maxWidth: anchor.maxWidth,
@@ -39,7 +51,7 @@ export function ComposerMenuSurface({
   );
 }
 
-/** Used by chat's ComposerModelMenu and ComposerPermissionMenu to label a section of the popover. */
+/** Used by chat's ComposerModelMenu and ComposerPermissionMenu to label a section of the popover, and by QuickReplyMenu to title its single list. */
 export function ComposerMenuHeading({ children }: { children: ReactNode }) {
   return (
     <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium text-muted-foreground">{children}</p>
@@ -51,7 +63,7 @@ export function ComposerMenuSeparator() {
   return <div className="my-1 h-px bg-border" aria-hidden />;
 }
 
-/** Used by chat's ComposerModelMenu and ComposerPermissionMenu to render one selectable row with its checked state. */
+/** Used by chat's ScheduleMessagePopover, ComposerModelMenu, ComposerPermissionMenu and QuickReplyMenu to render one selectable row with its checked state. */
 export function ComposerMenuItem({
   label,
   description,
@@ -84,7 +96,7 @@ export function ComposerMenuItem({
         className,
       )}
     >
-      {icon && <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">{icon}</span>}
+      {icon && <span className="mt-0.5 flex shrink-0 items-center justify-center">{icon}</span>}
       <span className="min-w-0 flex-1">
         <span className="block truncate leading-5">{label}</span>
         {description && (

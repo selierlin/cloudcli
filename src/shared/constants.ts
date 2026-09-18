@@ -8,6 +8,7 @@ import {
   MonitorPlay,
   Palette,
   Plug,
+  Zap,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 
@@ -59,6 +60,7 @@ export const SETTINGS_MAIN_TABS: SettingsMainTabMeta[] = [
   { id: 'appearance', label: 'Appearance', keywords: 'appearance theme dark light language', icon: Palette },
   { id: 'git', label: 'Git', keywords: 'git github commits', icon: GitBranch },
   { id: 'api', label: 'API Tokens', keywords: 'api tokens auth keys', icon: KeyRound },
+  { id: 'quickReplies', label: 'Quick Replies', keywords: 'quick replies snippets canned prompts phrases composer', icon: Zap },
   { id: 'tasks', label: 'Tasks', keywords: 'tasks taskmaster', icon: ListChecks },
   { id: 'browser', label: 'Browser', keywords: 'browser playwright chromium automation', icon: MonitorPlay },
   { id: 'notifications', label: 'Notifications', keywords: 'notifications alerts push', icon: Bell },
