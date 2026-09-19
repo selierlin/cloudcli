@@ -861,7 +861,11 @@ test('synchronizeFile falls back to history.jsonl display when JSONL has no titl
   }
 });
 
-test('synchronizeFile falls back to Untitled Claude Session when all sources are empty', { concurrency: false }, async () => {
+// Fork semantics: a transcript without any title events still yields the first
+// real user prompt rather than "Untitled" — see `first_user_prompt` in the
+// synchronizer (a `/clear`ed session closed without further input has no title
+// metadata, and the opening prompt is a better label than the placeholder).
+test('synchronizeFile falls back to the first user prompt when no title events exist', { concurrency: false }, async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), 'claude-sync-untitled-'));
   const workspacePath = path.join(tmp, 'workspace');
   await mkdir(workspacePath, { recursive: true });
@@ -891,7 +895,7 @@ test('synchronizeFile falls back to Untitled Claude Session when all sources are
 
       assert.ok(result);
       const session = sessionsDb.getSessionById(result!);
-      assert.equal(session?.custom_name, 'Untitled Claude Session');
+      assert.equal(session?.custom_name, 'first prompt');
     });
   } finally {
     restoreHomeDir();
@@ -926,12 +930,16 @@ test('synchronizeFile preserves existing DB custom_name regardless of JSONL and 
 
     await withIsolatedDatabase(async () => {
       // Pre-seed the DB with a custom_name set via CloudCLI sidebar rename.
-      sessionsDb.createSession(
+      // The rename goes through the real path (updateSessionCustomName,
+      // name_source 'manual_rename') because a bare createSession customName
+      // records 'provider_title' provenance, which a later provider title is
+      // allowed to improve.
+      const seededId = sessionsDb.createSession(
         'test-session-1',
         'claude',
         workspacePath,
-        'Sidebar custom name',
       );
+      sessionsDb.updateSessionCustomName(seededId, 'Sidebar custom name');
 
       const synchronizer = new ClaudeSessionSynchronizer();
       const result = await synchronizer.synchronizeFile(
