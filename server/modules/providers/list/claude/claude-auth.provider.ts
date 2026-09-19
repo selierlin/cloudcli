@@ -30,8 +30,10 @@ export class ClaudeProviderAuth implements IProviderAuth {
     // usable fallback here even where the SDK's raw spawn could not use it.
     const cliPath = resolveClaudeCodeExecutablePath(process.env.CLAUDE_CLI_PATH) ?? 'claude';
     try {
-      spawn.sync(cliPath, ['--version'], { stdio: 'ignore', timeout: 5000 });
-      return true;
+      // A missing binary surfaces on result.error; cross-spawn only throws for
+      // argument errors, so the thrown-error form would never report absence.
+      const result = spawn.sync(cliPath, ['--version'], { stdio: 'ignore', timeout: 5000 });
+      return !result.error && result.status === 0;
     } catch {
       return false;
     }

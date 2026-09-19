@@ -16,8 +16,10 @@ export class CursorProviderAuth implements IProviderAuth {
    */
   private checkInstalled(): boolean {
     try {
-      spawn.sync('cursor-agent', ['--version'], { stdio: 'ignore', timeout: 5000 });
-      return true;
+      // A missing binary surfaces on result.error; cross-spawn only throws for
+      // argument errors, so the thrown-error form would never report absence.
+      const result = spawn.sync('cursor-agent', ['--version'], { stdio: 'ignore', timeout: 5000 });
+      return !result.error && result.status === 0;
     } catch {
       return false;
     }
