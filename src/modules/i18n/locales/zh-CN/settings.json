@@ -691,6 +691,20 @@
         }
       }
     },
+    "dsh": {
+      "permissionMode": "权限模式",
+      "description": "控制 CloudCLI 如何响应 DSH 的权限请求",
+      "modes": {
+        "default": {
+          "title": "在聊天中询问",
+          "description": "DSH 发起权限请求时，在聊天输入区显示“允许一次 / 拒绝”。"
+        },
+        "auto": {
+          "title": "自动允许请求",
+          "description": "DSH 发起权限请求时自动选择“允许一次”。这不会修改 DSH 自身的沙箱策略。"
+        }
+      }
+    },
     "actions": {
       "add": "添加"
     }

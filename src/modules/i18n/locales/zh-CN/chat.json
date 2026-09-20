@@ -122,6 +122,10 @@
       },
       "zcode": {
         "bypassPermissions": "YOLO 模式会自动批准每一次工具调用（包括 Shell 执行）。如果多次拒绝，CLI 可能进入重试循环并退出。请谨慎使用，建议切回编辑模式（Accept Edits）以保证安全。"
+      },
+      "dsh": {
+        "default": "DSH 请求权限时，会在聊天输入区等待你选择“允许一次”或“拒绝”。",
+        "auto": "CloudCLI 会自动以“允许一次”响应 DSH 的权限请求；DSH 自身沙箱规则仍然生效。"
       }
     },
     "technicalDetails": "技术细节"

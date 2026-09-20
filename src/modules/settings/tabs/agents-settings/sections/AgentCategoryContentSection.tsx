@@ -1,4 +1,4 @@
-import type { AgentCategory, AgentContextByProvider, AgentProvider, AgentSettingsProject, ClaudePermissionsState, CodexPermissionMode, CursorPermissionsState, McpProject, PiPermissionMode, SkillsProject, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
+import type { AgentCategory, AgentContextByProvider, AgentProvider, AgentSettingsProject, ClaudePermissionsState, CodexPermissionMode, CursorPermissionsState, DshPermissionMode, McpProject, PiPermissionMode, SkillsProject, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
 import { McpServers } from '@/modules/mcp';
 import { ProviderSkills } from '@/modules/skills';
 import AccountContent from '@/modules/settings/tabs/agents-settings/sections/content/AccountContent';
@@ -22,6 +22,8 @@ type AgentCategoryContentSectionProps = {
   onZcodePermissionModeChange: (value: ZcodePermissionMode) => void;
   piPermissionMode: PiPermissionMode;
   onPiPermissionModeChange: (value: PiPermissionMode) => void;
+  dshPermissionMode: DshPermissionMode;
+  onDshPermissionModeChange: (value: DshPermissionMode) => void;
   projects: AgentSettingsProject[];
 };
 
@@ -42,6 +44,8 @@ export default function AgentCategoryContentSection({
   onZcodePermissionModeChange,
   piPermissionMode,
   onPiPermissionModeChange,
+  dshPermissionMode,
+  onDshPermissionModeChange,
   projects,
 }: AgentCategoryContentSectionProps) {
   return (
@@ -123,6 +127,14 @@ export default function AgentCategoryContentSection({
           agent="pi"
           permissionMode={piPermissionMode}
           onPermissionModeChange={onPiPermissionModeChange}
+        />
+      )}
+
+      {selectedCategory === 'permissions' && selectedAgent === 'dsh' && (
+        <PermissionsContent
+          agent="dsh"
+          permissionMode={dshPermissionMode}
+          onPermissionModeChange={onDshPermissionModeChange}
         />
       )}
 

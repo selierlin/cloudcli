@@ -708,6 +708,20 @@
         }
       }
     },
+    "dsh": {
+      "permissionMode": "Permission Mode",
+      "description": "Controls how CloudCLI answers DSH permission requests",
+      "modes": {
+        "default": {
+          "title": "Ask in chat",
+          "description": "Show each DSH permission request in the chat composer for an Allow once or Deny decision."
+        },
+        "auto": {
+          "title": "Auto-allow requests",
+          "description": "Answer DSH permission requests with Allow once. This does not change DSH's own sandbox policy."
+        }
+      }
+    },
     "actions": {
       "add": "Add"
     }

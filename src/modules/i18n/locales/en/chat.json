@@ -129,6 +129,10 @@
       },
       "zcode": {
         "bypassPermissions": "YOLO mode auto-approves every tool call, including shell execution. The CLI may exit with a permission-denied retry loop if too many calls are rejected. Switch back to Accept Edits for safety."
+      },
+      "dsh": {
+        "default": "DSH asks for permission in the chat composer before running the requested action.",
+        "auto": "CloudCLI automatically answers DSH permission requests with Allow once; DSH sandbox rules still apply."
       }
     },
     "technicalDetails": "Technical details"

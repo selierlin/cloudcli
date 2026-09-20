@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import type { AgentCategory, AgentContextByProvider, AgentProvider, AgentSettingsProject, ClaudePermissionsState, CodexPermissionMode, CursorPermissionsState, PiPermissionMode, ProviderAuthStatus, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
+import type { AgentCategory, AgentContextByProvider, AgentProvider, AgentSettingsProject, ClaudePermissionsState, CodexPermissionMode, CursorPermissionsState, DshPermissionMode, PiPermissionMode, ProviderAuthStatus, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
 import AgentCategoryContentSection from '@/modules/settings/tabs/agents-settings/sections/AgentCategoryContentSection';
 import AgentCategoryTabsSection from '@/modules/settings/tabs/agents-settings/sections/AgentCategoryTabsSection';
 import AgentSelectorSection from '@/modules/settings/tabs/agents-settings/sections/AgentSelectorSection';
@@ -22,6 +22,8 @@ type AgentsSettingsTabProps = {
   onZcodePermissionModeChange: (value: ZcodePermissionMode) => void;
   piPermissionMode: PiPermissionMode;
   onPiPermissionModeChange: (value: PiPermissionMode) => void;
+  dshPermissionMode: DshPermissionMode;
+  onDshPermissionModeChange: (value: DshPermissionMode) => void;
   projects: AgentSettingsProject[];
 };
 
@@ -41,6 +43,8 @@ export default function AgentsSettingsTab({
   onZcodePermissionModeChange,
   piPermissionMode,
   onPiPermissionModeChange,
+  dshPermissionMode,
+  onDshPermissionModeChange,
   projects,
 }: AgentsSettingsTabProps) {
   const [selectedAgent, setSelectedAgent] = useState<AgentProvider>('claude');
@@ -139,6 +143,8 @@ export default function AgentsSettingsTab({
           onZcodePermissionModeChange={onZcodePermissionModeChange}
           piPermissionMode={piPermissionMode}
           onPiPermissionModeChange={onPiPermissionModeChange}
+          dshPermissionMode={dshPermissionMode}
+          onDshPermissionModeChange={onDshPermissionModeChange}
           projects={projects}
         />
       </div>

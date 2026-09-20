@@ -164,3 +164,37 @@ test('changing either mode persists it under its own preference key after the de
   }, { timeout: 1200 });
   assert.equal(storedPermissions('piPermissions')?.permissionMode, 'readonly');
 });
+
+test('opening settings loads the persisted DSH permission mode', async () => {
+  seedPreferences({
+    dshPermissions: { permissionMode: 'auto' },
+  });
+
+  const { result } = await renderSettings();
+
+  await waitFor(() => {
+    assert.equal(result.current.dshPermissionMode, 'auto');
+  });
+});
+
+test('changing the DSH mode persists it under its own preference key', async () => {
+  seedPreferences({
+    dshPermissions: { permissionMode: 'auto' },
+  });
+  const { result } = await renderSettings();
+
+  await waitFor(() => {
+    assert.equal(result.current.dshPermissionMode, 'auto');
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+
+  act(() => {
+    result.current.setDshPermissionMode('default');
+  });
+
+  await waitFor(() => {
+    assert.equal(storedPermissions('dshPermissions')?.permissionMode, 'default');
+  }, { timeout: 1200 });
+});

@@ -11,6 +11,7 @@ import type { PendingPermissionRequest, PermissionMode,
   ProviderModelsDefinition } from '@/shared/types';
 import { DEFAULT_EFFORT_VALUE, PROVIDER_MODELS_CHANGED_EVENT } from '@/shared/constants';
 import { readSelectedProvider, writeSelectedProvider } from '@/shared/selectedProvider';
+import { readUserPreference, USER_PREFERENCES_CHANGED_EVENT } from '@/shared/userSettings';
 import { prefetchAvailableProviders } from '@/modules/chat/hooks/useAvailableProviders';
 
 const FALLBACK_PROVIDER_EFFORT_VALUES: Partial<Record<LLMProvider, readonly string[]>> = {
@@ -59,7 +60,7 @@ const FALLBACK_PERMISSION_MODES: Record<LLMProvider, PermissionMode[]> = {
   cursor: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
   codex: ['default', 'acceptEdits', 'bypassPermissions'],
   opencode: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
-  dsh: ['default'],
+  dsh: ['default', 'auto'],
   workbuddy: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
   pi: ['default', 'readonly'],
   zcode: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
@@ -132,6 +133,15 @@ type SessionProviderSelection = {
   effort: string | null;
 };
 
+type DshSettingsStorage = {
+  permissionMode?: PermissionMode;
+};
+
+const readStoredDshPermissionMode = (): PermissionMode | null => {
+  const stored = readUserPreference<DshSettingsStorage>('dshPermissions', {});
+  return stored.permissionMode === 'auto' ? 'auto' : stored.permissionMode === 'default' ? 'default' : null;
+};
+
 const getSessionSelectionKey = (provider: LLMProvider, sessionId: string): string => (
   `${provider}:${sessionId}`
 );
@@ -174,6 +184,9 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   const [providerCapabilities, setProviderCapabilities] = useState<
     Partial<Record<LLMProvider, ProviderCapabilities>> | null
   >(null);
+  // Re-runs DSH permission restoration when the settings dialog saves a new
+  // default; the preference payload itself is external state in userSettings.
+  const [dshPreferenceRevision, setDshPreferenceRevision] = useState(0);
 
   const [providerModelCatalog, setProviderModelCatalog] = useState<
     Partial<Record<LLMProvider, ProviderModelsDefinition>>
@@ -447,6 +460,12 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   }, [providerEfforts, providerModels, reconcileStoredEffort]);
 
   useEffect(() => {
+    const handlePreferencesChanged = () => setDshPreferenceRevision((revision) => revision + 1);
+    window.addEventListener(USER_PREFERENCES_CHANGED_EVENT, handlePreferencesChanged);
+    return () => window.removeEventListener(USER_PREFERENCES_CHANGED_EVENT, handlePreferencesChanged);
+  }, []);
+
+  useEffect(() => {
     const validModes = getPermissionModesForProvider(provider);
     const sessionSavedMode = selectedSession?.id
       ? (localStorage.getItem(`permissionMode-${selectedSession.id}`) as PermissionMode | null)
@@ -454,13 +473,20 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     // Fall back to the last mode picked for this provider: a brand-new chat
     // only receives its session id after the first send, so without this the
     // mode chosen beforehand would snap back to the default as soon as the
-    // session id appears.
+    // session id appears. For DSH, the settings default follows that override.
     const providerSavedMode = localStorage.getItem(`permissionMode-last-${provider}`) as PermissionMode | null;
-    const savedMode = [sessionSavedMode, providerSavedMode].find(
+    const configuredDshMode = provider === 'dsh' ? readStoredDshPermissionMode() : null;
+    const savedMode = [sessionSavedMode, providerSavedMode, configuredDshMode].find(
       (mode): mode is PermissionMode => Boolean(mode && validModes.includes(mode)),
     );
     setPermissionMode(savedMode ?? getDefaultPermissionModeForProvider(provider));
-  }, [selectedSession?.id, provider, getDefaultPermissionModeForProvider, getPermissionModesForProvider]);
+  }, [
+    selectedSession?.id,
+    provider,
+    dshPreferenceRevision,
+    getDefaultPermissionModeForProvider,
+    getPermissionModesForProvider,
+  ]);
 
   useEffect(() => {
     if (!selectedSession?.__provider || selectedSession.__provider === provider) {
