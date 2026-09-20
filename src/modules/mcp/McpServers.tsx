@@ -135,6 +135,9 @@ export default function McpServers({ selectedProvider, currentProjects }: McpSer
   // dsh and pi can never persist an MCP server, so both add entries stay
   // visible but disabled while naming the reason for the selected provider.
   const addBlockedReason = MCP_ADD_BLOCKED_REASON[selectedProvider];
+  // A harness-managed provider still reports the servers its harness loads, but
+  // every write is rejected, so those rows are shown without edit or delete.
+  const isHarnessManagedProvider = addBlockedReason === 'harnessManaged';
   const addBlockedDescription = addBlockedReason
     ? t(`mcpServers.addBlocked.${addBlockedReason}`)
     : null;
@@ -204,6 +207,10 @@ export default function McpServers({ selectedProvider, currentProjects }: McpSer
 
         {servers.map((server) => {
           const managed = isManagedServer(server);
+          // Harness-managed servers keep their connection details visible, since
+          // the harness config is the only place they exist; only the app-managed
+          // rows hide those fields.
+          const readOnly = managed || isHarnessManagedProvider;
 
           return (
             <div key={getServerKey(server)} className="rounded-lg border border-border bg-card/50 p-4">
@@ -227,7 +234,7 @@ export default function McpServers({ selectedProvider, currentProjects }: McpSer
                         )}
                       </>
                     )}
-                    {managed && (
+                    {readOnly && (
                       <Badge variant="outline" className="gap-1 text-xs text-muted-foreground">
                         <Lock className="h-3 w-3" />
                         {t('mcpServers.managed.badge', { defaultValue: 'Managed' })}
@@ -252,17 +259,20 @@ export default function McpServers({ selectedProvider, currentProjects }: McpSer
                         )}
                       </>
                     )}
-                    {managed && (
+                    {readOnly && (
                       <div className="text-xs text-muted-foreground">
-                        {t('mcpServers.managed.hint', {
-                          defaultValue: 'Managed by CloudCLI.',
-                        })}
+                        {managed
+                          ? t('mcpServers.managed.hint', { defaultValue: 'Managed by CloudCLI.' })
+                          : t('mcpServers.managed.harnessHint', {
+                            provider: providerName,
+                            defaultValue: `Managed by ${providerName} itself.`,
+                          })}
                       </div>
                     )}
                   </div>
                 </div>
 
-                {!managed && (
+                {!readOnly && (
                   <div className="ml-4 flex items-center gap-2">
                     <Button
                       onClick={() => openForm(server)}

@@ -400,13 +400,12 @@ test('providerMcpService rejects every DSH and Pi MCP write', { concurrency: fal
       error.statusCode === 400,
   );
 
-  // DSH declares scopes but reads none, so the list stays empty rather than
-  // offering rows the user could edit into a failing write.
+  // DSH reads its servers from the harness composition and has no per-project
+  // MCP scope, so only the `user` listing can carry rows; what it reports there
+  // is covered by dsh-mcp.test.ts.
   const grouped = await providerMcpService.listProviderMcpServers('dsh');
-  assert.deepEqual(
-    Object.fromEntries(Object.entries(grouped).map(([scope, servers]) => [scope, servers.length])),
-    { user: 0, local: 0, project: 0 },
-  );
+  assert.deepEqual(grouped.project, []);
+  assert.deepEqual(grouped.local, []);
 });
 
 /**

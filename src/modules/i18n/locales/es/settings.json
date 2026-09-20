@@ -538,7 +538,8 @@
     },
     "managed": {
       "badge": "Gestionado",
-      "hint": "Gestionado por CloudCLI."
+      "hint": "Gestionado por CloudCLI.",
+      "harnessHint": "Gestionado por {{provider}}; CloudCLI solo lo muestra."
     },
     "help": {
       "title": "Acerca de MCP en Codex",

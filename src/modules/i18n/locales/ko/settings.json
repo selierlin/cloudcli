@@ -538,7 +538,8 @@
     },
     "managed": {
       "badge": "관리됨",
-      "hint": "CloudCLI가 관리합니다."
+      "hint": "CloudCLI가 관리합니다.",
+      "harnessHint": "{{provider}}가 자체적으로 관리하며 CloudCLI는 표시만 합니다."
     },
     "help": {
       "title": "Codex MCP 정보",
