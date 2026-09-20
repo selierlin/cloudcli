@@ -49,7 +49,11 @@ async function withIsolatedEnvironment(
   }
 }
 
-/** Writes one concatenated-zstd session log (header frame + event frames). */
+/**
+ * Writes one session log. A `.zstd` file name stores the lines as concatenated
+ * Zstandard frames (header frame + one frame per line); any other suffix stores
+ * them as plaintext, mirroring the harness's per-root encoding configuration.
+ */
 async function writeSessionLog(
   sessionsRoot: string,
   cwd: string,
@@ -67,11 +71,13 @@ async function writeSessionLog(
     delegationDepth: 0,
   };
   const lines = [JSON.stringify(header), ...events.map((event) => JSON.stringify(event))];
-  const frames = lines.map((line) => zlib.zstdCompressSync(Buffer.from(`${line}\n`)));
+  const payload = logFileName.endsWith('.zstd')
+    ? Buffer.concat(lines.map((line) => zlib.zstdCompressSync(Buffer.from(`${line}\n`))))
+    : Buffer.from(lines.map((line) => `${line}\n`).join(''));
 
   const logDir = path.join(sessionsRoot, projectKey(cwd), encodeSessionSegment(acpSessionId));
   await mkdir(logDir, { recursive: true });
-  await writeFile(path.join(logDir, logFileName), Buffer.concat(frames));
+  await writeFile(path.join(logDir, logFileName), payload);
 }
 
 const userMessage = (text: string, seq: number, time: number) => ({
@@ -180,6 +186,28 @@ test('fetchHistory prefers the newest log generation when generations coexist', 
       result.messages.map((message) => message.content),
       ['current v3 content', 'current v3 reply'],
     );
+  });
+});
+
+test('fetchHistory decodes an uncompressed (compression: none) session log', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const acpSessionId = 'abcd-1234-plain';
+    const appSessionId = 'app-session-plain';
+    const time = Date.now();
+    await writeSessionLog(sessionsRoot, cwd, acpSessionId, [
+      userMessage('hello from a plaintext root', 1, time),
+      assistantMessage('plaintext reply', 2, time + 100),
+    ], { logFileName: 'session.v3.jsonl', headerVersion: 3 });
+
+    sessionsDb.createAppSession(appSessionId, 'dsh', cwd, 'Plaintext session');
+    sessionsDb.assignProviderSessionId(appSessionId, acpSessionId);
+
+    const provider = new DshSessionsProvider();
+    const result = await provider.fetchHistory(appSessionId);
+
+    assert.equal(result.total, 2);
+    assert.equal(result.messages[0]?.content, 'hello from a plaintext root');
+    assert.equal(result.messages[1]?.content, 'plaintext reply');
   });
 });
 
@@ -330,6 +358,31 @@ test('synchronizer indexes a generation-named (v3) session log', async () => {
     assert.equal(indexed?.provider, 'dsh');
     assert.equal(indexed?.custom_name, 'V3 index prompt');
     assert.ok(indexed?.jsonl_path?.endsWith('session.v3.jsonl.zstd'));
+  });
+});
+
+test('synchronizer discovers an uncompressed (compression: none) session log', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const acpSessionId = 'dsh-session-plain-index';
+    await writeSessionLog(sessionsRoot, cwd, acpSessionId, [
+      userMessage('Plaintext index prompt', 1, Date.now()),
+    ], { logFileName: 'session.v3.jsonl', headerVersion: 3 });
+    projectsDb.createProjectPath(cwd);
+
+    const logPath = path.join(
+      sessionsRoot,
+      projectKey(cwd),
+      encodeSessionSegment(acpSessionId),
+      'session.v3.jsonl',
+    );
+    const synchronizer = new DshSessionSynchronizer();
+
+    assert.equal(await synchronizer.synchronize(), 1);
+    const indexed = sessionsDb.getSessionById(acpSessionId);
+    assert.equal(indexed?.custom_name, 'Plaintext index prompt');
+    assert.equal(indexed?.jsonl_path, logPath);
+    assert.equal(await synchronizer.synchronizeFile(logPath), acpSessionId);
+    assert.equal(await synchronizer.resolveTranscriptPath(acpSessionId, cwd), logPath);
   });
 });
 

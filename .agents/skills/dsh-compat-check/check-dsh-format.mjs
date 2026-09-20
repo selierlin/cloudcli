@@ -13,10 +13,12 @@ import zlib from 'node:zlib';
 
 const ZSTD_FRAME_MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd]);
 // The harness names the log after the Session format generation: version 0 keeps
-// the suffix-only `session.jsonl.zstd`, later generations insert `.vN`.
-const COMPRESSED_LOG_PATTERN = /^session(?:\.v(\d+))?\.jsonl\.zstd$/;
-const COMPRESSED_LOG_HINT = 'session[.vN].jsonl.zstd';
-const PLAIN_LOG = 'session.jsonl';
+// the suffix-only `session.jsonl`, later generations insert `.vN`. The trailing
+// encoding suffix is configured per root: `.zstd` (the default) stores
+// concatenated Zstandard frames, a `compression: 'none'` root stores plaintext
+// lines. One root uses a single encoding for every generation.
+const SESSION_LOG_PATTERN = /^session(?:\.v(\d+))?\.jsonl(?:\.zstd)?$/;
+const LOG_NAME_HINT = 'session[.vN].jsonl[.zstd]';
 // Generations observed in real logs. The decoder reads both; an unknown (newer)
 // generation must be confirmed against a real sample before being trusted.
 const KNOWN_HEADER_VERSIONS = new Set([0, 3]);
@@ -128,7 +130,7 @@ function collectBlocks(content, blocks) {
 }
 
 function isSessionLogFile(name) {
-  return COMPRESSED_LOG_PATTERN.test(name) || name === PLAIN_LOG;
+  return SESSION_LOG_PATTERN.test(name);
 }
 
 function findLogs(limit) {
@@ -148,7 +150,7 @@ function findLogs(limit) {
 }
 
 function printReport(filePath) {
-  const plain = path.basename(filePath) === PLAIN_LOG;
+  const plain = !path.basename(filePath).endsWith('.zstd');
   let decoded;
   try {
     const bytes = fs.readFileSync(filePath);
@@ -160,12 +162,12 @@ function printReport(filePath) {
   const data = analyze(decoded.text);
   const unclassifiedTypes = [...data.types.keys()].filter((type) => !KNOWN_RENDERED_TYPES.has(type) && !KNOWN_NOT_READ_TYPES.has(type));
   const unclassifiedBlocks = [...data.blocks.keys()].filter((type) => !KNOWN_BLOCK_TYPES.has(type));
-  const compatible = !plain && decoded.badFrames === 0 && data.badLines === 0 && data.issues.length === 0
+  const compatible = decoded.badFrames === 0 && data.badLines === 0 && data.issues.length === 0
     && unclassifiedTypes.length === 0 && unclassifiedBlocks.length === 0;
 
   console.log(`\n=== DSH transcript 格式兼容性检查 ===\n\n检查文件: ${filePath}`);
   console.log(`文件修改时间: ${fs.statSync(filePath).mtime.toISOString()}，逻辑 JSONL ${data.parsedLines} 行`);
-  if (plain) console.log(`  ⚠️ 发现未压缩 ${PLAIN_LOG}：CloudCLI 当前只发现并读取 ${COMPRESSED_LOG_HINT}`);
+  if (plain) console.log('  ℹ️ 未压缩根（compression: none）：纯文本行，CloudCLI 按后缀分派读取');
   if (!plain) console.log(`  ℹ️ Zstandard 帧: ${decoded.frames} 个成功${decoded.badFrames ? `，${decoded.badFrames} 个不可读` : ''}`);
   if (data.badLines) console.log(`  ⚠️ 解压后有 ${data.badLines} 条无效 JSONL 行`);
 
@@ -202,7 +204,7 @@ const explicitPath = args.find((arg) => !arg.startsWith('--'));
 const files = explicitPath ? [path.resolve(explicitPath)] : findLogs(args.includes('--all') ? 5 : 1);
 if (files.length === 0) {
   console.log(`未找到 DSH session log。请先使用 DSH，或设置 DSH_SESSIONS_ROOT；当前目录：${sessionsRoot()}`);
-  console.log(`也可指定文件：node check-dsh-format.mjs /absolute/path/to/${COMPRESSED_LOG_HINT}`);
+  console.log(`也可指定文件：node check-dsh-format.mjs /absolute/path/to/${LOG_NAME_HINT}`);
   process.exitCode = 1;
 } else {
   let compatible = true;

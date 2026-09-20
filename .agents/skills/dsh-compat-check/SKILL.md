@@ -10,17 +10,19 @@ CloudCLI 只读 DeepSeek Harness（DSH）写入的会话日志。Harness 升级�
 ## 范围与不变量
 
 - 数据源为 `DSH_SESSIONS_ROOT`；未设置时为 `${DSH_HOME:-~/.dsh}/sessions`。npm 版 `dsh --profile acp` 把会话写在 `~/.dsh/sessions`（旧的 dsh-desktop 桌面版 harness 目录已被取代），CloudCLI 的 `getDshHome()` 默认 `~/.dsh`，与此一致。只读，绝不修改日志。
-- 会话日志按 Session 格式世代命名，CloudCLI 读取 `<root>/--<project-key>--/<encoded-session-id>/session[.vN].jsonl.zstd` 中**世代号最大**的那份（`session.jsonl.zstd` 为 v0，`session.v3.jsonl.zstd` 为 v3）。世代号是文件名的一部分，发现逻辑必须按模式匹配；写死单个文件名会让升级后的会话静默读成空历史。
-- 日志由多个独立 Zstandard 帧顺序拼接；每帧解压后合为逻辑 JSONL。部分写入或损坏的末帧只应丢弃该帧，保留此前可读内容。
+- 会话日志按 Session 格式世代命名，CloudCLI 读取 `<root>/--<project-key>--/<encoded-session-id>/session[.vN].jsonl[.zstd]` 中**世代号最大**的那份（`session.jsonl.zstd` 为 v0，`session.v3.jsonl.zstd` 为 v3）。世代号与物理编码后缀都是文件名的一部分，发现逻辑必须按模式匹配；写死单个文件名会让升级后的会话静默读成空历史。编码后缀由 root 配置（默认 `zstd`，`compression: none` 时为纯文本 `.jsonl`），一个 root 只写一种编码。
+- Zstandard 根（默认）的日志由多个独立 Zstandard 帧顺序拼接；每帧解压后合为逻辑 JSONL。部分写入或损坏的末帧只应丢弃该帧，保留此前可读内容——Node 的 `zstdDecompressSync` 对截断帧静默返回空串而非抛错，所以「丢掉整帧」就是当前行为。纯文本根按 UTF-8 逐行读取。
 - 检查目标：
-  - `server/modules/providers/list/dsh/dsh-sessions.provider.ts`：`isDshSessionLogFile()`、`findDshSessionLogPath()`、`decodeZstdFrames()`、`decodeSessionLog()`、`extractText()`。
+  - `server/modules/providers/list/dsh/dsh-sessions.provider.ts`：`isDshSessionLogFile()`、`findDshSessionLogPath()`、`decodeZstdFrames()`、`decodeSessionLogBuffer()`、`decodeSessionLog()`、`extractText()`。
   - `server/modules/providers/list/dsh/dsh-session-synchronizer.provider.ts`：会话发现、会话名和 project key 映射。
   - `server/modules/providers/list/dsh/dsh-models.provider.ts`：会话根目录覆盖。
   - `server/modules/providers/services/sessions-watcher.service.ts`：watcher 目标文件过滤。
 
 ## 当前基线
 
-已确认的 header 版本为 `0`（旧，物理文件 `session.jsonl.zstd`）与 `3`（当前，物理文件 `session.v3.jsonl.zstd`）；两者的事件结构一致，同一套解码逻辑可读。`session.jsonl` 表示 Harness 切换为未压缩写入，而当前 CloudCLI 不会发现或读取它，必须适配。DSH 用一次迁移把会话重命名到新世代，因此升级后同一项目下的**全部**历史会一起失效。
+已确认的 header 版本为 `0`（旧，物理文件 `session.jsonl.zstd`）与 `3`（当前，物理文件 `session.v3.jsonl.zstd`）；两者的事件结构一致，同一套解码逻辑可读。未压缩根（`compression: none`）把同样的事件写成纯文本 `session[.vN].jsonl`，CloudCLI 已按后缀分派（`.zstd` 走帧解压，其余按 UTF-8 文本）读取。DSH 用一次迁移把会话重命名到新世代，因此升级后同一项目下的**全部**历史会一起失效。
+
+上游还支持一个 `cwd === undefined` 的兜底目录 `_no-cwd`（裸名，不带 `--` 包裹）。CloudCLI 不会用到它：runtime 的 `newSession(cwd)` 永远收到非空 cwd（最终兜底到 `process.cwd()`），且这类会话没有可归属的 project_path，所以同步器与历史读取都无需适配。
 
 CloudCLI 历史渲染的唯一事件是：
 
@@ -40,13 +42,13 @@ CloudCLI 历史渲染的唯一事件是：
 ```bash
 node .agents/skills/dsh-compat-check/check-dsh-format.mjs
 node .agents/skills/dsh-compat-check/check-dsh-format.mjs --all
-node .agents/skills/dsh-compat-check/check-dsh-format.mjs /absolute/path/to/session[.vN].jsonl.zstd
+node .agents/skills/dsh-compat-check/check-dsh-format.mjs /absolute/path/to/session[.vN].jsonl[.zstd]
 ```
 
 - 默认检查最新日志；`--all` 检查最近 5 个。
 - 报告 `🆕`：真实的新顶层事件或 content block，需确认是否应进入历史渲染。
 - 报告 `⚠️ source.kind 缺失`：当前会把该 user/message 显示出来；先确认它不是新型注入上下文。
-- 报告 `⚠️ 未压缩 session.jsonl`：当前同步器和历史读取均不兼容该物理格式。
+- 报告 `ℹ️ 未压缩根（compression: none）`：该 root 写纯文本行而非 Zstandard 帧，CloudCLI 已按后缀支持；这类日志的帧数为 0 属正常，不是损坏。
 - 报告 `⚠️ session header version`：当前解码不验证版本，需比较 Harness 的兼容承诺并决定是否加拒绝或适配。
 - 空目录或无日志不代表兼容；请先运行一次 DSH，或传入指定日志。
 
@@ -63,4 +65,4 @@ npx tsx --tsconfig server/tsconfig.json --test server/modules/providers/tests/ds
 npm run typecheck
 ```
 
-更新本技能和检查器中的已知类型，只记录已在真实日志中确认的格式。
+更新本技能和检查器中的已知类型。证据只认两类：已在真实日志中确认的格式，以及上游随产品发布的格式定义——全局安装的 `@deepseek-ai/dsh-session-format` / `dsh-session-persistence-jsonl` 子包 `lib/index.js` 与 `README.zh.md` 是文件名、编码与路径编码的真源，比单个日志样本更完整且无需联网。
