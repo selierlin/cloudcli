@@ -54,6 +54,16 @@ const writeOpenCodeAuth = async (homeDir: string, auth: Record<string, unknown>)
   await writeFile(path.join(authDir, 'auth.json'), JSON.stringify(auth), 'utf8');
 };
 
+/** Writes a global OpenCode config into the throwaway home. */
+const writeOpenCodeConfig = async (
+  homeDir: string,
+  config: Record<string, unknown>,
+): Promise<void> => {
+  const configDir = path.join(homeDir, '.config', 'opencode');
+  await mkdir(configDir, { recursive: true });
+  await writeFile(path.join(configDir, 'opencode.json'), JSON.stringify(config), 'utf8');
+};
+
 test('OpenCode exposes only the curated predefined catalog', async () => {
   await withOpenCodeHome(async () => {}, async (adapter) => {
     // Nothing readable about this install, so the picker keeps every option
@@ -170,15 +180,7 @@ test('OpenCode offers only models the install can route to', async () => {
 
   // Providers configured rather than logged into count too.
   await withOpenCodeHome(
-    async (homeDir) => {
-      const configDir = path.join(homeDir, '.config', 'opencode');
-      await mkdir(configDir, { recursive: true });
-      await writeFile(
-        path.join(configDir, 'opencode.json'),
-        JSON.stringify({ provider: { anthropic: { options: {} } } }),
-        'utf8',
-      );
-    },
+    (homeDir) => writeOpenCodeConfig(homeDir, { provider: { anthropic: { options: {} } } }),
     async (adapter) => {
       const catalog = await adapter.getSupportedModels();
       const providerIds = new Set(catalog.OPTIONS.map((option) => option.value.split('/')[0]));
@@ -197,6 +199,94 @@ test('OpenCode offers only models the install can route to', async () => {
       const providerIds = new Set(catalog.OPTIONS.map((option) => option.value.split('/')[0]));
 
       assert.deepEqual([...providerIds], ['openai']);
+    },
+  );
+});
+
+test('OpenCode offers the models a configured provider declares', async () => {
+  // A provider carrying its own `provider` block - a subscription gateway such
+  // as WorkBuddy, or a self-hosted endpoint - is absent from OpenCode's built-in
+  // catalog, so its models exist only in the config. Reading the provider ids
+  // alone would filter every one of them out of the picker.
+  await withOpenCodeHome(
+    (homeDir) =>
+      writeOpenCodeConfig(homeDir, {
+        provider: {
+          workbuddy: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'WorkBuddy',
+            options: {
+              baseURL: 'https://copilot.tencent.com/v2',
+              apiKey: '{file:keys/workbuddy.key}',
+            },
+            models: {
+              auto: { name: 'Auto (recommended)' },
+              'hy4-preview': { name: 'Hy4 preview', reasoning: true },
+              'kimi-k2.7': {},
+            },
+          },
+        },
+      }),
+    async (adapter) => {
+      const catalog = await adapter.getSupportedModels();
+
+      assert.deepEqual(
+        catalog.OPTIONS.map((option) => option.value),
+        ['workbuddy/auto', 'workbuddy/hy4-preview', 'workbuddy/kimi-k2.7'],
+      );
+      // The configured list is the only list here, so the default cannot stay
+      // on a curated model the CLI would refuse to run.
+      assert.equal(catalog.DEFAULT, 'workbuddy/auto');
+      assert.equal((await adapter.getCurrentActiveModel()).model, 'workbuddy/auto');
+
+      assert.equal(catalog.OPTIONS[0].label, 'Auto (recommended)');
+      assert.equal(catalog.OPTIONS[0].description, 'WorkBuddy');
+      // One heading per configured provider keeps same-named models from
+      // different gateways apart.
+      assert.equal(catalog.OPTIONS[0].group, 'workbuddy');
+      // A model without a declared name falls back to the id the CLI routes by.
+      assert.equal(catalog.OPTIONS[2].label, 'kimi-k2.7');
+    },
+  );
+
+  // Curated options keep their place ahead of the configured ones, so an
+  // install that still holds a curated provider keeps the shipped ordering.
+  await withOpenCodeHome(
+    async (homeDir) => {
+      await writeOpenCodeAuth(homeDir, { anthropic: { type: 'api', key: 'test' } });
+      await writeOpenCodeConfig(homeDir, {
+        provider: { deepseek: { models: { 'deepseek-flash': { name: 'DeepSeek Flash' } } } },
+      });
+    },
+    async (adapter) => {
+      const catalog = await adapter.getSupportedModels();
+      const providerIds = new Set(catalog.OPTIONS.map((option) => option.value.split('/')[0]));
+
+      assert.deepEqual([...providerIds].sort(), ['anthropic', 'deepseek']);
+      assert.equal(catalog.OPTIONS[catalog.OPTIONS.length - 1].value, 'deepseek/deepseek-flash');
+      assert.equal(catalog.DEFAULT, 'anthropic/claude-opus-5');
+    },
+  );
+
+  // A configured value that repeats a curated one must not be listed twice.
+  await withOpenCodeHome(
+    async (homeDir) => {
+      await writeOpenCodeAuth(homeDir, { anthropic: { type: 'api', key: 'test' } });
+      await writeOpenCodeConfig(homeDir, {
+        provider: {
+          anthropic: { name: 'My Anthropic', models: { 'claude-opus-5': { name: 'Opus' } } },
+        },
+      });
+    },
+    async (adapter) => {
+      const catalog = await adapter.getSupportedModels();
+      const curated = catalog.OPTIONS.filter(
+        (option) => option.value === 'anthropic/claude-opus-5',
+      );
+
+      assert.equal(curated.length, 1);
+      assert.equal(curated[0].description, 'Anthropic');
+      assert.equal(curated[0].group, undefined);
     },
   );
 });
