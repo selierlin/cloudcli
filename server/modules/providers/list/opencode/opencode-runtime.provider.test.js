@@ -34,8 +34,16 @@ if (capturePath) {
 }
 
 const events = [
-  { type: 'text', sessionID: 'open-live-1', text: 'assistant response' },
-  { type: 'step_finish', sessionID: 'open-live-1' },
+  {
+    type: 'text',
+    sessionID: 'open-live-1',
+    part: { id: 'prt_live_text', type: 'text', text: 'assistant response' },
+  },
+  {
+    type: 'step_finish',
+    sessionID: 'open-live-1',
+    part: { id: 'prt_live_step', type: 'step-finish' },
+  },
 ];
 
 for (const event of events) {
@@ -105,8 +113,8 @@ test('spawnOpenCode emits session_created before normalized live messages for ne
     const capture = JSON.parse(await readFile(argsCapturePath, 'utf8'));
     const launchedArgs = capture.args;
     assert.ok(Array.isArray(launchedArgs));
-    assert.deepEqual(launchedArgs.slice(0, 4), ['run', '--format', 'json', '--dir']);
-    assert.equal(launchedArgs[4], tempRoot);
+    assert.deepEqual(launchedArgs.slice(0, 5), ['run', '--format', 'json', '--thinking', '--dir']);
+    assert.equal(launchedArgs[5], tempRoot);
     // No permission mode requested → no permission flags and no env override.
     assert.equal(launchedArgs.includes('--auto'), false);
     assert.equal(launchedArgs.includes('--agent'), false);

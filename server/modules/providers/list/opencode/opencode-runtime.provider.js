@@ -281,7 +281,11 @@ async function spawnOpenCode(command, options = {}, ws, context) {
       }
 
       const resolvedEffort = resolveOpenCodeEffort(resolvedModel, effort, effortModels);
-      const args = ['run', '--format', 'json'];
+      // OpenCode only defaults `--thinking` on in interactive mode; a non-TTY
+      // `run` drops every reasoning part unless the flag is passed, so the
+      // chat would never show the model's thinking. Passing it emits
+      // `reasoning` frames that the sessions provider maps to `thinking`.
+      const args = ['run', '--format', 'json', '--thinking'];
       // OpenCode's `run` command owns workspace selection through `--dir`.
       // Relying on the child-process cwd alone is not enough on Linux, where
       // the CLI can still resolve the session under the server install dir.

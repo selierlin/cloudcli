@@ -400,12 +400,13 @@ test('OpenCode sessions provider normalizes quoted live text and skips user echo
   const normalized = provider.normalizeMessage({
     type: 'text',
     sessionID: 'open-session-live',
-    text: JSON.stringify('hello bro'),
+    part: { id: 'prt_live_text', type: 'text', text: JSON.stringify('hello bro') },
   }, null);
 
   assert.equal(normalized.length, 1);
   assert.equal(normalized[0]?.kind, 'stream_delta');
   assert.equal(normalized[0]?.content, 'hello bro');
+  assert.equal(normalized[0]?.id, 'prt_live_text');
 
   const userEcho = provider.normalizeMessage({
     type: 'text',
@@ -415,6 +416,39 @@ test('OpenCode sessions provider normalizes quoted live text and skips user echo
   }, null);
 
   assert.deepEqual(userEcho, []);
+});
+
+test('OpenCode sessions provider reads reasoning and tool payloads out of the part envelope', () => {
+  const provider = new OpenCodeSessionsProvider();
+
+  const reasoning = provider.normalizeMessage({
+    type: 'reasoning',
+    sessionID: 'open-session-live',
+    part: { id: 'prt_live_reasoning', type: 'reasoning', text: 'Check the arithmetic.' },
+  }, null);
+
+  assert.equal(reasoning.length, 1);
+  assert.equal(reasoning[0]?.kind, 'thinking');
+  assert.equal(reasoning[0]?.content, 'Check the arithmetic.');
+
+  const toolUse = provider.normalizeMessage({
+    type: 'tool_use',
+    sessionID: 'open-session-live',
+    part: {
+      id: 'prt_live_tool',
+      type: 'tool',
+      tool: 'bash',
+      callID: 'call_live_1',
+      state: { status: 'completed', input: { command: 'echo hi' }, output: 'hi\n' },
+    },
+  }, null);
+
+  assert.equal(toolUse.length, 1);
+  assert.equal(toolUse[0]?.kind, 'tool_use');
+  assert.equal(toolUse[0]?.toolName, 'bash');
+  assert.equal(toolUse[0]?.toolId, 'call_live_1');
+  assert.deepEqual(toolUse[0]?.toolInput, { command: 'echo hi' });
+  assert.deepEqual(toolUse[0]?.toolResult, { content: 'hi\n', isError: false });
 });
 
 test('OpenCode sessions provider reads sqlite history and token usage', { concurrency: false }, async () => {
