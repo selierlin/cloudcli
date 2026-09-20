@@ -8,7 +8,7 @@ import { normalizeSessionName, readFileTimestamps } from '@/shared/utils.js';
 
 import { getDshSessionsRoot } from './dsh-models.provider.js';
 import {
-  decodeZstdFrames,
+  decodeSessionLogBuffer,
   encodeSessionSegment,
   extractText,
   findDshSessionLogPath,
@@ -178,7 +178,7 @@ export class DshSessionSynchronizer implements IProviderSessionSynchronizer {
   private async extractSessionName(logPath: string): Promise<string | undefined> {
     try {
       const buffer = await fsp.readFile(logPath);
-      const text = decodeZstdFrames(buffer);
+      const text = decodeSessionLogBuffer(buffer, logPath);
       for (const line of text.split(/\r?\n/)) {
         if (!line.trim()) {
           continue;

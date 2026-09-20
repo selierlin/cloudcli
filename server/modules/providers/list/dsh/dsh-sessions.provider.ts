@@ -30,7 +30,12 @@ const ZSTD_FRAME_MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd]);
 // `session.v3.jsonl.zstd`, …). Discovery therefore has to match the pattern
 // instead of one hardcoded name, or every session migrated to a newer
 // generation silently reads as empty history.
-const SESSION_LOG_PATTERN = /^session(?:\.v(\d+))?\.jsonl\.zstd$/;
+//
+// The trailing encoding suffix is configured per root: `zstd` (the default)
+// stores concatenated Zstandard frames as `.jsonl.zstd`, while `none` stores
+// plaintext lines as `.jsonl`. One root uses a single encoding for every
+// generation, so both suffixes have to be discovered.
+const SESSION_LOG_PATTERN = /^session(?:\.v(\d+))?\.jsonl(?:\.zstd)?$/;
 
 /** True when a file name is any DSH session-log format generation. */
 export function isDshSessionLogFile(fileName: string): boolean {
@@ -121,6 +126,18 @@ export function decodeZstdFrames(buffer: Buffer): string {
     index = next;
   }
   return text;
+}
+
+/**
+ * Decodes one session-log buffer into its logical JSONL text. A root uses a
+ * single physical encoding for every generation: `.jsonl.zstd` holds
+ * concatenated Zstandard frames, while a `compression: 'none'` root holds
+ * plaintext lines.
+ */
+export function decodeSessionLogBuffer(buffer: Buffer, logPath: string): string {
+  return path.basename(logPath).endsWith('.zstd')
+    ? decodeZstdFrames(buffer)
+    : buffer.toString('utf8');
 }
 
 /** Concatenates the text of every text block in a DSH content-block array. */
@@ -285,7 +302,7 @@ export class DshSessionsProvider implements IProviderSessions {
       return EMPTY_HISTORY;
     }
 
-    const allMessages = decodeSessionLog(decodeZstdFrames(buffer), sessionId);
+    const allMessages = decodeSessionLog(decodeSessionLogBuffer(buffer, logPath), sessionId);
     const normalizedOffset = Math.max(0, offset);
     const normalizedLimit = limit === null ? null : Math.max(0, limit);
     const { page, hasMore } = sliceTailPage(allMessages, normalizedLimit, normalizedOffset);
