@@ -208,11 +208,17 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
       return [];
     }
 
+    // `opencode run --format json` wraps every payload in a part envelope
+    // (`{ type, sessionID, timestamp, part }`), so the fields below live one
+    // level down. Reading through `payload` handles that and stays a no-op for
+    // frames that carry the fields inline.
+    const payload = readObjectRecord(raw.part) ?? raw;
+
     const type = readOptionalString(raw.type) ?? readOptionalString(raw.event);
     const eventSessionId = readOptionalString(raw.sessionID) ?? readOptionalString(raw.sessionId) ?? sessionId;
     const timestamp = normalizeProviderTimestamp(raw.time ?? raw.timestamp);
-    const baseId = readOptionalString(raw.id)
-      ?? readOptionalString(raw.messageID)
+    const baseId = readOptionalString(payload.id)
+      ?? readOptionalString(payload.messageID)
       ?? generateMessageId('opencode');
 
     if (type === 'text') {
@@ -222,7 +228,7 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
         return [];
       }
 
-      const content = extractText(raw.text ?? raw.delta ?? raw.message);
+      const content = extractText(payload.text ?? payload.delta ?? payload.message);
       if (!content.trim()) {
         return [];
       }
@@ -238,7 +244,7 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
     }
 
     if (type === 'reasoning') {
-      const content = extractText(raw.text ?? raw.delta ?? raw.message);
+      const content = extractText(payload.text ?? payload.delta ?? payload.message);
       if (!content.trim()) {
         return [];
       }
@@ -254,8 +260,12 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
     }
 
     if (type === 'tool_use') {
-      const toolName = readOptionalString(raw.tool) ?? readOptionalString(raw.name) ?? 'Tool';
-      const toolId = readOptionalString(raw.callID) ?? readOptionalString(raw.toolCallId) ?? baseId;
+      // A tool part keeps its arguments and result under `state`; falling back
+      // to the part itself covers frames that inline them instead. Mirrors the
+      // shape `normalizeHistoryRows` reads from `part.data`.
+      const state = readObjectRecord(payload.state) ?? payload;
+      const toolName = readOptionalString(payload.tool) ?? readOptionalString(payload.name) ?? 'Tool';
+      const toolId = readOptionalString(payload.callID) ?? readOptionalString(payload.toolCallId) ?? baseId;
       const toolMessage = createNormalizedMessage({
         id: baseId,
         sessionId: eventSessionId,
@@ -263,14 +273,14 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
         provider: PROVIDER,
         kind: 'tool_use',
         toolName,
-        toolInput: raw.input ?? raw.arguments ?? {},
+        toolInput: state.input ?? state.arguments ?? {},
         toolId,
       });
 
-      if (raw.output !== undefined || raw.error !== undefined) {
+      if (state.output !== undefined || state.error !== undefined) {
         toolMessage.toolResult = {
-          content: formatToolContent(raw.output ?? raw.error),
-          isError: raw.error !== undefined,
+          content: formatToolContent(state.output ?? state.error),
+          isError: state.error !== undefined,
         };
       }
 
@@ -284,7 +294,7 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
         timestamp,
         provider: PROVIDER,
         kind: 'error',
-        content: readOptionalString(raw.error) ?? readOptionalString(raw.message) ?? 'Unknown OpenCode error',
+        content: readOptionalString(payload.error) ?? readOptionalString(payload.message) ?? 'Unknown OpenCode error',
       })];
     }
 
