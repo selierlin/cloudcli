@@ -59,6 +59,27 @@ const SCROLL_UP_EPSILON_PX = 2;
  */
 const SCROLL_UP_INTENT_WINDOW_MS = 800;
 
+/**
+ * Pinned-row drift below which the restore's settle loop counts a frame as
+ * stable. Matches the follow loop's tolerance for sub-pixel jitter.
+ */
+const ANCHOR_SETTLE_EPSILON_PX = 1;
+
+/**
+ * Consecutive stable frames the restore's settle loop needs before it stands
+ * down, so one clean frame cannot end the pin while more lazy rows are still
+ * mounting real content above the reader.
+ */
+const ANCHOR_SETTLE_STABLE_FRAMES = 2;
+
+/**
+ * Hard ceiling on the restore's settle loop. Prepended rows land as
+ * estimated-height placeholders and settle to real heights within a few
+ * hundred milliseconds; anything that takes longer than this is not settling
+ * geometry, and the loop must not fight the reader over a stuck layout.
+ */
+const ANCHOR_SETTLE_MAX_MS = 2500;
+
 /** Downward finger travel that makes a touch a read-up gesture rather than a tap. */
 const TOUCH_UP_INTENT_MIN_TRAVEL_PX = 10;
 
@@ -135,23 +156,53 @@ type UseChatSessionStateArgs = {
 type ScrollRestoreState = {
   height: number;
   top: number;
+  /**
+   * Pinned row wrapper (carries `data-message-timestamp`), the first one at or
+   * below the viewport top. The wrapper — not the `.chat-message` inside it —
+   * is the anchor because it stays in the DOM across lazy unmounts, so the
+   * baseline survives the fetch and the settle loop that follows the restore.
+   */
   anchor: HTMLElement | null;
   anchorOffset: number | null;
+  /**
+   * Last row wrapper, kept so the anchor-less fallback can still isolate the
+   * above-insertion: its top is displaced only by content inserted above it,
+   * never by streaming growth at the tail, which a whole-container
+   * `scrollHeight` delta cannot distinguish.
+   */
+  tailAnchor: HTMLElement | null;
+  tailAnchorOffset: number | null;
 };
 
-function captureScrollRestoreState(container: HTMLDivElement): ScrollRestoreState {
+function captureScrollRestoreState(container: HTMLDivElement): ScrollRestoreState | null {
+  // A transcript that cannot scroll has no position worth restoring. That is
+  // the pane mounting before its rows have measured, and a hidden tab: both
+  // report a viewport-tall box at `scrollTop` 0, so an anchor taken from it
+  // would be the first row of a stack that has not been laid out, and the
+  // restore would land on a clamped offset that the session-open
+  // scroll-to-bottom then drags away from — the reader sees the transcript
+  // jump instead of opening at the bottom. Returning no baseline leaves that
+  // commit to its real owner.
+  if (container.scrollHeight <= container.clientHeight) return null;
+
   const containerBounds = container.getBoundingClientRect();
-  const anchor = Array.from(container.querySelectorAll<HTMLElement>('.chat-message'))
+  const rows = Array.from(container.querySelectorAll<HTMLElement>('[data-message-timestamp]'));
+  const anchor = rows
     .find((element) => element.getBoundingClientRect().bottom >= containerBounds.top)
     ?? null;
+  const tailAnchor = rows.length > 0 ? rows[rows.length - 1] : null;
+  const anchorOffset = anchor ? anchor.getBoundingClientRect().top - containerBounds.top : null;
+  const tailAnchorOffset = tailAnchor
+    ? tailAnchor.getBoundingClientRect().top - containerBounds.top
+    : null;
 
   return {
     height: container.scrollHeight,
     top: container.scrollTop,
     anchor,
-    anchorOffset: anchor
-      ? anchor.getBoundingClientRect().top - containerBounds.top
-      : null,
+    anchorOffset,
+    tailAnchor,
+    tailAnchorOffset,
   };
 }
 
@@ -282,6 +333,14 @@ export function useChatSessionState({
   const upwardIntentUntilRef = useRef(0);
   /** `clientY` where the current touch drag began, or null between drags. */
   const touchOriginYRef = useRef<number | null>(null);
+  /**
+   * Bumped on every reader gesture (wheel or touch) as it arrives. The restore's
+   * settle loop captures this at start and stands down only once it changes: a
+   * touch's inertia tail keeps writing `scrollTop` for hundreds of ms with no
+   * finger on the glass and no further `touchmove`, so reading `scrollTop` alone
+   * cannot tell that apart from the reader taking over.
+   */
+  const readerInputSeqRef = useRef(0);
   /** The sole queued streaming follow write, shared across transcript updates. */
   const followFrameRef = useRef<number | null>(null);
   /** Minimum deadline before an animated handoff may be considered settled. */
@@ -294,6 +353,30 @@ export function useChatSessionState({
   const allMessagesLoadedRef = useRef(false);
   const topLoadLockRef = useRef(false);
   const pendingScrollRestoreRef = useRef<ScrollRestoreState | null>(null);
+  /** The queued frame of the restore's pinned-row settle loop. */
+  const anchorSettleFrameRef = useRef<number | null>(null);
+  /**
+   * Live state of the restore's pinned-row settle loop: the wrapper row to
+   * hold at `anchorOffset` while prepended placeholder rows settle to real
+   * heights, plus the reader-input counter captured when the loop started, so
+   * only a gesture that arrives after the restore stands the loop down.
+   */
+  const anchorSettleRef = useRef<{
+    sessionId: string;
+    anchor: HTMLElement;
+    anchorOffset: number;
+    inputSeq: number;
+    stableFrames: number;
+    startedAt: number;
+  } | null>(null);
+  /** Stands the pinned-row settle loop down, e.g. on a session change. */
+  const cancelAnchorSettle = useCallback(() => {
+    if (anchorSettleFrameRef.current !== null) {
+      window.cancelAnimationFrame(anchorSettleFrameRef.current);
+      anchorSettleFrameRef.current = null;
+    }
+    anchorSettleRef.current = null;
+  }, []);
   const pendingInitialScrollRef = useRef(true);
   const messagesOffsetRef = useRef(0);
   const scrollPositionRef = useRef({ height: 0, top: 0 });
@@ -351,6 +434,7 @@ export function useChatSessionState({
     searchScrollActiveRef.current = false;
     topLoadLockRef.current = false;
     pendingScrollRestoreRef.current = null;
+    cancelAnchorSettle();
     pendingInitialScrollRef.current = true;
     lastLoadedSessionKeyRef.current = null;
 
@@ -362,7 +446,7 @@ export function useChatSessionState({
       clearTimeout(loadAllFinishedTimerRef.current);
       loadAllFinishedTimerRef.current = null;
     }
-  }, [newSessionTrigger, onSessionIdle]);
+  }, [newSessionTrigger, onSessionIdle, cancelAnchorSettle]);
 
   /* ---------------------------------------------------------------- */
   /*  Derive processing state for the viewed session                  */
@@ -514,6 +598,9 @@ export function useChatSessionState({
       || pendingScrollRestoreRef.current !== null
       || searchScrollActiveRef.current
       || isUserScrolledUpRef.current
+      // The restore's settle loop owns the viewport while it pins a row; a
+      // follow write here would race it between frames.
+      || anchorSettleRef.current !== null
       || Date.now() < upwardIntentUntilRef.current
     );
     if (cannotFollow) return;
@@ -538,6 +625,7 @@ export function useChatSessionState({
         || isLoadingMoreRef.current
         || pendingScrollRestoreRef.current
         || searchScrollActiveRef.current
+        || anchorSettleRef.current !== null
         || Date.now() < upwardIntentUntilRef.current
       ) {
         followUntilRef.current = 0;
@@ -573,6 +661,77 @@ export function useChatSessionState({
     followFrameRef.current = window.requestAnimationFrame(tick);
   }, [scrollToBottom]);
 
+  /**
+   * Holds the restore's pinned row at the offset the reader was reading at
+   * while the just-prepended rows settle.
+   *
+   * A prepended page mounts as estimated-height placeholders, so the restore's
+   * initial compensation is measured against estimated geometry. The lazy-row
+   * observer then mounts real content within the viewport band and the anchor
+   * moves again — on WebKit, where the browser has no scroll anchoring of its
+   * own, by thousands of pixels on a long page. This loop re-pins the anchor
+   * every frame until that geometry is stable, and stands down the moment a
+   * gesture arrives that the restore did not precede (`inputSeq`). It does not
+   * stand down on a `scrollTop` it did not write: on a phone the touch that
+   * reached the top is still coasting when the page lands, and WKWebView keeps
+   * overwriting the restore's write from that animation, which is not the
+   * reader steering and must not end the pin.
+   */
+  const startAnchorSettle = useCallback((anchor: HTMLElement, anchorOffset: number) => {
+    cancelAnchorSettle();
+    const scheduledSessionId = activeSessionIdRef.current;
+    const container = scrollContainerRef.current;
+    if (!scheduledSessionId || !container) return;
+
+    anchorSettleRef.current = {
+      sessionId: scheduledSessionId,
+      anchor,
+      anchorOffset,
+      inputSeq: readerInputSeqRef.current,
+      stableFrames: 0,
+      startedAt: Date.now(),
+    };
+
+    const tick = () => {
+      anchorSettleFrameRef.current = null;
+      const settle = anchorSettleRef.current;
+      const currentContainer = scrollContainerRef.current;
+      if (
+        !settle
+        || !currentContainer
+        || !isActiveRef.current
+        || activeSessionIdRef.current !== settle.sessionId
+        || !settle.anchor.isConnected
+        || settle.inputSeq !== readerInputSeqRef.current
+      ) {
+        anchorSettleRef.current = null;
+        return;
+      }
+
+      const drift = (
+        settle.anchor.getBoundingClientRect().top
+        - currentContainer.getBoundingClientRect().top
+      ) - settle.anchorOffset;
+      if (Math.abs(drift) > ANCHOR_SETTLE_EPSILON_PX) {
+        settle.stableFrames = 0;
+        currentContainer.scrollTop += drift;
+      } else {
+        settle.stableFrames += 1;
+      }
+
+      if (
+        settle.stableFrames >= ANCHOR_SETTLE_STABLE_FRAMES
+        || Date.now() - settle.startedAt > ANCHOR_SETTLE_MAX_MS
+      ) {
+        anchorSettleRef.current = null;
+        return;
+      }
+      anchorSettleFrameRef.current = window.requestAnimationFrame(tick);
+    };
+
+    anchorSettleFrameRef.current = window.requestAnimationFrame(tick);
+  }, [cancelAnchorSettle]);
+
   const scrollToBottomAndReset = useCallback(() => {
     scrollToBottom();
     if (allMessagesLoaded) {
@@ -597,7 +756,9 @@ export function useChatSessionState({
    * The state captured by `captureScrollRestoreState` is the baseline, so it is
    * taken before the window is widened — the caller may hold it across an await
    * and hand it in once the page has landed. Bumping the epoch is what makes the
-   * restore land on that commit (see `scrollRestoreEpoch`).
+   * restore land on that commit (see `scrollRestoreEpoch`). A capture that found
+   * no baseline (`null`) arms nothing: the window still widens, it just does so
+   * without this commit owing the viewport a position.
    */
   const armScrollRestore = useCallback((state: ScrollRestoreState | null) => {
     if (!state) return;
@@ -785,7 +946,7 @@ export function useChatSessionState({
 
     const container = scrollContainerRef.current;
     if (pendingScrollRestoreRef.current) {
-      const { height, top, anchor, anchorOffset } = pendingScrollRestoreRef.current;
+      const { height, top, anchor, anchorOffset, tailAnchor, tailAnchorOffset } = pendingScrollRestoreRef.current;
       let insertedAbove: number;
       if (anchor?.isConnected && anchorOffset !== null) {
         const nextAnchorOffset = (
@@ -794,6 +955,22 @@ export function useChatSessionState({
         );
         insertedAbove = nextAnchorOffset - anchorOffset;
         container.scrollTop += insertedAbove;
+        // The page just mounted as estimated-height placeholders (see
+        // ChatMessagesPane's lazy rows), so this compensation is measured
+        // against estimated geometry. The settle loop re-pins the anchor while
+        // the real heights land; on WebKit nothing else will.
+        startAnchorSettle(anchor, anchorOffset);
+      } else if (tailAnchor?.isConnected && tailAnchorOffset !== null) {
+        // No pinned row survived to the commit. The tail wrapper's top only
+        // moves when content is inserted above it, so its displacement is the
+        // above-insertion without the streaming growth a scrollHeight delta
+        // would wrongly include.
+        insertedAbove = Math.max(
+          (tailAnchor.getBoundingClientRect().top - container.getBoundingClientRect().top)
+            - tailAnchorOffset,
+          0,
+        );
+        container.scrollTop = top + insertedAbove;
       } else {
         insertedAbove = Math.max(container.scrollHeight - height, 0);
         container.scrollTop = top + insertedAbove;
@@ -811,7 +988,7 @@ export function useChatSessionState({
         ? scrollPositionRef.current.top
         : container.scrollHeight;
     }
-  }, [isActive, isUserScrolledUp, scrollRestoreEpoch]);
+  }, [isActive, isUserScrolledUp, scrollRestoreEpoch, startAnchorSettle]);
 
   // Reset scroll/pagination state on session change
   useEffect(() => {
@@ -836,12 +1013,13 @@ export function useChatSessionState({
     setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
     topLoadLockRef.current = false;
     pendingScrollRestoreRef.current = null;
+    cancelAnchorSettle();
     wasNearTopRef.current = false;
     lastScrollTopSampleRef.current = null;
     upwardIntentUntilRef.current = 0;
     touchOriginYRef.current = null;
     setIsUserScrolledUp(false);
-  }, [selectedProject?.projectId, selectedSession?.id, setIsUserScrolledUp]);
+  }, [selectedProject?.projectId, selectedSession?.id, setIsUserScrolledUp, cancelAnchorSettle]);
 
   // Initial scroll to bottom — robust to lazy content reflow.
   // The previous implementation fired one scrollToBottom() at +200ms and
@@ -1275,6 +1453,11 @@ export function useChatSessionState({
     followUntilRef.current = 0;
     followGeometryRef.current = null;
     followStableFramesRef.current = 0;
+    if (anchorSettleFrameRef.current !== null) {
+      window.cancelAnimationFrame(anchorSettleFrameRef.current);
+      anchorSettleFrameRef.current = null;
+    }
+    anchorSettleRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -1294,6 +1477,7 @@ export function useChatSessionState({
       upwardIntentUntilRef.current = Date.now() + SCROLL_UP_INTENT_WINDOW_MS;
     };
     const handleWheel = (event: WheelEvent) => {
+      readerInputSeqRef.current += 1;
       if (event.deltaY < 0) armUpwardIntent();
       if (event.deltaY > 0 && isNearBottom()) void loadNewerMessages();
     };
@@ -1301,6 +1485,7 @@ export function useChatSessionState({
       touchOriginYRef.current = event.touches[0]?.clientY ?? null;
     };
     const handleTouchMove = (event: TouchEvent) => {
+      readerInputSeqRef.current += 1;
       const originY = touchOriginYRef.current;
       const currentY = event.touches[0]?.clientY;
       // A finger travelling down pulls the transcript down, so the reader is

@@ -84,6 +84,42 @@ function createContainer(scrollHeight: number, clientHeight: number) {
   };
 }
 
+/**
+ * jsdom has no layout, so a pinned row's rect has to be scripted — but it must
+ * respond to `scrollTop` the way real geometry does, or the restore's settle
+ * loop would chase a rect that never converges.
+ *
+ * The row sits `baselineOffset` below the container top at the scrollTop it
+ * was created at. The capture's first two reads see it there; from the third
+ * read on, the widened window has landed and pushed the row down by
+ * `pageInsertion` plus whatever `settleMore` has added — the second knob being
+ * how lazy rows above settle from estimated placeholder heights to real ones.
+ */
+function createGeometryAwareRow(
+  container: ReturnType<typeof createContainer>,
+  baselineOffset: number,
+  pageInsertion: number,
+) {
+  const initialTop = container.element.scrollTop;
+  const row = document.createElement('div');
+  row.setAttribute('data-message-timestamp', '2026-01-01T00:00:00.100Z');
+  let settledMore = 0;
+  let rowReads = 0;
+  row.getBoundingClientRect = () => {
+    rowReads += 1;
+    const landed = rowReads <= 2 ? 0 : pageInsertion + settledMore;
+    const top = baselineOffset + landed - (container.element.scrollTop - initialTop);
+    return { top, bottom: top + 100 } as DOMRect;
+  };
+  return {
+    row,
+    /** Grows the height inserted above the row, as lazy rows settling do. */
+    settleMore: (px: number) => {
+      settledMore += px;
+    },
+  };
+}
+
 type SlotOverrides = {
   hasMore?: boolean;
   total?: number;
@@ -672,13 +708,7 @@ describe('paging at the top of the loaded window', () => {
     // The pinned row, scripted as in the render-window tests: 100px below the
     // container top before the page lands, 150px after — a page that pushes the
     // reader down far enough to release the guard, but not out of the top zone.
-    const row = document.createElement('div');
-    row.className = 'chat-message';
-    let rowReads = 0;
-    row.getBoundingClientRect = () => {
-      const top = rowReads++ < 2 ? 100 : 150;
-      return { top, bottom: top + 100 } as DOMRect;
-    };
+    const { row } = createGeometryAwareRow(container, 100, 50);
     container.element.appendChild(row);
 
     store.fetchMore.mockImplementation(async (sessionId: string) => {
@@ -708,6 +738,20 @@ describe('paging at the top of the loaded window', () => {
       50,
       'the restore must move the reader down by the 50px the page inserted',
     );
+
+    // Reading up at the top of the loaded window is the reader's state here;
+    // it also stands the initial scroll-to-bottom loop down so the drained
+    // frames below belong to the restore alone.
+    act(() => {
+      result.current.setIsUserScrolledUp(true);
+    });
+
+    // The settle loop the restore armed drains over the following frames
+    // without writing anything (the geometry above is already stable), so it
+    // cannot interfere with the pager guard exercised below.
+    act(() => runAnimationFrame());
+    act(() => runAnimationFrame());
+    assert.equal(frameCallbacks.size, 0);
 
     // Still inside the top zone, so the guard holds this gesture off...
     await act(async () => {
@@ -751,19 +795,18 @@ describe('render-window growth restore', () => {
     document.body.appendChild(container.element);
     (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
 
-    // jsdom has no layout, so the pinned row's rect is scripted. Capturing the
-    // baseline reads it twice (once to pick the row, once for its offset) and
-    // applying the correction reads it once more, so the first two reads report
-    // 120px below the container top and the correction reads 320px — the 200px
-    // that inserting 100 rows above the row costs it.
-    const row = document.createElement('div');
-    row.className = 'chat-message';
-    let rowReads = 0;
-    row.getBoundingClientRect = () => {
-      const top = rowReads++ < 2 ? 120 : 320;
-      return { top, bottom: top + 100 } as DOMRect;
-    };
+    // jsdom has no layout, so the pinned row's rect is scripted: 120px below
+    // the container top at the capture, pushed down by the 200px the widened
+    // window inserts above it once the page lands.
+    const { row } = createGeometryAwareRow(container, 120, 200);
     container.element.appendChild(row);
+
+    // The reader is up in the transcript (that is what "load earlier" is for),
+    // which also keeps the initial scroll-to-bottom loop out of the frames the
+    // assertions below pump.
+    act(() => {
+      result.current.setIsUserScrolledUp(true);
+    });
 
     act(() => {
       result.current.loadEarlierMessages();
@@ -774,6 +817,54 @@ describe('render-window growth restore', () => {
       [4700],
       'the restore must follow the pinned row down by the 200px the inserted rows cost it',
     );
+
+    // The settle loop the restore armed drains over the following frames
+    // without writing anything — the geometry above the reader is stable —
+    // and then stands down instead of leaving a frame armed.
+    act(() => runAnimationFrame());
+    act(() => runAnimationFrame());
+    assert.deepEqual(container.writes, [4700]);
+    assert.equal(frameCallbacks.size, 0);
+
+    container.element.remove();
+  });
+
+  it('widens without a restore when the transcript has no scrollable geometry', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, buildMessages(300)],
+    ]);
+    const store = createStore(messages);
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    // The pane has mounted but nothing has measured yet: the box is exactly
+    // viewport-tall, so the capture has no baseline to hand over. A restore
+    // built from one would land on a clamped offset and then lose the viewport
+    // to the session-open scroll-to-bottom.
+    const container = createContainer(500, 500);
+    document.body.appendChild(container.element);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    const { row } = createGeometryAwareRow(container, 120, 200);
+    container.element.appendChild(row);
+
+    // The reader is up in the transcript, which also keeps the initial
+    // scroll-to-bottom loop out of the frames pumped below.
+    act(() => {
+      result.current.setIsUserScrolledUp(true);
+    });
+
+    act(() => {
+      result.current.loadEarlierMessages();
+    });
+
+    act(() => runAnimationFrame());
+    act(() => runAnimationFrame());
+
+    assert.deepEqual(container.writes, [], 'a baseline with no geometry must not be armed');
+    assert.equal(frameCallbacks.size, 0, 'and it must not leave a settle loop armed');
 
     container.element.remove();
   });
@@ -835,6 +926,160 @@ describe('render-window growth restore', () => {
       [8500],
       'an armed restore must not outlive its own commit and fire on a later one',
     );
+  });
+});
+
+describe('restore settle loop', () => {
+  it('re-pins the pinned row when lazy rows settle to real heights after the restore', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, buildMessages(300)],
+    ]);
+    const store = createStore(messages);
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    document.body.appendChild(container.element);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    const { row, settleMore } = createGeometryAwareRow(container, 120, 200);
+    container.element.appendChild(row);
+
+    // The reader is up in the transcript, which also keeps the initial
+    // scroll-to-bottom loop out of the frames the assertions below pump.
+    act(() => {
+      result.current.setIsUserScrolledUp(true);
+    });
+
+    // The widened window commits: the restore follows the 200px that the
+    // placeholder rows inserted above the reader.
+    act(() => {
+      result.current.loadEarlierMessages();
+    });
+    assert.deepEqual(container.writes, [4700]);
+
+    // Those rows then mount real content and grow by another 500px — the drift
+    // that on WebKit, with no browser scroll anchoring, used to leave the
+    // reader's position ~1600px below the viewport. The settle loop must follow
+    // the pinned row down again.
+    settleMore(500);
+    act(() => runAnimationFrame());
+    assert.deepEqual(
+      container.writes,
+      [4700, 5200],
+      'a lazy row landing real height above the reader must be followed by the settle loop',
+    );
+
+    // Two stable frames later the loop stands down and writes nothing more.
+    act(() => runAnimationFrame());
+    act(() => runAnimationFrame());
+    assert.deepEqual(container.writes, [4700, 5200]);
+    assert.equal(frameCallbacks.size, 0);
+
+    container.element.remove();
+  });
+
+  it('stands down when a reader gesture arrives while the settle loop is armed', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, buildMessages(300)],
+    ]);
+    const store = createStore(messages);
+    const { result, rerender } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    document.body.appendChild(container.element);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+    await act(async () => undefined);
+    // The gesture listeners attach on the effect that follows a `handleScroll`
+    // identity change, so re-render with a fresh session object to make that
+    // effect re-run now that the container is in place.
+    await act(async () => {
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: true });
+    });
+
+    const { row, settleMore } = createGeometryAwareRow(container, 120, 200);
+    container.element.appendChild(row);
+
+    // The reader is up in the transcript, which also keeps the initial
+    // scroll-to-bottom loop out of the frames the assertions below pump.
+    act(() => {
+      result.current.setIsUserScrolledUp(true);
+    });
+
+    act(() => {
+      result.current.loadEarlierMessages();
+    });
+    assert.deepEqual(container.writes, [4700]);
+
+    // The reader drags the transcript before the lazy rows above settle. The
+    // gesture is what hands the viewport back, not the `scrollTop` it leaves
+    // behind: the loop must not fight the reader for the viewport, so it writes
+    // nothing more and ends itself instead of rescheduling.
+    container.element.dispatchEvent(new WheelEvent('wheel', { deltaY: -120 }));
+    container.element.scrollTop = 4300;
+    settleMore(500);
+    act(() => runAnimationFrame());
+    assert.deepEqual(
+      container.writes,
+      [4700, 4300],
+      'a gesture the restore did not precede hands the viewport back to the reader',
+    );
+    assert.equal(frameCallbacks.size, 0);
+
+    container.element.remove();
+  });
+
+  it('keeps pinning through a viewport move no gesture caused', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, buildMessages(300)],
+    ]);
+    const store = createStore(messages);
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    document.body.appendChild(container.element);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    const { row, settleMore } = createGeometryAwareRow(container, 120, 200);
+    container.element.appendChild(row);
+
+    act(() => {
+      result.current.setIsUserScrolledUp(true);
+    });
+
+    act(() => {
+      result.current.loadEarlierMessages();
+    });
+    assert.deepEqual(container.writes, [4700]);
+
+    // WebKit keeps driving a touch's coasting scroll animation for hundreds of
+    // ms after the finger lifts, overwriting the restore's write with no
+    // `touchmove` and no `wheel` behind it. That is not the reader steering, so
+    // the loop absorbs the move and re-pins the row to where the reader was.
+    container.element.scrollTop = 4300;
+    settleMore(500);
+    act(() => runAnimationFrame());
+    assert.deepEqual(
+      container.writes,
+      [4700, 4300, 5200],
+      'the coasting write must be absorbed and the pinned row re-pinned',
+    );
+
+    // Two stable frames later the loop stands down and writes nothing more.
+    act(() => runAnimationFrame());
+    act(() => runAnimationFrame());
+    assert.deepEqual(container.writes, [4700, 4300, 5200]);
+    assert.equal(frameCallbacks.size, 0);
+
+    container.element.remove();
   });
 });
 
