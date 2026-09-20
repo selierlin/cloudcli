@@ -389,8 +389,10 @@ export function useSlashCommands({
         return;
       }
 
-      // Match / at start of input OR after whitespace, capturing the /word up to cursor.
-      const slashPattern = /(?:^|\s)(\/\S*)$/;
+      // Match a command trigger at start of input OR after whitespace, capturing
+      // the trigger word up to cursor. Besides ASCII "/", accept the CJK
+      // punctuation a Chinese IME emits for the same keystroke: "、" and "／".
+      const slashPattern = /(?:^|\s)([/、／]\S*)$/;
       const match = textBeforeCursor.match(slashPattern);
 
       if (!match) {
