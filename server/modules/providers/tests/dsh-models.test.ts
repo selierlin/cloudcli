@@ -64,9 +64,9 @@ test('loads the provider catalog and default from $DSH_HOME/settings.yaml', asyn
 
     assert.deepEqual(models, {
       OPTIONS: [
-        { value: 'zhihui/gpt-5.6-terra', label: 'gpt-5.6-terra' },
-        { value: 'zhihui/gpt-5.6-luna', label: 'gpt-5.6-luna' },
-        { value: 'zhihui/gpt-5.6-sol', label: 'gpt-5.6-sol' },
+        { value: 'zhihui/gpt-5.6-terra', label: 'gpt-5.6-terra', group: 'zhihui' },
+        { value: 'zhihui/gpt-5.6-luna', label: 'gpt-5.6-luna', group: 'zhihui' },
+        { value: 'zhihui/gpt-5.6-sol', label: 'gpt-5.6-sol', group: 'zhihui' },
       ],
       DEFAULT: 'zhihui/gpt-5.6-terra',
     });
@@ -121,6 +121,7 @@ test('DSH_MODEL overrides the default and prepends unknown values', async () => 
     const unknown = await new DshProviderModels().getSupportedModels();
     assert.equal(unknown.DEFAULT, 'custom/gpt-x');
     assert.equal(unknown.OPTIONS[0].value, 'custom/gpt-x');
+    assert.equal(unknown.OPTIONS[0].group, 'custom');
   });
 });
 
@@ -142,11 +143,41 @@ agent-default-model:
     const models = await new DshProviderModels().getSupportedModels();
 
     assert.deepEqual(models.OPTIONS, [
-      { value: 'zhihui/gpt-5.6-terra', label: 'gpt-5.6-terra' },
-      { value: 'zhihui/gpt-5.6-luna', label: 'gpt-5.6-luna' },
-      { value: 'second/custom-x', label: 'custom-x' },
+      { value: 'zhihui/gpt-5.6-terra', label: 'gpt-5.6-terra', group: 'zhihui' },
+      { value: 'zhihui/gpt-5.6-luna', label: 'gpt-5.6-luna', group: 'zhihui' },
+      { value: 'second/custom-x', label: 'custom-x', group: 'second' },
     ]);
     assert.equal(models.DEFAULT, 'second/custom-x');
+  });
+});
+
+test('keeps same-named models from different channels distinguishable', async () => {
+  await withDshHome(`
+llm-pi-ai:
+  providers:
+    volcano-ark:
+      models:
+        - id: glm-5.3
+        - id: deepseek-v4-flash
+    workbuddy:
+      models:
+        - id: glm-5.3
+        - id: deepseek-v4-flash
+agent-default-model:
+  provider: volcano-ark
+  model: glm-5.3
+`, async () => {
+    const models = await new DshProviderModels().getSupportedModels();
+
+    // Both channels keep their own row; `group` is what tells the two apart in the picker.
+    const glm = models.OPTIONS.filter((option) => option.label === 'glm-5.3');
+    assert.deepEqual(
+      glm.map((option) => [option.value, option.group]),
+      [
+        ['volcano-ark/glm-5.3', 'volcano-ark'],
+        ['workbuddy/glm-5.3', 'workbuddy'],
+      ],
+    );
   });
 });
 
@@ -167,7 +198,7 @@ agent-default-model:
     const models = await new DshProviderModels().getSupportedModels();
 
     assert.deepEqual(models.OPTIONS, [
-      { value: 'zhihui/gpt-5.6-terra', label: 'gpt-5.6-terra' },
+      { value: 'zhihui/gpt-5.6-terra', label: 'gpt-5.6-terra', group: 'zhihui' },
     ]);
     assert.equal(models.DEFAULT, 'zhihui/gpt-5.6-terra');
   });

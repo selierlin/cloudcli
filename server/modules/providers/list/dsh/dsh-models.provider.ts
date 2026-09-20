@@ -48,6 +48,13 @@ export const getDshHome = (): string =>
   || path.join(os.homedir(), '.dsh');
 
 /**
+ * Profile the runtime boots, shared so every DSH config reader inspects the
+ * same profile the sessions load; reading another profile's composition would
+ * list servers the chat never receives.
+ */
+export const DSH_ACP_PROFILE = 'acp';
+
+/**
  * Root where ACP sessions are persisted.
  *
  * Defaults to `$DSH_HOME/sessions`, matching where the npm `dsh --profile acp`
@@ -66,6 +73,12 @@ export const getDshSessionsRoot = (): string => {
 /** Model value shared by the picker and the ACP `model` config route. */
 const modelValue = (provider: string, model: string): string => `${provider}/${model}`;
 
+/** Channel prefix of a channel-qualified `<provider>/<model>` value, when present. */
+const channelOf = (value: string): string | undefined => {
+  const separatorIndex = value.indexOf('/');
+  return separatorIndex > 0 ? value.slice(0, separatorIndex) : undefined;
+};
+
 const DSH_SETTINGS_FILENAME = 'settings.yaml';
 
 /** Strips surrounding quotes and trailing ` #...` comments from a YAML scalar. */
@@ -79,7 +92,9 @@ const cleanScalar = (value: string): string =>
  * The settings document has a fixed shape, so this walks it line by line with
  * targeted matching (the same approach dsh-auth uses for `.credentials.yaml`)
  * instead of pulling in a YAML parser: `llm-pi-ai.providers.<id>.models[].id`
- * builds the options, and `agent-default-model` carries the default route.
+ * builds the options, and `agent-default-model` carries the default route. Each
+ * option is tagged with its provider id as `group`, so the client separates
+ * same-named models that different channels happen to share.
  *
  * Returns `null` when the file is missing or declares no provider models, so
  * callers can fall back to the curated mirror instead of surfacing an empty
@@ -173,7 +188,11 @@ export function loadDshSettingsModels(): ProviderModelsDefinition | null {
     if (item && section === 'llm-pi-ai' && inModels && providerId) {
       const modelId = cleanScalar(item[1]);
       if (modelId) {
-        options.push({ value: modelValue(providerId, modelId), label: modelId });
+        options.push({
+          value: modelValue(providerId, modelId),
+          label: modelId,
+          group: providerId,
+        });
       }
     }
   }
@@ -198,15 +217,25 @@ export class DshProviderModels implements IProviderModels {
 
     // `DSH_MODEL` overrides the picker default, keeping the env escape hatch
     // aligned with what the harness runs when the settings document is absent.
+    // `DSH_MODEL` overrides the picker default, keeping the env escape hatch
+    // aligned with what the harness runs when the settings document is absent.
     const configuredModel = process.env.DSH_MODEL?.trim();
     if (!configuredModel) {
       return catalog;
     }
 
+    const configuredChannel = channelOf(configuredModel);
     return {
       OPTIONS: catalog.OPTIONS.some((option) => option.value === configuredModel)
         ? catalog.OPTIONS
-        : [{ value: configuredModel, label: configuredModel }, ...catalog.OPTIONS],
+        : [
+            {
+              value: configuredModel,
+              label: configuredModel,
+              ...(configuredChannel ? { group: configuredChannel } : {}),
+            },
+            ...catalog.OPTIONS,
+          ],
       DEFAULT: configuredModel,
     };
   }
