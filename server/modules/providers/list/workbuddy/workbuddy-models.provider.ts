@@ -27,7 +27,9 @@ export const WORKBUDDY_PREDEFINED_MODELS: ProviderModelsDefinition = {
       description: '平衡效果与速度。自动为每个任务匹配最优模型，积分倍率随之浮动。',
     },
     {
-      value: 'hy4',
+      // Engine-side id is `hy4-preview`, not `hy4`: the gateway rejects a bare
+      // `hy4` with 11102 "model service info not found".
+      value: 'hy4-preview',
       label: 'Hy4 preview',
       description: '混元思考模型预览版，具有增强的推理能力。',
       effort: { values: [{ value: 'low' }, { value: 'high' }], default: 'high' },
