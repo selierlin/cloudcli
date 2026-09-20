@@ -489,7 +489,8 @@
     },
     "managed": {
       "badge": "Dikelola",
-      "hint": "Dikelola oleh CloudCLI."
+      "hint": "Dikelola oleh CloudCLI.",
+      "harnessHint": "Dikelola oleh {{provider}} sendiri; CloudCLI hanya menampilkannya."
     },
     "help": {
       "title": "Tentang MCP Codex",

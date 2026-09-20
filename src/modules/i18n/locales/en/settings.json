@@ -548,7 +548,6 @@
     "removeAriaLabel": "Remove {{name}}",
     "showInstallLocation": "Where will this install?",
     "hideInstallLocation": "Hide install location",
-    "managedByProvider": "Managed by {{provider}}",
     "scanningProjectSkills": "Scanning project skills...",
     "addSkillTitle": "Add {{provider}} Skill",
     "dialogDescription": "Upload a SKILL.md file or a complete skill folder.",
@@ -561,6 +560,7 @@
     "loadingProvider": "Loading {{provider}} skills…",
     "emptyTitle": "No skills discovered yet",
     "emptyDescription": "Add a global skill above or create project-specific skill folders in your workspace.",
+    "emptyDescriptionReadOnly": "Create a skill folder under the path above to list it here; {{provider}} loads skills on its own and this panel is read-only.",
     "noMatchingTitle": "No matching skills",
     "noMatchingDescription": "Try a different command, name, scope, project, or source path.",
     "skillCount_one": "{{count}} skill",
@@ -751,7 +751,8 @@
     },
     "managed": {
       "badge": "Managed",
-      "hint": "Managed by CloudCLI."
+      "hint": "Managed by CloudCLI.",
+      "harnessHint": "Managed by {{provider}} itself; CloudCLI only reads it."
     },
     "help": {
       "title": "About Codex MCP",

@@ -60,10 +60,11 @@ const PROVIDER_NAMES: Record<SkillsProvider, string> = {
   zcode: 'ZCode',
 };
 
-const PROVIDER_SKILL_PATHS: Record<Exclude<SkillsProvider, 'opencode' | 'dsh'>, string> = {
+const PROVIDER_SKILL_PATHS: Record<Exclude<SkillsProvider, 'opencode'>, string> = {
   claude: '~/.claude/skills/<skill-name>/SKILL.md',
   codex: '~/.agents/skills/<skill-name>/SKILL.md',
   cursor: '~/.cursor/skills/<skill-name>/SKILL.md',
+  dsh: '~/.agents/skills/<skill-name>/SKILL.md',
   workbuddy: '~/.workbuddy/skills/<skill-name>/SKILL.md',
   pi: '~/.pi/agent/skills/<skill-name>/SKILL.md',
   zcode: '~/.zcode/skills/<skill-name>/SKILL.md',
@@ -213,11 +214,12 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
   const folderInputRef = useRef<HTMLInputElement | null>(null);
 
   const providerName = PROVIDER_NAMES[selectedProvider];
+  // DSH loads skills through its own plugins, so the panel only mirrors what the
+  // harness finds and omits the upload flow its backend rejects.
+  const supportsSkillManagement = selectedProvider !== 'dsh';
   const providerPath = selectedProvider === 'opencode'
     ? null
-    : selectedProvider === 'dsh'
-      ? t('skills.managedByProvider', { provider: providerName })
-      : PROVIDER_SKILL_PATHS[selectedProvider];
+    : PROVIDER_SKILL_PATHS[selectedProvider];
   const getSkillErrorMessage = useCallback((error: unknown): string => {
     const message = error instanceof Error ? error.message : '';
     const folderFileLimit = message.match(/^A skill folder can contain up to (\d+) files\.$/);
@@ -587,15 +589,17 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
               </button>
             )}
           </div>
-          <Button
-            type="button"
-            size="sm"
-            className="w-full sm:w-auto"
-            onClick={() => handleAddDialogOpenChange(true)}
-          >
-            <Plus className="h-4 w-4" />
-            {t('skills.addSkill')}
-          </Button>
+          {supportsSkillManagement && (
+            <Button
+              type="button"
+              size="sm"
+              className="w-full sm:w-auto"
+              onClick={() => handleAddDialogOpenChange(true)}
+            >
+              <Plus className="h-4 w-4" />
+              {t('skills.addSkill')}
+            </Button>
+          )}
           <Button
             onClick={() => void refreshSkills({ force: true })}
             variant="outline"
@@ -615,7 +619,8 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
         )}
       </div>
 
-      <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogOpenChange}>
+      {supportsSkillManagement && (
+        <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogOpenChange}>
         <DialogContent
           wrapperClassName="z-[10000]"
           className="flex h-[calc(100vh-2rem)] max-h-[760px] w-[calc(100vw-2rem)] max-w-4xl flex-col overflow-hidden p-0 sm:h-[720px]"
@@ -690,8 +695,9 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
               </Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {!isAddDialogOpen && (submitError || loadError) && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800/60 dark:bg-red-900/20 dark:text-red-200">
@@ -720,7 +726,9 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
             </div>
             <div className="mt-4 text-sm font-medium text-foreground">{t('skills.emptyTitle')}</div>
             <div className="mt-1 text-sm text-muted-foreground">
-              {t('skills.emptyDescription')}
+              {supportsSkillManagement
+                ? t('skills.emptyDescription')
+                : t('skills.emptyDescriptionReadOnly', { provider: providerName })}
             </div>
           </div>
         )}

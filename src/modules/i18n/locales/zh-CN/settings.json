@@ -531,7 +531,6 @@
     "removeAriaLabel": "移除 {{name}}",
     "showInstallLocation": "安装到哪里？",
     "hideInstallLocation": "隐藏安装位置",
-    "managedByProvider": "由 {{provider}} 管理",
     "scanningProjectSkills": "正在扫描项目技能...",
     "addSkillTitle": "添加 {{provider}} 技能",
     "dialogDescription": "上传 SKILL.md 文件或完整的技能目录。",
@@ -544,6 +543,7 @@
     "loadingProvider": "正在加载 {{provider}} 技能…",
     "emptyTitle": "尚未发现技能",
     "emptyDescription": "添加上方的全局技能，或在工作区中创建项目专属的技能目录。",
+    "emptyDescriptionReadOnly": "在其技能目录中创建技能文件夹后会显示在这里；{{provider}} 自行加载技能，此面板仅作展示。",
     "noMatchingTitle": "没有匹配的技能",
     "noMatchingDescription": "请尝试其他命令、名称、范围、项目或来源路径。",
     "skillCount_one": "{{count}} 个技能",
@@ -734,7 +734,8 @@
     },
     "managed": {
       "badge": "已托管",
-      "hint": "由 CloudCLI 管理。"
+      "hint": "由 CloudCLI 管理。",
+      "harnessHint": "由 {{provider}} 自己管理，CloudCLI 只读取并展示。"
     },
     "help": {
       "title": "关于 Codex MCP",
