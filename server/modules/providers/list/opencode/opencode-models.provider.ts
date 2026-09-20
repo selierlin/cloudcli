@@ -8,6 +8,7 @@ import { sessionsDb } from '@/modules/database/index.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import type {
   ProviderCurrentActiveModel,
+  ProviderModelOption,
   ProviderModelsDefinition,
 } from '@/shared/types.js';
 import {
@@ -314,7 +315,42 @@ const readOpenCodeJsonFile = async (filePath: string): Promise<Record<string, un
 };
 
 /**
- * Lists the upstream providers this OpenCode install can actually route to.
+ * Collects the model rows one `provider.<id>` block declares in the user's
+ * global OpenCode config.
+ *
+ * OpenCode takes a provider's `models` as a map keyed by the model id the CLI
+ * routes with, so the `<providerID>/<modelID>` value the picker needs can be
+ * composed here without asking the CLI. `group` carries the provider id so the
+ * client renders one heading per configured provider, mirroring how the Pi
+ * adapter tags the vendors it reads from the user's own `models.json`.
+ */
+const collectConfiguredOpenCodeModelOptions = (
+  providerId: string,
+  providerName: string,
+  models: unknown,
+  options: Map<string, ProviderModelOption>,
+): void => {
+  for (const [rawModelId, rawModel] of Object.entries(readObjectRecord(models) ?? {})) {
+    const modelId = rawModelId.trim();
+    if (!modelId) {
+      continue;
+    }
+
+    const value = `${providerId}/${modelId}`;
+    // Both files may declare the same provider; the last one read wins, which
+    // matches the order OpenCode itself loads them in.
+    options.set(value, {
+      value,
+      label: readOptionalString(readObjectRecord(rawModel)?.name) ?? modelId,
+      description: providerName,
+      group: providerId,
+    });
+  }
+};
+
+/**
+ * Reads what this OpenCode install can route to: the provider ids the picker
+ * may offer, plus the models the user declared for those providers.
  *
  * OpenCode resolves `<providerID>/<modelID>` against the providers the user has
  * connected, and rejects anything else outright - `Model
@@ -323,13 +359,24 @@ const readOpenCodeJsonFile = async (filePath: string): Promise<Record<string, un
  * catalog spans every provider OpenCode can address, so it has to be narrowed
  * to this machine's providers before it reaches the model picker.
  *
- * Returns null when nothing can be read, so the caller keeps the full catalog
- * rather than leaving the picker empty. Providers declared only in a
- * project-level `opencode.json` are not visible here; the null fallback and the
- * env-key sweep keep those installs on the full list.
+ * The provider ids alone cannot describe a provider that carries its own
+ * `provider` block (a gateway such as WorkBuddy or a self-hosted endpoint),
+ * because OpenCode's built-in catalog does not cover it and its models live
+ * only in the config - hence the second half of this result.
+ *
+ * `connectedProviderIds` is null when nothing can be read at all, so the caller
+ * keeps the full catalog rather than leaving the picker empty. Providers
+ * declared only in a project-level `opencode.json` are not visible here; the
+ * null fallback and the env-key sweep keep those installs on the full list.
+ *
+ * Consumed by `OpenCodeProviderModels.getSupportedModels`.
  */
-const readConnectedOpenCodeProviderIds = async (): Promise<Set<string> | null> => {
+const readOpenCodeConfigState = async (): Promise<{
+  connectedProviderIds: Set<string> | null;
+  configuredOptions: ProviderModelOption[];
+}> => {
   const providerIds = new Set<string>();
+  const configuredOptions = new Map<string, ProviderModelOption>();
   const configDir = path.join(os.homedir(), '.config', 'opencode');
 
   const auth = await readOpenCodeJsonFile(
@@ -343,8 +390,17 @@ const readConnectedOpenCodeProviderIds = async (): Promise<Set<string> | null> =
 
   for (const configFile of OPENCODE_CONFIG_FILES) {
     const config = await readOpenCodeJsonFile(path.join(configDir, configFile));
-    for (const providerId of Object.keys(readObjectRecord(config?.provider) ?? {})) {
+    const providers = readObjectRecord(config?.provider) ?? {};
+    for (const [providerId, rawProvider] of Object.entries(providers)) {
+      const provider = readObjectRecord(rawProvider);
+      // A block that only sets credentials still makes the provider routable.
       providerIds.add(providerId);
+      collectConfiguredOpenCodeModelOptions(
+        providerId,
+        readOptionalString(provider?.name) ?? providerId,
+        provider?.models,
+        configuredOptions,
+      );
     }
   }
 
@@ -354,26 +410,44 @@ const readConnectedOpenCodeProviderIds = async (): Promise<Set<string> | null> =
     }
   }
 
-  return providerIds.size > 0 ? providerIds : null;
+  return {
+    connectedProviderIds: providerIds.size > 0 ? providerIds : null,
+    configuredOptions: [...configuredOptions.values()],
+  };
 };
 
 /**
- * Narrows the curated catalog to the providers OpenCode can route to.
+ * Narrows the curated catalog to the providers OpenCode can route to, then
+ * appends the models the user declared in their own config.
  *
- * The default has to move with the list: leaving it on an OpenCode Zen model
- * would hand every new session a model the CLI refuses to run.
+ * Curated options stay ahead of the configured ones so the shipped ordering and
+ * default survive on every install that still has a curated provider, and a
+ * configured value that repeats a curated one is dropped rather than listed
+ * twice. The default has to move with the list: leaving it on an OpenCode Zen
+ * model would hand every new session a model the CLI refuses to run, and an
+ * install whose providers are all configured has no curated option to fall back
+ * to.
+ *
+ * Consumed by `OpenCodeProviderModels.getSupportedModels`.
  */
-const filterOpenCodeModelsByProvider = (
+const buildOpenCodeCatalog = (
   definition: ProviderModelsDefinition,
   connectedProviderIds: Set<string> | null,
+  configuredOptions: ProviderModelOption[],
 ): ProviderModelsDefinition => {
-  if (!connectedProviderIds) {
-    return definition;
+  const options = connectedProviderIds
+    ? definition.OPTIONS.filter((option) => connectedProviderIds.has(option.value.split('/')[0]))
+    : [...definition.OPTIONS];
+
+  const listed = new Set(options.map((option) => option.value));
+  for (const option of configuredOptions) {
+    if (listed.has(option.value)) {
+      continue;
+    }
+    listed.add(option.value);
+    options.push(option);
   }
 
-  const options = definition.OPTIONS.filter(
-    (option) => connectedProviderIds.has(option.value.split('/')[0]),
-  );
   if (options.length === 0) {
     return definition;
   }
@@ -431,9 +505,11 @@ const parseOpenCodeSessionModelValue = (rawModel: unknown): string | null => {
 /** Provider registry model adapter for OpenCode predefined models and session metadata. */
 export class OpenCodeProviderModels implements IProviderModels {
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
-    return filterOpenCodeModelsByProvider(
+    const { connectedProviderIds, configuredOptions } = await readOpenCodeConfigState();
+    return buildOpenCodeCatalog(
       OPENCODE_PREDEFINED_MODELS,
-      await readConnectedOpenCodeProviderIds(),
+      connectedProviderIds,
+      configuredOptions,
     );
   }
 
