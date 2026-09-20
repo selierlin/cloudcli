@@ -458,6 +458,8 @@ export type PendingPermissionRequest = {
   input?: unknown;
   context?: unknown;
   sessionId?: string | null;
+  /** Provider that emitted the request; permission UI uses it to avoid applying Claude-only rules to DSH. */
+  provider?: LLMProvider;
   receivedAt?: Date;
 };
 
@@ -1381,6 +1383,9 @@ export type CodexPermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions
 
 /** Permission mode persisted for WorkBuddy's embedded CodeBuddy engine. */
 export type WorkbuddyPermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
+
+/** Permission mode persisted for the DSH ACP gateway: ask in chat or auto-answer allow-once. */
+export type DshPermissionMode = 'default' | 'auto';
 
 /** Permission mode persisted for the ZCode agent, mirroring ZCode's `--mode` build|edit|plan|yolo values (default resolves to acceptEdits). */
 export type ZcodePermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';

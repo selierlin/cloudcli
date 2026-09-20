@@ -128,16 +128,16 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
   },
   dsh: {
     provider: 'dsh',
-    // The DSH ACP bridge answers one-shot permission requests programmatically;
-    // the gateway is not wired to the UI yet, so the runtime auto-declines and
-    // the composer offers no permission modes beyond the harness's own config.
-    permissionModes: ['default'],
+    // `default` routes DSH's one-shot ACP permission requests to the chat UI;
+    // `auto` answers them with the harness's allow-once option. DSH keeps its
+    // own sandbox policy, so neither mode rewrites the harness configuration.
+    permissionModes: ['default', 'auto'],
     defaultPermissionMode: 'default',
     // Attachments are not passed through the ACP bridge yet.
     supportsImages: false,
     supportsFiles: false,
     supportsAbort: true,
-    supportsPermissionRequests: false,
+    supportsPermissionRequests: true,
     supportsTokenUsage: false,
     supportsEffort: false,
     supportsMessageEditing: false,

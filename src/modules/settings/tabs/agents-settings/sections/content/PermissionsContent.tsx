@@ -3,7 +3,7 @@ import { AlertTriangle, Plus, Shield, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { Button, Input } from '@/shared/ui';
-import type { CodexPermissionMode, PermissionMode, PiPermissionMode, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
+import type { CodexPermissionMode, DshPermissionMode, PermissionMode, PiPermissionMode, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
 
 const COMMON_CLAUDE_TOOLS = [
   'Bash(git log:*)',
@@ -703,6 +703,47 @@ type PiPermissionsProps = {
   onPermissionModeChange: (value: PiPermissionMode) => void;
 };
 
+type DshPermissionsProps = {
+  agent: 'dsh';
+  permissionMode: DshPermissionMode;
+  onPermissionModeChange: (value: DshPermissionMode) => void;
+};
+
+function DshPermissions({ permissionMode, onPermissionModeChange }: Omit<DshPermissionsProps, 'agent'>) {
+  const { t } = useTranslation('settings');
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Shield className="h-5 w-5 text-green-500" />
+          <h3 className="text-lg font-medium text-foreground">{t('permissions.dsh.permissionMode')}</h3>
+        </div>
+        <p className="text-sm text-muted-foreground">{t('permissions.dsh.description')}</p>
+
+        <PermissionModeCard
+          mode="default"
+          selectedMode={permissionMode}
+          onSelect={(mode) => onPermissionModeChange(mode as DshPermissionMode)}
+          radioName="dshPermissionMode"
+          title={t('permissions.dsh.modes.default.title')}
+          description={t('permissions.dsh.modes.default.description')}
+          tone="default"
+        />
+        <PermissionModeCard
+          mode="auto"
+          selectedMode={permissionMode}
+          onSelect={(mode) => onPermissionModeChange(mode as DshPermissionMode)}
+          radioName="dshPermissionMode"
+          title={t('permissions.dsh.modes.auto.title')}
+          description={t('permissions.dsh.modes.auto.description')}
+          tone="info"
+        />
+      </div>
+    </div>
+  );
+}
+
 function PiPermissions({ permissionMode, onPermissionModeChange }: Omit<PiPermissionsProps, 'agent'>) {
   const { t } = useTranslation('settings');
 
@@ -738,7 +779,7 @@ function PiPermissions({ permissionMode, onPermissionModeChange }: Omit<PiPermis
   );
 }
 
-type PermissionsContentProps = ClaudePermissionsProps | CursorPermissionsProps | CodexPermissionsProps | ZcodePermissionsProps | PiPermissionsProps;
+type PermissionsContentProps = ClaudePermissionsProps | CursorPermissionsProps | CodexPermissionsProps | ZcodePermissionsProps | PiPermissionsProps | DshPermissionsProps;
 
 /** Rendered by AgentCategoryContentSection for the "permissions" category, one variant per agent provider. */
 export default function PermissionsContent(props: PermissionsContentProps) {
@@ -756,6 +797,10 @@ export default function PermissionsContent(props: PermissionsContentProps) {
 
   if (props.agent === 'pi') {
     return <PiPermissions {...props} />;
+  }
+
+  if (props.agent === 'dsh') {
+    return <DshPermissions {...props} />;
   }
 
   return <CodexPermissions {...props} />;

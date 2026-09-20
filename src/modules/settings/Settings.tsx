@@ -66,6 +66,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
     setZcodePermissionMode,
     piPermissionMode,
     setPiPermissionMode,
+    dshPermissionMode,
+    setDshPermissionMode,
     providerAuthStatus,
     openLoginForProvider,
     showLoginModal,
@@ -264,6 +266,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
                   onZcodePermissionModeChange={setZcodePermissionMode}
                   piPermissionMode={piPermissionMode}
                   onPiPermissionModeChange={setPiPermissionMode}
+                  dshPermissionMode={dshPermissionMode}
+                  onDshPermissionModeChange={setDshPermissionMode}
                   projects={projects}
                 />
               )}

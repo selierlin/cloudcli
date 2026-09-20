@@ -12,7 +12,7 @@ import {
   writeUserPreferences,
 } from '@/shared/userSettings';
 import { useProviderAuthStatus } from '@/modules/provider-auth';
-import type { AgentProvider, ClaudePermissionsState, CodeEditorSettingsState, CodexPermissionMode, CursorPermissionsState, NotificationPreferencesState, PiPermissionMode, ProjectSortOrder, SettingsMainTab, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
+import type { AgentProvider, ClaudePermissionsState, CodeEditorSettingsState, CodexPermissionMode, CursorPermissionsState, DshPermissionMode, NotificationPreferencesState, PiPermissionMode, ProjectSortOrder, SettingsMainTab, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
 
 const DEFAULT_CURSOR_PERMISSIONS: CursorPermissionsState = {
   allowedCommands: [],
@@ -49,6 +49,10 @@ type CodexSettingsStorage = {
 
 type WorkbuddySettingsStorage = {
   permissionMode?: WorkbuddyPermissionMode;
+};
+
+type DshSettingsStorage = {
+  permissionMode?: DshPermissionMode;
 };
 
 type ZcodeSettingsStorage = {
@@ -92,6 +96,10 @@ const toWorkbuddyPermissionMode = (value: unknown): WorkbuddyPermissionMode => {
 
   return 'default';
 };
+
+const toDshPermissionMode = (value: unknown): DshPermissionMode => (
+  value === 'auto' ? 'auto' : 'default'
+);
 
 const toZcodePermissionMode = (value: unknown): ZcodePermissionMode => {
   if (value === 'acceptEdits' || value === 'bypassPermissions' || value === 'plan') {
@@ -194,6 +202,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
   );
   const [zcodePermissionMode, setZcodePermissionMode] = useState<ZcodePermissionMode>('acceptEdits');
   const [piPermissionMode, setPiPermissionMode] = useState<PiPermissionMode>('default');
+  const [dshPermissionMode, setDshPermissionModeState] = useState<DshPermissionMode>('default');
 
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginProvider, setLoginProvider] = useState<ActiveLoginProvider>('');
@@ -230,6 +239,8 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
       setZcodePermissionMode(toZcodePermissionMode(savedZcodeSettings.permissionMode));
       const savedPiSettings = readUserPreference<PiSettingsStorage>('piPermissions', {});
       setPiPermissionMode(toPiPermissionMode(savedPiSettings.permissionMode));
+      const savedDshSettings = readUserPreference<DshSettingsStorage>('dshPermissions', {});
+      setDshPermissionModeState(toDshPermissionMode(savedDshSettings.permissionMode));
 
       try {
         const notificationResponse = await api.settings.notificationPreferences();
@@ -256,6 +267,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
       setWorkbuddyPermissionMode('default');
       setZcodePermissionMode('acceptEdits');
       setPiPermissionMode('default');
+      setDshPermissionModeState('default');
       setProjectSortOrder('date');
     }
   }, []);
@@ -308,6 +320,9 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
         piPermissions: {
           permissionMode: piPermissionMode,
         },
+        dshPermissions: {
+          permissionMode: dshPermissionMode,
+        },
       });
       localStorage.setItem('workbuddy-settings', JSON.stringify({ permissionMode: workbuddyPermissionMode }));
 
@@ -331,6 +346,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     workbuddyPermissionMode,
     zcodePermissionMode,
     piPermissionMode,
+    dshPermissionMode,
     cursorPermissions.allowedCommands,
     cursorPermissions.disallowedCommands,
     cursorPermissions.skipPermissions,
@@ -395,6 +411,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     workbuddyPermissionMode,
     zcodePermissionMode,
     piPermissionMode,
+    dshPermissionMode,
     notificationPreferences,
     projectSortOrder,
   ]);
@@ -431,6 +448,13 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
       }
     };
   }, [autoSaveSnapshotKey, isOpen, saveSettings, settingsHydrated]);
+
+  // Changing the stored DSH default must not be masked by the composer's last
+  // DSH selection, so clear that provider-level override when the setting edits.
+  const setDshPermissionMode = useCallback((value: DshPermissionMode) => {
+    setDshPermissionModeState(value);
+    localStorage.removeItem('permissionMode-last-dsh');
+  }, []);
 
   // Clear save status after 2 seconds
   useEffect(() => {
@@ -477,6 +501,8 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     setZcodePermissionMode,
     piPermissionMode,
     setPiPermissionMode,
+    dshPermissionMode,
+    setDshPermissionMode,
     providerAuthStatus,
     openLoginForProvider,
     showLoginModal,

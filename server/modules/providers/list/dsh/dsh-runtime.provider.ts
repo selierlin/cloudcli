@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -11,7 +12,7 @@ import type {
 } from '@/shared/types.js';
 import { createCompleteMessage, createNormalizedMessage } from '@/shared/utils.js';
 
-import { getDshHome, getDshSessionsRoot } from './dsh-models.provider.js';
+import { DSH_ACP_PROFILE, getDshHome, getDshSessionsRoot } from './dsh-models.provider.js';
 
 // ---------- Minimal ACP (Agent Client Protocol) client over JSON-RPC stdio ----------
 //
@@ -21,11 +22,38 @@ import { getDshHome, getDshSessionsRoot } from './dsh-models.provider.js';
 // session/prompt / session/cancel plus session/update and
 // session/request_permission server requests. Kept dependency-free.
 
-type AcpPermissionOption = { optionId: string; kind: string; message?: string };
+type AcpPermissionOption = {
+  optionId: string;
+  kind: string;
+  name?: string;
+  message?: string;
+};
+
+type AcpToolCallUpdate = {
+  toolCallId: string;
+  toolName: string;
+  input?: unknown;
+};
+
+type AcpPermissionRequest = {
+  options: AcpPermissionOption[];
+  toolCallId?: string;
+};
+
+type AcpPermissionOutcome =
+  | { outcome: 'cancelled' }
+  | { outcome: 'selected'; optionId: string };
+
+type AcpPermissionResponder = (outcome: AcpPermissionOutcome) => void;
 
 type AcpClientHandlers = {
   onMessageChunk(sessionId: string, text: string): void;
-  onRequestPermission(sessionId: string, options: AcpPermissionOption[]): void;
+  onToolCall(sessionId: string, toolCall: AcpToolCallUpdate): void;
+  onRequestPermission(
+    sessionId: string,
+    request: AcpPermissionRequest,
+    respond: AcpPermissionResponder,
+  ): void;
   /** Invoked once the child exits or the client is closed, so the runtime can drop the cached server. */
   onClose?(): void;
 };
@@ -88,6 +116,62 @@ class AcpClient {
       return;
     }
 
+    // Server-initiated requests also carry a numeric JSON-RPC id, so methods
+    // must be routed before pending client-request responses are resolved.
+    if (message.method === 'session/update') {
+      const params = message.params as AnyRecord | undefined;
+      const update = params?.update as AnyRecord | undefined;
+      const sessionId = typeof params?.sessionId === 'string' ? params.sessionId : null;
+      if (sessionId && update?.sessionUpdate === 'agent_message_chunk') {
+        const content = update.content as AnyRecord | undefined;
+        const text = content?.type === 'text' && typeof content.text === 'string'
+          ? content.text
+          : '';
+        if (text) {
+          this.handlers.onMessageChunk(sessionId, text);
+        }
+      }
+      if (
+        sessionId
+        && update?.sessionUpdate === 'tool_call'
+        && typeof update.toolCallId === 'string'
+      ) {
+        this.handlers.onToolCall(sessionId, {
+          toolCallId: update.toolCallId,
+          toolName: typeof update.title === 'string' ? update.title : 'UnknownTool',
+          input: update.rawInput,
+        });
+      }
+      return;
+    }
+
+    if (message.method === 'session/request_permission') {
+      const params = message.params as AnyRecord | undefined;
+      const options = Array.isArray(params?.options)
+        ? (params.options as unknown[]).filter(
+          (entry): entry is AcpPermissionOption => typeof (entry as AnyRecord)?.optionId === 'string',
+        )
+        : [];
+      const toolCall = params?.toolCall as AnyRecord | undefined;
+      const request: AcpPermissionRequest = {
+        options,
+        toolCallId: typeof toolCall?.toolCallId === 'string' ? toolCall.toolCallId : undefined,
+      };
+      const respond: AcpPermissionResponder = (outcome) => {
+        this.respond(message.id, { outcome });
+      };
+      if (typeof params?.sessionId === 'string') {
+        try {
+          this.handlers.onRequestPermission(params.sessionId, request, respond);
+        } catch {
+          respond({ outcome: 'cancelled' });
+        }
+      } else {
+        respond({ outcome: 'cancelled' });
+      }
+      return;
+    }
+
     if (typeof message.id === 'number') {
       const request = this.pending.get(message.id);
       if (!request) {
@@ -102,38 +186,6 @@ class AcpClient {
       } else {
         request.resolve(message.result);
       }
-      return;
-    }
-
-    if (message.method === 'session/update') {
-      const params = message.params as AnyRecord | undefined;
-      const update = params?.update as AnyRecord | undefined;
-      if (update?.sessionUpdate === 'agent_message_chunk') {
-        const content = update.content as AnyRecord | undefined;
-        const text = content?.type === 'text' && typeof content.text === 'string'
-          ? content.text
-          : '';
-        if (text && typeof params?.sessionId === 'string') {
-          this.handlers.onMessageChunk(params.sessionId, text);
-        }
-      }
-      return;
-    }
-
-    if (message.method === 'session/request_permission') {
-      const params = message.params as AnyRecord | undefined;
-      const options = Array.isArray(params?.options)
-        ? (params.options as unknown[]).filter(
-          (entry): entry is AcpPermissionOption => typeof (entry as AnyRecord)?.optionId === 'string',
-        )
-        : [];
-      if (typeof params?.sessionId === 'string') {
-        this.handlers.onRequestPermission(params.sessionId, options);
-      }
-      // Skeleton policy: decline every one-shot permission request until the
-      // permission gateway is wired to the ACP bridge.
-      this.respond(message.id, { outcome: { outcome: 'cancelled' } });
-      return;
     }
   }
 
@@ -273,13 +325,168 @@ type ActiveRun = {
   writer: ProviderRuntimeWriter;
   appSessionId: string;
   normalize: (raw: unknown, sessionId: string | null) => NormalizedMessage[];
+  permissionMode: 'default' | 'auto';
+  toolCalls: Map<string, AcpToolCallUpdate>;
+};
+
+type PendingDshPermission = {
+  requestId: string;
+  appSessionId: string;
+  acpSessionId: string;
+  toolName: string;
+  input?: unknown;
+  context?: unknown;
+  receivedAt: Date;
+  options: AcpPermissionOption[];
+  writer: ProviderRuntimeWriter;
+  respond: AcpPermissionResponder;
 };
 
 let acpServer: AcpServerState | null = null;
 /** In-flight ACP spawn+initialize, so concurrent first runs share one child process. */
 let acpServerPromise: Promise<AcpServerState> | null = null;
-/** ACP session id → in-flight run, for routing agent_message_chunk to the right writer. */
+/** ACP session id → in-flight run, for routing updates and permission requests to the right writer. */
 const activeRuns = new Map<string, ActiveRun>();
+/** CloudCLI request id → an ACP permission request awaiting a user decision. */
+const pendingPermissions = new Map<string, PendingDshPermission>();
+
+/** Records tool-call metadata so a later ACP permission request can name the tool and show its input. */
+function handleAcpToolCall(sessionId: string, toolCall: AcpToolCallUpdate): void {
+  activeRuns.get(sessionId)?.toolCalls.set(toolCall.toolCallId, toolCall);
+}
+
+/** Picks the DSH ACP option matching a CloudCLI allow/deny decision. */
+function selectPermissionOption(
+  options: AcpPermissionOption[],
+  allow: boolean,
+): AcpPermissionOption | undefined {
+  const expectedKind = allow ? 'allow_once' : 'reject_once';
+  const expectedOptionId = allow ? 'allow-once' : 'reject-once';
+  return options.find((option) => option.kind === expectedKind)
+    ?? options.find((option) => option.optionId === expectedOptionId);
+}
+
+/** Emits the normalized event that retracts a pending prompt from every attached chat client. */
+function sendPermissionRetracted(
+  pending: PendingDshPermission,
+  kind: 'permission_resolved' | 'permission_cancelled',
+  reason?: string,
+): void {
+  pending.writer.send(createNormalizedMessage({
+    kind,
+    requestId: pending.requestId,
+    reason,
+    sessionId: pending.appSessionId,
+    provider: 'dsh',
+  }));
+}
+
+/** Cancels one pending permission and tells the ACP server the request will not be answered. */
+function cancelPendingPermission(pending: PendingDshPermission, reason: string): void {
+  if (!pendingPermissions.has(pending.requestId)) {
+    return;
+  }
+  pendingPermissions.delete(pending.requestId);
+  sendPermissionRetracted(pending, 'permission_cancelled', reason);
+  pending.respond({ outcome: 'cancelled' });
+}
+
+function cancelPendingPermissionsForAcpSession(acpSessionId: string, reason: string): void {
+  for (const pending of [...pendingPermissions.values()]) {
+    if (pending.acpSessionId === acpSessionId) {
+      cancelPendingPermission(pending, reason);
+    }
+  }
+}
+
+function cancelAllPendingPermissions(reason: string): void {
+  for (const pending of [...pendingPermissions.values()]) {
+    cancelPendingPermission(pending, reason);
+  }
+}
+
+/** Routes a DSH ACP permission request into the CloudCLI permission gateway. */
+function handleAcpPermissionRequest(
+  acpSessionId: string,
+  request: AcpPermissionRequest,
+  respond: AcpPermissionResponder,
+): void {
+  const run = activeRuns.get(acpSessionId);
+  if (!run) {
+    respond({ outcome: 'cancelled' });
+    return;
+  }
+
+  if (run.permissionMode === 'auto') {
+    const option = selectPermissionOption(request.options, true);
+    respond(option
+      ? { outcome: 'selected', optionId: option.optionId }
+      : { outcome: 'cancelled' });
+    return;
+  }
+
+  const toolCall = request.toolCallId ? run.toolCalls.get(request.toolCallId) : undefined;
+  const pending: PendingDshPermission = {
+    requestId: randomUUID(),
+    appSessionId: run.appSessionId,
+    acpSessionId,
+    toolName: toolCall?.toolName ?? 'DSH permission',
+    input: toolCall?.input,
+    context: {
+      options: request.options,
+      toolCallId: request.toolCallId,
+    },
+    receivedAt: new Date(),
+    options: request.options,
+    writer: run.writer,
+    respond,
+  };
+  pendingPermissions.set(pending.requestId, pending);
+  run.writer.send(createNormalizedMessage({
+    kind: 'permission_request',
+    requestId: pending.requestId,
+    toolName: pending.toolName,
+    input: pending.input,
+    context: pending.context,
+    sessionId: pending.appSessionId,
+    provider: 'dsh',
+  }));
+}
+
+/** Answers a pending DSH permission request from `chat.permission-response`. */
+function resolveDshPermission(
+  requestId: string,
+  decision: { allow: boolean },
+): void {
+  const pending = pendingPermissions.get(requestId);
+  if (!pending) {
+    return;
+  }
+  const option = selectPermissionOption(pending.options, decision.allow);
+  if (!option) {
+    cancelPendingPermission(pending, 'Unsupported DSH permission option');
+    return;
+  }
+
+  pendingPermissions.delete(requestId);
+  sendPermissionRetracted(pending, 'permission_resolved');
+  pending.respond({ outcome: 'selected', optionId: option.optionId });
+}
+
+/** Returns pending DSH prompts in the shape `chat.subscribe` sends to the frontend. */
+function listPendingDshPermissions(appSessionId: string): unknown[] {
+  return [...pendingPermissions.values()]
+    .filter((pending) => pending.appSessionId === appSessionId)
+    .map((pending) => ({
+      requestId: pending.requestId,
+      toolName: pending.toolName,
+      input: pending.input,
+      context: pending.context,
+      sessionId: pending.appSessionId,
+      provider: 'dsh',
+      receivedAt: pending.receivedAt,
+    }));
+}
 
 let shutdownHooksRegistered = false;
 
@@ -433,7 +640,7 @@ async function ensureAcpServer(): Promise<AcpServerState> {
   const childEnv: NodeJS.ProcessEnv = { ...process.env };
   childEnv.DSH_HOME = getDshHome();
   applySystemProxy(childEnv);
-  const child = spawn('dsh', ['--profile', 'acp'], {
+  const child = spawn('dsh', ['--profile', DSH_ACP_PROFILE], {
     stdio: ['pipe', 'pipe', 'pipe'],
     env: childEnv,
   });
@@ -448,12 +655,12 @@ async function ensureAcpServer(): Promise<AcpServerState> {
         run.writer.send(message);
       }
     },
-    onRequestPermission: (acpSessionId) => {
-      console.warn(`[DSH] auto-declining permission request for session ${acpSessionId}`);
-    },
+    onToolCall: handleAcpToolCall,
+    onRequestPermission: handleAcpPermissionRequest,
     // The child crashed or was closed: drop the cached server so the next run
     // spawns a fresh process instead of reusing a dead one.
     onClose: () => {
+      cancelAllPendingPermissions('DSH ACP server closed');
       if (acpServer?.client === client) {
         acpServer = null;
       }
@@ -574,6 +781,8 @@ export const dshRuntime: IProviderRuntime = {
       writer,
       appSessionId,
       normalize: (raw, sessionId) => context.normalizeMessage(raw, sessionId),
+      permissionMode: options.permissionMode === 'auto' ? 'auto' : 'default',
+      toolCalls: new Map(),
     });
 
     try {
@@ -626,6 +835,7 @@ export const dshRuntime: IProviderRuntime = {
       notifyRunFailed({ userId, provider: 'dsh', sessionId: appSessionId, sessionName, error: message });
     } finally {
       activeRuns.delete(acpSessionId);
+      cancelPendingPermissionsForAcpSession(acpSessionId, 'DSH run ended');
     }
   },
 
@@ -639,11 +849,17 @@ export const dshRuntime: IProviderRuntime = {
       return false;
     }
     try {
+      cancelPendingPermissionsForAcpSession(acpSessionId, 'aborted');
       await server.client.cancel(acpSessionId);
       return true;
     } catch {
       return false;
     }
+  },
+
+  permissions: {
+    resolve: resolveDshPermission,
+    listPending: listPendingDshPermissions,
   },
 };
 
@@ -654,4 +870,5 @@ export function resetDshRuntimeForTests(): void {
     acpServer = null;
   }
   activeRuns.clear();
+  cancelAllPendingPermissions('test reset');
 }

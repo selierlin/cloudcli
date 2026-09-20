@@ -301,6 +301,7 @@ export function useChatRealtimeHandlers({
                 input: msg.input,
                 context: msg.context,
                 sessionId: sid || null,
+                provider: msg.provider as PendingPermissionRequest['provider'],
                 receivedAt: new Date(),
               }];
 

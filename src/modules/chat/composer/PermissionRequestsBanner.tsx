@@ -48,6 +48,51 @@ export default function PermissionRequestsBanner({
   return (
     <div className="mb-3 space-y-2">
       {filteredRequests.map((request) => {
+        const rawInput = formatToolInputForDisplay(request.input);
+        if (request.provider === 'dsh') {
+          return (
+            <Confirmation key={request.requestId} approval="pending">
+              <ConfirmationTitle className="flex items-start gap-3">
+                <ShieldAlertIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                <ConfirmationRequest>
+                  <div>
+                    <span className="font-medium text-foreground">Permission required</span>
+                    <span className="ml-2 text-muted-foreground">
+                      Tool: <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{request.toolName}</code>
+                    </span>
+                  </div>
+                </ConfirmationRequest>
+              </ConfirmationTitle>
+
+              {rawInput && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+                    View tool input
+                  </summary>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/50 p-2 text-xs text-muted-foreground">
+                    {rawInput}
+                  </pre>
+                </details>
+              )}
+
+              <ConfirmationActions>
+                <ConfirmationAction
+                  variant="outline"
+                  onClick={() => handlePermissionDecision(request.requestId, { allow: false, message: t('chat:misc.userDeniedTool') })}
+                >
+                  Deny
+                </ConfirmationAction>
+                <ConfirmationAction
+                  variant="default"
+                  onClick={() => handlePermissionDecision(request.requestId, { allow: true })}
+                >
+                  Allow once
+                </ConfirmationAction>
+              </ConfirmationActions>
+            </Confirmation>
+          );
+        }
+
         const CustomPanel = getPermissionPanel(request.toolName);
         if (CustomPanel) {
           return (
@@ -59,7 +104,6 @@ export default function PermissionRequestsBanner({
           );
         }
 
-        const rawInput = formatToolInputForDisplay(request.input);
         const permissionEntry = buildClaudeToolPermissionEntry(request.toolName, rawInput);
         const settings = getClaudeSettings();
         const alreadyAllowed = permissionEntry ? settings.allowedTools.includes(permissionEntry) : false;
