@@ -139,4 +139,22 @@ describe('execution process projection', () => {
       new Set(['narration', 'command']),
     );
   });
+
+  it('promotes a leading local command to the visible turn anchor instead of folding it away', () => {
+    const command = message({ id: 'command', type: 'user', content: '/model', isLocalCommand: true });
+    const thought = message({ id: 'thinking', content: 'checking', isThinking: true });
+    const tool = message({ id: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'completed' });
+    const answer = message({ id: 'answer', content: 'final' });
+
+    const projection = deriveExecutionProcessProjection(
+      [command, thought, tool, answer], keyFor, completedHistory,
+    );
+    const group = projection.groups.get('process:turn:message-user-command');
+    expect(group).toBeDefined();
+    // The command is the turn anchor (rendered as the user's own bubble), the
+    // tool work folds into the collapsed run beneath it — the command must NOT
+    // hide alongside the process members.
+    expect(group?.memberKeys).toEqual(new Set(['thinking', 'tool']));
+    expect(projection.memberDisclosureKeys.get('command')).toBeUndefined();
+  });
 });

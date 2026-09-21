@@ -95,6 +95,22 @@ export function projectTranscriptTurns(
     }
 
     const turn = ensurePartialTurn(message);
+    // A local command echo that a real user message already anchors stays folded
+    // into that turn's process run. But a command that opens the turn (e.g. the
+    // session's very first row is `/deploy-cloudcli`) has nothing to attach to;
+    // leaving it as a process member hides the user's own input behind the
+    // collapsed run. Promote it to the visible turn anchor so the command stays
+    // on screen.
+    if (
+      message.type === 'user'
+      && message.isLocalCommand
+      && !turn.userMessage
+      && turn.segments.length === 0
+    ) {
+      turn.userMessage = message;
+      turn.boundary = 'synthetic';
+      continue;
+    }
     const segment: TranscriptSegment = {
       id: getMessageKey(message),
       kind: classifySegment(message),
