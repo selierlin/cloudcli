@@ -903,6 +903,65 @@ test('synchronizeFile falls back to the first user prompt when no title events e
   }
 });
 
+// A slash command is the opening (and only) row, and no title event exists. The
+// fallback must surface the command name rather than leak the raw
+// `<command-message>…</command-message>` wrapper — see first_user_prompt.
+test('synchronizeFile titles a slash-command-only session as the command name', { concurrency: false }, async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), 'claude-sync-command-title-'));
+  const workspacePath = path.join(tmp, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tmp);
+
+  try {
+    const claudeHome = path.join(tmp, '.claude');
+    await mkdir(claudeHome, { recursive: true });
+    await writeFile(path.join(claudeHome, 'history.jsonl'), '', 'utf8');
+
+    const jsonlPath = path.join(workspacePath, 'test-session-1.jsonl');
+    await writeFile(
+      jsonlPath,
+      [
+        JSON.stringify({
+          parentUuid: null,
+          isSidechain: false,
+          type: 'user',
+          message: {
+            role: 'user',
+            content: '<command-message>model</command-message>\n<command-name>/model</command-name>',
+          },
+          uuid: 'msg-1',
+          timestamp: '2026-07-10T00:00:00.000Z',
+          cwd: '/workspace/demo',
+          sessionId: 'test-session-1',
+        }),
+        JSON.stringify({
+          parentUuid: 'msg-1',
+          isSidechain: false,
+          type: 'assistant',
+          message: { role: 'assistant', content: [{ type: 'text', text: 'done' }] },
+          uuid: 'msg-2',
+          sessionId: 'test-session-1',
+        }),
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    await withIsolatedDatabase(async () => {
+      const synchronizer = new ClaudeSessionSynchronizer();
+      const result = await synchronizer.synchronizeFile(jsonlPath);
+
+      assert.ok(result);
+      const session = sessionsDb.getSessionById(result!);
+      assert.equal(session?.custom_name, '/model');
+      assert.equal(session?.name_source, 'first_user_prompt');
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Priority: DB custom_name > JSONL title > history.jsonl
 // ---------------------------------------------------------------------------

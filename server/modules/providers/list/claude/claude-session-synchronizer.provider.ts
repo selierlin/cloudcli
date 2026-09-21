@@ -476,6 +476,25 @@ function buildClaudeSessionNamePrefix(value: string): string {
  * the event must be a `user` message for `sessionId` whose `message.role` is
  * `user`, with non-empty text content that is not a bare slash command.
  */
+/**
+ * Distills a Claude local slash-command wrapper into the command the user typed.
+ *
+ * Claude serialises a committed `/foo` as an XML-ish string payload
+ * (`<command-name>/foo</command-name>` / `<command-message>foo</command-message>`)
+ * that starts with `<`, so the bare `startsWith('/')` guard in
+ * `findFirstUserMessageText` never matches and the whole wrapper leaks through
+ * as a fallback title. The command name already carries the `/` prefix; the
+ * message body is the older-transcript fallback.
+ */
+function expandLocalCommandTitle(text: string): string | null {
+  if (!/<(command-name|command-message)>/.test(text)) {
+    return null;
+  }
+  const name = /<command-name>([\s\S]*?)<\/command-name>/.exec(text)?.[1]?.trim()
+    ?? /<command-message>([\s\S]*?)<\/command-message>/.exec(text)?.[1]?.trim();
+  return name ? name : null;
+}
+
 function findFirstUserMessageText(lines: string[], sessionId: string): string | undefined {
   for (const line of lines) {
     const trimmed = line.trim();
@@ -502,7 +521,7 @@ function findFirstUserMessageText(lines: string[], sessionId: string): string | 
 
     const text = extractMessageText(message.content);
     if (text && !text.trimStart().startsWith('/')) {
-      return text.trim();
+      return expandLocalCommandTitle(text) ?? text.trim();
     }
   }
 
