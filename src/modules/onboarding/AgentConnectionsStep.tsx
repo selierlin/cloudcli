@@ -58,6 +58,13 @@ const providerCards = [
     iconContainerClassName: 'bg-neutral-100 dark:bg-neutral-800',
     loginButtonClassName: 'bg-neutral-800 hover:bg-neutral-900 dark:bg-neutral-700 dark:hover:bg-neutral-600',
   },
+  {
+    provider: 'omp' as const,
+    title: 'OMP',
+    connectedClassName: 'bg-zinc-100 dark:bg-zinc-800/50 border-zinc-300 dark:border-zinc-600',
+    iconContainerClassName: 'bg-zinc-100 dark:bg-zinc-800',
+    loginButtonClassName: 'bg-zinc-800 hover:bg-zinc-900 dark:bg-zinc-700 dark:hover:bg-zinc-600',
+  },
 ];
 
 /** Rendered by Onboarding as its second step, listing every CLI provider the user can log into. */

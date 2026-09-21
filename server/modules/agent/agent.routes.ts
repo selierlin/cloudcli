@@ -26,6 +26,7 @@ type AgentRouterDependencies = {
   queryWorkbuddy: ProviderRunFunction;
   queryPi: ProviderRunFunction;
   queryZcode: ProviderRunFunction;
+  queryOmp: ProviderRunFunction;
   GithubClient: typeof import('@octokit/rest').Octokit;
 };
 
@@ -52,6 +53,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
   const queryWorkbuddy = dependencies.queryWorkbuddy;
   const queryPi = dependencies.queryPi;
   const queryZcode = dependencies.queryZcode;
+  const queryOmp = dependencies.queryOmp;
   const Octokit = dependencies.GithubClient;
   const router = express.Router();
 
@@ -670,7 +672,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
    *                          - Source for auto-generated branch names (if createBranch=true and no branchName)
    *                          - Fallback for PR title if no commits are made
    *
-   * @param {string} provider - (Optional) AI provider to use. Options: 'claude' | 'cursor' | 'codex' | 'opencode' | 'dsh' | 'workbuddy' | 'pi' | 'zcode'
+   * @param {string} provider - (Optional) AI provider to use. Options: 'claude' | 'cursor' | 'codex' | 'opencode' | 'dsh' | 'workbuddy' | 'pi' | 'zcode' | 'omp'
    *                           Default: 'claude'
    *
    * @param {boolean} stream - (Optional) Enable Server-Sent Events (SSE) streaming for real-time updates.
@@ -793,7 +795,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
    * Input Validations (400 Bad Request):
    *   - Either githubUrl OR projectPath must be provided (not neither)
    *   - message must be non-empty string
-   *   - provider must be 'claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', or 'zcode'
+   *   - provider must be 'claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode', or 'omp'
    *   - createBranch/createPR requires githubUrl OR projectPath (not neither)
    *   - branchName must pass Git naming rules (if provided)
    *
@@ -904,8 +906,8 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
       return res.status(400).json({ error: 'message is required' });
     }
 
-    if (!['claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode'].includes(provider)) {
-      return res.status(400).json({ error: 'provider must be "claude", "cursor", "codex", "opencode", "dsh", "workbuddy", "pi", or "zcode"' });
+    if (!['claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode', 'omp'].includes(provider)) {
+      return res.status(400).json({ error: 'provider must be "claude", "cursor", "codex", "opencode", "dsh", "workbuddy", "pi", "zcode", or "omp"' });
     }
 
     // Validate GitHub branch/PR creation requirements
@@ -1075,6 +1077,17 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
           cwd: finalProjectPath,
           sessionId: sessionId || `api-${crypto.randomUUID()}`,
           model: model || undefined,
+          permissionMode: 'bypassPermissions'
+        }, writer);
+      } else if (provider === 'omp') {
+        console.log('🤖 Starting OMP CLI session');
+
+        await queryOmp(message.trim(), {
+          projectPath: finalProjectPath,
+          cwd: finalProjectPath,
+          sessionId: sessionId || `api-${crypto.randomUUID()}`,
+          model: model || undefined,
+          effort,
           permissionMode: 'bypassPermissions'
         }, writer);
       }

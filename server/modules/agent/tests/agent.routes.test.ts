@@ -38,6 +38,7 @@ function createDependencies(
     queryWorkbuddy: unexpectedProviderCall as AgentDependencies['queryWorkbuddy'],
     queryPi: unexpectedProviderCall as AgentDependencies['queryPi'],
     queryZcode: unexpectedProviderCall as AgentDependencies['queryZcode'],
+    queryOmp: unexpectedProviderCall as AgentDependencies['queryOmp'],
     GithubClient: class {} as unknown as AgentDependencies['GithubClient'],
     ...overrides,
   };

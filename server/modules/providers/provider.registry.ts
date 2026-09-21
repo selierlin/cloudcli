@@ -3,6 +3,7 @@ import { CodexProvider } from '@/modules/providers/list/codex/codex.provider.js'
 import { CursorProvider } from '@/modules/providers/list/cursor/cursor.provider.js';
 import { DshProvider } from '@/modules/providers/list/dsh/dsh.provider.js';
 import { OpenCodeProvider } from '@/modules/providers/list/opencode/opencode.provider.js';
+import { OmpProvider } from '@/modules/providers/list/omp/omp.provider.js';
 import { PiProvider } from '@/modules/providers/list/pi/pi.provider.js';
 import { WorkbuddyProvider } from '@/modules/providers/list/workbuddy/workbuddy.provider.js';
 import { ZcodeProvider } from '@/modules/providers/list/zcode/zcode.provider.js';
@@ -19,6 +20,7 @@ const providers: Record<LLMProvider, IProvider> = {
   workbuddy: new WorkbuddyProvider(),
   pi: new PiProvider(),
   zcode: new ZcodeProvider(),
+  omp: new OmpProvider(),
 };
 
 /**

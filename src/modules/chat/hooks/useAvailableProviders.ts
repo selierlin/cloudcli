@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/shared/api';
 import type { LLMProvider } from '@/shared/types';
 
-const ALL_PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode'];
+const ALL_PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode', 'omp'];
 const AVAILABLE_PROVIDERS_STORAGE_KEY = 'available-providers-v1';
 const AVAILABLE_PROVIDERS_STORAGE_TTL_MS = 24 * 60 * 60 * 1000;
 

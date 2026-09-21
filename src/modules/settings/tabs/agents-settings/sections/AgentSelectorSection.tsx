@@ -17,6 +17,7 @@ const AGENT_NAMES: Record<AgentProvider, string> = {
   workbuddy: 'WorkBuddy',
   pi: 'Pi',
   zcode: 'ZCode',
+  omp: 'OMP',
 };
 
 /** Rendered by AgentsSettingsTab to pick which agent provider the tab is configuring. */

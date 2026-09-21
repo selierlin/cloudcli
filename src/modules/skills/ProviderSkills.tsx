@@ -58,6 +58,7 @@ const PROVIDER_NAMES: Record<SkillsProvider, string> = {
   workbuddy: 'WorkBuddy',
   pi: 'Pi',
   zcode: 'ZCode',
+  omp: 'OMP',
 };
 
 const PROVIDER_SKILL_PATHS: Record<Exclude<SkillsProvider, 'opencode'>, string> = {
@@ -68,6 +69,7 @@ const PROVIDER_SKILL_PATHS: Record<Exclude<SkillsProvider, 'opencode'>, string> 
   workbuddy: '~/.workbuddy/skills/<skill-name>/SKILL.md',
   pi: '~/.pi/agent/skills/<skill-name>/SKILL.md',
   zcode: '~/.zcode/skills/<skill-name>/SKILL.md',
+  omp: '~/.omp/agent/skills/<skill-name>/SKILL.md',
 };
 
 const SCOPE_BADGE_CLASSES: Record<SkillsScope, string> = {

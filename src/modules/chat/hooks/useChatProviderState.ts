@@ -42,9 +42,12 @@ const FALLBACK_DEFAULT_MODEL: Record<LLMProvider, string> = {
   // `model.main`. The static default below is only used until the catalog
   // loads — the resolved value will overwrite it.
   zcode: 'zai/glm-5.1',
+  // OMP's catalog comes from `omp models --json`; this mirrors the backend's
+  // last-resort catalog for the first paint before it loads.
+  omp: 'deepseek/deepseek-v4-pro',
 };
 
-const PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode'];
+const PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode', 'omp'];
 
 /** localStorage key holding the user's default model for one provider. */
 const providerModelStorageKey = (provider: LLMProvider): string => `${provider}-model`;
@@ -64,6 +67,7 @@ const FALLBACK_PERMISSION_MODES: Record<LLMProvider, PermissionMode[]> = {
   workbuddy: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
   pi: ['default', 'readonly'],
   zcode: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
+  omp: ['default', 'readonly'],
 };
 
 type ProviderCapabilities = {

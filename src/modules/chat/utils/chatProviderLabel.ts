@@ -17,6 +17,8 @@ export function getChatProviderLabel(provider: string, t: ChatProviderTranslator
       return t('messageTypes.pi', { defaultValue: 'Pi' });
     case 'zcode':
       return t('messageTypes.zcode', { defaultValue: 'ZCode' });
+    case 'omp':
+      return t('messageTypes.omp', { defaultValue: 'OMP' });
     default:
       return t('messageTypes.claude');
   }

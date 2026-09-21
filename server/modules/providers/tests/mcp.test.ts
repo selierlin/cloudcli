@@ -429,17 +429,19 @@ test('providerMcpService global adder writes to every provider and degrades per 
       workspacePath,
     });
 
-    assert.equal(globalResult.length, 8);
-    // DSH remains externally managed and Pi has no native MCP support;
-    // WorkBuddy and ZCode persist their native MCP config and therefore
-    // participate in the global add operation.
+    assert.equal(globalResult.length, 9);
+    // DSH remains externally managed, Pi has no native MCP support, and OMP's
+    // MCP servers are harness-managed; WorkBuddy and ZCode persist their native
+    // MCP config and therefore participate in the global add operation.
     const dshEntry = globalResult.find((entry) => entry.provider === 'dsh');
     assert.equal(dshEntry?.created, false);
     const piEntry = globalResult.find((entry) => entry.provider === 'pi');
     assert.equal(piEntry?.created, false);
+    const ompEntry = globalResult.find((entry) => entry.provider === 'omp');
+    assert.equal(ompEntry?.created, false);
     assert.ok(
       globalResult
-        .filter((entry) => entry.provider !== 'dsh' && entry.provider !== 'pi')
+        .filter((entry) => entry.provider !== 'dsh' && entry.provider !== 'pi' && entry.provider !== 'omp')
         .every((entry) => entry.created === true),
     );
 
@@ -472,7 +474,7 @@ test('providerMcpService global adder writes to every provider and degrades per 
       workspacePath,
     });
 
-    assert.equal(sseResult.length, 8);
+    assert.equal(sseResult.length, 9);
     assert.deepEqual(
       sseResult.filter((entry) => entry.created).map((entry) => entry.provider).sort(),
       ['claude', 'workbuddy', 'zcode'],
@@ -498,7 +500,7 @@ test('providerMcpService global adder writes to every provider and degrades per 
       workspacePath,
     });
 
-    assert.equal(localResult.length, 8);
+    assert.equal(localResult.length, 9);
     assert.deepEqual(
       localResult.filter((entry) => entry.created).map((entry) => entry.provider).sort(),
       ['claude', 'workbuddy'],

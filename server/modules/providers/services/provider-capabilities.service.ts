@@ -185,6 +185,29 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsMessageEditing: false,
     supportsSessionForking: false,
   },
+  omp: {
+    provider: 'omp',
+    // OMP runs tools autonomously with no approval gate, and rejects an unknown
+    // name in `--tools` outright. Its only real safety lever is therefore the
+    // built-in tool allowlist, so the picker offers the honest pair: default
+    // (autonomous) and read-only (`--tools read,grep,glob`).
+    permissionModes: ['default', 'readonly'],
+    defaultPermissionMode: 'default',
+    // Attachments ride OMP's native `@file` positional arguments (real file
+    // input, not path references), and usage is summarized from transcripts,
+    // whose assistant `usage` block shares Pi's shape.
+    supportsImages: true,
+    supportsFiles: true,
+    supportsAbort: true,
+    supportsPermissionRequests: false,
+    supportsTokenUsage: true,
+    // Effort maps onto OMP's `--thinking` levels, taken from the per-model
+    // `thinking` array in `omp models --json`.
+    supportsEffort: true,
+    supportsMessageEditing: false,
+    // OMP ships no `--fork` and no resume-at-a-row.
+    supportsSessionForking: false,
+  },
 };
 
 /**
