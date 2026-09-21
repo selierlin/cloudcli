@@ -15,8 +15,8 @@ import { isQuickReplyUsable, quickReplyLabel } from '@/shared/quickReplies';
 import type { QuickReply } from '@/shared/types';
 
 type QuickReplyMenuProps = {
-  /** Receives the picked snippet; the composer owns composing the text and inserting it. */
-  onInsert: (reply: QuickReply) => void;
+  /** Receives the picked snippet; the composer owns sending it or dropping it in the box. */
+  onSend: (reply: QuickReply) => void;
 };
 
 /**
@@ -26,7 +26,7 @@ type QuickReplyMenuProps = {
  * Reads the list itself rather than taking it as a prop, because the same list
  * is edited in Settings and only this button and that editor care about it.
  */
-function QuickReplyMenu({ onInsert }: QuickReplyMenuProps) {
+function QuickReplyMenu({ onSend }: QuickReplyMenuProps) {
   const { t } = useTranslation('chat');
   const replies = useQuickReplies();
   const [isOpen, setIsOpen] = useState(false);
@@ -101,7 +101,7 @@ function QuickReplyMenu({ onInsert }: QuickReplyMenuProps) {
               description={reply.label?.trim() ? reply.text : undefined}
               isSelected={false}
               onSelect={() => {
-                onInsert(reply);
+                onSend(reply);
                 close();
               }}
             />

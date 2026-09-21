@@ -70,8 +70,8 @@ type ChatComposerProps = {
   onShowTokenUsage: () => void;
   slashCommandsCount: number;
   onToggleCommandMenu: () => void;
-  /** Inserts a saved snippet into the composer box; the composer state owns how. */
-  onInsertQuickReply: (reply: QuickReply) => void;
+  /** Sends a saved snippet as a message, or drops a command snippet into the box. */
+  onSendQuickReply: (reply: QuickReply) => void;
   hasInput: boolean;
   onClearInput: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement> | MouseEvent<HTMLButtonElement> | TouchEvent<HTMLButtonElement>) => void;
@@ -150,7 +150,7 @@ export default function ChatComposer({
   onShowTokenUsage,
   slashCommandsCount,
   onToggleCommandMenu,
-  onInsertQuickReply,
+  onSendQuickReply,
   hasInput,
   onClearInput,
   onSubmit,
@@ -472,7 +472,7 @@ export default function ChatComposer({
               )}
             </PromptInputButton>
 
-            <QuickReplyMenu onInsert={onInsertQuickReply} />
+            <QuickReplyMenu onSend={onSendQuickReply} />
 
             {hasInput && (
               <PromptInputButton

@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 
 import { act, renderHook } from '@testing-library/react';
-import type { FormEvent } from 'react';
 import { beforeEach, test, vi } from 'vitest';
 
 import { useChatComposerState } from '@/modules/chat/hooks/useChatComposerState';
@@ -9,11 +8,12 @@ import { readDraftText, resetChatDrafts } from '@/shared/chatDrafts';
 import type { PermissionMode, Project, ProjectSession } from '@/shared/types';
 
 /**
- * A picked quick reply fills the composer the way a voice transcript does, and
- * two things can go wrong without any visible error: the box can keep the text
- * that was already there (the send path reads `inputValueRef`, not the React
- * state), and a snippet that starts with "/" can end up behind other text,
- * where the send path stops treating it as a command.
+ * Picking a quick reply sends it, so the two things that can go wrong are both
+ * invisible: the send path reads `inputValueRef` rather than the React state,
+ * so a snippet that only reached the state would go out as whatever the box
+ * held before the tap; and a snippet that is a command has to stay in the box,
+ * because a row that fires on tap would run something the user never got to
+ * read first.
  *
  * These tests drive the real hook, so the state/ref pair and the send path are
  * exercised together rather than described.
@@ -26,7 +26,7 @@ const PROJECT: Project = {
 };
 
 // The composer only ever reaches the network through these; stubbing them keeps
-// the test about the inserted text rather than about fetch behaviour in jsdom.
+// the test about the sent text rather than about fetch behaviour in jsdom.
 vi.mock('@/shared/api', () => {
   const okJson = (data: unknown) => Promise.resolve({ ok: true, json: async () => data });
   return {
@@ -71,8 +71,6 @@ const renderComposer = (selectedSession: ProjectSession | null) => renderHook(
   { initialProps: { session: selectedSession } },
 );
 
-const submit = () => ({ preventDefault: () => undefined } as unknown as FormEvent<HTMLFormElement>);
-
 beforeEach(() => {
   localStorage.clear();
   // The drafts store is a module-level singleton, so its in-memory copy
@@ -81,47 +79,46 @@ beforeEach(() => {
   sentMessages.length = 0;
 });
 
-test('a picked snippet is appended to the box and to its stored draft', async () => {
+test('a picked snippet is sent on the spot and leaves the box empty', async () => {
+  const view = renderComposer({ id: 'session-a' });
+
+  await act(async () => {
+    view.result.current.handleQuickReplySend({ text: '继续' });
+  });
+
+  assert.equal(sentMessages.length, 1);
+  assert.equal(sentMessages[0].content, '继续');
+  assert.equal(view.result.current.input, '');
+  assert.equal(readDraftText('session-a'), '', 'the sent snippet must not stay a draft');
+});
+
+test('a snippet is appended to what is already typed, and the whole line is sent', async () => {
   const view = renderComposer({ id: 'session-a' });
 
   await act(async () => {
     view.result.current.setInput('跑一下测试');
   });
   await act(async () => {
-    view.result.current.handleQuickReplyInsert({ text: '继续' });
+    view.result.current.handleQuickReplySend({ text: '继续' });
   });
 
-  assert.equal(view.result.current.input, '跑一下测试 继续');
-  assert.equal(readDraftText('session-a'), '跑一下测试 继续');
+  assert.equal(sentMessages.length, 1);
+  // The tap has to feed the send path the composed text, not the value the box
+  // held before it: `handleSubmit` reads `inputValueRef`, so a snippet written
+  // to the React state alone would send "跑一下测试".
+  assert.equal(sentMessages[0].content, '跑一下测试 继续');
 });
 
-test('a snippet that starts with a slash replaces the box, so it stays a command', async () => {
+test('a snippet that starts with a slash only fills the box, so the tap cannot run a command', async () => {
   const view = renderComposer({ id: 'session-a' });
 
   await act(async () => {
     view.result.current.setInput('先别动手');
   });
   await act(async () => {
-    view.result.current.handleQuickReplyInsert({ text: '/session-sediment' });
+    view.result.current.handleQuickReplySend({ text: '/session-sediment' });
   });
 
   assert.equal(view.result.current.input, '/session-sediment');
-});
-
-test('the send path reads the inserted text, not the value the box held before', async () => {
-  const view = renderComposer({ id: 'session-a' });
-
-  await act(async () => {
-    view.result.current.setInput('跑一下测试');
-  });
-
-  await act(async () => {
-    view.result.current.handleQuickReplyInsert({ text: '继续' });
-    // Deliberately no await in between: this is the window the send path's
-    // `inputValueRef` read exists for, and it must have the inserted text.
-    void view.result.current.handleSubmit(submit());
-  });
-
-  assert.equal(sentMessages.length, 1);
-  assert.equal(sentMessages[0].content, '跑一下测试 继续');
+  assert.deepEqual(sentMessages, [], 'a command snippet must not fire without a deliberate send');
 });

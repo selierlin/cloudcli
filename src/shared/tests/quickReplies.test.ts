@@ -6,6 +6,7 @@ import {
   MAX_QUICK_REPLIES,
   addQuickReply,
   composeQuickReplyInput,
+  isQuickReplyCommand,
   moveQuickReply,
   normalizeQuickReplies,
   quickReplyLabel,
@@ -126,4 +127,11 @@ test('a snippet is appended to what is already typed', () => {
 test('only a leading slash starts a fresh box, so the text stays a command', () => {
   assert.equal(composeQuickReplyInput('先别动手', '/session-sediment'), '/session-sediment');
   assert.equal(composeQuickReplyInput('跑一下测试', '看看 src/foo.ts'), '跑一下测试 看看 src/foo.ts');
+});
+
+test('a snippet counts as a command only when the slash leads, which is what gates sending', () => {
+  assert.equal(isQuickReplyCommand('/session-sediment'), true);
+  assert.equal(isQuickReplyCommand('继续'), false);
+  // A slash further in is just a path, and the send path treats it as prose.
+  assert.equal(isQuickReplyCommand('看看 src/foo.ts'), false);
 });

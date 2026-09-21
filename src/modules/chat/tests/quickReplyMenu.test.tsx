@@ -28,7 +28,7 @@ beforeEach(() => {
 
 test('the button counts the snippets and lists one row each', () => {
   writeQuickReplies([{ text: '继续' }, { label: '先评估影响面', text: '你评估下影响面，先不要改' }]);
-  const { getByLabelText, getAllByRole } = render(<QuickReplyMenu onInsert={() => undefined} />);
+  const { getByLabelText, getAllByRole } = render(<QuickReplyMenu onSend={() => undefined} />);
 
   const button = getByLabelText('quickReplies.button');
   assert.equal(button.textContent, '2');
@@ -45,7 +45,7 @@ test('the button counts the snippets and lists one row each', () => {
 test('an emptied list leaves the button out of the composer', () => {
   writeQuickReplies([]);
 
-  const { container } = render(<QuickReplyMenu onInsert={() => undefined} />);
+  const { container } = render(<QuickReplyMenu onSend={() => undefined} />);
 
   assert.equal(container.querySelector('button'), null);
 });
@@ -54,7 +54,7 @@ test('picking a row hands the snippet over and closes the list', () => {
   writeQuickReplies([{ text: '继续' }]);
   const picked: string[] = [];
   const { getByLabelText, getAllByRole, queryAllByRole } = render(
-    <QuickReplyMenu onInsert={(reply) => picked.push(reply.text)} />,
+    <QuickReplyMenu onSend={(reply) => picked.push(reply.text)} />,
   );
 
   fireEvent.click(getByLabelText('quickReplies.button'));

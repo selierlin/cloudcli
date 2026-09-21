@@ -131,15 +131,25 @@ export const quickReplyLabel = (reply: QuickReply): string => (
 export const isQuickReplyUsable = (reply: QuickReply): boolean => reply.text.trim() !== '';
 
 /**
+ * Whether a snippet is a command rather than prose.
+ *
+ * A leading `/` is what the send path reads as a command, so a snippet that
+ * starts with one runs locally instead of going out as a message. Picking such
+ * a snippet therefore only fills the composer, because a one-tap row cannot be
+ * read before it fires.
+ */
+export const isQuickReplyCommand = (text: string): boolean => text.startsWith('/');
+
+/**
  * The composer text an insert produces.
  *
- * A snippet is appended to whatever is already typed, separated by a space —
- * except one that starts with `/`, which replaces the box instead: the send
- * path only reads a leading `/` as a command when it is the first character, so
- * a slash snippet appended behind other text would silently degrade into prose.
+ * A snippet is appended to whatever is already typed, separated by a space,
+ * except a command snippet, which replaces the box instead: the send path only
+ * reads a leading `/` as a command when it is the first character, so a slash
+ * snippet appended behind other text would silently degrade into prose.
  */
 export const composeQuickReplyInput = (current: string, text: string): string => {
-  if (text.startsWith('/')) {
+  if (isQuickReplyCommand(text)) {
     return text;
   }
 
