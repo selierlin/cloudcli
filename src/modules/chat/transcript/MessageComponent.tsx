@@ -113,7 +113,16 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
   }, [disclosureKey, onReasoningProgramCollapse]);
 
 
-  const formattedTime = useMemo(() => new Date(message.timestamp).toLocaleTimeString(), [message.timestamp]);
+  const formattedTime = useMemo(() => {
+    const date = new Date(message.timestamp);
+    const now = new Date();
+    // 当天消息只显示时分秒；跨天消息补全年月日，便于回看历史会话
+    const isToday =
+      date.getFullYear() === now.getFullYear() &&
+      date.getMonth() === now.getMonth() &&
+      date.getDate() === now.getDate();
+    return isToday ? date.toLocaleTimeString() : date.toLocaleString();
+  }, [message.timestamp]);
   const shouldHideThinkingMessage = Boolean(message.isThinking && !showThinking);
 
   if (shouldHideThinkingMessage) {
