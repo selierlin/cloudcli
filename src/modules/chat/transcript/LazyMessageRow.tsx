@@ -40,6 +40,8 @@ type LazyMessageRowProps = {
   estimatedHeight?: number;
   /** Hides and unmounts a folded process member while retaining its timestamp anchor. */
   isProcessCollapsed?: boolean;
+  /** Optional section-anchor marker for the user message that started a turn. */
+  dataAnchor?: string;
   children: ReactNode;
 };
 
@@ -50,6 +52,7 @@ export default function LazyMessageRow({
   initiallyNearViewport,
   estimatedHeight = ESTIMATED_ROW_HEIGHT_PX,
   isProcessCollapsed = false,
+  dataAnchor,
   children,
 }: LazyMessageRowProps) {
   const [isNearViewport, setIsNearViewport] = useState(initiallyNearViewport);
@@ -83,6 +86,7 @@ export default function LazyMessageRow({
     <div
       ref={elementRef}
       data-message-timestamp={timestamp || undefined}
+      data-user-anchor={dataAnchor || undefined}
       aria-hidden={isProcessCollapsed || undefined}
       // `hidden` removes the parent's `space-y` gap. Folded process content is
       // deliberately unmounted so a long run does not retain hundreds of

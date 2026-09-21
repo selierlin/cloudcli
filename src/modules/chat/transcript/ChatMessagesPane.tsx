@@ -29,6 +29,8 @@ import ProviderSelectionEmptyState from '@/modules/chat/transcript/ProviderSelec
 import ToolGroupContainer from '@/modules/chat/transcript/ToolGroupContainer';
 import LoadAllMessagesOverlay from '@/modules/chat/transcript/LoadAllMessagesOverlay';
 import ExecutionProcessSummary from '@/modules/chat/transcript/ExecutionProcessSummary';
+import UserMessageStickyHeader from '@/modules/chat/transcript/UserMessageStickyHeader';
+import { deriveUserMessageAnchors } from '@/modules/chat/utils/userMessageAnchors';
 
 /**
  * How many of the newest rows mount with real content on the first commit,
@@ -326,6 +328,10 @@ function ChatMessagesPane({
       }),
     [getMessageKey, isProcessing, visibleMessages],
   );
+  const userMessageAnchors = useMemo(
+    () => deriveUserMessageAnchors(visibleMessages, getMessageKey),
+    [getMessageKey, visibleMessages],
+  );
   // Detects a provisional answer becoming process narration so the scroll
   // owner can compensate for the row disappearing into the folded run.
   const previousProcessNarrationsRef = useRef<{
@@ -495,6 +501,7 @@ function ChatMessagesPane({
               totalMessages={totalMessages}
               onLoadAllMessages={loadAllMessages}
             />
+            <UserMessageStickyHeader anchorTexts={userMessageAnchors} />
 
             {(() => {
               let prevMessage: ChatMessage | null = null;
@@ -618,6 +625,7 @@ function ChatMessagesPane({
                   const shouldHideProcessItem = Boolean(
                     executionGroup && isProcessCollapsed && !executionGroup.attentionKeys.has(messageKey),
                   );
+                  const isUserAnchor = item.type === 'user' && userMessageAnchors.has(messageKey);
 
                   return (
                     <Fragment key={messageKey}>
@@ -642,6 +650,7 @@ function ChatMessagesPane({
                         initiallyNearViewport={initiallyNearViewport}
                         estimatedHeight={estimateMessageRowHeight(item)}
                         isProcessCollapsed={shouldHideProcessItem}
+                        dataAnchor={isUserAnchor ? messageKey : undefined}
                       >
                         <MessageComponent
                           message={item}
