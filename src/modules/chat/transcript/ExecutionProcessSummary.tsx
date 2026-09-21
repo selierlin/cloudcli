@@ -22,6 +22,10 @@ type ExecutionProcessSummaryProps = {
 };
 
 const ACTIVITY_LABEL_MAX_LENGTH = 48;
+// Deadzone for re-engaging sticky: once the tail has passed the pinned title we
+// only re-stick after the user scrolls back past this margin, so tiny scroll
+// jitter at the boundary can't pop the pinned title in and out (flicker).
+const STICKY_REENGAGE_MARGIN = 24;
 
 function compactActivityLabel(value: string | undefined): string {
   const firstLine = String(value || '').split(/\r?\n/, 1)[0] ?? '';
@@ -76,9 +80,19 @@ export default function ExecutionProcessSummary({
       const panelRect = scrollContainer.getBoundingClientRect();
       const buttonRect = button.getBoundingClientRect();
       const endRect = endMarker.getBoundingClientRect();
-      const nextIsSticky = buttonRect.top <= panelRect.top
-        && endRect.top > panelRect.top + buttonRect.height;
-      setIsSticky((current) => (current === nextIsSticky ? current : nextIsSticky));
+      const buttonAtOrAbovePanel = buttonRect.top <= panelRect.top;
+      const tailClearsPin = endRect.top > panelRect.top + buttonRect.height;
+      const tailClearsPlusMargin = endRect.top > panelRect.top + buttonRect.height + STICKY_REENGAGE_MARGIN;
+
+      setIsSticky((current) => {
+        if (current) {
+          // Stuck: stay pinned until the process tail reaches the pinned title.
+          return tailClearsPin;
+        }
+        // Free: only re-stick once the tail has clearly cleared the pin zone by
+        // the margin, so boundary jitter can't make the title pop in and out.
+        return buttonAtOrAbovePanel && tailClearsPlusMargin;
+      });
     };
 
     scrollContainer.addEventListener('scroll', updateSticky, { passive: true });
@@ -134,7 +148,7 @@ export default function ExecutionProcessSummary({
       <button
         ref={buttonRef}
         type="button"
-        className={`group flex min-h-7 w-full items-center gap-1.5 rounded-md px-1.5 text-left text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200 ${!collapsed && isSticky ? 'sticky top-0 z-10 bg-background/95 backdrop-blur-sm' : ''}`}
+        className={`group flex min-h-7 w-full items-center gap-1.5 rounded-md px-1.5 text-left text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200 ${!collapsed && isSticky ? 'sticky -top-3 sm:-top-4 z-10 bg-background/95 backdrop-blur-sm' : ''}`}
         aria-expanded={!collapsed}
         onClick={onToggle}
       >
