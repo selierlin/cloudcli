@@ -28,7 +28,8 @@
     "dsh": "DeepSeek Harness",
     "workbuddy": "WorkBuddy",
     "pi": "Pi",
-    "zcode": "ZCode"
+    "zcode": "ZCode",
+    "omp": "OMP"
   },
   "tools": {
     "settings": "Tool Settings",
@@ -241,7 +242,8 @@
       "dsh": "Ready to use DeepSeek Harness with {{model}}. Start typing your message below.",
       "workbuddy": "Ready to use WorkBuddy with {{model}}. Start typing your message below.",
       "pi": "Ready to use Pi with {{model}}. Start typing your message below.",
-      "zcode": "Ready to use ZCode with {{model}}. Start typing your message below."
+      "zcode": "Ready to use ZCode with {{model}}. Start typing your message below.",
+      "omp": "Ready to use OMP with {{model}}. Start typing your message below."
     },
     "pressToSearch": "Press <kbd>{{shortcut}}</kbd> to search sessions, files, and commits",
     "chooseModel": "Choose a model",

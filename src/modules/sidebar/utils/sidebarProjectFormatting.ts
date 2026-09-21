@@ -340,4 +340,5 @@ export const PROVIDER_LABELS: Record<LLMProvider, string> = {
   workbuddy: 'WorkBuddy',
   pi: 'Pi',
   zcode: 'ZCode',
+  omp: 'OMP',
 };

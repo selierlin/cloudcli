@@ -126,6 +126,7 @@ export const MCP_PROVIDER_NAMES: Record<McpProvider, string> = {
   workbuddy: 'WorkBuddy',
   pi: 'Pi',
   zcode: 'ZCode',
+  omp: 'OMP',
 };
 
 /** Scopes each provider can install an MCP server into; drives the scope selector and validation. */
@@ -138,6 +139,10 @@ export const MCP_SUPPORTED_SCOPES: Record<McpProvider, McpScope[]> = {
   workbuddy: ['user', 'local', 'project'],
   pi: [],
   zcode: ['user', 'project'],
+  // OMP reads MCP servers from config files it owns (`.mcp.json`, `mcp.json`,
+  // `.claude.json`, `.cursor/mcp.json`, `.vscode/mcp.json`); CloudCLI does not
+  // manage them yet, so no scope is offered.
+  omp: [],
 };
 
 /** Transports each provider can talk to an MCP server over; drives the transport selector and validation. */
@@ -152,6 +157,7 @@ export const MCP_SUPPORTED_TRANSPORTS: Record<McpProvider, McpTransport[]> = {
   workbuddy: ['stdio', 'http', 'sse'],
   pi: [],
   zcode: ['stdio', 'http', 'sse'],
+  omp: [],
 };
 
 /** Transports offered when configuring a global (provider-agnostic) MCP server; each provider accepts or rejects them individually, so the global entry does not narrow the list. */
@@ -170,6 +176,9 @@ export const MCP_ADD_BLOCKED_REASON: Record<McpProvider, McpAddBlockedReason | n
   workbuddy: null,
   pi: 'noNativeSupport',
   zcode: null,
+  // OMP has native MCP support, but it configures its servers in its own files
+  // rather than through CloudCLI, which is what `harnessManaged` reports.
+  omp: 'harnessManaged',
 };
 
 /** Whether a provider honours an MCP server's working-directory setting; the form hides the field when it does not. */
@@ -182,6 +191,7 @@ export const MCP_SUPPORTS_WORKING_DIRECTORY: Record<McpProvider, boolean> = {
   workbuddy: false,
   pi: false,
   zcode: false,
+  omp: false,
 };
 
 // ---------------------------
@@ -274,4 +284,5 @@ export const PROVIDER_PERMISSION_PREFERENCE_KEYS: Record<LLMProvider, UserPrefer
   workbuddy: 'workbuddyPermissions',
   pi: 'piPermissions',
   zcode: 'zcodePermissions',
+  omp: 'ompPermissions',
 };

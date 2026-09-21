@@ -50,13 +50,13 @@ test('getGlobalMcpImpact: skips providers that do not accept the chosen scope', 
   }
 });
 
-test('MCP_ADD_BLOCKED_REASON: every provider is decided, and only DSH and Pi can never store a server', () => {
+test('MCP_ADD_BLOCKED_REASON: every provider is decided, and only DSH, Pi and OMP can never store a server', () => {
   assert.deepEqual(Object.keys(MCP_ADD_BLOCKED_REASON), Object.keys(MCP_PROVIDER_NAMES));
   assert.deepEqual(
     Object.entries(MCP_ADD_BLOCKED_REASON)
       .filter(([, reason]) => reason !== null)
       .map(([provider]) => provider),
-    ['dsh', 'pi'],
+    ['dsh', 'pi', 'omp'],
   );
 });
 

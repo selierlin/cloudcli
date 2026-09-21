@@ -34,21 +34,18 @@ export default function AgentConnectionCard({
   const available = status.authenticated || externallyManaged;
   // ZCode has no in-app OAuth flow: it authenticates from `~/.zcode/cli/config.json`,
   // so the login button would be misleading. Pi's credentials live in its own
-  // `pi auth` flow, and WorkBuddy Desktop manages its CLI auth out-of-band.
-  const canLogin = provider !== 'workbuddy' && provider !== 'pi' && provider !== 'zcode' && !available && !status.loading;
+  // `pi auth` flow, OMP's in its own `/login` flow, and WorkBuddy Desktop
+  // manages its CLI auth out-of-band.
+  const canLogin = provider !== 'workbuddy' && provider !== 'pi' && provider !== 'zcode' && provider !== 'omp' && !available && !status.loading;
   const containerClassName = available ? connectedClassName : 'border-border bg-card';
 
   const statusText = status.loading
     ? t('agents.authStatus.checking')
     : externallyManaged
       ? `${t('agents.externalAuth.available')} (${t('agents.externalAuth.managedByDesktop')})`
-      : provider === 'workbuddy'
+      : provider === 'workbuddy' || provider === 'pi' || provider === 'zcode' || provider === 'omp'
         ? t('agents.externalAuth.description', { agent: title })
-        : provider === 'pi'
-          ? t('agents.externalAuth.description', { agent: title })
-          : provider === 'zcode'
-            ? t('agents.externalAuth.description', { agent: title })
-            : status.authenticated
+        : status.authenticated
           ? status.email || t('agents.authStatus.connected')
           : status.error === 'Cursor CLI not found or not installed' || status.error === 'Cursor CLI is not installed'
             ? t('agents.errors.cursorCliNotFound')

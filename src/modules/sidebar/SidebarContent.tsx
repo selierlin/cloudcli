@@ -46,6 +46,7 @@ const SEARCH_PROVIDER_LABELS: Record<string, string> = {
   workbuddy: 'WorkBuddy',
   pi: 'Pi',
   zcode: 'ZCode',
+  omp: 'OMP',
 };
 
 /**

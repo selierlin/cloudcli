@@ -93,6 +93,7 @@ const queryDsh = providerRuntimeService.getRunner('dsh');
 const queryWorkbuddy = providerRuntimeService.getRunner('workbuddy');
 const queryPi = providerRuntimeService.getRunner('pi');
 const queryZcode = providerRuntimeService.getRunner('zcode');
+const queryOmp = providerRuntimeService.getRunner('omp');
 const gitRoutes = createGitModule({
     queryClaude,
     queryCursor,
@@ -106,6 +107,7 @@ const agentRoutes = createAgentModule({
     queryWorkbuddy,
     queryPi,
     queryZcode,
+    queryOmp,
 });
 
 // Single WebSocket server that handles chat, shell, and plugin proxy paths.

@@ -7,6 +7,7 @@ import chokidar, { type FSWatcher } from 'chokidar';
 import { sessionSynchronizerService } from '@/modules/providers/services/session-synchronizer.service.js';
 import { getDshSessionsRoot } from '@/modules/providers/list/dsh/dsh-models.provider.js';
 import { isDshSessionLogFile } from '@/modules/providers/list/dsh/dsh-sessions.provider.js';
+import { getOmpSessionsRoot } from '@/modules/providers/list/omp/omp-models.provider.js';
 import { getPiSessionsRoot } from '@/modules/providers/list/pi/pi-models.provider.js';
 import { getWorkbuddySessionRoots } from '@/modules/providers/list/workbuddy/workbuddy-storage.provider.js';
 import { getZcodeHomeDir } from '@/modules/providers/list/zcode/zcode-models.provider.js';
@@ -54,6 +55,10 @@ function getProviderWatchPaths(): Array<{ provider: LLMProvider; rootPath: strin
       // directory catches the checkpoint writes that update db.sqlite.
       rootPath: path.join(getZcodeHomeDir(), 'cli', 'db'),
     },
+    {
+      provider: 'omp',
+      rootPath: getOmpSessionsRoot(),
+    },
   ];
 }
 
@@ -63,9 +68,11 @@ function getProviderWatchPaths(): Array<{ provider: LLMProvider; rootPath: strin
  * phantom directory tree created under the user's home.
  */
 function isProviderEnginePresent(provider: LLMProvider, rootPath: string): boolean {
-  if (provider === 'dsh' || provider === 'pi') {
-    // Guard the watcher's mkdir: a missing engine (no dsh-desktop, no pi CLI)
-    // must not get a phantom directory tree created under the user's home.
+  if (provider === 'dsh' || provider === 'pi' || provider === 'omp') {
+    // Guard the watcher's mkdir: a missing engine (no dsh-desktop, no pi CLI,
+    // no omp CLI) must not get a phantom directory tree created under the
+    // user's home. All three keep their sessions under their agent directory,
+    // so the parent of the sessions root is the engine's own state folder.
     return existsSync(path.dirname(rootPath));
   }
   if (provider === 'zcode') {

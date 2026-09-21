@@ -9,6 +9,7 @@ import { sessionsDb } from '@/modules/database/index.js';
 import type { AnyRecord } from '@/shared/types.js';
 import { AppError, getOpenCodeDatabasePath, readJsonRecord, readObjectRecord } from '@/shared/utils.js';
 import { resolvePiTranscriptPath } from '@/modules/providers/list/pi/pi-sessions.provider.js';
+import { resolveOmpTranscriptPath } from '@/modules/providers/list/omp/omp-sessions.provider.js';
 import { getZcodeDatabasePath } from '@/modules/providers/list/zcode/zcode-models.provider.js';
 
 type SessionRow = NonNullable<ReturnType<typeof sessionsDb.getSessionById>>;
@@ -288,10 +289,10 @@ function claudeEntriesHaveUsage(entries: AnyRecord[]): boolean {
 }
 
 /**
- * Summarizes the newest assistant usage from a Pi transcript. Pi reports usage
- * as `{ input, output, cacheRead, cacheWrite, totalTokens, cost }` on assistant
- * messages; the newest turn is the current context occupation, matching the
- * Claude summarizer's semantics.
+ * Summarizes the newest assistant usage from a Pi-lineage transcript. Pi and
+ * OMP both report usage as `{ input, output, cacheRead, cacheWrite,
+ * totalTokens, cost }` on assistant messages; the newest turn is the current
+ * context occupation, matching the Claude summarizer's semantics.
  */
 function readPiTokenUsage(entries: AnyRecord[]): TokenUsageResult | undefined {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
@@ -615,6 +616,28 @@ export function createProviderTokenUsageService(
         const sessionFilePath = indexedFilePath
           ?? (session.project_path
             ? await resolvePiTranscriptPath(providerSessionId, session.project_path)
+            : null);
+        if (!sessionFilePath || !dependencies.fileExists(sessionFilePath)) {
+          return emptyPiTokenUsage();
+        }
+
+        const tail = await dependencies.readTextFileTail(sessionFilePath, TOKEN_USAGE_TAIL_BYTES);
+        let entries = parseClaudeUsageEntries(tail.content);
+        if (!readPiTokenUsage(entries) && !tail.isComplete) {
+          entries = parseClaudeUsageEntries(await dependencies.readTextFile(sessionFilePath));
+        }
+        return readPiTokenUsage(entries) ?? emptyPiTokenUsage();
+      }
+
+      if (session.provider === 'omp') {
+        // OMP transcripts share Pi's assistant `usage` block, so the same
+        // reader applies; only the transcript lookup differs.
+        const indexedFilePath = session.jsonl_path && dependencies.fileExists(session.jsonl_path)
+          ? session.jsonl_path
+          : null;
+        const sessionFilePath = indexedFilePath
+          ?? (session.project_path
+            ? await resolveOmpTranscriptPath(providerSessionId, session.project_path)
             : null);
         if (!sessionFilePath || !dependencies.fileExists(sessionFilePath)) {
           return emptyPiTokenUsage();

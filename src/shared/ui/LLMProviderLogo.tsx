@@ -46,5 +46,11 @@ export function LLMProviderLogo({
     return <ZcodeLogo className={className} />;
   }
 
+  if (provider === 'omp') {
+    // OMP (oh-my-pi) ships no mark of its own; it reuses Pi's, which is also
+    // its upstream project.
+    return <PiLogo className={className} />;
+  }
+
   return <ClaudeLogo className={className} />;
 }
