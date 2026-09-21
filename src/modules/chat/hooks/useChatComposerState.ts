@@ -26,7 +26,7 @@ import {
   writeQueuedMessage,
 } from '@/shared/chatDrafts';
 import { escapeRegExp } from '@/modules/chat/utils/chatFormatting';
-import { composeQuickReplyInput } from '@/shared/quickReplies';
+import { composeQuickReplyInput, isQuickReplyCommand } from '@/shared/quickReplies';
 import { useFileMentions } from '@/modules/chat/hooks/useFileMentions';
 import { useInputHistory } from '@/modules/chat/hooks/useInputHistory';
 import { useSlashCommands } from '@/modules/chat/hooks/useSlashCommands';
@@ -997,18 +997,27 @@ export function useChatComposerState({
     if (send) handleSubmitRef.current?.(createFakeSubmitEvent());
   }, [setInput]);
 
-  // A quick reply fills the box the way a voice transcript does — the state for
-  // the render plus `inputValueRef`, so an Enter pressed straight after the tap
-  // sends the inserted text rather than the stale value. The caret moves to the
-  // end so the snippet can be extended, which is also why the box is focused.
-  const handleQuickReplyInsert = useCallback((reply: QuickReply) => {
+  // Picking a quick reply sends it. The composed text goes into the state that
+  // the render reads and into `inputValueRef`, which is what the send path
+  // reads, and the send is invoked straight after, the way "stop and send" does
+  // for a voice transcript. A snippet that is a command is the exception and
+  // only fills the box: firing it from a one-tap row would run something the
+  // user never got to read first. The caret then moves to the end so the filled
+  // snippet can still be extended, which is also why the box is focused.
+  const handleQuickReplySend = useCallback((reply: QuickReply) => {
     const next = composeQuickReplyInput(inputValueRef.current, reply.text);
     setInput(next);
     inputValueRef.current = next;
-    requestAnimationFrame(() => {
-      textareaRef.current?.focus();
-      textareaRef.current?.setSelectionRange(next.length, next.length);
-    });
+
+    if (isQuickReplyCommand(reply.text)) {
+      requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+        textareaRef.current?.setSelectionRange(next.length, next.length);
+      });
+      return;
+    }
+
+    handleSubmitRef.current?.(createFakeSubmitEvent());
   }, [setInput]);
 
   useEffect(() => {
@@ -1313,7 +1322,7 @@ export function useChatComposerState({
     editQueuedDraft,
     deleteQueuedDraft,
     handleVoiceTranscript,
-    handleQuickReplyInsert,
+    handleQuickReplySend,
     handleInputChange,
     handleKeyDown,
     handlePaste,
