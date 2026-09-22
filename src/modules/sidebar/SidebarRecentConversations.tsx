@@ -19,6 +19,10 @@ type SidebarRecentConversationsProps = {
   hasError: boolean;
   selectedSession: ProjectSession | null;
   activeSessions: ReadonlySet<string>;
+  /** Sessions whose turn ended while their background tasks still run. */
+  backgroundSessionIds: ReadonlySet<string>;
+  /** Sessions the runtime flagged as needing the user's attention. */
+  attentionSessionIds: ReadonlySet<string>;
   currentTime: Date;
   onConversationSelect: (
     projectId: string | null,
@@ -50,6 +54,10 @@ type RecentConversationRowProps = {
   conversation: RecentConversationListItem;
   isSelected: boolean;
   isProcessing: boolean;
+  /** The session's turn has ended but the agents, workflows or commands it launched still run. */
+  hasBackgroundWork: boolean;
+  /** The runtime flagged this session as needing the user's attention. */
+  needsAttention: boolean;
   isManaging: boolean;
   isBatchSelected: boolean;
   currentTime: Date;
@@ -74,6 +82,8 @@ function RecentConversationRow({
   conversation,
   isSelected,
   isProcessing,
+  hasBackgroundWork,
+  needsAttention,
   isManaging,
   isBatchSelected,
   currentTime,
@@ -194,7 +204,23 @@ function RecentConversationRow({
         </span>
         <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] leading-3 text-muted-foreground">
           <span className="truncate">{conversation.projectDisplayName}</span>
-          {age && (
+          {isProcessing ? (
+            <>
+              <span className="flex-shrink-0 text-muted-foreground/40">·</span>
+              <Loader2 className="h-3 w-3 flex-shrink-0 animate-spin" aria-label={t('tooltips.processingSessionIndicator', 'Processing session')} />
+            </>
+          ) : hasBackgroundWork ? (
+            // No spinner: nothing is responding. The purple of the workflow
+            // and agent cards says what is still running.
+            <>
+              <span className="flex-shrink-0 text-muted-foreground/40">·</span>
+              <span
+                role="status"
+                aria-label={t('tooltips.backgroundWorkIndicator', 'Background work running')}
+                className="h-2 w-2 flex-shrink-0 animate-pulse rounded-full bg-purple-500 dark:bg-purple-400"
+              />
+            </>
+          ) : age && (
             <>
               <span className="flex-shrink-0 text-muted-foreground/40">·</span>
               <time className="flex-shrink-0 tabular-nums" dateTime={conversation.lastActivity ?? undefined}>
@@ -209,6 +235,15 @@ function RecentConversationRow({
 
   return (
     <div className="group relative">
+      {needsAttention && !isSelected && (
+        <div className="absolute left-0 top-1/2 z-10 -translate-x-1 -translate-y-1/2 transform">
+          <span
+            role="status"
+            aria-label={t('tooltips.attentionRequiredIndicator', 'Session needs attention')}
+            className="block h-2 w-2 animate-pulse rounded-full bg-amber-500"
+          />
+        </div>
+      )}
       <div className="md:hidden">
         <div
           className={cn(
@@ -527,6 +562,8 @@ export default function SidebarRecentConversations({
   hasError,
   selectedSession,
   activeSessions,
+  backgroundSessionIds,
+  attentionSessionIds,
   currentTime,
   onConversationSelect,
   onLoadMore,
@@ -616,13 +653,16 @@ export default function SidebarRecentConversations({
 
   const renderConversationRow = (conversation: RecentConversationListItem) => {
     const isSelected = String(selectedSession?.id ?? '') === conversation.sessionId;
+    const hasBackgroundWork = backgroundSessionIds.has(conversation.sessionId);
 
     return (
       <RecentConversationRow
         key={conversation.sessionId}
         conversation={conversation}
         isSelected={isSelected}
-        isProcessing={activeSessions.has(conversation.sessionId)}
+        isProcessing={activeSessions.has(conversation.sessionId) && !hasBackgroundWork}
+        hasBackgroundWork={hasBackgroundWork}
+        needsAttention={attentionSessionIds.has(conversation.sessionId)}
         isManaging={isManaging}
         isBatchSelected={selectedSessionIds.has(conversation.sessionId)}
         currentTime={currentTime}

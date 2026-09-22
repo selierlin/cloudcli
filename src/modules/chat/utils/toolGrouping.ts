@@ -14,6 +14,7 @@ const NON_GROUPABLE_TOOL_NAMES = new Set([
   'TodoWrite',
   'TodoRead',
   'Task',
+  'Workflow',
   'exit_plan_mode',
   'ExitPlanMode',
 ]);
@@ -37,6 +38,8 @@ export function isToolGroupItem(item: MessageListItem): item is ToolGroupItem {
   return '_isGroup' in item && (item as ToolGroupItem)._isGroup === true;
 }
 
+// An agent's or a workflow's row is its whole card — status, timeline, result —
+// so it never folds into a collapsed run with its neighbours.
 function isGroupableToolMessage(message: ChatMessage): message is ChatMessage & { toolName: string } {
   return Boolean(
     message.isToolUse

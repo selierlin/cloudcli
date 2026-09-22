@@ -1065,7 +1065,7 @@ export default function SidebarContent({
 
   return (
     <div
-      className="flex h-full flex-col bg-background/80 backdrop-blur-sm md:w-72 md:select-none"
+      className="flex h-full flex-col bg-background/80 backdrop-blur-sm md:w-full md:select-none"
       style={{}}
     >
       <SidebarHeader
@@ -1260,6 +1260,8 @@ export default function SidebarContent({
             hasError={recentConversationsError}
             selectedSession={projectListProps.selectedSession}
             activeSessions={projectListProps.activeSessions}
+            backgroundSessionIds={projectListProps.backgroundSessionIds}
+            attentionSessionIds={projectListProps.attentionSessionIds}
             currentTime={projectListProps.currentTime}
             onConversationSelect={onConversationResultClick}
             onLoadMore={onLoadMoreRecentConversations}

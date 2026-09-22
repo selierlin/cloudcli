@@ -1,17 +1,20 @@
 import { memo, useEffect, useMemo, useState } from 'react';
-import { Bot, Brain, ChevronRight, CircleAlert, CircleCheck, MessageSquareText } from 'lucide-react';
+import { Bot, Brain, ChevronRight, CircleAlert, CircleCheck, CircleDashed, MessageSquareText } from 'lucide-react';
 
-import type { DiffLine, Project, SubagentActivity, SubagentInfo, ToolResult } from '@/shared/types';
+import type { DiffLine, LiveTaskStatus, Project, SubagentActivity, SubagentInfo, ToolResult } from '@/shared/types';
 import { cn } from '@/shared/utils';
-import { ToolRenderer } from '@/modules/chat/tools/ToolRenderer';
 import { useIsExportingTranscript } from '@/modules/chat/context/TranscriptRenderContext';
 import { MarkdownContent } from '@/modules/chat/tools/ContentRenderers/MarkdownContent';
+import { ToolRenderer } from '@/modules/chat/tools/ToolRenderer';
+import { resolveBackgroundTaskStatus } from '@/modules/chat/utils/backgroundTasks';
 
 type SubagentPanelProps = {
   /** Raw tool input of the call that spawned the agent, used for the prompt. */
   toolInput: unknown;
   toolResult?: ToolResult | null;
   subagent?: SubagentInfo;
+  /** The latest live word on a background agent, from the run's task events. */
+  taskStatus?: LiveTaskStatus;
   activity?: SubagentActivity[];
   startTimestamp?: string | number | Date;
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
@@ -83,6 +86,7 @@ const STATUS_STYLES: Record<SubagentInfo['status'], string> = {
   running: 'text-purple-600 dark:text-purple-300',
   completed: 'text-muted-foreground',
   failed: 'text-red-600 dark:text-red-400',
+  stopped: 'text-muted-foreground/70',
 };
 
 /** One prose or reasoning entry from the agent's own narration. */
@@ -119,6 +123,7 @@ export const SubagentPanel = memo(({
   toolInput,
   toolResult,
   subagent,
+  taskStatus,
   activity,
   startTimestamp,
   onFileOpen,
@@ -139,7 +144,18 @@ export const SubagentPanel = memo(({
   const resultText = useMemo(() => readResultText(toolResult?.content), [toolResult?.content]);
 
   const entries = activity ?? [];
-  const status = subagent?.status ?? (toolResult ? 'completed' : 'running');
+  // A background agent's tool result is only its launch acknowledgement — the
+  // real answer arrives later as a task notification — so its arrival says
+  // nothing about whether the agent finished. Treating it as an outcome marked
+  // every background agent `completed` a second after it launched, which is
+  // where the spinner went. Until the server reports one on `subagent` or the
+  // live stream's task events say otherwise, an async launch is still
+  // outstanding.
+  const isAsyncAgentLaunch = Boolean(
+    (toolResult?.toolUseResult as { isAsync?: boolean } | undefined)?.isAsync,
+  );
+  const status = resolveBackgroundTaskStatus(subagent?.status, taskStatus?.status)
+    ?? (toolResult && !isAsyncAgentLaunch ? 'completed' : 'running');
   const toolCount = entries.filter((entry) => entry.kind === 'tool').length;
   const stepCount = subagent?.activityCount ?? entries.length;
   const currentActivity = summarizeCurrentActivity(entries.at(-1));
@@ -154,17 +170,15 @@ export const SubagentPanel = memo(({
   const runningSeconds = startedAtMs === undefined
     ? undefined
     : Math.max(0, Math.floor((nowMs - startedAtMs) / 1000));
+  const untransmittedCount = Math.max(0, (subagent?.activityCount ?? entries.length) - entries.length);
+  const visibleEntries = entries.slice(0, effectiveRenderLimit);
+  const hiddenCount = entries.length - visibleEntries.length;
   // Claude names its agent presets (Explore, Plan); Codex has none, so the
   // neutral label carries and the assigned nickname shows alongside it.
   const label = subagent?.type ?? String(parsedInput.subagent_type ?? '');
   const nickname = subagent?.name && subagent.name !== subagent.type ? subagent.name : '';
   const description = subagent?.description ?? String(parsedInput.description ?? '');
   const prompt = String(parsedInput.prompt ?? '');
-  // The backend truncates very long timelines for transport; say so rather
-  // than implying the agent stopped where the list does.
-  const untransmittedCount = Math.max(0, (subagent?.activityCount ?? entries.length) - entries.length);
-  const visibleEntries = entries.slice(0, effectiveRenderLimit);
-  const hiddenCount = entries.length - visibleEntries.length;
 
   return (
     <div className="my-1 border-l-2 border-l-purple-500 py-0.5 pl-3 dark:border-l-purple-400">
@@ -197,6 +211,13 @@ export const SubagentPanel = memo(({
               <CircleAlert className="h-3 w-3" />
               failed
             </>
+          ) : status === 'stopped' ? (
+            // Neither a spinner nor a check mark: the agent never reported and
+            // the process it ran in is gone, so there is no outcome to draw.
+            <span title="The run ended before this agent reported back" className="flex items-center gap-1">
+              <CircleDashed className="h-3 w-3" />
+              no result
+            </span>
           ) : (
             <>
               <CircleCheck className="h-3 w-3" />
