@@ -204,12 +204,9 @@ function RecentConversationRow({
         </span>
         <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] leading-3 text-muted-foreground">
           <span className="truncate">{conversation.projectDisplayName}</span>
-          {isProcessing ? (
-            <>
-              <span className="flex-shrink-0 text-muted-foreground/40">·</span>
-              <Loader2 className="h-3 w-3 flex-shrink-0 animate-spin" aria-label={t('tooltips.processingSessionIndicator', 'Processing session')} />
-            </>
-          ) : hasBackgroundWork ? (
+          {/* Processing keeps the fork's right-edge spinner; this slot is the
+              purple dot's (upstream) and otherwise the age. */}
+          {hasBackgroundWork ? (
             // No spinner: nothing is responding. The purple of the workflow
             // and agent cards says what is still running.
             <>
