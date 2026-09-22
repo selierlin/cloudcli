@@ -84,7 +84,10 @@ test('a response in flight keeps the spinner and no purple dot', () => {
     { activeSessions: new Set(['s1']) },
   );
 
-  assert.equal(container.querySelectorAll('.animate-spin').length > 0, true, 'a response in flight spins');
+  // jsdom renders both layouts: exactly one spinner per layout (the fork's
+  // right-edge one). A subtitle spinner next to the project name would
+  // double this — the row must never spin in two places at once.
+  assert.equal(container.querySelectorAll('.animate-spin').length, 2, 'a response in flight spins once per layout, at the row edge');
   assert.equal(container.querySelectorAll('[role="status"].bg-purple-500').length, 0);
 });
 
