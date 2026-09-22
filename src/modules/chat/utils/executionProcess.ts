@@ -22,9 +22,9 @@ export type ExecutionProcessGroup = {
   isActiveRun: boolean;
   /** The summary distinguishes thinking, tool-backed execution and prose-only process records. */
   labelKind: 'reasoning' | 'execution' | 'narration';
-  /** Stable assistant prose rows absorbed after later activity proves they were intermediate. */
+  /** Stable assistant prose rows absorbed once a newer answer supersedes them. */
   narrationKeys: Set<string>;
-  /** Latest intermediate prose used as the live run's compact activity label. */
+  /** Streaming reasoning after the visible vanguard prose, shown as the live run's compact activity label. */
   activityLabel?: string;
   toolCount: number;
   /** Ordinary process runs start folded; user and search ownership may reveal them. */
@@ -56,9 +56,12 @@ function registerGroup(
 }
 
 /**
- * Projects each visible Turn into at most one ordinary Process Run. The final
- * rightmost prose remains outside as the Answer; every earlier segment keeps
- * its original order inside the run instead of becoming a separate stage.
+ * Projects each visible Turn into at most one ordinary Process Run. The
+ * vanguard — the newest answer segment, found by scanning from the tail —
+ * remains outside as the visible prose, even while tool activity streams
+ * after it; earlier segments keep their original order inside the run
+ * instead of becoming a separate stage. Only a newer answer absorbs the
+ * vanguard into the run as narration.
  */
 export function deriveExecutionProcessProjection(
   messages: ChatMessage[],
@@ -70,21 +73,36 @@ export function deriveExecutionProcessProjection(
   const turns = projectTranscriptTurns(messages, getMessageKey).turns;
 
   turns.forEach((turn, turnIndex) => {
-    const finalAnswer = turn.segments.at(-1)?.kind === 'answer'
-      ? turn.segments.at(-1)
-      : undefined;
-    const members = finalAnswer ? turn.segments.slice(0, -1) : turn.segments;
+    let vanguardIndex = -1;
+    for (let index = turn.segments.length - 1; index >= 0; index -= 1) {
+      if (turn.segments[index]!.kind === 'answer') {
+        vanguardIndex = index;
+        break;
+      }
+    }
+    const vanguard = vanguardIndex >= 0 ? turn.segments[vanguardIndex] : undefined;
+    const members = vanguard
+      ? turn.segments.filter((_, index) => index !== vanguardIndex)
+      : turn.segments;
     if (members.length === 0) return;
 
     const turnKey = turn.userMessage
       ? getIntrinsicMessageKey(turn.userMessage) ?? undefined
       : undefined;
     const firstMemberKey = members[0].id;
-    const partialKey = finalAnswer
-      ? `process:before:${finalAnswer.id}`
+    const lastAnswerMember = [...members].reverse().find((segment) => segment.kind === 'answer');
+    const partialKey = vanguard
+      ? `process:before:${vanguard.id}`
       : `process:tail:${firstMemberKey}`;
     const disclosureKey = turnKey ? `process:turn:${turnKey}` : partialKey;
     const narrationSegments = members.filter((segment) => segment.kind === 'answer');
+    // The live label tracks the tail: reasoning that still streams after the
+    // visible vanguard prose. The vanguard renders in the transcript, so the
+    // summary must not repeat it, and absorbed narration is stale and stays
+    // hidden.
+    const liveActivitySegment = [...members].reverse().find((segment) => (
+      segment.kind === 'reasoning' && Boolean(segment.message.isStreaming)
+    ));
     const attentionKeys = new Set(
       members.filter((segment) => segment.lifecycle === 'attention').map((segment) => segment.id),
     );
@@ -96,7 +114,10 @@ export function deriveExecutionProcessProjection(
       disclosureAliases: uniqueAliases(disclosureKey, [
         partialKey,
         `process:tail:${firstMemberKey}`,
-        finalAnswer ? `process:before:${finalAnswer.id}` : undefined,
+        vanguard ? `process:before:${vanguard.id}` : undefined,
+        // The superseded vanguard's key survives pagination-style re-keys so a
+        // disclosure made while it was visible is not lost.
+        lastAnswerMember ? `process:before:${lastAnswerMember.id}` : undefined,
       ]),
       isWindowTruncated: turn.boundary === 'partial',
       memberKeys: new Set(members.map((segment) => segment.id)),
@@ -113,8 +134,8 @@ export function deriveExecutionProcessProjection(
             ? 'narration'
             : 'execution',
       narrationKeys: new Set(narrationSegments.map((segment) => segment.id)),
-      activityLabel: narrationSegments.at(-1)?.message.content
-        ? String(narrationSegments.at(-1)?.message.content)
+      activityLabel: liveActivitySegment?.message.content
+        ? String(liveActivitySegment.message.content)
         : undefined,
       toolCount,
       defaultCollapsed: true,

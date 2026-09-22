@@ -37,7 +37,8 @@ describe('execution process projection', () => {
       memberKeys: new Set(['thinking', 'tool-1', 'narration', 'tool-2']),
       narrationKeys: new Set(['narration']),
       labelKind: 'execution',
-      activityLabel: 'Now I will run the tests.',
+      // Settled runs carry no live activity; the label comes from labelKind.
+      activityLabel: undefined,
       toolCount: 2,
       defaultCollapsed: true,
     });
@@ -67,7 +68,7 @@ describe('execution process projection', () => {
     });
   });
 
-  it('keeps a provisional tail answer visible until later activity absorbs it', () => {
+  it('keeps a provisional tail answer visible until a newer answer absorbs it', () => {
     const user = message({ id: 'u1', type: 'user', content: 'question' });
     const provisionalAnswer = message({ id: 'progress', content: 'I will inspect the files.' });
 
@@ -76,16 +77,82 @@ describe('execution process projection', () => {
     );
     expect(provisional.groups.size).toBe(0);
 
+    // Tool activity after the prose does NOT absorb it: the reader keeps
+    // seeing what the assistant just said while the tools run.
     const tool = message({ id: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'running' });
-    const continued = deriveExecutionProcessProjection(
+    const duringTools = deriveExecutionProcessProjection(
       [user, provisionalAnswer, tool], keyFor, { isProcessing: true },
     );
-    expect(continued.groups.get('process:turn:message-user-u1')).toMatchObject({
-      memberKeys: new Set(['progress', 'tool']),
-      activityLabel: 'I will inspect the files.',
+    const duringGroup = duringTools.groups.get('process:turn:message-user-u1');
+    expect(duringGroup).toMatchObject({
+      memberKeys: new Set(['tool']),
+      narrationKeys: new Set(),
       isActiveRun: true,
       defaultCollapsed: true,
     });
+    expect(duringTools.memberDisclosureKeys.get('progress')).toBeUndefined();
+
+    // A newer answer supersedes the prose: only then does it absorb into the
+    // run as narration, and the newer answer stays visible in its place.
+    const nextAnswer = message({ id: 'answer', content: 'The first file looks fine.' });
+    const superseded = deriveExecutionProcessProjection(
+      [user, provisionalAnswer, tool, nextAnswer], keyFor, { isProcessing: true },
+    );
+    expect(superseded.groups.get('process:turn:message-user-u1')).toMatchObject({
+      memberKeys: new Set(['progress', 'tool']),
+      narrationKeys: new Set(['progress']),
+    });
+    expect(superseded.memberDisclosureKeys.get('answer')).toBeUndefined();
+  });
+
+  it('keeps the last narration visible for a settled turn that ends on tool activity', () => {
+    const user = message({ id: 'u1', type: 'user', content: 'question' });
+    const narration = message({ id: 'narration', content: 'Running the tests now.' });
+    const failedTool = message({ id: 'failed', isToolUse: true, toolName: 'Bash', toolStatus: 'error' });
+
+    const projection = deriveExecutionProcessProjection(
+      [user, narration, failedTool], keyFor, completedHistory,
+    );
+    expect(projection.groups.get('process:turn:message-user-u1')).toMatchObject({
+      memberKeys: new Set(['failed']),
+      narrationKeys: new Set(),
+      attentionKeys: new Set(['failed']),
+    });
+    expect(projection.memberDisclosureKeys.get('narration')).toBeUndefined();
+  });
+
+  it('labels a live run with the reasoning tail that is still streaming', () => {
+    const user = message({ id: 'u1', type: 'user', content: 'question' });
+    const narration = message({ id: 'narration', content: 'I will inspect the files.' });
+    const tool = message({ id: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'completed' });
+    const streamingThought = message({
+      id: 'thinking', content: 'weighing the options', isThinking: true, isStreaming: true,
+    });
+
+    const projection = deriveExecutionProcessProjection(
+      [user, narration, tool, streamingThought], keyFor, { isProcessing: true },
+    );
+    expect(projection.groups.get('process:turn:message-user-u1')).toMatchObject({
+      activityLabel: 'weighing the options',
+      isActiveRun: true,
+    });
+    // The narration stays visible beside the run; only the streaming thought
+    // feeds the live label.
+    expect(projection.memberDisclosureKeys.get('narration')).toBeUndefined();
+  });
+
+  it('does not repeat the visible narration in the live label', () => {
+    const user = message({ id: 'u1', type: 'user', content: 'question' });
+    const settledThought = message({ id: 'thinking', content: 'settled thought', isThinking: true });
+    const narration = message({ id: 'narration', content: 'Now I will run the tests.' });
+    const runningTool = message({ id: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'running' });
+
+    const projection = deriveExecutionProcessProjection(
+      [user, settledThought, narration, runningTool], keyFor, { isProcessing: true },
+    );
+    expect(projection.groups.get('process:turn:message-user-u1')?.activityLabel)
+      .toBeUndefined();
+    expect(projection.memberDisclosureKeys.get('narration')).toBeUndefined();
   });
 
   it('marks attention members without forcing the whole process run open', () => {
@@ -119,6 +186,29 @@ describe('execution process projection', () => {
       isWindowTruncated: false,
       disclosureAliases: expect.arrayContaining(['process:before:answer']),
     });
+  });
+
+  it('retains the partial identity of an absorbed vanguard as an alias', () => {
+    const narration = message({ id: 'narration', content: 'I will inspect the files.' });
+    const tool = message({ id: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'running' });
+
+    const duringTools = deriveExecutionProcessProjection(
+      [narration, tool], keyFor, { isProcessing: true },
+    );
+    expect(duringTools.groups.get('process:before:narration')).toMatchObject({
+      memberKeys: new Set(['tool']),
+    });
+
+    // Once a newer answer supersedes the narration, the run re-keys to the
+    // new vanguard; the previous key must survive as an alias so an
+    // interaction (e.g. user_open) made during the tools is not lost.
+    const nextAnswer = message({ id: 'answer', content: 'The first file looks fine.' });
+    const superseded = deriveExecutionProcessProjection(
+      [narration, tool, nextAnswer], keyFor, { isProcessing: true },
+    );
+    const group = superseded.groups.get('process:before:answer');
+    expect(group).toMatchObject({ memberKeys: new Set(['narration', 'tool']) });
+    expect(group?.disclosureAliases).toEqual(expect.arrayContaining(['process:before:narration']));
   });
 
   it('does not let local command stdout or compact summaries become focus', () => {
