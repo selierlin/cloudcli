@@ -841,6 +841,24 @@ export type ProviderQuota = {
   planType: string | null;
   /** Prepaid credit balance, or null when the account has no credits to show. */
   credits: string | null;
+  /**
+   * Prepaid credits already spent this cycle, or null when unreported.
+   *
+   * Derived from the same packages as `credits`, so the two always add up to
+   * `creditsTotal` and the panel cannot show a breakdown that disagrees with
+   * itself.
+   */
+  creditsUsed: string | null;
+  /** Prepaid credit capacity for the cycle, or null when unreported. */
+  creditsTotal: string | null;
+  /**
+   * Whether the account holds a paid subscription, or null when the provider
+   * does not distinguish paid from granted capacity.
+   *
+   * Kept apart from `planType` because providers report this as a flag rather
+   * than a plan name, and only the UI can render it in the reader's language.
+   */
+  isPaidAccount: boolean | null;
   /** Unix timestamp in milliseconds when this snapshot was read. */
   fetchedAt: number;
 };

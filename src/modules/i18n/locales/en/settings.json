@@ -460,6 +460,11 @@
       "resetsAt": "Resets at {{time}}",
       "resetsIn": "in {{duration}}",
       "credits": "Credits remaining: {{balance}}",
+      "creditsUsage": "Used {{used}} of {{total}}",
+      "plan": {
+        "paid": "Paid",
+        "free": "Free"
+      },
       "duration": {
         "minutes": "{{value}}m",
         "hours": "{{value}}h",

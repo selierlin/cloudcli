@@ -357,6 +357,11 @@
       "resetsAt": "Zuruecksetzung am {{time}}",
       "resetsIn": "in {{duration}}",
       "credits": "Verbleibende Credits: {{balance}}",
+      "creditsUsage": "Verbraucht: {{used}} von {{total}}",
+      "plan": {
+        "paid": "Bezahlt",
+        "free": "Kostenlos"
+      },
       "duration": {
         "minutes": "{{value}} Min.",
         "hours": "{{value}} Std.",

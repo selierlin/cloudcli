@@ -382,6 +382,11 @@
       "resetsAt": "재설정 {{time}}",
       "resetsIn": "{{duration}} 후",
       "credits": "남은 크레딧: {{balance}}",
+      "creditsUsage": "사용량: {{used}} / {{total}}",
+      "plan": {
+        "paid": "유료",
+        "free": "무료"
+      },
       "duration": {
         "minutes": "{{value}}분",
         "hours": "{{value}}시간",

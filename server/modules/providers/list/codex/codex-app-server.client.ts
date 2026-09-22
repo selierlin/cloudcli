@@ -315,6 +315,12 @@ export const codexAppServer = {
         windows,
         planType: typeof snapshot.planType === 'string' ? snapshot.planType : null,
         credits,
+        // Codex reports a balance without the capacity behind it, so the
+        // breakdown and the paid flag stay unreported rather than being
+        // reconstructed from a figure the app-server never sent.
+        creditsUsed: null,
+        creditsTotal: null,
+        isPaidAccount: null,
         fetchedAt: Date.now(),
       };
     });
