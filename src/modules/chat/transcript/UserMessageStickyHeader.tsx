@@ -17,13 +17,25 @@ type UserMessageStickyHeaderProps = {
  * Which user message is "current" is decided with JS: the last anchor row whose
  * top has crossed the panel top edge owns the pinned header (mirroring the
  * proven execution-process sticky mechanism, consistent on WebKit too). The
- * header shows the full original prompt, not a summary.
+ * header shows the full original prompt, not a summary. While the current
+ * row itself spans the top edge the button stays mounted but invisible: its
+ * flow slot must never shift the rows it measures, or the detection feeds
+ * back into itself and flickers.
  */
 export default function UserMessageStickyHeader({
   anchorTexts,
 }: UserMessageStickyHeaderProps) {
   const headerRef = useRef<HTMLButtonElement | null>(null);
   const [currentKey, setCurrentKey] = useState<string | null>(null);
+  // True while the anchor's own row spans the panel top edge (it is arriving
+  // back into view). The button then only turns visually invisible instead of
+  // unmounting: a mount/unmount swap removes the header's ~40px flow slot and
+  // shifts every row below by that height, which re-crosses the very bridging
+  // threshold being measured and makes the header oscillate (visible flicker).
+  // Keeping the slot makes the hide/show purely visual, so geometry cannot
+  // feed back into the detection — same principle as the execution-process
+  // sticky summary, which also never unmounts mid-scroll.
+  const [isBridging, setIsBridging] = useState(false);
 
   useLayoutEffect(() => {
     const header = headerRef.current;
@@ -54,8 +66,16 @@ export default function UserMessageStickyHeader({
           }
         }
       });
-      const resolved = bridging ? null : nextKey;
-      setCurrentKey((current) => (current === resolved ? current : resolved));
+      if (bridging) {
+        // The arriving row takes over visually; the pinned key is retained so
+        // the invisible button keeps showing this section's text and its flow
+        // slot, releasing only once the row has fully arrived (key -> earlier
+        // anchor) or fully rescrolled off (key -> the row itself).
+        setIsBridging(true);
+      } else {
+        setIsBridging(false);
+        setCurrentKey((current) => (current === nextKey ? current : nextKey));
+      }
     };
 
     container.addEventListener('scroll', updateCurrent, { passive: true });
@@ -91,11 +111,21 @@ export default function UserMessageStickyHeader({
   const text = currentKey ? anchorTexts.get(currentKey) : undefined;
   if (!text) {
     // Nothing crossed the top edge yet: no header. It mounts at zero height so
-    // the first anchor has not pinned anything.
+    // the first anchor has not pinned anything. Swapping between this and the
+    // visible button cannot re-flip the bridging measurement: while scrolling
+    // down, the key is only claimed once every anchor is already below the
+    // top edge, and the visible slot's height pushes those rows further away
+    // from it. Upward, the slot is released only when no row spans the edge,
+    // and the freed 40px at most nudges one onto the edge — the header is
+    // already zero-height there, so nothing oscillates.
     return <button type="button" ref={headerRef} className="sr-only" aria-hidden="true" />;
   }
 
   const pinClass = 'sticky -top-3 sm:-top-4 z-20';
+  // Visual-only hide while the real row spans the panel top edge: the slot,
+  // sticky pin and full button height all stay in place so no sibling row
+  // moves and the bridging measurement above stays stable.
+  const bridgedClass = isBridging ? 'invisible pointer-events-none' : '';
 
   return (
     <button
@@ -103,7 +133,8 @@ export default function UserMessageStickyHeader({
       type="button"
       onClick={handleJump}
       title="回到这条提问"
-      className={`mb-2 flex w-full items-center gap-2 rounded-lg border border-gray-200 bg-white/95 px-3 py-2 text-left shadow-sm backdrop-blur-sm transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800/95 dark:hover:bg-gray-800 ${pinClass}`}
+      tabIndex={isBridging ? -1 : undefined}
+      className={`mb-2 flex w-full items-center gap-2 rounded-lg border border-gray-200 bg-white/95 px-3 py-2 text-left shadow-sm backdrop-blur-sm transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800/95 dark:hover:bg-gray-800 ${pinClass} ${bridgedClass}`}
     >
       <CornerDownLeft aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-gray-400 dark:text-gray-500" />
       <span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-700 dark:text-gray-200">
