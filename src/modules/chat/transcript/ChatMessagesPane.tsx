@@ -144,6 +144,8 @@ type ChatMessagesPaneProps = {
   hasActivityIndicator?: boolean;
   chatMessages: ChatMessage[];
   selectedSession: ProjectSession | null;
+  /** The app session id of the open transcript, for the background-tasks strip when no ProjectSession is loaded yet. */
+  currentSessionId?: string | null;
   provider: LLMProvider;
   setProvider: (provider: LLMProvider) => void;
   textareaRef: RefObject<HTMLTextAreaElement>;
@@ -205,6 +207,7 @@ function ChatMessagesPane({
   hasActivityIndicator = false,
   chatMessages,
   selectedSession,
+  currentSessionId,
   provider,
   setProvider,
   textareaRef,
@@ -429,7 +432,7 @@ function ChatMessagesPane({
             <BackgroundTasksStrip
               messages={chatMessages}
               tasks={backgroundTasks}
-              sessionId={selectedSession?.id || currentSessionId}
+              sessionId={selectedSession?.id || currentSessionId || null}
               sendMessage={sendMessage}
               onReveal={revealMessage}
               onLoadAll={loadAllMessages}

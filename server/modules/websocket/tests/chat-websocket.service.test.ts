@@ -62,6 +62,8 @@ test('chat WebSocket forwards a WorkBuddy task snapshot and terminal event', asy
 
     const runtime = {
       hasRuntime: (provider: string) => provider === 'workbuddy',
+      stopBackgroundTask: async () => false,
+      hasBackgroundWork: () => false,
       async run(
         _provider: string,
         _command: string,
@@ -180,6 +182,8 @@ test('chat WebSocket preserves WorkBuddy tool and task failure states', async ()
 
     const runtime = {
       hasRuntime: (provider: string) => provider === 'workbuddy',
+      stopBackgroundTask: async () => false,
+      hasBackgroundWork: () => false,
       async run(
         _provider: string,
         _command: string,
@@ -281,6 +285,8 @@ test('chat WebSocket converts an active WorkBuddy abort into one stopped termina
 
     const runtime = {
       hasRuntime: (provider: string) => provider === 'workbuddy',
+      stopBackgroundTask: async () => false,
+      hasBackgroundWork: () => false,
       async run(): Promise<void> {
         await runBlocked;
       },

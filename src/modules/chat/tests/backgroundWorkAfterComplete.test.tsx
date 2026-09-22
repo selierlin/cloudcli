@@ -4,6 +4,7 @@ import { renderHook } from '@testing-library/react';
 import { test } from 'vitest';
 
 import { useChatRealtimeHandlers } from '@/modules/chat/hooks/useChatRealtimeHandlers';
+import { createStreamingBufferRegistry } from '@/modules/chat/utils/streamingBufferRegistry';
 import type { BackgroundTaskSummary, NormalizedMessage, ProjectSession, ServerEvent, SessionActivity } from '@/shared/types';
 import type { SessionStore } from '@/modules/chat/hooks/useSessionStore';
 
@@ -39,8 +40,7 @@ const renderHandlers = () => {
     setTokenBudget: () => {},
     pendingPermissionRequests: [],
     setPendingPermissionRequests: () => {},
-    streamTimerRef: { current: null },
-    accumulatedStreamRef: { current: '' },
+    streamBuffers: createStreamingBufferRegistry(() => {}),
     lastSeqRef: { current: new Map() },
     statusCheckSentAtRef: { current: new Map() },
     onSessionIdle: (sessionId) => {
