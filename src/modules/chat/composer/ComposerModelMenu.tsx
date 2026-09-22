@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { ProviderModelOption } from '@/shared/types';
 import { DEFAULT_EFFORT_VALUE } from '@/shared/constants';
 import { useComposerMenuAnchor } from '@/modules/chat/hooks/useComposerMenuAnchor';
+import { useModelGroupCollapse } from '@/modules/chat/hooks/useModelGroupCollapse';
 import { groupModelOptions } from '@/modules/chat/utils/modelGrouping';
 import {
   ComposerMenuHeading,
@@ -83,6 +84,8 @@ function ComposerModelMenu({
   const modelGroups = useMemo(() => groupModelOptions(modelOptions), [modelOptions]);
   const hasChannelGroups = modelGroups.some((group) => group.key !== null);
 
+  const { isExpanded, toggle, reset } = useModelGroupCollapse(modelGroups, model);
+
   const hasEffortSection = resolvedEffortOptions.length > 0;
   const hasModelSection = modelOptions.length > 0 || modelsLoading;
   if (!hasEffortSection && !hasModelSection) {
@@ -145,7 +148,12 @@ function ComposerModelMenu({
                 role="menuitem"
                 label={modelLabel}
                 isSelected={false}
-                onSelect={() => setIsModelSectionOpen((current) => !current)}
+                onSelect={() => {
+                  if (!isModelSectionOpen) {
+                    reset();
+                  }
+                  setIsModelSectionOpen((current) => !current);
+                }}
                 trailing={
                   isModelSectionOpen
                     ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
@@ -166,26 +174,48 @@ function ComposerModelMenu({
                       {t('composer.loadingModels', { defaultValue: 'Loading models…' })}
                     </p>
                   )}
-                  {modelGroups.map((group) => (
-                    <Fragment key={group.key ?? '__ungrouped'}>
-                      {hasChannelGroups && (
-                        <ComposerMenuHeading>
-                          {group.key ?? t('composer.otherModels', { defaultValue: 'Other' })}
-                        </ComposerMenuHeading>
-                      )}
-                      {group.options.map((option) => (
-                        <ComposerMenuItem
-                          key={option.value}
-                          label={option.label || option.value}
-                          isSelected={option.value === model}
-                          onSelect={() => {
-                            onSelectModel(option.value);
-                            setIsOpen(false);
-                          }}
-                        />
-                      ))}
-                    </Fragment>
-                  ))}
+                  {modelGroups.map((group) => {
+                    const groupLabel =
+                      group.key ?? t('composer.otherModels', { defaultValue: 'Other' });
+                    const expanded = !hasChannelGroups || isExpanded(group.key);
+
+                    const items = group.options.map((option) => (
+                      <ComposerMenuItem
+                        key={option.value}
+                        label={option.label || option.value}
+                        isSelected={option.value === model}
+                        onSelect={() => {
+                          onSelectModel(option.value);
+                          setIsOpen(false);
+                        }}
+                      />
+                    ));
+
+                    if (!hasChannelGroups) {
+                      return <Fragment key={group.key ?? '__ungrouped'}>{items}</Fragment>;
+                    }
+
+                    return (
+                      <Fragment key={group.key ?? '__ungrouped'}>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => toggle(group.key)}
+                          aria-expanded={expanded}
+                          className="flex w-full items-center gap-1.5 px-2.5 pb-1 pt-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          {expanded
+                            ? <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                            : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+                          <span className="min-w-0 flex-1 truncate text-left">{groupLabel}</span>
+                          <span className="shrink-0 text-[10px] font-normal text-muted-foreground/70">
+                            {group.options.length}
+                          </span>
+                        </button>
+                        {expanded && items}
+                      </Fragment>
+                    );
+                  })}
                 </>
               )}
             </>

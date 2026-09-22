@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, ChevronDown, Plus } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 
 import type {
@@ -28,6 +28,7 @@ import {
 } from "@/shared/ui";
 import ModelLibraryPanel from "@/modules/chat/modals/ModelLibraryPanel";
 import { groupModelOptions } from "@/modules/chat/utils/modelGrouping";
+import { useModelGroupCollapse } from "@/modules/chat/hooks/useModelGroupCollapse";
 import { writeSelectedProvider } from '@/shared/selectedProvider';
 import { useAvailableProviders } from '@/modules/chat/hooks/useAvailableProviders';
 
@@ -139,6 +140,7 @@ export default function ProviderSelectionEmptyState({
   const { t } = useTranslation("chat");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [modelLibraryOpen, setModelLibraryOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const availableProviders = useAvailableProviders();
 
   const visibleProviders = useMemo(
@@ -186,6 +188,12 @@ export default function ProviderSelectionEmptyState({
     [activeProviderGroup],
   );
   const hasChannelGroups = modelGroups.some((group) => group.key !== null);
+
+  const { isExpanded, toggle, reset } = useModelGroupCollapse(modelGroups, currentModel);
+
+  // Vendor sections only collapse while the search box is empty; a query must
+  // be able to surface matches from every vendor, so it renders them all flat.
+  const isSearching = search.trim().length > 0;
 
   const handleToolSelect = useCallback(
     (providerId: LLMProvider) => {
@@ -287,7 +295,16 @@ export default function ProviderSelectionEmptyState({
               {t("providerSelection.chooseModelStep", { defaultValue: "2 · Choose a model" })}
             </p>
 
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <Dialog
+              open={dialogOpen}
+              onOpenChange={(open) => {
+                setDialogOpen(open);
+                if (!open) {
+                  setSearch("");
+                  reset();
+                }
+              }}
+            >
               <DialogTrigger asChild>
                 <Card
                   className="group mx-auto mt-2 max-w-xs cursor-pointer border-border/60 transition-all duration-150 hover:border-border hover:shadow-md active:scale-[0.99]"
@@ -354,6 +371,8 @@ export default function ProviderSelectionEmptyState({
                 </div>
                 <Command filter={modelSearchFilter}>
                   <CommandInput
+                    value={search}
+                    onValueChange={setSearch}
                     placeholder={t("providerSelection.searchModels", {
                       defaultValue: "Search models...",
                     })}
@@ -373,47 +392,77 @@ export default function ProviderSelectionEmptyState({
                             </CommandItem>
                           </CommandGroup>
                         ) : null}
-                        {modelGroups.map((group) => (
-                          <CommandGroup
-                            key={group.key ?? '__ungrouped'}
-                            heading={
-                              hasChannelGroups
-                                ? group.key ?? t("providerSelection.otherModels", { defaultValue: "Other" })
-                                : undefined
-                            }
-                          >
-                            {group.options.map((model) => {
-                              const isSelected = currentModel === model.value;
-                              return (
-                                <CommandItem
-                                  key={`${activeProviderGroup.id}-${model.value}`}
-                                  value={`${group.key ?? ''} ${activeProviderGroup.name} ${model.label} ${model.description || ''}`}
-                                  onSelect={() => handleModelSelect(activeProviderGroup.id, model.value)}
-                                  className="ml-4 border-l border-border/40 pl-4"
-                                >
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex min-w-0 items-center gap-2">
-                                      <span className="truncate">{model.label}</span>
-                                      {model.isCustom && (
-                                        <Badge className="h-4 shrink-0 rounded-full px-1.5 text-[8px]">
-                                          {t("providerSelection.custom", { defaultValue: "Custom" })}
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    {model.label !== model.value && (
-                                      <div className="truncate font-mono text-[10px] text-muted-foreground">
-                                        {model.value}
-                                      </div>
+                        {modelGroups.map((group) => {
+                          const groupLabel =
+                            group.key ??
+                            t("providerSelection.otherModels", { defaultValue: "Other" });
+                          const collapsible = hasChannelGroups && !isSearching;
+                          const expanded = !collapsible || isExpanded(group.key);
+
+                          const items = group.options.map((model) => {
+                            const isSelected = currentModel === model.value;
+                            return (
+                              <CommandItem
+                                key={`${activeProviderGroup.id}-${model.value}`}
+                                value={`${group.key ?? ''} ${activeProviderGroup.name} ${model.label} ${model.description || ''}`}
+                                onSelect={() => handleModelSelect(activeProviderGroup.id, model.value)}
+                                className="ml-4 border-l border-border/40 pl-4"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex min-w-0 items-center gap-2">
+                                    <span className="truncate">{model.label}</span>
+                                    {model.isCustom && (
+                                      <Badge className="h-4 shrink-0 rounded-full px-1.5 text-[8px]">
+                                        {t("providerSelection.custom", { defaultValue: "Custom" })}
+                                      </Badge>
                                     )}
                                   </div>
-                                  {isSelected && (
-                                    <Check className="ml-auto h-4 w-4 shrink-0 text-primary" />
+                                  {model.label !== model.value && (
+                                    <div className="truncate font-mono text-[10px] text-muted-foreground">
+                                      {model.value}
+                                    </div>
                                   )}
-                                </CommandItem>
-                              );
-                            })}
-                          </CommandGroup>
-                        ))}
+                                </div>
+                                {isSelected && (
+                                  <Check className="ml-auto h-4 w-4 shrink-0 text-primary" />
+                                )}
+                              </CommandItem>
+                            );
+                          });
+
+                          // Searching or a single-vendor provider: render every
+                          // section flat exactly as before.
+                          if (!collapsible) {
+                            return (
+                              <CommandGroup
+                                key={group.key ?? '__ungrouped'}
+                                heading={hasChannelGroups ? groupLabel : undefined}
+                              >
+                                {items}
+                              </CommandGroup>
+                            );
+                          }
+
+                          return (
+                            <div key={group.key ?? '__ungrouped'}>
+                              <button
+                                type="button"
+                                onClick={() => toggle(group.key)}
+                                aria-expanded={expanded}
+                                className="flex w-full items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+                              >
+                                {expanded
+                                  ? <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                                  : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+                                <span className="min-w-0 flex-1 truncate text-left">{groupLabel}</span>
+                                <span className="shrink-0 text-[10px] font-normal text-muted-foreground/70">
+                                  {group.options.length}
+                                </span>
+                              </button>
+                              {expanded && items}
+                            </div>
+                          );
+                        })}
                       </>
                     )}
                   </CommandList>
