@@ -9,7 +9,15 @@
 //
 // OMP has no `auth` subcommand; the auth probe infers "can this machine run a
 // turn" from `modelRoles.value.default` in the config listing.
+import fs from 'node:fs';
+
 const args = process.argv.slice(2);
+
+// Appends every invocation so tests can assert a caller did not repeat a probe
+// it had just paid for.
+if (process.env.OMP_MOCK_CALL_LOG) {
+  fs.appendFileSync(process.env.OMP_MOCK_CALL_LOG, `${args.join(' ')}\n`);
+}
 
 if (args.includes('--version')) {
   process.stdout.write('18.2.6\n');
@@ -28,6 +36,27 @@ if (args[0] === 'models') {
   }
   if (mode === 'empty') {
     process.stdout.write(JSON.stringify({ models: [] }));
+    process.exit(0);
+  }
+  // Catalog whose vendor order matches a fresh OMP install: vendors are in OMP's
+  // own fixed order rather than the picker's intended one. Consumption sorts
+  // `workbuddy` to the front via OMP_PROVIDER_PRIORITY.
+  if (mode === 'prioritized') {
+    const newCatalog = (provider) => ({
+      provider,
+      id: 'auto',
+      selector: `${provider}/auto`,
+      name: `${provider} Auto`,
+      contextWindow: 2000000,
+      maxTokens: 30000,
+      reasoning: true,
+      thinking: ['low', 'high'],
+      input: ['text'],
+      cost: {},
+    });
+    process.stdout.write(JSON.stringify({
+      models: [newCatalog('ark'), newCatalog('workbuddy')],
+    }));
     process.exit(0);
   }
   process.stdout.write(JSON.stringify({

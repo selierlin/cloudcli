@@ -84,14 +84,38 @@ type OmpModelEntry = {
   thinking?: unknown;
 };
 
-const MODEL_CATALOG_TTL_MS = 60_000;
-const MODEL_CATALOG_TIMEOUT_MS = 10_000;
+/**
+ * How long a successful read is reused. A read past this window is the one
+ * that pays OMP's provider-catalog refresh (~10s measured here, ~1.7s with a
+ * proxy), so the window is sized to keep that off the picker: long enough that
+ * the picker is served from this cache in the common case, short enough that a
+ * model added to `models.yml` surfaces without restarting the service.
+ */
+const MODEL_CATALOG_TTL_MS = 300_000;
+/**
+ * OMP assembles the catalog from the user's providers, and the first read
+ * after its own cache goes stale pays for a network refresh of every provider:
+ * ~10.3s measured on this machine, against ~0.5s for a warm read. The limit
+ * has to clear that fetch, because timing it out kills the refresh before it
+ * lands — nothing gets cached, the catalog stays stale, and every later read
+ * pays the same penalty instead of self-correcting.
+ */
+const MODEL_CATALOG_TIMEOUT_MS = 15_000;
+/**
+ * How long a failed read suppresses the next attempt. Callers routinely ask
+ * for the catalog twice inside one request (`resolveSessionModel` reads it,
+ * then reads the active model, which reads it again), and re-running the probe
+ * for the second ask doubles the wait without new information.
+ */
+const MODEL_CATALOG_FAILURE_TTL_MS = 5_000;
 
 let catalogCache: { entries: OmpModelEntry[]; readAt: number } | null = null;
+let catalogFailureAt: number | null = null;
 
 /** Drops the cached catalog (used by tests to force a re-read). */
 export function resetOmpModelsForTests(): void {
   catalogCache = null;
+  catalogFailureAt = null;
 }
 
 /**
@@ -105,6 +129,10 @@ export function resetOmpModelsForTests(): void {
 export async function loadOmpModels(): Promise<OmpModelEntry[] | null> {
   if (catalogCache && Date.now() - catalogCache.readAt < MODEL_CATALOG_TTL_MS) {
     return catalogCache.entries;
+  }
+
+  if (catalogFailureAt !== null && Date.now() - catalogFailureAt < MODEL_CATALOG_FAILURE_TTL_MS) {
+    return null;
   }
 
   const entries = await new Promise<OmpModelEntry[] | null>((resolve) => {
@@ -128,10 +156,12 @@ export async function loadOmpModels(): Promise<OmpModelEntry[] | null> {
   });
 
   if (!entries || entries.length === 0) {
+    catalogFailureAt = Date.now();
     return null;
   }
 
   catalogCache = { entries, readAt: Date.now() };
+  catalogFailureAt = null;
   return entries;
 }
 
@@ -152,6 +182,20 @@ const buildEffort = (thinking: unknown): ProviderModelOption['effort'] | undefin
     .map((level) => ({ value: level }));
   return values.length > 0 ? { values } : undefined;
 };
+
+/**
+ * Vendor display priority for OMP's model picker, applied as a stable sort on
+ * top of the catalog order. OMP's own `models --json` output fixes `workbuddy`
+ * last regardless of the provider declaration order in `models.yml` — verified
+ * that neither `modelProviderOrder` nor declaration order reranks it — so this
+ * table pulls the vendors the user wants surfaced first up. Vendors not listed
+ * (here `ark` and `deepseek`) keep their catalog position relative to one
+ * another. `DEFAULT` follows the first option, so the vendor listed first here
+ * also becomes the picker's default.
+ */
+const OMP_PROVIDER_PRIORITY: ReadonlyMap<string, number> = new Map([
+  ['workbuddy', 0],
+]);
 
 /**
  * Converts the CLI catalog into the picker definition. `selector` is the
@@ -181,6 +225,18 @@ function toOmpModelsDefinition(entries: OmpModelEntry[]): ProviderModelsDefiniti
   if (options.length === 0) {
     return null;
   }
+
+  // Stable priority sort: vendors in `OMP_PROVIDER_PRIORITY` surface in that
+  // order ahead of everything else; vendors not listed keep their catalog
+  // position relative to one another (`Array#sort` is stable).
+  options.sort((a, b) => {
+    const priorityA = a.group !== undefined ? OMP_PROVIDER_PRIORITY.get(a.group) : undefined;
+    const priorityB = b.group !== undefined ? OMP_PROVIDER_PRIORITY.get(b.group) : undefined;
+    if (priorityA !== undefined || priorityB !== undefined) {
+      return (priorityA ?? Number.MAX_SAFE_INTEGER) - (priorityB ?? Number.MAX_SAFE_INTEGER);
+    }
+    return 0;
+  });
 
   return { OPTIONS: options, DEFAULT: options[0].value };
 }
