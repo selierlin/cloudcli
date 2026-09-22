@@ -38,8 +38,9 @@ test('a background-only session names its workflow, counts from its start and of
   const onAbort = vi.fn();
   const { container } = render(<ActivityIndicator activity={backgroundActivity([task()])} onAbort={onAbort} />);
 
-  assert.match(container.textContent ?? '', /Background work…/);
-  assert.match(container.textContent ?? '', /Workflow frontend-architecture-audit/);
+  // The fork localizes these labels; match either language.
+  assert.match(container.textContent ?? '', /Background work…|后台任务…/);
+  assert.match(container.textContent ?? '', /Workflow frontend-architecture-audit|工作流 frontend-architecture-audit/);
   // The fork localizes the elapsed label ("1m 5s" / "1 分 5 秒"), so match either form.
   assert.match(container.textContent ?? '', /1m 5s|1\s*分\s*5\s*秒/, 'elapsed since the task started, not since the pill mounted');
   assert.equal(screen.queryByRole('button', { name: /^(Stop|停止)$/ }), null);
@@ -50,19 +51,19 @@ test('an agent and a command are named by what they were asked to do; several ta
   const agent = render(
     <ActivityIndicator activity={backgroundActivity([task({ taskType: 'local_agent', description: 'Survey the repo', workflowName: undefined })])} />,
   );
-  assert.match(agent.container.textContent ?? '', /Agent Survey the repo/);
+  assert.match(agent.container.textContent ?? '', /Agent Survey the repo|子代理 Survey the repo/);
   agent.unmount();
 
   const command = render(
     <ActivityIndicator activity={backgroundActivity([task({ taskType: 'local_bash', description: 'npm test', workflowName: undefined })])} />,
   );
-  assert.match(command.container.textContent ?? '', /Command npm test/);
+  assert.match(command.container.textContent ?? '', /Command npm test|命令 npm test/);
   command.unmount();
 
   const several = render(
     <ActivityIndicator activity={backgroundActivity([task(), task({ taskId: 'b5xsbzu5k', toolUseId: 'toolu_bash_1', taskType: 'local_bash' })])} />,
   );
-  assert.match(several.container.textContent ?? '', /2 tasks/);
+  assert.match(several.container.textContent ?? '', /2 tasks|2 个任务/);
   several.unmount();
 
   // A workflow agent's own backgrounded command is listed (it can be stopped)
@@ -70,8 +71,8 @@ test('an agent and a command are named by what they were asked to do; several ta
   const nested = render(
     <ActivityIndicator activity={backgroundActivity([task(), task({ taskId: 'b5xsbzu5k', toolUseId: 'toolu_bash_1', taskType: 'local_bash', nested: true })])} />,
   );
-  assert.match(nested.container.textContent ?? '', /Workflow frontend-architecture-audit/);
-  assert.doesNotMatch(nested.container.textContent ?? '', /2 tasks/);
+  assert.match(nested.container.textContent ?? '', /Workflow frontend-architecture-audit|工作流 frontend-architecture-audit/);
+  assert.doesNotMatch(nested.container.textContent ?? '', /2 tasks|2 个任务/);
 });
 
 test('a response in flight still shows the Stop button and the primary dot', () => {

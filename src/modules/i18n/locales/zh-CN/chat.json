@@ -427,6 +427,14 @@
       "startingNow": "正要开始"
     },
     "stop": "停止",
+    "backgroundWork": "后台任务",
+    "backgroundTask": {
+      "workflow": "工作流 {{name}}",
+      "agent": "子代理 {{description}}",
+      "command": "命令 {{description}}",
+      "count": "{{count}} 个任务",
+      "sendAnyway": "本会话仍有后台任务在运行：\n{{work}}\n\n发送新消息会开启新回合并终止这些任务，尚未汇报的结果将丢失。仍要发送吗？"
+    },
     "controls": {
       "stopGeneration": "停止生成",
       "pressEscToStop": "随时按 Esc 即可停止"
@@ -515,5 +523,35 @@
         "text": "我要怎么体验你改的内容"
       }
     }
+  },
+  "workflow": {
+    "title": "工作流",
+    "backgroundCommand": "命令",
+    "backgroundAgent": "子代理",
+    "backgroundTasks": "后台任务",
+    "stopTask": "停止",
+    "agentsProgress": "{{finished}}/{{count}} 个子代理",
+    "agentsFinished": "已完成 {{finished}}/{{count}} 个子代理",
+    "agentsFailed": "{{count}} 个失败",
+    "currentAgent": "当前：{{label}}",
+    "status": {
+      "running": "运行中",
+      "failed": "失败",
+      "completed": "完成",
+      "stopped": "无结果"
+    },
+    "stoppedHint": "回合已结束，此工作流尚未汇报结果",
+    "phases": "阶段",
+    "agents": "子代理",
+    "result": "结果",
+    "script": "脚本",
+    "usage": "{{toolUses}} 次工具调用 · {{elapsed}}",
+    "agentTokens": "{{tokens}} tokens",
+    "agentToolCalls": "{{count}} 次工具调用",
+    "agentTimelineLoading": "正在读取该子代理的步骤…",
+    "agentTimelineUnavailable": "步骤不可用：{{reason}}",
+    "agentTimelineEmpty": "暂无记录",
+    "taskOfAgent": "由本会话的某个子代理启动",
+    "taskRowNotLoaded": "在此会话较早前启动，点击加载"
   }
 }
