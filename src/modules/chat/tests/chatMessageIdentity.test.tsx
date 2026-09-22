@@ -94,6 +94,8 @@ const paneProps = (
   isProcessing: true,
   chatMessages: visibleMessages,
   selectedSession: { id: 'session-1' } as ProjectSession,
+  revealMessage: vi.fn(),
+  sendMessage: vi.fn(),
   provider: 'claude',
   setProvider: vi.fn(),
   textareaRef: createRef<HTMLTextAreaElement>(),

@@ -34,8 +34,8 @@ describe('a background agent card at the moment it launches', () => {
       toolUseResult: { isAsync: true, status: 'async_launched', agentId: 'a1' },
     });
 
-    expect(markup).toContain('running');
-    expect(markup).not.toContain('done');
+    expect(markup.toLowerCase()).toContain('running');
+    expect(markup.toLowerCase()).not.toContain('done');
   });
 
   it('settles a synchronous agent as soon as its result arrives', () => {
@@ -45,8 +45,8 @@ describe('a background agent card at the moment it launches', () => {
       toolUseResult: { agentId: 'a1' },
     });
 
-    expect(markup).toContain('done');
-    expect(markup).not.toContain('running');
+    expect(markup.toLowerCase()).toContain('done');
+    expect(markup.toLowerCase()).not.toContain('running');
   });
 
   it('defers to the status the server reports once it has one', () => {
@@ -59,8 +59,8 @@ describe('a background agent card at the moment it launches', () => {
       { id: 'a1', status: 'completed' },
     );
 
-    expect(markup).toContain('done');
-    expect(markup).not.toContain('running');
+    expect(markup.toLowerCase()).toContain('done');
+    expect(markup.toLowerCase()).not.toContain('running');
   });
 
   it('shows a background agent whose run ended before it reported as having no result', () => {
@@ -94,9 +94,9 @@ describe('a background agent card at the moment it launches', () => {
       toolUseResult: { isAsync: true, status: 'async_launched', agentId: 'a1' },
     };
 
-    expect(render(launch, undefined, { status: 'running', usage: { totalTokens: 1, toolUses: 3, durationMs: 1 } })).toContain('running');
-    expect(render(launch, undefined, { status: 'completed', summary: 'Agent "Survey the repo" finished' })).toContain('done');
-    expect(render(launch, undefined, { status: 'failed' })).toContain('failed');
+    expect(render(launch, undefined, { status: 'running', usage: { totalTokens: 1, toolUses: 3, durationMs: 1 } }).toLowerCase()).toContain('running');
+    expect(render(launch, undefined, { status: 'completed', summary: 'Agent "Survey the repo" finished' }).toLowerCase()).toContain('done');
+    expect(render(launch, undefined, { status: 'failed' }).toLowerCase()).toContain('failed');
     expect(render(launch, undefined, { status: 'stopped' })).toContain('no result');
   });
 });

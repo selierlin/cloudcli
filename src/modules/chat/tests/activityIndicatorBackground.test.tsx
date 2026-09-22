@@ -40,8 +40,9 @@ test('a background-only session names its workflow, counts from its start and of
 
   assert.match(container.textContent ?? '', /Background work…/);
   assert.match(container.textContent ?? '', /Workflow frontend-architecture-audit/);
-  assert.match(container.textContent ?? '', /1m 5s/, 'elapsed since the task started, not since the pill mounted');
-  assert.equal(screen.queryByRole('button', { name: 'Stop' }), null);
+  // The fork localizes the elapsed label ("1m 5s" / "1 分 5 秒"), so match either form.
+  assert.match(container.textContent ?? '', /1m 5s|1\s*分\s*5\s*秒/, 'elapsed since the task started, not since the pill mounted');
+  assert.equal(screen.queryByRole('button', { name: /^(Stop|停止)$/ }), null);
   assert.ok(container.querySelector('.bg-purple-500'), 'the dot is the cards\' purple, not the primary colour');
 });
 
@@ -81,7 +82,7 @@ test('a response in flight still shows the Stop button and the primary dot', () 
     />,
   );
 
-  assert.ok(screen.getByRole('button', { name: 'Stop' }));
+  assert.ok(screen.getByRole('button', { name: /^(Stop|停止)$/ }));
   assert.ok(container.querySelector('.bg-primary'));
   assert.equal(container.querySelector('.bg-purple-500'), null);
 });
