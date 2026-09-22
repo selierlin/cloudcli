@@ -162,6 +162,7 @@
   "search": {
     "modeProjects": "Progetti",
     "modeConversations": "Conversazioni",
+    "modeMore": "Altro",
     "conversationsPlaceholder": "Cerca nelle conversazioni...",
     "searching": "Ricerca in corso...",
     "sessionTitles": "Titoli delle sessioni",

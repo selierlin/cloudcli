@@ -158,6 +158,11 @@
     "pinnedTitle": "固定された会話",
     "unpinnedTitle": "最近の会話"
   },
+  "search": {
+    "modeProjects": "プロジェクト",
+    "modeConversations": "会話",
+    "modeMore": "その他"
+  },
   "deleteConfirmation": {
     "deleteProject": "プロジェクトを除去",
     "deleteSession": "セッションを削除",

@@ -540,8 +540,8 @@ export const codexRuntime = {
  */
 function sendMessage(ws: ProviderRuntimeWriter, data: unknown) {
   try {
-    if (ws.isSSEStreamWriter || ws.isWebSocketWriter) {
-      // Writer handles stringification (SSEStreamWriter or WebSocketWriter)
+    if (ws.isWebSocketWriter) {
+      // The gateway writer handles stringification
       ws.send(data);
     } else if (typeof ws.send === 'function') {
       // Raw WebSocket - stringify here
