@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,6 +27,7 @@ beforeEach(() => {
   delete process.env.OMP_MODEL;
   delete process.env.OMP_PROFILE;
   delete process.env.MOCK_MODELS;
+  delete process.env.OMP_MOCK_CALL_LOG;
   delete process.env.PI_CODING_AGENT_DIR;
   delete process.env.PI_CODING_AGENT_SESSION_DIR;
 });
@@ -37,6 +39,7 @@ afterEach(() => {
   delete process.env.OMP_MODEL;
   delete process.env.OMP_PROFILE;
   delete process.env.MOCK_MODELS;
+  delete process.env.OMP_MOCK_CALL_LOG;
   delete process.env.PI_CODING_AGENT_DIR;
   delete process.env.PI_CODING_AGENT_SESSION_DIR;
 });
@@ -44,6 +47,7 @@ afterEach(() => {
 test('maps the CLI catalog into picker options, channels and effort levels', async () => {
   process.env.OMP_COMMAND = MOCK_CLI;
   delete process.env.MOCK_MODELS;
+  delete process.env.OMP_MOCK_CALL_LOG;
 
   const models = await new OmpProviderModels().getSupportedModels();
 
@@ -61,6 +65,24 @@ test('maps the CLI catalog into picker options, channels and effort levels', asy
   ]);
   assert.equal(models.OPTIONS[1].effort, undefined);
   assert.equal(models.DEFAULT, 'ark/deepseek-v4-flash');
+});
+
+test('sorts the configured priority vendor ahead of OMP\'s catalog order', async () => {
+  process.env.OMP_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODELS = 'prioritized';
+  delete process.env.OMP_MOCK_CALL_LOG;
+
+  const models = await new OmpProviderModels().getSupportedModels();
+
+  // Workbuddy is listed last in the catalog but `OMP_PROVIDER_PRIORITY` pulls
+  // it to the front, making it the picker default; unlisted vendors stay in
+  // catalog order.
+  assert.deepEqual(
+    models.OPTIONS.map((option) => `${option.group}/${option.value.split('/')[1]}`),
+    ['workbuddy/auto', 'ark/auto'],
+  );
+  assert.equal(models.OPTIONS[0].group, 'workbuddy');
+  assert.equal(models.DEFAULT, 'workbuddy/auto');
 });
 
 test('falls back to the curated mirror when the catalog cannot be read', async () => {
@@ -85,6 +107,28 @@ test('caches the catalog between calls', async () => {
   process.env.OMP_COMMAND = MISSING_CLI;
   resetOmpCommandForTests();
   assert.deepEqual(await loadOmpModels(), first);
+});
+
+test('a failed read is not retried, so one request pays the probe once', async () => {
+  const logDir = mkdtempSync(path.join(os.tmpdir(), 'omp-mock-calls-'));
+  const callLog = path.join(logDir, 'calls.log');
+  try {
+    process.env.OMP_COMMAND = MOCK_CLI;
+    process.env.MOCK_MODELS = 'probe_error';
+    process.env.OMP_MOCK_CALL_LOG = callLog;
+
+    // Mirrors `resolveSessionModel`: it reads the catalog directly and then
+    // reads the session's active model, which reads the catalog again. A
+    // probe that never completes costs its full timeout each time, so paying
+    // it twice is what turned a failing read into a 20s request.
+    const models = new OmpProviderModels();
+    await models.getSupportedModels();
+    await models.getCurrentActiveModel();
+
+    assert.deepEqual(readFileSync(callLog, 'utf8').trim().split('\n'), ['models --json']);
+  } finally {
+    rmSync(logDir, { recursive: true, force: true });
+  }
 });
 
 test('OMP_MODEL overrides the picker default', async () => {
