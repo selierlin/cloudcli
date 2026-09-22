@@ -357,6 +357,11 @@
       "resetsAt": "Сброс {{time}}",
       "resetsIn": "через {{duration}}",
       "credits": "Осталось кредитов: {{balance}}",
+      "creditsUsage": "Использовано {{used}} из {{total}}",
+      "plan": {
+        "paid": "Платный",
+        "free": "Бесплатный"
+      },
       "duration": {
         "minutes": "{{value}} мин",
         "hours": "{{value}} ч",

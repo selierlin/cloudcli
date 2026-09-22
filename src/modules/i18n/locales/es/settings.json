@@ -382,6 +382,11 @@
       "resetsAt": "Se restablece el {{time}}",
       "resetsIn": "en {{duration}}",
       "credits": "Creditos restantes: {{balance}}",
+      "creditsUsage": "Usados {{used}} de {{total}}",
+      "plan": {
+        "paid": "De pago",
+        "free": "Gratis"
+      },
       "duration": {
         "minutes": "{{value}} min",
         "hours": "{{value}} h",

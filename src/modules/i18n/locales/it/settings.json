@@ -357,6 +357,11 @@
       "resetsAt": "Reimpostazione il {{time}}",
       "resetsIn": "tra {{duration}}",
       "credits": "Crediti rimanenti: {{balance}}",
+      "creditsUsage": "Usati {{used}} di {{total}}",
+      "plan": {
+        "paid": "A pagamento",
+        "free": "Gratuito"
+      },
       "duration": {
         "minutes": "{{value}} min",
         "hours": "{{value}} h",

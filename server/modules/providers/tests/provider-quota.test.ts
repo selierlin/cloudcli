@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
 import { codexAppServer } from '@/modules/providers/list/codex/codex-app-server.client.js';
@@ -21,6 +24,9 @@ const quotaSnapshot: ProviderQuota = {
   ],
   planType: 'plus',
   credits: null,
+  creditsUsed: null,
+  creditsTotal: null,
+  isPaidAccount: null,
   fetchedAt: 1_789_601_738_360,
 };
 
@@ -129,5 +135,49 @@ test('a failed read answers null and is retried on the next call', { concurrency
   } finally {
     console.warn = originalWarn;
     codexAppServer.readQuota = realReadQuota;
+  }
+});
+
+test('workbuddy answers a credits-only snapshot from its console', { concurrency: false }, async () => {
+  resetProviderQuotaCacheForTests();
+
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'wb-quota-dispatch-'));
+  const authFile = path.join(dir, 'workbuddy-desktop.info');
+  await fs.writeFile(
+    authFile,
+    JSON.stringify({
+      auth: {
+        accessToken: 'token-1',
+        domain: 'www.workbuddy.cn',
+        expiresAt: Date.now() + 3600 * 1000,
+      },
+    }),
+    'utf8',
+  );
+
+  const originalAuthFile = process.env.WORKBUDDY_DESKTOP_AUTH_FILE;
+  const originalFetch = globalThis.fetch;
+  process.env.WORKBUDDY_DESKTOP_AUTH_FILE = authFile;
+  globalThis.fetch = (async () => new Response(
+    JSON.stringify({ code: 0, data: { Packages: [{ CycleRemainCapacity: '1234.5' }] } }),
+    { status: 200, headers: { 'content-type': 'application/json' } },
+  )) as typeof fetch;
+
+  try {
+    const quota = await providerQuotaService.getProviderQuota('workbuddy');
+
+    // WorkBuddy has no rolling window, so the dispatch has to reach the panel
+    // through the credit balance alone.
+    assert.equal(quota?.provider, 'workbuddy');
+    assert.equal(quota?.credits, '1234.50');
+    assert.deepEqual(quota?.windows, []);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalAuthFile === undefined) {
+      delete process.env.WORKBUDDY_DESKTOP_AUTH_FILE;
+    } else {
+      process.env.WORKBUDDY_DESKTOP_AUTH_FILE = originalAuthFile;
+    }
+    await fs.rm(dir, { recursive: true, force: true });
   }
 });

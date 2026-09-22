@@ -358,6 +358,11 @@
       "resetsAt": "{{time}} tarihinde sifirlanir",
       "resetsIn": "{{duration}} sonra",
       "credits": "Kalan kredi: {{balance}}",
+      "creditsUsage": "Kullanılan: {{used}} / {{total}}",
+      "plan": {
+        "paid": "Ücretli",
+        "free": "Ücretsiz"
+      },
       "duration": {
         "minutes": "{{value}} dk",
         "hours": "{{value}} sa",

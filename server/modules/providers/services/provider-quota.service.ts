@@ -1,4 +1,5 @@
 import { codexAppServer } from '@/modules/providers/list/codex/codex-app-server.client.js';
+import { readWorkbuddyCredits } from '@/modules/providers/list/workbuddy/workbuddy-credits.client.js';
 import type { LLMProvider, ProviderQuota } from '@/shared/types.js';
 
 /**
@@ -19,6 +20,7 @@ const QUOTA_CACHE_TTL_MS = 60_000;
  */
 const quotaReaders: Partial<Record<LLMProvider, () => Promise<ProviderQuota>>> = {
   codex: () => codexAppServer.readQuota(),
+  workbuddy: () => readWorkbuddyCredits(),
 };
 
 type CachedQuota = { value: ProviderQuota; expiresAt: number };

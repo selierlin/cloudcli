@@ -443,6 +443,11 @@
       "resetsAt": "重置时间 {{time}}",
       "resetsIn": "{{duration}}后",
       "credits": "剩余积分 {{balance}}",
+      "creditsUsage": "已用 {{used}} / 共 {{total}}",
+      "plan": {
+        "paid": "付费版",
+        "free": "免费版"
+      },
       "duration": {
         "minutes": "{{value}} 分钟",
         "hours": "{{value}} 小时",

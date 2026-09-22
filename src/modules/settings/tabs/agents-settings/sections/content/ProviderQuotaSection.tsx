@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useProviderQuota } from '@/modules/settings/hooks/useProviderQuota';
 import type { AgentProvider, ProviderQuotaWindow } from '@/shared/types';
+import { cn } from '@/shared/utils';
 
 type ProviderQuotaSectionProps = {
   agent: AgentProvider;
@@ -123,24 +124,34 @@ function QuotaWindowRow({ quotaWindow }: { quotaWindow: ProviderQuotaWindow }) {
   );
 }
 
-/** Rendered by AgentCategoryContentSection under the account panel to show the selected provider's remaining quota, read from that provider's own account. */
+/** Rendered by AgentCategoryContentSection under the account panel to show the selected provider's plan tier, rolling windows and remaining quota, read from that provider's own account. */
 export default function ProviderQuotaSection({ agent }: ProviderQuotaSectionProps) {
   const { t } = useTranslation('settings');
   const { quota, loading } = useProviderQuota(agent);
 
   // Held back until the first read settles: providers with no quota source
-  // answer null, and a placeholder would flash for every one of them.
-  if (loading || !quota || quota.windows.length === 0) {
+  // answer null, and a placeholder would flash for every one of them. Either
+  // half is enough to render: codex reports rolling windows and WorkBuddy
+  // reports only a credit balance.
+  if (loading || !quota || (quota.windows.length === 0 && !quota.credits)) {
     return null;
   }
+
+  // A provider either names its plan or merely flags whether the account pays.
+  // The flag is translated here rather than carried as a string, because the
+  // backend does not know which language the panel is being read in.
+  const planLabel = quota.planType
+    ?? (quota.isPaidAccount === null
+      ? null
+      : t(quota.isPaidAccount ? 'agents.quota.plan.paid' : 'agents.quota.plan.free'));
 
   return (
     <div className="rounded-lg border border-border p-4">
       <div className="mb-4 flex items-center justify-between gap-3">
         <h3 className="text-sm font-medium text-foreground">{t('agents.quota.title')}</h3>
-        {quota.planType && (
+        {planLabel && (
           <span className="text-xs uppercase tracking-wide text-muted-foreground">
-            {quota.planType}
+            {planLabel}
           </span>
         )}
       </div>
@@ -155,8 +166,26 @@ export default function ProviderQuotaSection({ agent }: ProviderQuotaSectionProp
       </div>
 
       {quota.credits && (
-        <div className="mt-4 border-t border-border/50 pt-3 text-sm text-muted-foreground">
+        <div
+          className={cn(
+            'text-sm text-muted-foreground',
+            // The rule only earns its place when it separates the balance from
+            // the windows above; on a credits-only panel it would read as a
+            // stray divider under the heading.
+            quota.windows.length > 0 && 'mt-4 border-t border-border/50 pt-3',
+          )}
+        >
           {t('agents.quota.credits', { balance: quota.credits })}
+          {/* Shown only when the provider reported both ends, so the balance
+              above never sits next to a total it cannot be reconciled with. */}
+          {quota.creditsUsed !== null && quota.creditsTotal !== null && (
+            <div className="mt-0.5 text-xs">
+              {t('agents.quota.creditsUsage', {
+                used: quota.creditsUsed,
+                total: quota.creditsTotal,
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -357,6 +357,11 @@
       "resetsAt": "リセット {{time}}",
       "resetsIn": "{{duration}}後",
       "credits": "残りクレジット: {{balance}}",
+      "creditsUsage": "使用済み: {{used}} / {{total}}",
+      "plan": {
+        "paid": "有料",
+        "free": "無料"
+      },
       "duration": {
         "minutes": "{{value}} 分",
         "hours": "{{value}} 時間",

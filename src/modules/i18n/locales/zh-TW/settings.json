@@ -400,6 +400,11 @@
       "resetsAt": "重置時間 {{time}}",
       "resetsIn": "{{duration}}後",
       "credits": "剩餘積分 {{balance}}",
+      "creditsUsage": "已用 {{used}} / 共 {{total}}",
+      "plan": {
+        "paid": "付費版",
+        "free": "免費版"
+      },
       "duration": {
         "minutes": "{{value}} 分鐘",
         "hours": "{{value}} 小時",
