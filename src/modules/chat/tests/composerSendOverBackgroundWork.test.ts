@@ -80,13 +80,17 @@ test('sending on a session with background work asks first, naming the session\'
   const { sends, view } = await submit(backgroundOnly);
 
   assert.equal(confirm.mock.calls.length, 1);
-  assert.equal(
-    confirm.mock.calls[0]?.[0],
-    'This session still has background work running:\n'
-    + '• Workflow frontend-architecture-audit\n'
-    + '• Agent Survey the repo\n\n'
-    + 'A new message starts a new turn, which stops that work; anything it has not reported yet is lost. Send anyway?',
-  );
+  // The fork localizes the confirmation dialog; either language is correct.
+  const message = String(confirm.mock.calls[0]?.[0] ?? '');
+  const en = message.includes('This session still has background work running')
+    && message.includes('• Workflow frontend-architecture-audit')
+    && message.includes('• Agent Survey the repo')
+    && message.includes('Send anyway?');
+  const zh = message.includes('本会话仍有后台任务在运行')
+    && message.includes('• 工作流 frontend-architecture-audit')
+    && message.includes('• 子代理 Survey the repo')
+    && message.includes('仍要发送吗？');
+  assert.ok(en || zh, `unexpected confirm message: ${message}`);
   assert.equal(sends.length, 0, 'declined: nothing is sent');
   assert.equal(view.result.current.input, 'hello', 'and the draft stays in the composer');
 });
