@@ -355,8 +355,9 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
             ) : message.isThinking ? (
               /* Thinking messages — Reasoning component (ai-elements pattern).
                  Standalone streaming reasoning opens itself; reasoning inside
-                 a Process Run stays folded so narration remains the visible
-                 spine. Export and a matching search reveal override the fold.
+                 a Process Run stays folded except while it is the live
+                 stream, so narration remains the visible spine. Export and a
+                 matching search reveal override the fold.
                  The body keeps one element type across streaming completion. */
               <Reasoning
                 open={isExporting
@@ -365,6 +366,14 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                     ? Boolean(
                         isReasoningSearchTarget
                         || reasoningDisclosureState?.ownership === 'user_open'
+                        // A still-streaming block reveals itself while its run
+                        // is open — the reader expanded the process to watch it
+                        // work. Completion drops the term, so the block folds
+                        // back; a user who closed it (user_closed) stays closed.
+                        || (
+                          Boolean(message.isStreaming)
+                          && reasoningDisclosureState?.ownership !== 'user_closed'
+                        ),
                       )
                     : undefined}
                 isStreaming={Boolean(message.isStreaming)}

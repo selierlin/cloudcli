@@ -272,6 +272,101 @@ test('an opened process run shows narration while reasoning and tools remain fol
   assert.match(view.container.textContent ?? '', /private reasoning detail/);
 });
 
+test('a streaming reasoning member reveals itself in an opened process run and folds back when done', () => {
+  const user: ChatMessage = {
+    id: 'user', type: 'user', content: 'Inspect the code', timestamp: '2026-09-16T10:00:00.000Z',
+  };
+  const liveThought = (content: string): ChatMessage => ({
+    id: 'thinking',
+    type: 'assistant',
+    content,
+    timestamp: '2026-09-16T10:00:01.000Z',
+    isThinking: true,
+    isStreaming: true,
+  });
+  const view = render(
+    <UiPreferencesProvider>
+      <ChatMessagesPane
+        {...paneProps([user, liveThought('live private thought')])}
+        showThinking
+      />
+    </UiPreferencesProvider>,
+  );
+
+  // The active-run summary carries the streaming thinking tail; expanding the
+  // run reveals the block already open instead of a folded trigger.
+  fireEvent.click(view.getByRole('button', { name: /live private thought/ }));
+  const thinkingToggle = view.getByRole('button', { name: /Thinking/ });
+  assert.equal(thinkingToggle.getAttribute('aria-expanded'), 'true');
+  assert.match(view.container.textContent ?? '', /live private thought/);
+
+  // Stream completion drops the reveal term, folding the block back to
+  // on-demand evidence like every settled member.
+  view.rerender(
+    <UiPreferencesProvider>
+      <ChatMessagesPane
+        {...paneProps([user, { ...liveThought('live private thought'), isStreaming: false }])}
+        showThinking
+      />
+    </UiPreferencesProvider>,
+  );
+  const settledToggle = view.getByRole('button', { name: /Thought for/ });
+  assert.equal(settledToggle.getAttribute('aria-expanded'), 'false');
+  // lazyMount keeps the once-opened subtree in the DOM; collapse hides it.
+  assert.equal(
+    view.container.querySelector('.reasoning-collapse-content')?.getAttribute('data-state'),
+    'closed',
+  );
+});
+
+test('closing a streaming reasoning member keeps it closed while it keeps streaming', () => {
+  const user: ChatMessage = {
+    id: 'user', type: 'user', content: 'Inspect the code', timestamp: '2026-09-16T10:00:00.000Z',
+  };
+  const liveThought = (content: string): ChatMessage => ({
+    id: 'thinking',
+    type: 'assistant',
+    content,
+    timestamp: '2026-09-16T10:00:01.000Z',
+    isThinking: true,
+    isStreaming: true,
+  });
+  const view = render(
+    <UiPreferencesProvider>
+      <ChatMessagesPane
+        {...paneProps([user, liveThought('second live thought')])}
+        showThinking
+      />
+    </UiPreferencesProvider>,
+  );
+
+  fireEvent.click(view.getByRole('button', { name: /second live thought/ }));
+  const thinkingToggle = view.getByRole('button', { name: /Thinking/ });
+  assert.equal(thinkingToggle.getAttribute('aria-expanded'), 'true');
+
+  fireEvent.click(thinkingToggle);
+  assert.equal(thinkingToggle.getAttribute('aria-expanded'), 'false');
+
+  // The user's close outlives further stream growth: user_closed ownership is
+  // never reopened by the streaming reveal term.
+  view.rerender(
+    <UiPreferencesProvider>
+      <ChatMessagesPane
+        {...paneProps([user, liveThought('second live thought grows longer')])}
+        showThinking
+      />
+    </UiPreferencesProvider>,
+  );
+  const stillClosed = view.getByRole('button', { name: /Thinking/ });
+  assert.equal(stillClosed.getAttribute('aria-expanded'), 'false');
+  // The summary label legitimately carries the activity text; the disclosure
+  // itself must stay collapsed despite continued streaming.
+  assert.equal(
+    view.container.querySelector('.reasoning-collapse-content')?.getAttribute('data-state'),
+    'closed',
+  );
+});
+
 test('retains an opened tool batch after its outer process run closes and reopens', () => {
   const user: ChatMessage = {
     id: 'user', type: 'user', content: 'Inspect', timestamp: '2026-09-16T10:00:00.000Z',
@@ -453,7 +548,7 @@ test('keeps the process folded across streaming completion without a delayed aut
   assert.equal(view.queryByTestId('tool-group'), null);
 });
 
-test('folds newly absorbed provisional prose immediately and promotes it to the live summary', () => {
+test('keeps provisional prose visible during tool activity and folds it once a newer answer arrives', () => {
     const user: ChatMessage = {
       id: 'user', type: 'user', content: 'Inspect', timestamp: '2026-09-16T10:00:00.000Z',
     };
@@ -478,16 +573,33 @@ test('folds newly absorbed provisional prose immediately and promotes it to the 
     );
     assert.notEqual(provisionalRow?.getAttribute('aria-hidden'), 'true');
 
+    // Tool activity alone does not absorb the prose: it stays visible beside
+    // the folded run, and the live summary does not repeat its text.
     view.rerender(
       <UiPreferencesProvider>
         <ChatMessagesPane {...paneProps([user, firstTool, provisionalAnswer, nextTool])} />
       </UiPreferencesProvider>,
     );
-    assert.equal(provisionalRow?.getAttribute('aria-hidden'), 'true');
-    assert.match(
-      view.getByRole('button', { name: /First checkpoint complete/ }).textContent ?? '',
-      /First checkpoint complete/,
+    assert.notEqual(provisionalRow?.getAttribute('aria-hidden'), 'true');
+    assert.equal(
+      view.queryByRole('button', { name: /First checkpoint complete/ }),
+      null,
     );
+
+    // A newer answer supersedes the prose: only then does it fold into the run.
+    const nextAnswer: ChatMessage = {
+      id: 'answer', type: 'assistant', content: 'The second file looks fine.', timestamp: '2026-09-16T10:00:04.000Z',
+    };
+    view.rerender(
+      <UiPreferencesProvider>
+        <ChatMessagesPane {...paneProps([user, firstTool, provisionalAnswer, nextTool, nextAnswer])} />
+      </UiPreferencesProvider>,
+    );
+    assert.equal(provisionalRow?.getAttribute('aria-hidden'), 'true');
+    const answerRow = view.container.querySelector(
+      '[data-message-timestamp="2026-09-16T10:00:04.000Z"]',
+    );
+    assert.notEqual(answerRow?.getAttribute('aria-hidden'), 'true');
 });
 
 test('search opens the turn\'s single process run containing the target', () => {
