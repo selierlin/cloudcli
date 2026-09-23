@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useAuth } from '@/modules/auth';
-import { IS_PLATFORM } from '@/shared/utils';
+import { CLOUDCLI_SERVERS_KEY } from '@/shared/constants';
+import { IS_PLATFORM, isCapacitorNativeShell } from '@/shared/utils';
 import { ActionMenu, Button, Dialog, DialogContent, DialogTitle, type ActionMenuItem } from '@/shared/ui';
 
 const PICKER_URL_KEY = 'cloudcli.pickerUrl';
-const SERVERS_KEY = 'cloudcli.servers';
 const SERVER_NAME_KEY = 'cloudcli.serverName';
 
 type WebCachePlugin = {
@@ -28,7 +28,6 @@ type SavedServer = {
 
 type CapacitorWindow = {
   Capacitor?: {
-    isNativePlatform?: () => boolean;
     registerPlugin?: (name: string) => unknown;
   };
 };
@@ -49,7 +48,7 @@ export default function SidebarServerMenu({ serverName, onShowSettings }: Sideba
   const [isClearCacheDialogOpen, setIsClearCacheDialogOpen] = useState(false);
 
   const capacitor = (window as unknown as CapacitorWindow).Capacitor;
-  const isNativeShell = Boolean(capacitor?.isNativePlatform?.());
+  const isNativeShell = isCapacitorNativeShell();
   const menuLabel = serverName ?? t('app.title');
   // 当前 webview 所在的服务器 origin，用于在快速切换列表中标记当前服务器。
   const currentServerUrl = typeof window !== 'undefined' ? window.location.origin : '';
@@ -70,7 +69,7 @@ export default function SidebarServerMenu({ serverName, onShowSettings }: Sideba
         // 无法读取服务器选择页地址时，仅隐藏返回入口。
       });
 
-    void Preferences.get({ key: SERVERS_KEY })
+    void Preferences.get({ key: CLOUDCLI_SERVERS_KEY })
       .then((result) => {
         if (disposed || !result.value) {
           return;

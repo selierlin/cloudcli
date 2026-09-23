@@ -9,7 +9,7 @@
   'use strict';
 
   var STORAGE_KEY = 'cloudcli.servers';
-  var LAST_KEY = 'cloudcli.lastServer';
+  var RESTORE_KEY = 'cloudcli.restoreTarget';
   var PICKER_URL_KEY = 'cloudcli.pickerUrl';
   var SERVER_NAME_KEY = 'cloudcli.serverName';
 
@@ -62,9 +62,29 @@
     await Preferences.set({ key: STORAGE_KEY, value: JSON.stringify(list) });
   }
 
-  async function setLastServer(url) {
+  /**
+   * 记录冷启动还原目标。与前端 route tracker 写同一份契约（`{ url: <绝对 URL> }`），
+   * 冗余写入是有意的：连接瞬间 SPA 尚未加载时进程若被杀，只有这里的写入能保证目标正确；
+   * 远端服务器也可能仍在提供未含 tracker 的旧前端。
+   */
+  async function setRestoreTarget(url) {
     if (!Preferences) return;
-    await Preferences.set({ key: LAST_KEY, value: url });
+    try {
+      await Preferences.set({ key: RESTORE_KEY, value: JSON.stringify({ url: url }) });
+    } catch (e) { /* 记录失败不影响连接 */ }
+  }
+
+  /** 删除的服务器若正是当前还原目标，一并清标记，避免冷启动撞上已删服务器。 */
+  async function clearRestoreTargetIfMatches(serverUrl) {
+    if (!Preferences) return;
+    try {
+      var res = await Preferences.get({ key: RESTORE_KEY });
+      if (!res || !res.value) return;
+      var target = JSON.parse(res.value);
+      if (target && target.url && new URL(target.url).origin === new URL(serverUrl).origin) {
+        await Preferences.remove({ key: RESTORE_KEY });
+      }
+    } catch (e) { /* 解析失败则保持原样 */ }
   }
 
   /**
@@ -259,6 +279,8 @@
             list.push(s);
           });
           render(list);
+          // 删掉的若正是当前还原目标，一并清掉，否则冷启动会撞上已删服务器。
+          await clearRestoreTargetIfMatches(server.url);
         } catch (e) {
           els.errorMsg.textContent = '删除失败，请重试';
           els.errorMsg.classList.remove('hidden');
@@ -288,7 +310,7 @@
   }
 
   async function connect(url, name) {
-    await setLastServer(url);
+    await setRestoreTarget(url);
     await setPickerUrl();
     await setServerName(name);
 
