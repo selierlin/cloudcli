@@ -486,6 +486,10 @@
     "cancel": "取消定时消息",
     "dismiss": "关闭失败提示"
   },
+  "misc": {
+    "compacted": "上下文已压缩",
+    "compactionSummary": "完整摘要"
+  },
   "quickReplies": {
     "button": "快捷回复",
     "defaults": {

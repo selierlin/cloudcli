@@ -254,6 +254,44 @@ test('fetchHistory keeps an unlinked background notification as a decoded status
   });
 });
 
+test('fetchHistory flags a compaction row instead of drawing it as a second user turn', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const engineSessionId = 'wb-compaction-summary';
+    const appSessionId = 'app-wb-compaction-summary';
+    const time = Date.now();
+    await writeTranscript(sessionsRoot, cwd, engineSessionId, [
+      userMessage('check the logs', time),
+      {
+        id: 'compaction-row',
+        type: 'message',
+        role: 'user',
+        timestamp: time + 5,
+        content: [{
+          type: 'input_text',
+          text: '<cb_summary>\nSummary of the conversation so far:\n<previous_user_message>\n<user_query>check the logs</user_query>\n</previous_user_message>\n</cb_summary>',
+        }],
+      },
+    ]);
+
+    sessionsDb.createAppSession(appSessionId, 'workbuddy', cwd, 'Compaction summary');
+    sessionsDb.assignProviderSessionId(appSessionId, engineSessionId);
+
+    const result = await new WorkbuddySessionsProvider().fetchHistory(appSessionId);
+    const summary = result.messages.find((message) => message.isCompactSummary);
+    assert.equal(summary?.role, 'user');
+    assert.equal(
+      summary?.content,
+      'Summary of the conversation so far:\n<previous_user_message>\n<user_query>check the logs</user_query>\n</previous_user_message>',
+    );
+    // The engine wrapper must never reach the client, and the compaction row
+    // must not read as a second prompt alongside the one the user actually sent.
+    assert.equal(result.messages.some((message) => message.content?.includes('<cb_summary>')), false);
+    const userTurns = result.messages.filter((message) => message.role === 'user' && !message.isCompactSummary);
+    assert.equal(userTurns.length, 1);
+    assert.equal(userTurns[0]?.content, 'check the logs');
+  });
+});
+
 test('user and assistant text carry row ids so they can be forked', async () => {
   await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
     const engineSessionId = 'wb-anchor-ids';

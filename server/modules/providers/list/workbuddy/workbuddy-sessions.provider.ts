@@ -105,6 +105,29 @@ function parseBackgroundTaskNotification(inputText: string): WorkbuddyBackground
   };
 }
 
+/**
+ * Recovers the body of a WorkBuddy context-compaction transcript row.
+ *
+ * When the engine compacts a conversation it writes the summary back into the
+ * transcript as a `role: "user"` message whose text opens with `<cb_summary>`.
+ * That row is context the engine replays, not something the user typed, so
+ * rendering it as an ordinary user turn shows a stray "user" bubble right
+ * before the prompt the user actually sent (and the body's embedded
+ * `<previous_user_message>` blocks make it look like an earlier message was
+ * resent). The client already folds rows flagged `isCompactSummary` into the
+ * compaction card, so the wrapper is stripped here and the body handed over
+ * through that flag instead.
+ *
+ * Returns null for every ordinary user turn.
+ */
+function parseCompactionSummary(inputText: string): string | null {
+  const trimmed = inputText.trim();
+  if (!trimmed.startsWith('<cb_summary>')) {
+    return null;
+  }
+  return trimmed.replace(/^<cb_summary>/, '').replace(/<\/cb_summary>$/, '').trim() || null;
+}
+
 function extractFunctionResultText(output: unknown): string {
   if (typeof output === 'string') {
     return output;
@@ -961,6 +984,7 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
       if (event.role === 'user') {
         const text = extractBlockText(blocks, 'input_text');
         const taskNotification = text ? parseBackgroundTaskNotification(text) : null;
+        const compactionSummary = text ? parseCompactionSummary(text) : null;
         const images: Array<{ data: string; name?: string }> = [];
         for (const block of blocks) {
           const record = block as AnyRecord | null;
@@ -1003,6 +1027,20 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
             summary: taskNotification.summary,
             status: taskNotification.status,
             taskId: taskNotification.taskId,
+            sessionId: appSessionId,
+            provider: 'workbuddy',
+            ...timestampField,
+          }));
+        } else if (compactionSummary) {
+          // Context the engine wrote back after compacting the conversation,
+          // not a user turn. The flag lets the client fold it into the
+          // compaction card instead of drawing a stray user bubble.
+          collector.add(createNormalizedMessage({
+            id: eventAnchorId,
+            kind: 'text',
+            role: 'user',
+            content: compactionSummary,
+            isCompactSummary: true,
             sessionId: appSessionId,
             provider: 'workbuddy',
             ...timestampField,
