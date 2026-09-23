@@ -1,8 +1,8 @@
-import { Bell, BellOff, BellRing, Loader2, Play, Volume2 } from 'lucide-react';
+import { Bell, BellOff, BellRing, Loader2, Play, Vibrate, Volume2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/shared/ui';
-import { playChatCompletionSound } from '@/shared/utils';
+import { isCapacitorNativeShell, playChatCompletionSound, triggerNotificationHaptic } from '@/shared/utils';
 import type { NotificationPreferencesState } from '@/shared/types';
 
 type NotificationsSettingsTabProps = {
@@ -43,6 +43,9 @@ export default function NotificationsSettingsTab({
 
   const pushSupported = pushPermission !== 'unsupported';
   const pushDenied = pushPermission === 'denied';
+  // 震动由 iOS 客户端的原生 Taptic Engine 提供，浏览器里没有对应能力，
+  // 因此只在原生壳内露出该项，避免给出一个永远无效的开关。
+  const isNativeShell = isCapacitorNativeShell();
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -197,6 +200,56 @@ export default function NotificationsSettingsTab({
           {t('notifications.sound.test', { defaultValue: 'Test sound' })}
         </Button>
       </div>
+
+      {isNativeShell && (
+        <div className="space-y-4 rounded-lg border border-border bg-card p-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Vibrate className="h-4 w-4 text-blue-600" />
+                <h4 className="font-medium text-foreground">
+                  {t('notifications.vibration.title', { defaultValue: 'Vibration' })}
+                </h4>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {t('notifications.vibration.description', {
+                  defaultValue: 'Vibrate when a chat run finishes or needs tool approval.',
+                })}
+              </p>
+            </div>
+
+            <label className="flex shrink-0 items-center gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                checked={notificationPreferences.channels.vibration}
+                onChange={(event) =>
+                  onNotificationPreferencesChange({
+                    ...notificationPreferences,
+                    channels: {
+                      ...notificationPreferences.channels,
+                      vibration: event.target.checked,
+                    },
+                  })
+                }
+                className="h-4 w-4"
+              />
+              {t('notifications.vibration.enabled', { defaultValue: 'Enabled' })}
+            </label>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              void triggerNotificationHaptic({ force: true });
+            }}
+          >
+            <Play className="h-4 w-4" />
+            {t('notifications.vibration.test', { defaultValue: 'Test vibration' })}
+          </Button>
+        </div>
+      )}
 
       <div className="space-y-4 rounded-lg border border-border bg-card p-4">
         <h4 className="font-medium text-foreground">{t('notifications.events.title')}</h4>

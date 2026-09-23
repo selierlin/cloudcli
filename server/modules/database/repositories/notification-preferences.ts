@@ -12,6 +12,8 @@ type NotificationPreferences = {
     webPush: boolean;
     desktop: boolean;
     sound: boolean;
+    /** Whether the iOS client plays a haptic on completion; stored like any other channel so it syncs across the user's devices. */
+    vibration: boolean;
     [key: string]: boolean;
   };
   events: {
@@ -27,6 +29,7 @@ const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
     webPush: false,
     desktop: false,
     sound: true,
+    vibration: true,
   },
   events: {
     actionRequired: true,
@@ -42,7 +45,7 @@ function normalizeNotificationPreferences(value: unknown): NotificationPreferenc
     : {};
   const extraChannels = Object.fromEntries(
     Object.entries(sourceChannels)
-      .filter(([key, channelValue]) => !['inApp', 'webPush', 'desktop', 'sound'].includes(key) && typeof channelValue === 'boolean')
+      .filter(([key, channelValue]) => !['inApp', 'webPush', 'desktop', 'sound', 'vibration'].includes(key) && typeof channelValue === 'boolean')
   ) as Record<string, boolean>;
 
   return {
@@ -52,6 +55,7 @@ function normalizeNotificationPreferences(value: unknown): NotificationPreferenc
       webPush: source.channels?.webPush === true,
       desktop: source.channels?.desktop === true,
       sound: source.channels?.sound !== false,
+      vibration: source.channels?.vibration !== false,
     },
     events: {
       actionRequired: source.events?.actionRequired !== false,
