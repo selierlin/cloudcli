@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useTheme } from '@/shared/context/ThemeContext';
 import { api } from '@/shared/api';
-import { setNotificationSoundEnabled } from '@/shared/utils';
+import { setNotificationSoundEnabled, setNotificationVibrationEnabled } from '@/shared/utils';
 import {
   readCodeEditorSettings,
   writeCodeEditorSettings,
@@ -145,6 +145,7 @@ const createDefaultNotificationPreferences = (): NotificationPreferencesState =>
     webPush: false,
     desktop: false,
     sound: true,
+    vibration: true,
   },
   events: {
     actionRequired: true,
@@ -164,6 +165,7 @@ const normalizeNotificationPreferences = (
       webPush: preferences?.channels?.webPush ?? defaults.channels.webPush,
       desktop: preferences?.channels?.desktop ?? defaults.channels.desktop,
       sound: preferences?.channels?.sound ?? defaults.channels.sound,
+      vibration: preferences?.channels?.vibration ?? defaults.channels.vibration,
     },
     events: {
       actionRequired: preferences?.events?.actionRequired ?? defaults.events.actionRequired,
@@ -399,6 +401,10 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
   useEffect(() => {
     setNotificationSoundEnabled(notificationPreferences.channels.sound);
   }, [notificationPreferences.channels.sound]);
+
+  useEffect(() => {
+    setNotificationVibrationEnabled(notificationPreferences.channels.vibration);
+  }, [notificationPreferences.channels.vibration]);
 
   const autoSaveSnapshotKey = JSON.stringify([
     claudePermissions.allowedTools,

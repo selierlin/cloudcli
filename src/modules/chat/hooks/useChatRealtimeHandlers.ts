@@ -3,7 +3,7 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 
 import type { ServerEvent,MarkSessionIdle,MarkSessionProcessing,PendingPermissionRequest,ProjectSession,LLMProvider,NormalizedMessage,GetSessionActivity,MarkSessionBackground } from '@/shared/types';
 import { showCompletionTitleIndicator } from '@/modules/chat/utils/pageTitleNotification';
-import { playChatCompletionSound, playNotificationSound } from '@/shared/utils';
+import { playChatCompletionSound, playNotificationSound, triggerNotificationHaptic } from '@/shared/utils';
 import type { SessionStore } from '@/modules/chat/hooks/useSessionStore';
 import type { StreamingBufferRegistry } from '@/modules/chat/utils/streamingBufferRegistry';
 import { normalizedToChatMessages } from '@/modules/chat/hooks/useChatMessages';
@@ -297,6 +297,8 @@ export function useChatRealtimeHandlers({
           if (msg.success !== false) {
             showCompletionTitleIndicator();
             void playChatCompletionSound();
+            // 震动是 iOS 客户端的声音替代/补充，浏览器与桌面端在此为 no-op。
+            void triggerNotificationHaptic();
           }
 
           // The session id is stable for the whole conversation (allocated
@@ -317,6 +319,8 @@ export function useChatRealtimeHandlers({
           if (!msg.requestId) break;
           if (isActionablePermissionRequest({ toolName: msg.toolName })) {
             void playNotificationSound();
+            // 需要处理的请求用 warning 触感，与「完成」的 success 触感区分开。
+            void triggerNotificationHaptic({ type: 'warning' });
           }
 
           if (sid === activeViewSessionId) {

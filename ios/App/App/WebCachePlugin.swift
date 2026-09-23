@@ -74,6 +74,40 @@ final class ServerSessionPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 }
 
+/**
+ * 触感反馈插件：iOS 的 WKWebView 从未实现 Vibration API（`navigator.vibrate` 无效），
+ * 聊天完成/需要处理的震动只能经原生桥触发。
+ *
+ * 方法名与参数对齐 `@capacitor/haptics` 的 `notification`，日后若换用官方插件，
+ * 前端调用点无需改动。无 Taptic Engine 的设备（iPad）或系统关闭「声音与触感 →
+ * 系统触感」时，`UINotificationFeedbackGenerator` 静默不震，不视为错误。
+ */
+@objc(HapticsPlugin)
+final class HapticsPlugin: CAPPlugin, CAPBridgedPlugin {
+    let identifier = "HapticsPlugin"
+    let jsName = "Haptics"
+    let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "notification", returnType: CAPPluginReturnPromise)
+    ]
+
+    @objc func notification(_ call: CAPPluginCall) {
+        let type = call.getString("type") ?? "success"
+
+        DispatchQueue.main.async {
+            let generator = UINotificationFeedbackGenerator()
+            switch type {
+            case "warning":
+                generator.notificationOccurred(.warning)
+            case "error":
+                generator.notificationOccurred(.error)
+            default:
+                generator.notificationOccurred(.success)
+            }
+            call.resolve()
+        }
+    }
+}
+
 final class CloudCLIBridgeViewController: CAPBridgeViewController {
     weak var serverSessionHandler: CloudCLIServerSessionHandling?
 
@@ -86,6 +120,7 @@ final class CloudCLIBridgeViewController: CAPBridgeViewController {
         // an instance to be exported to the JavaScript bridge.
         bridge?.registerPluginInstance(WebCachePlugin())
         bridge?.registerPluginInstance(ServerSessionPlugin())
+        bridge?.registerPluginInstance(HapticsPlugin())
     }
 
     func loadServer(_ url: URL) {

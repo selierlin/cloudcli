@@ -245,6 +245,83 @@ export const playChatCompletionSound = (options = {}): Promise<void> => playNoti
 
 // ---------------------------
 
+//----------------- NOTIFICATION HAPTICS ------------
+
+/** localStorage key holding the user's completion-vibration preference, mirroring the server-side `channels.vibration`. */
+const NOTIFICATION_VIBRATION_ENABLED_STORAGE_KEY = 'notificationVibrationEnabled';
+
+/** Which system feedback pattern a notification haptic should play. */
+type NotificationHapticType = 'success' | 'warning' | 'error';
+
+/** The single method of the app-local `Haptics` native plugin (ios/App/App/WebCachePlugin.swift) this client calls. */
+type NotificationHapticsPlugin = {
+  notification: (options: { type: NotificationHapticType }) => Promise<void>;
+};
+
+/**
+ * Reports whether the page runs inside the Capacitor native shell (the iOS app) rather than a plain
+ * browser. Gate native-only capabilities on it: the iOS WebView implements no Vibration API, so
+ * haptics only exist through the bridge.
+ */
+export const isCapacitorNativeShell = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return Boolean(
+    (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } })
+      .Capacitor?.isNativePlatform?.(),
+  );
+};
+
+/** Reports whether the user has left completion vibration on; defaults to on when unset, matching the server default. Private to the haptics helpers. */
+const isNotificationVibrationEnabled = (): boolean => {
+  if (typeof localStorage === 'undefined') {
+    return true;
+  }
+
+  return localStorage.getItem(NOTIFICATION_VIBRATION_ENABLED_STORAGE_KEY) !== 'false';
+};
+
+/** Persists the user's completion-vibration preference; call it from settings toggles. */
+export const setNotificationVibrationEnabled = (enabled: boolean): void => {
+  if (typeof localStorage === 'undefined') {
+    return;
+  }
+
+  localStorage.setItem(NOTIFICATION_VIBRATION_ENABLED_STORAGE_KEY, String(enabled));
+};
+
+/**
+ * Plays the iOS haptic that accompanies a notification, honouring the user's preference unless
+ * `force` is set (settings previews pass `force` so the pattern can be felt while it is off).
+ *
+ * A no-op outside the native shell, and failures stay silent on purpose: a device without a Taptic
+ * Engine (iPad, or "System Haptics" switched off) rejects the call, which must never break the
+ * completion flow it accompanies.
+ */
+export const triggerNotificationHaptic = async (
+  { type = 'success', force = false }: { type?: NotificationHapticType; force?: boolean } = {},
+): Promise<void> => {
+  if (!isCapacitorNativeShell() || (!force && !isNotificationVibrationEnabled())) {
+    return;
+  }
+
+  const haptics = (window as unknown as { Capacitor?: { registerPlugin?: (name: string) => unknown } })
+    .Capacitor?.registerPlugin?.('Haptics') as NotificationHapticsPlugin | undefined;
+  if (!haptics) {
+    return;
+  }
+
+  try {
+    await haptics.notification({ type });
+  } catch (error) {
+    console.warn('Unable to trigger notification haptic:', error);
+  }
+};
+
+// ---------------------------
+
 //----------------- DOCUMENT TITLE ------------
 
 /** Browser tab title shown when no project or session is selected. Private to the title helpers. */
