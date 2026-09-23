@@ -9,13 +9,14 @@ description: 从本地 Capacitor iOS 项目构建可由 AltStore 安装的 Cloud
 安装的 `CloudCLI` IPA。App 是薄客户端，服务器选择器（server picker）位于
 `mobile/www`；每当这些资产或原生 iOS 工程变化时，都需要重新构建 IPA。
 
-> 说明：本 skill 与 `.codex/skills/build-cloudcli-ipa/` 互为副本，内容保持一致；
-> 脚本可执行文件在两个位置各有一份，路径计算（上三级=仓库根）两者通用。
+> 说明：skill 的唯一物理副本是 `.agents/skills/build-cloudcli-ipa/`（git 跟踪）；
+> `.claude/skills`、`.codex/skills`、`.codebuddy/skills` 都是指向 `../.agents/skills`
+> 的软链接，改一处即全部生效。脚本按「上三级 = 仓库根」计算路径。
 
 ## Invariants
 
-- 构建必须运行在 mobile 分支（`feat/capacitor-ios-mobile`，可用
-  `CLOUDCLI_IOS_BRANCH` 覆盖）且工作区干净。
+- 构建必须运行在 `cloudcli-dev`（可用 `CLOUDCLI_IOS_BRANCH` 覆盖）且工作区干净。
+  mobile 分支 `feat/capacitor-ios-mobile` 已完全并入 `cloudcli-dev`，不再单独构建。
 - 默认产出 **unsigned** IPA —— AltStore 在安装时用你的 Apple ID 重签
   （与 Remodex/AltServer 相同流程）。不需要 Xcode 账号。
 - 签名构建是可选开关 `CLOUDCLI_IOS_SIGN=1`；需要 Xcode 已登录 Apple ID，
@@ -38,13 +39,13 @@ git -C /Users/selier/Projects/open_projects/cloudcli branch --show-current
 
 ```bash
 cd /Users/selier/Projects/open_projects/cloudcli
-./.claude/skills/build-cloudcli-ipa/build-cloudcli-ipa.sh
+./.agents/skills/build-cloudcli-ipa/build-cloudcli-ipa.sh
 ```
 
 签名构建（可选，需要 Xcode 登录 + team 配置）：
 
 ```bash
-CLOUDCLI_IOS_SIGN=1 ./.claude/skills/build-cloudcli-ipa/build-cloudcli-ipa.sh
+CLOUDCLI_IOS_SIGN=1 ./.agents/skills/build-cloudcli-ipa/build-cloudcli-ipa.sh
 ```
 
 3. 校验产物（本地 + iCloud 副本）：
