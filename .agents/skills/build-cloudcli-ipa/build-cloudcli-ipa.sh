@@ -11,10 +11,13 @@ set -euo pipefail
 # with a development certificate. This needs the Apple ID logged into Xcode.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Skill 位于 .claude/skills/<name>/（或 .codex/skills/<name>/），上三级才是仓库根
+# Skill 唯一物理副本位于 .agents/skills/<name>/（.claude/.codex/.codebuddy 为其软链接），
+# 上三级才是仓库根
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
-branch="${CLOUDCLI_IOS_BRANCH:-feat/capacitor-ios-mobile}"
+# mobile 工作已并入 cloudcli-dev（feat/capacitor-ios-mobile 是其祖先，不再单独构建）；
+# 若 mobile 分支日后重新领先，回来核对这里。
+branch="${CLOUDCLI_IOS_BRANCH:-cloudcli-dev}"
 current="$(git -C "$PROJECT_DIR" branch --show-current)"
 if [[ "$current" != "$branch" ]]; then
   echo "error: build must run on $branch (currently: $current). Override with CLOUDCLI_IOS_BRANCH." >&2

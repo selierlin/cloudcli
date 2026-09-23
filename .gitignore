@@ -117,6 +117,7 @@ CLAUDE.md
 .mcp.json
 .gemini/
 .workbuddy
+.sediment/
 
 # Database files
 *.db
