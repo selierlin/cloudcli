@@ -286,3 +286,20 @@ export const PROVIDER_PERMISSION_PREFERENCE_KEYS: Record<LLMProvider, UserPrefer
   zcode: 'zcodePermissions',
   omp: 'ompPermissions',
 };
+
+// ---------------------------
+
+//----------------- NATIVE STORAGE KEYS ------------
+
+/**
+ * Key holding the server picker's saved list, written through `@capacitor/preferences`
+ * (which stores it in native UserDefaults). The restore-target tracker reads it to skip
+ * origins that are no longer saved, and the server menu reads it to list saved servers.
+ *
+ * `mobile/www/picker.js` writes the same literal string because that file is plain JS
+ * loaded directly by the picker page and cannot import this constant; changing one side
+ * without the other silently breaks both the saved-server list and session restore.
+ */
+export const CLOUDCLI_SERVERS_KEY = 'cloudcli.servers';
+
+// ---------------------------

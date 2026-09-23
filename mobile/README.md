@@ -9,7 +9,7 @@
 - `mobile/www/` 是 Capacitor 的 webDir，包含一个**服务器选择页**（原生 JS + `@capacitor/preferences` 持久化服务器列表）
 - 选择服务器后，WKWebView 直接导航到该服务器地址（如 `http://192.168.x.x:3001`）
 - 前端严格同源（相对路径 `/api` + `window.location.host`），加载服务器 origin 后**登录 / API / WebSocket 全部天然工作**，React 前端无需任何改动
-- 冷启动总是回到选择页
+- 冷启动会尝试还原上次的服务器与路由（读取 `cloudcli.restoreTarget`）；目标服务器已删除、直连包、或还原超时/页面未挂载时落回选择页
 
 ## 开发
 

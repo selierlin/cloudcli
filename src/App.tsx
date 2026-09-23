@@ -8,6 +8,7 @@ import { TaskMasterProvider,TasksSettingsProvider } from '@/modules/task-master'
 import { WebSocketProvider } from '@/shared/context/WebSocketContext';
 import { PluginsProvider } from '@/modules/plugins';
 import { ProjectWorkspaceRoute } from '@/modules/project-workspace';
+import { RestoreTargetTracker } from '@/modules/mobile-session-restore';
 import { i18n } from '@/modules/i18n';
 import { useFontSettings } from '@/shared/hooks/useFontSettings';
 
@@ -122,6 +123,7 @@ export default function App() {
                 <TaskMasterProvider>
                 <ProtectedRoute>
                   <Router basename={routerBasename}>
+                    <RestoreTargetTracker />
                     <Routes>
                       <Route path="/" element={<ProjectWorkspaceRoute />} />
                       <Route path="/session/:sessionId" element={<ProjectWorkspaceRoute />} />
