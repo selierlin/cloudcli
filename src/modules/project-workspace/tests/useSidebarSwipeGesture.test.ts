@@ -77,12 +77,28 @@ describe('useSidebarSwipeGesture', () => {
     expect(onSwipe).toHaveBeenCalledTimes(1);
   });
 
-  it('abandons a gesture that began vertically even if the finger later drifts far sideways', () => {
+  it('hands a scroll over to the swipe once the finger turns decisively sideways', () => {
     const { handlers, onSwipe } = renderSwipeGesture();
 
-    // The opening move is dominated by vertical travel, so this is a scroll that
-    // happens to end 70px to the right — not a swipe.
+    // Opens with a scroll, then keeps the finger down and travels 65px sideways:
+    // that sideways turn is measured from where the scroll left off, so it fires.
     drag(handlers(), [[10, 100], [15, 140], [80, 130]]);
+
+    expect(onSwipe).toHaveBeenCalledTimes(1);
+  });
+
+  it('never fires from a pure scroll however far it travels', () => {
+    const { handlers, onSwipe } = renderSwipeGesture();
+
+    drag(handlers(), [[10, 100], [14, 200], [18, 300], [22, 400], [26, 500]]);
+
+    expect(onSwipe).not.toHaveBeenCalled();
+  });
+
+  it('does not fire when a scroll is followed by only a short sideways turn', () => {
+    const { handlers, onSwipe } = renderSwipeGesture();
+
+    drag(handlers(), [[10, 100], [12, 240], [60, 236]]);
 
     expect(onSwipe).not.toHaveBeenCalled();
   });

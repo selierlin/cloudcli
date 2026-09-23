@@ -1,19 +1,25 @@
 import { useCallback, useRef } from 'react';
 import type { TouchEvent as ReactTouchEvent } from 'react';
 
-/** Finger travel needed before the gesture commits to an axis, so a near-vertical scroll is never read as a sideways swipe. */
-const AXIS_LOCK_SLOP_PX = 10;
-
-/** Horizontal travel past the axis lock needed to fire the swipe. */
+/** Horizontal travel needed to fire the swipe, measured from the gesture's current anchor. */
 const SWIPE_TRIGGER_PX = 60;
+
+/**
+ * How far vertical travel must outrun horizontal before the touch is read as a scroll.
+ * The margin keeps a slight sideways wobble mid-scroll from counting toward the swipe.
+ */
+const SCROLL_HYSTERESIS_PX = 10;
 
 type SwipeDirection = 'left' | 'right';
 
 type SwipeGesture = {
-  startX: number;
-  startY: number;
-  /** Locked on the first move past the slop; once vertical the gesture is abandoned for the rest of the touch. */
-  axis: 'horizontal' | 'vertical' | null;
+  /**
+   * The point travel is measured from. While the touch is scrolling it trails the
+   * finger, so a sideways turn after a scroll is measured from where the scroll
+   * left off rather than from the original touch-down point.
+   */
+  anchorX: number;
+  anchorY: number;
 };
 
 type SidebarSwipeGestureOptions = {
@@ -40,7 +46,7 @@ export function useSidebarSwipeGesture({
   startZonePx,
   onSwipe,
 }: SidebarSwipeGestureOptions): SidebarSwipeGestureHandlers {
-  // Origin and locked axis of the in-flight touch; null while no gesture is being tracked.
+  // Anchor of the in-flight touch; null while no gesture is being tracked.
   const gestureRef = useRef<SwipeGesture | null>(null);
 
   const handleTouchStart = useCallback(
@@ -56,7 +62,7 @@ export function useSidebarSwipeGesture({
       if (startZonePx !== undefined && touch.clientX > startZonePx) {
         return;
       }
-      gestureRef.current = { startX: touch.clientX, startY: touch.clientY, axis: null };
+      gestureRef.current = { anchorX: touch.clientX, anchorY: touch.clientY };
     },
     [enabled, startZonePx],
   );
@@ -72,20 +78,21 @@ export function useSidebarSwipeGesture({
         return;
       }
 
-      const dx = touch.clientX - gesture.startX;
-      const dy = touch.clientY - gesture.startY;
+      const dx = touch.clientX - gesture.anchorX;
+      const dy = touch.clientY - gesture.anchorY;
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
 
-      if (gesture.axis === null) {
-        // Commit to one axis as soon as the finger has travelled far enough to tell them
-        // apart; ties go to the vertical axis so an ambiguous start scrolls rather than swipes.
-        if (Math.max(Math.abs(dx), Math.abs(dy)) < AXIS_LOCK_SLOP_PX) {
-          return;
+      if (absDx <= absDy) {
+        // A touch that leans vertical is scrolling, so it never accumulates toward the
+        // swipe — the anchor trails the finger instead. Ties stay vertical so an
+        // ambiguous drag scrolls rather than swipes, and a later sideways turn is
+        // measured from where the scroll left off rather than being disqualified for
+        // the rest of the touch by the opening move.
+        if (absDy > absDx + SCROLL_HYSTERESIS_PX) {
+          gesture.anchorX = touch.clientX;
+          gesture.anchorY = touch.clientY;
         }
-        gesture.axis = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
-      }
-      // A vertical gesture stays abandoned for the rest of the touch, so scrolling the
-      // sidebar's own list can never trip the swipe however far it drifts sideways.
-      if (gesture.axis !== 'horizontal') {
         return;
       }
 
