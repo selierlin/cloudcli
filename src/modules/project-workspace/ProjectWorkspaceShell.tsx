@@ -1,15 +1,16 @@
-import { memo, useCallback, useRef } from 'react';
-import type {
-  TouchEvent as ReactTouchEvent,
-} from 'react';
+import { memo, useCallback } from 'react';
 
 import { useProjectSidebarState } from '@/modules/project-workspace/context/ProjectsStateContext';
+import { useSidebarSwipeGesture } from '@/modules/project-workspace/hooks/useSidebarSwipeGesture';
 import { QuickSettingsPanel } from '@/modules/quick-settings-panel';
 import ProjectEffects from '@/modules/project-workspace/controllers/ProjectEffects';
 import type { ProjectWorkspaceShellProps } from '@/shared/types';
 import ProjectCommandPalette from '@/modules/project-workspace/ProjectCommandPalette';
 import ProjectMainRegion from '@/modules/project-workspace/ProjectMainRegion';
 import ProjectSidebarRegion from '@/modules/project-workspace/ProjectSidebarRegion';
+
+/** Width of the invisible strip along the left edge where the open-drawer swipe may begin. */
+const EDGE_ZONE_PX = 32;
 
 /** Rendered by ProjectWorkspaceRoute to lay out the workspace sidebar, main region and global overlays. */
 function ProjectWorkspaceShell({
@@ -20,54 +21,20 @@ function ProjectWorkspaceShell({
 }: ProjectWorkspaceShellProps) {
   const { sidebarOpen, setSidebarOpen } = useProjectSidebarState();
 
+  const handleOpenSwipe = useCallback(() => {
+    setSidebarOpen(true);
+  }, [setSidebarOpen]);
+
   // Edge-swipe to open the mobile sidebar drawer: a touch starting within the
-  // left edge and dragging rightward past a threshold opens the menu, mirroring
-  // the native drawer gesture. Only active on mobile, and ignored once the
-  // drawer is already open (its backdrop handles closing).
-  const edgeSwipeStart = useRef<{ x: number; y: number } | null>(null);
-  const EDGE_ZONE_PX = 32;
-  const OPEN_THRESHOLD_PX = 60;
-
-  const handleEdgeSwipeStart = useCallback(
-    (event: ReactTouchEvent<HTMLDivElement>) => {
-      if (!isMobile || sidebarOpen) {
-        edgeSwipeStart.current = null;
-        return;
-      }
-      const touch = event.touches[0];
-      if (touch && touch.clientX <= EDGE_ZONE_PX) {
-        edgeSwipeStart.current = { x: touch.clientX, y: touch.clientY };
-      } else {
-        edgeSwipeStart.current = null;
-      }
-    },
-    [isMobile, sidebarOpen],
-  );
-
-  const handleEdgeSwipeMove = useCallback(
-    (event: ReactTouchEvent<HTMLDivElement>) => {
-      if (!isMobile || sidebarOpen || !edgeSwipeStart.current) {
-        return;
-      }
-      const touch = event.touches[0];
-      if (!touch) {
-        return;
-      }
-      const dx = touch.clientX - edgeSwipeStart.current.x;
-      const dy = touch.clientY - edgeSwipeStart.current.y;
-      // Only a clearly horizontal rightward drag should open the drawer, so
-      // vertical scrolling from the edge keeps working normally.
-      if (dx > OPEN_THRESHOLD_PX && Math.abs(dy) < Math.abs(dx)) {
-        setSidebarOpen(true);
-        edgeSwipeStart.current = null;
-      }
-    },
-    [isMobile, sidebarOpen, setSidebarOpen],
-  );
-
-  const handleEdgeSwipeEnd = useCallback(() => {
-    edgeSwipeStart.current = null;
-  }, []);
+  // left edge and dragging rightward past the threshold opens the menu, mirroring
+  // the native drawer gesture. Only active on mobile, and disarmed once the drawer
+  // is open — swiping it shut is ProjectSidebarRegion's job.
+  const openSwipeHandlers = useSidebarSwipeGesture({
+    enabled: isMobile && !sidebarOpen,
+    direction: 'right',
+    startZonePx: EDGE_ZONE_PX,
+    onSwipe: handleOpenSwipe,
+  });
 
   return (
     <div
@@ -79,10 +46,10 @@ function ProjectWorkspaceShell({
       // disables it for those users.
       className="fixed inset-0 flex bg-background transition-[bottom] duration-[250ms] ease-out"
       style={{ bottom: 'var(--keyboard-height, 0px)' }}
-      onTouchStart={handleEdgeSwipeStart}
-      onTouchMove={handleEdgeSwipeMove}
-      onTouchEnd={handleEdgeSwipeEnd}
-      onTouchCancel={handleEdgeSwipeEnd}
+      onTouchStart={openSwipeHandlers.onTouchStart}
+      onTouchMove={openSwipeHandlers.onTouchMove}
+      onTouchEnd={openSwipeHandlers.onTouchEnd}
+      onTouchCancel={openSwipeHandlers.onTouchCancel}
     >
       <ProjectEffects navigate={navigate} />
       <ProjectSidebarRegion isMobile={isMobile} />

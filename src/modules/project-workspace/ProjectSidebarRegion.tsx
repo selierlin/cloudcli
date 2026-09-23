@@ -8,6 +8,7 @@ import type {
 import { useTranslation } from 'react-i18next';
 
 import { useProjectSidebarState } from '@/modules/project-workspace/context/ProjectsStateContext';
+import { useSidebarSwipeGesture } from '@/modules/project-workspace/hooks/useSidebarSwipeGesture';
 import { Sidebar } from '@/modules/sidebar';
 import { useUiPreferences } from '@/shared/context/UiPreferencesContext';
 import {
@@ -44,6 +45,19 @@ function ProjectSidebarRegion({
     event.stopPropagation();
     setSidebarOpen(false);
   }, [setSidebarOpen]);
+
+  const handleCloseSwipe = useCallback(() => {
+    setSidebarOpen(false);
+  }, [setSidebarOpen]);
+
+  // Mirror of the shell's edge swipe: dragging the open drawer panel back out to
+  // the left dismisses it. The handlers live on the panel rather than the shell
+  // root because the panel stops touch propagation, and only arm while it is open.
+  const closeSwipeHandlers = useSidebarSwipeGesture({
+    enabled: isMobile && sidebarOpen,
+    direction: 'left',
+    onSwipe: handleCloseSwipe,
+  });
 
   // Sidebar resizing (desktop only). Pointer capture keeps the drag alive when
   // the cursor leaves the 4px handle, and the width is only written to storage
@@ -161,7 +175,14 @@ function ProjectSidebarRegion({
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         onClick={(event) => event.stopPropagation()}
-        onTouchStart={(event) => event.stopPropagation()}
+        onTouchStart={(event) => {
+          // Keep the shell's edge-swipe handler from seeing touches that began on the drawer.
+          event.stopPropagation();
+          closeSwipeHandlers.onTouchStart(event);
+        }}
+        onTouchMove={closeSwipeHandlers.onTouchMove}
+        onTouchEnd={closeSwipeHandlers.onTouchEnd}
+        onTouchCancel={closeSwipeHandlers.onTouchCancel}
       >
         <Sidebar {...sidebarSharedProps} />
       </div>
