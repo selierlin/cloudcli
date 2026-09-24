@@ -36,8 +36,9 @@ async function persistRestoreTarget() {
   // Up to two server WebViews stay alive at once, and a hidden one is only isHidden —
   // its JS keeps running (WebCachePlugin.swift:167,236-238). Without this guard, the
   // background server could overwrite the target while the user is looking at another.
-  // Whether WKWebView reports 'hidden' for a hidden sibling view is V7 (unverified), which
-  // is why the native side also re-persists on switch and on background (P2-3 / P4).
+  // Verified on device (V7, 2026-09-24): a hidden sibling WKWebView does report 'hidden',
+  // so this guard is the only defence needed — there is no native re-persist on switch
+  // or on background (P4 was cancelled on the strength of this result).
   if (document.visibilityState !== 'visible') return;
 
   const { href, origin } = window.location;

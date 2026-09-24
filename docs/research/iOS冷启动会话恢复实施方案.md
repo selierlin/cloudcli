@@ -6,6 +6,7 @@
 > - **计数落盘形态改为与目标同键**——决策 17 将 `cloudcli.restoreTarget` 升级为 `{ url, failures }`，取代独立键 `cloudcli.restoreFailures`。理由是「写新目标 = 计数归零」成为写入契约的推论，结构性消除第七、八轮查出的四处清零漏接线（手动 `connect()`、`switchServer`、`.skip`、`.forget`）与跨服务器串扰。**决策 4 同步加「主动」二字**，否则失败回退会清掉刚递增的计数、决策 15 阈值永不生效。（**第十轮已整体撤销本条的计数设计**：决策 15 只留「失败不清标记」，存储退回纯 `{ url }`，见下条）
 > - 上述修订已获第九轮 Claude、Codex **两方逐条认可**（含第三轮 4 项、第四轮 5 项遗留表态的全部认可）。依据见文末「作者响应（第七～九轮）」。历轮审阅历史完整保留于文末。
 > - **第十轮（2026-09-24）作者主动简化（非审阅项）**：撤销连续失败计数（决策 15 只留「失败不清标记」）；P4 原生落盘（路径 B/C、后台任务、`currentController`）降为**条件阶段**、去留由 V7 决定（决策 17）；端口规约（决策 18/19）标为**延后/可选**（YAGNI，备查见 §8.7）。**净效果：P4 大概率整块不做、失败计数不做、端口规约不做。** 详见文末「附：第十轮修订」。
+> - **第十一轮（2026-09-24）真机结论 —— V7 通过**：真机跑验收 ⑧「A 在后台触发路由变化后杀进程重开」**落到 B**，`visibilityState` 守卫成立。据此**决策 17 收口：P4 永久跳过**——`SceneDelegate` 不再改动，路径 B/C、`persistVisibleTarget`、后台任务、`currentController` 全部取消。V2 随之不再是承重项。**剩余未跑：V1–V6、V8 与 §8.5 验收 ①–⑦、⑨–⑬。** 详见文末「附：第十一轮结论」。
 > **日期**：2026-09-23（初稿 2026-09-10；`WebCachePlugin.swift` 行号基准 2026-09-16，见 §2 脚注）
 > **用途**：用户在 iOS App 内打开某台服务器的某个会话后杀掉进程，重新打开时应能回到同一台服务器的同一个会话，而不是每次都从服务器选择页重新点起。§8 给出按文件、按阶段、可直接照做的执行细则与验收清单。审阅时请重点检查：①「已实测确认」的事实是否与实际行为相符，尤其是 `@capacitor/preferences` 的存储介质、SPA 路由的 URL 可见性、**以及端口规约在 JS 与 Swift 两侧的差异（事实 18 / 决策 18）**；② 还原阶段的各条写入/还原路径（乐观加载与挂载探测、失败回退、返回列表语义、路径 C 的缓存复用落盘）是否有遗漏；③ §8 的代码骨架与 §8.2 的实现约束是否有误；**④ 本轮重点：决策 15（失败不清标记）、决策 17（P4 条件化，由 V7 决定）与决策 18/19（端口规约延后）是否成立；V7 作为 P4 去留的门是否设置得当——见文末「作者响应（第七～九轮）」与「附：第十轮修订」**。批注请直接以评论或追加段落形式写入本文档。
 > **参考规范**：`.agents/skills/frontend-module-standards/SKILL.md`（前端新增模块与组件须遵守）、`docs/research/CloudCLI接入Pi-Provider实施计划.md`（本文档格式样例）、`mobile/README.md`
@@ -39,7 +40,7 @@
 | 7 | 服务器选择页与已连接页面共享同一份 Preferences（跨 origin），这是既有设计 | `mobile/www/picker.js:71-77` 注释；`SidebarServerMenu.tsx:10-12` 复用同一批 key |
 | 8 | `showServer` 以 `url.absoluteString` 作缓存 key；而选择页的 `normalizeUrl` 会把用户输入裁剪成纯 origin | `ios/App/App/WebCachePlugin.swift:188`；`mobile/www/picker.js:98` |
 | 9 | 「是否仍在该服务器」的判断只比对 scheme/host/port，不比对 path | `ios/App/App/WebCachePlugin.swift:147-154`（`isShowingLoadedServerOrigin`） |
-| 10 | `SceneDelegate` 目前**没有任何生命周期回调**（只有 `willConnectTo` / `openURLContexts` / `continue userActivity`） | `ios/App/App/SceneDelegate.swift:4-24` |
+| 10 | `SceneDelegate` 目前**没有任何生命周期回调**（只有 `willConnectTo` / `openURLContexts` / `continue userActivity`）。**第十一轮起不再承重**：依赖它的路径 B 已随 P4 取消 | `ios/App/App/SceneDelegate.swift:4-24` |
 | 11 | 构建期若设置 `CLOUDCLI_SERVER_URL`，会写入 `server.url`，此时 App 根本不加载选择页（直连模式） | `capacitor.config.ts:15,35-41`；当前仓库的 `ios/App/App/capacitor.config.json` 未设置 |
 | 12 | **直连判定不能用 `appStartServerURL != nil`**：该属性是**非可选** `URL`，且未配置 `server.url` 时回落到 `localURL`（即 `capacitor://localhost`），因此「非 nil」恒真。正确判定是 `config.serverURL != config.localURL`：配置了 `server.url` 时 `_serverURL` 取远程值，否则 `_serverURL = _localURL`。`InstanceConfiguration` 没有更「官方」的布尔属性；官方自身区分「应用导航」时用的也是这两个 URL 的前缀比较，本判定是同一惯例的等价表达（两个 `URL` 的 `==` 走 `isEqual`，比内容非指针） | `node_modules/@capacitor/ios/Capacitor/Capacitor/CAPInstanceConfiguration.swift:11-16`；`CAPInstanceConfiguration.m:44-51`；`CAPInstanceConfiguration.h:14-15`（均 `nonnull`）；官方惯例见 `WebViewDelegationHandler.swift:111-112` |
 | 13 | **Capacitor 自己持有 `navigationDelegate`，不应注入**：`WebViewDelegationHandler` 在 `loadView()` 内以局部 `let` 创建（不是可覆写的存储属性），随即同时交给 `prepareWebView` 与 `CapacitorBridge`，`aWebView.navigationDelegate = delegationHandler`。原代理**并非取不到**——`CapacitorBridge.webViewDelegationHandler` 是 `public private(set)`，可据此替换并转发；致命点在于必须**完整**转发每个分支（`decidePolicyFor` 的 allowNavigation / `shouldOverrideLoad` / 跨域导航拦截、`didStartProvisionalNavigation` 的 `bridge?.reset()`、auth challenge、媒体权限…），漏一处就是运行时事故。结论：不碰代理 | `node_modules/@capacitor/ios/Capacitor/Capacitor/CAPBridgeViewController.swift:44-52,321`；`CapacitorBridge.swift:105`；`WebViewDelegationHandler.swift:7,45-48` |
@@ -59,12 +60,12 @@
 | # | 待验证 | 为什么要验 | 验证方式 |
 |---|---|---|---|
 | V1 | `WKWebView.url` 是否随 SPA `history.pushState` 更新 | 决定「原生读当前路由」这条路是否可行。业界已知 `webView.url` 对同文档导航不可靠，因此方案 B 必须改用 `evaluateJavaScript("window.location.href")`；若 `webView.url` 恰好可用，方案 B 可简化 | 真机跑一段 `pushState`，打印 `webView.url` 与 `evaluateJavaScript` 结果对比 |
-| V2 | `sceneDidEnterBackground` 内 `evaluateJavaScript` 的可用性与时序 | iOS 杀进程不保证走 `willTerminate`，后台时机是唯一可靠落盘点；需确认回调内取 URL 来得及。**优先级已上调**：事实 17 下路径 A 会被隐藏页的写入污染（用户在看 B，A 在后台写 A），路径 B 是退到后台那一刻把值修正回可见页的**唯一防线**（§8.4 P4-1）。若 V2 不成立，必须有 P1-2 的 `visibilityState` 守卫兜住 | 真机：切到 B 后，让 A 触发一次路由变化，再进后台杀进程，检查落盘值是否为 B |
+| V2 | `sceneDidEnterBackground` 内 `evaluateJavaScript` 的可用性与时序 | iOS 杀进程不保证走 `willTerminate`，后台时机是唯一可靠落盘点；需确认回调内取 URL 来得及。**优先级已上调**：事实 17 下路径 A 会被隐藏页的写入污染（用户在看 B，A 在后台写 A），路径 B 是退到后台那一刻把值修正回可见页的**唯一防线**（§8.4 P4-1）。~~若 V2 不成立，必须有 P1-2 的 `visibilityState` 守卫兜住~~。**第十一轮起不再承重**：V2 只服务路径 B，而 P4 已随 V7 通过而取消 | ~~真机：切到 B 后，让 A 触发一次路由变化，再进后台杀进程，检查落盘值是否为 B~~（已随 P4 取消；同一场景的写入侧结论由 V7 覆盖） |
 | V3 | 硬加载 `/session/<id>` 且该会话已被删除/归档时前端的落点 | 决定是否需要额外兜底，避免恢复到空页面 | 手动改 URL 访问一个不存在的 sessionId，观察 `ProjectWorkspaceRoute` 行为 |
 | V4 | 恢复路径下 token 恰好过期的表现 | 确认降级到登录页而不是白屏。**补充（事实 21）**：写成功但登录态失效时，服务器页渲染 `LoginForm`，`#root` 已有子节点，P3-1 会判「还原成功」——即「挂载成功 ≠ 会话可见」。这是判据的固有盲区，本项要确认的是**该降级可接受、且浮层消失时机不突兀**（不是修判据） | 清掉 `auth-token` 后硬加载 `/session/<id>` |
 | V5 | 三个关键量在三种情形下的实测值：① 正常服务器；② 后端挂但反代/静态层仍在（返 5xx 错误页）；③ 完全不可达（DNS 失败 / TCP 超时）。要测的是 (a) `isLoading` 由 true 转 false 的耗时、(b) `#root` 出现子节点的耗时、两者之间的间隔 | 直接决定 §4.2 策略 I 里 W（宽限期）与 C（绝对上限）的取值。**不要**指望 `didFail*` 覆盖 5xx（事实 13：代理不应注入；且 5xx 在 WebKit 里属导航成功，会走 `didFinish` 而非 `didFail*`）。判据本身已由事实 15 预先确认成立，此处只测时序 | 分别起正常服务、必返 5xx 的服务、不可达地址，打点记录 |
 | V6 | `evaluateJavaScript` 轮询的开销与频率上限；**须含「导航尚未结束就开始轮询」这个子场景**（P3-1 首次轮询即落在页面加载中） | 轮询间隔过密会持续占用主线程（探测本身很快，但往返需切回主线程）。加载未完成时的 `evaluateJavaScript` 往往要排队等 Web 进程空闲才返回——不会崩，但需确认 (a) 探测响应性是否被推迟到加载收敛之后、(b) 首屏渲染是否受影响。若观察到明显抖动，再考虑在 `isLoading == true` 期间拉长间隔（决策 16 暂不预置） | 以 0.5s 间隔、C 秒上限实测，**并把「加载未结束时已开始轮询」的时序一起打点**，观察是否影响首屏渲染 |
-| V7 | `WKWebView` 的子视图被 `isHidden = true` 后，页面的 `document.visibilityState` 是否变为 `hidden` | 决定 P1-2 tracker 的 `visibilityState` 守卫能否挡住事实 17 的跨 WebView 写入。若为 `hidden`，守卫即有效（隐藏页不再写目标）；若仍为 `visible`，守卫无效，正确性只能依赖 P4 的两条落盘路径。**不能假设**，须实测 | 真机连两台服务器：切到 B 后，在 A 的页面周期打印 `document.visibilityState`，同时打印 tracker 的实际写入 |
+| V7 | `WKWebView` 的子视图被 `isHidden = true` 后，页面的 `document.visibilityState` 是否变为 `hidden` | 决定 P1-2 tracker 的 `visibilityState` 守卫能否挡住事实 17 的跨 WebView 写入。若为 `hidden`，守卫即有效（隐藏页不再写目标）；若仍为 `visible`，守卫无效，正确性只能依赖 P4 的两条落盘路径。**不能假设**，须实测 | 真机连两台服务器：切到 B 后，让 A 触发路由变化，杀进程重开。**结果（2026-09-24）：判定成立——落到 B**，故守卫有效、P4 取消（不必再打印 `visibilityState`） |
 | V8 | 反代把 `index.html` 当 SPA fallback 返回 **200**（静态资源正常、API 全挂）时，挂载判据的表现 | V5 覆盖的是「返 5xx 错误页」，此时 `#root` 不会产生子节点，能被回退抓住。但若静态层对任意路径都返 200 的 `index.html`，应用会**正常挂载**、探测判为「恢复成功」，用户停在应用内的报错/登录界面而非回到选择页。需确认这是可接受的降级（不算失败），还是需要额外判据 | 起一个静态层正常但 API 返错的服务器，观察是否 mount、用户最终停在哪个界面 |
 
 ## 4. 方案总览
@@ -91,16 +92,16 @@
   - 还需一道自校验：仅当 `window.location.origin` 出现在 `cloudcli.servers` 里时才写入。否则一旦前端发生整页导航到本地选择页（`capacitor://localhost`，旧版前端的降级路径，见 `picker.js:290-306`），本地 URL 会被当成恢复目标写进去。
   - **必须加一道 `document.visibilityState === 'visible'` 守卫**（事实 17）：缓存上限为 2，切走的那台 WebView 只是被 `isHidden = true`，其 JS 仍在跑；它在后台因 WebSocket 事件发生的路由变化会把 `restoreTarget` 写回**上一台**服务器，覆盖用户实际在看的这台。该守卫是否为有效手段取决于 V7（隐藏页的 `visibilityState` 是否真为 `hidden`），**不能假设**。仓库已有同款写法可参照：`AuthContext.tsx:280`、`pageTitleNotification.ts:15`。
   - 与 `cloudcli.lastServer` 的关系：其 origin 语义被本键取代，该键已删除（§8.1 决策 5）。
-- **路径 B（原为「兜底」，实为多 WebView 下的正确性防线）**：在 `SceneDelegate` 新增 `sceneDidEnterBackground`，对**当前可见的服务器 WebView**调 `evaluateJavaScript("window.location.href")`，成功则覆盖写 `cloudcli.restoreTarget`。
+- **路径 B —— 已取消（V7 通过，第十一轮）**：原为「兜底」，后提为多 WebView 下的正确性防线；因守卫经真机证实有效而不再实施。以下保留原设计文字：在 `SceneDelegate` 新增 `sceneDidEnterBackground`，对**当前可见的服务器 WebView**调 `evaluateJavaScript("window.location.href")`，成功则覆盖写 `cloudcli.restoreTarget`。
   - 事实 17 下路径 A 存在跨 WebView 污染窗口：用户在看 B，而 A 的 tracker 可能在切换**之后**写入 A。退到后台这一刻读 `currentController` 落盘，是把值修正回可见页的最后机会——所以 V2 不是「旧前端兜底」级别的待验证项，而是正确性依赖。
   - **必须先确认可见的是服务器页而非选择页**，否则用户停在选择页时进后台，会把 `capacitor://localhost/...` 写成恢复目标。判据用现成的两个方法：该 controller `!== pickerController` 且 `isShowingLoadedServerOrigin` 为真（`WebCachePlugin.swift:147-154`）。
   - 容器目前**没有「当前可见是谁」的指针**——`show(_:)` 只通过 `child.view.isHidden` 表达可见性（`WebCachePlugin.swift:236-238`），因此需要新增一个 `private weak var currentController`（或等价字段）供本路径与还原逻辑共用。
   - 必须用 `evaluateJavaScript`，不能用 `webView.url`（见 V1）。
-  - 用 `beginBackgroundTask` 包裹以争取时间（须带 `expirationHandler`，见 §8.4 P4-2）。
+  - （随路径 B 一并取消）用 `beginBackgroundTask` 包裹以争取时间（须带 `expirationHandler`，见 §8.4 P4-2）。
   - 这条路保证「即使用户运行的是尚未包含 route tracker 的旧前端，也能恢复」。
-- **路径 C（前两条的补丁，专治「切到已缓存的服务器」）**：路径 A 只在**路由变化**时触发。若切到的服务器 B 的 WebView 是缓存命中且无需重载（`WebCachePlugin.swift:191-197` 的 `isShowingLoadedServerOrigin == true` 分支），B 的 React 从未重新挂载、路由没变，tracker 的 effect **不会跑**，标记会一直停在 `A/session/x`。修法是在该复用分支里主动落盘一次该 WebView 的当前 href（复用路径 B 的取 URL 逻辑，§8.4 P2-3 / P4-2）。
+- **路径 C —— 已取消（V7 通过，第十一轮）**：原为前两条的补丁，专治「切到已缓存的服务器」。该窗口现由 tracker 的 `visibilitychange` 自写覆盖：路径 A 只在**路由变化**时触发，若切到的服务器 B 的 WebView 是缓存命中且无需重载（`WebCachePlugin.swift:191-197` 的 `isShowingLoadedServerOrigin == true` 分支），B 的 React 从未重新挂载、路由没变，tracker 的 effect **不会跑**，标记会一直停在 `A/session/x`。修法是在该复用分支里主动落盘一次该 WebView 的当前 href（复用路径 B 的取 URL 逻辑，§8.4 P2-3 / P4-2）。
 
-> **第十轮更新（决策 17）**：路径 C 与路径 B 所属的 P4 已降为**条件阶段**——若 V7 证实 P1-2 的可见性守卫足够，则不实现路径 B/C。本节保留为设计依据，以 §8.3/§8.4 P4 为准。
+> **第十一轮更新（决策 17 收口）**：路径 B/C 所属的 P4 曾是条件阶段，**真机 V7 已通过（2026-09-24，落到 B）**，故 P4 永久跳过、路径 B/C 均不实施。本节保留为设计依据与历史记录。
 
 **清除时机**：用户进入服务器选择页（`serverSession.showPicker()`）时，清空 `cloudcli.restoreTarget`——否则用户刚主动退回列表，下次冷启动又被拽回旧会话，与直觉冲突。
 
@@ -161,8 +162,8 @@ let key = normalizedOriginKey(url)   // 原来这里是 url.absoluteString
 
 | 文件 | 改动 |
 |---|---|
-| `ios/App/App/WebCachePlugin.swift` | ① `showServer` 内部 key 归一化为 origin（`:187-207`），签名不变（端口规约**延后**，见 §8.7）；② `viewDidLoad`（`:172-176`）插入还原判定（含 `serverURL != localURL` 直连 guard）——**位置必须在 `show(pickerController)` 之后**，否则 `bridge` 尚为 nil（事实 14）；③ 恢复期挂载探测轮询（挂载判据 + `isLoading` 门控 + W 宽限 + C 上限）+ 失败回退 + 浮层（策略 I）；④（**条件阶段 P4**）`currentController` 指针 + 缓存复用分支主动落盘一次当前 href（路径 C，治「切到已缓存服务器时 tracker 不触发」），仅 V7 破时实施 |
-| `ios/App/App/SceneDelegate.swift` | **（条件阶段 P4，仅 V7 破时实施）** 新增 `sceneDidEnterBackground` → 确认可见的是服务器页后，`evaluateJavaScript("window.location.href")` 落盘 `cloudcli.restoreTarget`（路径 B）；用 `beginBackgroundTask` 包裹，**须带 `expirationHandler`**（§8.4 P4-2：无 handler 时任务超时会被系统直接终止 App） |
+| `ios/App/App/WebCachePlugin.swift` | ① `showServer` 内部 key 归一化为 origin（`:187-207`），签名不变（端口规约**延后**，见 §8.7）；② `viewDidLoad`（`:172-176`）插入还原判定（含 `serverURL != localURL` 直连 guard）——**位置必须在 `show(pickerController)` 之后**，否则 `bridge` 尚为 nil（事实 14）；③ 恢复期挂载探测轮询（挂载判据 + `isLoading` 门控 + W 宽限 + C 上限）+ 失败回退 + 浮层（策略 I）；④ 已取消——原条件阶段的 `currentController` 指针与缓存复用分支落盘（路径 C）随 P4 一并取消（V7 通过）|
+| `ios/App/App/SceneDelegate.swift` | **无需改动**（原条件阶段 P4 的 `sceneDidEnterBackground` 因 V7 通过而取消，2026-09-24）|
 | `mobile/www/picker.js` | ① `connect()`（`:290-306`）时写入 `cloudcli.restoreTarget`，值为该服务器的**绝对 URL**（与 route tracker 同一契约，避免两条写入路径字段不一致）；② 删除服务器（`:252-266`）时若删的是当前标记的 origin，一并清 `cloudcli.restoreTarget`。`Preferences.remove` 可用性已核实（事实 16），无需降级为写空值 |
 | `src/App.tsx` | 在 `<Router>` 内挂载 route tracker（`useLocation()` 必须在 Router 内） |
 | `src/shared/constants.ts` | 新增 `CLOUDCLI_SERVERS_KEY`。理由：tracker 与 `SidebarServerMenu` 两个文件都要用它，按 `frontend-module-standards`「两个以上文件使用的常量放 `src/shared/constants.ts`」提取。`cloudcli.restoreTarget` 只有 tracker 使用，留在模块内 |
@@ -228,17 +229,17 @@ let key = normalizedOriginKey(url)   // 原来这里是 url.absoluteString
 | 4 | **「用户主动」进入选择页**才清还原标记。失败**被动**回退不算主动——`finishRestore(success:false)` 刻意走 `show(pickerController)` 而非 `showServerPicker`，否则用户刚要续接的目标会被一次失败立刻清掉；「主动返回列表」也是用户摆脱永久失效服务器的唯一一次操作（决策 15） | `showServerPicker` 内 `RestoreTargetStore.clearTarget()` |
 | 5 | **删除** `cloudcli.lastServer`（写入与键一并移除） | `picker.js` 删除 `LAST_KEY` / `setLastServer` / 调用点 |
 | 6 | 只记最后一次（单键） | 单键 `cloudcli.restoreTarget` |
-| 7 | 不加 `sceneWillResignActive` 等额外落盘 | 仅 `sceneDidEnterBackground`（**随 P4 条件化**，决策 17） |
+| 7 | 不加 `sceneWillResignActive` 等额外落盘 | 无需任何原生落盘——原 `sceneDidEnterBackground` 随 P4 取消（决策 17，V7 已通过）|
 | 8 | 不新建 iOS XCTest target | 抽纯函数 + §8.5 真机清单 |
 | 9 | 新做轻量恢复浮层（不复用 splash） | `showRestoreOverlay()` |
 | 10 | 坏的 `restoreTarget` 值**自愈**（读到即清除）而非静默跳过 | `RestoreTargetStore.readTargetURL()`：区分「无键」与「键坏」 |
-| 11 | 写入侧加 `document.visibilityState === 'visible'` 守卫；**仅在守卫被 V7 证伪时**，原生侧才在**切换**与**退后台**两个时机以可见页覆盖 | 主防线 P1-2；原生两层（P2-3 路径 C、P4-2 路径 B）**随 P4 条件化**（决策 17）——针对事实 17 的跨 WebView 竞争 |
+| 11 | 写入侧加 `document.visibilityState === 'visible'` 守卫 | 唯一防线 P1-2。原生两层（P2-3 路径 C、P4-2 路径 B）**已取消**——V7 经真机证实守卫有效（决策 17）|
 | 12 | `CLOUDCLI_SERVERS_KEY` 落 `src/shared/constants.ts`；**并把 `SidebarServerMenu.tsx:11` 的私有 `SERVERS_KEY` 一并改为引用它**，消除 JS 侧两个同值字面量。`picker.js` 走原生注入的 `Preferences`、不能 `import`，保留字面量并纳入升级回归注记 | §8.2-8、§8.4 P1-0、P1-2 |
 | 13 | **改 `mobile/www/` 后必须 `npm run mobile:sync`**（= `cap sync ios`）才在真机生效；`ios/App/App/public/` 是产物、整目录被 `ios/.gitignore` 忽略、**不需要提交** | §8.2-7、§8.4 P1-3/P5、§8.5-⑫ |
 | 14 | tracker **复用 `isCapacitorNativeShell()`**（`@/shared/utils`），不再内联 `CapacitorWindow` 与 `isNativePlatform?.()` | §8.4 P1-2 |
 | 15 | **失败不清还原标记**（保留原语义，**不引入连续失败计数**）：临时离线不丢续接能力，下次冷启动会再试一次。永久失效的服务器由用户主动「返回服务器列表」一次即可摆脱（决策 4 清标记）。计数被定为**过度设计**——它要引入「写目标即归零」的接线约定与记账字段，收益（省一次约 2s 白等）不抵复杂度（第十轮撤销） | §8.4 P3-2 |
 | 16 | 轮询频率**不预置自适应**：先按固定 0.5s 实现，是否加「`isLoading == true` 期间拉长间隔」由 V6 实测决定 | §8.4 P3-1、§3 V6 |
-| 17 | **P4 原生落盘降为条件阶段，去留由 V7 决定**：tracker 已监听 `visibilitychange`，若 V7 证实「`isHidden` 切换会触发 `visibilitychange`」，则「隐藏页守卫 + 可见页自写」由**同一个 tracker 覆盖两个窗口**。V7 通过 → **不实现 P4**（路径 B/C、`persistVisibleTarget`、后台任务、`currentController` 全部省略）；V7 不通过 → 才补 P4 | §8.3、§8.4 P4、§8.5-⑧ |
+| 17 | **P4 原生落盘 —— 已取消（V7 通过，2026-09-24）**：tracker 的「可见时才写 + 转可见时自写」经真机验收 ⑧ 证实足以覆盖事实 17 的两个窗口，故路径 B/C、`persistVisibleTarget`、后台任务、`currentController` 全部不实施 | §8.3、§8.4 P4（已作废）、§8.5-⑧ |
 | 18 | **（延后 / 可选）Swift 侧端口按 scheme 规约**（事实 18）：`(http, 80)`、`(https, 443)` 视为 nil，其余端口一律保留。方案已证**所有现存 JS 写入路径都先剥掉默认端口**，故此项目前**不触发**、纯属防未来新增路径；按 YAGNI **延后实现**（备查实现见 §8.7） | §8.7、§8.4 P2-1 |
 | 19 | **（延后 / 可选，随决策 18）三处端口比较保持一致**：`isKnownServerOrigin`、`normalizedOriginKey`、`isShowingLoadedServerOrigin` 不得各写一套。延后期间三处都用原始 `url.port` 即可（本身就一致）；仅在实施决策 18 时才引入共用的 `normalizedPort` | §8.7 |
 
@@ -259,7 +260,7 @@ let key = normalizedOriginKey(url)   // 原来这里是 url.absoluteString
 3. **`attemptRestore()` 必须在 `show(pickerController)` 之后**（事实 14），否则 `pickerController.bridge` 为 `nil`，直连 guard 静默失效。
 4. **一次启动只尝试一次还原**：`restoringController` 非 nil 期间不再发起，失败也不重试，避免失败循环。
 5. 前端新模块须遵守 `frontend-module-standards`：`@/...` 别名导入、barrel 只暴露必要 API、用 `type` 而非 `interface`、导出组件在定义处写消费者注释。
-6. **「当前可见的服务器」不等于「唯一在跑的服务器」**（事实 17）。缓存 2 台时被隐藏的那台 JS/WebSocket 仍在运行，它的 tracker 仍会写 `restoreTarget`。因此：写入侧要加可见性守卫（P1-2）；若 V7 证实守卫有效（隐藏页 `visibilityState` 为 `hidden`），仅 P1-2 即可闭环；否则才需原生侧在切换与退后台两个时机用可见页覆盖（P2-3 路径 C、P4-2 路径 B，即条件阶段 P4）。**守卫有效性依赖 V7，未跑前按「未成立」对待。**
+6. **「当前可见的服务器」不等于「唯一在跑的服务器」**（事实 17）。缓存 2 台时被隐藏的那台 JS/WebSocket 仍在运行，它的 tracker 仍会写 `restoreTarget`。因此：写入侧要加可见性守卫（P1-2）；若 V7 证实守卫有效（隐藏页 `visibilityState` 为 `hidden`），仅 P1-2 即可闭环；否则才需原生侧在切换与退后台两个时机用可见页覆盖（P2-3 路径 C、P4-2 路径 B，即条件阶段 P4）。**守卫有效性已由真机 V7 证实（2026-09-24，落到 B）**，故原生侧两条覆盖路径（P2-3 路径 C、P4-2 路径 B）取消。
 7. **改的是源，跑的是产物**（事实 19）。`mobile/www/` 是 `webDir`，`cap sync ios` 把它拷进 `ios/App/App/public/`，真机 bundle 加载的是后者。因此 P1-3 对 `picker.js` 的改动（删 `lastServer`、写入/清理 `restoreTarget`）**必须 `npm run mobile:sync` 之后**才能在真机验证；反过来，`ios/App/App/public/` 整目录被 `ios/.gitignore` 忽略、**不要提交**。§8.5-⑫ 为对应冒烟项。
 8. **`cloudcli.servers` 的条目 schema 是原生侧的隐式契约**：`RestoreTargetStore.isKnownServerOrigin`（P1-1）硬读该键，并期望每条为 `{ name, url }` 且 `url` 是可解析的字符串（由 `picker.js` 的 `saveServers` 保证，事实 7、第五轮已独立确认）。若日后 picker 改字段名（如 `url` → `origin`），原生侧会解析失败并**一律判「服务器已删」**——恢复从此静默失效且不报错，与 `CapacitorStorage.` 前缀是同类风险。故本约束与第 2 条一并在 §8.5 的升级回归注记中登记；`picker.js` 侧字面量（含决策 12 提到的两个 key）也一并纳入。
 
@@ -270,12 +271,12 @@ let key = normalizedOriginKey(url)   // 原来这里是 url.absoluteString
 | P1 | 共享常量（P1-0）+ 存储契约 + 写入/清理路径（tracker 含可见性守卫、picker 写入与删除清理、坏值自愈） | 无 | 是（读 UserDefaults 或真机） |
 | P2 | key 归一化 + `presentServer` 抽取 + 还原判定 | P1（需读到标记） | 是（先还原到服务器首页即可） |
 | P3 | 挂载探测 + 浮层 + 失败回退 + 清标记接线 | P2 | 是（真机） |
-| P4（**条件阶段**） | 原生落盘：P4-1 共享落盘函数 `persistVisibleTarget(for:)`（含 `expirationHandler`）+ P4-2 `sceneDidEnterBackground`（路径 B）+ 路径 C 的调用点。**仅当 V7 证实 tracker 守卫无效时才实施**；V7 通过则整阶段跳过 | P2 + V7 | 是（真机） |
-| P5 | 文档、前端测试、`npm run mobile:sync` 后真机冒烟（事实 19）、真机清单、V 项结论回填 | P1–P3（P4 若实施） | 是 |
+| P4（**已取消**） | 原为原生落盘（路径 B/C + `persistVisibleTarget` + 后台任务 + `currentController`）。V7 经真机证实 tracker 守卫足够，**整阶段不实施** | — | — |
+| P5 | 文档、前端测试、`npm run mobile:sync` 后真机冒烟（事实 19）、真机清单、V 项结论回填 | P1–P3 | 是 |
 
-P1 的前端 tracker 与原生 store 可并行；P2 内「key 归一化」与「还原判定」互不依赖，可并行。**P4 是条件阶段、不进关键路径**：P1–P3 完成后先跑 P5 真机清单与 V7，再决定是否实施 P4。
+P1 的前端 tracker 与原生 store 可并行；P2 内「key 归一化」与「还原判定」互不依赖，可并行。**P4 已取消**（V7 通过），P1–P3 即为全部实现范围；V7 的结论已回填。
 
-> **为什么 P4 是「条件阶段」而非「必需」（第十轮简化，决策 17）**：事实 17 下确有两个路径 A 抓不到的窗口（切换到已缓存服务器时路由不变、隐藏页在切换之后反写），但两者**都取决于 V7**。若隐藏页的 `visibilityState` 真为 `hidden`、且 `isHidden` 切换会触发 `visibilitychange`，那么 tracker 的「可见时才写 + 转可见时自写」这一个组件就同时覆盖两个窗口（见 §8.4 P1-2 的 `visibilitychange` 监听），P4 整块可省。**实现顺序：先做 P1–P3 → 真机跑 V7 → 通过即永久跳过 P4；不通过才补 P4-1/P4-2 与路径 C。**
+> **P4 为何最终取消（决策 17 收口，第十一轮）**：事实 17 下确有两个路径 A 抓不到的窗口（切换到已缓存服务器时路由不变、隐藏页在切换之后反写），但两者都取决于 V7。tracker 的「可见时才写 + 转可见时自写」是一个组件同时覆盖两个窗口（见 §8.4 P1-2 的 `visibilitychange` 监听）。**真机 V7 已通过（2026-09-24，落到 B）**，故 P4-1/P4-2 与路径 C 均不实施。
 
 ### 8.4 分阶段执行细则
 
@@ -316,7 +317,7 @@ enum RestoreTargetStore {
         return url
     }
 
-    /// 写还原目标。**所有写入路径（tracker / picker connect / 路径 B / 路径 C）都走这里**，
+    /// 写还原目标。**所有写入路径（tracker / picker connect）都走这里**（路径 B/C 已随 P4 取消），
     /// 契约统一为 `{ "url": <绝对 URL> }`（第十轮起不含计数，见决策 15）。
     static func writeTargetURL(_ url: URL) {
         guard let data = try? JSONSerialization.data(withJSONObject: ["url": url.absoluteString]),
@@ -397,8 +398,8 @@ async function persistRestoreTarget() {
   // Up to two server WebViews stay alive at once, and a hidden one is only isHidden —
   // its JS keeps running (WebCachePlugin.swift:167,236-238). Without this guard, the
   // background server could overwrite the target while the user is looking at another.
-  // Whether WKWebView reports 'hidden' for a hidden sibling view is V7 (unverified), which
-  // is why the native side also re-persists on switch and on background (P2-3 / P4).
+  // WKWebView does report 'hidden' for a hidden sibling view — V7 verified on device
+  // 2026-09-24 (acceptance ⑧ landed on B), so this guard alone closes the window.
   if (document.visibilityState !== 'visible') return;
 
   const { href, origin } = window.location;
@@ -505,8 +506,8 @@ func decideRestore(isDirectConnect: Bool, targetURLString: String?, isServerSave
 
 **P2-3 容器改造**（`CloudCLIContainerViewController`）
 
-- 新增 `private weak var restoringController: CloudCLIBridgeViewController?`、`private var restoreOverlay: UIView?`（P3 用）。`currentController` 只有 P4-2（退后台覆盖）需要，**随 P4 条件化**：V7 通过则不新增。
-- 把 `showServer` 的建/取缓存主体抽成 `@discardableResult private func presentServer(_ url: URL) -> CloudCLIBridgeViewController`（key 用 P2-1），`showServer(_:from:)` 变为 `_ = presentServer(url)` 的薄包装。抽取时**缓存命中且无需重载的分支要落盘**（路径 C）：
+- 新增 `private weak var restoringController: CloudCLIBridgeViewController?`、`private var restoreOverlay: UIView?`（P3 用）。`currentController` 只有 P4-2（退后台覆盖）需要；**P4 已取消，故不新增**。
+- 把 `showServer` 的建/取缓存主体抽成 `@discardableResult private func presentServer(_ url: URL) -> CloudCLIBridgeViewController`（key 用 P2-1），`showServer(_:from:)` 变为 `_ = presentServer(url)` 的薄包装。抽取时缓存命中且无需重载的分支**不做落盘**（路径 C 已随 P4 取消）：
 
 ```swift
 private func presentServer(_ url: URL) -> CloudCLIBridgeViewController {
@@ -518,7 +519,7 @@ private func presentServer(_ url: URL) -> CloudCLIBridgeViewController {
             serverController.loadServer(url)
         }
         // 缓存命中且无需重载时，该 WebView 转回可见会触发前端 tracker 的 visibilitychange
-        // 自写（P1-2），无需在此落盘。仅当 V7 破、实施 P4 时才加回路径 C（决策 17）。
+        // 自写（P1-2）——V7 已在真机证实该守卫有效（2026-09-24），故不经此落盘。
     } else {
         serverController = CloudCLIBridgeViewController()
         serverControllers[key] = serverController
@@ -531,7 +532,7 @@ private func presentServer(_ url: URL) -> CloudCLIBridgeViewController {
 }
 ```
 
-> 路径 C（缓存命中时主动落盘）**只在 V7 破、实施 P4 时才加回上面的分支**；V7 通过时该窗口由 tracker 的 `visibilitychange` 监听覆盖（决策 17）。新建/重载分支不必落盘——随后的首次挂载会让 tracker 写入（P1-2），且选择页 `connect()` 也已写过（P1-3 的 `setRestoreTarget(url)`，它取代了原 `setLastServer(url)`）。
+> 路径 C（缓存命中时主动落盘）**已随 P4 取消**：该窗口由 tracker 的 `visibilitychange` 监听覆盖，且已经真机 V7 证实（2026-09-24）。新建/重载分支不必落盘——随后的首次挂载会让 tracker 写入（P1-2），且选择页 `connect()` 也已写过（P1-3 的 `setRestoreTarget(url)`，它取代了原 `setLastServer(url)`）。
 - `showServerPicker(from:)`（`:143-150`）首行加 `RestoreTargetStore.clearTarget()`（决策 4）。
 - `viewDidLoad` 末尾加 `attemptRestore()`：
 
@@ -713,15 +714,15 @@ func persistVisibleTargetForBackground() {
    - ④ 设置 `CLOUDCLI_SERVER_URL` 的直连包（直接进服务器、不经选择页、**不走还原**——守事实 12）；
    - ⑤ 切到第二台服务器后杀进程重开（还原第二台，且不复用第一台的 WebView）；
    - ⑥ 后端挂但反代仍返 5xx 时重开（被挂载探测抓到并回退，而非停在错误页无路可走）；
-   - ⑦ **A → B 且 B 是缓存命中**（先来回切过一次，再停在 B 的某会话）后杀进程重开 → 还原 B（守路径 C：此时 B 的 tracker 不会触发）；
-   - ⑧ **A 在后台触发一次路由变化**（A 上有会话自动选中/新建等），随后杀进程重开 → 仍还原到 B（守事实 17）。**本项即 V7 的门**：通过 → tracker 守卫成立、P4 永久跳过；不通过 → 才实施 P4（决策 17）；
+   - ⑦ **A → B 且 B 是缓存命中**（先来回切过一次，再停在 B 的某会话）后杀进程重开 → 还原 B（原守路径 C；路径 C 已取消，该窗口现由 tracker 的 `visibilitychange` 自写覆盖）；
+   - ⑧ **A 在后台触发一次路由变化**（A 上有会话自动选中/新建等），随后杀进程重开 → 仍还原到 B（守事实 17）。**本项即 V7 的门 → 2026-09-24 真机通过（落到 B）**：tracker 守卫成立、P4 永久跳过；
    - ⑨ 反代对任意路径都返 200 的 `index.html`（V8）：确认最终落在应用内的报错/登录界面、而非白屏或卡死，并判断该降级是否可接受；
    - ⑩ 冷启动还原的**视觉交接**：连续做 5 次「杀进程 → 重开」，观察「原生恢复浮层 → web splash → 内容」这两段过渡是否存在闪烁、双 loading 叠加或白屏空档（§8.4 P3-3 的补充段）。
    - ⑪ **目标服务器登录态已失效**时冷启动（守事实 21）：清掉该服务器 origin 下的 `auth-token` 后杀进程重开 → 应用会渲染 `LoginForm`、`#root` 有子节点、挂载探测判「成功」。确认降级到登录页**可接受**、浮层消失时机不突兀。这是判据的固有盲区，**不要求**修 probe。
    - ⑫ **`npm run mobile:sync` 后的真机冒烟**（守事实 19）：同步后确认 P1-3 的选择页改动真的生效——删除 `cloudcli.lastServer` 后 App 不报错、连接时写入 `restoreTarget`、删除服务器时清理 `restoreTarget`。若只在模拟器/浏览器里跑 `mobile/www/`，本项不成立。
    - ⑬ **（可选 / 延后）端口规约对拍**：仅在实施决策 18 时才有意义。用四组端口各走一遍「保存并连接 → 杀进程 → 重开」：`http://<host>:80`、`https://<host>:443` 须与不带端口视为同一 origin；`http://<host>:443`、`https://<host>:80` 属非该 scheme 默认端口、**须保留**（防把规约写成一刀切）。**当前不实施决策 18，本项可跳过。**
 3. 真机内存观察：key 归一化后同一服务器不同路径不重复创建 WebView，`maxCachedServers = 2` 预算未被挤占。
-4. V1–V8 实测结论回填 §3（V7 决定事实 17 的守卫是否够用；V8 决定是否需要新增判据或接受降级）。
+4. V1–V8 实测结论回填 §3（**V7 已通过（2026-09-24）：事实 17 的守卫够用**；其余 V 项待跑，V8 决定是否需要新增判据或接受降级）。
 5. 前端：`npm run test:client`、`npm run build:client`、`npm run typecheck`、`npm run lint` 通过。
 6. 回归：浏览器/桌面包下 tracker 为 no-op；选择页增删改与延迟检测行为不变（除已删的 `lastServer` 写入）。
 
@@ -730,10 +731,10 @@ func persistVisibleTargetForBackground() {
 | 风险 | 影响 | 缓解 |
 |---|---|---|
 | 硬编码 `CapacitorStorage.` 前缀随插件升级失效 | 原生读到 nil → 静默不还原 | §8.2-2 注释固化 + §8.5-①② 回归 |
-| **跨 WebView 写入竞争（事实 17）**：用户在看 B，而被隐藏的 A 因 WebSocket 事件变化路由并写入 A 的 URL | 冷启动还原到**错误的服务器** | 主防线：P1-2 的 `visibilityState` 守卫（tracker 仅可见时写、转可见时自写），**有效性由 V7 决定**。V7 破则启用条件阶段 P4 的两层原生覆盖（路径 B/C，决策 17）。V7 未跑前本风险按「未解除」对待 |
-| **退后台落盘失败（仅 P4 实施时）**：`sceneDidEnterBackground` 内 `evaluateJavaScript` 来不及返回（V2） | 路径 B 这道修正失效 | 仅当 V7 破、启用 P4 后才相关，此时由 V2 决定成败；V7 通过则不实施 P4，本风险不存在 |
+| **跨 WebView 写入竞争（事实 17）**：用户在看 B，而被隐藏的 A 因 WebSocket 事件变化路由并写入 A 的 URL | 冷启动还原到**错误的服务器** | 主防线：P1-2 的 `visibilityState` 守卫（tracker 仅可见时写、转可见时自写）。**真机 V7 已证实守卫成立（2026-09-24，验收 ⑧ 落到 B）**，条件阶段 P4 的两层原生覆盖（路径 B/C）随之取消。**本风险已解除** |
+| **退后台落盘失败**（`sceneDidEnterBackground` 内 `evaluateJavaScript` 来不及返回，V2） | — | **不适用**：P4 未实施（V7 通过），无此落盘点 |
 | 坏 `restoreTarget` 值（写入中断 / 存储损坏 / 旧格式残留） | 恢复永久静默失效且无自愈路径 | 决策 10：`readTargetURL()` 区分「无键」与「键坏」，坏值就地清除 |
-| **（仅 P4）** `beginBackgroundTask` 缺 `expirationHandler` | 回调不返回时任务悬挂，系统超时后**直接终止 App** | P4-1 已含 handler + `taskID = .invalid` 前置。V7 通过、不实施 P4 时本风险不存在 |
+| **（仅 P4）** `beginBackgroundTask` 缺 `expirationHandler` | 回调不返回时任务悬挂，系统超时后**直接终止 App** | **不适用**：P4 未实施（V7 通过），无 `beginBackgroundTask` |
 | 挂载探测误判（慢设备首次 commit 更晚） | 合法加载被回退到选择页 | W=1.5s 宽限 + `isLoading` 门控；误判后果仅为降级回选择页，非崩溃 |
 | 5xx 错误页 `#root` 恰好被注入内容 | 误判为还原成功 | 错误页不含应用 bundle，不产生 `#root` 子节点（事实 15）；若不放心可将判据收紧为「`#root` 有子节点且无 splash 残留」 |
 | 反代对任意路径返 200 的 `index.html`（静态层正常、API 全挂） | 应用**正常挂载**、探测判为成功，用户停在应用内的报错/登录界面 | 这不是误判（页面确实起来了），属可接受降级；由 V8 确认实际落点，不做额外判据 |
@@ -1342,9 +1343,9 @@ Foundation `URL` **保留**显式默认端口。此前不失配的真实原因�
 
 **五、余留（不属审阅范畴，供执行前确认）**
 
-- **未核实**：V1–V8 全部未跑（**V7 是 P4 去留的门**，V2/V5 次之）；§8.5 验收 ①–⑬（⑭ 已随失败计数撤销）、内存观察、真机冒烟均未执行。注意历轮审阅者跑的是**语言行为实测**（Swift/JS URL、`git check-ignore`），不替代任何 V 项。（`test:client` / `build:client` / `typecheck` / `lint` 已在 P1 收尾时执行并通过，见「附：实现进度」。）
-- **待审阅者表态**：无遗留表态项。第十轮的简化（决策 15 去计数、决策 17 的 P4 条件化、决策 18/19 延后）是新变更，若审阅者有异议可在本文档继续追加批注。
-- **代码**：P1–P3 已实现（见文末「附：实现进度」）；P4 为条件阶段、未实施。
+- **未核实**：**V7 已通过真机验证（2026-09-24，落到 B）**；V1–V6、V8 未跑（V5 次之）；§8.5 验收 ①–⑬（⑭ 已随失败计数撤销）、内存观察、真机冒烟均未执行。注意历轮审阅者跑的是**语言行为实测**（Swift/JS URL、`git check-ignore`），不替代任何 V 项。（`test:client` / `build:client` / `typecheck` / `lint` 已在 P1 收尾时执行并通过，见「附：实现进度」。）
+- **待审阅者表态**：无遗留表态项。第十轮的简化（决策 15 去计数、决策 17 的 P4 条件化、决策 18/19 延后）与第十一轮的 V7 结论（P4 取消）是新变更，若审阅者有异议可在本文档继续追加批注。
+- **代码**：**P1–P3 已实现并真机验证通过冷启动还原（V7）**；P4 已取消（V7 通过），见文末「附：实现进度」与「附：第十一轮结论」。
 
 
 ---
@@ -1361,7 +1362,7 @@ Foundation `URL` **保留**显式默认端口。此前不失配的真实原因�
 
 **净效果**：P1–P3 为必做；P4 与端口规约默认不做（V7 破才做 P4）；失败计数不做。实现面较第九轮定稿显著收窄。
 
-**仍未解决**：V1–V8（V7 为 P4 去留的门）、§8.5 ①–⑬；P1–P3 已实现、P4 待 V7 结论（见「附：实现进度」）。
+**仍未解决**：V1–V6、V8（**V7 已于 2026-09-24 通过，P4 随之取消**）、§8.5 ①–⑦、⑨–⑬；P1–P3 已实现。
 
 ---
 
@@ -1370,12 +1371,32 @@ Foundation `URL` **保留**显式默认端口。此前不失配的真实原因�
 | 阶段 | 状态 | 内容 |
 |---|---|---|
 | P1 存储契约与写入侧 | **已完成**（本地提交，未推送） | P1-0 `CLOUDCLI_SERVERS_KEY` 入 `src/shared/constants.ts`，`SidebarServerMenu` 改为引用并复用 `isCapacitorNativeShell()`；P1-1 `RestoreTargetStore`（`WebCachePlugin.swift`，读/写/清 + `isKnownServerOrigin`，坏值自愈）；P1-2 新建 `src/modules/mobile-session-restore/`（tracker + barrel + 6 项单测）并在 `App.tsx` 的 `<Router>` 内挂载；P1-3 `picker.js` 写入 `restoreTarget`、删除 `cloudcli.lastServer` 全部痕迹、删除服务器时按 origin 清理目标 |
-| P2 还原判定与 key 改造 | **已完成**（本地提交，未推送） | `normalizedOriginKey`（按 origin 作 WebView 键，P2-1）；`RestoreDecision` / `decideRestore` 纯函数（P2-2）；`presentServer` 抽取、`showServer` 变薄包装、`showServerPicker` 首行 `clearTarget()`、`viewDidLoad` 末尾 `attemptRestore()`（P2-3，不含路径 C——P4 条件化） |
+| P2 还原判定与 key 改造 | **已完成**（本地提交，未推送） | `normalizedOriginKey`（按 origin 作 WebView 键，P2-1）；`RestoreDecision` / `decideRestore` 纯函数（P2-2）；`presentServer` 抽取、`showServer` 变薄包装、`showServerPicker` 首行 `clearTarget()`、`viewDidLoad` 末尾 `attemptRestore()`（P2-3，不含路径 C——P4 已取消） |
 | P3 挂载探测与退出路径 | **已完成**（本地提交，未推送） | `watchMount` / `pollMount`（`#root` 子节点判据 + `isLoading` 门控 + W=1.5s 宽限 + C=30s 上限）；`finishRestore`（成功撤浮层、失败回选择页）；自绘恢复浮层 + 「返回服务器列表」按钮 + 3s 自动消失的失败 toast |
-| P4 原生落盘 | 条件阶段（待 V7 结论） | 未实施 |
+| P4 原生落盘 | **已取消**（V7 通过，2026-09-24） | 不实施 |
 
-**验证（本地）**：`test:client` 847 通过 / 122 文件；`typecheck`、`build:client`、`lint`（本次改动文件 0 warning / 0 error）通过；`node --check mobile/www/picker.js` 通过；`xcodebuild -sdk iphonesimulator` **BUILD SUCCEEDED**（Swift 改动可编译，`swiftc -parse` 亦通过）。
+**验证（本地）**：**真机验收 ⑧ / V7 通过（2026-09-24，落到 B）**；`test:client` 847 通过 / 122 文件；`typecheck`、`build:client`、`lint`（本次改动文件 0 warning / 0 error）通过；`node --check mobile/www/picker.js` 通过；`xcodebuild -sdk iphonesimulator` **BUILD SUCCEEDED**（Swift 改动可编译，`swiftc -parse` 亦通过）。
 
-**未覆盖**：全部真机行为。真机加载的是 `cap sync` 产物，改过 `mobile/www/picker.js` 后须 `npm run mobile:sync` 才生效（§8.5-⑫）；V1–V8 与 §8.5 ①–⑬ 仍全部未跑。构建成功只证明可编译，不验证任何 V 项。
+**未覆盖**：除 V7 外的全部真机行为。真机加载的是 `cap sync` 产物，改过 `mobile/www/picker.js` 后须 `npm run mobile:sync` 才生效（§8.5-⑫）——已于 2026-09-24 执行，产物与源码逐字节一致；V1–V6、V8 与 §8.5 ①–⑦、⑨–⑬ 仍全部未跑。构建成功只证明可编译，不验证任何 V 项。
 
-> 注：`ios/App/App/public/picker.js` 目前仍是同步前的旧产物（仍含 `cloudcli.lastServer`），由 `npm run mobile:sync` 重新生成；该目录被 `ios/.gitignore` 忽略，不提交。
+> 注：`ios/App/App/public/` 与 `ios/App/App/capacitor.config.json` 均由 `npm run mobile:sync` 生成、被 `ios/.gitignore` 忽略，不提交。同步已完成（2026-09-24），`public/picker.js` 与 `mobile/www/picker.js` 逐字节一致，且全仓已无 `cloudcli.lastServer` 残留。
+
+---
+
+## 附：第十一轮结论（2026-09-24，真机）
+
+**V7 通过** —— 真机跑 §8.5 验收 ⑧：连服务器 A 进入某会话，切到服务器 B，在 B 上停留并让 A 在后台产生一次路由变化，随后杀进程重开 → **落到 B**。
+
+**据此收口**：`document.visibilityState` 守卫（P1-2）成立，tracker 的「可见时才写 + 转可见时自写」一个组件即覆盖事实 17 的两个窗口，故：
+
+| 项 | 结论 |
+|---|---|
+| 决策 17 / P4 | **取消**，不实施 |
+| 路径 B（`SceneDelegate.sceneDidEnterBackground` + 后台任务） | **取消** |
+| 路径 C（缓存复用分支落盘 + `currentController`） | **取消** |
+| V2（退后台 `evaluateJavaScript` 时序） | 随 P4 取消而**不再承重** |
+| 事实 10（`SceneDelegate` 无生命周期回调） | 随 P4 取消而**不再承重** |
+
+**实现范围就此封口**：P1–P3，无原生生命周期改动，`SceneDelegate.swift` 未改。
+
+**仍未跑**：V1–V6、V8 与 §8.5 验收 ①–⑦、⑨–⑬（含跨 WebView 竞争、登录态失效、SPA fallback 等降级场景）。决策 18/19 的端口规约仍为延后项（§8.7，未触发条件）。
