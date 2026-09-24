@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 
 import TOML from '@iarna/toml';
 
+import { providerSettingsSourceService } from '@/modules/providers/services/provider-settings-source.service.js';
+import { DEFAULT_CODEX_CONFIG_PATH, resolveCodexConfigOverrides } from '@/shared/codex-config.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import type {
   ProviderCurrentActiveModel,
@@ -103,8 +104,6 @@ export const CODEX_PREDEFINED_MODELS: ProviderModelsDefinition = {
   ],
   DEFAULT: 'gpt-5.6-sol',
 };
-
-const DEFAULT_CODEX_CONFIG_PATH = path.join(os.homedir(), '.codex', 'config.toml');
 
 /**
  * The subset of `~/.codex/config.toml` that describes which model Codex is
@@ -207,8 +206,39 @@ const readCodexCatalogModels = async (catalogPath: string): Promise<ProviderMode
 export class CodexProviderModels implements IProviderModels {
   constructor(private readonly configPath: string = DEFAULT_CODEX_CONFIG_PATH) {}
 
+  /**
+   * The base `config.toml` plus whatever the user's selected profile overrides.
+   *
+   * The profile is read through the same `-c` overrides the runtime hands the
+   * CLI, so the catalog the composer shows and the process that actually runs
+   * agree on which endpoint and model are in effect. Falls back to the base
+   * config when no profile is selected or the file contributes nothing.
+   */
+  private async readEffectiveConfig(): Promise<CodexConfig | null> {
+    const base = await readCodexConfig(this.configPath);
+    const profilePath = providerSettingsSourceService.resolveActiveSettingsFile('codex');
+    if (!profilePath) {
+      return base;
+    }
+
+    const overrides = await resolveCodexConfigOverrides(profilePath, this.configPath);
+    if (!overrides) {
+      return base;
+    }
+
+    // A relative `model_catalog_json` is already resolved against the declaring
+    // file by resolveCodexConfigOverrides, matching how readCodexConfig resolves
+    // the base value against this.configPath.
+    const model = readOptionalString(overrides.model) ?? base?.model;
+    const modelCatalogPath = readOptionalString(overrides.model_catalog_json) ?? base?.modelCatalogPath;
+    const modelReasoningEffort = readOptionalString(overrides.model_reasoning_effort)
+      ?? base?.modelReasoningEffort;
+
+    return model ? { model, modelCatalogPath, modelReasoningEffort } : base;
+  }
+
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
-    const config = await readCodexConfig(this.configPath);
+    const config = await this.readEffectiveConfig();
     if (!config) {
       return CODEX_PREDEFINED_MODELS;
     }
@@ -291,7 +321,7 @@ export class CodexProviderModels implements IProviderModels {
   }
 
   async getCurrentActiveModel(): Promise<ProviderCurrentActiveModel> {
-    const config = await readCodexConfig(this.configPath);
+    const config = await this.readEffectiveConfig();
     if (config?.model) {
       return {
         model: config.model,

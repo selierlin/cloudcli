@@ -844,8 +844,8 @@ router.get(
 /**
  * Provider-level custom settings source (claude --settings equivalent).
  * The client reads the current directory + active file and the live scan of
- * `settings-*.json` profiles; PUT persists the directory and active selection.
- * Only paths are stored — the user maintains the JSON files themselves.
+ * that provider's profile files; PUT persists the directory and active
+ * selection. Only paths are stored — the user maintains the files themselves.
  */
 router.get(
   '/:provider/settings-source',
