@@ -2,6 +2,7 @@ import {
   Bell,
   Bot,
   GitBranch,
+  Globe,
   Info,
   KeyRound,
   ListChecks,
@@ -65,6 +66,7 @@ export const SETTINGS_MAIN_TABS: SettingsMainTabMeta[] = [
   { id: 'browser', label: 'Browser', keywords: 'browser playwright chromium automation', icon: MonitorPlay },
   { id: 'notifications', label: 'Notifications', keywords: 'notifications alerts push', icon: Bell },
   { id: 'plugins', label: 'Plugins', keywords: 'plugins extensions integrations', icon: Plug },
+  { id: 'network', label: 'Network', keywords: 'network proxy http https gateway no_proxy', icon: Globe },
   { id: 'about', label: 'About', keywords: 'about version info', icon: Info },
 ];
 

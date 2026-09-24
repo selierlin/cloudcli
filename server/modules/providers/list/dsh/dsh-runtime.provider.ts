@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -563,37 +563,6 @@ function registerSessionWithDesktopWorkspace(acpSessionId: string, cwd: string):
 }
 
 /**
- * Injects the macOS system proxy into the child env when no proxy variable is
- * already set, so the ACP server's LLM requests reach gateways that the direct
- * path blocks. Node only honors proxy environment variables when
- * `NODE_USE_ENV_PROXY=1` is set. Non-macOS hosts and machines without a system
- * proxy leave the env untouched (direct connections).
- */
-function applySystemProxy(childEnv: NodeJS.ProcessEnv): void {
-  if (childEnv.HTTP_PROXY || childEnv.HTTPS_PROXY || childEnv.http_proxy || childEnv.https_proxy) {
-    return;
-  }
-  if (process.platform !== 'darwin') {
-    return;
-  }
-  try {
-    const output = execFileSync('scutil', ['--proxy'], { encoding: 'utf8', timeout: 3000 });
-    const value = (key: string): string | undefined => {
-      const match = new RegExp(`^\\s*${key} : (.*)$`, 'm').exec(output);
-      return match?.[1];
-    };
-    if (value('HTTPEnable') === '1' && value('HTTPProxy')) {
-      const proxyUrl = `http://${value('HTTPProxy')}:${value('HTTPPort') || '80'}`;
-      childEnv.HTTP_PROXY = proxyUrl;
-      childEnv.HTTPS_PROXY = proxyUrl;
-      childEnv.NODE_USE_ENV_PROXY = '1';
-    }
-  } catch {
-    // No system proxy configured; leave the environment untouched.
-  }
-}
-
-/**
  * Creates an ACP session, retrying across the settings-driven adapter
  * registration race: pi-ai registers provider routes from `$DSH_HOME/settings.yaml`
  * a moment after the ACP server starts serving, so a `session/new` sent in that
@@ -639,7 +608,9 @@ async function ensureAcpServer(): Promise<AcpServerState> {
   // `getDshSessionsRoot()` agree on where sessions are persisted.
   const childEnv: NodeJS.ProcessEnv = { ...process.env };
   childEnv.DSH_HOME = getDshHome();
-  applySystemProxy(childEnv);
+  // Proxy variables, when configured, come from the global network setting that
+  // the server writes onto process.env — a blank setting means the ACP server
+  // goes direct rather than falling back to the macOS system proxy.
   const child = spawn('dsh', ['--profile', DSH_ACP_PROFILE], {
     stdio: ['pipe', 'pipe', 'pipe'],
     env: childEnv,

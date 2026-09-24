@@ -125,6 +125,7 @@
     "browser": "Browser",
     "notifications": "Notifications",
     "plugins": "Plugins",
+    "network": "Network",
     "about": "About"
   },
   "browser": {
@@ -1089,6 +1090,17 @@
     "teamManagementDescription": "Multiple users, role-based access, and shared projects for your team.",
     "licensed": "Licensed under AGPL-3.0",
     "proCta": "Available with CloudCLI Pro"
+  },
+  "network": {
+    "title": "Network",
+    "description": "HTTP proxy shared by CloudCLI and every agent it starts.",
+    "hint": "Applies to every agent (Claude, Codex, WorkBuddy, Pi, DSH, …) and to CloudCLI itself. Saving takes effect on the next session; running sessions keep their current network environment.",
+    "urlLabel": "Proxy URL",
+    "urlHint": "Example: http://127.0.0.1:7890. Clear the field and save to stop using a proxy — localhost addresses always bypass it.",
+    "save": "Save",
+    "loading": "Loading…",
+    "loadError": "Failed to load the proxy setting.",
+    "saveError": "Failed to save the proxy setting."
   },
   "quickRepliesSettings": {
     "title": "Quick replies",
