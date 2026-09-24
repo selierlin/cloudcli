@@ -21,6 +21,7 @@ import {
   createCompleteMessage,
   createNormalizedMessage,
 } from '@/shared/index.js';
+import { resolveCodexConfigOverrides } from '@/shared/codex-config.js';
 import { notifyRunFailed, notifyRunStopped } from '@/modules/notifications/index.js';
 import type { AnyRecord, ProviderRuntimeContext, ProviderRuntimeWriter } from '@/shared/index.js';
 
@@ -282,6 +283,15 @@ async function queryCodex(
   // provider-native id recorded on the session row.
   const providerSessionId = context.resolveProviderSessionId(sessionId);
 
+  // Provider-level custom config file (the Codex counterpart of
+  // `claude --settings`), read once per run. Guarded so unit tests can pass a
+  // context without it. The SDK has no `--profile` passthrough, so the selected
+  // profile is layered over `~/.codex/config.toml` as `--config` overrides.
+  const profilePath = (typeof context.resolveSettingsFile === 'function')
+    ? context.resolveSettingsFile(sessionId)
+    : null;
+  const configOverrides = profilePath ? await resolveCodexConfigOverrides(profilePath) : null;
+
   const resolvedModel = await context.resolveResumeModel(sessionId, model);
 
   const workingDirectory = cwd || projectPath || process.cwd();
@@ -312,7 +322,7 @@ async function queryCodex(
   const sessionKey = () => sessionId || capturedSessionId || null;
 
   try {
-    codex = new Codex();
+    codex = new Codex(configOverrides ? { config: configOverrides } : undefined);
 
     const threadOptions: ThreadOptions = {
       workingDirectory,

@@ -149,3 +149,44 @@ test('providerSettingsSourceService isolates values per provider', async () => {
     assert.equal(providerSettingsSourceService.resolveActiveSettingsFile('codex'), null);
   });
 });
+
+test('providerSettingsSourceService scans config-*.toml profiles for codex', async () => {
+  await withIsolatedDatabase(async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'codex-files-'));
+    try {
+      await writeFile(path.join(dir, 'config-ark.toml'), 'model = "ark"\n', 'utf8');
+      await writeFile(path.join(dir, 'config-mimo.toml'), 'model = "mimo"\n', 'utf8');
+      // Ignored: the base config file is not a profile.
+      await writeFile(path.join(dir, 'config.toml'), 'model = "base"\n', 'utf8');
+      // Ignored: unrelated extensions and Claude's own naming.
+      await writeFile(path.join(dir, 'notes.toml'), 'x = 1\n', 'utf8');
+      await writeFile(path.join(dir, 'settings-glm.json'), '{}', 'utf8');
+
+      const source = await providerSettingsSourceService.updateSource('codex', { directory: dir });
+
+      assert.equal(source.directoryError, null);
+      assert.deepEqual(source.profiles.map((profile) => profile.name), ['ark', 'mimo']);
+      assert.deepEqual(
+        source.profiles.map((profile) => profile.path),
+        [path.join(dir, 'config-ark.toml'), path.join(dir, 'config-mimo.toml')],
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+test('providerSettingsSourceService reports no profiles for providers without a scan rule', async () => {
+  await withIsolatedDatabase(async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'no-convention-'));
+    try {
+      await writeFile(path.join(dir, 'config-mimo.toml'), 'model = "mimo"\n', 'utf8');
+
+      const source = await providerSettingsSourceService.updateSource('cursor', { directory: dir });
+
+      assert.deepEqual(source.profiles, []);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

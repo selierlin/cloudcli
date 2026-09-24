@@ -524,20 +524,32 @@
       "cursorCliNotFound": "Cursor CLI is not installed or could not be found."
     },
     "settingsSource": {
-      "title": "Settings file (claude --settings)",
-      "description": "Load a user-maintained Claude settings JSON on every run — useful for pointing at a relay (ANTHROPIC_BASE_URL, auth token, custom model). CloudCLI only stores paths; keep the file contents yourself.",
-      "directoryLabel": "Settings directory",
-      "directoryHint": "Every settings-*.json (or setting-*.json) in this directory is listed below as a profile.",
+      "title": {
+        "claude": "Settings file (claude --settings)",
+        "codex": "Config file (Codex -c overrides)"
+      },
+      "description": {
+        "claude": "Load a user-maintained Claude settings JSON on every run — useful for pointing at a relay (ANTHROPIC_BASE_URL, auth token, custom model). CloudCLI only stores paths; keep the file contents yourself.",
+        "codex": "Layer a user-maintained Codex config TOML over ~/.codex/config.toml on every run — useful for switching relays (base URL, auth token, custom model). CloudCLI only stores paths; keep the file contents yourself."
+      },
+      "directoryLabel": "Config directory",
+      "directoryHint": {
+        "claude": "Every settings-*.json (or setting-*.json) in this directory is listed below as a profile.",
+        "codex": "Every config-*.toml in this directory is listed below as a profile; config.toml itself is never listed."
+      },
       "saveDirectory": "Scan directory",
-      "activeLabel": "Active settings file",
-      "activeNone": "None (use default settings)",
-      "activeHint": "The selected file is loaded on every Claude run, equivalent to passing --settings.",
-      "customPathLabel": "Or point at a single settings file",
+      "activeLabel": "Active config file",
+      "activeNone": "None (use default config)",
+      "activeHint": {
+        "claude": "The selected file is loaded on every Claude run, equivalent to passing --settings.",
+        "codex": "The selected file is layered over ~/.codex/config.toml as -c overrides on every Codex run."
+      },
+      "customPathLabel": "Or point at a single config file",
       "applyPath": "Apply",
       "clear": "Clear",
       "current": "Current: {{path}}",
-      "loadError": "Failed to load the Claude settings configuration.",
-      "saveError": "Failed to save the Claude settings configuration.",
+      "loadError": "Failed to load the config source.",
+      "saveError": "Failed to save the config source.",
       "saving": "Saving…"
     }
   },

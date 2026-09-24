@@ -2,9 +2,9 @@ import type { AgentCategory, AgentContextByProvider, AgentProvider, AgentSetting
 import { McpServers } from '@/modules/mcp';
 import { ProviderSkills } from '@/modules/skills';
 import AccountContent from '@/modules/settings/tabs/agents-settings/sections/content/AccountContent';
-import ClaudeSettingsSourceSection from '@/modules/settings/tabs/agents-settings/sections/content/ClaudeSettingsSourceSection';
 import PermissionsContent from '@/modules/settings/tabs/agents-settings/sections/content/PermissionsContent';
 import ProviderQuotaSection from '@/modules/settings/tabs/agents-settings/sections/content/ProviderQuotaSection';
+import ProviderSettingsSourceSection from '@/modules/settings/tabs/agents-settings/sections/content/ProviderSettingsSourceSection';
 
 type AgentCategoryContentSectionProps = {
   selectedAgent: AgentProvider;
@@ -58,7 +58,9 @@ export default function AgentCategoryContentSection({
             onLogin={agentContextById[selectedAgent].onLogin}
           />
           <ProviderQuotaSection agent={selectedAgent} />
-          {selectedAgent === 'claude' && <ClaudeSettingsSourceSection />}
+          {(selectedAgent === 'claude' || selectedAgent === 'codex') && (
+            <ProviderSettingsSourceSection provider={selectedAgent} />
+          )}
         </div>
       )}
 

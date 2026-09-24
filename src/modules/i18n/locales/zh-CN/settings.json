@@ -507,20 +507,32 @@
       "cursorCliNotFound": "未找到 Cursor CLI，或 Cursor CLI 尚未安装。"
     },
     "settingsSource": {
-      "title": "配置文件 (claude --settings)",
-      "description": "每次运行时加载一份你自行维护的 Claude settings JSON——适用于指向中转站（ANTHROPIC_BASE_URL、认证 token、自定义模型等）。CloudCLI 只保存路径，文件内容由你维护。",
+      "title": {
+        "claude": "配置文件 (claude --settings)",
+        "codex": "配置文件 (Codex -c 覆盖)"
+      },
+      "description": {
+        "claude": "每次运行时加载一份你自行维护的 Claude settings JSON——适用于指向中转站（ANTHROPIC_BASE_URL、认证 token、自定义模型等）。CloudCLI 只保存路径，文件内容由你维护。",
+        "codex": "每次运行时把选中的 Codex config TOML 叠加到 ~/.codex/config.toml 之上（等价于逐条 -c 覆盖）——适用于切换中转（base URL、认证 token、默认模型）。CloudCLI 只保存路径，文件内容由你维护。"
+      },
       "directoryLabel": "配置目录",
-      "directoryHint": "该目录下的所有 settings-*.json（或 setting-*.json）会自动作为配置档列出。",
+      "directoryHint": {
+        "claude": "该目录下的所有 settings-*.json（或 setting-*.json）会自动作为配置档列出。",
+        "codex": "该目录下的所有 config-*.toml 会自动作为配置档列出；config.toml 本身不会被列出。"
+      },
       "saveDirectory": "扫描目录",
       "activeLabel": "当前生效的配置文件",
       "activeNone": "无（使用默认配置）",
-      "activeHint": "选中的文件会在每次 Claude 运行时加载，等价于传入 --settings。",
+      "activeHint": {
+        "claude": "选中的文件会在每次 Claude 运行时加载，等价于传入 --settings。",
+        "codex": "选中的文件会在每次 Codex 运行时作为 -c 覆盖叠加到 ~/.codex/config.toml 之上。"
+      },
       "customPathLabel": "或指定单个配置文件路径",
       "applyPath": "应用",
       "clear": "清除",
       "current": "当前：{{path}}",
-      "loadError": "加载 Claude 配置失败。",
-      "saveError": "保存 Claude 配置失败。",
+      "loadError": "加载配置失败。",
+      "saveError": "保存配置失败。",
       "saving": "保存中…"
     }
   },
