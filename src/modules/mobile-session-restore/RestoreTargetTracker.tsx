@@ -18,6 +18,7 @@ export function RestoreTargetTracker() {
 
   // Re-run on every route change so the persisted target tracks the active session, and on
   // visibility changes so a WebView that becomes visible again re-asserts its own URL.
+  // Both paths verified on device (acceptance ⑦/⑧, 2026-09-24).
   useEffect(() => {
     void persistRestoreTarget();
     const onVisibilityChange = () => void persistRestoreTarget();
