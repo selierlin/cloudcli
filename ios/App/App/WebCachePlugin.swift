@@ -30,7 +30,7 @@ enum RestoreTargetStore {
         return url
     }
 
-    /// 写还原目标。**所有写入路径（tracker / picker connect / 路径 B / 路径 C）都走这里**，
+    /// 写还原目标。**所有写入路径（tracker / picker connect）都走这里**（路径 B/C 已随 P4 取消），
     /// 契约统一为 `{ "url": <绝对 URL> }`（第十轮起不含计数，见决策 15）。
     static func writeTargetURL(_ url: URL) {
         guard let data = try? JSONSerialization.data(withJSONObject: ["url": url.absoluteString]),
@@ -320,7 +320,7 @@ final class CloudCLIContainerViewController: UIViewController, CloudCLIServerSes
                 serverController.loadServer(url)
             }
             // 缓存命中且无需重载时，该 WebView 转回可见会触发前端 tracker 的 visibilitychange
-            // 自写（P1-2），无需在此落盘。仅当 V7 破、实施 P4 时才加回路径 C（决策 17）。
+            // 自写（P1-2），无需在此落盘。该守卫已由真机 V7 证实（2026-09-24），故路径 C 取消。
         } else {
             serverController = CloudCLIBridgeViewController()
             serverControllers[key] = serverController
