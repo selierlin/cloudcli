@@ -463,6 +463,12 @@ export const api = {
     ) => put(`/api/providers/${encodeURIComponent(provider)}/settings-source`, input),
   },
 
+  // Global network proxy shared by CloudCLI and every agent CLI it spawns.
+  network: {
+    proxy: () => get('/api/network/proxy'),
+    updateProxy: (input: { proxyUrl: string }) => put('/api/network/proxy', input),
+  },
+
   // Slash commands
   commands: {
     // `projectPath` stays optional: a workspace without a resolved path omits

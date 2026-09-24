@@ -125,6 +125,7 @@
     "browser": "浏览器",
     "notifications": "通知",
     "plugins": "插件",
+    "network": "网络",
     "about": "关于"
   },
   "browser": {
@@ -898,6 +899,17 @@
     "installAriaLabel": "插件 git 仓库 URL",
     "tab": "标签",
     "runningStatus": "运行中"
+  },
+  "network": {
+    "title": "网络",
+    "description": "CloudCLI 及其启动的每个智能体共用的 HTTP 代理。",
+    "hint": "对所有智能体（Claude、Codex、WorkBuddy、Pi、DSH 等）以及 CloudCLI 自身生效。保存后从下一次会话开始使用；正在运行的会话保持原有的网络环境。",
+    "urlLabel": "代理地址",
+    "urlHint": "例如 http://127.0.0.1:7890。清空并保存即不再使用代理——本机地址（localhost）始终直连。",
+    "save": "保存",
+    "loading": "加载中…",
+    "loadError": "加载代理设置失败。",
+    "saveError": "保存代理设置失败。"
   },
   "quickRepliesSettings": {
     "title": "快捷回复",

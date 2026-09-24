@@ -54,6 +54,7 @@ import { worktreesRoutes } from './modules/worktrees/index.js';
 import browserUseMcpRoutes from './modules/browser-use/browser-use-mcp.routes.js';
 import { browserUseService } from './modules/browser-use/browser-use.service.js';
 import { initializeDatabase, sessionsDb } from './modules/database/index.js';
+import { applyProxyToProcessEnv, networkRoutes } from './modules/network/index.js';
 import { configureWebPush } from './modules/notifications/index.js';
 
 const __dirname = getModuleDirectory(import.meta.url);
@@ -232,6 +233,9 @@ app.use('/api/browser-use', authenticateToken, browserUseRoutes);
 app.use('/api/providers', authenticateToken, providerRoutes);
 app.use('/api/scheduled-messages', authenticateToken, scheduledMessagesRoutes);
 
+// Global network proxy (protected)
+app.use('/api/network', authenticateToken, networkRoutes);
+
 // Agent API Routes (uses API key authentication)
 app.use('/api/agent', agentRoutes);
 
@@ -367,6 +371,10 @@ async function startServer() {
     try {
         // Initialize authentication database
         await initializeDatabase();
+
+        // Apply the stored global proxy to process.env before any session can
+        // spawn, so every harness inherits the same decision.
+        applyProxyToProcessEnv();
 
         // Configure Web Push (VAPID keys)
         configureWebPush();

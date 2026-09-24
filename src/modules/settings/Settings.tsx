@@ -10,6 +10,7 @@ import AppearanceSettingsTab from '@/modules/settings/tabs/AppearanceSettingsTab
 import CredentialsSettingsTab from '@/modules/settings/tabs/api-settings/CredentialsSettingsTab';
 import VoiceSettingsTab from '@/modules/settings/tabs/VoiceSettingsTab';
 import QuickRepliesSettingsTab from '@/modules/settings/tabs/QuickRepliesSettingsTab';
+import NetworkSettingsTab from '@/modules/settings/tabs/NetworkSettingsTab';
 import GitSettingsTab from '@/modules/settings/tabs/git-settings/GitSettingsTab';
 import BrowserUseSettingsTab from '@/modules/settings/tabs/browser-use-settings/BrowserUseSettingsTab';
 import NotificationsSettingsTab from '@/modules/settings/tabs/NotificationsSettingsTab';
@@ -299,6 +300,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
               {activeTab === 'quickReplies' && <QuickRepliesSettingsTab />}
 
               {activeTab === 'plugins' && <PluginSettingsTab />}
+
+              {activeTab === 'network' && <NetworkSettingsTab />}
 
               {activeTab === 'about' && <AboutTab />}
             </div>
