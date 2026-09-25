@@ -311,9 +311,17 @@ export const CLOUDCLI_SERVERS_KEY = 'cloudcli.servers';
 /**
  * The themes shipped with the app, in selector order. `cc-light` and `cc-dark`
  * are the two default appearances and declare no overlay of their own: their
- * palette is exactly the one `src/index.css` declares in `:root` / `.dark`.
- * Every further built-in theme is an overlay on top of one of those, applied
- * through the `[data-theme="<id>"]` rules the stylesheet declares.
+ * palette is exactly the one `src/index.css` declares in `:root` / `.dark`, and
+ * they are what `data-theme` falls back to when no overlay is picked (which is
+ * why they are not offered in the selector — "no overlay" is the absence of a
+ * `themeId`, not one of these ids).
+ *
+ * Every further built-in theme is an overlay: `appearance: 'system'`, applied
+ * through the `[data-theme="<id>"]` rules the stylesheet declares outside any
+ * `@layer`. An overlay theme paints both appearances, so the light/dark capsule
+ * stays the single appearance control. `coverage` says how far it reaches
+ * (`accent` = the accent family only, `full` = substrate, terminal, editor and
+ * graph as well) and is what the selector's badge reports.
  *
  * Read by the theme provider, which writes the id matching the current
  * appearance to `<html data-theme>`, and by the appearance settings' theme
@@ -333,6 +341,13 @@ export const BUILTIN_THEMES: ThemeManifest[] = [
     appearance: 'dark',
     source: 'builtin',
     coverage: 'full',
+  },
+  {
+    id: 'cc-ocean',
+    name: '海洋',
+    appearance: 'system',
+    source: 'builtin',
+    coverage: 'accent',
   },
 ];
 

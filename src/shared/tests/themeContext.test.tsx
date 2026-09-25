@@ -105,9 +105,10 @@ test('system mode stays local when another device has an explicit theme', () => 
 });
 
 /**
- * `<html data-theme>` is how a theme's overlay is selected, so it has to track
- * the appearance even while every built-in theme resolves to the base palette —
- * the attribute is the contract the overlay rules and the contract tests key on.
+ * `<html data-theme>` is how a theme's overlay is selected, so it has to be
+ * written even when nothing is picked: the two appearance defaults are what the
+ * document falls back to, and the attribute is the contract the overlay rules
+ * and the contract tests key on.
  */
 test('the built-in theme id follows the appearance', () => {
   const { result } = renderHook(() => useTheme(), { wrapper });
@@ -160,11 +161,29 @@ test('the browser chrome follows the appearance', () => {
   assert.equal(chromeContent('apple-mobile-web-app-status-bar-style'), 'black-translucent');
 });
 
-test('both appearances are registered as built-in themes', () => {
+test('the registry keeps the appearance defaults and the overlay themes apart', () => {
+  const ids = BUILTIN_THEMES.map((manifest) => manifest.id);
+  assert.equal(new Set(ids).size, ids.length, 'built-in ids must be unique');
+
   for (const appearance of ['light', 'dark'] as const) {
     const matches = BUILTIN_THEMES.filter((manifest) => manifest.appearance === appearance);
     assert.equal(matches.length, 1, `expected exactly one built-in ${appearance} theme`);
     assert.ok(matches[0].id.startsWith('cc-'), 'built-in ids must keep the cc- prefix');
+    assert.equal(
+      matches[0].coverage,
+      'full',
+      'an appearance default is the whole palette, not an overlay',
+    );
+  }
+
+  // `appearance: 'system'` is what marks a theme as an overlay: it is not bound to
+  // one appearance, it is what the selector offers, and it is the only kind that
+  // declares `[data-theme]` rules.
+  const overlays = BUILTIN_THEMES.filter((manifest) => manifest.appearance === 'system');
+  assert.ok(overlays.length > 0, 'the selector has nothing to offer without an overlay theme');
+  for (const overlay of overlays) {
+    assert.ok(overlay.id.startsWith('cc-'), 'built-in ids must keep the cc- prefix');
+    assert.ok(overlay.coverage, `${overlay.id} must declare its reach for the selector badge`);
   }
 });
 
@@ -175,9 +194,9 @@ afterEach(() => {
 /**
  * The overlay axis is orthogonal to the appearance one: `themeId` picks which
  * `[data-theme]` rule is layered on, while the light/dark/system capsule stays
- * the only thing deciding which half of the palette is in force. A pick is
- * therefore applied on top of the appearance, not instead of it — which is why
- * choosing `cc-dark` here leaves the light appearance alone.
+ * the only thing deciding which half of the palette is in force. An overlay
+ * theme paints both halves, which is why picking one here leaves the light
+ * appearance alone.
  */
 test('picking an overlay applies it to the document', () => {
   const { result } = renderHook(() => useTheme(), { wrapper });
@@ -185,20 +204,20 @@ test('picking an overlay applies it to the document', () => {
   assert.equal(result.current.resolvedThemeId, 'cc-light');
 
   act(() => {
-    result.current.setThemeId('cc-dark');
+    result.current.setThemeId('cc-ocean');
   });
 
-  assert.equal(result.current.themeId, 'cc-dark');
-  assert.equal(result.current.resolvedThemeId, 'cc-dark');
-  assert.equal(document.documentElement.dataset.theme, 'cc-dark');
-  assert.equal(readUserPreference('themeId', null), 'cc-dark');
+  assert.equal(result.current.themeId, 'cc-ocean');
+  assert.equal(result.current.resolvedThemeId, 'cc-ocean');
+  assert.equal(document.documentElement.dataset.theme, 'cc-ocean');
+  assert.equal(readUserPreference('themeId', null), 'cc-ocean');
 });
 
 test('clearing the overlay returns to the appearance default', () => {
-  writeUserPreference('themeId', 'cc-dark');
+  writeUserPreference('themeId', 'cc-ocean');
 
   const { result } = renderHook(() => useTheme(), { wrapper });
-  assert.equal(document.documentElement.dataset.theme, 'cc-dark');
+  assert.equal(document.documentElement.dataset.theme, 'cc-ocean');
 
   act(() => {
     result.current.setThemeId(null);
@@ -219,11 +238,11 @@ test('an overlay picked elsewhere is adopted here', () => {
   const { result } = renderHook(() => useTheme(), { wrapper });
 
   act(() => {
-    writeUserPreference('themeId', 'cc-dark');
+    writeUserPreference('themeId', 'cc-ocean');
   });
 
-  assert.equal(result.current.themeId, 'cc-dark');
-  assert.equal(document.documentElement.dataset.theme, 'cc-dark');
+  assert.equal(result.current.themeId, 'cc-ocean');
+  assert.equal(document.documentElement.dataset.theme, 'cc-ocean');
 });
 
 test('an overlay pick is stored even while the appearance follows the system', () => {
@@ -231,10 +250,10 @@ test('an overlay pick is stored even while the appearance follows the system', (
   assert.equal(result.current.theme, 'system');
 
   act(() => {
-    result.current.setThemeId('cc-dark');
+    result.current.setThemeId('cc-ocean');
   });
 
-  assert.equal(readUserPreference('themeId', null), 'cc-dark');
+  assert.equal(readUserPreference('themeId', null), 'cc-ocean');
   assert.equal(
     readUserPreference('theme', null),
     null,
@@ -250,15 +269,15 @@ test('an overlay pick is stored even while the appearance follows the system', (
  */
 test('an overlay this device does not ship falls back to the appearance default', () => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-  writeUserPreference('themeId', 'cc-ocean');
+  writeUserPreference('themeId', 'cc-not-installed');
 
   const { result } = renderHook(() => useTheme(), { wrapper });
 
-  assert.equal(result.current.themeId, 'cc-ocean', 'the pick is still reported back');
+  assert.equal(result.current.themeId, 'cc-not-installed', 'the pick is still reported back');
   assert.equal(result.current.resolvedThemeId, 'cc-light');
   assert.equal(document.documentElement.dataset.theme, 'cc-light');
   assert.ok(
-    warn.mock.calls.some(([message]) => String(message).includes('cc-ocean')),
+    warn.mock.calls.some(([message]) => String(message).includes('cc-not-installed')),
     'the fallback must be announced rather than silent',
   );
 });

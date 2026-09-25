@@ -12,6 +12,7 @@
     "./graph-lanes.spec.ts",
     "./mobile-terminal-selection.spec.ts",
     "./theme-chrome.spec.ts",
+    "./theme-overlays.spec.ts",
     "./vite.config.ts"
   ]
 }
