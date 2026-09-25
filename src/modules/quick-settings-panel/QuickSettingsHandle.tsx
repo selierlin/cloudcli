@@ -40,7 +40,7 @@ export default function QuickSettingsHandle({
   const placementClass = isOpen ? 'right-80' : 'right-0';
   const borderClass = isDragging
     ? 'border-blue-500 dark:border-blue-400'
-    : 'border-gray-200 dark:border-gray-700';
+    : 'border-n-gray-200 dark:border-n-gray-700';
   const transitionClass = isDragging
     ? ''
     : 'transition-all duration-150 ease-out';
@@ -63,7 +63,7 @@ export default function QuickSettingsHandle({
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
       onLostPointerCapture={onLostPointerCapture}
-      className={`fixed ${placementClass} z-50 ${transitionClass} border bg-white dark:bg-gray-800 ${borderClass} rounded-l-md p-2 shadow-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 ${cursorClass} touch-none`}
+      className={`fixed ${placementClass} z-50 ${transitionClass} border bg-n-white dark:bg-n-gray-800 ${borderClass} rounded-l-md p-2 shadow-lg transition-colors hover:bg-n-gray-100 dark:hover:bg-n-gray-700 ${cursorClass} touch-none`}
       style={{
         ...style,
         touchAction: 'none',
@@ -76,9 +76,9 @@ export default function QuickSettingsHandle({
       {isDragging ? (
         <GripVertical className="h-5 w-5 text-blue-500 dark:text-blue-400" />
       ) : isOpen ? (
-        <ChevronRight className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+        <ChevronRight className="h-5 w-5 text-n-gray-600 dark:text-n-gray-400" />
       ) : (
-        <ChevronLeft className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+        <ChevronLeft className="h-5 w-5 text-n-gray-600 dark:text-n-gray-400" />
       )}
     </button>
   );
