@@ -1,5 +1,5 @@
 {
-  "total": 595,
+  "total": 567,
   "byFile": {
     "src/modules/browser-use/BrowserUsePanel.tsx": 11,
     "src/modules/chat/composer/CommandMenu.tsx": 6,
@@ -34,7 +34,6 @@
     "src/modules/code-editor/markdown/MermaidDiagram.tsx": 3,
     "src/modules/file-tree/FileTree.tsx": 4,
     "src/modules/file-tree/ImageViewer.tsx": 14,
-    "src/modules/file-tree/utils/fileIcons.ts": 28,
     "src/modules/git-panel/GitPanelHeader.tsx": 2,
     "src/modules/git-panel/modals/ConfirmActionModal.tsx": 2,
     "src/modules/git-panel/modals/MergeWorktreeModal.tsx": 1,
@@ -124,8 +123,8 @@
     "text: gray-100": 8,
     "text: gray-200": 6,
     "text: gray-300": 19,
-    "text: gray-400": 74,
-    "text: gray-500": 55,
+    "text: gray-400": 67,
+    "text: gray-500": 34,
     "text: gray-600": 35,
     "text: gray-700": 13,
     "text: gray-800": 1,
