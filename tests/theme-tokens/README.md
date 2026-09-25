@@ -66,7 +66,8 @@ too:
 | `graph-lanes.spec.ts` | the commit-graph lanes and the ref-badge tint back to the hex array `commitGraph.ts` shipped with |
 | `mobile-terminal-selection.spec.ts` | the long-press handle and context menu back to the literals `mobileTerminalSelection.ts` shipped with |
 | `theme-chrome.spec.ts` | the `theme-color` / iOS status-bar metas to the resolved `--background`, plus the token override, translucent flattening and unknown-token fallback paths |
-| `theme-overlays.spec.ts` | each `[data-theme]` overlay: that it is declared outside any `@layer`, that it resolves as written, and that it moves exactly the surfaces its `coverage` advertises |
+| `theme-overlays.spec.ts` | each `[data-theme]` overlay: that it is declared outside any `@layer`, that it resolves as written, that it moves exactly the surfaces its `coverage` advertises, and that the traversal is complete in both directions (no unregistered `[data-theme]` block, no registered theme without one) |
+| `contrast.spec.ts` | the WCAG AA floors of §5.10 — body / secondary / button text at 4.5:1, the focus ring at 3:1 — for the base palette and every overlay |
 
 ## Overlay themes
 
@@ -91,6 +92,20 @@ values are literals rather than palette references) has to split into a
 and still resolve correctly for any token the dark half repeats, so only a token
 forgotten in the dark half would leak — and the leak check keys on the scoping to
 catch exactly that.
+
+## Contrast floors (§5.10)
+
+`contrast.spec.ts` measures six pairs — `--foreground` and `--muted-foreground`
+on `--background` and `--card`, the button label on `--primary`, and `--ring` on
+`--background` — for the base palette and each overlay, in both appearances. It
+reads the fixture's `rendered` layer, so the ratio comes from the colour the
+browser paints rather than from the triplet; a pair whose token is not probed
+fails with a message naming it instead of reading `NaN` and passing.
+
+The base palette is included on purpose. It is what ships when no theme is
+picked, and an `accent` overlay inherits its substrate untouched — so a base
+value below the floor takes every accent theme down with it, which is exactly how
+`--palette-sand-500` came to be pinned at 43%.
 
 ## Updating the baseline
 

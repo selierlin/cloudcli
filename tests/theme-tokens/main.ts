@@ -134,9 +134,15 @@ const PROBES: Probe[] = [
   ...EDITOR_PROBE_TOKENS.map((token) => ({ token, property: 'color', wrap: 'raw' as const })),
   { token: '--background', property: 'backgroundColor' },
   { token: '--foreground', property: 'color' },
+  { token: '--card', property: 'backgroundColor' },
   { token: '--primary', property: 'backgroundColor' },
+  { token: '--primary-foreground', property: 'color' },
   { token: '--border', property: 'backgroundColor' },
   { token: '--muted-foreground', property: 'color' },
+  // Consumed as `ring-ring` writes it (Tailwind maps the `ring` colour to
+  // `hsl(var(--ring))`), and read back by the contrast suite's focus-visibility
+  // pair — no other check resolves this token to a colour.
+  { token: '--ring', property: 'color' },
   { token: '--nav-glass-bg', property: 'backgroundColor' },
   { token: '--nav-tab-glow', property: 'backgroundColor' },
   ...NEUTRAL_SCALE_PROBE_TOKENS.map((token) => ({ token, property: 'backgroundColor' })),
