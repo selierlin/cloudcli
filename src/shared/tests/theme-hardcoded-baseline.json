@@ -1,5 +1,5 @@
 {
-  "total": 338,
+  "total": 324,
   "byFile": {
     "src/modules/browser-use/BrowserUsePanel.tsx": 11,
     "src/modules/chat/composer/CommandMenu.tsx": 6,
@@ -56,7 +56,6 @@
     "src/modules/shell/Shell.tsx": 7,
     "src/modules/shell/ShellConnectionOverlay.tsx": 7,
     "src/modules/shell/ShellEmptyState.tsx": 5,
-    "src/modules/shell/ShellHeader.tsx": 14,
     "src/modules/shell/ShellMinimalView.tsx": 1,
     "src/modules/shell/TerminalShortcutsPanel.tsx": 11,
     "src/modules/sidebar/SessionOptions.tsx": 6,
@@ -82,8 +81,8 @@
     "bg: gray-50": 9,
     "bg: gray-500": 1,
     "bg: gray-600": 2,
-    "bg: gray-700": 11,
-    "bg: gray-800": 17,
+    "bg: gray-700": 9,
+    "bg: gray-800": 16,
     "bg: gray-900": 17,
     "bg: gray-950": 4,
     "bg: neutral-950": 1,
@@ -97,16 +96,16 @@
     "border: gray-300": 1,
     "border: gray-400": 2,
     "border: gray-500": 1,
-    "border: gray-600": 5,
-    "border: gray-700": 19,
+    "border: gray-600": 3,
+    "border: gray-700": 18,
     "border: slate-500": 1,
     "border: white": 4,
     "shadow: black": 2,
-    "text: gray-100": 7,
+    "text: gray-100": 5,
     "text: gray-200": 5,
     "text: gray-300": 11,
-    "text: gray-400": 36,
-    "text: gray-500": 23,
+    "text: gray-400": 35,
+    "text: gray-500": 22,
     "text: gray-600": 14,
     "text: gray-700": 7,
     "text: gray-900": 8,
@@ -115,6 +114,6 @@
     "text: neutral-500": 1,
     "text: slate-300": 2,
     "text: slate-700": 2,
-    "text: white": 47
+    "text: white": 43
   }
 }
