@@ -75,8 +75,8 @@ const getIndicatorConfig = (status: TaskIndicatorStatus): IndicatorConfig => {
 
   return {
     icon: X,
-    colorClassName: 'text-gray-400 dark:text-gray-500',
-    backgroundClassName: 'bg-gray-50 dark:bg-gray-900',
+    colorClassName: 'text-n-gray-400 dark:text-n-gray-500',
+    backgroundClassName: 'bg-n-gray-50 dark:bg-n-gray-900',
     label: 'No TaskMaster',
     title: 'TaskMaster not configured',
   };
