@@ -1,5 +1,5 @@
 {
-  "total": 32,
+  "total": 30,
   "byFile": {
     "src/modules/chat/composer/ComposerAttachment.tsx": 1,
     "src/modules/chat/composer/PromptInput.tsx": 1,
@@ -7,7 +7,6 @@
     "src/modules/chat/modals/CommandResultModal.tsx": 1,
     "src/modules/chat/transcript/Markdown.tsx": 1,
     "src/modules/code-editor/CodeEditor.tsx": 1,
-    "src/modules/git-panel/modals/ConfirmActionModal.tsx": 2,
     "src/modules/git-panel/modals/MergeWorktreeModal.tsx": 1,
     "src/modules/git-panel/modals/NewBranchModal.tsx": 1,
     "src/modules/git-panel/modals/NewWorktreeModal.tsx": 1,
@@ -29,7 +28,7 @@
     "src/shared/ui/Dialog.tsx": 1
   },
   "byAtom": {
-    "bg: black": 7,
+    "bg: black": 6,
     "bg: gray-900": 1,
     "bg: white": 4,
     "bg: zinc-500": 1,
@@ -37,6 +36,6 @@
     "border: gray-200": 1,
     "border: gray-700": 1,
     "shadow: black": 2,
-    "text: white": 14
+    "text: white": 13
   }
 }

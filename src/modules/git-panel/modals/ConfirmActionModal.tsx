@@ -115,7 +115,7 @@ export default function ConfirmActionModal({ action, onCancel, onConfirm }: Conf
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={handleCancel} />
+      <div className="fixed inset-0 bg-n-black/60 backdrop-blur-sm" onClick={handleCancel} />
       {/*
         Capped to the viewport with only the message scrolling, so a long body
         (a multi-paragraph commit message, a long file list) can never push the
@@ -174,7 +174,7 @@ export default function ConfirmActionModal({ action, onCancel, onConfirm }: Conf
           </button>
           <button
             onClick={handleConfirm}
-            className={`flex items-center space-x-2 rounded-lg px-4 py-2 text-sm text-white transition-colors ${CONFIRMATION_BUTTON_CLASSES[action.type]}`}
+            className={`flex items-center space-x-2 rounded-lg px-4 py-2 text-sm text-n-white transition-colors ${CONFIRMATION_BUTTON_CLASSES[action.type]}`}
           >
             {renderConfirmActionIcon(action.type)}
             <span>
