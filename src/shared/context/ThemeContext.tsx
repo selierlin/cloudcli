@@ -85,6 +85,15 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     // here because the appearance is what decides which default is current.
     document.documentElement.dataset.theme = builtinThemeIdFor(isDarkMode ? 'dark' : 'light');
 
+    // Hand the appearance to the UA so the parts we do not paint ourselves —
+    // native `select` popups, scroll containers that carry no scrollbar utility,
+    // date pickers, the canvas behind the body — follow it instead of the OS
+    // preference. Unlike everything else in this effect this is a *deliberate
+    // visual change*, not an inert interface: `index.css` grew a block of
+    // hand-written `rgb()` compensations imitating exactly this, and re-auditing
+    // which of them are still needed is a separate slice.
+    document.documentElement.style.colorScheme = isDarkMode ? 'dark' : 'light';
+
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
 
