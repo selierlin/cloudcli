@@ -196,6 +196,16 @@
     "dark": "Dark",
     "system": "System"
   },
+  "themeSelector": {
+    "label": "Colour theme",
+    "description": "Recolours the interface without changing the light or dark appearance",
+    "default": "Default",
+    "coverage": {
+      "accent": "Accent",
+      "full": "Full"
+    },
+    "notInstalled": "\"{{id}}\" is not installed on this device; using the default."
+  },
   "appearanceSettings": {
     "projectSorting": {
       "label": "Project Sorting",

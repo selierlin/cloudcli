@@ -15,6 +15,7 @@ import SettingsCard from '@/modules/settings/SettingsCard';
 import SettingsRow from '@/modules/settings/SettingsRow';
 import SettingsSection from '@/modules/settings/SettingsSection';
 import SettingsToggle from '@/modules/settings/SettingsToggle';
+import ThemeSelector from '@/modules/settings/ThemeSelector';
 
 const FONT_SELECT_CLASS =
   'w-full touch-manipulation rounded-lg border border-input bg-card p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary sm:w-28';
@@ -45,12 +46,19 @@ export default function AppearanceSettingsTab({
   return (
     <div className="space-y-8">
       <SettingsSection title={t('themeMode.label')}>
-        <SettingsCard>
+        <SettingsCard divided>
           <SettingsRow
             label={t('themeMode.label')}
             description={t('themeMode.description')}
           >
             <ThemeModeSelector ariaLabel={t('themeMode.label')} />
+          </SettingsRow>
+
+          <SettingsRow
+            label={t('themeSelector.label')}
+            description={t('themeSelector.description')}
+          >
+            <ThemeSelector ariaLabel={t('themeSelector.label')} />
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
