@@ -1489,16 +1489,6 @@ export type ProviderQuota = {
 
 //----------------- QUICK SETTINGS PANEL ------------
 
-/** Identifier of a boolean user preference exposed in the quick settings panel; use it as the key when reading or writing one preference. */
-export type PreferenceToggleKey =
-  | 'showRawParameters'
-  | 'showThinking'
-  | 'sendByCtrlEnter'
-  | 'voiceEnabled';
-
-/** The full set of quick settings booleans keyed by PreferenceToggleKey, held together so the panel can read every toggle from one object. */
-export type QuickSettingsPreferences = Record<PreferenceToggleKey, boolean>;
-
 /** One lightweight user-turn entry returned by the session outline endpoint. */
 export type SessionOutlineItem = {
   timestamp: string;
@@ -1523,7 +1513,7 @@ export type AgentContext = {
 };
 
 /** Identifier of a top-level section in the settings dialog; use it whenever a tab is stored, compared or requested so deep links, the sidebar and the command palette all agree on the same set of names. */
-export type SettingsMainTab = 'agents' | 'appearance' | 'git' | 'api' | 'voice' | 'quickReplies' | 'tasks' | 'browser' | 'notifications' | 'plugins' | 'network' | 'about';
+export type SettingsMainTab = 'agents' | 'appearance' | 'chat' | 'git' | 'api' | 'voice' | 'quickReplies' | 'tasks' | 'browser' | 'notifications' | 'plugins' | 'network' | 'about';
 
 /** The coding-agent CLI a settings screen is configuring, aliasing LLMProvider so agent-scoped settings read as being about an agent rather than a chat model. */
 export type AgentProvider = LLMProvider;
