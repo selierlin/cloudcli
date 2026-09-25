@@ -1,7 +1,6 @@
 {
-  "total": 9,
+  "total": 8,
   "byFile": {
-    "src/modules/onboarding/OnboardingStepProgress.tsx": 1,
     "src/modules/plugins/PluginSettingsTab.tsx": 1,
     "src/modules/project-workspace/WorkspaceErrorBoundary.tsx": 1,
     "src/modules/settings/SettingsToggle.tsx": 1,
@@ -16,6 +15,6 @@
     "bg: gray-900": 1,
     "bg: white": 2,
     "bg: zinc-500": 1,
-    "text: white": 4
+    "text: white": 3
   }
 }
