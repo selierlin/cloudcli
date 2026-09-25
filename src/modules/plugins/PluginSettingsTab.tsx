@@ -179,7 +179,7 @@ function ToggleSwitch({ checked, onChange, ariaLabel }: { checked: boolean; onCh
           relative h-5 w-9 rounded-full bg-muted transition-colors
           duration-200 after:absolute
           after:left-[2px] after:top-[2px] after:h-4 after:w-4
-          after:rounded-full after:bg-white after:shadow-sm after:transition-transform after:duration-200
+          after:rounded-full after:bg-n-white after:shadow-sm after:transition-transform after:duration-200
           after:content-[''] peer-checked:bg-emerald-500
           peer-checked:after:translate-x-4
         `}
