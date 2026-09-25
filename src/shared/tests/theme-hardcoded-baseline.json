@@ -1,7 +1,6 @@
 {
-  "total": 6,
+  "total": 5,
   "byFile": {
-    "src/modules/settings/SettingsToggle.tsx": 1,
     "src/modules/settings/tabs/agents-settings/sections/AgentSelectorSection.tsx": 1,
     "src/modules/shell/ShellMinimalView.tsx": 1,
     "src/modules/sidebar/SidebarModeTabs.tsx": 1,
@@ -11,7 +10,6 @@
   "byAtom": {
     "bg: black": 1,
     "bg: gray-900": 1,
-    "bg: white": 1,
     "bg: zinc-500": 1,
     "text: white": 2
   }
