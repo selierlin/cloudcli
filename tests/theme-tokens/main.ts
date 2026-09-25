@@ -1,6 +1,7 @@
-import type { ITheme } from '@xterm/xterm';
+import type { ITheme, Terminal } from '@xterm/xterm';
 
 import { GRAPH_LANE_COUNT } from '@/modules/git-panel/utils/commitGraph';
+import { installMobileTerminalSelection } from '@/modules/shell/utils/mobileTerminalSelection';
 import { readTerminalTheme, TERMINAL_THEME_TOKENS } from '@/modules/shell/utils/terminalTheme';
 import { EXTREME_TOKENS, SCALE_TOKEN_NAMES } from '@/shared/tests/neutralScale';
 
@@ -177,6 +178,56 @@ function buildProbes(): void {
   }
 }
 
+/**
+ * The mobile long-press selection chrome (handle, context menu) is CSS that
+ * `mobileTerminalSelection.ts` writes inline onto elements it creates, so the
+ * tokens it consumes are only observable by actually installing it. This mounts
+ * it on a stub terminal — the constructor needs little more than an element,
+ * buffer dimensions and the three xterm events — and reads back what it paints.
+ */
+function readMobileSelectionChrome(): Record<string, string> {
+  const content = document.createElement('div');
+  content.style.setProperty('transition', 'none');
+  document.body.appendChild(content);
+
+  const terminal = {
+    element: content,
+    cols: 80,
+    rows: 24,
+    options: {},
+    hasSelection: () => false,
+    onSelectionChange: () => ({ dispose: () => {} }),
+    onResize: () => ({ dispose: () => {} }),
+    onScroll: () => ({ dispose: () => {} }),
+    refresh: () => {},
+  } as unknown as Terminal;
+
+  // A touch environment is what gates the install; the fixture page is desktop.
+  Object.defineProperty(navigator, 'maxTouchPoints', { value: 1, configurable: true });
+
+  const manager = installMobileTerminalSelection(terminal, content);
+  const handle = content.querySelector<HTMLElement>('.shell-mobile-selection-handle-start');
+  const menu = content.querySelector<HTMLElement>('.shell-mobile-selection-menu');
+  const button = menu?.querySelector('button') ?? null;
+  if (!manager || !handle || !menu || !button) {
+    throw new Error('mobile selection chrome did not install');
+  }
+
+  const chrome = {
+    handleBackground: getComputedStyle(handle).backgroundColor,
+    handleBorder: getComputedStyle(handle).border,
+    handleBoxShadow: getComputedStyle(handle).boxShadow,
+    menuBackground: getComputedStyle(menu).backgroundColor,
+    menuBorder: getComputedStyle(menu).border,
+    menuBoxShadow: getComputedStyle(menu).boxShadow,
+    buttonColor: getComputedStyle(button).color,
+  };
+
+  manager.dispose();
+  content.remove();
+  return chrome;
+}
+
 function readTokens(appearance: Appearance): TokenRead {
   document.documentElement.classList.toggle('dark', appearance === 'dark');
 
@@ -203,6 +254,8 @@ declare global {
       read(appearance: Appearance): TokenRead;
       /** The xterm theme the shell hook would build right now. */
       readTerminalTheme(): ITheme;
+      /** The colours the mobile selection chrome injects right now. */
+      readMobileSelectionChrome(): Record<string, string>;
     };
   }
 }
@@ -212,4 +265,5 @@ buildProbes();
 window.__THEME_TOKENS__ = {
   read: readTokens,
   readTerminalTheme,
+  readMobileSelectionChrome,
 };

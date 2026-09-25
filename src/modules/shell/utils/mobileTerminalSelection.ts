@@ -176,9 +176,12 @@ class ShellMobileSelectionCore implements MobileTerminalSelectionManager {
     handle.style.width = `${HANDLE_SIZE_PX}px`;
     handle.style.height = `${HANDLE_SIZE_PX}px`;
     handle.style.borderRadius = '50%';
-    handle.style.background = '#3b82f6';
-    handle.style.border = '2px solid #fff';
-    handle.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+    // The chrome sits on the terminal, which keeps its dark board in both
+    // appearances, so it reads the appearance-agnostic neutrals rather than the
+    // semantic tokens (a theme still recolours it by overriding those).
+    handle.style.background = 'hsl(var(--palette-brand-400))';
+    handle.style.border = '2px solid hsl(var(--n-white))';
+    handle.style.boxShadow = '0 2px 8px hsl(var(--n-black) / 0.3)';
     handle.style.display = 'none';
     handle.style.pointerEvents = 'auto';
     handle.style.touchAction = 'none';
@@ -194,10 +197,10 @@ class ShellMobileSelectionCore implements MobileTerminalSelectionManager {
     menu.style.alignItems = 'stretch';
     menu.style.padding = '4px';
     menu.style.gap = '2px';
-    menu.style.background = '#1f2937';
-    menu.style.border = '1px solid rgba(255,255,255,0.12)';
+    menu.style.background = 'hsl(var(--n-gray-800))';
+    menu.style.border = '1px solid hsl(var(--n-white) / 0.12)';
     menu.style.borderRadius = '10px';
-    menu.style.boxShadow = '0 6px 20px rgba(0,0,0,0.4)';
+    menu.style.boxShadow = '0 6px 20px hsl(var(--n-black) / 0.4)';
     menu.style.pointerEvents = 'auto';
     menu.style.touchAction = 'none';
     menu.style.zIndex = '32';
@@ -225,7 +228,7 @@ class ShellMobileSelectionCore implements MobileTerminalSelectionManager {
     button.style.margin = '0';
     button.style.padding = '8px 14px';
     button.style.background = 'transparent';
-    button.style.color = '#f9fafb';
+    button.style.color = 'hsl(var(--n-gray-50))';
     button.style.fontSize = '14px';
     button.style.fontFamily = 'inherit';
     button.style.lineHeight = '1';
