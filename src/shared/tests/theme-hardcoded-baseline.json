@@ -1,7 +1,6 @@
 {
-  "total": 15,
+  "total": 14,
   "byFile": {
-    "src/modules/code-editor/CodeEditor.tsx": 1,
     "src/modules/git-panel/modals/MergeWorktreeModal.tsx": 1,
     "src/modules/git-panel/modals/NewBranchModal.tsx": 1,
     "src/modules/git-panel/modals/NewWorktreeModal.tsx": 1,
@@ -18,7 +17,7 @@
     "src/shared/ui/Dialog.tsx": 1
   },
   "byAtom": {
-    "bg: black": 5,
+    "bg: black": 4,
     "bg: gray-900": 1,
     "bg: white": 2,
     "bg: zinc-500": 1,
