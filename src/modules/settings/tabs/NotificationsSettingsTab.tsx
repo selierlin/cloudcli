@@ -81,7 +81,7 @@ export default function NotificationsSettingsTab({
                   className={`inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
                     desktopNotifications?.enabled
                       ? 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50'
-                      : 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600'
+                      : 'bg-blue-600 text-n-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600'
                   }`}
                 >
                   {desktopNotifications?.enabled ? (
@@ -127,7 +127,7 @@ export default function NotificationsSettingsTab({
                 className={`inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                   isPushSubscribed
                     ? 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50'
-                    : 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600'
+                    : 'bg-blue-600 text-n-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600'
                 }`}
               >
                 {isPushLoading ? (
