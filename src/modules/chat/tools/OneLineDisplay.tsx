@@ -100,7 +100,7 @@ export const OneLineDisplay: React.FC<OneLineDisplayProps> = ({
             </svg>
           </div>
           <div className="flex min-w-0 flex-1 items-start gap-2">
-            <div className="min-w-0 flex-1 rounded bg-gray-900 px-2.5 py-1 dark:bg-black">
+            <div className="min-w-0 flex-1 rounded bg-n-gray-900 px-2.5 py-1 dark:bg-n-black">
               {/* Not a <code> tag: the global `.chat-message code` rule forces
                   `white-space: pre-wrap !important`, which would defeat the
                   single-line constraint. `nowrap` collapses a multi-line
