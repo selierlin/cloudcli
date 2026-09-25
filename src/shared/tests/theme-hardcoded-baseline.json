@@ -1,7 +1,6 @@
 {
-  "total": 12,
+  "total": 11,
   "byFile": {
-    "src/modules/git-panel/modals/NewWorktreeModal.tsx": 1,
     "src/modules/onboarding/AgentConnectionCard.tsx": 1,
     "src/modules/onboarding/Onboarding.tsx": 1,
     "src/modules/onboarding/OnboardingStepProgress.tsx": 1,
@@ -15,7 +14,7 @@
     "src/shared/ui/Dialog.tsx": 1
   },
   "byAtom": {
-    "bg: black": 2,
+    "bg: black": 1,
     "bg: gray-900": 1,
     "bg: white": 2,
     "bg: zinc-500": 1,
