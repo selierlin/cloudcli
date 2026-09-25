@@ -30,6 +30,7 @@ beforeEach(() => {
   resetUserPreferences();
   document.documentElement.classList.remove('dark');
   delete document.documentElement.dataset.theme;
+  document.documentElement.style.removeProperty('color-scheme');
 });
 
 test('mounting stores no theme for a user who has never chosen one', () => {
@@ -57,6 +58,7 @@ test('a stored theme is applied on the first render', () => {
 
   assert.equal(result.current.isDarkMode, true);
   assert.ok(document.documentElement.classList.contains('dark'));
+  assert.equal(document.documentElement.style.colorScheme, 'dark');
 });
 
 test('toggling stores the theme the user picked', () => {
@@ -98,6 +100,25 @@ test('the built-in theme id follows the appearance', () => {
   });
 
   assert.equal(document.documentElement.dataset.theme, 'cc-dark');
+});
+
+/**
+ * `color-scheme` is the only part of applying the appearance the UA acts on
+ * directly, so it is published on `<html>` instead of being left to the OS
+ * preference — native form controls and scroll containers that carry no
+ * scrollbar utility used to stay in the OS appearance even after the app had
+ * been switched to the other one. The setup clears the property, so the light
+ * assertion below is evidence the effect wrote it rather than a leftover.
+ */
+test('the resolved appearance is published as color-scheme', () => {
+  const { result } = renderHook(() => useTheme(), { wrapper });
+  assert.equal(document.documentElement.style.colorScheme, 'light');
+
+  act(() => {
+    result.current.toggleDarkMode();
+  });
+
+  assert.equal(document.documentElement.style.colorScheme, 'dark');
 });
 
 test('both appearances are registered as built-in themes', () => {
