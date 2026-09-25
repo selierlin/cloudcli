@@ -116,3 +116,34 @@ test('extendedAnsi is no longer overridden', async ({ page }) => {
 
   expect((await readTerminalTheme(page, 'dark')).extendedAnsi).toBeUndefined();
 });
+
+/**
+ * The refresh in `useShellTerminal` is only worth anything if the board actually
+ * moves, so this pins the precondition. It is the token-to-consumer half of the
+ * theme-refresh slice: that the hook re-reads on a theme change is asserted in
+ * `src/modules/shell/tests/shellTerminalThemeRefresh.test.tsx`, and that the
+ * editor needs no such refresh (its rules are `var()`) is asserted by
+ * `editorThemeTokens.test.ts`, which rejects any literal chrome value.
+ */
+test('an overlay theme moves the board readTerminalTheme resolves', async ({ page }) => {
+  await openFixture(page);
+
+  const boardWith = (themeId: string | null) => page.evaluate((id) => {
+    window.__THEME_TOKENS__!.readWithTheme(id, 'dark');
+    return window.__THEME_TOKENS__!.readTerminalTheme();
+  }, themeId);
+
+  const base = await boardWith(null);
+  const themed = await boardWith('cc-polar');
+
+  // Re-reading without switching must be stable, so the difference below is the
+  // overlay's doing rather than per-call noise.
+  const repeated = await page.evaluate(() => window.__THEME_TOKENS__!.readTerminalTheme());
+  expect(repeated).toEqual(themed);
+
+  const asRecord = (theme: ITheme) => theme as unknown as Record<string, unknown>;
+  const moved = Object.keys(base).filter((key) => asRecord(base)[key] !== asRecord(themed)[key]);
+
+  expect(moved).toContain('background');
+  expect(moved).toContain('red');
+});
