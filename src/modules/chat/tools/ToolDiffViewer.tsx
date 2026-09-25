@@ -29,7 +29,7 @@ export const ToolDiffViewer: React.FC<ToolDiffViewerProps> = ({
 }) => {
   const badgeClasses = badgeColor === 'green'
     ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
-    : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400';
+    : 'bg-n-gray-100 dark:bg-n-gray-800 text-n-gray-500 dark:text-n-gray-400';
 
   const diffLines = useMemo(
     () => {
@@ -42,9 +42,9 @@ export const ToolDiffViewer: React.FC<ToolDiffViewerProps> = ({
   );
 
   return (
-    <div className="overflow-hidden rounded border border-gray-200/60 dark:border-gray-700/50">
+    <div className="overflow-hidden rounded border border-n-gray-200/60 dark:border-n-gray-700/50">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-gray-200/60 bg-gray-50/80 px-2.5 py-1 dark:border-gray-700/50 dark:bg-gray-800/40">
+      <div className="flex items-center justify-between border-b border-n-gray-200/60 bg-n-gray-50/80 px-2.5 py-1 dark:border-n-gray-700/50 dark:bg-n-gray-800/40">
         {onFileClick ? (
           <button
             onClick={onFileClick}
@@ -53,7 +53,7 @@ export const ToolDiffViewer: React.FC<ToolDiffViewerProps> = ({
             {filePath}
           </button>
         ) : (
-          <span className="truncate font-mono text-[11px] text-gray-600 dark:text-gray-400">
+          <span className="truncate font-mono text-[11px] text-n-gray-600 dark:text-n-gray-400">
             {filePath}
           </span>
         )}
