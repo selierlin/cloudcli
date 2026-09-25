@@ -149,7 +149,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               <ChatMessageFiles files={message.files} />
             )}
             {userCopyContent.trim().length > 0 || (!message.images?.length && !message.files?.length) ? (
-              <div className="group max-w-full rounded-2xl rounded-br-md border border-border/60 bg-muted/60 px-3 py-2 text-foreground shadow-sm dark:bg-gray-800/60 sm:px-4">
+              <div className="group max-w-full rounded-2xl rounded-br-md border border-border/60 bg-muted/60 px-3 py-2 text-foreground shadow-sm dark:bg-n-gray-800/60 sm:px-4">
                 <div dir="auto" className="break-words font-serif text-sm">
                   <Markdown
                     breaks
@@ -195,7 +195,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
             )}
           </div>
           {!isGrouped && (
-            <div className="hidden h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm text-white sm:flex">
+            <div className="hidden h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm text-n-white sm:flex">
               U
             </div>
           )}
@@ -210,16 +210,16 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                   ? 'animate-pulse bg-amber-400 dark:bg-amber-500'
                   : message.compact.phase === 'failed'
                     ? 'bg-red-400 dark:bg-red-500'
-                    : 'bg-gray-400 dark:bg-gray-500'
+                    : 'bg-n-gray-400 dark:bg-n-gray-500'
               }`}
             />
-            <span className="text-xs text-gray-500 dark:text-gray-400">
+            <span className="text-xs text-n-gray-500 dark:text-n-gray-400">
               {message.content || t('chat:misc.compacted', 'Compacted')}
             </span>
           </div>
           {message.compactSummary && (
             <details className="ml-3.5 mt-0.5">
-              <summary className="cursor-pointer text-xs text-gray-500 hover:text-foreground dark:text-gray-400">
+              <summary className="cursor-pointer text-xs text-n-gray-500 hover:text-foreground dark:text-n-gray-400">
                 {t('chat:misc.compactionSummary', 'full summary')}
               </summary>
               <div className="mt-1">
@@ -235,7 +235,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
         <div className="w-full">
           <div className="flex items-center gap-2 py-0.5">
             <span className={`inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full ${message.taskNotificationStatus === 'completed' ? 'bg-green-400 dark:bg-green-500' : 'bg-amber-400 dark:bg-amber-500'}`} />
-            <span className="text-xs text-gray-500 dark:text-gray-400">{message.content}</span>
+            <span className="text-xs text-n-gray-500 dark:text-n-gray-400">{message.content}</span>
           </div>
         </div>
       ) : (
@@ -244,11 +244,11 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
           {!isGrouped && !hidesProcessIdentity && (
             <div className="mb-2 flex items-center space-x-3">
               {message.type === 'error' ? (
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-red-600 text-sm text-white">
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-red-600 text-sm text-n-white">
                   !
                 </div>
               ) : message.type === 'tool' ? (
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-600 text-sm text-white dark:bg-gray-700">
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-n-gray-600 text-sm text-n-white dark:bg-n-gray-700">
                   🔧
                 </div>
               ) : (
@@ -256,7 +256,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                   <LLMProviderLogo provider={provider} className="h-full w-full" />
                 </div>
               )}
-              <div className="text-sm font-medium text-gray-900 dark:text-white">
+              <div className="text-sm font-medium text-n-gray-900 dark:text-n-white">
                 {message.type === 'error'
                   ? t('messageTypes.error')
                   : message.type === 'tool'
@@ -436,7 +436,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                 />
               </div>
             ) : (
-              <div dir="auto" className="text-sm text-gray-700 dark:text-gray-300">
+              <div dir="auto" className="text-sm text-n-gray-700 dark:text-n-gray-300">
                 {/* Reasoning accordion */}
                 {showThinking && message.reasoning && (
                   <Reasoning className="mb-3" defaultOpen={false}>
@@ -511,7 +511,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
             )}
 
             {!message.isThinking && (shouldShowAssistantCopyControl || !isGrouped) && (
-              <div className="mt-1 flex w-full items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500">
+              <div className="mt-1 flex w-full items-center gap-2 text-[11px] text-n-gray-400 dark:text-n-gray-500">
                 {onForkFromMessage &&
                   message.forkAnchorId &&
                   message.type === 'assistant' &&
@@ -521,7 +521,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                       onClick={() => onForkFromMessage(message)}
                       title={t('message.forkFromHere')}
                       aria-label={t('message.forkFromHere')}
-                      className="inline-flex items-center rounded px-1 py-0.5 text-gray-400 transition-colors hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                      className="inline-flex items-center rounded px-1 py-0.5 text-n-gray-400 transition-colors hover:text-n-gray-600 dark:text-n-gray-500 dark:hover:text-n-gray-300"
                     >
                       <GitBranchIcon className="h-3.5 w-3.5" />
                     </button>
