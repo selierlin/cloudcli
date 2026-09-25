@@ -4,7 +4,6 @@ import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useTranslation } from 'react-i18next';
 
 import { MermaidDiagram } from '@/modules/code-editor';
@@ -12,9 +11,8 @@ import { MarkdownImage } from '@/modules/chat/transcript/MarkdownImage';
 import { normalizeInlineCodeFences } from '@/modules/chat/utils/chatFormatting';
 import { copyTextToClipboard } from '@/shared/utils';
 import { SyntaxHighlighter } from '@/shared/syntaxHighlighter';
+import { syntaxTheme } from '@/shared/syntaxTheme';
 import { usePaletteOps } from '@/modules/command-palette';
-import { buildSyntaxTheme } from '@/modules/chat/utils/syntaxHighlightTheme';
-import type { PrismStyleSheet } from '@/modules/chat/utils/syntaxHighlightTheme';
 
 type MarkdownProps = {
   children: React.ReactNode;
@@ -205,25 +203,6 @@ const CodeBlock = ({ node: _node, className, children, forceBlock, ...props }: C
     </div>
   );
 };
-
-/**
- * One style object for both themes: switching between the two Prism objects
- * re-tokenized every mounted code block, so the theme-dependent values are CSS
- * variables and the toggle is a style recalculation instead.
- */
-const syntaxTheme = buildSyntaxTheme(oneLight as PrismStyleSheet, oneDark as PrismStyleSheet);
-
-// The `:root`/`.dark` declarations backing syntaxTheme.style. Injected once
-// because the values are derived from the Prism theme objects at runtime and so
-// cannot live in index.css. ThemeContext toggles `.dark` on <html>, which is
-// what repaints the tokens.
-const SYNTAX_THEME_STYLE_ELEMENT_ID = 'cc-syntax-theme';
-if (!document.getElementById(SYNTAX_THEME_STYLE_ELEMENT_ID)) {
-  const styleElement = document.createElement('style');
-  styleElement.id = SYNTAX_THEME_STYLE_ELEMENT_ID;
-  styleElement.textContent = syntaxTheme.css;
-  document.head.appendChild(styleElement);
-}
 
 const markdownComponents = {
   code: CodeBlock,

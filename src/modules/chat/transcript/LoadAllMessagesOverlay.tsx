@@ -71,7 +71,7 @@ export default function LoadAllMessagesOverlay({
               disabled={isLoadingAllMessages}
             >
               {isLoadingAllMessages && (
-                <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-n-white" />
               )}
               <span>
                 {isLoadingAllMessages

@@ -16,15 +16,15 @@ type TooltipProps = {
 function getArrowClasses(position: TooltipPosition): string {
   switch (position) {
     case 'top':
-      return 'top-full left-1/2 transform -translate-x-1/2 border-t-gray-900 dark:border-t-gray-100';
+      return 'top-full left-1/2 transform -translate-x-1/2 border-t-n-gray-900 dark:border-t-n-gray-100';
     case 'bottom':
-      return 'bottom-full left-1/2 transform -translate-x-1/2 border-b-gray-900 dark:border-b-gray-100';
+      return 'bottom-full left-1/2 transform -translate-x-1/2 border-b-n-gray-900 dark:border-b-n-gray-100';
     case 'left':
-      return 'left-full top-1/2 transform -translate-y-1/2 border-l-gray-900 dark:border-l-gray-100';
+      return 'left-full top-1/2 transform -translate-y-1/2 border-l-n-gray-900 dark:border-l-n-gray-100';
     case 'right':
-      return 'right-full top-1/2 transform -translate-y-1/2 border-r-gray-900 dark:border-r-gray-100';
+      return 'right-full top-1/2 transform -translate-y-1/2 border-r-n-gray-900 dark:border-r-n-gray-100';
     default:
-      return 'top-full left-1/2 transform -translate-x-1/2 border-t-gray-900 dark:border-t-gray-100';
+      return 'top-full left-1/2 transform -translate-x-1/2 border-t-n-gray-900 dark:border-t-n-gray-100';
   }
 }
 

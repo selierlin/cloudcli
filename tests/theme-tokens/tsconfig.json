@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": ["vite/client", "node", "@playwright/test"]
+  },
+  "include": [
+    "../../playwright.theme-tokens.config.ts",
+    "../../src/vite-env.d.ts",
+    "./main.ts",
+    "./token-contract.spec.ts",
+    "./terminal-tokens.spec.ts",
+    "./vite.config.ts"
+  ]
+}

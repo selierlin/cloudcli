@@ -52,6 +52,71 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Compatibility scale (`n-` = neutral). The skeleton still carries
+        // Tailwind's named neutrals (`bg-gray-100 dark:bg-gray-700`); as each
+        // cluster migrates it keeps the exact step but routes it through a
+        // token, so `bg-n-gray-100` renders what `bg-gray-100` rendered while
+        // becoming theme-controllable. `gray` carries the bulk; `zinc` /
+        // `slate` / `neutral` keep their own hue for the same reason — folding
+        // them into `gray` would move the pixel. Values live in `src/index.css`
+        // (`--n-*`); `src/shared/tests/neutralScale.test.ts` proves the chain
+        // class -> token -> palette is byte-identical to the literal it
+        // replaces. Phase 2 renames these to semantic tokens and drops the
+        // keys.
+        "n-gray": {
+          50: "hsl(var(--n-gray-50))",
+          100: "hsl(var(--n-gray-100))",
+          200: "hsl(var(--n-gray-200))",
+          300: "hsl(var(--n-gray-300))",
+          400: "hsl(var(--n-gray-400))",
+          500: "hsl(var(--n-gray-500))",
+          600: "hsl(var(--n-gray-600))",
+          700: "hsl(var(--n-gray-700))",
+          800: "hsl(var(--n-gray-800))",
+          900: "hsl(var(--n-gray-900))",
+          950: "hsl(var(--n-gray-950))",
+        },
+        "n-white": "hsl(var(--n-white))",
+        "n-black": "hsl(var(--n-black))",
+        "n-zinc": {
+          50: "hsl(var(--n-zinc-50))",
+          100: "hsl(var(--n-zinc-100))",
+          200: "hsl(var(--n-zinc-200))",
+          300: "hsl(var(--n-zinc-300))",
+          400: "hsl(var(--n-zinc-400))",
+          500: "hsl(var(--n-zinc-500))",
+          600: "hsl(var(--n-zinc-600))",
+          700: "hsl(var(--n-zinc-700))",
+          800: "hsl(var(--n-zinc-800))",
+          900: "hsl(var(--n-zinc-900))",
+          950: "hsl(var(--n-zinc-950))",
+        },
+        "n-slate": {
+          50: "hsl(var(--n-slate-50))",
+          100: "hsl(var(--n-slate-100))",
+          200: "hsl(var(--n-slate-200))",
+          300: "hsl(var(--n-slate-300))",
+          400: "hsl(var(--n-slate-400))",
+          500: "hsl(var(--n-slate-500))",
+          600: "hsl(var(--n-slate-600))",
+          700: "hsl(var(--n-slate-700))",
+          800: "hsl(var(--n-slate-800))",
+          900: "hsl(var(--n-slate-900))",
+          950: "hsl(var(--n-slate-950))",
+        },
+        "n-neutral": {
+          50: "hsl(var(--n-neutral-50))",
+          100: "hsl(var(--n-neutral-100))",
+          200: "hsl(var(--n-neutral-200))",
+          300: "hsl(var(--n-neutral-300))",
+          400: "hsl(var(--n-neutral-400))",
+          500: "hsl(var(--n-neutral-500))",
+          600: "hsl(var(--n-neutral-600))",
+          700: "hsl(var(--n-neutral-700))",
+          800: "hsl(var(--n-neutral-800))",
+          900: "hsl(var(--n-neutral-900))",
+          950: "hsl(var(--n-neutral-950))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -11,7 +11,8 @@ import { useCodeEditorSettings } from '@/modules/code-editor/hooks/useCodeEditor
 import { useEditorKeyboardShortcuts } from '@/modules/code-editor/hooks/useEditorKeyboardShortcuts';
 import type { CodeEditorFile, CodeEditorGotoTarget } from '@/shared/types';
 import { createMinimapExtension, createScrollToFirstChunkExtension, getLanguageExtensions } from '@/modules/code-editor/utils/editorExtensions';
-import { getEditorStyles } from '@/modules/code-editor/utils/editorStyles';
+import { EDITOR_STYLES } from '@/modules/code-editor/utils/editorStyles';
+import { editorHighlightExtension } from '@/modules/code-editor/utils/editorTheme';
 import { createEditorToolbarPanelExtension } from '@/modules/code-editor/utils/editorToolbarPanel';
 import CodeEditorFooter from '@/modules/code-editor/CodeEditorFooter';
 import CodeEditorHeader from '@/modules/code-editor/CodeEditorHeader';
@@ -153,6 +154,7 @@ export default function CodeEditor({
   const extensions = useMemo(() => {
     const allExtensions: Extension[] = [
       ...getLanguageExtensions(file.name),
+      editorHighlightExtension,
       ...toolbarPanelExtension,
     ];
 
@@ -194,7 +196,6 @@ export default function CodeEditor({
   if (loading) {
     return (
       <CodeEditorLoadingState
-        isDarkMode={isDarkMode}
         isSidebar={isSidebar}
         loadingText={t('loading', { fileName: file.name })}
       />
@@ -252,7 +253,7 @@ export default function CodeEditor({
 
   return (
     <>
-      <style>{getEditorStyles(isDarkMode)}</style>
+      <style>{EDITOR_STYLES}</style>
       <div className={outerContainerClassName}>
         <div className={innerContainerClassName}>
           <CodeEditorHeader
