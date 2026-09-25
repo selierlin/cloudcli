@@ -107,7 +107,7 @@ export default function SidebarModals({
 
       {pendingDeletion?.kind === 'project' &&
         ReactDOM.createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-n-black/60 p-4 backdrop-blur-sm">
             <div className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
               <div className="p-6">
                 <div className="flex items-start gap-4">
@@ -144,7 +144,7 @@ export default function SidebarModals({
                 </Button>
                 <Button
                   variant="destructive"
-                  className="w-full justify-start bg-red-600 text-white hover:bg-red-700"
+                  className="w-full justify-start bg-red-600 text-n-white hover:bg-red-700"
                   onClick={() => onConfirmDeleteProject(true)}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
@@ -161,7 +161,7 @@ export default function SidebarModals({
 
       {pendingDeletion?.kind === 'session' &&
         ReactDOM.createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-n-black/60 p-4 backdrop-blur-sm">
             <div className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
               <div className="p-6">
                 <div className="flex items-start gap-4">
@@ -203,7 +203,7 @@ export default function SidebarModals({
                 )}
                 <Button
                   variant="destructive"
-                  className="w-full justify-start bg-red-600 text-white hover:bg-red-700"
+                  className="w-full justify-start bg-red-600 text-n-white hover:bg-red-700"
                   onClick={() => onConfirmDeleteSession(true)}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
@@ -220,7 +220,7 @@ export default function SidebarModals({
 
       {batchSessionArchiveConfirmation &&
         ReactDOM.createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-n-black/60 p-4 backdrop-blur-sm">
             <div className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
               <div className="p-6">
                 <div className="flex items-start gap-4">
@@ -240,7 +240,7 @@ export default function SidebarModals({
               <div className="flex flex-col gap-2 border-t border-border bg-muted/30 p-4">
                 <Button
                   variant="destructive"
-                  className="w-full justify-start bg-red-600 text-white hover:bg-red-700"
+                  className="w-full justify-start bg-red-600 text-n-white hover:bg-red-700"
                   onClick={onConfirmBatchSessionArchive}
                 >
                   <EyeOff className="mr-2 h-4 w-4" />
@@ -257,7 +257,7 @@ export default function SidebarModals({
 
       {batchArchivedSessionDeleteConfirmation &&
         ReactDOM.createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-n-black/60 p-4 backdrop-blur-sm">
             <div className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
               <div className="p-6">
                 <div className="flex items-start gap-4">
@@ -277,7 +277,7 @@ export default function SidebarModals({
               <div className="flex flex-col gap-2 border-t border-border bg-muted/30 p-4">
                 <Button
                   variant="destructive"
-                  className="w-full justify-start bg-red-600 text-white hover:bg-red-700"
+                  className="w-full justify-start bg-red-600 text-n-white hover:bg-red-700"
                   onClick={onConfirmBatchArchivedSessionDelete}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
