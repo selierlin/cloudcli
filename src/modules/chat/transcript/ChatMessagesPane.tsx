@@ -90,7 +90,7 @@ function estimateToolGroupRowHeight(messages: ChatMessage[]): number {
  * in for a designed slot height rather than a value the design has signed off on.
  */
 const TOP_CHROME_SLOT_CLASS =
-  'min-h-10 border-b border-gray-200 py-2 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400';
+  'min-h-10 border-b border-n-gray-200 py-2 text-center text-sm text-n-gray-500 dark:border-n-gray-700 dark:text-n-gray-400';
 
 type ExecutionDisclosure = 'user_open' | 'user_closed';
 type ExecutionDisclosureRegistry = Record<string, Record<string, ExecutionDisclosure>>;
@@ -446,9 +446,9 @@ function ChatMessagesPane({
       )}
       <div className="mx-auto w-full max-w-[54.25rem] space-y-3 px-4 sm:space-y-4">
         {(isLoadingSessionMessages || isProcessing) && chatMessages.length === 0 ? (
-          <div className="mt-8 text-center text-gray-500 dark:text-gray-400">
+          <div className="mt-8 text-center text-n-gray-500 dark:text-n-gray-400">
             <div className="flex items-center justify-center space-x-2">
-              <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-gray-400" />
+              <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-n-gray-400" />
               <p>{t('session.loading.sessionMessages')}</p>
             </div>
           </div>
@@ -474,7 +474,7 @@ function ChatMessagesPane({
               <div className={TOP_CHROME_SLOT_CLASS} data-transcript-top-chrome>
                 {isLoadingMoreMessages && !isLoadingAllMessages && !allMessagesLoaded ? (
                   <div className="flex items-center justify-center gap-2">
-                    <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-b-2 border-gray-400" />
+                    <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-b-2 border-n-gray-400" />
                     <p className="min-w-0 truncate">{t('session.loading.olderMessages')}</p>
                   </div>
                 ) : hasMoreMessages && !isLoadingMoreMessages && !allMessagesLoaded ? (
