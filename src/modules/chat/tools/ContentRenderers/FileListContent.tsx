@@ -25,7 +25,7 @@ export const FileListContent: React.FC<FileListContentProps> = ({
   return (
     <div>
       {title && (
-        <div className="mb-1 text-[11px] text-gray-500 dark:text-gray-400">
+        <div className="mb-1 text-[11px] text-n-gray-500 dark:text-n-gray-400">
           {title}
         </div>
       )}
@@ -47,7 +47,7 @@ export const FileListContent: React.FC<FileListContentProps> = ({
                 {fileName}
               </button>
               {index < files.length - 1 && (
-                <span className="ml-1 text-[10px] text-gray-300 dark:text-gray-600">,</span>
+                <span className="ml-1 text-[10px] text-n-gray-300 dark:text-n-gray-600">,</span>
               )}
             </span>
           );
