@@ -1,7 +1,6 @@
 {
-  "total": 11,
+  "total": 10,
   "byFile": {
-    "src/modules/onboarding/AgentConnectionCard.tsx": 1,
     "src/modules/onboarding/Onboarding.tsx": 1,
     "src/modules/onboarding/OnboardingStepProgress.tsx": 1,
     "src/modules/plugins/PluginSettingsTab.tsx": 1,
@@ -18,6 +17,6 @@
     "bg: gray-900": 1,
     "bg: white": 2,
     "bg: zinc-500": 1,
-    "text: white": 6
+    "text: white": 5
   }
 }
