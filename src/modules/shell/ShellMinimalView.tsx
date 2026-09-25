@@ -11,7 +11,7 @@ export default function ShellMinimalView({
   onContainerMouseDown,
 }: ShellMinimalViewProps) {
   return (
-    <div className="relative h-full w-full bg-gray-900">
+    <div className="relative h-full w-full bg-n-gray-900">
       <div
         ref={terminalContainerRef}
         tabIndex={0}
