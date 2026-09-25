@@ -36,7 +36,7 @@ export default function AgentSelectorSection({
             agent === 'claude' ? 'bg-[#D77655]' :
             agent === 'cursor' ? 'bg-foreground' :
             agent === 'codex' ? 'bg-[#10a37f]' :
-            agent === 'opencode' ? 'bg-zinc-500' :
+            agent === 'opencode' ? 'bg-n-zinc-500' :
             agent === 'dsh' ? 'bg-[#4D6BFE]' :
             agent === 'workbuddy' ? 'bg-[#01C886]' :
             agent === 'pi' ? 'bg-foreground' :
