@@ -1,5 +1,5 @@
 {
-  "total": 519,
+  "total": 496,
   "byFile": {
     "src/modules/browser-use/BrowserUsePanel.tsx": 11,
     "src/modules/chat/composer/CommandMenu.tsx": 6,
@@ -21,7 +21,6 @@
     "src/modules/chat/transcript/MessageSpeakControl.tsx": 5,
     "src/modules/chat/transcript/UserMessageStickyHeader.tsx": 12,
     "src/modules/code-editor/CodeEditor.tsx": 1,
-    "src/modules/code-editor/CodeEditorBinaryFile.tsx": 23,
     "src/modules/code-editor/CodeEditorFooter.tsx": 4,
     "src/modules/code-editor/CodeEditorLoadingState.tsx": 5,
     "src/modules/code-editor/CodeEditorMediaPreview.tsx": 22,
@@ -85,8 +84,8 @@
     "src/shared/ui/Tooltip.tsx": 4
   },
   "byAtom": {
-    "bg: black": 24,
-    "bg: gray-100": 23,
+    "bg: black": 23,
+    "bg: gray-100": 20,
     "bg: gray-200": 7,
     "bg: gray-300": 1,
     "bg: gray-400": 1,
@@ -94,7 +93,7 @@
     "bg: gray-500": 5,
     "bg: gray-600": 5,
     "bg: gray-700": 16,
-    "bg: gray-800": 35,
+    "bg: gray-800": 32,
     "bg: gray-900": 21,
     "bg: gray-950": 4,
     "bg: neutral-950": 1,
@@ -121,12 +120,12 @@
     "text: gray-100": 7,
     "text: gray-200": 6,
     "text: gray-300": 16,
-    "text: gray-400": 55,
+    "text: gray-400": 52,
     "text: gray-500": 25,
-    "text: gray-600": 31,
+    "text: gray-600": 28,
     "text: gray-700": 11,
     "text: gray-800": 1,
-    "text: gray-900": 24,
+    "text: gray-900": 19,
     "text: neutral-100": 1,
     "text: neutral-400": 1,
     "text: neutral-500": 1,
@@ -134,6 +133,6 @@
     "text: slate-300": 2,
     "text: slate-700": 2,
     "text: slate-800": 1,
-    "text: white": 68
+    "text: white": 63
   }
 }
