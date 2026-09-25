@@ -753,12 +753,11 @@
     outline-offset: 2px;
   }
   
-  /* Fix checkbox appearance in dark mode */
+  /* Fix checkbox appearance in dark mode (`color-scheme` comes from `<html>`). */
   .dark input[type="checkbox"] {
     background-color: rgb(31 41 55); /* gray-800 */
     border-color: rgb(75 85 99); /* gray-600 */
     color: rgb(37 99 235); /* blue-600 */
-    color-scheme: dark;
   }
   
   .dark input[type="checkbox"]:checked {
@@ -771,12 +770,11 @@
     --tw-ring-offset-color: rgb(31 41 55); /* gray-800 */
   }
   
-  /* Fix radio button appearance in dark mode */
+  /* Fix radio button appearance in dark mode (same `color-scheme` note). */
   .dark input[type="radio"] {
     background-color: rgb(31 41 55); /* gray-800 */
     border-color: rgb(75 85 99); /* gray-600 */
     color: rgb(37 99 235); /* blue-600 */
-    color-scheme: dark;
   }
   
   .dark input[type="radio"]:checked {
