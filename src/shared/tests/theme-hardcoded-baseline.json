@@ -1,9 +1,5 @@
 {
-  "total": 1,
-  "byFile": {
-    "src/shared/ui/Dialog.tsx": 1
-  },
-  "byAtom": {
-    "bg: black": 1
-  }
+  "total": 0,
+  "byFile": {},
+  "byAtom": {}
 }
