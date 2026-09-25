@@ -71,7 +71,7 @@ export default function AgentConnectionCard({
         {canLogin && (
           <button
             onClick={onLogin}
-            className={`${loginButtonClassName} flex-shrink-0 rounded-lg px-4 py-1.5 text-sm font-medium text-white transition-colors`}
+            className={`${loginButtonClassName} flex-shrink-0 rounded-lg px-4 py-1.5 text-sm font-medium text-n-white transition-colors`}
           >
             {t('agents.login.button')}
           </button>
