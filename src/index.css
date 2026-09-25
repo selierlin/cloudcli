@@ -787,11 +787,10 @@
     --tw-ring-offset-color: rgb(31 41 55); /* gray-800 */
   }
   
-  /* Ensure textarea text is always visible in dark mode */
-  textarea {
-    color-scheme: light dark;
-  }
-  
+  /* Ensure textarea text is always visible in dark mode. `color-scheme` is
+     deliberately not pinned here: an element-level `light dark` outranks the
+     inherited value, which left the textarea's own chrome (scrollbar, resize
+     grip, selection) following the OS instead of the application appearance. */
   .dark textarea {
     color: rgb(243 244 246) !important; /* gray-100 */
     -webkit-text-fill-color: rgb(243 244 246) !important;
