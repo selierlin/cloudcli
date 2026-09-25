@@ -54,6 +54,18 @@ trusting it.
 The last two read declaration text rather than resolved values: `getComputedStyle`
 expands `var()` before returning, which makes an indirection invisible there.
 
+## Guards for tokenized consumers
+
+Some surfaces consume tokens from JavaScript rather than from a utility class. The
+fixture mounts those consumers directly, so their colours are pinned in the browser
+too:
+
+| Spec | Pins |
+|---|---|
+| `terminal-tokens.spec.ts` | the xterm theme back to the hex board it shipped with |
+| `graph-lanes.spec.ts` | the commit-graph lanes and the ref-badge tint back to the hex array `commitGraph.ts` shipped with |
+| `mobile-terminal-selection.spec.ts` | the long-press handle and context menu back to the literals `mobileTerminalSelection.ts` shipped with |
+
 ## Updating the baseline
 
 Regenerate only when a token change is intended, and review the diff as part of

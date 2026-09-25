@@ -10,6 +10,7 @@
     "./token-contract.spec.ts",
     "./terminal-tokens.spec.ts",
     "./graph-lanes.spec.ts",
+    "./mobile-terminal-selection.spec.ts",
     "./vite.config.ts"
   ]
 }
