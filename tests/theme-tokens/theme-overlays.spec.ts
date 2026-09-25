@@ -317,6 +317,37 @@ test('every overlay theme is declared outside any @layer', () => {
   ).toEqual([]);
 });
 
+/**
+ * The traversal, closed in the other direction.
+ *
+ * Every test above walks `OVERLAY_THEMES` out to the stylesheet, so a registered
+ * theme missing a block is caught — but a `[data-theme]` block whose id is *not*
+ * registered would be invisible to all of them: CSS no check reads. That is the
+ * one shape a "traverse every overlay" suite skips by construction, so it is
+ * pinned here instead.
+ *
+ * The appearance defaults (`cc-light` / `cc-dark`) carry no overlay, so they are
+ * deliberately absent from `OVERLAY_THEMES` and must not appear as blocks.
+ */
+test('every [data-theme] block belongs to a registered overlay, and vice versa', () => {
+  const declared = new Set(
+    [...CSS.matchAll(/\[data-theme="([a-z0-9-]+)"\]/g)].map((match) => match[1]),
+  );
+  const registered = new Set(OVERLAY_THEMES.map((theme) => theme.id));
+
+  const orphans = [...declared].filter((id) => !registered.has(id));
+  const missing = [...registered].filter((id) => !declared.has(id));
+
+  expect(
+    orphans,
+    `[data-theme] blocks in src/index.css with no registered overlay theme:\n${orphans.join('\n')}`,
+  ).toEqual([]);
+  expect(
+    missing,
+    `registered overlay themes with no [data-theme] block in src/index.css:\n${missing.join('\n')}`,
+  ).toEqual([]);
+});
+
 test('an overlay may only redeclare tokens the base stylesheet declares', async ({ page }) => {
   await openFixture(page);
   const base = await read(page, null, 'light');
