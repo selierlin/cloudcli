@@ -173,7 +173,7 @@ function SidebarProjectItem({
                     'w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-all duration-150 border',
                     isStarred
                       ? 'bg-yellow-500/10 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800'
-                      : 'bg-gray-500/10 dark:bg-gray-900/30 border-gray-200 dark:border-gray-800',
+                      : 'bg-n-gray-500/10 dark:bg-n-gray-900/30 border-n-gray-200 dark:border-n-gray-800',
                   )}
                   onClick={(event) => {
                     event.stopPropagation();
@@ -186,7 +186,7 @@ function SidebarProjectItem({
                       'w-4 h-4 transition-colors',
                       isStarred
                         ? 'text-yellow-600 dark:text-yellow-400 fill-current'
-                        : 'text-gray-600 dark:text-gray-400',
+                        : 'text-n-gray-600 dark:text-n-gray-400',
                     )}
                   />
                 </button>
@@ -246,16 +246,16 @@ function SidebarProjectItem({
                         saveProjectName();
                       }}
                     >
-                      <Check className="h-4 w-4 text-white" />
+                      <Check className="h-4 w-4 text-n-white" />
                     </button>
                     <button
-                      className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-500 shadow-sm transition-all duration-150 active:scale-90 active:shadow-none dark:bg-gray-600"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg bg-n-gray-500 shadow-sm transition-all duration-150 active:scale-90 active:shadow-none dark:bg-n-gray-600"
                       onClick={(event) => {
                         event.stopPropagation();
                         onCancelEditingProject();
                       }}
                     >
-                      <X className="h-4 w-4 text-white" />
+                      <X className="h-4 w-4 text-n-white" />
                     </button>
                   </>
                 ) : (
@@ -379,7 +379,7 @@ function SidebarProjectItem({
             {isEditing ? (
               <>
                 <div
-                  className="flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-green-500 text-white transition-colors hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-500"
+                  className="flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-green-500 text-n-white transition-colors hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-500"
                   onClick={(event) => {
                     event.stopPropagation();
                     saveProjectName();
@@ -388,7 +388,7 @@ function SidebarProjectItem({
                   <Check className="!h-3 !w-3" />
                 </div>
                 <div
-                  className="flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-gray-400 text-white transition-colors hover:bg-gray-500 dark:bg-gray-600 dark:hover:bg-gray-500"
+                  className="flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-n-gray-400 text-n-white transition-colors hover:bg-n-gray-500 dark:bg-n-gray-600 dark:hover:bg-n-gray-500"
                   onClick={(event) => {
                     event.stopPropagation();
                     onCancelEditingProject();
