@@ -1,5 +1,5 @@
 {
-  "total": 195,
+  "total": 187,
   "byFile": {
     "src/modules/chat/composer/CommandMenu.tsx": 6,
     "src/modules/chat/composer/ComposerAttachment.tsx": 1,
@@ -11,7 +11,6 @@
     "src/modules/chat/tools/ToolStatusBadge.tsx": 4,
     "src/modules/chat/transcript/ChatMessageImages.tsx": 4,
     "src/modules/chat/transcript/ChatMessagesPane.tsx": 8,
-    "src/modules/chat/transcript/ExecutionProcessSummary.tsx": 8,
     "src/modules/chat/transcript/LoadAllMessagesOverlay.tsx": 3,
     "src/modules/chat/transcript/Markdown.tsx": 1,
     "src/modules/chat/transcript/MessageCopyControl.tsx": 4,
@@ -63,13 +62,13 @@
   },
   "byAtom": {
     "bg: black": 13,
-    "bg: gray-100": 8,
+    "bg: gray-100": 7,
     "bg: gray-200": 1,
     "bg: gray-50": 6,
     "bg: gray-500": 1,
     "bg: gray-600": 1,
     "bg: gray-700": 2,
-    "bg: gray-800": 7,
+    "bg: gray-800": 6,
     "bg: gray-900": 15,
     "bg: gray-950": 3,
     "bg: slate-100": 1,
@@ -86,15 +85,15 @@
     "border: white": 1,
     "shadow: black": 2,
     "text: gray-100": 2,
-    "text: gray-200": 4,
+    "text: gray-200": 3,
     "text: gray-300": 7,
-    "text: gray-400": 22,
-    "text: gray-500": 13,
+    "text: gray-400": 21,
+    "text: gray-500": 12,
     "text: gray-600": 9,
-    "text: gray-700": 3,
-    "text: gray-900": 6,
+    "text: gray-700": 2,
+    "text: gray-900": 5,
     "text: slate-300": 2,
     "text: slate-700": 2,
-    "text: white": 31
+    "text: white": 30
   }
 }

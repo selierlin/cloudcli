@@ -143,12 +143,12 @@ export default function ExecutionProcessSummary({
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full p-1 text-sm text-foreground">
           <LLMProviderLogo provider={provider} className="h-full w-full" />
         </div>
-        <div className="text-sm font-medium text-gray-900 dark:text-white">{providerLabel}</div>
+        <div className="text-sm font-medium text-n-gray-900 dark:text-n-white">{providerLabel}</div>
       </div>
       <button
         ref={buttonRef}
         type="button"
-        className={`group flex min-h-7 w-full items-center gap-1.5 rounded-md px-1.5 text-left text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200 ${!collapsed && isSticky ? 'sticky -top-3 sm:-top-4 z-10 bg-background/95 backdrop-blur-sm' : ''}`}
+        className={`group flex min-h-7 w-full items-center gap-1.5 rounded-md px-1.5 text-left text-xs font-medium text-n-gray-500 transition-colors hover:bg-n-gray-100 hover:text-n-gray-700 dark:text-n-gray-400 dark:hover:bg-n-gray-800 dark:hover:text-n-gray-200 ${!collapsed && isSticky ? 'sticky -top-3 sm:-top-4 z-10 bg-background/95 backdrop-blur-sm' : ''}`}
         aria-expanded={!collapsed}
         onClick={onToggle}
       >
