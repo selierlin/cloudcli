@@ -77,6 +77,24 @@
     --palette-danger-500: 0 84.2% 60.2%;
     --palette-danger-800: 0 62.8% 30.6%;
 
+    /* Git commit-graph lanes — the ten hues the History view cycles through,
+       carried over verbatim from the array that used to live in
+       `commitGraph.ts`. They were picked to stay legible on both light and dark
+       backgrounds, so like the terminal board they are declared once here and
+       do not vary by appearance (`graph` step N is lane N; the JS maps
+       `lane % 10` onto 1..10). Step 5 coincides with `--palette-danger-500`;
+       they stay separate tokens so a theme can move one without the other. */
+    --palette-graph-1: 198.6 88.7% 48.4%; /* sky-500 */
+    --palette-graph-2: 24.6 95% 53.1%; /* orange-500 */
+    --palette-graph-3: 270.7 91% 65.1%; /* purple-500 */
+    --palette-graph-4: 142.1 70.6% 45.3%; /* green-500 */
+    --palette-graph-5: 0 84.2% 60.2%; /* red-500 */
+    --palette-graph-6: 45.4 93.4% 47.5%; /* yellow-500 */
+    --palette-graph-7: 173.4 80.4% 40%; /* teal-500 */
+    --palette-graph-8: 330.4 81.2% 60.4%; /* pink-500 */
+    --palette-graph-9: 238.7 83.5% 66.7%; /* indigo-500 */
+    --palette-graph-10: 83.7 80.5% 44.3%; /* lime-500 */
+
     /* Compatibility scale — Tailwind's default neutral ramps, converted to the
        same triplet form step for step. The UI still spells ~1.5k of its
        skeleton as `bg-gray-100 dark:bg-gray-700`; moving those onto tokens
@@ -291,6 +309,21 @@
     --n-neutral-800: var(--palette-neutral-800);
     --n-neutral-900: var(--palette-neutral-900);
     --n-neutral-950: var(--palette-neutral-950);
+
+    /* Git commit-graph lanes (see the L1 note above). The History view consumes
+       these through `laneColor` in `commitGraph.ts`, which returns
+       `hsl(var(--graph-lane-N))` — so the strip's SVG `stroke` / `fill` and the
+       ref-badge tint all recolour when a theme overrides the token. */
+    --graph-lane-1: var(--palette-graph-1);
+    --graph-lane-2: var(--palette-graph-2);
+    --graph-lane-3: var(--palette-graph-3);
+    --graph-lane-4: var(--palette-graph-4);
+    --graph-lane-5: var(--palette-graph-5);
+    --graph-lane-6: var(--palette-graph-6);
+    --graph-lane-7: var(--palette-graph-7);
+    --graph-lane-8: var(--palette-graph-8);
+    --graph-lane-9: var(--palette-graph-9);
+    --graph-lane-10: var(--palette-graph-10);
 
     /* Code editor (CodeMirror) — the chrome `@codemirror/theme-one-dark` used to
        own outright. Values are complete colour expressions because

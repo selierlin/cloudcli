@@ -1,5 +1,6 @@
 import type { ITheme } from '@xterm/xterm';
 
+import { GRAPH_LANE_COUNT } from '@/modules/git-panel/utils/commitGraph';
 import { readTerminalTheme, TERMINAL_THEME_TOKENS } from '@/modules/shell/utils/terminalTheme';
 import { EXTREME_TOKENS, SCALE_TOKEN_NAMES } from '@/shared/tests/neutralScale';
 
@@ -103,6 +104,17 @@ const EDITOR_PROBE_TOKENS: string[] = [
  */
 const NEUTRAL_SCALE_PROBE_TOKENS: string[] = [...SCALE_TOKEN_NAMES, ...EXTREME_TOKENS];
 
+/**
+ * The Git commit-graph lanes. `laneColor` in `commitGraph.ts` hands these to
+ * SVG `stroke` / `fill` and to inline styles as `hsl(var(--graph-lane-N))`, so
+ * probing them through that same path is the colour the History view paints.
+ * Derived from the lane count so the two stay in step.
+ */
+const GRAPH_LANE_PROBE_TOKENS: string[] = Array.from(
+  { length: GRAPH_LANE_COUNT },
+  (_, index) => `--graph-lane-${index + 1}`,
+);
+
 type Probe = {
   token: string;
   property: string;
@@ -125,6 +137,7 @@ const PROBES: Probe[] = [
   { token: '--nav-glass-bg', property: 'backgroundColor' },
   { token: '--nav-tab-glow', property: 'backgroundColor' },
   ...NEUTRAL_SCALE_PROBE_TOKENS.map((token) => ({ token, property: 'backgroundColor' })),
+  ...GRAPH_LANE_PROBE_TOKENS.map((token) => ({ token, property: 'backgroundColor' })),
   // The terminal tokens go through the same `hsl(var(--token))` path the
   // runtime resolver uses (src/modules/shell/utils/terminalTheme.ts), so a
   // probe here is the colour xterm actually receives.

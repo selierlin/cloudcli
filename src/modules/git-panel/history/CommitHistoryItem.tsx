@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { GitCommitSummary, CommitGraphRow } from '@/shared/types';
-import { laneColor } from '@/modules/git-panel/utils/commitGraph';
+import { laneColor, laneTint } from '@/modules/git-panel/utils/commitGraph';
 import { getStatusBadgeClass, parseCommitFiles } from '@/modules/git-panel/utils/gitPanelUtils';
 import GitDiffViewer from '@/modules/git-panel/GitDiffViewer';
 import CommitGraphStrip from '@/modules/git-panel/history/CommitGraphStrip';
@@ -18,10 +18,11 @@ function formatDate(dateString: string, locale: string): string {
 
 // One "HEAD -> main" / "origin/x" / "tag: v1" decoration pill next to the
 // commit message, tinted with the commit's graph lane color.
-function RefBadge({ refName, color }: { refName: string; color: string }) {
+function RefBadge({ refName, lane }: { refName: string; lane: number }) {
   const isTag = refName.startsWith('tag: ');
   const isHead = refName.startsWith('HEAD -> ');
   const label = isTag ? refName.slice(5) : isHead ? refName.slice(8) : refName;
+  const color = laneColor(lane);
 
   return (
     <span
@@ -29,7 +30,7 @@ function RefBadge({ refName, color }: { refName: string; color: string }) {
       style={{
         borderColor: color,
         color,
-        backgroundColor: isHead ? `${color}22` : 'transparent',
+        backgroundColor: isHead ? laneTint(lane) : 'transparent',
       }}
       title={refName}
     >
@@ -67,9 +68,9 @@ export default function CommitHistoryItem({
     return parseCommitFiles(diff);
   }, [diff]);
 
-  // Must stay a literal hex value: RefBadge derives its HEAD tint by
-  // appending an alpha byte (`${color}22`), which breaks for var() strings.
-  const badgeColor = graphRow ? laneColor(graphRow.nodeLane) : '#0ea5e9';
+  // Without a graph row there is no lane to colour by; lane 0 is what the
+  // removed `'#0ea5e9'` literal used to resolve to.
+  const badgeLane = graphRow ? graphRow.nodeLane : 0;
 
   return (
     <div className="flex border-b border-border last:border-0">
@@ -90,7 +91,7 @@ export default function CommitHistoryItem({
               {commit.refs && commit.refs.length > 0 && (
                 <span className="mb-0.5 flex flex-wrap gap-1">
                   {commit.refs.map((refName) => (
-                    <RefBadge key={refName} refName={refName} color={badgeColor} />
+                    <RefBadge key={refName} refName={refName} lane={badgeLane} />
                   ))}
                 </span>
               )}
