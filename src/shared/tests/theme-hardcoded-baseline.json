@@ -1,11 +1,9 @@
 {
-  "total": 2,
+  "total": 1,
   "byFile": {
-    "src/modules/task-master/TaskMasterPanel.tsx": 1,
     "src/shared/ui/Dialog.tsx": 1
   },
   "byAtom": {
-    "bg: black": 1,
-    "text: white": 1
+    "bg: black": 1
   }
 }
