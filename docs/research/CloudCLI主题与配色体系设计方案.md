@@ -1,7 +1,7 @@
 # CloudCLI 主题与配色体系设计方案
 
 > 编写日期：2026-09-24 ｜ 修订：2026-09-25（v5：阶段 0-A / 0-B / 0-C 已实施并验收，记录见 §6）
-> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i 十六片，其余分片待做；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内）
+> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j 十七片，其余分片待做；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内。截至 0-E2j：中性具名硬编码剩余 **1047 处 / 98 文件**（起点 1517 / 105））
 > 参照物：WorkBuddy（`/Applications/WorkBuddy.app`，app.asar 解包 + 本机皮肤包实物）、Codex CLI（`@openai/codex@0.155.1`，Rust 二进制字符串解析）
 > 目标读者：评审 AI / 后续实施者
 
@@ -361,7 +361,7 @@ export type ThemeManifest = {
 
 | 目标 | 文件 | 收口方式 |
 |---|---|---|
-| **Tailwind 具名中性色（界面骨架）** → 三分法**第一类**（v3 定为必做） | 中性色 **1502 处**（设计期 grep 口径；0-E2e 发现该口径漏了轴限定形态，真实口径为 **1517 处**，见该片记录），分布于 **105 个文件**（热点：`AskUserQuestionPanel.tsx` 84、`TaskDetailModal.tsx` 72、`McpServerFormModal.tsx` 69、`TaskBoardToolbar.tsx` 60、`AgentConnectionsStep.tsx` 60、`VersionUpgradeModal.tsx` 55…） | **v4 定案（A1 保值档位令牌）**：`bg-gray-100 dark:bg-gray-700` → `bg-n-gray-100 dark:bg-n-gray-700`——只把字面档位换成令牌引用，取值**逐档等于现状 Tailwind 中性值**。初稿写的 `bg-slate-800 → bg-card` / `text-zinc-400 → text-muted-foreground` **不可行**：实测本片存在 **89 种不同的 `(light, dark)` 元组**，而一个令牌类只能承载**一对**值，折叠到 ~15 个角色令牌必然改色（light 整体偏暖、dark 卡片 `#1f2937 → #1f1f1f`，单点 ΔRGB 最大 100），DoD 的"阈值 0"当场作废。保值档位层由 0-E1（`gray`）与 0-E1b（`zinc` / `slate` / `neutral`）建设（见下方实施记录）。**按文件集群分片，热点文件（>50 处）单独成片**；`bg-x dark:bg-y` 是成对结构（实测同文件对 ≥ 335 处，本仓粗测 414），**替换必须一次完成、同时消灭两半，不设中间态**。**代价（记账）**：`dark:` 双写结构保留（§5.7 第一类字面要求未满足），且档位跨角色耦合（`--n-gray-700` 同时承载 light 正文色与 dark 抬升面）；两者都由**阶段 2 的语义化改名**收口——与 `--cc-syntax-N` 本轮"只加间接与护栏、阶段 2 一次到位改名"（§8.9）同构。**进度**：**0-E2i 后剩余 1099 处 / 99 文件**（`AskUserQuestionPanel.tsx` 84、`TaskDetailModal.tsx` 72、`McpServerFormModal.tsx` 69、`TaskBoardToolbar.tsx` 60、`VersionUpgradeModal.tsx` 55 均已清零，余下最大单片为 `CodeEditorHeader.tsx` 52）。沿革：0-E0 全量 **1502 处 / 105 文件** → 0-E2 后 1439 / 104 → 0-E2c 不变（纯护栏片）→ 0-E2d −84 → **0-E2e 扩面 +15 又同片清零 −15，剩余量不变**（但覆盖面从 1502 增至 **1517**，见 0-E2e 记录的口径变化）→ 0-E2f −72 → 0-E2g −69 → 0-E2h −60 → 0-E2i −55。另处置 2 处旧式 `*-opacity-*` 共现隐雷，见 0-E2 记录。**0-E2c** 补上配对层守恒律——0-E0 时代的全量字面命中数（1439 剩余 ＋ 1 豁免 ＋ 62 已迁移 = 1502）即冻结总量起点，从数字上追溯确认了 0-E2b 的迁移守恒 |
+| **Tailwind 具名中性色（界面骨架）** → 三分法**第一类**（v3 定为必做） | 中性色 **1502 处**（设计期 grep 口径；0-E2e 发现该口径漏了轴限定形态，真实口径为 **1517 处**，见该片记录），分布于 **105 个文件**（热点：`AskUserQuestionPanel.tsx` 84、`TaskDetailModal.tsx` 72、`McpServerFormModal.tsx` 69、`TaskBoardToolbar.tsx` 60、`AgentConnectionsStep.tsx` 60、`VersionUpgradeModal.tsx` 55…） | **v4 定案（A1 保值档位令牌）**：`bg-gray-100 dark:bg-gray-700` → `bg-n-gray-100 dark:bg-n-gray-700`——只把字面档位换成令牌引用，取值**逐档等于现状 Tailwind 中性值**。初稿写的 `bg-slate-800 → bg-card` / `text-zinc-400 → text-muted-foreground` **不可行**：实测本片存在 **89 种不同的 `(light, dark)` 元组**，而一个令牌类只能承载**一对**值，折叠到 ~15 个角色令牌必然改色（light 整体偏暖、dark 卡片 `#1f2937 → #1f1f1f`，单点 ΔRGB 最大 100），DoD 的"阈值 0"当场作废。保值档位层由 0-E1（`gray`）与 0-E1b（`zinc` / `slate` / `neutral`）建设（见下方实施记录）。**按文件集群分片，热点文件（>50 处）单独成片**；`bg-x dark:bg-y` 是成对结构（实测同文件对 ≥ 335 处，本仓粗测 414），**替换必须一次完成、同时消灭两半，不设中间态**。**代价（记账）**：`dark:` 双写结构保留（§5.7 第一类字面要求未满足），且档位跨角色耦合（`--n-gray-700` 同时承载 light 正文色与 dark 抬升面）；两者都由**阶段 2 的语义化改名**收口——与 `--cc-syntax-N` 本轮"只加间接与护栏、阶段 2 一次到位改名"（§8.9）同构。**进度**：**0-E2j 后剩余 1047 处 / 98 文件**（`AskUserQuestionPanel.tsx` 84、`TaskDetailModal.tsx` 72、`McpServerFormModal.tsx` 69、`TaskBoardToolbar.tsx` 60、`VersionUpgradeModal.tsx` 55、`CodeEditorHeader.tsx` 52 均已清零，余下最大单片为 `FolderBrowserModal.tsx` 46）。沿革：0-E0 全量 **1502 处 / 105 文件** → 0-E2 后 1439 / 104 → 0-E2c 不变（纯护栏片）→ 0-E2d −84 → **0-E2e 扩面 +15 又同片清零 −15，剩余量不变**（但覆盖面从 1502 增至 **1517**，见 0-E2e 记录的口径变化）→ 0-E2f −72 → 0-E2g −69 → 0-E2h −60 → 0-E2i −55 → 0-E2j −52。另处置 2 处旧式 `*-opacity-*` 共现隐雷，见 0-E2 记录。**0-E2c** 补上配对层守恒律——0-E0 时代的全量字面命中数（1439 剩余 ＋ 1 豁免 ＋ 62 已迁移 = 1502）即冻结总量起点，从数字上追溯确认了 0-E2b 的迁移守恒 |
 | **状态色（成功 / 错误 / 警告 / 信息）** → 三分法**第二类** | 约 300 处（如 `bg-green-500 dark:bg-green-600`） | **保留 `dark:`，作为"主题不应控制的色"**。`--status-*` 令牌的**定义与替换捆绑为同一个后续片（可晚于阶段 0），阶段 0 不引入**——否则会重演 DSH 指出的"无消费者死令牌"覆辙（保留 `dark:` 的组件不读令牌，覆盖 `--status-*` 无效）。替换完成前，主题开发文档须诚实写明"状态色暂不受主题控制" |
 | **品牌色 / 文件图标色 / 装饰色** → 三分法**第三类** | 约 1000 处（`fileIcons.ts`、agent 品牌色、渐变色） | **明确豁免**，写入机器可校验的豁免清单（§6），主题不覆盖 |
 | **`dark:` 前缀总览**（v3 定口径） | 实测 `dark:` 共约 **1302 处** = 中性具名 **529** + 彩色具名 **581** + 语义令牌类 **6** + 结构性变体（`dark:prose-invert` 等）约 186。**注意：`dark:` + 具名色合计约 1110 处（86%），均为硬编码**，须按三分法分流 | **验收只统计"`dark:` + 具名色"**（目标收敛到豁免清单），**不统计"`dark:` 总数归零"**——`dark:bg-card` 这类**指向令牌**的 dark 变体天然无害、主题完全接管，计入会白费力气。另：全项目语义令牌类的 `dark:` 用法仅 6 处，说明现状暗色处理基本是"具名色双写"模式 |
@@ -465,11 +465,12 @@ grep 只能证明"没有字面硬编码"，证明不了"每套主题的令牌全
 | 0-E2g ✅ | **热点榜第三的文件集群**：`McpServerFormModal.tsx` 69 → 0——**已实施，见本节末 0-E2g 记录** | 密度最高的一片（69 处压在 17 行内）；族仅 gray / white / black，工具仅 `bg`/`text`/`border`，是最标准的 A1 形态 |
 | 0-E2h ✅ | **热点榜第四的文件集群**：`TaskBoardToolbar.tsx` 60 → 0——**已实施，见本节末 0-E2h 记录** | 首个**零透明度修饰符**的片（60 处全无 `/alpha`）；族仅 gray / white；同文件品牌色 purple / blue 未动 |
 | 0-E2i ✅ | **热点榜第五的文件集群**：`VersionUpgradeModal.tsx` 55 → 0——**已实施，见本节末 0-E2i 记录** | **token 数至今最多（31 个）**、档位最杂（同片 11 个档位）；首个自带**独占拼写**的片，首次实测条件式断言的 `0 → dist 为 0` 方向；首个拿到带透明度真实值链样本的片 |
-| 0-E2j+ | **其余按文件集群施工**：`bg-gray-100 dark:bg-gray-700 → bg-n-gray-100 dark:bg-n-gray-700`（非 gray 同理走 `n-zinc` / `n-slate` / `n-neutral`），热点文件单独成片。**热点榜已更新到 0-E2i 之后**：`CodeEditorHeader.tsx` 52、`FolderBrowserModal.tsx` 46、`TaskEmptyState.tsx` 46、`AccountContent.tsx` 41、`toolConfigs.ts` 38、`NextTaskBanner.tsx` 33 | 见 §6 下"切片粒度"；每片跑基线快照收敛 + 守恒律**双绿**才算过；**迁移前先点名确认每个档位在 `index.css` 有 L1+L2 双声明**（见 0-E2i 的前置检查）。**注意**：非 gray 的剩余处分散在 `AccountContent.tsx`、`NextTaskBanner.tsx` 等；stone 全仓 0 处 |
+| 0-E2j ✅ | **热点榜第六的文件集群**：`CodeEditorHeader.tsx` 52 → 0——**已实施，见本节末 0-E2j 记录** | 首个 `text` 远多于 `bg`（36 : 16）且完全不用 `border` 的片；`dark:` 系变体占一半（26/52）；同文件品牌色 blue / green（含带透明度拼写）未动 |
+| 0-E2j+ | **其余按文件集群施工**：`bg-gray-100 dark:bg-gray-700 → bg-n-gray-100 dark:bg-n-gray-700`（非 gray 同理走 `n-zinc` / `n-slate` / `n-neutral`），热点文件单独成片。**热点榜已更新到 0-E2j 之后**：`FolderBrowserModal.tsx` 46、`TaskEmptyState.tsx` 46、`AccountContent.tsx` 41、`toolConfigs.ts` 38、`NextTaskBanner.tsx` 33 | 见 §6 下"切片粒度"；每片跑基线快照收敛 + 守恒律**双绿**才算过；**迁移前先点名确认每个档位在 `index.css` 有 L1+L2 双声明**（见 0-E2i 的前置检查）。**注意**：非 gray 的剩余处分散在 `AccountContent.tsx`、`NextTaskBanner.tsx` 等；stone 全仓 0 处 |
 | 0-F | **Git 图 + 其余零散硬编码**（`MobileTerminalSelection` 等） | 体量小，收尾 |
 | 0-G | **`index.css` 后半段 66 处暗色补偿** | **必须等 `color-scheme` 先上**（§5.6），否则会令牌化一堆本可删除的补偿 |
 
-**切片粒度（v3）**：按**文件集群**而非色值类型切片——中性色分布在 **99 个文件**（0-E2i 后；含轴限定形态，覆盖面口径见 0-E2e 记录），同模块语义一致、review 上下文完整。热点文件必须单独成片（`CodeEditorHeader.tsx` 52、`FolderBrowserModal.tsx` 46、`TaskEmptyState.tsx` 46），避免单个 PR 塞进几十处替换。**已落地七片**：`AgentConnectionsStep.tsx` 60 → 0（0-E2b，首批含非 gray 族）、`AskUserQuestionPanel.tsx` 84 → 0（0-E2d，#1 热点、纯 gray）、`Tooltip.tsx` 等 4 文件的 15 处轴限定形态 → 0（0-E2e，扫描器覆盖面片）、`TaskDetailModal.tsx` 72 → 0（0-E2f，#2 热点、纯 gray）、`McpServerFormModal.tsx` 69 → 0（0-E2g，#3 热点、密度最高）、`TaskBoardToolbar.tsx` 60 → 0（0-E2h，#4 热点、零透明度）、`VersionUpgradeModal.tsx` 55 → 0（0-E2i，#5 热点、token 最多）。**每片的通过门槛是"双绿"**：快照基线按预期减少（证明字面在消失）＋ 守恒律零漂移（证明换上去的令牌对且保形），见 0-E2c 记录。
+**切片粒度（v3）**：按**文件集群**而非色值类型切片——中性色分布在 **98 个文件**（0-E2j 后；含轴限定形态，覆盖面口径见 0-E2e 记录），同模块语义一致、review 上下文完整。热点文件必须单独成片（`FolderBrowserModal.tsx` 46、`TaskEmptyState.tsx` 46、`AccountContent.tsx` 41），避免单个 PR 塞进几十处替换。**已落地八片**：`AgentConnectionsStep.tsx` 60 → 0（0-E2b，首批含非 gray 族）、`AskUserQuestionPanel.tsx` 84 → 0（0-E2d，#1 热点、纯 gray）、`Tooltip.tsx` 等 4 文件的 15 处轴限定形态 → 0（0-E2e，扫描器覆盖面片）、`TaskDetailModal.tsx` 72 → 0（0-E2f，#2 热点、纯 gray）、`McpServerFormModal.tsx` 69 → 0（0-E2g，#3 热点、密度最高）、`TaskBoardToolbar.tsx` 60 → 0（0-E2h，#4 热点、零透明度）、`VersionUpgradeModal.tsx` 55 → 0（0-E2i，#5 热点、token 最多）、`CodeEditorHeader.tsx` 52 → 0（0-E2j，#6 热点、text 为主且无 border）。**每片的通过门槛是"双绿"**：快照基线按预期减少（证明字面在消失）＋ 守恒律零漂移（证明换上去的令牌对且保形），见 0-E2c 记录。
 
 **`dark:` 处置不设独立片**：它必须并入各文件集群片的同一个 diff（`bg-x dark:bg-y` 是成对结构，见 §5.7）。本阶段对 `dark:` 的产出只是纸面工作（分类清单），不是独立施工片。
 
@@ -1002,6 +1003,27 @@ Mutation 侧：
 **验收**：`test:client` **128 文件 / 970 用例**；`typecheck`、`typecheck:theme-tokens`、`lint`（153 warnings / **0 error**）、`build:client`、`test:theme-tokens` 16 项全绿。未改 `index.css` / `tailwind.config.js`。
 
 **与既有账的关系**：阶段 0 至今迁移 60 ＋ 2 ＋ 84 ＋ 15 ＋ 72 ＋ 69 ＋ 60 ＋ **55** ＝ **417** 处；剩余 **1099 处 / 99 文件**，余下最大单片 `CodeEditorHeader.tsx` 52。
+
+#### 0-E2j：`CodeEditorHeader.tsx` 52 → 0（热点榜第六，已实施）
+
+**范围**：`src/modules/code-editor/CodeEditorHeader.tsx`。**52 处 / 13 个 token / 10 行**——族 `gray` 44 ＋ `white` 8（**无 black**）；工具类 `text` 36 ／ `bg` 16（**无 border**）；变体 `dark:` 系 26 ／ `hover:` 系 16 ／ 裸用 10；**带透明度 0 处**。**无动态色构造、无其他中性族、无轴限定形态**——标准 A1 形态；同文件品牌/状态色（`blue-*` 7 ／ `green-*` 3，含 `dark:bg-blue-900/30`、`dark:bg-green-900/30` 等带透明度拼写）**未被触碰**。
+
+**前置检查（沿用 0-E2i 的一次点名）**：迁移前确认本片用到的 9 个档位（`gray-100/200/400/500/600/700/800/900` ＋ `white`）在 `src/index.css` 里 **L1 `--palette-*` 与 L2 `--n-*` 双声明齐全**（`index.css:52,92-100,249-259`），无需新建令牌。
+
+**手法**：与 0-E2g／0-E2h／0-E2i 相同（扫描器为唯一事实源，**52 = 52**，不等则拒写；反向还原后与备份 `diff` 字节级相同）。
+
+**双绿**：
+
+| 门槛 | 结果 |
+|---|---|
+| **守恒律** | **1517 = 1517、211 桶逐桶相等，未刷新** |
+| **基线** | **1099 → 1047（−52）**，文件数 **99 → 98**；`byFile` 该文件 `52 → 0` 是唯一文件级 delta；`byAtom` **9 条全为减、无一增**，每条与 13 个 token 折叠后逐一对上（`bg: gray-100` −8 = `hover:bg-gray-100` 8；`bg: gray-800` −8 = `dark:hover:bg-gray-800` 8；`text: gray-200` −1 = `dark:hover:text-gray-200` 1；`text: gray-400` −9 = `dark:text-gray-400` 8 ＋ `text-gray-400` 1；`text: gray-500` −2 = `dark:text-gray-500` 1 ＋ `text-gray-500` 1；`text: gray-600` −7 = `text-gray-600` 7；`text: gray-700` −1 = `hover:text-gray-700` 1；`text: gray-900` −8 = `hover:text-gray-900` 7 ＋ `text-gray-900` 1；`text: white` −8 = `dark:hover:text-white` 7 ＋ `dark:text-white` 1），合计恰 **−52** |
+
+**产物核对（通用脚本第 4 次复用，本片无新形态）**：纯前缀插入 **YES**；13 个 token **全部**在 `dist` 有令牌形态；13 个字面拼写在 `src/` 中**仍各有消费者**（实测 1~86 处），故按条件式断言**允许**留在 `dist`（`src_left > 0 ⟺ dist > 0` 双向成立）。两点如实记账：① 本片**无独占拼写**，`0 → dist 为 0` 那一半方向仍无新样本（0-E2i 已以真实数据实测过该方向）；② 本片**无带透明度 token**，值链检查迭代零次，属**真空转**而非通过。非空转探针（注入 `dark:bg-gray-80` / `text-fuchsia-999`）如预期报 **FAILED**。
+
+**验收**：`test:client` **128 文件 / 970 用例**；`typecheck`、`typecheck:theme-tokens`、`lint`（153 warnings / **0 error**）、`build:client`、`test:theme-tokens` 16 项全绿；守恒律 2/2、基线 3/3。未改 `index.css` / `tailwind.config.js`。
+
+**与既有账的关系**：阶段 0 至今迁移 60 ＋ 2 ＋ 84 ＋ 15 ＋ 72 ＋ 69 ＋ 60 ＋ 55 ＋ **52** ＝ **469** 处；剩余 **1047 处 / 98 文件**，余下最大单片 `FolderBrowserModal.tsx` 46。
 
 ### 阶段 1：主题扩展点
 
