@@ -1,13 +1,11 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useDeviceSettings } from '@/shared/hooks/useDeviceSettings';
-import { useUiPreferences, useSetUiPreference } from '@/shared/context/UiPreferencesContext';
 import { useQuickSettingsDrag } from '@/modules/quick-settings-panel/hooks/useQuickSettingsDrag';
 import { useSessionOutlineData } from '@/modules/quick-settings-panel/hooks/useSessionOutlineData';
 import { useProjectMainState } from '@/modules/project-workspace';
-import type { PreferenceToggleKey, QuickSettingsPreferences } from '@/shared/types';
 import QuickSettingsContent from '@/modules/quick-settings-panel/QuickSettingsContent';
 import QuickSettingsHandle from '@/modules/quick-settings-panel/QuickSettingsHandle';
 import QuickSettingsPanelHeader from '@/modules/quick-settings-panel/QuickSettingsPanelHeader';
@@ -23,8 +21,6 @@ function QuickSettingsPanelView() {
   const { t } = useTranslation('settings');
   const { selectedProject, selectedSession, handleSessionSelect } = useProjectMainState();
   const { isMobile } = useDeviceSettings({ trackPWA: false });
-  const preferences = useUiPreferences();
-  const setPreference = useSetUiPreference();
   const {
     isDragging,
     handleStyle,
@@ -33,25 +29,6 @@ function QuickSettingsPanelView() {
     endDrag,
     consumeSuppressedClick,
   } = useQuickSettingsDrag({ isMobile });
-
-  const quickSettingsPreferences = useMemo<QuickSettingsPreferences>(() => ({
-    showRawParameters: preferences.showRawParameters,
-    showThinking: preferences.showThinking,
-    sendByCtrlEnter: preferences.sendByCtrlEnter,
-    voiceEnabled: preferences.voiceEnabled,
-  }), [
-    preferences.sendByCtrlEnter,
-    preferences.showRawParameters,
-    preferences.showThinking,
-    preferences.voiceEnabled,
-  ]);
-
-  const handlePreferenceChange = useCallback(
-    (key: PreferenceToggleKey, value: boolean) => {
-      setPreference(key, value);
-    },
-    [setPreference],
-  );
 
   const handleToggleFromHandle = useCallback(
     (event: ReactMouseEvent<HTMLButtonElement>) => {
@@ -141,8 +118,6 @@ function QuickSettingsPanelView() {
           </div>
           {activeTab === 'settings' ? (
             <QuickSettingsContent
-              preferences={quickSettingsPreferences}
-              onPreferenceChange={handlePreferenceChange}
               messages={chatMessages}
               sessionTitle={selectedSession?.title}
               provider={selectedSession?.__provider ?? selectedSession?.provider ?? 'claude'}

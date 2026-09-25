@@ -11,16 +11,6 @@ vi.mock('@/shared/hooks/useDeviceSettings', () => ({
   useDeviceSettings: () => ({ isMobile: false }),
 }));
 
-vi.mock('@/shared/context/UiPreferencesContext', () => ({
-  useUiPreferences: () => ({
-    showRawParameters: false,
-    showThinking: false,
-    sendByCtrlEnter: false,
-    voiceEnabled: false,
-  }),
-  useSetUiPreference: () => vi.fn(),
-}));
-
 vi.mock('@/modules/project-workspace', () => ({
   useProjectMainState: () => ({
     selectedProject: null,

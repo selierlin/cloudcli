@@ -7,6 +7,7 @@ import { Button } from '@/shared/ui';
 import SettingsSidebar from '@/modules/settings/SettingsSidebar';
 import AgentsSettingsTab from '@/modules/settings/tabs/agents-settings/AgentsSettingsTab';
 import AppearanceSettingsTab from '@/modules/settings/tabs/AppearanceSettingsTab';
+import ChatSettingsTab from '@/modules/settings/tabs/ChatSettingsTab';
 import CredentialsSettingsTab from '@/modules/settings/tabs/api-settings/CredentialsSettingsTab';
 import VoiceSettingsTab from '@/modules/settings/tabs/VoiceSettingsTab';
 import QuickRepliesSettingsTab from '@/modules/settings/tabs/QuickRepliesSettingsTab';
@@ -248,6 +249,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
                   onCodeEditorFontSizeChange={(value) => updateCodeEditorSetting('fontSize', value)}
                 />
               )}
+
+              {activeTab === 'chat' && <ChatSettingsTab />}
 
               {activeTab === 'git' && <GitSettingsTab />}
 
