@@ -1,5 +1,5 @@
 {
-  "total": 26,
+  "total": 24,
   "byFile": {
     "src/modules/chat/composer/ComposerAttachment.tsx": 1,
     "src/modules/chat/composer/PromptInput.tsx": 1,
@@ -15,7 +15,6 @@
     "src/modules/onboarding/OnboardingStepProgress.tsx": 1,
     "src/modules/plugins/PluginSettingsTab.tsx": 1,
     "src/modules/project-workspace/WorkspaceErrorBoundary.tsx": 1,
-    "src/modules/project-workspace/WorkspaceTabs.tsx": 2,
     "src/modules/settings/SettingsToggle.tsx": 1,
     "src/modules/settings/tabs/agents-settings/sections/AgentSelectorSection.tsx": 1,
     "src/modules/settings/tabs/NotificationsSettingsTab.tsx": 2,
@@ -31,7 +30,6 @@
     "bg: white": 4,
     "bg: zinc-500": 1,
     "bg: zinc-900": 1,
-    "shadow: black": 2,
     "text: white": 12
   }
 }
