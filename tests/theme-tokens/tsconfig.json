@@ -9,6 +9,7 @@
     "./main.ts",
     "./token-contract.spec.ts",
     "./terminal-tokens.spec.ts",
+    "./graph-lanes.spec.ts",
     "./vite.config.ts"
   ]
 }

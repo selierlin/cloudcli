@@ -14,22 +14,23 @@ type GraphCommit = {
   parents?: string[];
 };
 
-// Colors cycle per lane, VSCode Git Graph style. Chosen to stay readable on
-// both light and dark backgrounds.
-const GRAPH_COLORS = [
-  '#0ea5e9', // sky
-  '#f97316', // orange
-  '#a855f7', // purple
-  '#22c55e', // green
-  '#ef4444', // red
-  '#eab308', // yellow
-  '#14b8a6', // teal
-  '#ec4899', // pink
-  '#6366f1', // indigo
-  '#84cc16', // lime
-];
+/** Lanes the stylesheet declares a colour for (`--graph-lane-1..GRAPH_LANE_COUNT`). */
+export const GRAPH_LANE_COUNT = 10;
 
-export const laneColor = (lane: number) => GRAPH_COLORS[lane % GRAPH_COLORS.length];
+// Colours live in `src/index.css` as `--graph-lane-1..10` (see the L1 note
+// there), so a theme recolours the graph like any other surface. Lanes cycle
+// past the last token, VSCode Git Graph style.
+const laneToken = (lane: number) => `--graph-lane-${(lane % GRAPH_LANE_COUNT) + 1}`;
+
+export const laneColor = (lane: number) => `hsl(var(${laneToken(lane)}))`;
+
+/**
+ * The HEAD ref badge tints its background with the lane colour. It used to get
+ * that tint by appending `22` to the hex; the token form spells the same alpha
+ * channel (`0x22` = 34/255) in HSL so the colour still resolves through the
+ * token and a theme can recolour it.
+ */
+export const laneTint = (lane: number) => `hsl(var(${laneToken(lane)}) / calc(34 / 255))`;
 
 export function computeCommitGraph(commits: GraphCommit[]): CommitGraphRow[] {
   // Each slot holds the commit hash that lane is waiting to reach, or null
