@@ -73,6 +73,21 @@ const extractText = (value: unknown): string => {
   return unwrapJsonStringLiteral(text);
 };
 
+/**
+ * Reads a reasoning part's text verbatim.
+ *
+ * OpenCode persists model reasoning as one `part` row per streamed token
+ * fragment, so a fragment's `text` can be a single space or other whitespace.
+ * `extractText`/`readOptionalString` trim those fragments and drop
+ * whitespace-only ones, which corrupts the reconstructed reasoning, so this
+ * reads the raw string instead. Missing or non-string values read as `''`.
+ */
+const readReasoningText = (value: unknown): string => {
+  const record = readObjectRecord(value);
+  const text = record?.text;
+  return typeof text === 'string' ? text : '';
+};
+
 const hasUserRole = (value: unknown): boolean => {
   const record = readObjectRecord(value);
   return readOptionalString(record?.role) === 'user';
@@ -376,6 +391,10 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
   private normalizeHistoryRows(rows: OpenCodeHistoryRow[], sessionId: string): NormalizedMessage[] {
     const normalized: NormalizedMessage[] = [];
     const emittedMessageErrors = new Set<string>();
+    // OpenCode stores reasoning one token fragment per part row; consecutive
+    // reasoning parts of the same message are accumulated into a single
+    // thinking message instead of emitting one message per token.
+    let thinkingRun: { messageId: string; message: NormalizedMessage } | null = null;
 
     for (const row of rows) {
       const timestamp = normalizeProviderTimestamp(row.part_time_created ?? row.message_time_created);
@@ -410,6 +429,12 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
         continue;
       }
 
+      // Any non-reasoning part ends the current reasoning run, so a
+      // think -> tool -> think sequence yields two thinking messages.
+      if (partType !== 'reasoning') {
+        thinkingRun = null;
+      }
+
       if (partType === 'text') {
         const rawContent = extractText(partData);
         // User prompts sent with attachments carry an <images_input> path
@@ -441,16 +466,26 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
       }
 
       if (partType === 'reasoning') {
-        const content = extractText(partData);
-        if (content.trim()) {
-          normalized.push(createNormalizedMessage({
+        const content = readReasoningText(partData);
+        // Empty text marks the part-creation event and carries no fragment;
+        // whitespace-only fragments are real tokens and must be kept.
+        if (content === '') {
+          continue;
+        }
+
+        if (thinkingRun && thinkingRun.messageId === row.message_id) {
+          thinkingRun.message.content = (thinkingRun.message.content ?? '') + content;
+        } else {
+          const message = createNormalizedMessage({
             id: baseId,
             sessionId,
             timestamp,
             provider: PROVIDER,
             kind: 'thinking',
             content,
-          }));
+          });
+          normalized.push(message);
+          thinkingRun = { messageId: row.message_id, message };
         }
         continue;
       }
