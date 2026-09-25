@@ -56,7 +56,10 @@
     --palette-sand-50: 44 22% 96%;
     --palette-sand-100: 44 15% 91%;
     --palette-sand-200: 44 14% 87%;
-    --palette-sand-500: 40 5% 44%;
+    /* The secondary-text step (`--muted-foreground`). Pinned by the contrast
+       suite: at 44% it reached only 4.42:1 on `sand-50`, just under the AA
+       4.5:1 floor; 43% clears it at 4.59:1. */
+    --palette-sand-500: 40 5% 43%;
     --palette-sand-800: 36 15% 18%;
     --palette-sand-950: 36 25% 4%;
 
