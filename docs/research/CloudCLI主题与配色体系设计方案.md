@@ -45,7 +45,7 @@
 | 5 | ~~语法高亮存在第二条未令牌化路径~~ ✅ **0-B 已修复** | `MarkdownCodeBlock.tsx` 曾用 `isDarkMode ? prismOneDark : prismOneLight`，绕过了 `--cc-syntax-*`；已改为与 chat 共用 `src/shared/syntaxTheme.ts` 单例（见 §6 阶段 0 之 0-B 记录） |
 | 6 | **Git 图颜色硬编码** | `src/modules/git-panel/utils/commitGraph.ts:20-29`，10 个 lane 颜色写死 |
 | 7 | **零散硬编码** | `mobileTerminalSelection.ts:179-228`（**7 处**，v2 修正：初稿记 4 处）、`git-panel/history/CommitHistoryItem.tsx`（`'#0ea5e9'` lane fallback）、`AgentSelectorSection.tsx`（5 处 agent 品牌色） |
-| 8 | **`index.css` 后半段仍有 66 处硬编码色值** | `src/index.css:481-691`（滚动条 / checkbox / radio / textarea / placeholder 的暗色补偿）、`:753`、`:845`、`:1063-1118`、`:1161-1162`；多为 `rgb()/rgba()` 形式并带 `!important`，**不走令牌**。**前提已具备**：`<html>` 的 `color-scheme` 已由 1-B 第一步加上，这 66 处的逐条重审归 **1-B2**（见 §6） |
+| 8 | **`index.css` 后半段仍有 66 处硬编码色值** | `src/index.css:481-691`（滚动条 / checkbox / radio / textarea / placeholder 的暗色补偿）、`:753`、`:845`、`:1063-1118`、`:1161-1162`；多为 `rgb()/rgba()` 形式并带 `!important`，**不走令牌**。**前提已具备且已重审**：`<html>` 的 `color-scheme` 由 1-B 加上；1-B2 重审把锚点校正到累计 +223 偏移后的实位，得 **69 处色值声明**，并改判"不能成批删除、只能令牌化"（见 §6 的 1-B2 记录） |
 | 9 | 无主题包 / 注入机制 | — |
 | **10** | **Tailwind 具名色原子类不走令牌（最大缺口）** | 实测 TSX/TS 中 `bg-slate-800` / `text-zinc-400` / `prose-pre:bg-gray-900` 这类具名色原子类约 **3227 处**（中性色 1502 + 彩色系 1725），是 #8 那 66 处的**约 49 倍**，且多于语义令牌类的 2498 处。无 `dark:` 者任何主题下固定不变；有 `dark:` 者只随明暗翻转、不随主题变化。集中分布：`TaskDetailModal.tsx`、`fileIcons.ts`、`AskUserQuestionPanel.tsx`、`TaskEmptyState.tsx`、`VersionUpgradeModal.tsx`、`toolConfigs.ts` 等 |
 | **11** | **`dark:` 前缀 = 明暗规则硬编码** | 上述具名色中约 **529 处**带 `dark:` 前缀（含 `dark:hover:` 等复合变体约 640 处）。它在编译期固化"暗色下用哪个色"，与"运行期改令牌换肤"结构性冲突——深色主题要让卡片从 `gray-800` 变 `slate-900`，这些组件不接受接管 |
@@ -371,7 +371,7 @@ export type ThemeManifest = {
 | 第二处语法高亮 ✅ | `src/modules/code-editor/markdown/MarkdownCodeBlock.tsx:69` | **0-B 已统一**：改走 `src/shared/syntaxTheme.ts` 的 `syntaxTheme.style`，直连 Prism 主题的分支已删除 |
 | Git 图 lane 色 | `src/modules/git-panel/utils/commitGraph.ts:20-29`（10 lane）+ `git-panel/history/CommitHistoryItem.tsx`（`'#0ea5e9'` fallback） | 抽为 `--graph-lane-*`，light/dark 各一套；**避免 10 条天花板**，加参数化回退（§5.12） |
 | 终端选区菜单 | `src/modules/shell/utils/mobileTerminalSelection.ts:179-228`（**7 处**） | 改为读令牌。**该项目属移动端高发区，需专项回归**：改后在 iOS Safari 实机 / 模拟器验证长按菜单、选区手柄与滚动行为 |
-| 滚动条 / 表单件 / placeholder | `src/index.css:481-691`、`:753`、`:845`、`:1063-1118`、`:1161-1162`（66 处） | **先加 `color-scheme`（§5.6），再重审这 66 处**：能靠 `color-scheme` 自动跟随的成批删除，剩余按语义归为 `--scrollbar-*` / `--control-*` / `--placeholder`。**第一步已做**：1-B 把 `color-scheme` 写上了 `<html>`；逐条重审归 **1-B2**（见 §6 的 1-B 记录，其中 `select`／无样式滚动容器的实测差距已量化） |
+| 滚动条 / 表单件 / placeholder | `src/index.css:481-691`、`:753`、`:845`、`:1063-1118`、`:1161-1162`（66 处） | **先加 `color-scheme`（§5.6），再重审这 66 处**：能靠 `color-scheme` 自动跟随的成批删除，剩余按语义归为 `--scrollbar-*` / `--control-*` / `--placeholder`。**第一步已做**：1-B 把 `color-scheme` 写上了 `<html>`。**重审已完成且改判**（见 §6 的 1-B2 记录）：① 锚点累计偏移 +223，实得 **69 处色值声明**；② **"这些补偿是在手写模拟 `color-scheme`"的前提不成立**——实测真正失效的只有 2 行 `color-scheme: dark`，同段的 `background-color` / `border-color` 与 placeholder 的 `gray-600` 都是刻意的外观选择，**不能成批删除，只能令牌化**；③ 68/69 处与既有令牌像素级等值 |
 | agent 品牌色 / Logo | `AgentSelectorSection.tsx`、`*Logo.tsx` | **保持硬编码**，在 `index.css` 顶部集中声明豁免清单并注明"品牌标识，不随主题变化" |
 
 验收（v3 定口径）：grep 必须**同时匹配字面色值与具名色原子类**，只匹配前者会漏掉占比约 98% 的具名色；对 `dark:` 则**只统计 `dark:` + 具名色**，不统计 `dark:` + 令牌类。
@@ -3168,7 +3168,10 @@ Mutation 侧：
 |---|---|---|
 | 1-A | 主题骨架：`ThemeManifest` + `BUILTIN_THEMES` 注册表 + `<html data-theme>` | ✅ 已实施 |
 | 1-B | **第一步**：随 `appearance` 在 `<html>` 显式写 `color-scheme`（本线第一个有意的视觉变更） | ✅ 已实施 |
-| 1-B2 | **第二步**：逐条重审 `index.css` 里模拟 `color-scheme` 的那批暗色补偿（§5.7 / §1.2 #8 的 66 处，含前置的**行号校正**：0-C 时代锚点累计偏移 +223） | 待做（本片收尾后立即开工） |
+| 1-B2 | **第二步**：逐条重审 `index.css` 里那批"暗色补偿"（§5.7 / §1.2 #8） | **重审已完成**（含行号校正：0-C 时代锚点累计偏移 +223；实得 69 处色值声明），结论与 §5.7 原假设相左，拆为 **1-B2a / 1-B2b / 1-B2c** 三子片，**待拍板**，见本节 1-B2 记录 |
+| 1-B2a | 删 B 段两行已失效的 `color-scheme: dark`（checkbox / radio） | 待做（零变化，已实测） |
+| 1-B2b | C 段首 `textarea { color-scheme: light dark }` 改为随应用外观 | 待做（**有意的视觉变更**） |
+| 1-B2c | 68 处等值字面值改指令牌（形态待定：复用 `--n-*` or 新建三组） | 待做（零变化） |
 | 1-C | `theme-color` 与 iOS `status-bar` 改由 `appearance` 驱动：加 HSL→hex 解析函数（含 alpha 与背景合并），去掉 `ThemeContext` 里两处硬编码 hex | 待做 |
 | 1-D | `themeId` 偏好键 + `ThemeContext` 暴露 `themeId` / `setThemeId`（含 §5.6 的跨设备回落提示边界） | 待做 |
 | 1-E | 两套示范主题的覆盖层（**unlayered** `[data-theme]` 规则，含 `.dark` 分支）+ 注册表扩充 + `coverage` 标注 | 待做 |
@@ -3223,6 +3226,64 @@ Mutation 侧：
 **门槛**：`test:client` **128 文件 / 973 用例**（972 ＋ 本片 1）；`typecheck` ×2 与 `typecheck:theme-tokens` 干净；`lint` **153 warnings / 0 error**；`build` exit 0。
 
 **顺带核验出的一处欠账（发现即记账，未在本片修）**：核对 §5.7 表的前置条件时确认，**0-F 从未实施**——`--graph-lane-*` 在 `index.css` 命中 **0**，`commitGraph.ts:20-29` 的 10 个 lane hex 与 `mobileTerminalSelection.ts` 的手柄 / 右键菜单 hex 全部仍在。阶段 0 的"迁移完成"只覆盖 §5.7 的第一类（Tailwind 具名中性色）；0-F / 0-G 两行一直挂在阶段 0 表里未执行。0-G 已改判入阶段 1（本片 ＋ 1-B2），0-F 保持未实施并已在该行注明它是 1-G 的前置。
+
+#### 1-B2 重审结果（2026-09-25，**结论与 §5.7 的原假设相左，待拍板**）
+
+**枚举口径**：按 §1.2 #8 / §5.7 那组 0-C 时代锚点（0-D ＋ 0-E1 ＋ 0-E1b 累计偏移 **+223** 后即 `:701-742`、`:756-790`、`:792-841`、`:842-915`、`:970-1070`、`:1276-1345`、`:1375-1390`）逐行枚举，实得 **69 处色值声明 ＋ 3 处 `color-scheme` 声明**。设计文档记作"66 处"，差异来自计数口径（同一行两值算一处 / 是否含 tap-highlight）。分段：
+
+| 段 | 行 | 色值声明 |
+|---|---|---|
+| A 滚动条补偿（`.scrollbar-thin` / `.dark::-webkit-scrollbar` / Firefox） | 701-742 | 9 |
+| B checkbox / radio | 756-790 | 14（＋2 行 `color-scheme: dark`） |
+| C textarea 文字 / 背景 / 聚焦 / `@supports` 分支 | 792-841 | 14（＋1 行 `color-scheme: light dark`） |
+| D placeholder（四种前缀 ＋ `.chat-input-placeholder`） | 842-915 | 16 |
+| E `-webkit-tap-highlight-color` | 970-1070 | 2 |
+| F chat-input 滚动条 / 展开阴影 / `ring-offset` | 1276-1345 | 12 |
+| G `select option` | 1375-1390 | 2 |
+| **合计** | | **69** |
+
+**结论 ①（最重要）：§5.7 那句"现状这些补偿正是在手写模拟 `color-scheme`"基本不成立，因此"能靠 `color-scheme` 自动跟随的成批删除"这条计划落不了地。** 一次性探针（chromium，读 `getComputedStyle`，跑完即删）把"有 `.dark` 覆盖"与"无 `.dark` 覆盖、仅靠 `<html>` 继承"两条路径并列：
+
+| 量 | 有 `.dark` 覆盖 | 无覆盖（仅继承） | 读法 |
+|---|---|---|---|
+| checkbox 的 `color-scheme` | `dark` | `dark` | **该行已失效** |
+| radio 的 `color-scheme` | `dark` | `dark` | **该行已失效** |
+| checkbox 的 `background-color` | `rgb(31, 41, 55)` | `rgba(0, 0, 0, 0)` | **该行是活的** |
+| textarea 的 `color-scheme` | `light dark` | `light dark` | 元素级声明压过继承 |
+
+即：**真正因 1-B 而失效的只有 B 段那 2 行 `color-scheme: dark`**。同段的 `background-color: rgb(31 41 55)` / `border-color: rgb(75 85 99)` 是**刻意的外观选择**（灰 800 底 ＋ 灰 600 边），不是 `color-scheme` 的替身——删掉会让控件改由 UA 自绘，是看得见的变化。D 段的 `.dark textarea::placeholder { gray-600 }` 更明显：注释自己写着 `/* gray-600 - darker gray */`，是手工选定的"更暗灰"，与 `color-scheme` 无关。**故这批不删，改走令牌化。**
+
+**结论 ②：真正让"应用外观到不了原生件"的遗留只有一处**——C 段首 `textarea { color-scheme: light dark }`：元素级声明压过继承，两种外观下都读 `light dark`，于是 textarea 的原生件（滚动条 / 调整手柄 / 选区）仍跟随 OS 而非应用外观。
+
+**结论 ③：另查出 2 处已成死码**——`.dark .bg-gray-800 textarea`（`:825`）与 `.dark .bg-gray-800 textarea::placeholder`（`:854`，与仍活着的 `.dark textarea.bg-transparent::placeholder` 同在一条规则里）。阶段 0 把类名迁成 `bg-n-gray-800` 后，全仓（`src/` ＋ `index.html`）已无任何元素的类是 `bg-gray-800`，这两个选择器永不匹配；而它们**仍在产物里**（`dist/assets/index-*.css` 含 `.dark .bg-gray-800 textarea{…}`），即阶段 0 的"字面清零"在**产物侧**还留着 `bg-gray-800` 字样。这与 B3 记的"选择器级消费者"同类但根因不同（B3 是被迁移的 hover 选择器失配；此处是类名迁走后选择器全死）。**建议并入 B3 账户、阶段 2 统一收口，本片不删**，与 B3 已拍板的"不改不删、记账到阶段 2"一致。
+
+**结论 ④：69 处里 68 处与既有令牌像素级等值**，只有 `rgb(237 235 230)`（G 段 `select option` 的暗色前景）找不到等值令牌。等值表（按次数）：
+
+| 字面值 | 次数 | 等值令牌 |
+|---|---|---|
+| `rgb(243 244 246)` | 13 | `--n-gray-100` |
+| `rgb(75 85 99)` | 12 | `--n-gray-600` |
+| `rgb(156 163 175)`（含 `/0.3` `/0.5` `/0.7`） | 12 | `--n-gray-400` |
+| `rgb(107 114 128)`（含 `/0.3` `/0.5` `/0.7`） | 6 | `--n-gray-500` |
+| `rgb(37 99 235)` | 6 | 与 light `--ring` / `--primary` 等值，**但它们在 `.dark` 块内**，指向 `--ring` 会解析成 dark 的 blue-500 ≠ 现值 → 不可直接替换 |
+| `rgb(31 41 55)` | 4 | `--n-gray-800` |
+| `rgb(20 20 20)` | 3 | `--background`（dark） |
+| `rgb(38 38 38)`（`/0.3` `/0.5`） | 3 | `--n-neutral-800` |
+| `rgb(59 130 246)` | 2 | 与 dark `--ring` 等值（同上，语义蓝非中性，不替换） |
+| `rgb(115 115 115)` | 1 | `--n-neutral-500` |
+| `rgb(31 31 31)` | 1 | `--card` / `--popover`（dark） |
+| `rgba(0, 0, 0, ·)` | 5 | `--n-black`（alpha 照写） |
+| `rgb(237 235 230)` | 1 | **无等值令牌** |
+
+**建议的 1-B2 拆法（待拍板）**：
+
+| 子片 | 内容 | 视觉 |
+|---|---|---|
+| **1-B2a** | 删 B 段两行已失效的 `color-scheme: dark` | **零变化**（已实测证明） |
+| **1-B2b** | C 段首 `textarea { color-scheme: light dark }` 改为随应用外观（删该声明让其继承） | **有变化**：textarea 原生件从"跟 OS"改为"跟应用外观" |
+| **1-B2c** | 把 68 处等值字面值改指令牌（`rgb(237 235 230)` 一处需定：新建令牌 or 留字面） | **零变化**（可逐条用 `getComputedStyle` 探针证明等值） |
+
+**待拍板的两点**：① 1-B2b 是否按"跟随应用外观"改（这是本片唯一有意的视觉变更，且它取代的正是 §5.7 设想的"成批删除"）；② 1-B2c 指令牌的形态——直接复用 `--n-*`（改动最小，但语义偏松、阶段 2 语义化时还要再改名一次），或按 §5.7 原计划新建 `--scrollbar-*` / `--control-*` / `--placeholder` 三组（语义正，但要为这 69 处声明多建约 20 个令牌，且 §5.7 那三个组的原意"承接删不掉的部分"已随结论 ① 改变）。
 
 ### 阶段 2：用户主题
 
