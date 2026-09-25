@@ -4,6 +4,8 @@ import { GRAPH_LANE_COUNT } from '@/modules/git-panel/utils/commitGraph';
 import { installMobileTerminalSelection } from '@/modules/shell/utils/mobileTerminalSelection';
 import { readTerminalTheme, TERMINAL_THEME_TOKENS } from '@/modules/shell/utils/terminalTheme';
 import { EXTREME_TOKENS, SCALE_TOKEN_NAMES } from '@/shared/tests/neutralScale';
+import type { ThemeManifest } from '@/shared/types';
+import { applyThemeChrome } from '@/shared/utils';
 
 import '../../src/index.css';
 import cssSource from '../../src/index.css?raw';
@@ -228,6 +230,38 @@ function readMobileSelectionChrome(): Record<string, string> {
   return chrome;
 }
 
+/**
+ * The browser-chrome metas are written by `applyThemeChrome`, the same function
+ * `ThemeContext` calls on every appearance change; the fixture drives it directly
+ * instead of mounting React, which keeps the page framework-free. The meta tags
+ * mirror the ones `index.html` ships.
+ */
+function readThemeChrome(
+  appearance: Appearance,
+  overrides?: Pick<ThemeManifest, 'themeColor' | 'statusBar'>,
+): { themeColor: string | null; statusBar: string | null } {
+  for (const name of ['theme-color', 'apple-mobile-web-app-status-bar-style']) {
+    if (!document.querySelector(`meta[name="${name}"]`)) {
+      const meta = document.createElement('meta');
+      meta.setAttribute('name', name);
+      document.head.appendChild(meta);
+    }
+  }
+
+  // The chrome colour is resolved from the token the appearance selects, so the
+  // fixture has to be in the same appearance the provider would have applied.
+  document.documentElement.classList.toggle('dark', appearance === 'dark');
+  applyThemeChrome(appearance, overrides);
+
+  return {
+    themeColor: document.querySelector('meta[name="theme-color"]')?.getAttribute('content') ?? null,
+    statusBar:
+      document
+        .querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')
+        ?.getAttribute('content') ?? null,
+  };
+}
+
 function readTokens(appearance: Appearance): TokenRead {
   document.documentElement.classList.toggle('dark', appearance === 'dark');
 
@@ -256,6 +290,11 @@ declare global {
       readTerminalTheme(): ITheme;
       /** The colours the mobile selection chrome injects right now. */
       readMobileSelectionChrome(): Record<string, string>;
+      /** The browser-chrome metas for an appearance, written by the production applier. */
+      readThemeChrome(
+        appearance: Appearance,
+        overrides?: Pick<ThemeManifest, 'themeColor' | 'statusBar'>,
+      ): { themeColor: string | null; statusBar: string | null };
     };
   }
 }
@@ -266,4 +305,5 @@ window.__THEME_TOKENS__ = {
   read: readTokens,
   readTerminalTheme,
   readMobileSelectionChrome,
+  readThemeChrome,
 };

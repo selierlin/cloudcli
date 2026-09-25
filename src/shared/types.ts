@@ -2060,6 +2060,17 @@ export type ThemeManifest = {
   coverage?: 'accent' | 'full';
   /** Optional: whether the user may layer a personal accent colour on top. */
   supportsAccentOverride?: boolean;
+  /**
+   * Optional token name (not a colour value) the browser chrome should be painted with — the OS
+   * status bar on iOS, the address bar elsewhere. Defaults to `--background`. Point it at a
+   * different token when a theme's chrome should not track the page background.
+   */
+  themeColor?: string;
+  /**
+   * Optional iOS `apple-mobile-web-app-status-bar-style`. Defaults to `default` on a light theme
+   * and `black-translucent` on a dark one.
+   */
+  statusBar?: 'default' | 'black' | 'black-translucent';
   /** Optional class the bootstrap sentinel waits for before trusting the theme loaded. */
   sentinelClass?: string;
 };
