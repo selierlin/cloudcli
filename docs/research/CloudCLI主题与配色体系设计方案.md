@@ -1,7 +1,7 @@
 # CloudCLI 主题与配色体系设计方案
 
 > 编写日期：2026-09-24 ｜ 修订：2026-09-25（v5：阶段 0-A / 0-B / 0-C 已实施并验收，记录见 §6）
-> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j / 0-E2k / 0-E2l / 0-E2m / 0-E2n / 0-E2o / 0-E2p / 0-E2q / 0-E2r / 0-E2s / 0-E2t / 0-E2u / 0-E2v / 0-E2w / 0-E2x / 0-E2y / 0-E2z / 0-E3a / 0-E3b / 0-E3c / 0-E3d / 0-E3e / 0-E3f / 0-E3g / 0-E3h / 0-E3i / 0-E3j / 0-E3k / 0-E3l / 0-E3m / 0-E3n / 0-E3o / 0-E3p / 0-E3q / 0-E3r / 0-E3s / 0-E3t / 0-E3u / 0-E3v / 0-E3w / 0-E3x / 0-E3y / 0-E3z / 0-E4a / 0-E4b / 0-E4c / 0-E4d / 0-E4e / 0-E4f / 0-E4g / 0-E4h / 0-E4i / 0-E4j / 0-E4k / 0-E4l / 0-E4m / 0-E4n / 0-E4o / 0-E4p / 0-E4q / 0-E4r / 0-E4s / 0-E4t / 0-E4u / 0-E4v / 0-E4w / 0-E4x / 0-E4y / 0-E4z / 0-E5a / 0-E5b / 0-E5c / 0-E5d / 0-E5e / 0-E5f / 0-E5g / 0-E5h / 0-E5i / 0-E5j / 0-E5k / 0-E5l / 0-E5m / 0-E5n / 0-E5o / 0-E5p / 0-E5q / 0-E5r / 0-E5s / 0-E5t / 0-E5u / 0-E5v / 0-E5w / 0-E5x / 0-E5y / 0-E5z / 0-E6a / 0-E6b / 0-E6c / 0-E6d 一百一十五片，**阶段 0 的迁移分片已全部实施**；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内；0-E3i 修正了产物核对脚本的**前提假设缺口**——脚本原假设"被测文件迁移前不含 `n-*` 令牌"，随分片推进（前片已令牌化的文件被再次触碰）必然被打破；0-E6d 又暴露一处**护栏前提失效**——守恒律反空转护栏里"必须扫到 ≥1 处带透明度修饰的**字面**中性色"这条断言，随阶段 0 归零而失去可满足前提（仓库计数无论捕获组是否健在都读 0），改为对解析形状的合成名断言。截至 0-E6d：中性具名硬编码剩余 **0 处 / 0 文件**（起点 1517 / 105；阶段 0 迁移完成，仅余 1 处豁免 `border-gray-150`））
+> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j / 0-E2k / 0-E2l / 0-E2m / 0-E2n / 0-E2o / 0-E2p / 0-E2q / 0-E2r / 0-E2s / 0-E2t / 0-E2u / 0-E2v / 0-E2w / 0-E2x / 0-E2y / 0-E2z / 0-E3a / 0-E3b / 0-E3c / 0-E3d / 0-E3e / 0-E3f / 0-E3g / 0-E3h / 0-E3i / 0-E3j / 0-E3k / 0-E3l / 0-E3m / 0-E3n / 0-E3o / 0-E3p / 0-E3q / 0-E3r / 0-E3s / 0-E3t / 0-E3u / 0-E3v / 0-E3w / 0-E3x / 0-E3y / 0-E3z / 0-E4a / 0-E4b / 0-E4c / 0-E4d / 0-E4e / 0-E4f / 0-E4g / 0-E4h / 0-E4i / 0-E4j / 0-E4k / 0-E4l / 0-E4m / 0-E4n / 0-E4o / 0-E4p / 0-E4q / 0-E4r / 0-E4s / 0-E4t / 0-E4u / 0-E4v / 0-E4w / 0-E4x / 0-E4y / 0-E4z / 0-E5a / 0-E5b / 0-E5c / 0-E5d / 0-E5e / 0-E5f / 0-E5g / 0-E5h / 0-E5i / 0-E5j / 0-E5k / 0-E5l / 0-E5m / 0-E5n / 0-E5o / 0-E5p / 0-E5q / 0-E5r / 0-E5s / 0-E5t / 0-E5u / 0-E5v / 0-E5w / 0-E5x / 0-E5y / 0-E5z / 0-E6a / 0-E6b / 0-E6c / 0-E6d 一百一十五片，**阶段 0 的迁移分片已全部实施**；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内；0-E3i 修正了产物核对脚本的**前提假设缺口**——脚本原假设"被测文件迁移前不含 `n-*` 令牌"，随分片推进（前片已令牌化的文件被再次触碰）必然被打破；0-E6d 又暴露一处**护栏前提失效**——守恒律反空转护栏里"必须扫到 ≥1 处带透明度修饰的**字面**中性色"这条断言，随阶段 0 归零而失去可满足前提（仓库计数无论捕获组是否健在都读 0），改为对解析形状的合成名断言。截至 0-E6d：中性具名硬编码剩余 **0 处 / 0 文件**（起点 1517 / 105；阶段 0 迁移完成，仅余 1 处豁免 `border-gray-150`）。**阶段 1 已开工**：1-A（主题骨架：`ThemeManifest` + `BUILTIN_THEMES` + `<html data-theme>`）已实施并验收，切片表与记录见 §6）
 > 参照物：WorkBuddy（`/Applications/WorkBuddy.app`，app.asar 解包 + 本机皮肤包实物）、Codex CLI（`@openai/codex@0.155.1`，Rust 二进制字符串解析）
 > 目标读者：评审 AI / 后续实施者
 
@@ -3161,6 +3161,41 @@ Mutation 侧：
 **验收**：切换主题后主 UI、终端、编辑器、语法高亮、Git 图**同时**变化；`appearance: system` 主题跟随系统；首帧无闪烁；`theme-color` 与 iOS status-bar 随 `appearance` 同步更新；§5.11 契约测试与 §5.10 对比度断言通过。
 
 **可选随附功能**：设置页内的"令牌预览页"——读 `getComputedStyle(document.documentElement)` 过滤出 `--` 变量、按命名空间分组渲染当前值与明暗对比色块。对主题作者是调试工具、对用户是透明度，实现成本不高，不进核心验收路径。
+
+**切片表（v1，1-A 已实施）**
+
+| 片 | 范围 | 状态 |
+|---|---|---|
+| 1-A | 主题骨架：`ThemeManifest` + `BUILTIN_THEMES` 注册表 + `<html data-theme>` | ✅ 已实施 |
+| 1-B | **先加 `color-scheme`**（随 `appearance` 显式写在 `<html>`），再重审 `index.css` 中模拟它的那批暗色补偿（§5.7 最后一行） | 待做 |
+| 1-C | `theme-color` 与 iOS `status-bar` 改由 `appearance` 驱动：加 HSL→hex 解析函数（含 alpha 与背景合并），去掉 `ThemeContext` 里两处硬编码 hex | 待做 |
+| 1-D | `themeId` 偏好键 + `ThemeContext` 暴露 `themeId` / `setThemeId`（含 §5.6 的跨设备回落提示边界） | 待做 |
+| 1-E | 两套示范主题的覆盖层（**unlayered** `[data-theme]` 规则，含 `.dark` 分支）+ 注册表扩充 + `coverage` 标注 | 待做 |
+| 1-F | 外观设置页主题选择器 + `coverage` badge（i18n 只补 zh-CN） | 待做 |
+| 1-G | JS 消费者随主题刷新：xterm 重读 `--term-*` 重设 `options.theme`、CodeMirror compartment reconfigure、Git 图 SVG 直接用 `var(--graph-lane-*)` | 待做 |
+| 1-H | §5.11 契约测试扩到"遍历每套 `[data-theme]` 覆盖层"与 §5.10 对比度断言（`--ring`/`--background` ≥ 3:1、正文 ≥ 4.5:1） | 待做 |
+
+**分片口径**：与阶段 0 同——每片独立迁移、独立验收、独立 commit、可单独回退；批次化（若合批）只合并重量级门槛的调用次数，片内仍逐片验。
+
+#### 1-A 实施记录（2026-09-25）
+
+**范围**：`src/shared/types.ts`（新增 `ThemeManifest`）、`src/shared/constants.ts`（新增 `BUILTIN_THEMES`）、`src/shared/context/ThemeContext.tsx`（写 `data-theme`）、`src/shared/tests/themeContext.test.tsx`（补 2 条）。**无 CSS 改动**。
+
+**做了什么**：按 §5.2 的双轨模型建立骨架——`<html>` 同时携带 `class="dark"`（驱动 `dark:` 原子类与 base 语义值）与 `data-theme="<id>"`（选择主题覆盖层）。本片只建立后者：`ThemeContext` 在既有"应用外观"的 effect 里解析出与当前外观对应的内置主题 id 并写 `document.documentElement.dataset.theme`。注册表缺某一档位时**模块期抛错**，不静默留下无主题 id 的文档。
+
+**模型澄清（与 §8.4 字面的关系，重要）**：§8.4 说"把「默认明 / 默认暗」建模为两套内置主题"，本片按字面落地——注册表确实含 `cc-light` / `cc-dark` 两套默认主题，id 保持 `cc-` 前缀（§5.8 的保留名约束）；但**主题选择语义按 §5.2 落地，即主题 id 与明暗正交**：一套具体主题用自己的 `[data-theme="<id>"]` 与 `[data-theme="<id>"].dark` 两条规则同时覆盖明暗两态，`cc-light` / `cc-dark` 只是基底（`index.css` 的 `:root` / `.dark`）的 id 别名，**light/dark/system 胶囊仍是唯一的明暗控制**，不出现第二个明暗选择器。这样 §8.4 的"避免双层选择器心智负担"与 §5.2 的 `.dark` 复合选择器结构同时成立；后续示范主题（1-E）按此模型只需一份覆盖层即可覆盖明暗两态。
+
+**视觉零变化的三路证据**：
+
+| 证据 | 结果 |
+|---|---|
+| 令牌契约（浏览器解析值） | `test:theme-tokens` **16 通过**，`token-baseline.json` **逐位未动**（改动前后浏览器解析出的令牌值逐字节相同） |
+| 构建产物 | 重建后 dist CSS 文件名哈希**未变**（`index-BZ-B_5--`），产物 CSS 中 `data-theme` 命中 **0** |
+| 消费者普查 | 全仓（含 `tailwind.config.js`，`darkMode` 仍为 `["class"]`）**无任何 `[data-theme]` 消费者**，属性当前是纯接口 |
+
+**门槛**：`test:client` **128 文件 / 972 用例**（原 970 ＋ 本片 2）；`typecheck` ×2 干净；`lint` **153 warnings / 0 error**；`build` exit 0。
+
+**与既有账的关系**：阶段 0 的迁移账（1516 处 / 豁免 1 处）不受影响；阶段 1 不计处数，按片计。
 
 ### 阶段 2：用户主题
 
