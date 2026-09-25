@@ -43,8 +43,8 @@ function PriorityIndicator({ priority }: { priority?: string }) {
   }
 
   return (
-    <div className="flex h-4 w-4 items-center justify-center rounded bg-gray-100 dark:bg-gray-800" title={t('tasks:priorities.lowTitle')}>
-      <Circle className="h-2.5 w-2.5 text-gray-400 dark:text-gray-500" />
+    <div className="flex h-4 w-4 items-center justify-center rounded bg-n-gray-100 dark:bg-n-gray-800" title={t('tasks:priorities.lowTitle')}>
+      <Circle className="h-2.5 w-2.5 text-n-gray-400 dark:text-n-gray-500" />
     </div>
   );
 }
@@ -87,12 +87,12 @@ export default function NextTaskBanner({ onShowAllTasks = null, onStartTask = nu
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
               <List className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-              <p className="text-sm font-medium text-gray-900 dark:text-white">{t('tasks:notConfigured.title')}</p>
+              <p className="text-sm font-medium text-n-gray-900 dark:text-n-white">{t('tasks:notConfigured.title')}</p>
             </div>
 
             <button
               onClick={() => setShowSetupModal(true)}
-              className="flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-xs text-white transition-colors hover:bg-blue-700"
+              className="flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-xs text-n-white transition-colors hover:bg-blue-700"
             >
               <Terminal className="h-3 w-3" />
               {t('tasks:banner.initialize')}
@@ -129,23 +129,23 @@ export default function NextTaskBanner({ onShowAllTasks = null, onStartTask = nu
   if (nextTask) {
     return (
       <>
-        <div className={cn('bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700 rounded-lg p-3 mb-4', className)}>
+        <div className={cn('bg-n-slate-50 dark:bg-n-slate-900/30 border border-n-slate-200 dark:border-n-slate-700 rounded-lg p-3 mb-4', className)}>
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="mb-1 flex items-center gap-2">
                 <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/50">
                   <Target className="h-3 w-3 text-blue-600 dark:text-blue-400" />
                 </div>
-                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Task {nextTask.id}</span>
+                <span className="text-xs font-medium text-n-slate-600 dark:text-n-slate-400">Task {nextTask.id}</span>
                 <PriorityIndicator priority={nextTask.priority} />
               </div>
-              <p className="line-clamp-1 text-sm font-medium text-slate-900 dark:text-slate-100">{nextTask.title}</p>
+              <p className="line-clamp-1 text-sm font-medium text-n-slate-900 dark:text-n-slate-100">{nextTask.title}</p>
             </div>
 
             <div className="flex flex-shrink-0 items-center gap-1">
               <button
                 onClick={() => onStartTask?.()}
-                className="flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                className="flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-n-white hover:bg-blue-700"
               >
                 <Play className="h-3 w-3" />
                 {t('tasks:banner.startTask')}
@@ -153,7 +153,7 @@ export default function NextTaskBanner({ onShowAllTasks = null, onStartTask = nu
 
               <button
                 onClick={() => setShowTaskDetail(true)}
-                className="rounded-md border border-slate-300 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="rounded-md border border-n-slate-300 px-2 py-1.5 text-xs text-n-slate-600 hover:bg-n-slate-100 dark:border-n-slate-600 dark:text-n-slate-300 dark:hover:bg-n-slate-800"
                 title={t('tasks:banner.viewTaskDetails')}
               >
                 <Eye className="h-3 w-3" />
@@ -162,7 +162,7 @@ export default function NextTaskBanner({ onShowAllTasks = null, onStartTask = nu
               {onShowAllTasks && (
                 <button
                   onClick={onShowAllTasks}
-                  className="rounded-md border border-slate-300 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                  className="rounded-md border border-n-slate-300 px-2 py-1.5 text-xs text-n-slate-600 hover:bg-n-slate-100 dark:border-n-slate-600 dark:text-n-slate-300 dark:hover:bg-n-slate-800"
                   title={t('tasks:banner.viewAllTasks')}
                 >
                   <List className="h-3 w-3" />
@@ -192,18 +192,18 @@ export default function NextTaskBanner({ onShowAllTasks = null, onStartTask = nu
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CheckCircle className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-            <span className="text-sm font-medium text-gray-900 dark:text-white">
+            <span className="text-sm font-medium text-n-gray-900 dark:text-n-white">
               {completedTasks === tasks.length ? t('tasks:banner.allComplete') : t('tasks:banner.noPending')}
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-600 dark:text-gray-400">
+            <span className="text-xs text-n-gray-600 dark:text-n-gray-400">
               {completedTasks}/{tasks.length}
             </span>
             {onShowAllTasks && (
               <button
                 onClick={onShowAllTasks}
-                className="rounded bg-purple-600 px-2 py-1 text-xs text-white transition-colors hover:bg-purple-700"
+                className="rounded bg-purple-600 px-2 py-1 text-xs text-n-white transition-colors hover:bg-purple-700"
               >
                 Review
               </button>
