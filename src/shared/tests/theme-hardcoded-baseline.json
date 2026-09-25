@@ -1,5 +1,5 @@
 {
-  "total": 113,
+  "total": 108,
   "byFile": {
     "src/modules/chat/composer/ComposerAttachment.tsx": 1,
     "src/modules/chat/composer/PromptInput.tsx": 1,
@@ -14,7 +14,6 @@
     "src/modules/chat/transcript/MessageCopyControl.tsx": 4,
     "src/modules/code-editor/CodeEditor.tsx": 1,
     "src/modules/code-editor/CodeEditorFooter.tsx": 4,
-    "src/modules/code-editor/CodeEditorLoadingState.tsx": 5,
     "src/modules/code-editor/CodeEditorSurface.tsx": 3,
     "src/modules/code-editor/EditorSidebar.tsx": 4,
     "src/modules/code-editor/markdown/MermaidDiagram.tsx": 3,
@@ -50,7 +49,7 @@
     "src/shared/ui/Tooltip.tsx": 4
   },
   "byAtom": {
-    "bg: black": 13,
+    "bg: black": 12,
     "bg: gray-100": 3,
     "bg: gray-200": 1,
     "bg: gray-50": 1,
@@ -73,9 +72,9 @@
     "text: gray-400": 10,
     "text: gray-500": 6,
     "text: gray-600": 3,
-    "text: gray-900": 4,
+    "text: gray-900": 2,
     "text: slate-300": 2,
     "text: slate-700": 2,
-    "text: white": 27
+    "text: white": 25
   }
 }
