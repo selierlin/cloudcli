@@ -1,7 +1,6 @@
 {
-  "total": 18,
+  "total": 17,
   "byFile": {
-    "src/modules/chat/composer/VoiceInputButton.tsx": 1,
     "src/modules/chat/modals/CommandResultModal.tsx": 1,
     "src/modules/chat/transcript/Markdown.tsx": 1,
     "src/modules/code-editor/CodeEditor.tsx": 1,
@@ -26,6 +25,6 @@
     "bg: white": 2,
     "bg: zinc-500": 1,
     "bg: zinc-900": 1,
-    "text: white": 8
+    "text: white": 7
   }
 }
