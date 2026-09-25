@@ -1,7 +1,7 @@
 # CloudCLI 主题与配色体系设计方案
 
 > 编写日期：2026-09-24 ｜ 修订：2026-09-25（v5：阶段 0-A / 0-B / 0-C 已实施并验收，记录见 §6）
-> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j / 0-E2k / 0-E2l / 0-E2m / 0-E2n / 0-E2o / 0-E2p / 0-E2q / 0-E2r / 0-E2s / 0-E2t / 0-E2u / 0-E2v / 0-E2w / 0-E2x / 0-E2y / 0-E2z / 0-E3a / 0-E3b / 0-E3c / 0-E3d / 0-E3e / 0-E3f / 0-E3g / 0-E3h / 0-E3i / 0-E3j / 0-E3k / 0-E3l / 0-E3m / 0-E3n / 0-E3o / 0-E3p / 0-E3q / 0-E3r / 0-E3s / 0-E3t / 0-E3u / 0-E3v / 0-E3w / 0-E3x / 0-E3y / 0-E3z / 0-E4a / 0-E4b / 0-E4c / 0-E4d / 0-E4e / 0-E4f / 0-E4g / 0-E4h / 0-E4i / 0-E4j / 0-E4k / 0-E4l / 0-E4m / 0-E4n / 0-E4o / 0-E4p / 0-E4q / 0-E4r / 0-E4s / 0-E4t / 0-E4u / 0-E4v / 0-E4w / 0-E4x / 0-E4y / 0-E4z / 0-E5a / 0-E5b / 0-E5c / 0-E5d / 0-E5e / 0-E5f / 0-E5g / 0-E5h / 0-E5i / 0-E5j / 0-E5k / 0-E5l / 0-E5m / 0-E5n / 0-E5o / 0-E5p / 0-E5q / 0-E5r / 0-E5s / 0-E5t / 0-E5u / 0-E5v / 0-E5w / 0-E5x / 0-E5y / 0-E5z / 0-E6a / 0-E6b / 0-E6c / 0-E6d 一百一十五片，**阶段 0 的迁移分片已全部实施**；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内；0-E3i 修正了产物核对脚本的**前提假设缺口**——脚本原假设"被测文件迁移前不含 `n-*` 令牌"，随分片推进（前片已令牌化的文件被再次触碰）必然被打破；0-E6d 又暴露一处**护栏前提失效**——守恒律反空转护栏里"必须扫到 ≥1 处带透明度修饰的**字面**中性色"这条断言，随阶段 0 归零而失去可满足前提（仓库计数无论捕获组是否健在都读 0），改为对解析形状的合成名断言。截至 0-E6d：中性具名硬编码剩余 **0 处 / 0 文件**（起点 1517 / 105；阶段 0 迁移完成，仅余 1 处豁免 `border-gray-150`）。**阶段 1 已开工**：1-A（主题骨架：`ThemeManifest` + `BUILTIN_THEMES` + `<html data-theme>`）与 1-B 第一步（随 `appearance` 在 `<html>` 写 `color-scheme`，本线**第一个有意的视觉变更**）均已实施并验收；1-B2 的三个子片（删 2 行已失效的 `color-scheme: dark`、textarea 的 `color-scheme` 改为随应用外观、68 处暗色补偿改走既有令牌）也已完成；**其前置 0-F 也已实施**（Git 图 lane 色抽为 `--graph-lane-1..10` ＋ 移动端终端选区菜单 7 处色值令牌化，拆 0-F1 / 0-F2 两片），切片表与记录见 §6）
+> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j / 0-E2k / 0-E2l / 0-E2m / 0-E2n / 0-E2o / 0-E2p / 0-E2q / 0-E2r / 0-E2s / 0-E2t / 0-E2u / 0-E2v / 0-E2w / 0-E2x / 0-E2y / 0-E2z / 0-E3a / 0-E3b / 0-E3c / 0-E3d / 0-E3e / 0-E3f / 0-E3g / 0-E3h / 0-E3i / 0-E3j / 0-E3k / 0-E3l / 0-E3m / 0-E3n / 0-E3o / 0-E3p / 0-E3q / 0-E3r / 0-E3s / 0-E3t / 0-E3u / 0-E3v / 0-E3w / 0-E3x / 0-E3y / 0-E3z / 0-E4a / 0-E4b / 0-E4c / 0-E4d / 0-E4e / 0-E4f / 0-E4g / 0-E4h / 0-E4i / 0-E4j / 0-E4k / 0-E4l / 0-E4m / 0-E4n / 0-E4o / 0-E4p / 0-E4q / 0-E4r / 0-E4s / 0-E4t / 0-E4u / 0-E4v / 0-E4w / 0-E4x / 0-E4y / 0-E4z / 0-E5a / 0-E5b / 0-E5c / 0-E5d / 0-E5e / 0-E5f / 0-E5g / 0-E5h / 0-E5i / 0-E5j / 0-E5k / 0-E5l / 0-E5m / 0-E5n / 0-E5o / 0-E5p / 0-E5q / 0-E5r / 0-E5s / 0-E5t / 0-E5u / 0-E5v / 0-E5w / 0-E5x / 0-E5y / 0-E5z / 0-E6a / 0-E6b / 0-E6c / 0-E6d 一百一十五片，**阶段 0 的迁移分片已全部实施**；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内；0-E3i 修正了产物核对脚本的**前提假设缺口**——脚本原假设"被测文件迁移前不含 `n-*` 令牌"，随分片推进（前片已令牌化的文件被再次触碰）必然被打破；0-E6d 又暴露一处**护栏前提失效**——守恒律反空转护栏里"必须扫到 ≥1 处带透明度修饰的**字面**中性色"这条断言，随阶段 0 归零而失去可满足前提（仓库计数无论捕获组是否健在都读 0），改为对解析形状的合成名断言。截至 0-E6d：中性具名硬编码剩余 **0 处 / 0 文件**（起点 1517 / 105；阶段 0 迁移完成，仅余 1 处豁免 `border-gray-150`）。**阶段 1 已开工**：1-A（主题骨架：`ThemeManifest` + `BUILTIN_THEMES` + `<html data-theme>`）与 1-B 第一步（随 `appearance` 在 `<html>` 写 `color-scheme`，本线**第一个有意的视觉变更**）均已实施并验收；1-B2 的三个子片（删 2 行已失效的 `color-scheme: dark`、textarea 的 `color-scheme` 改为随应用外观、68 处暗色补偿改走既有令牌）也已完成；**其前置 0-F 也已实施**（Git 图 lane 色抽为 `--graph-lane-1..10` ＋ 移动端终端选区菜单 7 处色值令牌化，拆 0-F1 / 0-F2 两片），切片表与记录见 §6）；**1-C 也已完成**（`theme-color` 与 iOS status-bar 改由令牌派生，`ThemeContext` 里两处手写 hex 删除、两个分支合并，`ThemeManifest` 的 `themeColor` / `statusBar` 覆盖字段一并落地——**下一片 = 1-D**（`themeId` 偏好键））
 > 参照物：WorkBuddy（`/Applications/WorkBuddy.app`，app.asar 解包 + 本机皮肤包实物）、Codex CLI（`@openai/codex@0.155.1`，Rust 二进制字符串解析）
 > 目标读者：评审 AI / 后续实施者
 
@@ -357,6 +357,8 @@ export type ThemeManifest = {
 - **"文件主题"与"粘贴主题"是两条存储线**（v3 新增）：前者在服务端目录（只读、随部署卷走、**内容不跨设备同步**），后者存用户偏好（**内容跨设备同步**）。二者的删除、失效、跨设备语义均不同，设置页须按 `ThemeManifest.source` 区分展示，文档写明。
 - **跨设备同步的边界**（v2 新增）：偏好镜像会把 `themeId` 同步到未安装该主题文件的设备，届时应**显式提示"此设备缺少该主题，已回落默认"**而非静默回落。另注意现状怪癖：`setTheme('system')` 不写偏好（`ThemeContext.tsx:113-121`，仅 light/dark 才 `writeUserPreference`），新增 `themeId` 键时需决定 `system` 分支是否同样豁免，避免把本机临时态覆盖成跨设备永久态。
 
+> **v7（1-C 追加）**：上面的启动链路写着"立即在首帧前设置 … `meta theme-color`"，**当前实现并非如此**——`ThemeContext` 的写入在 effect 里，首帧前生效的是 `index.html` 的静态 `<meta name="theme-color" content="#ffffff">`（另 `public/manifest.json` 的 `theme_color`、以及 `mobile/www/index.html` 这个 Capacitor 服务器选择页自成一套 media 查询式 theme-color）。1-C 只把运行期这一环接上令牌（见该片记录），"JS 跑起来之前的那一段"仍是静态值，与首帧防闪烁同属一组问题，**待单独成片**。
+
 ### 5.7 硬编码收口清单（阶段 0 的施工面）
 
 | 目标 | 文件 | 收口方式 |
@@ -405,7 +407,7 @@ rg -o -e 'dark:(bg|text|border|ring|stroke|fill|from|to|via|decoration|placehold
 |---|---|
 | `--cc-syntax-N` 变量化 | **继承；本轮不升语义名，只做三件事挡风险**（v3 已决）。现状：编号由"遍历 selector×property 时遇到差异的先后顺序"决定（`src/shared/syntaxTheme.ts:33-75`），源主题增删任一差异属性则其后编号整体重排；评估时消费者实测仅 4 个文件、全在 chat 模块内，但 **0-B 已使其跨出 chat**（chat 的 `Markdown.tsx`、code-editor 的 `MarkdownCodeBlock.tsx` + 3 个测试共用 `src/shared/syntaxTheme.ts`），编号不再只是模块内部实现，故下文三件事由加固升级为**必要**。**0-D 已完成**：**①** 导出 `SYNTAX_TOKEN_MAP` 常量（`{ keywordColor: 3, … }` 形态）把编号与语义绑定一次，内部引用走常量而非手写 `--cc-syntax-3`；**②** 加**黄金映射测试**——现有测试只断言 `var(--cc-syntax-\d+)` 的**形状**（`src/shared/tests/syntaxTheme.test.ts` 的 `assert.match`），未锁住具体映射，Prism 依赖 bump 导致编号重排时测试照绿；因 `buildSyntaxTheme()` 是纯函数，用 **inline snapshot** 固化 `{ style, css }` 即可（快照即对照表、零维护、diff 可读），并叠加"变量总数不变"作第一道信号；**③** 加 **denylist grep 护栏**——生成器与快照之外**禁止任何文件手写 `--cc-syntax-[0-9]` 字面量**，新消费者只允许消费 `style` / `css` 产物或 `SYNTAX_TOKEN_MAP`，CI 命中即红。**语义名草案（本轮定方向不实现）**：以 Prism 语义类别为根（comment / string / keyword / function / number / operator / punctuation / tag / attr-name / constant）、属性作后缀（`-color` / `-style` / `-weight`），如 `--cc-syntax-comment-color`；CodeMirror `HighlightStyle` 的 tag 名向同一套类别对齐，chat 与编辑器共用一套命名，**阶段 2 前一次到位改名**。<br>**0-D 实现偏差（比草案更强）**：`SYNTAX_TOKEN_MAP` 不是手写编号表，而是由 `deriveTokenMap` 从 `buildSyntaxTheme` 的产物**反查派生**——编号一旦因 Prism bump 重排，映射自动跟着走，不会出现"常量表与实际编号不一致"的中间态；找不到槽位时在模块加载期 `throw`，把改名变成构建期失败。黄金对照改用 `collectSyntaxVariables` 的完整"selector.property → 变量"快照 + 变量总数，另把每个语义槽位的 One Dark 色值冻结成表——后者能抓住"两个槽位对调"这类快照看不出的错误 |
 | 字体设置（`--ui-font-*` / `--ui-code-font-*`） | 正交，不动。主题可选择性覆盖，但默认不应覆盖用户字体选择 |
-| `meta[name=theme-color]` | 由主题的 `appearance` 决定。**取值链需闭环**（v2 修正）：`--background` 是 HSL 三元组，而 `meta[content]` 只接受 hex/rgb，须提供统一解析函数（HSL→hex、alpha 与背景合并）；同时 `ThemeContext.tsx:77-93` 还硬编码了 iOS `apple-mobile-web-app-status-bar-style`（`black-translucent` / `default`），是按明暗二值写的，主题化后须改由 `appearance` 驱动。`ThemeManifest` 可选携带 `themeColor` / `statusBar` 覆盖字段以避免解析误差 |
+| `meta[name=theme-color]` | 由主题的 `appearance` 决定。**取值链已闭环（1-C 已实施，`1a9a7b78`）**：`--background` 是 HSL 三元组而 `meta[content]` 只接受具体颜色，原设计为此要求"统一解析函数（HSL→hex、alpha 与背景合并）"——1-C 改用**探针法**（把 `hsl(var(--token))` 交给浏览器解析再回读），浏览器即完成 HSL→hex 这一半，只保留真正必要的 alpha 合成。iOS `apple-mobile-web-app-status-bar-style` 原按明暗二值硬编码写死，现与 theme-color 一起由 `applyThemeChrome(appearance, manifest)` 统一发布；`ThemeManifest` 的两个可选覆盖字段（`themeColor` 取**令牌名**、`statusBar` 取 iOS 关键字）已落地并被断言覆盖 |
 | 跨设备偏好同步 | 沿用现有偏好存储，新增 `themeId` 一个键即可；边界见 §5.6 |
 
 ### 5.10 可访问性（a11y）约束
@@ -3215,7 +3217,7 @@ Mutation 侧：
 | 1-B2a | 删 B 段两行已失效的 `color-scheme: dark`（checkbox / radio） | ✅ 已实施（零变化，`73222abb`） |
 | 1-B2b | C 段首 `textarea { color-scheme: light dark }` 改为随应用外观 | ✅ 已实施（**有意的视觉变更**，单独 `90785d25`） |
 | 1-B2c | 68 处等值字面值改指令牌 | ✅ 已实施（**方案 A**：复用既有令牌保形间接，零变化，`fdf3f879`） |
-| 1-C | `theme-color` 与 iOS `status-bar` 改由 `appearance` 驱动：加 HSL→hex 解析函数（含 alpha 与背景合并），去掉 `ThemeContext` 里两处硬编码 hex | 待做 |
+| 1-C | `theme-color` 与 iOS `status-bar` 改由 `appearance` 驱动：去掉 `ThemeContext` 里两处硬编码 hex | ✅ 已实施（`1a9a7b78`）。**实现偏差**：不手写 HSL→hex，改用探针把 `hsl(var(--token))` 交给浏览器解析，只保留 alpha 合成；`ThemeManifest` 的 `themeColor` / `statusBar` 覆盖字段一并落地。**唯一有意的视觉变更**：浅色 theme-color `#f6f4ef → #f7f6f3`（原字面已与 `--background` 对不上），暗色逐位不变。见本节 1-C 记录 |
 | 1-D | `themeId` 偏好键 + `ThemeContext` 暴露 `themeId` / `setThemeId`（含 §5.6 的跨设备回落提示边界） | 待做 |
 | 1-E | 两套示范主题的覆盖层（**unlayered** `[data-theme]` 规则，含 `.dark` 分支）+ 注册表扩充 + `coverage` 标注 | 待做 |
 | 1-F | 外观设置页主题选择器 + `coverage` badge（i18n 只补 zh-CN） | 待做 |
@@ -3373,6 +3375,46 @@ Mutation 侧：
 
 **与既有账的关系**：B3 账户（`index.css` 里选择器级消费者 ＋ `.dark .bg-gray-800 textarea` 死码）**不受影响**——B3 记的是"选择器永不匹配"，本片只换值不动选择器，故死码选择器原样留在产物里（`dist` 中仍是 `.dark .bg-gray-800 textarea{color:hsl(var(--n-gray-100))!important;…}`），阶段 2 一并收口。
 
+#### 1-C 实施记录（2026-09-25，`1a9a7b78`）
+
+**范围**：`src/shared/utils.ts`（新增 THEME CHROME 组：`applyThemeChrome` 及其三个私有帮手）、`src/shared/context/ThemeContext.tsx`（删两处 hex、合并两分支）、`src/shared/types.ts`（`ThemeManifest` 加 `themeColor` / `statusBar` 可选覆盖）、`tests/theme-tokens/`（fixture 加 `readThemeChrome` ＋ 新增 `theme-chrome.spec.ts` ＋ tsconfig ＋ README）、`src/shared/tests/themeContext.test.tsx`。**无 CSS 改动**。
+
+**做了什么**：浏览器 chrome（iOS 状态栏 / 地址栏）在页面之外，读不到 token，所以改由 JS 桥接——`applyThemeChrome` 用探针把 `hsl(var(--token))` 交给浏览器解析再回读，样式表仍是唯一真源。原 dark / light 两分支里重复的四个 `querySelector` 收成一次，`builtinThemeIdFor` 改为 `builtinThemeFor` 直接返回 manifest（`id` 之外还要用它的覆盖字段）。
+
+**实现偏差（比 §5.9 草案更强，同 0-D 的记录体例）**：§5.9 设想的"统一解析函数（HSL→hex、alpha 与背景合并）"前提是**自己解析令牌字符串**。探针法让浏览器完成 HSL→hex 这一半（`hsl(var(--x))` 正是 Tailwind 发的声明形状），只保留草案里真正必要的另一半——把 alpha 合成到不透明底色上。合成失败（底色缺失或也带 alpha）返回空，调用方保留 `index.html` 的 `#ffffff`，**不发布解析失败的残留值**。
+
+**三处判断**：
+
+1. **先查令牌是否已声明，再探针**。否则未声明的令牌会让 `hsl(garbage)` 落回探针元素的继承色 `rgb(0,0,0)`，被当作主题色发布出去（jsdom 与首帧前都会走到这条路径）。同理，令牌若持完整颜色表达式（`#282c34`）则声明非法，浏览器丢弃后也落到同一处——两者都判为"解析失败"。
+2. **`ThemeManifest.themeColor` 取令牌名**（默认 `--background`）而非字面色值：与"样式表是真源"一致，且用户主题只需在自己的覆盖层里定义该令牌即可。`statusBar` 取 iOS 关键字（`default` / `black` / `black-translucent`）。这是对 §5.9"避免解析误差"的字面偏离——探针法下"解析误差"已不存在，故改为更强的形态（记录在此，§5.9 同步）。
+3. **不做外观无关的特判**：`--background` 两个外观各有取值，由其所属规则决定；本片不额外处理。
+
+**唯一有意的视觉变更**（已按纪律先拍板，单独量化）：
+
+| 外观 | 原手写字面 | 派生真值 | 差异 |
+|---|---|---|---|
+| light | `#f6f4ef`（实为 hsl(42.9 28% 95.1%)） | `#f7f6f3`（hsl(44 22% 96%)） | **Δ +1 / +2 / +4** |
+| dark | `#141414` | `#141414`（hsl(0 0% 8%)） | 逐位相同 |
+
+浅色那个字面**和当前 `--background` 已经对不上**（注释还写着 "warm cream"），派生即把该不一致修掉；暗色外观零变化。三选一里的另两条（保留字面覆盖 / 只做结构改造不接令牌）已在该片拍板时否决——后者会让 1-E 之后主题覆盖 `--background` 时 chrome 不跟随，1-C 等于白做。
+
+**证据**：
+
+| 层 | 做法 | 结果 |
+|---|---|---|
+| **探针（双引擎）** | 改前先跑一遍记录全部分支 | light `#f7f6f3` / dark `#141414`；statusBar `default` / `black-translucent`；覆盖生效；未知令牌落 `#ffffff`；alpha 用真实令牌 `--nav-tab-glow`（`/ 0.18`）合成得 `#d1dcf2`，与独立算式逐位一致 |
+| **变异测试（两条）** | ① 绕开 alpha 合成（`alpha >= 1` 改 `>= 0`）② 忽略主题覆盖（`overrides?.themeColor ?? '--background'` 改死） | ① **有且仅有**第三条断言变红；② 恰好第三、四条变红（前两条不依赖覆盖，仍绿）。两条都证明对应断言不是空转 |
+| **常驻断言** | 探针转 `tests/theme-tokens/theme-chrome.spec.ts`，4 项 × 双引擎 | 期望值由**另一条路径**交叉验证（fixture 直接渲染 `hsl(var(--background))` / `hsl(var(--nav-tab-glow))` 后由 spec 自行换算），不照抄数字；含"覆盖 `--background` 后 chrome 跟随"一条，防硬编码回归。JS 消费者守卫 README 补成四份 |
+| **产物前后对照** | 临时 worktree 构建 `bf0e4824` | `f6f4ef` **1 → 0**、`141414` **4 → 3**（余 3 处全来自 react-scan 浮层，与本片无关）、`apple-mobile-web-app-status-bar-style` 与 `theme-color` 各 **2 → 1**（两分支收成一个）；**CSS 逐字节相同**（md5 一致）——本片未触碰任何样式 |
+
+**门槛**：`test:client` **128 文件 / 974 用例**（+1 为本片新增）；`typecheck`（含 server）与 `typecheck:theme-tokens` 干净；`lint` **153 warnings / 0 error**；`build` exit 0；`test:theme-tokens` **26 → 34 通过**；两个基线文件均未动（本片不改令牌）。
+
+**顺带记账（均未在本片处理）**：
+
+1. **JS 跑起来之前的 chrome 色**：`index.html` 的静态 `<meta name="theme-color" content="#ffffff">`、`public/manifest.json` 的 `theme_color`，以及 `mobile/www/index.html`（Capacitor 的服务器选择页，自成一套 media 查询式 theme-color）。它们与"首帧无闪烁"是同一组问题，且 §5.6 的启动链路里那句"立即在首帧前设置 … meta theme-color"目前**并不成立**（`ThemeContext` 的写入在 effect 里，首帧前生效的是静态值）。建议单开一片处理，不要塞进 1-C。
+2. **`react-scan` 进了生产产物**：`src/main.tsx:3` 静态导入 `scan`，`:18` 才用 `import.meta.env.DEV` 在**运行期**关掉——即关闭的是执行而非打包，整个库（含自带硬编码色的浮层）仍在 bundle 里（产物中 3 处 `#141414` 即出自它的 FPS 面板）。属既有问题、与主题线无关，但既是体积问题也是"未入册的硬编码色"来源，建议单独一句记账。
+
+
 ### 阶段 2：用户主题
 
 服务端提供主题目录列举与静态文件（复用 `plugins.routes.ts` 的 `/:name/assets/*` 模式）；前端加载链路含"缓存同步注入 / 后台校验更新 / 加载中 / 失败回落"；设置页支持选择与（可选）粘贴内容。若采纳选项 A，需实现令牌白名单校验；若支持 B2，需实现 `.tmTheme` 解析。
@@ -3400,7 +3442,7 @@ Mutation 侧：
 
 ## 8. 待评审确认的问题（v3：全部已决）
 
-> v2 收敛了 1/3/4/5/6；v3（2026-09-25，三方补充拍板后）2/7/8/9 也已决。**当前无遗留待定项**——唯一由实施新开出来的一项（0-F1 顺带核出的 §5.12 ">10 lane 参数化回退"）已记在该节 v2，属**可选增强、不阻塞任何后续片**，故不列为待定项。
+> v2 收敛了 1/3/4/5/6；v3（2026-09-25，三方补充拍板后）2/7/8/9 也已决。**当前无遗留待定项**——由实施新开出来的两项都不阻塞任何后续片：① 0-F1 顺带核出的 §5.12 ">10 lane 参数化回退"（已记在该节 v2，属**可选增强**）；② 1-C 顺带核出的"JS 跑起来之前的 chrome 色"（`index.html` 静态 theme-color / `manifest.json` / `mobile/www` 服务器选择页，已记在 §5.6 v7 与该片记录，**待单独成片**，与"首帧无闪烁"同组）。
 
 1. **用户主题格式**：→ **已决**：三格式并行（A 令牌 JSON 默认 / B 原始 CSS 高级 / B2 `.tmTheme` 生态），见 §5.5。默认维持 A，理由见该节 v2 说明。
 2. **用户主题存放位置**：→ **已决**：采用 `~/.cloudcli/themes/`，Docker 仅文档标注、不做代码适配。**实施约束**：路径解析必须复用 server 现有的 `path.join(os.homedir(), '.cloudcli', …)` 模式，新增一个与 assets 平行的目录常量，严禁主题模块另写第二套拼接。依据：`docker/` 下仅 `claude-code` / `codex` 构建环境 + `shared` + README，无应用 Dockerfile、无 compose，Docker 非分发形态；而 `~/.cloudcli` 已是既有持久化约定（`server/shared/image-attachments.ts:22`、`server/load-env.ts:43`、`server/index.ts:323`）。若 README 补 Docker 说明，须同时覆盖 themes 与 assets 两个挂载点。
@@ -3707,7 +3749,7 @@ Mutation 侧：
 | 6 | sanitize 两类约束 + `extendedAnsi` 未覆盖（[NOTE]） | **采纳** | 已核实 `extendedAnsi` 在 `useShellTerminal.ts:59`。已写入 §5.8（`cc-` / `user-` 前缀、选择器注入字符）与附录 A（废弃 `extendedAnsi`） |
 | 7 | §4 目标 2 与 3 张力，建议定义"结构性一致"（[NOTE]） | **采纳** | 已改写 §4 目标 3，并落地为 `coverage` 字段（§5.3）+ 选择器 badge |
 | 8 | 把令牌契约面做成自动化测试（[TIP]） | **采纳** | 已新增 §5.11 |
-| 9 | `theme-color` / iOS status-bar 取值链未闭环（[NOTE]） | **采纳** | 已核实 iOS `apple-mobile-web-app-status-bar-style` 硬编码（`ThemeContext.tsx:77-93`）。已写入 §5.9 + `ThemeManifest` 覆盖字段 |
+| 9 | `theme-color` / iOS status-bar 取值链未闭环（[NOTE]） | **采纳** | 已核实 iOS `apple-mobile-web-app-status-bar-style` 硬编码（`ThemeContext.tsx:77-93`）。已写入 §5.9 + `ThemeManifest` 覆盖字段。**已由 1-C 实施闭环**（`1a9a7b78`）：两处 hex 删除，改由 `applyThemeChrome` 从令牌派生；实现比本条设想的更强（探针替代手写 HSL→hex），`themeColor` 取令牌名而非字面色 |
 
 ### Pi（8 条）
 
