@@ -1,7 +1,7 @@
 # CloudCLI 主题与配色体系设计方案
 
 > 编写日期：2026-09-24 ｜ 修订：2026-09-25（v5：阶段 0-A / 0-B / 0-C 已实施并验收，记录见 §6）
-> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j / 0-E2k / 0-E2l / 0-E2m / 0-E2n / 0-E2o / 0-E2p / 0-E2q / 0-E2r / 0-E2s / 0-E2t / 0-E2u / 0-E2v / 0-E2w / 0-E2x / 0-E2y / 0-E2z / 0-E3a / 0-E3b / 0-E3c / 0-E3d / 0-E3e / 0-E3f / 0-E3g / 0-E3h / 0-E3i / 0-E3j / 0-E3k / 0-E3l / 0-E3m / 0-E3n / 0-E3o / 0-E3p / 0-E3q / 0-E3r / 0-E3s / 0-E3t / 0-E3u / 0-E3v / 0-E3w / 0-E3x / 0-E3y / 0-E3z / 0-E4a / 0-E4b / 0-E4c / 0-E4d / 0-E4e / 0-E4f / 0-E4g / 0-E4h / 0-E4i / 0-E4j / 0-E4k / 0-E4l / 0-E4m / 0-E4n / 0-E4o / 0-E4p / 0-E4q / 0-E4r / 0-E4s / 0-E4t / 0-E4u / 0-E4v / 0-E4w / 0-E4x 八十三片，其余分片待做；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内；0-E3i 修正了产物核对脚本的**前提假设缺口**——脚本原假设"被测文件迁移前不含 `n-*` 令牌"，随分片推进（前片已令牌化的文件被再次触碰）必然被打破。截至 0-E4x：中性具名硬编码剩余 **48 处 / 32 文件**（起点 1517 / 105））
+> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j / 0-E2k / 0-E2l / 0-E2m / 0-E2n / 0-E2o / 0-E2p / 0-E2q / 0-E2r / 0-E2s / 0-E2t / 0-E2u / 0-E2v / 0-E2w / 0-E2x / 0-E2y / 0-E2z / 0-E3a / 0-E3b / 0-E3c / 0-E3d / 0-E3e / 0-E3f / 0-E3g / 0-E3h / 0-E3i / 0-E3j / 0-E3k / 0-E3l / 0-E3m / 0-E3n / 0-E3o / 0-E3p / 0-E3q / 0-E3r / 0-E3s / 0-E3t / 0-E3u / 0-E3v / 0-E3w / 0-E3x / 0-E3y / 0-E3z / 0-E4a / 0-E4b / 0-E4c / 0-E4d / 0-E4e / 0-E4f / 0-E4g / 0-E4h / 0-E4i / 0-E4j / 0-E4k / 0-E4l / 0-E4m / 0-E4n / 0-E4o / 0-E4p / 0-E4q / 0-E4r / 0-E4s / 0-E4t / 0-E4u / 0-E4v / 0-E4w / 0-E4x / 0-E4y / 0-E4z / 0-E5a / 0-E5b / 0-E5c / 0-E5d / 0-E5e / 0-E5f / 0-E5g / 0-E5h / 0-E5i / 0-E5j 九十五片，其余分片待做；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内；0-E3i 修正了产物核对脚本的**前提假设缺口**——脚本原假设"被测文件迁移前不含 `n-*` 令牌"，随分片推进（前片已令牌化的文件被再次触碰）必然被打破。截至 0-E5j：中性具名硬编码剩余 **20 处 / 20 文件**（起点 1517 / 105））
 > 参照物：WorkBuddy（`/Applications/WorkBuddy.app`，app.asar 解包 + 本机皮肤包实物）、Codex CLI（`@openai/codex@0.155.1`，Rust 二进制字符串解析）
 > 目标读者：评审 AI / 后续实施者
 
@@ -361,7 +361,7 @@ export type ThemeManifest = {
 
 | 目标 | 文件 | 收口方式 |
 |---|---|---|
-| **Tailwind 具名中性色（界面骨架）** → 三分法**第一类**（v3 定为必做） | 中性色 **1502 处**（设计期 grep 口径；0-E2e 发现该口径漏了轴限定形态，真实口径为 **1517 处**，见该片记录），分布于 **105 个文件**（热点：`AskUserQuestionPanel.tsx` 84、`TaskDetailModal.tsx` 72、`McpServerFormModal.tsx` 69、`TaskBoardToolbar.tsx` 60、`AgentConnectionsStep.tsx` 60、`VersionUpgradeModal.tsx` 55…） | **v4 定案（A1 保值档位令牌）**：`bg-gray-100 dark:bg-gray-700` → `bg-n-gray-100 dark:bg-n-gray-700`——只把字面档位换成令牌引用，取值**逐档等于现状 Tailwind 中性值**。初稿写的 `bg-slate-800 → bg-card` / `text-zinc-400 → text-muted-foreground` **不可行**：实测本片存在 **89 种不同的 `(light, dark)` 元组**，而一个令牌类只能承载**一对**值，折叠到 ~15 个角色令牌必然改色（light 整体偏暖、dark 卡片 `#1f2937 → #1f1f1f`，单点 ΔRGB 最大 100），DoD 的"阈值 0"当场作废。保值档位层由 0-E1（`gray`）与 0-E1b（`zinc` / `slate` / `neutral`）建设（见下方实施记录）。**按文件集群分片，热点文件（>50 处）单独成片**；`bg-x dark:bg-y` 是成对结构（实测同文件对 ≥ 335 处，本仓粗测 414），**替换必须一次完成、同时消灭两半，不设中间态**。**代价（记账）**：`dark:` 双写结构保留（§5.7 第一类字面要求未满足），且档位跨角色耦合（`--n-gray-700` 同时承载 light 正文色与 dark 抬升面）；两者都由**阶段 2 的语义化改名**收口——与 `--cc-syntax-N` 本轮"只加间接与护栏、阶段 2 一次到位改名"（§8.9）同构。**进度**：**0-E4x 后剩余 48 处 / 32 文件**（`AskUserQuestionPanel.tsx` 84、`TaskDetailModal.tsx` 72、`McpServerFormModal.tsx` 69、`TaskBoardToolbar.tsx` 60、`VersionUpgradeModal.tsx` 55、`CodeEditorHeader.tsx` 52、`FolderBrowserModal.tsx` 46、`TaskEmptyState.tsx` 46、`AccountContent.tsx` 41、`toolConfigs.ts` 38、`QuestionAnswerContent.tsx` 35、`NextTaskBanner.tsx` 33、`TaskMasterSetupModal.tsx` 32、`GithubAuthenticationCard.tsx` 31、`PrdEditorHeader.tsx` 30、`GenerateTasksModal.tsx` 30、`CreateTaskModal.tsx` 30、`TaskHelpModal.tsx` 30、`TaskCard.tsx` 30、`fileIcons.ts` 28、`TaskListContent.tsx` 24、`MessageComponent.tsx` 24、`CodeEditorBinaryFile.tsx` 23、`CodeEditorMediaPreview.tsx` 22、`TaskFiltersPanel.tsx` 22、`TaskQuickSortBar.tsx` 18、`OverwriteConfirmModal.tsx` 18、`StepReview.tsx` 18、`SidebarProjectItem.tsx` 16、`taskKanban.ts` 16、`ImageViewer.tsx` 14、`ProjectCreationWizard.tsx` 14、`ShellHeader.tsx` 14、`TaskBoardContent.tsx` 14、`ToolDiffViewer.tsx` 12、`MarkdownPreview.tsx` 12、`UserMessageStickyHeader.tsx` 12、`TerminalShortcutsPanel.tsx` 11、`TextContent.tsx` 11、`BrowserUsePanel.tsx` 11、`QuickSettingsHandle.tsx` 10、`WorkspacePathField.tsx` 10、`ProviderLoginModal.tsx` 9、`WizardProgress.tsx` 9、`SidebarModals.tsx` 8、`ExecutionProcessSummary.tsx` 8、`PrdEditorFooter.tsx` 8、`ChatMessagesPane.tsx` 8、`StepConfiguration.tsx` 8、`ShellConnectionOverlay.tsx` 7 均已清零，余下最大单片为 `MarkdownCodeBlock.tsx` / `Shell.tsx` 二者并列 7）。沿革：0-E0 全量 **1502 处 / 105 文件** → 0-E2 后 1439 / 104 → 0-E2c 不变（纯护栏片）→ 0-E2d −84 → **0-E2e 扩面 +15 又同片清零 −15，剩余量不变**（但覆盖面从 1502 增至 **1517**，见 0-E2e 记录的口径变化）→ 0-E2f −72 → 0-E2g −69 → 0-E2h −60 → 0-E2i −55 → 0-E2j −52 → 0-E2k −46 → 0-E2l −46 → 0-E2m −41 → 0-E2n −38 → 0-E2o −35 → 0-E2p −33 → 0-E2q −32 → 0-E2r −31 → 0-E2s −30 → 0-E2t −30 → 0-E2u −30 → 0-E2v −30 → 0-E2w −30 → 0-E2x −28 → 0-E2y −24 → 0-E2z −24 → 0-E3a −23 → 0-E3b −22 → 0-E3c −22 → 0-E3d −18 → 0-E3e −18 → 0-E3f −18 → 0-E3g −16 → 0-E3h −16 → 0-E3i −14 → 0-E3j −14 → 0-E3k −14 → 0-E3l −14 → 0-E3m −12 → 0-E3n −12 → 0-E3o −12 → 0-E3p −11 → 0-E3q −11 → 0-E3r −11 → 0-E3s −10 → 0-E3t −10 → 0-E3u −9 → 0-E3v −9 → 0-E3w −8 → 0-E3x −8 → 0-E3y −8 → 0-E3z −8 → 0-E4a −8 → 0-E4b −7。另处置 2 处旧式 `*-opacity-*` 共现隐雷，见 0-E2 记录。**0-E2c** 补上配对层守恒律——0-E0 时代的全量字面命中数（1439 剩余 ＋ 1 豁免 ＋ 62 已迁移 = 1502）即冻结总量起点，从数字上追溯确认了 0-E2b 的迁移守恒 |
+| **Tailwind 具名中性色（界面骨架）** → 三分法**第一类**（v3 定为必做） | 中性色 **1502 处**（设计期 grep 口径；0-E2e 发现该口径漏了轴限定形态，真实口径为 **1517 处**，见该片记录），分布于 **105 个文件**（热点：`AskUserQuestionPanel.tsx` 84、`TaskDetailModal.tsx` 72、`McpServerFormModal.tsx` 69、`TaskBoardToolbar.tsx` 60、`AgentConnectionsStep.tsx` 60、`VersionUpgradeModal.tsx` 55…） | **v4 定案（A1 保值档位令牌）**：`bg-gray-100 dark:bg-gray-700` → `bg-n-gray-100 dark:bg-n-gray-700`——只把字面档位换成令牌引用，取值**逐档等于现状 Tailwind 中性值**。初稿写的 `bg-slate-800 → bg-card` / `text-zinc-400 → text-muted-foreground` **不可行**：实测本片存在 **89 种不同的 `(light, dark)` 元组**，而一个令牌类只能承载**一对**值，折叠到 ~15 个角色令牌必然改色（light 整体偏暖、dark 卡片 `#1f2937 → #1f1f1f`，单点 ΔRGB 最大 100），DoD 的"阈值 0"当场作废。保值档位层由 0-E1（`gray`）与 0-E1b（`zinc` / `slate` / `neutral`）建设（见下方实施记录）。**按文件集群分片，热点文件（>50 处）单独成片**；`bg-x dark:bg-y` 是成对结构（实测同文件对 ≥ 335 处，本仓粗测 414），**替换必须一次完成、同时消灭两半，不设中间态**。**代价（记账）**：`dark:` 双写结构保留（§5.7 第一类字面要求未满足），且档位跨角色耦合（`--n-gray-700` 同时承载 light 正文色与 dark 抬升面）；两者都由**阶段 2 的语义化改名**收口——与 `--cc-syntax-N` 本轮"只加间接与护栏、阶段 2 一次到位改名"（§8.9）同构。**进度**：**0-E5j 后剩余 20 处 / 20 文件**（`AskUserQuestionPanel.tsx` 84、`TaskDetailModal.tsx` 72、`McpServerFormModal.tsx` 69、`TaskBoardToolbar.tsx` 60、`VersionUpgradeModal.tsx` 55、`CodeEditorHeader.tsx` 52、`FolderBrowserModal.tsx` 46、`TaskEmptyState.tsx` 46、`AccountContent.tsx` 41、`toolConfigs.ts` 38、`QuestionAnswerContent.tsx` 35、`NextTaskBanner.tsx` 33、`TaskMasterSetupModal.tsx` 32、`GithubAuthenticationCard.tsx` 31、`PrdEditorHeader.tsx` 30、`GenerateTasksModal.tsx` 30、`CreateTaskModal.tsx` 30、`TaskHelpModal.tsx` 30、`TaskCard.tsx` 30、`fileIcons.ts` 28、`TaskListContent.tsx` 24、`MessageComponent.tsx` 24、`CodeEditorBinaryFile.tsx` 23、`CodeEditorMediaPreview.tsx` 22、`TaskFiltersPanel.tsx` 22、`TaskQuickSortBar.tsx` 18、`OverwriteConfirmModal.tsx` 18、`StepReview.tsx` 18、`SidebarProjectItem.tsx` 16、`taskKanban.ts` 16、`ImageViewer.tsx` 14、`ProjectCreationWizard.tsx` 14、`ShellHeader.tsx` 14、`TaskBoardContent.tsx` 14、`ToolDiffViewer.tsx` 12、`MarkdownPreview.tsx` 12、`UserMessageStickyHeader.tsx` 12、`TerminalShortcutsPanel.tsx` 11、`TextContent.tsx` 11、`BrowserUsePanel.tsx` 11、`QuickSettingsHandle.tsx` 10、`WorkspacePathField.tsx` 10、`ProviderLoginModal.tsx` 9、`WizardProgress.tsx` 9、`SidebarModals.tsx` 8、`ExecutionProcessSummary.tsx` 8、`PrdEditorFooter.tsx` 8、`ChatMessagesPane.tsx` 8、`StepConfiguration.tsx` 8、`ShellConnectionOverlay.tsx` 7、`MarkdownCodeBlock.tsx` 7、`Shell.tsx` 7、`CommandMenu.tsx` 6、`SessionOptions.tsx` 6、`SidebarContent.tsx` 6、`SidebarRecentConversations.tsx` 6、`MessageSpeakControl.tsx` 5、`CodeEditorLoadingState.tsx` 5、`PrdEditorLoadingState.tsx` 5、`ShellEmptyState.tsx` 5、`StandaloneShellEmptyState.tsx` 5、`StandaloneShellHeader.tsx` 5、`FileListContent.tsx` 4、`ToolStatusBadge.tsx` 4、`ChatMessageImages.tsx` 4、`MessageCopyControl.tsx` 4、`CodeEditorFooter.tsx` 4、`EditorSidebar.tsx` 4、`FileTree.tsx` 4、`TaskIndicator.tsx` 4、`ProviderSkills.tsx` 4、`Tooltip.tsx` 4、`LoadAllMessagesOverlay.tsx` 3、`CodeEditorSurface.tsx` 3、`MermaidDiagram.tsx` 3、`PrdEditorWorkspace.tsx` 3、`OneLineDisplay.tsx` 2、`GitPanelHeader.tsx` 2、`ConfirmActionModal.tsx` 2、`RemoveWorktreeModal.tsx` 2、`WizardFooter.tsx` 2、`WorkspaceTabs.tsx` 2、`NotificationsSettingsTab.tsx` 2、`DarkModeToggle.tsx` 2 均已清零，余下 20 个文件各 1 处）。沿革：0-E0 全量 **1502 处 / 105 文件** → 0-E2 后 1439 / 104 → 0-E2c 不变（纯护栏片）→ 0-E2d −84 → **0-E2e 扩面 +15 又同片清零 −15，剩余量不变**（但覆盖面从 1502 增至 **1517**，见 0-E2e 记录的口径变化）→ 0-E2f −72 → 0-E2g −69 → 0-E2h −60 → 0-E2i −55 → 0-E2j −52 → 0-E2k −46 → 0-E2l −46 → 0-E2m −41 → 0-E2n −38 → 0-E2o −35 → 0-E2p −33 → 0-E2q −32 → 0-E2r −31 → 0-E2s −30 → 0-E2t −30 → 0-E2u −30 → 0-E2v −30 → 0-E2w −30 → 0-E2x −28 → 0-E2y −24 → 0-E2z −24 → 0-E3a −23 → 0-E3b −22 → 0-E3c −22 → 0-E3d −18 → 0-E3e −18 → 0-E3f −18 → 0-E3g −16 → 0-E3h −16 → 0-E3i −14 → 0-E3j −14 → 0-E3k −14 → 0-E3l −14 → 0-E3m −12 → 0-E3n −12 → 0-E3o −12 → 0-E3p −11 → 0-E3q −11 → 0-E3r −11 → 0-E3s −10 → 0-E3t −10 → 0-E3u −9 → 0-E3v −9 → 0-E3w −8 → 0-E3x −8 → 0-E3y −8 → 0-E3z −8 → 0-E4a −8 → 0-E4b −7 → 0-E4c −7 → 0-E4d −7 → 0-E4e −6 → 0-E4f −6 → 0-E4g −6 → 0-E4h −6 → 0-E4i −5 → 0-E4j −5 → 0-E4k −5 → 0-E4l −5 → 0-E4m −5 → 0-E4n −5 → 0-E4o −4 → 0-E4p −4 → 0-E4q −4 → 0-E4r −4 → 0-E4s −4 → 0-E4t −4 → 0-E4u −4 → 0-E4v −4 → 0-E4w −4 → 0-E4x −4 → 0-E4y −3 → 0-E4z −3 → 0-E5a −3 → 0-E5b −3 → 0-E5c −2 → 0-E5d −2 → 0-E5e −2 → 0-E5f −2 → 0-E5g −2 → 0-E5h −2 → 0-E5i −2 → 0-E5j −2。另处置 2 处旧式 `*-opacity-*` 共现隐雷，见 0-E2 记录。**0-E2c** 补上配对层守恒律——0-E0 时代的全量字面命中数（1439 剩余 ＋ 1 豁免 ＋ 62 已迁移 = 1502）即冻结总量起点，从数字上追溯确认了 0-E2b 的迁移守恒 |
 | **状态色（成功 / 错误 / 警告 / 信息）** → 三分法**第二类** | 约 300 处（如 `bg-green-500 dark:bg-green-600`） | **保留 `dark:`，作为"主题不应控制的色"**。`--status-*` 令牌的**定义与替换捆绑为同一个后续片（可晚于阶段 0），阶段 0 不引入**——否则会重演 DSH 指出的"无消费者死令牌"覆辙（保留 `dark:` 的组件不读令牌，覆盖 `--status-*` 无效）。替换完成前，主题开发文档须诚实写明"状态色暂不受主题控制" |
 | **品牌色 / 文件图标色 / 装饰色** → 三分法**第三类** | 约 1000 处（`fileIcons.ts`、agent 品牌色、渐变色） | **明确豁免**，写入机器可校验的豁免清单（§6），主题不覆盖 |
 | **`dark:` 前缀总览**（v3 定口径） | 实测 `dark:` 共约 **1302 处** = 中性具名 **529** + 彩色具名 **581** + 语义令牌类 **6** + 结构性变体（`dark:prose-invert` 等）约 186。**注意：`dark:` + 具名色合计约 1110 处（86%），均为硬编码**，须按三分法分流 | **验收只统计"`dark:` + 具名色"**（目标收敛到豁免清单），**不统计"`dark:` 总数归零"**——`dark:bg-card` 这类**指向令牌**的 dark 变体天然无害、主题完全接管，计入会白费力气。另：全项目语义令牌类的 `dark:` 用法仅 6 处，说明现状暗色处理基本是"具名色双写"模式 |
@@ -532,11 +532,23 @@ grep 只能证明"没有字面硬编码"，证明不了"每套主题的令牌全
 | 0-E4v ✅ | **热点榜并列第四的文件集群**：`TaskIndicator.tsx` 4 → 0——**已实施，见本节末 0-E4v 记录** | 4 处落 **2 行**（指示器配置对象的 `colorClassName` / `backgroundClassName` 类名常量）；族纯 `gray` 4；档位 `gray-50 / 400 / 500 / 900`；`text` 2 ／ `bg` 2；**零透明度**；变体裸类 2 / `dark:` 2；**同对象其余条目 green/blue/amber 语义色未触碰**；**3 桶归零**（`bg: gray-50`、`text: gray-400`、`text: gray-500`） |
 | 0-E4w ✅ | **热点榜并列第四的文件集群**：`ProviderSkills.tsx` 4 → 0——**已实施，见本节末 0-E4w 记录** | 4 处落 **1 行**（provider 分类样式表的 `system` 条目）；族纯 `slate` 4；档位 `slate-300 / 500 ×2 / 700`；`border` 1 ／ `bg` 1 ／ `text` 2；**透明度 2 类 2 处**（`border-slate-500/30`、`bg-slate-500/10`）；变体裸类 3 / `dark:` 1；**同表其余条目 emerald/sky/amber/orange/rose 语义色未触碰**；**4 桶归零**（`bg: slate-500`、`border: slate-500`、`text: slate-300`、`text: slate-700`） |
 | 0-E4x ✅ | **热点榜并列第四的文件集群**：`Tooltip.tsx` 4 → 0——**已实施，见本节末 0-E4x 记录** | 4 处落 **1 行**（tooltip 气泡基础样式串，含 `dark:bg-gray-100` 反色写法）；族 `gray` 3 ＋ `white` 1；档位 `gray-100 / 900 ×2` ＋ `white`；`text` 2 ／ `bg` 2；**零透明度**；变体裸类 2 / `dark:` 2；**文件含 0-E2e 遗留令牌（10 处轴限定 `border-*-n-gray-*`）**；**2 桶归零**（`bg: gray-100`、`text: gray-900`） |
-| 0-E2j+ | **其余按文件集群施工**：`bg-gray-100 dark:bg-gray-700 → bg-n-gray-100 dark:bg-n-gray-700`（非 gray 同理走 `n-zinc` / `n-slate` / `n-neutral`），热点文件单独成片。**热点榜已更新到 0-E4x 之后**：`LoadAllMessagesOverlay.tsx` / `CodeEditorSurface.tsx` / `MermaidDiagram.tsx` / `PrdEditorWorkspace.tsx` **四者并列 3** | 见 §6 下"切片粒度"；每片跑基线快照收敛 + 守恒律**双绿**才算过；**迁移前先点名确认每个档位在 `index.css` 有 L1+L2 双声明**（见 0-E2i 的前置检查）。**注意**：非 gray 的剩余处分散在 `AccountContent.tsx`、`NextTaskBanner.tsx` 等；stone 全仓 0 处 |
+| 0-E4y ✅ | **热点榜并列第五的文件集群**：`LoadAllMessagesOverlay.tsx` 3 → 0——**已实施，见本节末 0-E4y 记录** | 3 处落 **3 行**（绿色「加载全部」按钮 ＋ 蓝色重试按钮 ＋ 旋转器 `border-t` 环）；族纯 `white` 3；档位白色；`text` 2 ／ `border` 1；**透明度 1 类 1 处**（`border-white/30`）；变体**全为裸类**；**同串 green/blue 语义色未触碰**；**文件含前片遗留令牌 `border-t-n-white` 1 处（第 6 次撞上，未动）**；**1 桶归零**（`border: white`） |
+| 0-E4z ✅ | **热点榜并列第五的文件集群**：`CodeEditorSurface.tsx` 3 → 0——**已实施，见本节末 0-E4z 记录** | 3 处落 **2 行**（Markdown 预览滚动容器 ＋ `prose` 排版容器）；族 `gray` 2 ＋ `white` 1；档位 `gray-900` ＋ `white`；工具类纯 `bg` 3；**零透明度**；变体裸类 1 / `dark:` 1 / `prose-pre:` 1；**同串 `prose-a` 语义蓝（`text-blue-600` / `dark:text-blue-400`）未触碰**；**0 桶归零** |
+| 0-E5a ✅ | **热点榜并列第五的文件集群**：`MermaidDiagram.tsx` 3 → 0——**已实施，见本节末 0-E5a 记录** | 3 处落 **2 行**（源码回退 `pre`（light 用 `bg-muted/50` 语义令牌，仅 dark 底色为字面）＋ `svg` 渲染容器）；族 `zinc` 2 ＋ `white` 1；档位 `zinc-900` ＋ `white`；工具类纯 `bg` 3；**零透明度**；变体裸类 1 / `dark:` 2；**同串 `border-border` / `text-muted-foreground` 语义令牌未触碰**；**0 桶归零** |
+| 0-E5b ✅ | **热点榜并列第五的文件集群**：`PrdEditorWorkspace.tsx` 3 → 0——**已实施，见本节末 0-E5b 记录** | 3 处落 **2 行**（移动端全屏遮罩 ＋ 编辑器面板容器）；族 `black` 1 ＋ `white` 1 ＋ `gray` 1；档位 `black` / `white` / `gray-900`；工具类纯 `bg` 3；**透明度 1 类 1 处**（`md:bg-black/50`）；变体 `md:` 1 / 裸类 1 / `dark:` 1；**0 桶归零** |
+| 0-E5c ✅ | **热点榜并列第六的文件集群**：`OneLineDisplay.tsx` 2 → 0——**已实施，见本节末 0-E5c 记录** | 2 处落 **1 行**（单行 shell 命令展示块底色串，等宽文本在内层 `span`）；族 `gray` 1 ＋ `black` 1；档位 `gray-900` ＋ `black`；工具类纯 `bg` 2；**零透明度**；变体裸类 1 / `dark:` 1；**0 桶归零** |
+| 0-E5d ✅ | **热点榜并列第六的文件集群**：`GitPanelHeader.tsx` 2 → 0——**已实施，见本节末 0-E5d 记录** | 2 处落 **2 行**（绿色拉取按钮 ＋ 橙色推送按钮的文字色）；族纯 `white` 2；档位白色；工具类纯 `text` 2；**零透明度**；变体**全为裸类**；**同串 green/orange 语义色未触碰**；**0 桶归零** |
+| 0-E5e ✅ | **热点榜并列第六的文件集群**：`ConfirmActionModal.tsx` 2 → 0——**已实施，见本节末 0-E5e 记录** | 2 处落 **2 行**（全屏遮罩 ＋ 确认按钮文字色）；族 `black` 1 ＋ `white` 1；档位 `black` ＋ `white`；`bg` 1 ／ `text` 1；**透明度 1 类 1 处**（`bg-black/60`）；变体**全为裸类**；**映射表内语义色未触碰**；**0 桶归零** |
+| 0-E5f ✅ | **热点榜并列第六的文件集群**：`RemoveWorktreeModal.tsx` 2 → 0——**已实施，见本节末 0-E5f 记录** | 2 处落 **2 行**（全屏遮罩 ＋ 危险确认按钮文字色）；族 `black` 1 ＋ `white` 1；档位 `black` ＋ `white`；`bg` 1 ／ `text` 1；**透明度 1 类 1 处**（`bg-black/60`）；变体**全为裸类**；**同串语义红 `bg-red-600` / `hover:bg-red-700` 未触碰**；**0 桶归零** |
+| 0-E5g ✅ | **热点榜并列第六的文件集群**：`WizardFooter.tsx` 2 → 0——**已实施，见本节末 0-E5g 记录** | 2 处落 **1 行**（向导页脚顶边分隔线 light/dark 成对）；族纯 `gray` 2；档位 `gray-200` ＋ `gray-700`；工具类纯 `border` 2；**零透明度**；变体裸类 1 / `dark:` 1；**2 桶归零**（`border: gray-200`、`border: gray-700`） |
+| 0-E5h ✅ | **热点榜并列第六的文件集群**：`WorkspaceTabs.tsx` 2 → 0——**已实施，见本节末 0-E5h 记录** | 2 处落 **1 行**（标签条内阴影串，本批唯一 `shadow` 工具类片）；族纯 `black` 2；档位黑色；工具类纯 `shadow` 2；**透明度 2 类 2 处**（`shadow-black/[0.025]` 任意值、`dark:shadow-black/10`）；变体裸类 1 / `dark:` 1；**同串 `border-border/40` / `bg-muted/50` 语义令牌未触碰**；**1 桶归零**（`shadow: black`） |
+| 0-E5i ✅ | **热点榜并列第六的文件集群**：`NotificationsSettingsTab.tsx` 2 → 0——**已实施，见本节末 0-E5i 记录** | 2 处落 **2 行**（两处开关激活态三元串的文字色，串内结构逐字同构）；族纯 `white` 2；档位白色；工具类纯 `text` 2；**零透明度**；变体**全为裸类**；**同串 blue 语义色未触碰**；**0 桶归零** |
+| 0-E5j ✅ | **热点榜并列第六的文件集群（本批收尾片）**：`DarkModeToggle.tsx` 2 → 0——**已实施，见本节末 0-E5j 记录** | 2 处落 **2 行**（开关滑块位移态三元串底色 ＋ 太阳图标文字色）；族纯 `white` 2；档位白色；`bg` 1 ／ `text` 1；**零透明度**；变体**全为裸类**；**同串 `bg-foreground/60` / `dark:bg-foreground/80` / `dark:text-background` 语义令牌未触碰**；**0 桶归零** |
+| 0-E2j+ | **其余按文件集群施工**：`bg-gray-100 dark:bg-gray-700 → bg-n-gray-100 dark:bg-n-gray-700`（非 gray 同理走 `n-zinc` / `n-slate` / `n-neutral`），热点文件单独成片。**热点榜已更新到 0-E5j 之后**：剩余 **20 个文件全部并列 1 处**（`ComposerAttachment.tsx`、`PromptInput.tsx`、`VoiceInputButton.tsx`、`CommandResultModal.tsx`、`Markdown.tsx`、`CodeEditor.tsx`、`MergeWorktreeModal.tsx`、`NewBranchModal.tsx`、`NewWorktreeModal.tsx`、`AgentConnectionCard.tsx`、`Onboarding.tsx`、`OnboardingStepProgress.tsx`、`PluginSettingsTab.tsx`、`WorkspaceErrorBoundary.tsx`、`SettingsToggle.tsx`、`AgentSelectorSection.tsx`、`ShellMinimalView.tsx`、`SidebarModeTabs.tsx`、`TaskMasterPanel.tsx`、`Dialog.tsx`），**已无并列更高的热点** | 见 §6 下"切片粒度"；每片跑基线快照收敛 + 守恒律**双绿**才算过；**迁移前先点名确认每个档位在 `index.css` 有 L1+L2 双声明**（见 0-E2i 的前置检查）。**注意**：非 gray 的剩余处分散在 `AccountContent.tsx`、`NextTaskBanner.tsx` 等；stone 全仓 0 处 |
 | 0-F | **Git 图 + 其余零散硬编码**（`MobileTerminalSelection` 等） | 体量小，收尾 |
 | 0-G | **`index.css` 后半段 66 处暗色补偿** | **必须等 `color-scheme` 先上**（§5.6），否则会令牌化一堆本可删除的补偿 |
 
-**切片粒度（v3）**：按**文件集群**而非色值类型切片——中性色分布在 **32 个文件**（0-E4x 后；含轴限定形态，覆盖面口径见 0-E2e 记录），同模块语义一致、review 上下文完整。热点文件必须单独成片（四者并列 3），避免单个 PR 塞进几十处替换。**已落地七十四片**：`AgentConnectionsStep.tsx` 60 → 0（0-E2b，首批含非 gray 族）、`AskUserQuestionPanel.tsx` 84 → 0（0-E2d，#1 热点、纯 gray）、`Tooltip.tsx` 等 4 文件的 15 处轴限定形态 → 0（0-E2e，扫描器覆盖面片）、`TaskDetailModal.tsx` 72 → 0（0-E2f，#2 热点、纯 gray）、`McpServerFormModal.tsx` 69 → 0（0-E2g，#3 热点、密度最高）、`TaskBoardToolbar.tsx` 60 → 0（0-E2h，#4 热点、零透明度）、`VersionUpgradeModal.tsx` 55 → 0（0-E2i，#5 热点、token 最多）、`CodeEditorHeader.tsx` 52 → 0（0-E2j，#6 热点、text 为主且无 border）、`FolderBrowserModal.tsx` 46 → 0（0-E2k，#7 热点、含模态遮罩）、`TaskEmptyState.tsx` 46 → 0（0-E2l，#8 热点、透明度集中于同一 token）、`AccountContent.tsx` 41 → 0（0-E2m，#9 热点、四族混合、独占拼写批量样本）、`toolConfigs.ts` 38 → 0（0-E2n，#10 热点、类名映射表、纯 gray 零 bg）、`QuestionAnswerContent.tsx` 35 → 0（0-E2o，#11 热点、含豁免、透明度最多）、`NextTaskBanner.tsx` 33 → 0（0-E2p，#12 热点、slate 主导）、`TaskMasterSetupModal.tsx` 32 → 0（0-E2q，#13 热点、三工具均衡）、`GithubAuthenticationCard.tsx` 31 → 0（0-E2r，#14 热点、中段档位集中）、`PrdEditorHeader.tsx` 30 → 0（0-E2s，#15 热点、零透明度、两原子归零与两字面全仓零消费一一对应）、`GenerateTasksModal.tsx` 30 → 0（0-E2t，#16 热点、三工具均衡、含模态遮罩 `bg-black/50`）、`CreateTaskModal.tsx` 30 → 0（0-E2u，#17 热点、与 0-E2t 逐 token 同构）、`TaskHelpModal.tsx` 30 → 0（0-E2v，#18 热点、`text` 为主、带透明度 2 处）、`TaskCard.tsx` 30 → 0（0-E2w，#19 热点、跨 gray/slate 两族、4 个 slate 原子归零）、`fileIcons.ts` 28 → 0（0-E2x，#20 热点、仅 2 个 token、28 行一行一处）、`TaskListContent.tsx` 24 → 0（0-E2y，#21 热点、纯 gray 单族 8 档）、`MessageComponent.tsx` 24 → 0（0-E2z，#22 热点、无 border、2 字面归零但 0 桶归零）、`CodeEditorBinaryFile.tsx` 23 → 0（0-E3a，#23 热点、23 处仅落 6 行的高密度片、首个 `md:` 变体）、`CodeEditorMediaPreview.tsx` 22 → 0（0-E3b，#24 热点、与 0-E3a 同模块姊妹组件、首次暴露 `index.css` 选择器级消费者缺口）、`TaskFiltersPanel.tsx` 22 → 0（0-E3c，#25 热点、与 0-E2h 同模块、22 处落 8 行）、`TaskQuickSortBar.tsx` 18 → 0（0-E3d，#26 热点、6 token 各 ×3、1 字面迁移后全仓零消费）、`OverwriteConfirmModal.tsx` 18 → 0（0-E3e，#27 热点、18 处落 17 token、含遮罩 `bg-black/50`）、`StepReview.tsx` 18 → 0（0-E3f，#28 热点、`text` 14／`bg` 2／`border` 2、含 `dark:bg-gray-900/50`）、`SidebarProjectItem.tsx` 16 → 0（0-E3g，#29 热点、两处透明度、7 字面迁后全仓零消费且 2 桶归零）、`taskKanban.ts` 16 → 0（0-E3h，#30 热点、16 处落 4 行、中性/语义彩色在同一配置表交错、9 字面迁后全仓零消费且 7 桶归零）、`ImageViewer.tsx` 14 → 0（0-E3i，#31 热点、14 处落 7 行、文件含前片遗留令牌、首次修正产物核对脚本的前提假设缺口）、`ProjectCreationWizard.tsx` 14 → 0（0-E3j，#32 热点、14 处落 5 行、含模态遮罩与 `sm:` 响应式）、`ShellHeader.tsx` 14 → 0（0-E3k，#33 热点、14 处落 6 行、含前片遗留令牌、3 字面归零而 0 桶归零），`TaskBoardContent.tsx` 14 → 0（0-E3l，#34 热点、14 处落 7 行、空态与卡片计数徽标、4 字面归零而 1 桶归零），`ToolDiffViewer.tsx` 12 → 0（0-E3m，#35 热点、12 处落 4 行、纯 gray、4 类透明度 6 处、3 字面归零而 0 桶归零），`MarkdownPreview.tsx` 12 → 0（0-E3n，#36 热点、12 处落 5 行、markdown element 映射、2 字面归零而 1 桶归零），`UserMessageStickyHeader.tsx` 12 → 0（0-E3o，#37 热点、12 处落 4 行、含 `hover:` / `dark:hover:` 伪类与两处 95% 透明度、2 字面归零而 0 桶归零），`TerminalShortcutsPanel.tsx` 11 → 0（0-E3p，#38 热点、11 处落 4 行、含 `active:` 伪类、语义蓝未触碰、3 字面归零而 1 桶归零），`TextContent.tsx` 11 → 0（0-E3q，#39 热点、11 处落 3 行、两行 `<pre>` 代码块串 ＋ 一行纯文本 `<div>`、三处 50% 透明度、4 字面归零而 0 桶归零），`BrowserUsePanel.tsx` 11 → 0（0-E3r，#40 热点、11 处落 9 行、跨 white/neutral/black 三族、五处透明度、8 字面归零且 4 桶归零），`QuickSettingsHandle.tsx` 10 → 0（0-E3s，#41 热点、10 处落 4 行、含 `hover:` / `dark:hover:` 伪类、零透明度、8 字面全仓均另有存活故 0 归零），`WorkspacePathField.tsx` 10 → 0（0-E3t，#42 热点、10 处落 4 行、自动补全下拉、10 token 各 ×1、零透明度、0 字面归零），`ProviderLoginModal.tsx` 9 → 0（0-E3u，#43 热点、9 处落 4 行、含前片遗留令牌、零透明度、9 token 各 ×1、0 字面归零），`WizardProgress.tsx` 9 → 0（0-E3v，#44 热点、9 处落 5 行、步骤条状态三元、`bg-green-500` / `bg-blue-500` 语义色未触碰、零透明度、0 字面归零），`SidebarModals.tsx` 8 → 0（0-E3w，#45 热点、8 处落 8 行、4 个模态框的遮罩＋危险按钮、仅 2 token 各 ×4、四处 60% 透明度、`bg-red-600` 语义红未触碰、0 字面归零）、`ExecutionProcessSummary.tsx` 8 → 0（0-E3x，#46 热点、8 处落 2 行、执行过程折叠摘要的标签行＋按钮行、7 档 gray ＋ white、`text` 6 ／ `bg` 2、含裸类/`hover:`/`dark:`/`dark:hover:`、零透明度、3 字面归零而 0 桶归零）、`PrdEditorFooter.tsx` 8 → 0（0-E3y，#47 热点、8 处落 3 行、PRD 编辑器页脚的外壳行＋统计行＋快捷键提示行、纯 gray 8 档、`border` 2 ／ `bg` 2 ／ `text` 4、含裸类/`dark:`、无伪类、零透明度、0 字面归零而 0 桶归零）、`ChatMessagesPane.tsx` 8 → 0（0-E3z，#48 热点、8 处落 4 行、聊天消息面板的模块级槽位类常量＋加载提示行＋两处旋转器、纯 gray 4 档、`border` 4 ／ `text` 4、含裸类/`dark:`、无伪类、零透明度、1 字面归零且 1 桶归零）、`StepConfiguration.tsx` 8 → 0（0-E4a，#49 热点、8 处落 4 行、项目创建向导配置步骤的两处 label＋两处 p 帮助文案、纯 gray 4 档、`text` 8、含裸类/`dark:`、无伪类、零透明度、2 字面归零且 1 桶归零）、`ShellConnectionOverlay.tsx` 7 → 0（0-E4b，#50 热点、7 处落 7 行、Shell 连接遮罩三态的全屏遮罩串、gray 6 ＋ white 1、`bg` 3 ／ `text` 4、含 `bg-gray-950/90` 90% 透明度、裸类、含前片遗留令牌、emerald/blue/yellow 语义色未触碰、2 字面归零且 1 桶归零）、`MarkdownCodeBlock.tsx` 7 → 0（0-E4c，#51 热点、7 处落 2 行、Markdown 行内代码串＋语言角标、纯 gray 6 档、`border` 2 ／ `bg` 2 ／ `text` 3、含裸类/`dark:`、无伪类、零透明度、1 字面归零且 1 桶归零）、`Shell.tsx` 7 → 0（0-E4d，#52 热点、7 处落 4 行、Shell 容器＋移动底栏＋蓝/灰按钮行、gray 6 ＋ white 1、`bg` 3 ／ `border` 1 ／ `text` 2 ／ `hover:bg` 1、含 80%/95% 两处透明度、裸类＋`hover:`、`bg-blue-600` 语义蓝未触碰、1 桶归零）、`CommandMenu.tsx` 6 → 0（0-E4e，#53 热点、6 处落 1 行、命令面板分组样式常量串、纯 gray 4 档、`border` 2 ／ `bg` 2 ／ `text` 2、含裸类/`dark:`、含 20%/10% 两处透明度、2 桶归零）、`SessionOptions.tsx` 6 → 0（0-E4f，#54 热点、6 处落 2 行、会话项删除按钮图标容器串＋X 图标、纯 gray 5 档、`bg` 4 ／ `text` 2、含裸类/`hover:`/`dark:`/`dark:hover:`、含 20%/40% 两处透明度、0 桶归零）、`SidebarContent.tsx` 6 → 0（0-E4g，#55 热点、6 处落 2 行、与 0-E4f 同构复制串、纯 gray 5 档、`bg` 4 ／ `text` 2、含裸类/`hover:`/`dark:`/`dark:hover:`、含 20%/40% 两处透明度、0 桶归零）、`SidebarRecentConversations.tsx` 6 → 0（0-E4h，#56 热点、6 处落 2 行、最近会话项删除按钮图标容器串＋X 图标、纯 gray 5 档、`bg` 4 ／ `text` 2、含裸类/`hover:`/`dark:`/`dark:hover:`、含 20%/40% 两处透明度、0 桶归零）、`MessageSpeakControl.tsx` 5 → 0（0-E4i，#57 热点、5 处落 2 行、语音控件错误提示气泡串＋语音按钮串、gray 4 ＋ white 1、`text` 5、含裸类/`hover:`/`dark:`/`dark:hover:`、零透明度、气泡串内 `bg-red-600` 语义红未触碰、0 桶归零）、`CodeEditorLoadingState.tsx` 5 → 0（0-E4j，#58 热点、5 处落 3 行、内联加载文案＋全屏遮罩＋遮罩内文案、gray 2 ＋ white 2 ＋ black 1、`text` 4 ／ `bg` 1、含裸类/`dark:`/`md:`、含 50% 一处透明度、5 token 派生 3 字面、`border-blue-600` 语义蓝未触碰、0 桶归零）、`PrdEditorLoadingState.tsx` 5 → 0（0-E4k，#59 热点、5 处落 3 行、全屏遮罩＋加载卡片＋加载文案、gray 2 ＋ white 2 ＋ black 1、`bg` 3 ／ `text` 2、含裸类/`dark:`/`md:`、含 50% 一处透明度、`border-blue-600` 语义蓝未触碰、0 桶归零）、`ShellEmptyState.tsx` 5 → 0（0-E4l，#60 热点、5 处落 3 行、空态容器＋圆形图标容器＋svg 图标、纯 gray 4 档、`text` 3 ／ `bg` 2、含裸类/`dark:`、零透明度、文件全仓零语义彩色、0 桶归零）、`StandaloneShellEmptyState.tsx` 5 → 0（0-E4m，#61 热点、5 处落 3 行、与 0-E4l 同构的独立壳空态、纯 gray 4 档、`text` 3 ／ `bg` 2、含裸类/`dark:`、零透明度、文件全仓零语义彩色、0 桶归零）、`StandaloneShellHeader.tsx` 5 → 0（0-E4n，#62 热点、5 处落 3 行、独立壳头部容器 border-b＋bg＋标题 h3＋关闭按钮、gray 4 ＋ white 1、`border` 1 ／ `bg` 1 ／ `text` 3、含裸类/`hover:`、零透明度、`text-green-400` 语义绿未触碰、2 桶归零）、`FileListContent.tsx` 4 → 0（0-E4o，#63 热点、4 处落 2 行、文件列表头部提示＋行内分隔符 span、纯 gray 4 档、`text` 4、含裸类/`dark:`、零透明度、blue 语义链接色未触碰、0 桶归零）、`ToolStatusBadge.tsx` 4 → 0（0-E4p，#64 热点、4 处落 1 行、状态徽标配置对象 className 串、纯 slate 4 档、`bg` 2 ／ `text` 2、含裸类/`dark:`、含 30% 一处透明度、blue/green/red/orange 语义色未触碰、2 桶归零）、`ChatMessageImages.tsx` 4 → 0（0-E4q，#65 热点、4 处落 2 行、图片查看全屏遮罩＋右上关闭按钮、white 3 ＋ black 1、`text` 1 ／ `bg` 3、含裸类/`hover:`、含 80%/10%/20% 三处透明度、文件全仓零语义彩色、0 桶归零）、`MessageCopyControl.tsx` 4 → 0（0-E4r，#66 热点、4 处落 1 行、复制按钮三元字符串常量、纯 gray 4 档、`text` 4、含裸类/`hover:`/`dark:`/`dark:hover:`、零透明度、文件全仓零语义彩色、1 桶归零）、`CodeEditorFooter.tsx` 4 → 0（0-E4s，#67 热点、4 处落 2 行、页脚左侧信息串＋右侧快捷键提示串、纯 gray 3 档、`text` 4、含裸类/`dark:`、零透明度、5 处 4 token 派生 3 字面、文件全仓零语义彩色、1 桶归零）、`EditorSidebar.tsx` 4 → 0（0-E4t，#68 热点、4 处落 2 行、可拖拽分隔条（bg）＋侧栏容器（border-l）、纯 gray 2 档、`bg` 2 ／ `border` 2、含裸类/`dark:`、零透明度、分隔条同串 `hover:bg-blue-500` / `dark:hover:bg-blue-600` 语义蓝未触碰、2 桶归零）、`FileTree.tsx` 4 → 0（0-E4u，#69 热点、4 处落 3 行、删除确认遮罩＋确认按钮＋两处条件类三元串、white 3 ＋ black 1、`text` 3 ／ `bg` 1、全为裸类、含 50% 一处透明度、同串 `bg-red-600`/`hover:bg-red-700` 未触碰、0 桶归零）、`TaskIndicator.tsx` 4 → 0（0-E4v，#70 热点、4 处落 2 行、指示器配置对象 colorClassName/backgroundClassName、纯 gray 4 档、`text` 2 ／ `bg` 2、含裸类/`dark:`、零透明度、green/blue/amber 语义色未触碰、3 桶归零）、`ProviderSkills.tsx` 4 → 0（0-E4w，#71 热点、4 处落 1 行、provider 分类样式表 system 条目、纯 slate 4 档、`border` 1 ／ `bg` 1 ／ `text` 2、含裸类 3 ／ `dark:` 1、含 30%/10% 两处透明度、emerald/sky/amber/orange/rose 语义色未触碰、4 桶归零）、`Tooltip.tsx` 4 → 0（0-E4x，#72 热点、4 处落 1 行、tooltip 气泡基础样式串含 dark:bg-gray-100 反色、gray 3 ＋ white 1、`text` 2 ／ `bg` 2、含裸类/`dark:`、零透明度、含 0-E2e 遗留令牌 10 处、2 桶归零）。**每片的通过门槛是"双绿"**：快照基线按预期减少（证明字面在消失）＋ 守恒律零漂移（证明换上去的令牌对且保形），见 0-E2c 记录。
+**切片粒度（v3）**：按**文件集群**而非色值类型切片——中性色分布在 **20 个文件**（0-E5j 后；含轴限定形态，覆盖面口径见 0-E2e 记录），同模块语义一致、review 上下文完整。热点文件必须单独成片（余下 20 文件各 1 处故本批后无并列热点），避免单个 PR 塞进几十处替换。**已落地八十六片**：`AgentConnectionsStep.tsx` 60 → 0（0-E2b，首批含非 gray 族）、`AskUserQuestionPanel.tsx` 84 → 0（0-E2d，#1 热点、纯 gray）、`Tooltip.tsx` 等 4 文件的 15 处轴限定形态 → 0（0-E2e，扫描器覆盖面片）、`TaskDetailModal.tsx` 72 → 0（0-E2f，#2 热点、纯 gray）、`McpServerFormModal.tsx` 69 → 0（0-E2g，#3 热点、密度最高）、`TaskBoardToolbar.tsx` 60 → 0（0-E2h，#4 热点、零透明度）、`VersionUpgradeModal.tsx` 55 → 0（0-E2i，#5 热点、token 最多）、`CodeEditorHeader.tsx` 52 → 0（0-E2j，#6 热点、text 为主且无 border）、`FolderBrowserModal.tsx` 46 → 0（0-E2k，#7 热点、含模态遮罩）、`TaskEmptyState.tsx` 46 → 0（0-E2l，#8 热点、透明度集中于同一 token）、`AccountContent.tsx` 41 → 0（0-E2m，#9 热点、四族混合、独占拼写批量样本）、`toolConfigs.ts` 38 → 0（0-E2n，#10 热点、类名映射表、纯 gray 零 bg）、`QuestionAnswerContent.tsx` 35 → 0（0-E2o，#11 热点、含豁免、透明度最多）、`NextTaskBanner.tsx` 33 → 0（0-E2p，#12 热点、slate 主导）、`TaskMasterSetupModal.tsx` 32 → 0（0-E2q，#13 热点、三工具均衡）、`GithubAuthenticationCard.tsx` 31 → 0（0-E2r，#14 热点、中段档位集中）、`PrdEditorHeader.tsx` 30 → 0（0-E2s，#15 热点、零透明度、两原子归零与两字面全仓零消费一一对应）、`GenerateTasksModal.tsx` 30 → 0（0-E2t，#16 热点、三工具均衡、含模态遮罩 `bg-black/50`）、`CreateTaskModal.tsx` 30 → 0（0-E2u，#17 热点、与 0-E2t 逐 token 同构）、`TaskHelpModal.tsx` 30 → 0（0-E2v，#18 热点、`text` 为主、带透明度 2 处）、`TaskCard.tsx` 30 → 0（0-E2w，#19 热点、跨 gray/slate 两族、4 个 slate 原子归零）、`fileIcons.ts` 28 → 0（0-E2x，#20 热点、仅 2 个 token、28 行一行一处）、`TaskListContent.tsx` 24 → 0（0-E2y，#21 热点、纯 gray 单族 8 档）、`MessageComponent.tsx` 24 → 0（0-E2z，#22 热点、无 border、2 字面归零但 0 桶归零）、`CodeEditorBinaryFile.tsx` 23 → 0（0-E3a，#23 热点、23 处仅落 6 行的高密度片、首个 `md:` 变体）、`CodeEditorMediaPreview.tsx` 22 → 0（0-E3b，#24 热点、与 0-E3a 同模块姊妹组件、首次暴露 `index.css` 选择器级消费者缺口）、`TaskFiltersPanel.tsx` 22 → 0（0-E3c，#25 热点、与 0-E2h 同模块、22 处落 8 行）、`TaskQuickSortBar.tsx` 18 → 0（0-E3d，#26 热点、6 token 各 ×3、1 字面迁移后全仓零消费）、`OverwriteConfirmModal.tsx` 18 → 0（0-E3e，#27 热点、18 处落 17 token、含遮罩 `bg-black/50`）、`StepReview.tsx` 18 → 0（0-E3f，#28 热点、`text` 14／`bg` 2／`border` 2、含 `dark:bg-gray-900/50`）、`SidebarProjectItem.tsx` 16 → 0（0-E3g，#29 热点、两处透明度、7 字面迁后全仓零消费且 2 桶归零）、`taskKanban.ts` 16 → 0（0-E3h，#30 热点、16 处落 4 行、中性/语义彩色在同一配置表交错、9 字面迁后全仓零消费且 7 桶归零）、`ImageViewer.tsx` 14 → 0（0-E3i，#31 热点、14 处落 7 行、文件含前片遗留令牌、首次修正产物核对脚本的前提假设缺口）、`ProjectCreationWizard.tsx` 14 → 0（0-E3j，#32 热点、14 处落 5 行、含模态遮罩与 `sm:` 响应式）、`ShellHeader.tsx` 14 → 0（0-E3k，#33 热点、14 处落 6 行、含前片遗留令牌、3 字面归零而 0 桶归零），`TaskBoardContent.tsx` 14 → 0（0-E3l，#34 热点、14 处落 7 行、空态与卡片计数徽标、4 字面归零而 1 桶归零），`ToolDiffViewer.tsx` 12 → 0（0-E3m，#35 热点、12 处落 4 行、纯 gray、4 类透明度 6 处、3 字面归零而 0 桶归零），`MarkdownPreview.tsx` 12 → 0（0-E3n，#36 热点、12 处落 5 行、markdown element 映射、2 字面归零而 1 桶归零），`UserMessageStickyHeader.tsx` 12 → 0（0-E3o，#37 热点、12 处落 4 行、含 `hover:` / `dark:hover:` 伪类与两处 95% 透明度、2 字面归零而 0 桶归零），`TerminalShortcutsPanel.tsx` 11 → 0（0-E3p，#38 热点、11 处落 4 行、含 `active:` 伪类、语义蓝未触碰、3 字面归零而 1 桶归零），`TextContent.tsx` 11 → 0（0-E3q，#39 热点、11 处落 3 行、两行 `<pre>` 代码块串 ＋ 一行纯文本 `<div>`、三处 50% 透明度、4 字面归零而 0 桶归零），`BrowserUsePanel.tsx` 11 → 0（0-E3r，#40 热点、11 处落 9 行、跨 white/neutral/black 三族、五处透明度、8 字面归零且 4 桶归零），`QuickSettingsHandle.tsx` 10 → 0（0-E3s，#41 热点、10 处落 4 行、含 `hover:` / `dark:hover:` 伪类、零透明度、8 字面全仓均另有存活故 0 归零），`WorkspacePathField.tsx` 10 → 0（0-E3t，#42 热点、10 处落 4 行、自动补全下拉、10 token 各 ×1、零透明度、0 字面归零），`ProviderLoginModal.tsx` 9 → 0（0-E3u，#43 热点、9 处落 4 行、含前片遗留令牌、零透明度、9 token 各 ×1、0 字面归零），`WizardProgress.tsx` 9 → 0（0-E3v，#44 热点、9 处落 5 行、步骤条状态三元、`bg-green-500` / `bg-blue-500` 语义色未触碰、零透明度、0 字面归零），`SidebarModals.tsx` 8 → 0（0-E3w，#45 热点、8 处落 8 行、4 个模态框的遮罩＋危险按钮、仅 2 token 各 ×4、四处 60% 透明度、`bg-red-600` 语义红未触碰、0 字面归零）、`ExecutionProcessSummary.tsx` 8 → 0（0-E3x，#46 热点、8 处落 2 行、执行过程折叠摘要的标签行＋按钮行、7 档 gray ＋ white、`text` 6 ／ `bg` 2、含裸类/`hover:`/`dark:`/`dark:hover:`、零透明度、3 字面归零而 0 桶归零）、`PrdEditorFooter.tsx` 8 → 0（0-E3y，#47 热点、8 处落 3 行、PRD 编辑器页脚的外壳行＋统计行＋快捷键提示行、纯 gray 8 档、`border` 2 ／ `bg` 2 ／ `text` 4、含裸类/`dark:`、无伪类、零透明度、0 字面归零而 0 桶归零）、`ChatMessagesPane.tsx` 8 → 0（0-E3z，#48 热点、8 处落 4 行、聊天消息面板的模块级槽位类常量＋加载提示行＋两处旋转器、纯 gray 4 档、`border` 4 ／ `text` 4、含裸类/`dark:`、无伪类、零透明度、1 字面归零且 1 桶归零）、`StepConfiguration.tsx` 8 → 0（0-E4a，#49 热点、8 处落 4 行、项目创建向导配置步骤的两处 label＋两处 p 帮助文案、纯 gray 4 档、`text` 8、含裸类/`dark:`、无伪类、零透明度、2 字面归零且 1 桶归零）、`ShellConnectionOverlay.tsx` 7 → 0（0-E4b，#50 热点、7 处落 7 行、Shell 连接遮罩三态的全屏遮罩串、gray 6 ＋ white 1、`bg` 3 ／ `text` 4、含 `bg-gray-950/90` 90% 透明度、裸类、含前片遗留令牌、emerald/blue/yellow 语义色未触碰、2 字面归零且 1 桶归零）、`MarkdownCodeBlock.tsx` 7 → 0（0-E4c，#51 热点、7 处落 2 行、Markdown 行内代码串＋语言角标、纯 gray 6 档、`border` 2 ／ `bg` 2 ／ `text` 3、含裸类/`dark:`、无伪类、零透明度、1 字面归零且 1 桶归零）、`Shell.tsx` 7 → 0（0-E4d，#52 热点、7 处落 4 行、Shell 容器＋移动底栏＋蓝/灰按钮行、gray 6 ＋ white 1、`bg` 3 ／ `border` 1 ／ `text` 2 ／ `hover:bg` 1、含 80%/95% 两处透明度、裸类＋`hover:`、`bg-blue-600` 语义蓝未触碰、1 桶归零）、`CommandMenu.tsx` 6 → 0（0-E4e，#53 热点、6 处落 1 行、命令面板分组样式常量串、纯 gray 4 档、`border` 2 ／ `bg` 2 ／ `text` 2、含裸类/`dark:`、含 20%/10% 两处透明度、2 桶归零）、`SessionOptions.tsx` 6 → 0（0-E4f，#54 热点、6 处落 2 行、会话项删除按钮图标容器串＋X 图标、纯 gray 5 档、`bg` 4 ／ `text` 2、含裸类/`hover:`/`dark:`/`dark:hover:`、含 20%/40% 两处透明度、0 桶归零）、`SidebarContent.tsx` 6 → 0（0-E4g，#55 热点、6 处落 2 行、与 0-E4f 同构复制串、纯 gray 5 档、`bg` 4 ／ `text` 2、含裸类/`hover:`/`dark:`/`dark:hover:`、含 20%/40% 两处透明度、0 桶归零）、`SidebarRecentConversations.tsx` 6 → 0（0-E4h，#56 热点、6 处落 2 行、最近会话项删除按钮图标容器串＋X 图标、纯 gray 5 档、`bg` 4 ／ `text` 2、含裸类/`hover:`/`dark:`/`dark:hover:`、含 20%/40% 两处透明度、0 桶归零）、`MessageSpeakControl.tsx` 5 → 0（0-E4i，#57 热点、5 处落 2 行、语音控件错误提示气泡串＋语音按钮串、gray 4 ＋ white 1、`text` 5、含裸类/`hover:`/`dark:`/`dark:hover:`、零透明度、气泡串内 `bg-red-600` 语义红未触碰、0 桶归零）、`CodeEditorLoadingState.tsx` 5 → 0（0-E4j，#58 热点、5 处落 3 行、内联加载文案＋全屏遮罩＋遮罩内文案、gray 2 ＋ white 2 ＋ black 1、`text` 4 ／ `bg` 1、含裸类/`dark:`/`md:`、含 50% 一处透明度、5 token 派生 3 字面、`border-blue-600` 语义蓝未触碰、0 桶归零）、`PrdEditorLoadingState.tsx` 5 → 0（0-E4k，#59 热点、5 处落 3 行、全屏遮罩＋加载卡片＋加载文案、gray 2 ＋ white 2 ＋ black 1、`bg` 3 ／ `text` 2、含裸类/`dark:`/`md:`、含 50% 一处透明度、`border-blue-600` 语义蓝未触碰、0 桶归零）、`ShellEmptyState.tsx` 5 → 0（0-E4l，#60 热点、5 处落 3 行、空态容器＋圆形图标容器＋svg 图标、纯 gray 4 档、`text` 3 ／ `bg` 2、含裸类/`dark:`、零透明度、文件全仓零语义彩色、0 桶归零）、`StandaloneShellEmptyState.tsx` 5 → 0（0-E4m，#61 热点、5 处落 3 行、与 0-E4l 同构的独立壳空态、纯 gray 4 档、`text` 3 ／ `bg` 2、含裸类/`dark:`、零透明度、文件全仓零语义彩色、0 桶归零）、`StandaloneShellHeader.tsx` 5 → 0（0-E4n，#62 热点、5 处落 3 行、独立壳头部容器 border-b＋bg＋标题 h3＋关闭按钮、gray 4 ＋ white 1、`border` 1 ／ `bg` 1 ／ `text` 3、含裸类/`hover:`、零透明度、`text-green-400` 语义绿未触碰、2 桶归零）、`FileListContent.tsx` 4 → 0（0-E4o，#63 热点、4 处落 2 行、文件列表头部提示＋行内分隔符 span、纯 gray 4 档、`text` 4、含裸类/`dark:`、零透明度、blue 语义链接色未触碰、0 桶归零）、`ToolStatusBadge.tsx` 4 → 0（0-E4p，#64 热点、4 处落 1 行、状态徽标配置对象 className 串、纯 slate 4 档、`bg` 2 ／ `text` 2、含裸类/`dark:`、含 30% 一处透明度、blue/green/red/orange 语义色未触碰、2 桶归零）、`ChatMessageImages.tsx` 4 → 0（0-E4q，#65 热点、4 处落 2 行、图片查看全屏遮罩＋右上关闭按钮、white 3 ＋ black 1、`text` 1 ／ `bg` 3、含裸类/`hover:`、含 80%/10%/20% 三处透明度、文件全仓零语义彩色、0 桶归零）、`MessageCopyControl.tsx` 4 → 0（0-E4r，#66 热点、4 处落 1 行、复制按钮三元字符串常量、纯 gray 4 档、`text` 4、含裸类/`hover:`/`dark:`/`dark:hover:`、零透明度、文件全仓零语义彩色、1 桶归零）、`CodeEditorFooter.tsx` 4 → 0（0-E4s，#67 热点、4 处落 2 行、页脚左侧信息串＋右侧快捷键提示串、纯 gray 3 档、`text` 4、含裸类/`dark:`、零透明度、5 处 4 token 派生 3 字面、文件全仓零语义彩色、1 桶归零）、`EditorSidebar.tsx` 4 → 0（0-E4t，#68 热点、4 处落 2 行、可拖拽分隔条（bg）＋侧栏容器（border-l）、纯 gray 2 档、`bg` 2 ／ `border` 2、含裸类/`dark:`、零透明度、分隔条同串 `hover:bg-blue-500` / `dark:hover:bg-blue-600` 语义蓝未触碰、2 桶归零）、`FileTree.tsx` 4 → 0（0-E4u，#69 热点、4 处落 3 行、删除确认遮罩＋确认按钮＋两处条件类三元串、white 3 ＋ black 1、`text` 3 ／ `bg` 1、全为裸类、含 50% 一处透明度、同串 `bg-red-600`/`hover:bg-red-700` 未触碰、0 桶归零）、`TaskIndicator.tsx` 4 → 0（0-E4v，#70 热点、4 处落 2 行、指示器配置对象 colorClassName/backgroundClassName、纯 gray 4 档、`text` 2 ／ `bg` 2、含裸类/`dark:`、零透明度、green/blue/amber 语义色未触碰、3 桶归零）、`ProviderSkills.tsx` 4 → 0（0-E4w，#71 热点、4 处落 1 行、provider 分类样式表 system 条目、纯 slate 4 档、`border` 1 ／ `bg` 1 ／ `text` 2、含裸类 3 ／ `dark:` 1、含 30%/10% 两处透明度、emerald/sky/amber/orange/rose 语义色未触碰、4 桶归零）、`Tooltip.tsx` 4 → 0（0-E4x，#72 热点、4 处落 1 行、tooltip 气泡基础样式串含 dark:bg-gray-100 反色、gray 3 ＋ white 1、`text` 2 ／ `bg` 2、含裸类/`dark:`、零透明度、含 0-E2e 遗留令牌 10 处、2 桶归零）、`LoadAllMessagesOverlay.tsx` 3 → 0（0-E4y，#73 热点、3 处落 3 行、加载遮罩的「加载全部」按钮＋重试按钮＋旋转环、纯 white 族、`text` 2 ／ `border` 1、全裸类、含 30% 一处透明度、green/blue 语义色未触碰、含前片遗留令牌、1 桶归零）、`CodeEditorSurface.tsx` 3 → 0（0-E4z，#74 热点、3 处落 2 行、Markdown 预览滚动容器＋prose 排版容器、gray 2 ＋ white 1、纯 `bg` 3、含裸类/`dark:`/`prose-pre:`、零透明度、prose-a 语义蓝未触碰、0 桶归零）、`MermaidDiagram.tsx` 3 → 0（0-E5a，#75 热点、3 处落 2 行、源码回退 pre＋svg 渲染容器、zinc 2 ＋ white 1、纯 `bg` 3、含裸类/`dark:`、零透明度、border-border/text-muted-foreground 未触碰、0 桶归零）、`PrdEditorWorkspace.tsx` 3 → 0（0-E5b，#76 热点、3 处落 2 行、移动端全屏遮罩＋编辑器面板容器、black/white/gray 三族各 1、纯 `bg` 3、含 `md:`/裸类/`dark:`、含 50% 一处透明度、0 桶归零）、`OneLineDisplay.tsx` 2 → 0（0-E5c，#77 热点、2 处落 1 行、单行 shell 命令展示块底色串、gray 1 ＋ black 1、纯 `bg` 2、含裸类/`dark:`、零透明度、0 桶归零）、`GitPanelHeader.tsx` 2 → 0（0-E5d，#78 热点、2 处落 2 行、绿色拉取＋橙色推送按钮文字色、纯 white 族、纯 `text` 2、全裸类、零透明度、green/orange 语义色未触碰、0 桶归零）、`ConfirmActionModal.tsx` 2 → 0（0-E5e，#79 热点、2 处落 2 行、全屏遮罩＋确认按钮文字色、black 1 ＋ white 1、`bg` 1 ／ `text` 1、全裸类、含 60% 一处透明度、0 桶归零）、`RemoveWorktreeModal.tsx` 2 → 0（0-E5f，#80 热点、2 处落 2 行、全屏遮罩＋危险确认按钮文字色、black 1 ＋ white 1、`bg` 1 ／ `text` 1、全裸类、含 60% 一处透明度、语义红未触碰、0 桶归零）、`WizardFooter.tsx` 2 → 0（0-E5g，#81 热点、2 处落 1 行、向导页脚顶边分隔线、纯 gray 族、纯 `border` 2、含裸类/`dark:`、零透明度、2 桶归零）、`WorkspaceTabs.tsx` 2 → 0（0-E5h，#82 热点、2 处落 1 行、标签条内阴影串、纯 black 族、纯 `shadow` 2、含裸类/`dark:`、含任意值 `[0.025]` 与 10% 两处透明度、1 桶归零）、`NotificationsSettingsTab.tsx` 2 → 0（0-E5i，#83 热点、2 处落 2 行、两处开关激活态三元串文字色、纯 white 族、纯 `text` 2、全裸类、零透明度、blue 语义色未触碰、0 桶归零）、`DarkModeToggle.tsx` 2 → 0（0-E5j，#84 热点、2 处落 2 行、开关滑块位移态底色＋太阳图标文字色、纯 white 族、`bg` 1 ／ `text` 1、全裸类、零透明度、前景语义令牌未触碰、0 桶归零）。**每片的通过门槛是"双绿"**：快照基线按预期减少（证明字面在消失）＋ 守恒律零漂移（证明换上去的令牌对且保形），见 0-E2c 记录。
 
 **`dark:` 处置不设独立片**：它必须并入各文件集群片的同一个 diff（`bg-x dark:bg-y` 是成对结构，见 §5.7）。本阶段对 `dark:` 的产出只是纸面工作（分类清单），不是独立施工片。
 
@@ -2496,6 +2508,242 @@ Mutation 侧：
 **构建 / 产物核对 / 探针 / 全量测试在同一次调用里完成**（这是本批相对逐片流程唯一的合并项）：`npm run build` exit 0（`✓ built in 8.27s`）；通用产物核对脚本对十片**逐一**运行（各用自己迁移前的备份），**十片全部 ARTIFACT CHECK PASSED**（`pure -n- insertion: YES`；token 数 4 / 4 / 4 / 4 / 4 / 4 / 4 / 4 / 4 / 14（含 0-E4x 的 10 处 0-E2e 遗留令牌），distinct literals 4 / 4 / 4 / 4 / 3 / 4 / 2 / 4 / 4 / 4）；探针注入 `text-gray-999,bg-stone-123`，**十片全部 FAILED**（证明核对不是空转）；`test:client` **128 文件 / 970 用例**、`typecheck` 与 `typecheck:theme-tokens`、`lint`（153 warnings / **0 error**）、`test:theme-tokens` **16 通过**、守恒律 **1517 = 1517 / 211 桶零漂移**。十片均未改动 `index.css` / `tailwind.config.js`。
 
 **同批的理由与边界**：十片是热点榜并列第四的集群（各 4 处），互相独立（无共享 className 串、无跨文件依赖），覆盖聊天工具 / 消息 / 编辑器 / 文件树 / 侧栏 / 技能 / 共享 UI 七模块邻域。本批**首次出现"反向还原因遗留令牌不适用"的收尾片（0-E4x）**——`Tooltip.tsx` 的 0-E2e 遗留令牌使 `untokenise` 无法还原，改由正向重放证明（既有机制，0-E3i 已建立）。批次化**只合并重量级门槛的调用次数**（构建一次、全量测试一次、产物核对循环），**每片仍是独立的迁移、独立的基线快照 diff、独立的 commit**——基线刷新严格发生在"只有一个文件相对 HEAD 变动"的时刻，因此十片的 `byAtom` delta 逐片可配对（见上十段），任一片都可单独回退。
+
+#### 0-E4y：`LoadAllMessagesOverlay.tsx` 3 → 0（热点榜并列第五，已实施）
+
+**范围**：`src/modules/chat/transcript/LoadAllMessagesOverlay.tsx`。**3 处 / 3 个 token / 3 行**——族纯 `white` 3；档位白色（无档位）；`text` 2 ／ `border` 1；**透明度 1 类 1 处**（`border-white/30`）；变体**全为裸类**。落点为加载遮罩的三行：绿色「加载全部」按钮 ＋ 蓝色重试按钮 ＋ 旋转器 `border-t` 环。**文件含前片遗留令牌 1 处**（`border-t-n-white`），**反向还原因此不适用（第 6 次撞上），改用正向重放证明**：从备份回放本片 3 个字面替换后逐字节等于当前文件，遗留令牌自动落选（`tokens in file: 4` = 1 遗留 ＋ 3 本片，`pure -n- insertion: YES`）。
+
+**手法**：与 0-E2g…0-E4x 相同（扫描器为唯一事实源；反向还原证明下与备份逐字节一致）。
+
+**双绿**：
+
+| 门槛 | 结果 |
+|---|---|
+| **守恒律** | **1517 = 1517、211 桶逐桶相等，未刷新** |
+| **基线** | ****48 → 45（−3）****，文件数 ****32 → 31****；`byAtom` **2 条全为减、无一增**（`border: white` 1→0、`text: white` 18→16），**1 桶归零**（`border: white`） |
+
+**产物核对（通用脚本正向重放版）**：**ARTIFACT CHECK PASSED**；4 token / 2 派生字面全达 `dist`。
+
+**验收**：见本节末"批次 0-E4y~0-E5j 共同验收"。
+
+**与既有账的关系**：阶段 0 至今迁移 1468 ＋ **3** ＝ **1471** 处；剩余 ****45 处 / 31 文件****。
+
+#### 0-E4z：`CodeEditorSurface.tsx` 3 → 0（热点榜并列第五，已实施）
+
+**范围**：`src/modules/code-editor/CodeEditorSurface.tsx`。**3 处 / 3 个 token / 2 行**——族 `gray` 2 ＋ `white` 1；档位 `gray-900` ＋ `white`；工具类纯 `bg` 3；**零透明度**；变体裸类 1 / `dark:` 1 / `prose-pre:` 1。落点为 Markdown 预览分支的滚动容器 ＋ `prose` 排版容器。同串 `prose-a` 语义蓝（`text-blue-600` / `dark:text-blue-400`）未触碰。**无遗留令牌**。
+
+**手法**：与 0-E2g…0-E4x 相同。正向重放证明下与备份逐字节一致（`pure -n- insertion: YES`）。
+
+**双绿**：
+
+| 门槛 | 结果 |
+|---|---|
+| **守恒律** | **1517 = 1517、211 桶逐桶相等，未刷新** |
+| **基线** | ****45 → 42（−3）****，文件数 ****31 → 30****；`byAtom` **2 条全为减**（`bg: gray-900` 5→3、`bg: white` 7→6），**0 桶归零** |
+
+**产物核对（通用脚本正向重放版）**：**ARTIFACT CHECK PASSED**；3 token / 3 派生字面全达 `dist`。
+
+**验收**：见本节末"批次 0-E4y~0-E5j 共同验收"。
+
+**与既有账的关系**：阶段 0 至今迁移 1471 ＋ **3** ＝ **1474** 处；剩余 ****42 处 / 30 文件****。
+
+#### 0-E5a：`MermaidDiagram.tsx` 3 → 0（热点榜并列第五，已实施）
+
+**范围**：`src/modules/code-editor/markdown/MermaidDiagram.tsx`。**3 处 / 2 个 token / 2 行**——族 `zinc` 2 ＋ `white` 1；档位 `zinc-900` ＋ `white`；工具类纯 `bg` 3；**零透明度**；变体裸类 1 / `dark:` 2。落点为源码回退 `pre`（light 底由 `bg-muted/50` 语义令牌承载，仅 dark 底色为字面）＋ `svg` 渲染容器（light `bg-white` / dark 字面）。同串 `border-border` / `text-muted-foreground` 语义令牌未触碰。**3 token 派生 2 字面**（`dark:bg-zinc-900` 出现 2 次）。**无遗留令牌**。
+
+**手法**：与 0-E2g…0-E4x 相同。正向重放证明下与备份逐字节一致（`pure -n- insertion: YES`）。
+
+**双绿**：
+
+| 门槛 | 结果 |
+|---|---|
+| **守恒律** | **1517 = 1517、211 桶逐桶相等，未刷新** |
+| **基线** | ****42 → 39（−3）****，文件数 ****30 → 29****；`byAtom` **2 条全为减**（`bg: white` 6→5、`bg: zinc-900` 3→1），**0 桶归零** |
+
+**产物核对（通用脚本正向重放版）**：**ARTIFACT CHECK PASSED**；3 token / 2 派生字面全达 `dist`。
+
+**验收**：见本节末"批次 0-E4y~0-E5j 共同验收"。
+
+**与既有账的关系**：阶段 0 至今迁移 1474 ＋ **3** ＝ **1477** 处；剩余 ****39 处 / 29 文件****。
+
+#### 0-E5b：`PrdEditorWorkspace.tsx` 3 → 0（热点榜并列第五，已实施）
+
+**范围**：`src/modules/prd-editor/PrdEditorWorkspace.tsx`。**3 处 / 3 个 token / 2 行**——族 `black` 1 ＋ `white` 1 ＋ `gray` 1；档位 `black` / `white` / `gray-900`；工具类纯 `bg` 3；**透明度 1 类 1 处**（`md:bg-black/50` 遮罩）；变体 `md:` 1 / 裸类 1 / `dark:` 1。落点为移动端全屏遮罩层 ＋ 编辑器面板容器。**无遗留令牌**、无同串语义色。
+
+**手法**：与 0-E2g…0-E4x 相同。正向重放证明下与备份逐字节一致（`pure -n- insertion: YES`）。
+
+**双绿**：
+
+| 门槛 | 结果 |
+|---|---|
+| **守恒律** | **1517 = 1517、211 桶逐桶相等，未刷新** |
+| **基线** | ****39 → 36（−3）****，文件数 ****29 → 28****；`byAtom` **3 条全为减**（`bg: black` 9→8、`bg: gray-900` 3→2、`bg: white` 5→4），**0 桶归零** |
+
+**产物核对（通用脚本正向重放版）**：**ARTIFACT CHECK PASSED**；3 token / 3 派生字面全达 `dist`。
+
+**验收**：见本节末"批次 0-E4y~0-E5j 共同验收"。
+
+**与既有账的关系**：阶段 0 至今迁移 1477 ＋ **3** ＝ **1480** 处；剩余 ****36 处 / 28 文件****。
+
+#### 0-E5c：`OneLineDisplay.tsx` 2 → 0（热点榜并列第六，已实施）
+
+**范围**：`src/modules/chat/tools/OneLineDisplay.tsx`。**2 处 / 2 个 token / 1 行**——族 `gray` 1 ＋ `black` 1；档位 `gray-900` ＋ `black`；工具类纯 `bg` 2；**零透明度**；变体裸类 1 / `dark:` 1。落点为单行 shell 命令展示块的底色串（等宽文本在内层 `span`，非 `<code>`，见源码注释）。**无遗留令牌**、无同串语义色。
+
+**手法**：与 0-E2g…0-E4x 相同。正向重放证明下与备份逐字节一致（`pure -n- insertion: YES`）。
+
+**双绿**：
+
+| 门槛 | 结果 |
+|---|---|
+| **守恒律** | **1517 = 1517、211 桶逐桶相等，未刷新** |
+| **基线** | ****36 → 34（−2）****，文件数 ****28 → 27****；`byAtom` **2 条全为减**（`bg: black` 8→7、`bg: gray-900` 2→1），**0 桶归零** |
+
+**产物核对（通用脚本正向重放版）**：**ARTIFACT CHECK PASSED**；2 token / 2 派生字面全达 `dist`。
+
+**验收**：见本节末"批次 0-E4y~0-E5j 共同验收"。
+
+**与既有账的关系**：阶段 0 至今迁移 1480 ＋ **2** ＝ **1482** 处；剩余 ****34 处 / 27 文件****。
+
+#### 0-E5d：`GitPanelHeader.tsx` 2 → 0（热点榜并列第六，已实施）
+
+**范围**：`src/modules/git-panel/GitPanelHeader.tsx`。**2 处 / 1 个 token / 2 行**——族纯 `white` 2；档位白色；工具类纯 `text` 2；**零透明度**；变体**全为裸类**。落点为绿色拉取按钮 ＋ 橙色推送按钮的文字色（`bg-green-600` / `bg-orange-600` 语义底色未触碰）。**同 token 出现 2 次，派生 1 字面**。**无遗留令牌**。
+
+**手法**：与 0-E2g…0-E4x 相同。正向重放证明下与备份逐字节一致（`pure -n- insertion: YES`）。
+
+**双绿**：
+
+| 门槛 | 结果 |
+|---|---|
+| **守恒律** | **1517 = 1517、211 桶逐桶相等，未刷新** |
+| **基线** | ****34 → 32（−2）****，文件数 ****27 → 26****；`byAtom` **1 条全为减**（`text: white` 16→14），**0 桶归零** |
+
+**产物核对（通用脚本正向重放版）**：**ARTIFACT CHECK PASSED**；2 token / 1 派生字面全达 `dist`。
+
+**验收**：见本节末"批次 0-E4y~0-E5j 共同验收"。
+
+**与既有账的关系**：阶段 0 至今迁移 1482 ＋ **2** ＝ **1484** 处；剩余 ****32 处 / 26 文件****。
+
+#### 0-E5e：`ConfirmActionModal.tsx` 2 → 0（热点榜并列第六，已实施）
+
+**范围**：`src/modules/git-panel/modals/ConfirmActionModal.tsx`。**2 处 / 2 个 token / 2 行**——族 `black` 1 ＋ `white` 1；档位 `black` ＋ `white`；`bg` 1 ／ `text` 1；**透明度 1 类 1 处**（`bg-black/60` 遮罩）；变体**全为裸类**。落点为全屏遮罩层 ＋ 确认按钮文字色（按钮配色由 `CONFIRMATION_BUTTON_CLASSES[action.type]` 映射表决定，表内语义色未触碰）。**无遗留令牌**。
+
+**手法**：与 0-E2g…0-E4x 相同。正向重放证明下与备份逐字节一致（`pure -n- insertion: YES`）。
+
+**双绿**：
+
+| 门槛 | 结果 |
+|---|---|
+| **守恒律** | **1517 = 1517、211 桶逐桶相等，未刷新** |
+| **基线** | ****32 → 30（−2）****，文件数 ****26 → 25****；`byAtom` **2 条全为减**（`bg: black` 7→6、`text: white` 14→13），**0 桶归零** |
+
+**产物核对（通用脚本正向重放版）**：**ARTIFACT CHECK PASSED**；2 token / 2 派生字面全达 `dist`。
+
+**验收**：见本节末"批次 0-E4y~0-E5j 共同验收"。
+
+**与既有账的关系**：阶段 0 至今迁移 1484 ＋ **2** ＝ **1486** 处；剩余 ****30 处 / 25 文件****。
+
+#### 0-E5f：`RemoveWorktreeModal.tsx` 2 → 0（热点榜并列第六，已实施）
+
+**范围**：`src/modules/git-panel/modals/RemoveWorktreeModal.tsx`。**2 处 / 2 个 token / 2 行**——族 `black` 1 ＋ `white` 1；档位 `black` ＋ `white`；`bg` 1 ／ `text` 1；**透明度 1 类 1 处**（`bg-black/60` 遮罩）；变体**全为裸类**。落点为全屏遮罩层 ＋ 危险确认按钮文字色（同串 `bg-red-600` / `hover:bg-red-700` 语义红未触碰）。**与 0-E5e 逐 token 同构**。**无遗留令牌**。
+
+**手法**：与 0-E2g…0-E4x 相同。正向重放证明下与备份逐字节一致（`pure -n- insertion: YES`）。
+
+**双绿**：
+
+| 门槛 | 结果 |
+|---|---|
+| **守恒律** | **1517 = 1517、211 桶逐桶相等，未刷新** |
+| **基线** | ****30 → 28（−2）****，文件数 ****25 → 24****；`byAtom` **2 条全为减**（`bg: black` 6→5、`text: white` 13→12），**0 桶归零** |
+
+**产物核对（通用脚本正向重放版）**：**ARTIFACT CHECK PASSED**；2 token / 2 派生字面全达 `dist`。
+
+**验收**：见本节末"批次 0-E4y~0-E5j 共同验收"。
+
+**与既有账的关系**：阶段 0 至今迁移 1486 ＋ **2** ＝ **1488** 处；剩余 ****28 处 / 24 文件****。
+
+#### 0-E5g：`WizardFooter.tsx` 2 → 0（热点榜并列第六，已实施）
+
+**范围**：`src/modules/project-creation-wizard/WizardFooter.tsx`。**2 处 / 2 个 token / 1 行**——族纯 `gray` 2；档位 `gray-200` ＋ `gray-700`；工具类纯 `border` 2；**零透明度**；变体裸类 1 / `dark:` 1。落点为向导页脚顶边分隔线（light 浅线 / dark 深线成对）。**无遗留令牌**、无同串语义色。
+
+**手法**：与 0-E2g…0-E4x 相同。正向重放证明下与备份逐字节一致（`pure -n- insertion: YES`）。
+
+**双绿**：
+
+| 门槛 | 结果 |
+|---|---|
+| **守恒律** | **1517 = 1517、211 桶逐桶相等，未刷新** |
+| **基线** | ****28 → 26（−2）****，文件数 ****24 → 23****；`byAtom` **2 条全为减**（`border: gray-200` 1→0、`border: gray-700` 1→0），**2 桶归零**（`border: gray-200`、`border: gray-700`） |
+
+**产物核对（通用脚本正向重放版）**：**ARTIFACT CHECK PASSED**；2 token / 2 派生字面全达 `dist`。
+
+**验收**：见本节末"批次 0-E4y~0-E5j 共同验收"。
+
+**与既有账的关系**：阶段 0 至今迁移 1488 ＋ **2** ＝ **1490** 处；剩余 ****26 处 / 23 文件****。
+
+#### 0-E5h：`WorkspaceTabs.tsx` 2 → 0（热点榜并列第六，已实施）
+
+**范围**：`src/modules/project-workspace/WorkspaceTabs.tsx`。**2 处 / 2 个 token / 1 行**——族纯 `black` 2；档位黑色；工具类纯 `shadow` 2；**透明度 2 类 2 处**（`shadow-black/[0.025]` 任意值、`dark:shadow-black/10`）；变体裸类 1 / `dark:` 1。落点为标签条内阴影串（**本批唯一 `shadow` 工具类片**）。同串 `border-border/40` / `bg-muted/50` 语义令牌未触碰。**无遗留令牌**。
+
+**手法**：与 0-E2g…0-E4x 相同。正向重放证明下与备份逐字节一致（`pure -n- insertion: YES`）。
+
+**双绿**：
+
+| 门槛 | 结果 |
+|---|---|
+| **守恒律** | **1517 = 1517、211 桶逐桶相等，未刷新** |
+| **基线** | ****26 → 24（−2）****，文件数 ****23 → 22****；`byAtom` **1 条全为减**（`shadow: black` 2→0），**1 桶归零**（`shadow: black`） |
+
+**产物核对（通用脚本正向重放版）**：**ARTIFACT CHECK PASSED**；2 token / 2 派生字面（含任意值透明度值链）全达 `dist`。
+
+**验收**：见本节末"批次 0-E4y~0-E5j 共同验收"。
+
+**与既有账的关系**：阶段 0 至今迁移 1490 ＋ **2** ＝ **1492** 处；剩余 ****24 处 / 22 文件****。
+
+#### 0-E5i：`NotificationsSettingsTab.tsx` 2 → 0（热点榜并列第六，已实施）
+
+**范围**：`src/modules/settings/tabs/NotificationsSettingsTab.tsx`。**2 处 / 1 个 token / 2 行**——族纯 `white` 2；档位白色；工具类纯 `text` 2；**零透明度**；变体**全为裸类**。落点为两处开关激活态（三元串）的文字色，两串逐字同构（`bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600`，语义蓝未触碰）。**同 token 出现 2 次，派生 1 字面**。**无遗留令牌**。
+
+**手法**：与 0-E2g…0-E4x 相同。正向重放证明下与备份逐字节一致（`pure -n- insertion: YES`）。
+
+**双绿**：
+
+| 门槛 | 结果 |
+|---|---|
+| **守恒律** | **1517 = 1517、211 桶逐桶相等，未刷新** |
+| **基线** | ****24 → 22（−2）****，文件数 ****22 → 21****；`byAtom` **1 条全为减**（`text: white` 12→10），**0 桶归零** |
+
+**产物核对（通用脚本正向重放版）**：**ARTIFACT CHECK PASSED**；2 token / 1 派生字面全达 `dist`。
+
+**验收**：见本节末"批次 0-E4y~0-E5j 共同验收"。
+
+**与既有账的关系**：阶段 0 至今迁移 1492 ＋ **2** ＝ **1494** 处；剩余 ****22 处 / 21 文件****。
+
+#### 0-E5j：`DarkModeToggle.tsx` 2 → 0（热点榜并列第六，批次收尾片，已实施）
+
+**范围**：`src/shared/ui/DarkModeToggle.tsx`。**2 处 / 2 个 token / 2 行**——族纯 `white` 2；档位白色；`bg` 1 ／ `text` 1；**零透明度**；变体**全为裸类**。落点为开关滑块位移态三元串的底色（`translate-x-[22px] bg-white`）＋ 太阳图标文字色。同串 `bg-foreground/60` / `dark:bg-foreground/80`、`dark:text-background` 语义令牌未触碰。**无遗留令牌**。
+
+**手法**：与 0-E2g…0-E4x 相同。正向重放证明下与备份逐字节一致（`pure -n- insertion: YES`）。
+
+**双绿**：
+
+| 门槛 | 结果 |
+|---|---|
+| **守恒律** | **1517 = 1517、211 桶逐桶相等，未刷新** |
+| **基线** | ****22 → 20（−2）****，文件数 ****21 → 20****；`byAtom` **2 条全为减**（`bg: white` 4→3、`text: white` 10→9），**0 桶归零** |
+
+**产物核对（通用脚本正向重放版）**：**ARTIFACT CHECK PASSED**；2 token / 2 派生字面全达 `dist`。
+
+**验收**：见本节末"批次 0-E4y~0-E5j 共同验收"。
+
+**与既有账的关系**：阶段 0 至今迁移 1494 ＋ **2** ＝ **1496** 处；剩余 ****20 处 / 20 文件****（本批合计 −28 处 / −12 文件）。
+
+#### 批次 0-E4y ~ 0-E5j 共同验收（十二片共用同一轮重量级门槛）
+
+**构建 / 产物核对 / 探针 / 全量测试在同一次调用里完成**（这是本批相对逐片流程唯一的合并项）：`npm run build` exit 0；通用产物核对脚本对十二片**逐一**运行（各用自己迁移前的备份），**十二片全部 ARTIFACT CHECK PASSED**（`pure -n- insertion: YES`；token 数 4 / 3 / 3 / 3 / 2 / 2 / 2 / 2 / 2 / 2 / 2 / 2，distinct literals 2 / 3 / 2 / 3 / 2 / 1 / 2 / 2 / 2 / 2 / 1 / 2；**0-E4y 的 4 token 含 1 处前片遗留 `border-t-n-white`**）；探针注入 `text-gray-999,bg-stone-123`，**十二片全部 FAILED**（证明核对不是空转）；`test:client` **128 文件 / 970 用例**、`typecheck` 与 `typecheck:theme-tokens`、`lint`（153 warnings / **0 error**）、`test:theme-tokens` **16 通过**、守恒律 **1517 = 1517 / 211 桶零漂移**。十二片均未改动 `index.css` / `tailwind.config.js`。
+
+**同批的理由与边界**：十二片 = 热点榜并列第五的四个 3 处文件 ＋ 并列第六的八个 2 处文件，互相独立（无共享 className 串、无跨文件依赖），覆盖聊天转录 / 代码编辑器 / Markdown / PRD 编辑器 / 聊天工具 / Git 面板 / 项目创建 / 工作区 / 设置 / 共享 UI 十模块邻域。本批**收尾片 0-E5j 使剩余量降到 20 处 / 20 文件，热点榜再无并列（余下 20 文件各 1 处）**；0-E4y 是**第 6 次**撞上前片遗留令牌的片（`border-t-n-white`），仍走正向重放证明。批次化**只合并重量级门槛的调用次数**（构建一次、全量测试一次、产物核对循环），**每片仍是独立的迁移、独立的基线快照 diff、独立的 commit**——基线刷新严格发生在"只有一个文件相对 HEAD 变动"的时刻，因此十二片的 `byAtom` delta 逐片可配对（见上十二段），任一片都可单独回退。
+
+**文档勘误（本批一并修复）**：§5 的"沿革"链此前停在第 50 片（`0-E4b −7`），**0-E4c…0-E4x 的 22 个历史分片值从未补入**；本批在追加 0-E4y…0-E5j 之前，先按 §6 各片记录逐片补齐 `−7/−7/−6/−6/−6/−6/−5/−5/−5/−5/−5/−5/−4×10`，使链恢复逐片单调、与切片表一一对应。同理，§5"进度"括号内的"均已清零"清单此前冻结在 0-E4b 时代（止于 `ShellConnectionOverlay.tsx` 7，"余下最大单片为 MarkdownCodeBlock/Shell 二者并列 7"），本批补齐至 0-E5j 并把尾句改为"余下 20 个文件各 1 处"。
 
 ### 阶段 1：主题扩展点
 
