@@ -525,7 +525,7 @@ function StatusContent({ data }: { data: StatusCommandData }) {
             <p className="text-xs text-muted-foreground">Process {data.pid ? `#${data.pid}` : 'status'} is responding.</p>
           </div>
         </div>
-        <Badge className="rounded-full bg-emerald-500 text-white hover:bg-emerald-500">Healthy</Badge>
+        <Badge className="rounded-full bg-emerald-500 text-n-white hover:bg-emerald-500">Healthy</Badge>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
