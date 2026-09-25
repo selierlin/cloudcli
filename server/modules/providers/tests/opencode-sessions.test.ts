@@ -10,6 +10,7 @@ import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/datab
 import { OpenCodeSessionSynchronizer } from '@/modules/providers/list/opencode/opencode-session-synchronizer.provider.js';
 import { OpenCodeSessionsProvider } from '@/modules/providers/list/opencode/opencode-sessions.provider.js';
 import { appendImagesInputTag } from '@/shared/image-attachments.js';
+import type { NormalizedMessage } from '@/shared/types.js';
 
 const patchHomeDir = (nextHomeDir: string) => {
   const original = os.homedir;
@@ -592,4 +593,148 @@ test('OpenCode synchronizer keeps the stored title for indexed sessions', { conc
     restoreHomeDir();
     await rm(tempRoot, { recursive: true, force: true });
   }
+});
+
+type SeededOpenCodePart = {
+  id: string;
+  messageId: string;
+  /** Persisted order is driven by `part.time_created`, then `part.id`. */
+  timeCreated: number;
+  data: Record<string, unknown>;
+};
+
+/**
+ * Seeds one OpenCode session with the given assistant parts. Message rows are
+ * derived from the parts in first-seen order so a shared `messageId` groups
+ * fragments into the same message, matching how the runtime persists reasoning.
+ */
+const seedOpenCodeParts = async (
+  homeDir: string,
+  workspacePath: string,
+  sessionId: string,
+  parts: SeededOpenCodePart[],
+): Promise<void> => {
+  const dataDir = path.join(homeDir, '.local', 'share', 'opencode');
+  await mkdir(dataDir, { recursive: true });
+
+  const db = new Database(path.join(dataDir, 'opencode.db'));
+  try {
+    db.exec(`
+      CREATE TABLE project (id TEXT PRIMARY KEY, worktree TEXT);
+      CREATE TABLE session (
+        id TEXT PRIMARY KEY, project_id TEXT, parent_id TEXT, directory TEXT, title TEXT,
+        time_created INTEGER, time_updated INTEGER, time_archived INTEGER
+      );
+      CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, data TEXT);
+      CREATE TABLE part (id TEXT PRIMARY KEY, message_id TEXT, session_id TEXT, time_created INTEGER, data TEXT);
+    `);
+
+    db.prepare('INSERT INTO project (id, worktree) VALUES (?, ?)').run('project-1', workspacePath);
+    db.prepare(`
+      INSERT INTO session (id, project_id, directory, title, time_created, time_updated, time_archived)
+      VALUES (?, ?, ?, ?, ?, ?, NULL)
+    `).run(sessionId, 'project-1', workspacePath, sessionId, 1_700_000_000_000, 1_700_000_009_000);
+
+    const messageIds = [...new Set(parts.map((part) => part.messageId))];
+    const insertMessage = db.prepare(
+      'INSERT INTO message (id, session_id, time_created, data) VALUES (?, ?, ?, ?)',
+    );
+    messageIds.forEach((messageId, index) => {
+      insertMessage.run(
+        messageId,
+        sessionId,
+        1_700_000_000_000 + index,
+        JSON.stringify({ role: 'assistant' }),
+      );
+    });
+
+    const insertPart = db.prepare(
+      'INSERT INTO part (id, message_id, session_id, time_created, data) VALUES (?, ?, ?, ?, ?)',
+    );
+    for (const part of parts) {
+      insertPart.run(part.id, part.messageId, sessionId, part.timeCreated, JSON.stringify(part.data));
+    }
+  } finally {
+    db.close();
+  }
+};
+
+/** Runs a reasoning-only history scenario and hands back its thinking messages. */
+const withReasoningThinking = async (
+  parts: SeededOpenCodePart[],
+  run: (thinking: NormalizedMessage[]) => void,
+): Promise<void> => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-reasoning-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    await seedOpenCodeParts(tempRoot, workspacePath, 'open-reasoning-session', parts);
+    const history = await new OpenCodeSessionsProvider().fetchHistory('open-reasoning-session');
+    run(history.messages.filter((message) => message.kind === 'thinking'));
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+};
+
+test('OpenCode history merges consecutive reasoning fragments into one thinking message', async () => {
+  await withReasoningThinking([
+    { id: 'prt-r1', messageId: 'msg-r1', timeCreated: 100, data: { type: 'reasoning', text: 'The' } },
+    { id: 'prt-r2', messageId: 'msg-r1', timeCreated: 101, data: { type: 'reasoning', text: ' user' } },
+    { id: 'prt-r3', messageId: 'msg-r1', timeCreated: 102, data: { type: 'reasoning', text: ' is' } },
+  ], (thinking) => {
+    assert.equal(thinking.length, 1);
+    assert.equal(thinking[0]?.content, 'The user is');
+    // The merged id stays pinned to the first fragment so it is stable.
+    assert.equal(thinking[0]?.id, 'msg-r1_prt-r1');
+  });
+});
+
+test('OpenCode history starts a new thinking message when a tool part breaks the run', async () => {
+  await withReasoningThinking([
+    { id: 'prt-r1', messageId: 'msg-r1', timeCreated: 100, data: { type: 'reasoning', text: 'First thought.' } },
+    {
+      id: 'prt-tool',
+      messageId: 'msg-r1',
+      timeCreated: 101,
+      data: {
+        type: 'tool',
+        tool: 'bash',
+        callID: 'call-1',
+        state: { status: 'completed', input: {}, output: 'ok' },
+      },
+    },
+    { id: 'prt-r2', messageId: 'msg-r1', timeCreated: 102, data: { type: 'reasoning', text: 'Second thought.' } },
+  ], (thinking) => {
+    assert.equal(thinking.length, 2);
+    assert.equal(thinking[0]?.content, 'First thought.');
+    assert.equal(thinking[1]?.content, 'Second thought.');
+  });
+});
+
+test('OpenCode history never merges reasoning across message boundaries', async () => {
+  await withReasoningThinking([
+    { id: 'prt-a', messageId: 'msg-a', timeCreated: 100, data: { type: 'reasoning', text: 'Tail of A.' } },
+    { id: 'prt-b', messageId: 'msg-b', timeCreated: 200, data: { type: 'reasoning', text: 'Head of B.' } },
+  ], (thinking) => {
+    assert.equal(thinking.length, 2);
+    assert.equal(thinking[0]?.id, 'msg-a_prt-a');
+    assert.equal(thinking[0]?.content, 'Tail of A.');
+    assert.equal(thinking[1]?.id, 'msg-b_prt-b');
+    assert.equal(thinking[1]?.content, 'Head of B.');
+  });
+});
+
+test('OpenCode history keeps whitespace-only reasoning fragments when merging', async () => {
+  await withReasoningThinking([
+    { id: 'prt-r1', messageId: 'msg-r1', timeCreated: 100, data: { type: 'reasoning', text: 'Hello' } },
+    { id: 'prt-empty', messageId: 'msg-r1', timeCreated: 101, data: { type: 'reasoning', text: '' } },
+    { id: 'prt-r2', messageId: 'msg-r1', timeCreated: 102, data: { type: 'reasoning', text: ' ' } },
+    { id: 'prt-r3', messageId: 'msg-r1', timeCreated: 103, data: { type: 'reasoning', text: 'world' } },
+  ], (thinking) => {
+    assert.equal(thinking.length, 1);
+    assert.equal(thinking[0]?.content, 'Hello world');
+  });
 });
