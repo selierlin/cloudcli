@@ -1,5 +1,5 @@
 {
-  "total": 496,
+  "total": 474,
   "byFile": {
     "src/modules/browser-use/BrowserUsePanel.tsx": 11,
     "src/modules/chat/composer/CommandMenu.tsx": 6,
@@ -23,7 +23,6 @@
     "src/modules/code-editor/CodeEditor.tsx": 1,
     "src/modules/code-editor/CodeEditorFooter.tsx": 4,
     "src/modules/code-editor/CodeEditorLoadingState.tsx": 5,
-    "src/modules/code-editor/CodeEditorMediaPreview.tsx": 22,
     "src/modules/code-editor/CodeEditorSurface.tsx": 3,
     "src/modules/code-editor/EditorSidebar.tsx": 4,
     "src/modules/code-editor/markdown/MarkdownCodeBlock.tsx": 7,
@@ -84,8 +83,8 @@
     "src/shared/ui/Tooltip.tsx": 4
   },
   "byAtom": {
-    "bg: black": 23,
-    "bg: gray-100": 20,
+    "bg: black": 22,
+    "bg: gray-100": 17,
     "bg: gray-200": 7,
     "bg: gray-300": 1,
     "bg: gray-400": 1,
@@ -93,7 +92,7 @@
     "bg: gray-500": 5,
     "bg: gray-600": 5,
     "bg: gray-700": 16,
-    "bg: gray-800": 32,
+    "bg: gray-800": 29,
     "bg: gray-900": 21,
     "bg: gray-950": 4,
     "bg: neutral-950": 1,
@@ -102,7 +101,7 @@
     "bg: slate-500": 1,
     "bg: slate-800": 1,
     "bg: slate-900": 2,
-    "bg: white": 24,
+    "bg: white": 23,
     "bg: zinc-500": 1,
     "bg: zinc-900": 3,
     "border: gray-200": 22,
@@ -120,12 +119,12 @@
     "text: gray-100": 7,
     "text: gray-200": 6,
     "text: gray-300": 16,
-    "text: gray-400": 52,
+    "text: gray-400": 49,
     "text: gray-500": 25,
-    "text: gray-600": 28,
+    "text: gray-600": 25,
     "text: gray-700": 11,
     "text: gray-800": 1,
-    "text: gray-900": 19,
+    "text: gray-900": 15,
     "text: neutral-100": 1,
     "text: neutral-400": 1,
     "text: neutral-500": 1,
@@ -133,6 +132,6 @@
     "text: slate-300": 2,
     "text: slate-700": 2,
     "text: slate-800": 1,
-    "text: white": 63
+    "text: white": 59
   }
 }
