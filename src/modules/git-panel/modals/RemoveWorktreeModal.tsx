@@ -49,7 +49,7 @@ export default function RemoveWorktreeModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 bg-n-black/60 backdrop-blur-sm" onClick={onClose} />
       <div
         className="relative w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
         role="dialog"
@@ -110,7 +110,7 @@ export default function RemoveWorktreeModal({
             <button
               onClick={() => void handleRemove()}
               disabled={isRemoving || (isDirty && !force)}
-              className="flex items-center space-x-2 rounded-lg bg-red-600 px-4 py-2 text-sm text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex items-center space-x-2 rounded-lg bg-red-600 px-4 py-2 text-sm text-n-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isRemoving ? (
                 <>
