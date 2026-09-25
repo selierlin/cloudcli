@@ -303,7 +303,7 @@ export default function FileTree({ selectedProject, onFileOpen, revealDirectory 
 
       {/* Delete Confirmation Dialog */}
       {operations.deleteConfirmation.isOpen && operations.deleteConfirmation.item && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-n-black/50">
           <div className="mx-4 max-w-sm rounded-lg border border-border bg-background p-4 shadow-lg">
             <div className="mb-4 flex items-center gap-3">
               <div className="rounded-full bg-red-100 p-2 dark:bg-red-900/30">
@@ -336,7 +336,7 @@ export default function FileTree({ selectedProject, onFileOpen, revealDirectory 
               <button
                 onClick={operations.handleConfirmDelete}
                 disabled={operationLoading}
-                className="flex items-center gap-2 rounded-md bg-red-600 px-3 py-1.5 text-sm text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                className="flex items-center gap-2 rounded-md bg-red-600 px-3 py-1.5 text-sm text-n-white transition-colors hover:bg-red-700 disabled:opacity-50"
               >
                 {operationLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {t('fileTree.delete.confirm', 'Delete')}
@@ -352,8 +352,8 @@ export default function FileTree({ selectedProject, onFileOpen, revealDirectory 
           className={cn(
             'fixed bottom-4 right-4 z-[9999] px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-in slide-in-from-bottom-2',
             toast.type === 'success'
-              ? 'bg-green-600 text-white'
-              : 'bg-red-600 text-white'
+              ? 'bg-green-600 text-n-white'
+              : 'bg-red-600 text-n-white'
           )}
         >
           {toast.type === 'success' ? (
