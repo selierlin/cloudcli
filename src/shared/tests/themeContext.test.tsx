@@ -4,6 +4,7 @@ import { act, renderHook } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, test } from 'vitest';
 
+import { BUILTIN_THEMES } from '@/shared/constants';
 import { ThemeProvider, useTheme } from '@/shared/context/ThemeContext';
 import {
   readUserPreference,
@@ -28,6 +29,7 @@ beforeEach(() => {
   // outlives localStorage.clear() and would leak one test's writes into the next.
   resetUserPreferences();
   document.documentElement.classList.remove('dark');
+  delete document.documentElement.dataset.theme;
 });
 
 test('mounting stores no theme for a user who has never chosen one', () => {
@@ -80,4 +82,28 @@ test('system mode stays local when another device has an explicit theme', () => 
 
   assert.equal(result.current.isDarkMode, false);
   assert.equal(readUserPreference('theme', null), 'dark');
+});
+
+/**
+ * `<html data-theme>` is how a theme's overlay is selected, so it has to track
+ * the appearance even while every built-in theme resolves to the base palette —
+ * the attribute is the contract the overlay rules and the contract tests key on.
+ */
+test('the built-in theme id follows the appearance', () => {
+  const { result } = renderHook(() => useTheme(), { wrapper });
+  assert.equal(document.documentElement.dataset.theme, 'cc-light');
+
+  act(() => {
+    result.current.toggleDarkMode();
+  });
+
+  assert.equal(document.documentElement.dataset.theme, 'cc-dark');
+});
+
+test('both appearances are registered as built-in themes', () => {
+  for (const appearance of ['light', 'dark'] as const) {
+    const matches = BUILTIN_THEMES.filter((manifest) => manifest.appearance === appearance);
+    assert.equal(matches.length, 1, `expected exactly one built-in ${appearance} theme`);
+    assert.ok(matches[0].id.startsWith('cc-'), 'built-in ids must keep the cc- prefix');
+  }
 });

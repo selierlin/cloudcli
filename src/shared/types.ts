@@ -2024,3 +2024,42 @@ type TaskStatus =
 
 /** A TaskMaster task's priority; high, medium and low are the known values and the string fallback tolerates anything else TaskMaster emits. */
 type TaskPriority = 'high' | 'medium' | 'low' | string;
+
+// ---------------------------
+
+//----------------- THEMES ------------
+
+/**
+ * Metadata for one theme, produced by the built-in registry or, later, by the
+ * server's theme directory listing. It deliberately carries no colour values:
+ * a theme's colours live either in the stylesheet's `[data-theme="<id>"]`
+ * overlay or in a user theme file, so this stays enumerable and validatable.
+ *
+ * The `id` doubles as the `<html data-theme>` value, which is what selects the
+ * overlay. Built-in ids keep the `cc-` prefix so a user theme sanitised from a
+ * filename cannot shadow them.
+ */
+export type ThemeManifest = {
+  /** Unique id; written to `<html data-theme>` and used as the `[data-theme]` selector value. */
+  id: string;
+  /** Display name for the theme selector. */
+  name: string;
+  /** The theme's own appearance; decides `<html class="dark">` and `color-scheme`. */
+  appearance: 'light' | 'dark' | 'system';
+  /** Where the theme came from; decides whether the UI may offer to delete it. */
+  source: 'builtin' | 'user';
+  /** Optional author, shown for user themes. */
+  author?: string;
+  /** Optional description, shown for user themes. */
+  description?: string;
+  /**
+   * Optional reach: `accent` recolours only the semantic palette, `full` also
+   * covers terminal, editor, syntax and graph tokens. The selector shows it as
+   * a badge so an accent-only theme does not read as a broken full one.
+   */
+  coverage?: 'accent' | 'full';
+  /** Optional: whether the user may layer a personal accent colour on top. */
+  supportsAccentOverride?: boolean;
+  /** Optional class the bootstrap sentinel waits for before trusting the theme loaded. */
+  sentinelClass?: string;
+};
