@@ -1594,3 +1594,76 @@
   --palette-graph-9: 25 60% 55%;
   --palette-graph-10: 140 35% 45%;
 }
+
+/* The editor is the one surface that needs the two-branch shape instead of a
+   single appearance-agnostic block: its base values are appearance-specific
+   literals rather than L1 references (`--editor-bg` is `hsl(var(--palette-white))`
+   in `:root` but `#282c34` in `.dark`), so the light half has to be scoped.
+
+   It is scoped with `:not(.dark)` rather than left to the bare `[data-theme]`
+   selector. A bare selector matches in both appearances, which would make the
+   light values win in the dark appearance too and rely on the `.dark` branch
+   out-specifying them — a token added to one branch and forgotten in the other
+   would then leak light chrome into dark mode. `:not(.dark)` makes the split
+   impossible to get wrong by omission.
+
+   The light branch retunes the chrome whose literals were picked against the old
+   warm-grey substrate and moves the editor's own page onto the substrate, which
+   is what the dark branch does too; the diff and bracket-status decorations keep
+   their semantic green/red. */
+[data-theme="cc-polar"]:not(.dark) {
+  --editor-bg: hsl(var(--palette-sand-50));
+  --editor-toolbar-bg: hsl(var(--palette-sand-50));
+  --editor-loading-bg: hsl(var(--palette-sand-50));
+  --editor-selection: hsl(var(--palette-sand-200));
+  --editor-selection-focused: hsl(var(--palette-brand-500) / 0.22);
+  --editor-gutter-bg: hsl(var(--palette-sand-50));
+  --editor-gutter-fg: hsl(var(--palette-sand-500));
+  --editor-gutter-separator: 1px solid hsl(var(--palette-sand-200));
+  --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.14);
+  --editor-active-line-gutter-bg: hsl(var(--palette-sand-100));
+  --editor-panel-bg: hsl(var(--palette-sand-100));
+  --editor-panel-border: 1px solid hsl(var(--palette-sand-200));
+  --editor-fold-placeholder-bg: hsl(var(--palette-sand-100));
+  --editor-fold-placeholder-fg: hsl(var(--palette-sand-500));
+  --editor-tooltip-bg: hsl(var(--palette-sand-100));
+  --editor-tooltip-border: 1px solid hsl(var(--palette-sand-200));
+  --editor-tooltip-arrow-border: hsl(var(--palette-sand-200));
+  --editor-tooltip-arrow: hsl(var(--palette-sand-100));
+  --editor-autocomplete-selected-bg: hsl(var(--palette-brand-500));
+  --editor-minimap-bg: hsl(var(--palette-sand-100));
+  --editor-toolbar-border: hsl(var(--palette-sand-200));
+  --editor-toolbar-fg: hsl(var(--palette-sand-800));
+  --editor-toolbar-hover-bg: hsl(var(--palette-sand-100));
+}
+
+[data-theme="cc-polar"].dark {
+  --editor-bg: hsl(var(--palette-ink-950));
+  --editor-fg: hsl(var(--palette-ink-100));
+  --editor-caret: hsl(var(--palette-brand-400));
+  --editor-cursor: hsl(var(--palette-brand-400));
+  --editor-selection: hsl(var(--palette-ink-850));
+  --editor-selection-focused: hsl(var(--palette-ink-850));
+  --editor-gutter-bg: hsl(var(--palette-ink-950));
+  --editor-gutter-fg: hsl(var(--palette-ink-400));
+  --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.06);
+  --editor-active-line-gutter-bg: hsl(var(--palette-ink-900));
+  --editor-panel-bg: hsl(var(--palette-ink-900));
+  --editor-panel-fg: hsl(var(--palette-ink-100));
+  --editor-search-match-bg: hsl(var(--palette-brand-400) / 0.35);
+  --editor-search-match-outline: 1px solid hsl(var(--palette-brand-400));
+  --editor-search-match-selected-bg: hsl(var(--palette-brand-400) / 0.18);
+  --editor-matching-bracket-bg: hsl(var(--palette-brand-400) / 0.28);
+  --editor-nonmatching-bracket-bg: hsl(var(--palette-danger-500) / 0.28);
+  --editor-fold-placeholder-fg: hsl(var(--palette-ink-400));
+  --editor-tooltip-bg: hsl(var(--palette-ink-850));
+  --editor-tooltip-arrow: hsl(var(--palette-ink-850));
+  --editor-autocomplete-selected-bg: hsl(var(--palette-ink-850));
+  --editor-autocomplete-selected-fg: hsl(var(--palette-ink-100));
+  --editor-minimap-bg: hsl(var(--palette-ink-950));
+  --editor-toolbar-bg: hsl(var(--palette-ink-850));
+  --editor-toolbar-border: hsl(var(--palette-ink-800));
+  --editor-toolbar-fg: hsl(var(--palette-ink-100));
+  --editor-toolbar-hover-bg: hsl(var(--palette-ink-800));
+  --editor-loading-bg: hsl(var(--palette-ink-950));
+}
