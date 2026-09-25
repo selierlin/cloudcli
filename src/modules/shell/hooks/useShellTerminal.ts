@@ -100,7 +100,7 @@ export function useShellTerminal({
   isRestarting,
   closeSocket,
 }: UseShellTerminalOptions): UseShellTerminalResult {
-  const { isDarkMode } = useTheme();
+  const { isDarkMode, resolvedThemeId } = useTheme();
   const [isInitialized, setIsInitialized] = useState(false);
   const resizeTimeoutRef = useRef<number | null>(null);
   const mobileSelectionRef = useRef<MobileTerminalSelectionManager | null>(null);
@@ -345,11 +345,12 @@ export function useShellTerminal({
     return () => window.removeEventListener(FONT_SETTINGS_CHANGED_EVENT, applyFontSize);
   }, [terminalRef]);
 
-  // xterm paints into a canvas, so a stylesheet change never reaches an open
-  // terminal on its own. Re-read the --term-* tokens whenever the appearance
-  // flips: that is what lets a theme restyle a terminal that is already
-  // running. In this phase the board is identical in light and dark, so the
-  // values it writes are the same ones the terminal opened with.
+  // xterm paints into a canvas and needs concrete colours, so a stylesheet change
+  // never reaches an open terminal on its own. Re-read the --term-* tokens whenever
+  // the applied theme changes: that is what lets a theme restyle a terminal that is
+  // already running. `resolvedThemeId` is the overlays' half of that and changes on
+  // an appearance flip too, but both deps are listed so an appearance-dependent
+  // --term-* would stay covered if one is ever introduced.
   useEffect(() => {
     const terminal = terminalRef.current;
     if (!terminal) {
@@ -357,7 +358,7 @@ export function useShellTerminal({
     }
 
     terminal.options.theme = readTerminalTheme();
-  }, [isDarkMode, terminalRef]);
+  }, [isDarkMode, resolvedThemeId, terminalRef]);
 
   return {
     isInitialized,
