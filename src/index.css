@@ -1520,3 +1520,77 @@
   --palette-brand-500: 173 75% 27%;
   --palette-brand-400: 172 66% 55%;
 }
+
+/* cc-polar — coverage: full. A cool substrate with a frost-blue accent, plus a
+   terminal board and graph lanes retuned to the same family. Everything here is
+   L1, so it is expressed once and both appearances pick their own step.
+
+   `--palette-white` is deliberately *not* overridden: the light card surface
+   stays pure white on the tinted substrate, exactly as the base does with its
+   warm sand. (The dark appearance's card is `--palette-ink-900` instead, so it
+   does follow the theme.) That also keeps `--n-white` / `--n-black` — the white
+   outline and black shadow of the always-dark terminal selection chrome — out
+   of the theme's reach. The `gray` / `zinc` / `slate` / `neutral` compatibility
+   ramps are left alone for the same kind of reason: they back ~1.5k utility
+   sites whose light/dark step choice, not their hue, carries the design, and
+   they are already cool enough to sit under this substrate. */
+[data-theme="cc-polar"] {
+  /* Substrate: the warm sand of light mode and the neutral ink of dark mode,
+     both moved onto the same cool blue-grey axis. */
+  --palette-sand-50: 213 26% 96%;
+  --palette-sand-100: 213 22% 92%;
+  --palette-sand-200: 214 18% 87%;
+  --palette-sand-500: 215 12% 45%;
+  --palette-sand-800: 218 28% 21%;
+  --palette-sand-950: 220 38% 8%;
+  --palette-ink-100: 218 26% 93%;
+  --palette-ink-400: 219 15% 62%;
+  --palette-ink-800: 220 15% 26%;
+  --palette-ink-850: 220 16% 22%;
+  --palette-ink-900: 220 16% 18%;
+  --palette-ink-950: 220 18% 13%;
+
+  /* Accent: frost blue. The light step is dark enough for white button text
+     (4.6:1) without going near-black. */
+  --palette-brand-500: 213 32% 47%;
+  --palette-brand-400: 210 34% 63%;
+
+  /* Terminal board. The ANSI hues keep their meanings (red is error/deleted,
+     green is success/added) and only the family's temperature moves; the
+     background and the selection fill follow the substrate so the panel does
+     not read as a foreign surface. */
+  --palette-term-bg: 220 16% 22%;
+  --palette-term-fg: 218 24% 88%;
+  --palette-term-cursor: 193 44% 67%;
+  --palette-term-selection: 220 17% 32%;
+  --palette-term-black: 220 16% 26%;
+  --palette-term-red: 354 42% 56%;
+  --palette-term-green: 92 28% 65%;
+  --palette-term-yellow: 40 60% 73%;
+  --palette-term-blue: 213 32% 63%;
+  --palette-term-magenta: 311 25% 70%;
+  --palette-term-cyan: 193 44% 67%;
+  --palette-term-white: 218 27% 92%;
+  --palette-term-bright-black: 220 17% 36%;
+  --palette-term-bright-red: 354 45% 62%;
+  --palette-term-bright-green: 92 32% 70%;
+  --palette-term-bright-yellow: 40 65% 78%;
+  --palette-term-bright-blue: 213 38% 68%;
+  --palette-term-bright-magenta: 311 28% 75%;
+  --palette-term-bright-cyan: 179 26% 65%;
+  --palette-term-bright-white: 219 27% 94%;
+
+  /* Graph lanes. Same ten hues in the same order, desaturated onto the theme's
+     axis so a lane still reads as itself; every one of them keeps at least
+     2:1 against both substrates (the board the base ships bottoms out at 1.8). */
+  --palette-graph-1: 213 45% 52%;
+  --palette-graph-2: 40 60% 55%;
+  --palette-graph-3: 311 30% 60%;
+  --palette-graph-4: 92 32% 52%;
+  --palette-graph-5: 354 45% 58%;
+  --palette-graph-6: 193 45% 45%;
+  --palette-graph-7: 179 30% 45%;
+  --palette-graph-8: 260 40% 62%;
+  --palette-graph-9: 25 60% 55%;
+  --palette-graph-10: 140 35% 45%;
+}

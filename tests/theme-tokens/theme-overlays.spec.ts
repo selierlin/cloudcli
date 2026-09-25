@@ -50,18 +50,14 @@ type Appearance = 'light' | 'dark';
 const APPEARANCES: Appearance[] = ['light', 'dark'];
 
 /**
- * The surfaces each coverage class is about. `accent` may move *only* the
- * accent family; `full` is expected to reach substrate, terminal and graph as
- * well, and must leave the near-neutral compatibility scale alone — those ramps
- * are the Tailwind skeleton's waypoint, and a theme that retints them would be
- * silently changing ~1.5k utility sites rather than the surfaces it advertises.
+ * The surfaces each coverage class is about. An `accent` theme may move *only*
+ * the accent family; a `full` one is expected to reach the substrate, terminal
+ * board and graph lanes as well.
  */
 const SURFACES: Record<string, string[]> = {
   substrate: [
     '--background',
     '--foreground',
-    '--card',
-    '--popover',
     '--border',
     '--input',
     '--muted',
@@ -90,7 +86,25 @@ const SURFACES: Record<string, string[]> = {
     '--editor-loading-bg',
   ],
   graph: ['--graph-lane-1', '--graph-lane-5', '--graph-lane-10'],
-  compatScale: ['--n-gray-100', '--n-gray-700', '--n-white', '--n-black'],
+  /**
+   * The card surface is the one that comes from a different family per
+   * appearance: pure `--palette-white` in light, `--palette-ink-900` in dark.
+   * Only the dark half is inside any theme's reach — the light card stays pure
+   * white on the tinted substrate, the way the base's card sits on warm sand —
+   * so a full theme moves these in the dark appearance only.
+   */
+  cardSurface: ['--card', '--popover'],
+  /**
+   * Tokens no overlay is allowed to move, whatever its coverage.
+   *
+   * `--n-white` / `--n-black` are the white outline and black shadow of the
+   * always-dark terminal selection chrome, which is appearance-agnostic on
+   * purpose. The `--n-gray-*` pair stands for the whole Tailwind compatibility
+   * skeleton (~1.5k utility sites): retinting it would change far more than a
+   * theme advertises, and it is already cool enough to sit under a cool
+   * substrate.
+   */
+  fixed: ['--n-white', '--n-black', '--n-gray-100', '--n-gray-700'],
 };
 
 const ACCENT_SURFACES = ['--primary', '--ring', '--nav-tab-glow', '--nav-input-focus-ring'];
@@ -108,12 +122,10 @@ const MUST_NOT_MOVE: Record<string, string[]> = {
     ...SURFACES.terminal,
     ...SURFACES.editor,
     ...SURFACES.graph,
-    ...SURFACES.compatScale,
+    ...SURFACES.fixed,
   ],
-  full: [...SURFACES.compatScale],
-};
-
-/** The index of the `{` opening the rule whose selector starts at `from`. */
+  full: [...SURFACES.fixed],
+};/** The index of the `{` opening the rule whose selector starts at `from`. */
 function openBraceAfter(from: number): number {
   return CSS.indexOf('{', from);
 }
@@ -269,8 +281,17 @@ for (const theme of OVERLAY_THEMES) {
         `${theme.id} overlay is shadowed in ${appearance}:\n${unresolved.join('\n')}`,
       ).toEqual([]);
 
-      const mustMove = MUST_MOVE[theme.coverage ?? 'full'].filter((name) => !moved.has(name));
-      const mustNotMove = MUST_NOT_MOVE[theme.coverage ?? 'full'].filter((name) => moved.has(name));
+      // The card surface only enters a theme's reach in the dark appearance —
+      // its light half comes from `--palette-white`, which no theme overrides.
+      const cardMoves = theme.coverage === 'full' && appearance === 'dark';
+      const mustMove = [
+        ...MUST_MOVE[theme.coverage ?? 'full'],
+        ...(cardMoves ? SURFACES.cardSurface : []),
+      ].filter((name) => !moved.has(name));
+      const mustNotMove = [
+        ...MUST_NOT_MOVE[theme.coverage ?? 'full'],
+        ...(cardMoves ? [] : SURFACES.cardSurface),
+      ].filter((name) => moved.has(name));
 
       expect(
         mustMove,
