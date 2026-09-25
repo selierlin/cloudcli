@@ -166,17 +166,19 @@ export default function SessionOptions({
             </div>
           )}
           items={[
-            ...(projectId !== null ? [{
-              key: 'rename',
-              label: t('sessions.renameSession'),
-              icon: Edit2,
-              onSelect: () => onStartEditingSession(projectId, sessionId, sessionName),
-            }] : []),
+            // Pinned-first, matching the mobile bottom sheets and the
+            // SidebarContent rows; keep every session menu in this order.
             ...(onTogglePinned ? [{
               key: 'pin',
               label: isPinned ? t('sessions.unpinSession') : t('sessions.pinSession'),
               icon: isPinned ? PinOff : Pin,
               onSelect: () => onTogglePinned(sessionId, !isPinned),
+            }] : []),
+            ...(projectId !== null ? [{
+              key: 'rename',
+              label: t('sessions.renameSession'),
+              icon: Edit2,
+              onSelect: () => onStartEditingSession(projectId, sessionId, sessionName),
             }] : []),
             {
               key: 'copy',

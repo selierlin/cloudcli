@@ -495,17 +495,18 @@ function RecentConversationRow({
                 </div>
               )}
               items={[
-                {
-                  key: 'rename',
-                  label: t('sessions.renameSession'),
-                  icon: Edit2,
-                  onSelect: () => onStartEditingSession(conversation.sessionId, conversation.sessionTitle),
-                },
+                // Pinned-first, matching the mobile bottom sheets and SessionOptions.
                 {
                   key: 'pin',
                   label: conversation.isPinned ? t('sessions.unpinSession') : t('sessions.pinSession'),
                   icon: conversation.isPinned ? PinOff : Pin,
                   onSelect: () => onTogglePinned(conversation.sessionId, !conversation.isPinned),
+                },
+                {
+                  key: 'rename',
+                  label: t('sessions.renameSession'),
+                  icon: Edit2,
+                  onSelect: () => onStartEditingSession(conversation.sessionId, conversation.sessionTitle),
                 },
                 {
                   key: 'copy',
