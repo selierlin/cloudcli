@@ -1,7 +1,7 @@
 # CloudCLI 主题与配色体系设计方案
 
 > 编写日期：2026-09-24 ｜ 修订：2026-09-25（v5：阶段 0-A / 0-B / 0-C 已实施并验收，记录见 §6）
-> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j / 0-E2k / 0-E2l / 0-E2m / 0-E2n / 0-E2o / 0-E2p / 0-E2q / 0-E2r / 0-E2s / 0-E2t / 0-E2u / 0-E2v / 0-E2w / 0-E2x / 0-E2y / 0-E2z / 0-E3a / 0-E3b / 0-E3c / 0-E3d / 0-E3e / 0-E3f / 0-E3g / 0-E3h / 0-E3i / 0-E3j / 0-E3k / 0-E3l / 0-E3m / 0-E3n / 0-E3o / 0-E3p / 0-E3q / 0-E3r / 0-E3s / 0-E3t / 0-E3u / 0-E3v / 0-E3w / 0-E3x / 0-E3y / 0-E3z / 0-E4a / 0-E4b / 0-E4c / 0-E4d / 0-E4e / 0-E4f / 0-E4g / 0-E4h / 0-E4i / 0-E4j / 0-E4k / 0-E4l / 0-E4m / 0-E4n / 0-E4o / 0-E4p / 0-E4q / 0-E4r / 0-E4s / 0-E4t / 0-E4u / 0-E4v / 0-E4w / 0-E4x / 0-E4y / 0-E4z / 0-E5a / 0-E5b / 0-E5c / 0-E5d / 0-E5e / 0-E5f / 0-E5g / 0-E5h / 0-E5i / 0-E5j / 0-E5k / 0-E5l / 0-E5m / 0-E5n / 0-E5o / 0-E5p / 0-E5q / 0-E5r / 0-E5s / 0-E5t / 0-E5u / 0-E5v / 0-E5w / 0-E5x / 0-E5y / 0-E5z / 0-E6a / 0-E6b / 0-E6c / 0-E6d 一百一十五片，**阶段 0 的迁移分片已全部实施**；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内；0-E3i 修正了产物核对脚本的**前提假设缺口**——脚本原假设"被测文件迁移前不含 `n-*` 令牌"，随分片推进（前片已令牌化的文件被再次触碰）必然被打破；0-E6d 又暴露一处**护栏前提失效**——守恒律反空转护栏里"必须扫到 ≥1 处带透明度修饰的**字面**中性色"这条断言，随阶段 0 归零而失去可满足前提（仓库计数无论捕获组是否健在都读 0），改为对解析形状的合成名断言。截至 0-E6d：中性具名硬编码剩余 **0 处 / 0 文件**（起点 1517 / 105；阶段 0 迁移完成，仅余 1 处豁免 `border-gray-150`）。**阶段 1 已开工**：1-A（主题骨架：`ThemeManifest` + `BUILTIN_THEMES` + `<html data-theme>`）与 1-B 第一步（随 `appearance` 在 `<html>` 写 `color-scheme`，本线**第一个有意的视觉变更**）均已实施并验收；1-B2 的三个子片（删 2 行已失效的 `color-scheme: dark`、textarea 的 `color-scheme` 改为随应用外观、68 处暗色补偿改走既有令牌）也已完成；**其前置 0-F 也已实施**（Git 图 lane 色抽为 `--graph-lane-1..10` ＋ 移动端终端选区菜单 7 处色值令牌化，拆 0-F1 / 0-F2 两片），切片表与记录见 §6）；**1-C 也已完成**（`theme-color` 与 iOS status-bar 改由令牌派生，`ThemeContext` 里两处手写 hex 删除、两个分支合并，`ThemeManifest` 的 `themeColor` / `statusBar` 覆盖字段一并落地——**下一片 = 1-D**（`themeId` 偏好键））
+> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j / 0-E2k / 0-E2l / 0-E2m / 0-E2n / 0-E2o / 0-E2p / 0-E2q / 0-E2r / 0-E2s / 0-E2t / 0-E2u / 0-E2v / 0-E2w / 0-E2x / 0-E2y / 0-E2z / 0-E3a / 0-E3b / 0-E3c / 0-E3d / 0-E3e / 0-E3f / 0-E3g / 0-E3h / 0-E3i / 0-E3j / 0-E3k / 0-E3l / 0-E3m / 0-E3n / 0-E3o / 0-E3p / 0-E3q / 0-E3r / 0-E3s / 0-E3t / 0-E3u / 0-E3v / 0-E3w / 0-E3x / 0-E3y / 0-E3z / 0-E4a / 0-E4b / 0-E4c / 0-E4d / 0-E4e / 0-E4f / 0-E4g / 0-E4h / 0-E4i / 0-E4j / 0-E4k / 0-E4l / 0-E4m / 0-E4n / 0-E4o / 0-E4p / 0-E4q / 0-E4r / 0-E4s / 0-E4t / 0-E4u / 0-E4v / 0-E4w / 0-E4x / 0-E4y / 0-E4z / 0-E5a / 0-E5b / 0-E5c / 0-E5d / 0-E5e / 0-E5f / 0-E5g / 0-E5h / 0-E5i / 0-E5j / 0-E5k / 0-E5l / 0-E5m / 0-E5n / 0-E5o / 0-E5p / 0-E5q / 0-E5r / 0-E5s / 0-E5t / 0-E5u / 0-E5v / 0-E5w / 0-E5x / 0-E5y / 0-E5z / 0-E6a / 0-E6b / 0-E6c / 0-E6d 一百一十五片，**阶段 0 的迁移分片已全部实施**；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内；0-E3i 修正了产物核对脚本的**前提假设缺口**——脚本原假设"被测文件迁移前不含 `n-*` 令牌"，随分片推进（前片已令牌化的文件被再次触碰）必然被打破；0-E6d 又暴露一处**护栏前提失效**——守恒律反空转护栏里"必须扫到 ≥1 处带透明度修饰的**字面**中性色"这条断言，随阶段 0 归零而失去可满足前提（仓库计数无论捕获组是否健在都读 0），改为对解析形状的合成名断言。截至 0-E6d：中性具名硬编码剩余 **0 处 / 0 文件**（起点 1517 / 105；阶段 0 迁移完成，仅余 1 处豁免 `border-gray-150`）。**阶段 1 已开工**：1-A（主题骨架：`ThemeManifest` + `BUILTIN_THEMES` + `<html data-theme>`）与 1-B 第一步（随 `appearance` 在 `<html>` 写 `color-scheme`，本线**第一个有意的视觉变更**）均已实施并验收；1-B2 的三个子片（删 2 行已失效的 `color-scheme: dark`、textarea 的 `color-scheme` 改为随应用外观、68 处暗色补偿改走既有令牌）也已完成；**其前置 0-F 也已实施**（Git 图 lane 色抽为 `--graph-lane-1..10` ＋ 移动端终端选区菜单 7 处色值令牌化，拆 0-F1 / 0-F2 两片），切片表与记录见 §6）；**1-C 与 1-D 也已完成**（1-C：`theme-color` 与 iOS status-bar 改由令牌派生，`ThemeContext` 里两处手写 hex 删除、两个分支合并，`ThemeManifest` 的 `themeColor` / `statusBar` 覆盖字段一并落地；1-D：新增 `themeId` 偏好键，`ThemeContext` 暴露 `themeId` / `resolvedThemeId` / `setThemeId`，跨设备"未安装该主题"的回落不再静默——**下一片 = 1-E**（两套示范主题的覆盖层 ＋ 注册表扩充 ＋ `coverage` 标注））
 > 参照物：WorkBuddy（`/Applications/WorkBuddy.app`，app.asar 解包 + 本机皮肤包实物）、Codex CLI（`@openai/codex@0.155.1`，Rust 二进制字符串解析）
 > 目标读者：评审 AI / 后续实施者
 
@@ -358,6 +358,8 @@ export type ThemeManifest = {
 - **跨设备同步的边界**（v2 新增）：偏好镜像会把 `themeId` 同步到未安装该主题文件的设备，届时应**显式提示"此设备缺少该主题，已回落默认"**而非静默回落。另注意现状怪癖：`setTheme('system')` 不写偏好（`ThemeContext.tsx:113-121`，仅 light/dark 才 `writeUserPreference`），新增 `themeId` 键时需决定 `system` 分支是否同样豁免，避免把本机临时态覆盖成跨设备永久态。
 
 > **v7（1-C 追加）**：上面的启动链路写着"立即在首帧前设置 … `meta theme-color`"，**当前实现并非如此**——`ThemeContext` 的写入在 effect 里，首帧前生效的是 `index.html` 的静态 `<meta name="theme-color" content="#ffffff">`（另 `public/manifest.json` 的 `theme_color`、以及 `mobile/www/index.html` 这个 Capacitor 服务器选择页自成一套 media 查询式 theme-color）。1-C 只把运行期这一环接上令牌（见该片记录），"JS 跑起来之前的那一段"仍是静态值，与首帧防闪烁同属一组问题，**待单独成片**。
+
+> **v8（1-D 追加）**：上面那条"跨设备同步的边界"里的两处待决，已在 1-D 落地（见该片记录）。**决策一**：`system` 分支的豁免**只属于明暗键**，不延伸到 `themeId`——`theme` 键豁免是为了不让"本机跟随系统"这个**临时态**覆盖跨设备的永久选择，而挑主题本身就是一次显式选择、没有 system 对应物，所以 `setThemeId` 无条件写偏好（已断言"system 下选主题仍写入 `themeId`、而 `theme` 仍不写"）。**决策二**：回落不再可能静默——解析层 `resolveTheme(themeId, appearance)` 查不到该 id 时返回外观默认，`ThemeContext` 把**生效 id** 与**用户所选 id** 分开暴露（`resolvedThemeId` / `themeId`），并在 effect 里 `console.warn` 报出"此设备未安装 X、已回落 Y"。**提示 UI 留到 1-F**（届时判 `themeId !== null && themeId !== resolvedThemeId` 即可渲染），1-D 只负责让回落可被观测、可被判据。另记一条本片**未定、不阻塞**的边界：用户显式选了与外观同名的默认别名（`cc-light` / `cc-dark`）之后再切换明暗胶囊，`data-theme` 应留在所选别名还是回到外观默认——这属 1-E 扩充注册表时要一并定的模型问题（1-D 阶段这两个 id 都无覆盖层，两种解释视觉等值，故不影响本片）。
 
 ### 5.7 硬编码收口清单（阶段 0 的施工面）
 
@@ -3218,7 +3220,7 @@ Mutation 侧：
 | 1-B2b | C 段首 `textarea { color-scheme: light dark }` 改为随应用外观 | ✅ 已实施（**有意的视觉变更**，单独 `90785d25`） |
 | 1-B2c | 68 处等值字面值改指令牌 | ✅ 已实施（**方案 A**：复用既有令牌保形间接，零变化，`fdf3f879`） |
 | 1-C | `theme-color` 与 iOS `status-bar` 改由 `appearance` 驱动：去掉 `ThemeContext` 里两处硬编码 hex | ✅ 已实施（`1a9a7b78`）。**实现偏差**：不手写 HSL→hex，改用探针把 `hsl(var(--token))` 交给浏览器解析，只保留 alpha 合成；`ThemeManifest` 的 `themeColor` / `statusBar` 覆盖字段一并落地。**唯一有意的视觉变更**：浅色 theme-color `#f6f4ef → #f7f6f3`（原字面已与 `--background` 对不上），暗色逐位不变。见本节 1-C 记录 |
-| 1-D | `themeId` 偏好键 + `ThemeContext` 暴露 `themeId` / `setThemeId`（含 §5.6 的跨设备回落提示边界） | 待做 |
+| 1-D | `themeId` 偏好键 + `ThemeContext` 暴露 `themeId` / `resolvedThemeId` / `setThemeId`（含 §5.6 的跨设备回落边界） | ✅ 已实施（`7ce0fbda`）。两处决策见 §5.6 v8：**system 豁免只属明暗键**（`setThemeId` 无条件写偏好）、**回落不静默**（生效 id 与所选 id 分开暴露 ＋ `console.warn`，选择器提示 UI 留 1-F）。未取主题时行为与改动前逐位一致（无 CSS 改动、产物 CSS 逐字节相同） |
 | 1-E | 两套示范主题的覆盖层（**unlayered** `[data-theme]` 规则，含 `.dark` 分支）+ 注册表扩充 + `coverage` 标注 | 待做 |
 | 1-F | 外观设置页主题选择器 + `coverage` badge（i18n 只补 zh-CN） | 待做 |
 | 1-G | JS 消费者随主题刷新：xterm 重读 `--term-*` 重设 `options.theme`、CodeMirror compartment reconfigure、Git 图 SVG 直接用 `var(--graph-lane-*)` | 待做（**前置已就位**：`--graph-lane-*` 由 0-F1 落地；且实测 SVG 表现属性 `stroke` / `fill` 直接吃 `var()`，chromium 与 webkit 均支持，故 Git 图这一路**无需刷新机制**——与 xterm 不同） |
@@ -3414,12 +3416,41 @@ Mutation 侧：
 1. **JS 跑起来之前的 chrome 色**：`index.html` 的静态 `<meta name="theme-color" content="#ffffff">`、`public/manifest.json` 的 `theme_color`，以及 `mobile/www/index.html`（Capacitor 的服务器选择页，自成一套 media 查询式 theme-color）。它们与"首帧无闪烁"是同一组问题，且 §5.6 的启动链路里那句"立即在首帧前设置 … meta theme-color"目前**并不成立**（`ThemeContext` 的写入在 effect 里，首帧前生效的是静态值）。建议单开一片处理，不要塞进 1-C。
 2. **`react-scan` 进了生产产物**：`src/main.tsx:3` 静态导入 `scan`，`:18` 才用 `import.meta.env.DEV` 在**运行期**关掉——即关闭的是执行而非打包，整个库（含自带硬编码色的浮层）仍在 bundle 里（产物中 3 处 `#141414` 即出自它的 FPS 面板）。属既有问题、与主题线无关，但既是体积问题也是"未入册的硬编码色"来源，建议单独一句记账。
 
+#### 1-D 实施记录（2026-09-26，`7ce0fbda`）
+
+**范围**：`src/shared/userSettings.ts`（`UserPreferences` 新增 `themeId: string | null` ＋ `LEGACY_STORAGE_KEYS` 给一个空 legacy 位置——该键从来没有浏览器本地来源）、`src/shared/context/ThemeContext.tsx`（新增 `builtinThemeById` / `resolveTheme`、`themeId` 状态、`resolvedThemeId` 派生、`setThemeId`、远端同步、回落告警；`data-theme` 与浏览器 chrome 的取值来源由"外观默认主题"改为"生效主题"）、`src/shared/tests/themeContext.test.tsx`（+5）。**无 CSS 改动**。
+
+**做了什么**：把"用户选的主题"从零变成一条可持久化、可跨设备同步、可由设置页读写的独立状态。按 §5.2 的双轨模型，`themeId` 只决定 `[data-theme]` 覆盖层，明暗仍由 `theme` 键（胶囊）唯一控制——因此 `setThemeId('cc-dark')` 在浅色外观下把 `data-theme` 写成 `cc-dark`，胶囊不动。解析统一走 `resolveTheme(themeId, appearance)`：注册表里有就用它，否则返回外观默认。偏好键本身复用既有镜像与 hydrate 链路，故跨设备同步零新增代码。
+
+**两处决策**（§5.6 v2 明写"需决定"，已回写该节 v8）：
+
+1. **`system` 分支的豁免不延伸到 `themeId`**。`setTheme('system')` 不写偏好的原意是"本机临时态别覆盖跨设备的永久选择"；而挑主题本身就是一次显式选择、没有 system 对应物，所以 `setThemeId` 无条件 `writeUserPreference`。断言直接压住这对不对称：system 外观下选主题 → `themeId` 有值、`theme` 仍为 null。
+2. **回落不静默**。既不"静默回落"也不"阻止选择"：`resolveTheme` 返回外观默认，`ThemeContext` 把**生效 id**（`resolvedThemeId`）与**用户所选 id**（`themeId`）分开暴露，effect 里 `console.warn` 报出"此设备未安装 X、已回落 Y"。**选择器上的提示 UI 留给 1-F**（届时的判据就是 `themeId !== null && themeId !== resolvedThemeId`），本片不引入无消费者的提示状态字段。
+
+**两条边界（本片未定，不阻塞）**：
+
+1. **默认别名与胶囊的关系**：用户显式选了 `cc-light` / `cc-dark`（与外观同名的默认别名）之后再切明暗胶囊，`data-theme` 应留在所选别名还是回到外观默认——属 1-E 扩充注册表时要一并定的模型问题。1-D 阶段这两个 id 都无覆盖层，两种解释视觉等值，故不影响本片；已记入 §5.6 v8。
+2. **提示 UI**：见决策 2，随 1-F。
+
+**证据**：
+
+| 层 | 做法 | 结果 |
+|---|---|---|
+| **变异测试（三条）** | ① 解析忽略 `themeId`（`resolveTheme` 恒返回 `builtinThemeFor`）② 删远端同步（subscribe 里不再 `setThemeIdState`）③ 删回落告警 | ① **恰 3 红**（"选主题生效" / "清除回默认" / "远端采纳"），而**"不豁免"那条仍绿**——它只断言偏好写入，正确地不依赖解析；② **恰 1 红**（"an overlay picked elsewhere is adopted here"）；③ **恰 1 红**，失败信息即 `the fallback must be announced rather than silent`。三条各证明对应断言非空转 |
+| **默认零变化** | 既有 9 条测试**一行未改** | 仍全绿：`data-theme` 跟随外观（`cc-light` / `cc-dark`）、`color-scheme`、chrome、system 本机豁免。未选主题时 `resolvedThemeId` 恒等于外观默认 |
+| **产物前后对照** | 临时 worktree 构建 `1ab5622f` | dist CSS 文件名哈希（`index-B0eB4Ybq.css`）与 md5（`3c2985b7…`）**均与改动前逐字节相同**；`git diff --name-only` 无 `.css`（本片不碰任何样式） |
+| **令牌基线** | `test:theme-tokens` | **34 通过**（未新增），`token-baseline.json` 逐位未动 |
+
+**门槛**：`test:client` **128 文件 / 979 用例**（974 ＋ 本片 5）；`typecheck`（含 server）与 `typecheck:theme-tokens` 干净；`lint` **153 warnings / 0 error**；`build` exit 0。
+
+**与既有账的关系**：阶段 0 迁移账（0 处 / 余 1 处豁免）与 B3 账户（`index.css` 选择器级消费者）均不受影响——本片未碰任何 CSS；阶段 1 不计处数，按片计。
+
 
 ### 阶段 2：用户主题
 
 服务端提供主题目录列举与静态文件（复用 `plugins.routes.ts` 的 `/:name/assets/*` 模式）；前端加载链路含"缓存同步注入 / 后台校验更新 / 加载中 / 失败回落"；设置页支持选择与（可选）粘贴内容。若采纳选项 A，需实现令牌白名单校验；若支持 B2，需实现 `.tmTheme` 解析。
 
-**验收**：往 `~/.cloudcli/themes/` 放一个文件，刷新后主题出现在选择器中并可生效（改文件后刷新能看到变化，即 `?v=` 生效）；非法文件被拒绝且不影响启动；删除文件后回落默认；**"合法但有害"的 CSS 可用 §5.6 的恢复通道退出**；跨设备同步到未安装主题的设备时给出显式提示而非静默回落。
+**验收**：往 `~/.cloudcli/themes/` 放一个文件，刷新后主题出现在选择器中并可生效（改文件后刷新能看到变化，即 `?v=` 生效）；非法文件被拒绝且不影响启动；删除文件后回落默认；**"合法但有害"的 CSS 可用 §5.6 的恢复通道退出**；跨设备同步到未安装主题的设备时给出显式提示而非静默回落（**前半"回落可观测"已由 1-D 提供**：生效 id 与所选 id 分离 ＋ `console.warn`；剩余的选择器提示 UI 随 1-F 落地）。
 
 ---
 
