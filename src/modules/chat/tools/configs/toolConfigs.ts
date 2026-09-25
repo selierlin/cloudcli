@@ -120,7 +120,7 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       style: 'terminal',
       colorScheme: {
         primary: 'text-green-400 font-mono',
-        secondary: 'text-gray-400',
+        secondary: 'text-n-gray-400',
         background: '',
         border: 'border-green-500 dark:border-green-400',
         icon: 'text-green-500 dark:text-green-400'
@@ -145,7 +145,7 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       style: 'terminal',
       colorScheme: {
         primary: 'text-green-400 font-mono',
-        secondary: 'text-gray-400',
+        secondary: 'text-n-gray-400',
         background: '',
         border: 'border-green-500 dark:border-green-400',
         icon: 'text-green-500 dark:text-green-400'
@@ -168,7 +168,7 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       getValue: (input) => input.query || '',
       action: 'none',
       colorScheme: {
-        primary: 'text-gray-700 dark:text-gray-300',
+        primary: 'text-n-gray-700 dark:text-n-gray-300',
         border: 'border-sky-400 dark:border-sky-500',
         icon: 'text-sky-500 dark:text-sky-400'
       }
@@ -189,7 +189,7 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       getValue: (input) => input.url || '',
       action: 'none',
       colorScheme: {
-        primary: 'text-gray-700 dark:text-gray-300',
+        primary: 'text-n-gray-700 dark:text-n-gray-300',
         border: 'border-sky-400 dark:border-sky-500',
         icon: 'text-sky-500 dark:text-sky-400'
       }
@@ -214,10 +214,10 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       getValue: (input) => input.file_path || '',
       action: 'open-file',
       colorScheme: {
-        primary: 'text-gray-700 dark:text-gray-300',
+        primary: 'text-n-gray-700 dark:text-n-gray-300',
         background: '',
-        border: 'border-gray-300 dark:border-gray-600',
-        icon: 'text-gray-500 dark:text-gray-400'
+        border: 'border-n-gray-300 dark:border-n-gray-600',
+        icon: 'text-n-gray-500 dark:text-n-gray-400'
       }
     },
     result: {
@@ -306,11 +306,11 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       getSecondary: (input) => input.path ? `in ${input.path}` : undefined,
       action: 'jump-to-results',
       colorScheme: {
-        primary: 'text-gray-700 dark:text-gray-300',
-        secondary: 'text-gray-500 dark:text-gray-400',
+        primary: 'text-n-gray-700 dark:text-n-gray-300',
+        secondary: 'text-n-gray-500 dark:text-n-gray-400',
         background: '',
-        border: 'border-gray-400 dark:border-gray-500',
-        icon: 'text-gray-500 dark:text-gray-400'
+        border: 'border-n-gray-400 dark:border-n-gray-500',
+        icon: 'text-n-gray-500 dark:text-n-gray-400'
       }
     },
     result: {
@@ -339,11 +339,11 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       getSecondary: (input) => input.path ? `in ${input.path}` : undefined,
       action: 'jump-to-results',
       colorScheme: {
-        primary: 'text-gray-700 dark:text-gray-300',
-        secondary: 'text-gray-500 dark:text-gray-400',
+        primary: 'text-n-gray-700 dark:text-n-gray-300',
+        secondary: 'text-n-gray-500 dark:text-n-gray-400',
         background: '',
-        border: 'border-gray-400 dark:border-gray-500',
-        icon: 'text-gray-500 dark:text-gray-400'
+        border: 'border-n-gray-400 dark:border-n-gray-500',
+        icon: 'text-n-gray-500 dark:text-n-gray-400'
       }
     },
     result: {
@@ -428,7 +428,7 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       getValue: () => 'reading list',
       action: 'none',
       colorScheme: {
-        primary: 'text-gray-500 dark:text-gray-400',
+        primary: 'text-n-gray-500 dark:text-n-gray-400',
         border: 'border-violet-400 dark:border-violet-500'
       }
     },
@@ -463,7 +463,7 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       getSecondary: (input) => input.status || undefined,
       action: 'none',
       colorScheme: {
-        primary: 'text-gray-700 dark:text-gray-300',
+        primary: 'text-n-gray-700 dark:text-n-gray-300',
         border: 'border-violet-400 dark:border-violet-500',
         icon: 'text-violet-500 dark:text-violet-400'
       }
@@ -486,7 +486,7 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       },
       action: 'none',
       colorScheme: {
-        primary: 'text-gray-700 dark:text-gray-300',
+        primary: 'text-n-gray-700 dark:text-n-gray-300',
         border: 'border-violet-400 dark:border-violet-500',
         icon: 'text-violet-500 dark:text-violet-400'
       }
@@ -503,7 +503,7 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       getValue: () => 'listing tasks',
       action: 'none',
       colorScheme: {
-        primary: 'text-gray-500 dark:text-gray-400',
+        primary: 'text-n-gray-500 dark:text-n-gray-400',
         border: 'border-violet-400 dark:border-violet-500',
         icon: 'text-violet-500 dark:text-violet-400'
       }
@@ -526,7 +526,7 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       getValue: (input) => input.taskId ? `#${input.taskId}` : 'fetching',
       action: 'none',
       colorScheme: {
-        primary: 'text-gray-700 dark:text-gray-300',
+        primary: 'text-n-gray-700 dark:text-n-gray-300',
         border: 'border-violet-400 dark:border-violet-500',
         icon: 'text-violet-500 dark:text-violet-400'
       }
