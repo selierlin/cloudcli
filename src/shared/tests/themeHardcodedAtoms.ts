@@ -200,15 +200,22 @@ type ScannedLine = {
 };
 
 /** A token's name half, once it is known to name a neutral colour. */
-type MatchedUsage = {
+export type MatchedUsage = {
   /** Everything but the variant chain, which lives outside the name half. */
   usage: Omit<NeutralUsage, 'variants'>;
   /** Whether the source spelled it the token way (`n-*`) or the literal way. */
   tokenised: boolean;
 };
 
-/** `null` unless the name is a neutral colour in one of its two spellings. */
-function matchUsage(name: string): MatchedUsage | null {
+/**
+ * `null` unless the name is a neutral colour in one of its two spellings.
+ *
+ * Exported for the conservation law's anti-vacuity guard, which has to assert
+ * the *parse shape* rather than a count: once stage 0 finished there was no
+ * live literal left in `src/` to demonstrate the literal-side `/modifier`
+ * capture on, so the guard feeds this function assembled names instead.
+ */
+export function matchUsage(name: string): MatchedUsage | null {
   const atom = ATOM.exec(name);
   if (atom) {
     return {
