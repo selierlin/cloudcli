@@ -96,15 +96,15 @@ export default function WorkspacePathField({
           />
 
           {showPathDropdown && pathSuggestions.length > 0 && (
-            <div className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+            <div className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-n-gray-200 bg-n-white shadow-lg dark:border-n-gray-700 dark:bg-n-gray-800">
               {pathSuggestions.map((suggestion) => (
                 <button
                   key={suggestion.path}
                   onClick={() => handleSuggestionSelect(suggestion)}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-n-gray-100 dark:hover:bg-n-gray-700"
                 >
-                  <div className="font-medium text-gray-900 dark:text-white">{suggestion.name}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">{suggestion.path}</div>
+                  <div className="font-medium text-n-gray-900 dark:text-n-white">{suggestion.name}</div>
+                  <div className="text-xs text-n-gray-500 dark:text-n-gray-400">{suggestion.path}</div>
                 </button>
               ))}
             </div>
