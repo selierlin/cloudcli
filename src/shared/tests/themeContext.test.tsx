@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { act, renderHook } from '@testing-library/react';
 import React from 'react';
-import { beforeEach, test } from 'vitest';
+import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { BUILTIN_THEMES } from '@/shared/constants';
 import { ThemeProvider, useTheme } from '@/shared/context/ThemeContext';
@@ -166,4 +166,99 @@ test('both appearances are registered as built-in themes', () => {
     assert.equal(matches.length, 1, `expected exactly one built-in ${appearance} theme`);
     assert.ok(matches[0].id.startsWith('cc-'), 'built-in ids must keep the cc- prefix');
   }
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+/**
+ * The overlay axis is orthogonal to the appearance one: `themeId` picks which
+ * `[data-theme]` rule is layered on, while the light/dark/system capsule stays
+ * the only thing deciding which half of the palette is in force. A pick is
+ * therefore applied on top of the appearance, not instead of it — which is why
+ * choosing `cc-dark` here leaves the light appearance alone.
+ */
+test('picking an overlay applies it to the document', () => {
+  const { result } = renderHook(() => useTheme(), { wrapper });
+  assert.equal(result.current.themeId, null);
+  assert.equal(result.current.resolvedThemeId, 'cc-light');
+
+  act(() => {
+    result.current.setThemeId('cc-dark');
+  });
+
+  assert.equal(result.current.themeId, 'cc-dark');
+  assert.equal(result.current.resolvedThemeId, 'cc-dark');
+  assert.equal(document.documentElement.dataset.theme, 'cc-dark');
+  assert.equal(readUserPreference('themeId', null), 'cc-dark');
+});
+
+test('clearing the overlay returns to the appearance default', () => {
+  writeUserPreference('themeId', 'cc-dark');
+
+  const { result } = renderHook(() => useTheme(), { wrapper });
+  assert.equal(document.documentElement.dataset.theme, 'cc-dark');
+
+  act(() => {
+    result.current.setThemeId(null);
+  });
+
+  assert.equal(result.current.themeId, null);
+  assert.equal(result.current.resolvedThemeId, 'cc-light');
+  assert.equal(document.documentElement.dataset.theme, 'cc-light');
+  assert.equal(readUserPreference('themeId', null), null);
+});
+
+/**
+ * The overlay is the one theme setting worth carrying to another device on its
+ * own, so it is adopted from the preference store whatever the local appearance
+ * is doing — including while that appearance follows the OS.
+ */
+test('an overlay picked elsewhere is adopted here', () => {
+  const { result } = renderHook(() => useTheme(), { wrapper });
+
+  act(() => {
+    writeUserPreference('themeId', 'cc-dark');
+  });
+
+  assert.equal(result.current.themeId, 'cc-dark');
+  assert.equal(document.documentElement.dataset.theme, 'cc-dark');
+});
+
+test('an overlay pick is stored even while the appearance follows the system', () => {
+  const { result } = renderHook(() => useTheme(), { wrapper });
+  assert.equal(result.current.theme, 'system');
+
+  act(() => {
+    result.current.setThemeId('cc-dark');
+  });
+
+  assert.equal(readUserPreference('themeId', null), 'cc-dark');
+  assert.equal(
+    readUserPreference('theme', null),
+    null,
+    'the appearance key keeps its system exemption',
+  );
+});
+
+/**
+ * A theme mirrored from a device that has it installed may not exist here. The
+ * picker keeps showing the user's own choice, so the fallback has to be loud
+ * instead of silent — and the document still has to come out with an id a rule
+ * actually declares, never one nothing matches.
+ */
+test('an overlay this device does not ship falls back to the appearance default', () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  writeUserPreference('themeId', 'cc-ocean');
+
+  const { result } = renderHook(() => useTheme(), { wrapper });
+
+  assert.equal(result.current.themeId, 'cc-ocean', 'the pick is still reported back');
+  assert.equal(result.current.resolvedThemeId, 'cc-light');
+  assert.equal(document.documentElement.dataset.theme, 'cc-light');
+  assert.ok(
+    warn.mock.calls.some(([message]) => String(message).includes('cc-ocean')),
+    'the fallback must be announced rather than silent',
+  );
 });

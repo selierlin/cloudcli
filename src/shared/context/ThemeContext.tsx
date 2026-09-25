@@ -15,6 +15,12 @@ type ThemeContextValue = {
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   isDarkMode: boolean;
   toggleDarkMode: () => void;
+  /** The overlay theme the user picked, or null to follow the appearance default. */
+  themeId: string | null;
+  /** The overlay id actually applied to `<html data-theme>`, after any fallback. */
+  resolvedThemeId: string;
+  /** Picks an overlay theme; null returns to the appearance default. */
+  setThemeId: (themeId: string | null) => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -39,6 +45,27 @@ function builtinThemeFor(appearance: 'light' | 'dark'): ThemeManifest {
     throw new Error(`No built-in theme registered for the ${appearance} appearance`);
   }
   return manifest;
+}
+
+/**
+ * Looks up an overlay theme by id, or null when this build does not ship it. A
+ * theme picked on another device arrives through the preference mirror as its id
+ * alone, so the theme backing it may simply not be installed here — that is what
+ * returns null, and the caller falls back rather than applying an id no rule
+ * declares.
+ */
+function builtinThemeById(id: string): ThemeManifest | null {
+  return BUILTIN_THEMES.find((candidate) => candidate.id === id) ?? null;
+}
+
+/**
+ * The theme actually in force: the picked overlay when this device has it and
+ * otherwise the built-in theme for the current appearance. Derived on every
+ * render so a missing theme falls back identically for the effect and for the
+ * value the context publishes.
+ */
+function resolveTheme(themeId: string | null, appearance: 'light' | 'dark'): ThemeManifest {
+  return (themeId ? builtinThemeById(themeId) : null) ?? builtinThemeFor(appearance);
 }
 
 /** Mounted once by App so every module can read and switch the colour theme through useTheme. */
@@ -67,6 +94,14 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     return false;
   });
 
+  // The picked overlay, read synchronously from the mirror for the same reason as
+  // the appearance: so the first paint already selects the right `[data-theme]`.
+  const [themeId, setThemeIdState] = useState<string | null>(() =>
+    readUserPreference<string | null>('themeId', null));
+
+  const appearance = isDarkMode ? 'dark' : 'light';
+  const resolvedThemeId = resolveTheme(themeId, appearance).id;
+
   // The theme now lives in auth.db, so a change made on another device (or in
   // another tab) arrives through the preference store rather than a re-render.
   useEffect(() => subscribeToUserPreferences(() => {
@@ -75,6 +110,11 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       setThemeState(savedTheme);
       setIsDarkMode(savedTheme === 'dark');
     }
+
+    // The overlay follows another device unconditionally: unlike the appearance it
+    // has no "system" value, so there is no case where this device's own state is
+    // the one that should win.
+    setThemeIdState(readUserPreference<string | null>('themeId', null));
   }), [theme]);
 
   // Applying the theme to the document and persisting it are deliberately
@@ -82,12 +122,20 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   // theme had been fetched — writing this device's system default over the
   // theme the user actually chose on another one.
   useEffect(() => {
-    const appearance = isDarkMode ? 'dark' : 'light';
-    const manifest = builtinThemeFor(appearance);
+    const manifest = resolveTheme(themeId, appearance);
 
-    // The overlay selector. Today both ids resolve to the base palette, so this
-    // is inert until a theme carrying its own overlay is selectable; it lives
-    // here because the appearance is what decides which default is current.
+    // A theme synced from another device may not be installed here. Warn rather
+    // than drop it silently: the picker still shows the user's own choice, so the
+    // reason it is not in force has to stay findable.
+    if (themeId && manifest.id !== themeId) {
+      console.warn(
+        `Theme "${themeId}" is not installed on this device; falling back to "${manifest.id}".`,
+      );
+    }
+
+    // The overlay selector. The default themes declare no overlay of their own, so
+    // this stays inert until a theme carrying one is picked; it is still written
+    // because it is the contract the overlay rules and the contract tests key on.
     document.documentElement.dataset.theme = manifest.id;
 
     // Hand the appearance to the UA so the parts we do not paint ourselves —
@@ -105,7 +153,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     // `applyThemeChrome` resolves the theme's colour through the browser and
     // publishes it, in place of the two hex literals this effect used to carry.
     applyThemeChrome(appearance, manifest);
-  }, [isDarkMode]);
+  }, [appearance, isDarkMode, themeId]);
 
   // Listen for system theme changes
   useEffect(() => {
@@ -134,8 +182,17 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     writeUserPreference('theme', nextTheme);
   }, []);
 
-  // The only writer: a theme is stored because the user picked it, never
-  // because this device happened to start on one.
+  // Picking an overlay is always a deliberate act, so this has no `system` branch
+  // to skip persisting: `system` describes the appearance axis, and this key has
+  // no counterpart to it. Saving it even while the appearance follows the OS is
+  // what makes the pick follow the user to their other devices.
+  const setThemeId = useCallback((nextThemeId: string | null) => {
+    setThemeIdState(nextThemeId);
+    writeUserPreference('themeId', nextThemeId);
+  }, []);
+
+  // The only writer of the appearance: it is stored because the user picked it,
+  // never because this device happened to start on one.
   const toggleDarkMode = useCallback(() => {
     setIsDarkMode((previous) => {
       const next = !previous;
@@ -150,8 +207,16 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   // A fresh object here would re-render every consumer in the app on any
   // render of this provider, theme change or not.
   const value = useMemo<ThemeContextValue>(
-    () => ({ theme, setTheme, isDarkMode, toggleDarkMode }),
-    [theme, setTheme, isDarkMode, toggleDarkMode],
+    () => ({
+      theme,
+      setTheme,
+      isDarkMode,
+      toggleDarkMode,
+      themeId,
+      resolvedThemeId,
+      setThemeId,
+    }),
+    [theme, setTheme, isDarkMode, toggleDarkMode, themeId, resolvedThemeId, setThemeId],
   );
 
   return (

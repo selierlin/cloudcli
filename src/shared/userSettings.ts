@@ -19,6 +19,13 @@ import type { QuickReply } from '@/shared/types';
 /** Every setting the server stores for a user. */
 export type UserPreferences = {
   theme: 'light' | 'dark';
+  /**
+   * The overlay theme the user picked, or null to follow the default for whichever
+   * appearance `theme` resolves to. Kept apart from `theme` because the two axes are
+   * orthogonal: `theme` is the only light/dark control, and this only picks which
+   * `[data-theme]` overlay is layered on top of it.
+   */
+  themeId: string | null;
   userLanguage: string;
   tasksEnabled: boolean;
   projectSortOrder: 'name' | 'date';
@@ -63,6 +70,10 @@ const SERVER_WRITE_DEBOUNCE_MS = 400;
  */
 const LEGACY_STORAGE_KEYS: Record<UserPreferenceKey, string> = {
   theme: 'theme',
+  // A theme overlay pick never had a browser-local home: the appearance did, and
+  // this key is the one thing the appearance cannot express. An empty legacy key
+  // is therefore what keeps it unset rather than seeded from a stale value.
+  themeId: '',
   userLanguage: 'userLanguage',
   tasksEnabled: 'tasks-enabled',
   projectSortOrder: 'claude-settings',
