@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
+import { BUILTIN_THEMES } from '@/shared/constants';
 import {
   readUserPreference,
   subscribeToUserPreferences,
@@ -23,6 +24,20 @@ export const useTheme = () => {
   }
   return context;
 };
+
+/**
+ * The built-in theme id for an appearance, which is also the `<html data-theme>`
+ * value selecting that theme's overlay. Both appearances are always registered,
+ * so a miss means the registry lost an entry and should fail loudly rather than
+ * leave the document without a theme id.
+ */
+function builtinThemeIdFor(appearance: 'light' | 'dark'): string {
+  const manifest = BUILTIN_THEMES.find((candidate) => candidate.appearance === appearance);
+  if (!manifest) {
+    throw new Error(`No built-in theme registered for the ${appearance} appearance`);
+  }
+  return manifest.id;
+}
 
 /** Mounted once by App so every module can read and switch the colour theme through useTheme. */
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
@@ -65,6 +80,11 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   // theme had been fetched — writing this device's system default over the
   // theme the user actually chose on another one.
   useEffect(() => {
+    // The overlay selector. Today both ids resolve to the base palette, so this
+    // is inert until a theme carrying its own overlay is selectable; it lives
+    // here because the appearance is what decides which default is current.
+    document.documentElement.dataset.theme = builtinThemeIdFor(isDarkMode ? 'dark' : 'light');
+
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
 

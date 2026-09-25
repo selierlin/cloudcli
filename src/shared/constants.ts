@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 
-import type { FileStatusCode, LLMProvider, McpAddBlockedReason, McpProvider, McpScope, McpTransport, SettingsMainTab } from '@/shared/types';
+import type { FileStatusCode, LLMProvider, McpAddBlockedReason, McpProvider, McpScope, McpTransport, SettingsMainTab, ThemeManifest } from '@/shared/types';
 import type { UserPreferenceKey } from '@/shared/userSettings';
 
 /** The four buckets the git changes view sorts working-tree files into. */
@@ -303,5 +303,37 @@ export const PROVIDER_PERMISSION_PREFERENCE_KEYS: Record<LLMProvider, UserPrefer
  * without the other silently breaks both the saved-server list and session restore.
  */
 export const CLOUDCLI_SERVERS_KEY = 'cloudcli.servers';
+
+// ---------------------------
+
+//----------------- THEMES ------------
+
+/**
+ * The themes shipped with the app, in selector order. `cc-light` and `cc-dark`
+ * are the two default appearances and declare no overlay of their own: their
+ * palette is exactly the one `src/index.css` declares in `:root` / `.dark`.
+ * Every further built-in theme is an overlay on top of one of those, applied
+ * through the `[data-theme="<id>"]` rules the stylesheet declares.
+ *
+ * Read by the theme provider, which writes the id matching the current
+ * appearance to `<html data-theme>`, and by the appearance settings' theme
+ * selector.
+ */
+export const BUILTIN_THEMES: ThemeManifest[] = [
+  {
+    id: 'cc-light',
+    name: '默认（浅色）',
+    appearance: 'light',
+    source: 'builtin',
+    coverage: 'full',
+  },
+  {
+    id: 'cc-dark',
+    name: '默认（深色）',
+    appearance: 'dark',
+    source: 'builtin',
+    coverage: 'full',
+  },
+];
 
 // ---------------------------
