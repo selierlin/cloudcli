@@ -196,6 +196,16 @@
     "dark": "深色",
     "system": "跟随系统"
   },
+  "themeSelector": {
+    "label": "配色主题",
+    "description": "在不改变浅色 / 深色外观的前提下换一套配色",
+    "default": "默认",
+    "coverage": {
+      "accent": "强调色",
+      "full": "完整"
+    },
+    "notInstalled": "「{{id}}」未安装，已用默认配色。"
+  },
   "appearanceSettings": {
     "projectSorting": {
       "label": "项目排序",
