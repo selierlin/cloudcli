@@ -21,7 +21,7 @@ const STATUS_CONFIG: Record<ToolStatus, { label: string; className: string }> = 
   },
   stopped: {
     label: 'Stopped',
-    className: 'bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-300',
+    className: 'bg-n-slate-100 text-n-slate-700 dark:bg-n-slate-900/30 dark:text-n-slate-300',
   },
 };
 
