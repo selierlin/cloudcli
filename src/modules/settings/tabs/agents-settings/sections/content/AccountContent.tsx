@@ -40,19 +40,19 @@ const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
   codex: {
     name: 'Codex',
     bgClass: 'bg-muted/50',
-    borderClass: 'border-gray-300 dark:border-gray-600',
-    textClass: 'text-gray-900 dark:text-gray-100',
-    subtextClass: 'text-gray-700 dark:text-gray-300',
-    buttonClass: 'bg-gray-800 hover:bg-gray-900 active:bg-gray-950 dark:bg-gray-700 dark:hover:bg-gray-600 dark:active:bg-gray-500',
+    borderClass: 'border-n-gray-300 dark:border-n-gray-600',
+    textClass: 'text-n-gray-900 dark:text-n-gray-100',
+    subtextClass: 'text-n-gray-700 dark:text-n-gray-300',
+    buttonClass: 'bg-n-gray-800 hover:bg-n-gray-900 active:bg-n-gray-950 dark:bg-n-gray-700 dark:hover:bg-n-gray-600 dark:active:bg-n-gray-500',
   },
   opencode: {
     name: 'OpenCode',
     description: 'OpenCode CLI assistant',
-    bgClass: 'bg-zinc-50 dark:bg-zinc-900/20',
-    borderClass: 'border-zinc-200 dark:border-zinc-700',
-    textClass: 'text-zinc-900 dark:text-zinc-100',
-    subtextClass: 'text-zinc-700 dark:text-zinc-300',
-    buttonClass: 'bg-zinc-900 hover:bg-zinc-800 active:bg-zinc-950 dark:bg-zinc-700 dark:hover:bg-zinc-600',
+    bgClass: 'bg-n-zinc-50 dark:bg-n-zinc-900/20',
+    borderClass: 'border-n-zinc-200 dark:border-n-zinc-700',
+    textClass: 'text-n-zinc-900 dark:text-n-zinc-100',
+    subtextClass: 'text-n-zinc-700 dark:text-n-zinc-300',
+    buttonClass: 'bg-n-zinc-900 hover:bg-n-zinc-800 active:bg-n-zinc-950 dark:bg-n-zinc-700 dark:hover:bg-n-zinc-600',
   },
   dsh: {
     name: 'DeepSeek Harness',
@@ -80,11 +80,11 @@ const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
   },
   zcode: {
     name: 'ZCode',
-    bgClass: 'bg-neutral-50 dark:bg-neutral-900/20',
-    borderClass: 'border-neutral-300 dark:border-neutral-700',
-    textClass: 'text-neutral-900 dark:text-neutral-100',
-    subtextClass: 'text-neutral-700 dark:text-neutral-300',
-    buttonClass: 'bg-neutral-700 hover:bg-neutral-800 active:bg-neutral-900',
+    bgClass: 'bg-n-neutral-50 dark:bg-n-neutral-900/20',
+    borderClass: 'border-n-neutral-300 dark:border-n-neutral-700',
+    textClass: 'text-n-neutral-900 dark:text-n-neutral-100',
+    subtextClass: 'text-n-neutral-700 dark:text-n-neutral-300',
+    buttonClass: 'bg-n-neutral-700 hover:bg-n-neutral-800 active:bg-n-neutral-900',
   },
   omp: {
     name: 'OMP',
@@ -145,7 +145,7 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
                   {t('agents.authStatus.connected')}
                 </Badge>
               ) : (
-                <Badge variant="secondary" className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300">
+                <Badge variant="secondary" className="bg-n-gray-100 text-n-gray-800 dark:bg-n-gray-800 dark:text-n-gray-300">
                   {t('agents.authStatus.disconnected')}
                 </Badge>
               )}
@@ -167,7 +167,7 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
                 </div>
                 <Button
                   onClick={onLogin}
-                  className={`${config.buttonClass} text-white`}
+                  className={`${config.buttonClass} text-n-white`}
                   size="sm"
                 >
                   <LogIn className="mr-2 h-4 w-4" />
