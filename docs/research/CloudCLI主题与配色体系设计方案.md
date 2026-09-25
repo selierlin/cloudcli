@@ -1,7 +1,7 @@
 # CloudCLI 主题与配色体系设计方案
 
 > 编写日期：2026-09-24 ｜ 修订：2026-09-25（v5：阶段 0-A / 0-B / 0-C 已实施并验收，记录见 §6）
-> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j / 0-E2k / 0-E2l / 0-E2m / 0-E2n / 0-E2o / 0-E2p / 0-E2q / 0-E2r / 0-E2s / 0-E2t / 0-E2u / 0-E2v / 0-E2w / 0-E2x / 0-E2y / 0-E2z / 0-E3a / 0-E3b / 0-E3c / 0-E3d / 0-E3e / 0-E3f / 0-E3g / 0-E3h / 0-E3i / 0-E3j / 0-E3k / 0-E3l / 0-E3m / 0-E3n / 0-E3o / 0-E3p / 0-E3q / 0-E3r / 0-E3s / 0-E3t / 0-E3u / 0-E3v / 0-E3w / 0-E3x / 0-E3y / 0-E3z / 0-E4a / 0-E4b / 0-E4c / 0-E4d / 0-E4e / 0-E4f / 0-E4g / 0-E4h / 0-E4i / 0-E4j / 0-E4k / 0-E4l / 0-E4m / 0-E4n / 0-E4o / 0-E4p / 0-E4q / 0-E4r / 0-E4s / 0-E4t / 0-E4u / 0-E4v / 0-E4w / 0-E4x / 0-E4y / 0-E4z / 0-E5a / 0-E5b / 0-E5c / 0-E5d / 0-E5e / 0-E5f / 0-E5g / 0-E5h / 0-E5i / 0-E5j / 0-E5k / 0-E5l / 0-E5m / 0-E5n / 0-E5o / 0-E5p / 0-E5q / 0-E5r / 0-E5s / 0-E5t / 0-E5u / 0-E5v / 0-E5w / 0-E5x / 0-E5y / 0-E5z / 0-E6a / 0-E6b / 0-E6c / 0-E6d 一百一十五片，**阶段 0 的迁移分片已全部实施**；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内；0-E3i 修正了产物核对脚本的**前提假设缺口**——脚本原假设"被测文件迁移前不含 `n-*` 令牌"，随分片推进（前片已令牌化的文件被再次触碰）必然被打破；0-E6d 又暴露一处**护栏前提失效**——守恒律反空转护栏里"必须扫到 ≥1 处带透明度修饰的**字面**中性色"这条断言，随阶段 0 归零而失去可满足前提（仓库计数无论捕获组是否健在都读 0），改为对解析形状的合成名断言。截至 0-E6d：中性具名硬编码剩余 **0 处 / 0 文件**（起点 1517 / 105；阶段 0 迁移完成，仅余 1 处豁免 `border-gray-150`）。**阶段 1 已开工**：1-A（主题骨架：`ThemeManifest` + `BUILTIN_THEMES` + `<html data-theme>`）与 1-B 第一步（随 `appearance` 在 `<html>` 写 `color-scheme`，本线**第一个有意的视觉变更**）均已实施并验收；1-B2 的三个子片（删 2 行已失效的 `color-scheme: dark`、textarea 的 `color-scheme` 改为随应用外观、68 处暗色补偿改走既有令牌）也已完成；**其前置 0-F 也已实施**（Git 图 lane 色抽为 `--graph-lane-1..10` ＋ 移动端终端选区菜单 7 处色值令牌化，拆 0-F1 / 0-F2 两片），切片表与记录见 §6）；**1-C 与 1-D 也已完成**（1-C：`theme-color` 与 iOS status-bar 改由令牌派生，`ThemeContext` 里两处手写 hex 删除、两个分支合并，`ThemeManifest` 的 `themeColor` / `statusBar` 覆盖字段一并落地；1-D：新增 `themeId` 偏好键，`ThemeContext` 暴露 `themeId` / `resolvedThemeId` / `setThemeId`，跨设备"未安装该主题"的回落不再静默——**1-E 也已完成**（覆盖层机制 ＋ 两套示范主题 `cc-ocean`（`accent`）/ `cc-polar`（`full`）＋ 注册表扩充，三片各自独立 commit；修正了 §5.2 的 cascade 假设、定了 `appearance` 的两角色模型——**1-F 也已完成**（`f2e03c6f`：外观设置页的配色主题选择器 ＋ `coverage` 徽标 ＋ 跨设备未安装的回落提示，i18n 实补 en ＋ zh-CN；原计划"只补 zh-CN"的前提经实测不成立——仓库现状是 zh-CN ⊆ en——**下一片 = 1-G**（JS 消费者随主题刷新：xterm 重读 `--term-*` 重设 `options.theme`、CodeMirror compartment reconfigure；Git 图这一路经实测 SVG 表现属性直接吃 `var()`，**无需刷新机制**））
+> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j / 0-E2k / 0-E2l / 0-E2m / 0-E2n / 0-E2o / 0-E2p / 0-E2q / 0-E2r / 0-E2s / 0-E2t / 0-E2u / 0-E2v / 0-E2w / 0-E2x / 0-E2y / 0-E2z / 0-E3a / 0-E3b / 0-E3c / 0-E3d / 0-E3e / 0-E3f / 0-E3g / 0-E3h / 0-E3i / 0-E3j / 0-E3k / 0-E3l / 0-E3m / 0-E3n / 0-E3o / 0-E3p / 0-E3q / 0-E3r / 0-E3s / 0-E3t / 0-E3u / 0-E3v / 0-E3w / 0-E3x / 0-E3y / 0-E3z / 0-E4a / 0-E4b / 0-E4c / 0-E4d / 0-E4e / 0-E4f / 0-E4g / 0-E4h / 0-E4i / 0-E4j / 0-E4k / 0-E4l / 0-E4m / 0-E4n / 0-E4o / 0-E4p / 0-E4q / 0-E4r / 0-E4s / 0-E4t / 0-E4u / 0-E4v / 0-E4w / 0-E4x / 0-E4y / 0-E4z / 0-E5a / 0-E5b / 0-E5c / 0-E5d / 0-E5e / 0-E5f / 0-E5g / 0-E5h / 0-E5i / 0-E5j / 0-E5k / 0-E5l / 0-E5m / 0-E5n / 0-E5o / 0-E5p / 0-E5q / 0-E5r / 0-E5s / 0-E5t / 0-E5u / 0-E5v / 0-E5w / 0-E5x / 0-E5y / 0-E5z / 0-E6a / 0-E6b / 0-E6c / 0-E6d 一百一十五片，**阶段 0 的迁移分片已全部实施**；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内；0-E3i 修正了产物核对脚本的**前提假设缺口**——脚本原假设"被测文件迁移前不含 `n-*` 令牌"，随分片推进（前片已令牌化的文件被再次触碰）必然被打破；0-E6d 又暴露一处**护栏前提失效**——守恒律反空转护栏里"必须扫到 ≥1 处带透明度修饰的**字面**中性色"这条断言，随阶段 0 归零而失去可满足前提（仓库计数无论捕获组是否健在都读 0），改为对解析形状的合成名断言。截至 0-E6d：中性具名硬编码剩余 **0 处 / 0 文件**（起点 1517 / 105；阶段 0 迁移完成，仅余 1 处豁免 `border-gray-150`）。**阶段 1 已开工**：1-A（主题骨架：`ThemeManifest` + `BUILTIN_THEMES` + `<html data-theme>`）与 1-B 第一步（随 `appearance` 在 `<html>` 写 `color-scheme`，本线**第一个有意的视觉变更**）均已实施并验收；1-B2 的三个子片（删 2 行已失效的 `color-scheme: dark`、textarea 的 `color-scheme` 改为随应用外观、68 处暗色补偿改走既有令牌）也已完成；**其前置 0-F 也已实施**（Git 图 lane 色抽为 `--graph-lane-1..10` ＋ 移动端终端选区菜单 7 处色值令牌化，拆 0-F1 / 0-F2 两片），切片表与记录见 §6）；**1-C 与 1-D 也已完成**（1-C：`theme-color` 与 iOS status-bar 改由令牌派生，`ThemeContext` 里两处手写 hex 删除、两个分支合并，`ThemeManifest` 的 `themeColor` / `statusBar` 覆盖字段一并落地；1-D：新增 `themeId` 偏好键，`ThemeContext` 暴露 `themeId` / `resolvedThemeId` / `setThemeId`，跨设备"未安装该主题"的回落不再静默——**1-E 也已完成**（覆盖层机制 ＋ 两套示范主题 `cc-ocean`（`accent`）/ `cc-polar`（`full`）＋ 注册表扩充，三片各自独立 commit；修正了 §5.2 的 cascade 假设、定了 `appearance` 的两角色模型——**1-F 也已完成**（`f2e03c6f`：外观设置页的配色主题选择器 ＋ `coverage` 徽标 ＋ 跨设备未安装的回落提示，i18n 实补 en ＋ zh-CN；原计划"只补 zh-CN"的前提经实测不成立——仓库现状是 zh-CN ⊆ en——**1-G 也已完成**（`7b406986`：刷新 effect 补 `resolvedThemeId` 依赖，覆盖层的切换 / 清除都会让 xterm 重读 `--term-*`；**另两路经核查无需刷新**——编辑器的 chrome 与 highlight 全是 `var()`、Git 图是 SVG 表现属性；范围据此收窄并回写 §5.6 v10。**阶段 1 至此只剩 1-H**：把 §5.11 契约测试扩到"每个 `[data-theme]` 覆盖层"的完整遍历 ＋ §5.10 对比度断言（`--ring`/`--background` ≥ 3:1、正文 ≥ 4.5:1）——对比度自检的数已在 1-E 记录里备好））
 > 参照物：WorkBuddy（`/Applications/WorkBuddy.app`，app.asar 解包 + 本机皮肤包实物）、Codex CLI（`@openai/codex@0.155.1`，Rust 二进制字符串解析）
 > 目标读者：评审 AI / 后续实施者
 
@@ -385,6 +385,14 @@ export type ThemeManifest = {
 > **v8（1-D 追加）**：上面那条"跨设备同步的边界"里的两处待决，已在 1-D 落地（见该片记录）。**决策一**：`system` 分支的豁免**只属于明暗键**，不延伸到 `themeId`——`theme` 键豁免是为了不让"本机跟随系统"这个**临时态**覆盖跨设备的永久选择，而挑主题本身就是一次显式选择、没有 system 对应物，所以 `setThemeId` 无条件写偏好（已断言"system 下选主题仍写入 `themeId`、而 `theme` 仍不写"）。**决策二**：回落不再可能静默——解析层 `resolveTheme(themeId, appearance)` 查不到该 id 时返回外观默认，`ThemeContext` 把**生效 id** 与**用户所选 id** 分开暴露（`resolvedThemeId` / `themeId`），并在 effect 里 `console.warn` 报出"此设备未安装 X、已回落 Y"。**提示 UI 留到 1-F**（届时判 `themeId !== null && themeId !== resolvedThemeId` 即可渲染），1-D 只负责让回落可被观测、可被判据。另记一条本片**未定、不阻塞**的边界：用户显式选了与外观同名的默认别名（`cc-light` / `cc-dark`）之后再切换明暗胶囊，`data-theme` 应留在所选别名还是回到外观默认——这属 1-E 扩充注册表时要一并定的模型问题（1-D 阶段这两个 id 都无覆盖层，两种解释视觉等值，故不影响本片）。
 
 > **v9（1-F 追加）**：v8 写的"**提示 UI 留到 1-F**"已落地——`ThemeSelector` 在 `themeId !== null && themeId !== resolvedThemeId` 时渲染一行 `role="status"` 说明（点名缺失的 id）。两点补记：① **判据用的是"两个 id 不相等"，不是"所选 id 不在注册表里"**——`resolveTheme` 已经是唯一的解析入口，再让选择器自己查一遍注册表就是第二份真源，而这个真相（本机没装 → 已回落）正是它算出来的。② 该提示**是 v8 决策二唯一的消费者**：1-D 之所以把 `resolvedThemeId` 与 `themeId` 分开暴露，图的就是这一处；此前它只有 `console.warn` 一个出口，属"可观测但不可见"。v8 里那条"默认别名与胶囊的关系"**已由 1-E 消解**（默认别名不进选择器，见 §5.3 v9）。
+
+> **v10（1-G 已实施）——上面那条"JS 消费者需要主动刷新"的取值范围，被实测收窄到只剩 xterm**。逐条核过三个"JS 消费者"，结论是**只有把一个解析后的色值塞进 JS 对象的那类才需要刷新**：
+>
+> - **xterm：确实需要**（唯一真需要的一路）。它把**具体色值**放进 `options.theme` 供 canvas 绘制，`var()` 根本不参与。两处校正：① **实现与该 bullet 写的不一样**——不是读 `getComputedStyle(document.documentElement)`，而是 `readTerminalTheme()` 建一个探针 `div`、写 `hsl(var(--term-x))` 再读回 computed color，并带 `transition: none` 绕开 `index.css` 的 200ms 过渡（一个探针、一个读取）。② **触发点原来只覆盖明暗**：`useShellTerminal` 的刷新 effect 只依赖 `isDarkMode`，1-G 补上 `resolvedThemeId`，覆盖层的**切换与清除**才同样触发重读。
+> - **CodeMirror：不需要**。该 bullet 说它"在扩展创建时求值"，但 0-D 的落地把 `EditorView.theme()` 与 `HighlightStyle.define()` 的**每个色值都写成了 `var()` 字符串**——它们是注入样式表的普通 CSS 规则，由浏览器在绘制时解析，覆盖层换值即重绘，**无需 compartment reconfigure**。这是 0-D"实现比草案更强"的直接后果（同 0-D 记录里的体例）；本片只核对并记录，未改代码，结论由 `editorThemeTokens.test.ts` 常驻（它拒绝任何不是 `var(--editor-*)` 的 chrome 值）。
+> - **Git 图：不需要**（原 bullet 已对），`CommitGraphStrip.tsx` 是 SVG，表现属性直接吃 `var(--graph-lane-N)`。
+>
+> 判据可复述为一句：**看色值最终交给谁**——交给 CSS（注入的样式表、SVG 表现属性、内联 `style`）就不用刷新；交给 JS 数值对象（xterm 的 `ITheme`）才要。
 
 ### 5.7 硬编码收口清单（阶段 0 的施工面）
 
@@ -3252,7 +3260,7 @@ Mutation 侧：
 | 1-D | `themeId` 偏好键 + `ThemeContext` 暴露 `themeId` / `resolvedThemeId` / `setThemeId`（含 §5.6 的跨设备回落边界） | ✅ 已实施（`7ce0fbda`）。两处决策见 §5.6 v8：**system 豁免只属明暗键**（`setThemeId` 无条件写偏好）、**回落不静默**（生效 id 与所选 id 分开暴露 ＋ `console.warn`，选择器提示 UI 留 1-F）。未取主题时行为与改动前逐位一致（无 CSS 改动、产物 CSS 逐字节相同） |
 | 1-E | 两套示范主题的覆盖层（**unlayered** `[data-theme]` 规则，含 `.dark` 分支）+ 注册表扩充 + `coverage` 标注 | ✅ 已实施（`695a6c1b` / `29fb85fa` / `08236ef0`，三片）。机制 ＋ `cc-ocean`（`accent`，只覆盖 L1 一个色族）＋ `cc-polar`（`full`：42 条基材/终端/图 ＋ 编辑器浅暗两半）；新增 `theme-overlays.spec.ts`（6 用例 ×2 引擎，逐主题参数化）与 fixture `readWithTheme`。**修正 §5.2 的 cascade 假设**（处理后无 `@layer`，改判为结构约定）；`cc-light` / `cc-dark` 定为外观默认、不进选择器（消解 1-D 边界一）。详见 §6 阶段 1 末 1-E 记录 |
 | 1-F | 外观设置页主题选择器 + `coverage` badge（i18n 只补 zh-CN） | ✅ 已实施（`f2e03c6f`）。`settings/ThemeSelector` 列出 `appearance === 'system'` 的覆盖层主题（外观默认不进列表）＋ 一个「默认」项；徽标按 `coverage` 渲染；`themeId !== resolvedThemeId` 时出一行回落提示，补上 1-D 留下的消费者。归属按 `shared/ui` 准入线放 **settings 模块**（只有一个消费者）。**原计划"i18n 只补 zh-CN"的前提不成立**：实测仓库现状是 zh-CN ⊆ en（en 为键集基准），故实补 en ＋ zh-CN 两处。详见 §6 阶段 1 末 1-F 记录 |
-| 1-G | JS 消费者随主题刷新：xterm 重读 `--term-*` 重设 `options.theme`、CodeMirror compartment reconfigure、Git 图 SVG 直接用 `var(--graph-lane-*)` | 待做（**前置已就位**：`--graph-lane-*` 由 0-F1 落地；且实测 SVG 表现属性 `stroke` / `fill` 直接吃 `var()`，chromium 与 webkit 均支持，故 Git 图这一路**无需刷新机制**——与 xterm 不同） |
+| 1-G | JS 消费者随主题刷新：xterm 重读 `--term-*` 重设 `options.theme`、CodeMirror compartment reconfigure、Git 图 SVG 直接用 `var(--graph-lane-*)` | ✅ 已实施（`7b406986`）。**实测三路里只有 xterm 需要做**：编辑器（0-D 落地时 chrome 与 highlight 的每个色值都是 `var()`，由注入样式表在绘制时解析）与 Git 图（SVG 表现属性）都无需刷新，故代码改动仅"刷新 effect 补 `resolvedThemeId` 依赖"一处。新增 `shellTerminalThemeRefresh.test.tsx`（桩终端 ＋ 计数读取，4 例）与 `terminal-tokens.spec.ts` 一例（覆盖层确实移动色板 ＝ 刷新的前提）。§5.6 的"JS 消费者需要刷新"已按此收窄（v10）。详见本片记录 |
 | 1-H | §5.11 契约测试扩到"遍历每套 `[data-theme]` 覆盖层"与 §5.10 对比度断言（`--ring`/`--background` ≥ 3:1、正文 ≥ 4.5:1） | 待做 |
 
 **分片口径**：与阶段 0 同——每片独立迁移、独立验收、独立 commit、可单独回退；批次化（若合批）只合并重量级门槛的调用次数，片内仍逐片验。
@@ -3553,6 +3561,47 @@ Mutation 侧：
 **门槛**：`test:client` **129 文件 / 984 用例**（1-E 收官 128/979 ＋ 本片 1 文件 5 用例）；`typecheck`（含 server）与 `typecheck:theme-tokens` 干净；`lint` **153 warnings / 0 error**；`build` exit 0（构建期那 4 条 `Unexpected "{"` CSS 警告是既有噪声，非本片引入）。
 
 **与既有账的关系**：阶段 0 迁移账（0 处 / 余 1 处豁免）与 B3 账户（`index.css` 选择器级消费者）均不受影响——本片未碰任何 CSS，也未新增 Tailwind 具名色；阶段 1 不计处数，按片计。
+
+
+#### 1-G 实施记录（2026-09-26，`7b406986`）
+
+**范围**：`src/modules/shell/hooks/useShellTerminal.ts`（刷新 effect 加一个依赖 ＋ 注释重写）、`src/modules/shell/tests/shellTerminalThemeRefresh.test.tsx`（新，4 用例）、`tests/theme-tokens/terminal-tokens.spec.ts`（+1 用例，即 +2 引擎）。**无 CSS 改动、无 i18n 改动。**
+
+**做了什么——先核范围，发现原计划的三路里只有一路需要做**。1-G 的既定描述是"xterm 重设 `options.theme`、CodeMirror compartment reconfigure、Git 图 SVG 直接用 `var()`"。逐条核查消费者形态后：
+
+| 消费者 | 色值最终交给谁 | 需要刷新？ | 依据 |
+|---|---|---|---|
+| xterm | JS 数值对象（`options.theme` → canvas） | **需要** | `var()` 不参与，CSS 变化不传导 |
+| CodeMirror | 注入样式表的 CSS 规则 | **不需要** | 0-D 落地时 `EditorView.theme()` / `HighlightStyle.define()` 的**每个色值都是 `var()` 字符串**，浏览器绘制时解析；已有 `editorThemeTokens.test.ts:45` 常驻断言"chrome 里不存在字面值" |
+| Git 图 | SVG 表现属性 | **不需要** | 0-F1 已实测（§5.6 v6 / v10） |
+
+于是**代码改动只有 xterm 一路**：`useTheme()` 多取一个 `resolvedThemeId`，刷新 effect 的依赖由 `[isDarkMode, terminalRef]` 变为 `[isDarkMode, resolvedThemeId, terminalRef]`。原来的注释写着"本阶段明暗两态色板相同，写进去的就是终端打开时的值"——这句**随 1-E 引入覆盖层而失效**（一个主题现在会移动 `--term-*`），故一并重写。
+
+**关键决策**：
+
+1. **两个依赖都留**。`resolvedThemeId` 在明暗翻转时也会变（`cc-light` ↔ `cc-dark`），单靠它似乎就够；但 `--term-*` 今天是**外观无关**的（`terminal-tokens.spec.ts` 有"明暗两态色板相同"的断言），若将来某个主题让 `--term-*` 随外观分叉，`resolvedThemeId` 对"有覆盖层时"这一点**不再变化**（同一个 id 贯穿两态），只留它就会漏。保留 `isDarkMode` 是把这个假设置于依赖之外。**代价是二者会同时变化时多走一次 effect**——无害（同一帧内幂等重读，`readTerminalTheme` 本来就是"再读一次"的语义）。
+2. **不引入"主题版本号"这类更粗的信号**。曾考虑在 `ThemeContext` 暴露一个每次变更自增的 revision，让消费者只依赖它；但那要新增一个无第二个消费者的状态字段，而当前两个依赖已覆盖全部变化源（外观 ＋ 覆盖层 id）。**等真有第三个变化源再抽**（同 1-D"不提前引入无消费者的状态字段"的判据）。
+3. **测试用桩终端而非真 xterm**。抄 `shellErrorFrame.test.ts` 的做法：给 `terminalRef` 一个 `{ options: {} }` 桩，让"构造终端"的 effect 提前 return（既省掉 canvas，也顺带验证该 effect 的守卫），再把 `readTerminalTheme` 桩成**每次调用返回不同哨兵**——这样才能把"effect 真的重跑"和"重读到了同样的值"区分开。
+4. **契约面补一条"前提成立"的断言**。刷新只有在覆盖层真的会移动色板时才有意义，故 `terminal-tokens.spec.ts` 新增一例：`readWithTheme('cc-polar')` 之后再 `readTerminalTheme()`，断言 `background` 与 `red` **确实变了**，并断言"不切换主题时连续两次读取**相同**"（排除 per-call 噪声，反空转）。
+
+**如实边界（本片未做，不阻塞）**：
+
+1. **对比度断言仍未做**（1-H）；**§5.12 的 >10 lane 参数化回退**仍待拍板。
+2. **`readTerminalTheme()` 没有缓存**：每次主题变更建一个探针 `div` 再移除。这是 0-C 就有的设计（`probe.remove()` 有注释说明），本片未改；若将来刷新频率变高（如逐帧），才需要考虑按 `(appearance, themeId)` 记忆化。
+
+**证据**：
+
+| 层 | 做法 | 结果 |
+|---|---|---|
+| **变异测试（两条）** | ① 刷新 effect 的依赖**去掉 `resolvedThemeId`**（回到改动前）② 让 `cc-polar` **不再覆盖** `--palette-term-bg` | ① **恰 2 红**——两条覆盖层用例（选主题 / 清主题）变红，而**外观翻转那条仍绿**：两条依赖正是各自独立生效的，互为对照；② **恰 4 红**——本片新增的契约用例两引擎各一，**加上**既有的 `theme-overlays.spec.ts` cc-polar 覆盖范围用例两引擎各一（它也承诺 `--term-background` 移动）。两者从不同层报红，说明新增用例提供的不是重复覆盖 |
+| **归属与空转自查** | 首版守卫用例（"无关 re-render 不得重读"）**报红** | 排查为**夹具自身的缺陷**：我在 `renderHook` 回调里每次新建 ref 对象，而 `terminalRef` 正是依赖 → 每次渲染都重跑 effect。改为在夹具外建一次 ref（与 `useRef` 语义一致）后转绿。**这条红不是噪声，恰是"依赖清单真的在起作用"的旁证**，也说明该守卫值得保留 |
+| **既有护栏复用** | 编辑器"无需刷新"的结论 | 不新增断言：`editorThemeTokens.test.ts:45` 的 `/^var\(--editor-[a-z0-9-]+\)$/` 已经拒绝任何字面 chrome 值，正是"浏览器自己会重解析"的机器可校验形式 |
+| **令牌基线** | `test:theme-tokens` | **46 → 48**（本片 +1 用例 ×2 引擎）；`token-baseline.json` 逐位未动 |
+| **零 CSS** | `git diff --stat src/index.css` | 空——覆盖层、令牌、基线三层都不受本片影响 |
+
+**门槛**：`test:client` **130 文件 / 988 用例**（1-F 收官 129/984 ＋ 本片 1 文件 4 用例）；`test:theme-tokens` **48 通过**；`typecheck`（含 server）与 `typecheck:theme-tokens` 干净；`lint` **153 warnings / 0 error**（与 1-F 收官逐位相同）；`build` exit 0。
+
+**与既有账的关系**：阶段 0 迁移账与 B3 账户均不受影响（未碰 CSS）；阶段 1 不计处数，按片计。**本片是本线第一片"先核范围再做"的片**：既定描述里的三路，实测两路早已由更强的实现满足——这与 0-D"实现偏差（比草案更强）"、1-C"探针取代手写 HSL→hex"同体例，故按同样要求**回写 §5.6 v10**（把"JS 消费者需要主动刷新"收窄为"把解析值塞进 JS 对象的那类才需要"）。
 
 
 ### 阶段 2：用户主题
