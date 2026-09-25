@@ -282,10 +282,29 @@ function readTokens(appearance: Appearance): TokenRead {
   return { tokens, rendered };
 }
 
+/**
+ * The same read, with an overlay theme applied. `null` clears `<html
+ * data-theme>`, which is the state the app starts in when the user has not
+ * picked a theme: the base palette.
+ *
+ * The attribute is left in place, so a caller can take several readings by
+ * passing different ids; a fresh `page.goto('/')` is what resets it.
+ */
+function readWithTheme(themeId: string | null, appearance: Appearance): TokenRead {
+  if (themeId === null) {
+    delete document.documentElement.dataset.theme;
+  } else {
+    document.documentElement.dataset.theme = themeId;
+  }
+  return readTokens(appearance);
+}
+
 declare global {
   interface Window {
     __THEME_TOKENS__?: {
       read(appearance: Appearance): TokenRead;
+      /** The same read with an overlay theme applied, or `null` for the base palette. */
+      readWithTheme(themeId: string | null, appearance: Appearance): TokenRead;
       /** The xterm theme the shell hook would build right now. */
       readTerminalTheme(): ITheme;
       /** The colours the mobile selection chrome injects right now. */
@@ -303,6 +322,7 @@ buildProbes();
 
 window.__THEME_TOKENS__ = {
   read: readTokens,
+  readWithTheme,
   readTerminalTheme,
   readMobileSelectionChrome,
   readThemeChrome,

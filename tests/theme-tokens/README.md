@@ -66,6 +66,23 @@ too:
 | `graph-lanes.spec.ts` | the commit-graph lanes and the ref-badge tint back to the hex array `commitGraph.ts` shipped with |
 | `mobile-terminal-selection.spec.ts` | the long-press handle and context menu back to the literals `mobileTerminalSelection.ts` shipped with |
 | `theme-chrome.spec.ts` | the `theme-color` / iOS status-bar metas to the resolved `--background`, plus the token override, translucent flattening and unknown-token fallback paths |
+| `theme-overlays.spec.ts` | each `[data-theme]` overlay: that it is declared outside any `@layer`, that it resolves as written, and that it moves exactly the surfaces its `coverage` advertises |
+
+## Overlay themes
+
+`readWithTheme(themeId, appearance)` is the same read with `<html data-theme>`
+set, so an overlay can be compared against the base palette token by token
+(`null` clears the attribute). `theme-overlays.spec.ts` drives it from
+`BUILTIN_THEMES`, so a newly registered overlay is covered as soon as it is
+added.
+
+Two things are worth knowing before touching that spec. First, an overlay
+declared *inside* a `@layer` is rejected even though it resolves correctly
+today: Tailwind v3 flattens the source's `@layer base` away (the fixture and the
+build both contain zero `@layer` at-rules), so the win currently rests on
+document order, and the constraint is what keeps it true under a pipeline that
+emits real layers. Second, the layer check is the only guard that covers that —
+the browser check cannot see it.
 
 ## Updating the baseline
 

@@ -1486,3 +1486,37 @@
     }
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Theme overlays
+
+   One block per built-in overlay theme, keyed by `<html data-theme>`. These sit
+   deliberately *outside* every `@layer`. Tailwind v3 flattens the `@layer base`
+   above into plain rules, so in the processed stylesheet (bundle and fixture
+   alike, both measured at zero `@layer` at-rules) an overlay's win rests on
+   document order — keeping these blocks unlayered is what makes the win hold
+   under a pipeline that emits real layers, where an overlay ordered into a
+   layer would only beat the layers declared before it.
+
+   An overlay recolours L1 families (`--palette-*`) rather than the L2 values
+   that consume them. `--primary`, `--ring` and the `--nav-*` glow all resolve
+   through the brand family, so one pair of declarations moves every accent
+   surface in both appearances — and it keeps the contract suite's "no colour
+   token holds a literal value outside the palette" rule true, which inlining an
+   L2 triplet would break by bypassing the palette instead of re-colouring it.
+
+   Because L1 is declared once in `:root` and never mirrored in `.dark`, an
+   L1-only overlay needs no `.dark` branch: the base rules already pick the step
+   each appearance wants (`--primary: var(--palette-brand-500)` in `:root`,
+   `var(--palette-brand-400)` in `.dark`). A `.dark` branch is only needed for
+   tokens whose value is an appearance-specific literal rather than an L1
+   reference — the editor chrome, which `cc-polar` overrides that way.
+   --------------------------------------------------------------------------- */
+
+/* cc-ocean — coverage: accent. A teal accent over the stock substrate. The
+   light step is darker than the illustrative `175 84% 32%` in the design
+   notes, which only reached 3.5:1 against white button text. */
+[data-theme="cc-ocean"] {
+  --palette-brand-500: 173 75% 27%;
+  --palette-brand-400: 172 66% 55%;
+}

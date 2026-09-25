@@ -2044,7 +2044,18 @@ export type ThemeManifest = {
   id: string;
   /** Display name for the theme selector. */
   name: string;
-  /** The theme's own appearance; decides `<html class="dark">` and `color-scheme`. */
+  /**
+   * Which appearance this manifest defines. The light/dark/system capsule stays the *only*
+   * appearance control (it alone writes `<html class="dark">` and `color-scheme`), so the field
+   * names the role a theme plays rather than a switch it flips:
+   *
+   * - `light` / `dark`: the built-in default for that appearance — the theme the document falls
+   *   back to when no overlay is picked. Exactly one of each is registered, and they carry no
+   *   overlay rules of their own (`:root` / `.dark` in `src/index.css` are their palette).
+   * - `system`: an overlay theme, not bound to one appearance. It ships both
+   *   `[data-theme="<id>"]` and `[data-theme="<id>"].dark` rules and the capsule decides which
+   *   applies. These are the themes the selector offers.
+   */
   appearance: 'light' | 'dark' | 'system';
   /** Where the theme came from; decides whether the UI may offer to delete it. */
   source: 'builtin' | 'user';
