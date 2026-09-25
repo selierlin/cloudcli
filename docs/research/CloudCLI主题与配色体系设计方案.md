@@ -1437,7 +1437,7 @@ Mutation 侧：
 
 **产物核对（通用脚本第 22 次复用）——首次报 FAILED，归因是脚本自身的覆盖面缺口**：首跑输出 `hover:text-gray-900` 一行 `src=0 / dist=1`，触发脚本的镜像断言 `(litSrc > 0) !== (litDist > 0)`。**这不是迁移缺陷**。追查到 `src/index.css:1082` 有一条**手写的、带 CSS 转义的选择器** `.hover\:text-gray-900:hover`（与 `a:hover` / `.hover\:bg-gray-50:hover` 等并列，见下）。核对脚本的 `srcExact` 只遍历 `src` 下的 `.tsx?` 文件，**完全看不见 CSS 里的类名引用**，于是把一个合法消费者判成"凭空多出的 dist 规则"。**修法**：给 `srcExact` 增加 `.css` 分支——按 `/\.((?:[A-Za-z0-9_-]|\\.)+)/g` 提取类选择器并反转义后再比较（*不能*用裸 token 扫描：CSS 选择器 token 化后是 `.hover:text-gray-900:hover`，带前导点与伪类，永不等于裸候选名）。修复后该行 `src` 由 0 变 **1**（即 index.css 那处），与 `dist=1` 一致，**ARTIFACT CHECK PASSED**。非空转双对照同时成立：**不注入 PASSED、注入 `bg-gray-999` FAILED**（`/tmp/0e2j-probe.cjs` 同缺口、同修复）。
 
-**新发现——`index.css` 的选择器级消费者（阶段 0 口径缺口，待收口）**：`src/index.css` 的两段 `@media (hover: none) and (pointer: coarse)`（触屏禁用 hover）把**字面中性类名当作选择器目标**：
+**新发现——`index.css` 的选择器级消费者（阶段 0 口径缺口，已拍板 B3）**：`src/index.css` 的两段 `@media (hover: none) and (pointer: coarse)`（触屏禁用 hover）把**字面中性类名当作选择器目标**：
 
 ```css
 .hover\:bg-gray-50:hover,
@@ -1449,7 +1449,7 @@ Mutation 侧：
 - `hover:text-gray-900`——本片之后 `.tsx` 消费者**归零**，该 CSS 规则现匹配 **0** 个元素（完全失效），而它本该覆盖的那 6 处（0-E3a 3 ＋ 0-E3b 3）已改用 `hover:text-n-gray-900`，不再被重置；
 - `hover:bg-gray-50` / `hover:bg-gray-100`——`.tsx` 仍有未迁移消费者（后者 `src` 计数 11），规则对**未迁移元素**仍有效，但对 0-E2t / 0-E2u 等已迁移元素已失配。
 
-**影响面**：仅在触屏（`hover:none`）且发生 sticky hover 时可观测，视觉差异是"hover 态未被强制 `inherit`"。**取舍（待拍板，不擅自改 `index.css`）**：**B1** 逐片把这三行补成 `n-*` 选择器；**B2** 旧＋新两套并存（零行为变化，阶段 0 末删旧）；**B3** 不动，作为已知差异记账、交阶段 2 语义化改名时统一重排这些引用（**推荐**，理由：实际影响需 sticky hover 才可观测，且把 CSS 引用纳入口径会改变冻结基准量 1517）。另需配套决定：**扫描器 `themeHardcodedAtoms.ts` 是否把 CSS 选择器级引用纳入口径**——若纳入，1517 基准须刷新，属"护栏覆盖面变化"的同类事项。
+**影响面**：仅在触屏（`hover:none`）且发生 sticky hover 时可观测，视觉差异是"hover 态未被强制 `inherit`"。**取舍（已拍板，用户 2026-09-25）**：选项为 **B1** 逐片把这三行补成 `n-*` 选择器；**B2** 旧＋新两套并存（零行为变化，阶段 0 末删旧）；**B3** 不动，作为已知差异记账、交阶段 2 语义化改名时统一重排这些引用。**结论：采纳 B3**——理由：实际影响需触屏 sticky hover 才可观测，且阶段 2 本就要重排 `index.css` 的这些引用。配套决定：**扫描器 `themeHardcodedAtoms.ts` 暂不把 CSS 选择器级引用纳入口径**（若纳入须刷新冻结基准量 1517，属"护栏覆盖面变化"事项，本阶段不做）。这三行**不改、不删**，作为阶段 2 的显式待办保留。（探针侧的 `.css` 支撑已就地修复——那是核对工具的覆盖面，不入库。）
 
 **验收**：`test:client` **128 文件 / 970 用例**；`typecheck`、`typecheck:theme-tokens`、`lint`（153 warnings / **0 error**）、`npm run build`、`test:theme-tokens` 16 项全绿；守恒律 2/2、基线 3/3。未改 `index.css` / `tailwind.config.js`。
 
