@@ -32,8 +32,8 @@ export default function TaskEmptyState({
             <Settings className="mx-auto mb-4 h-12 w-12" />
           </div>
 
-          <h3 className="mb-2 text-lg font-semibold text-gray-900 dark:text-white">{t('notConfigured.title')}</h3>
-          <p className="mb-6 text-sm text-gray-600 dark:text-gray-400">{t('notConfigured.description')}</p>
+          <h3 className="mb-2 text-lg font-semibold text-n-gray-900 dark:text-n-white">{t('notConfigured.title')}</h3>
+          <p className="mb-6 text-sm text-n-gray-600 dark:text-n-gray-400">{t('notConfigured.description')}</p>
 
           <div className="mb-6 rounded-lg bg-blue-50 p-4 text-left dark:bg-blue-950">
             <h4 className="mb-3 text-sm font-medium text-blue-900 dark:text-blue-100">{t('notConfigured.whatIsTitle')}</h4>
@@ -48,7 +48,7 @@ export default function TaskEmptyState({
 
           <button
             onClick={onOpenSetupModal}
-            className="mx-auto flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700"
+            className="mx-auto flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-n-white transition-colors hover:bg-blue-700"
           >
             <Terminal className="h-4 w-4" />
             {t('notConfigured.initializeButton')}
@@ -67,15 +67,15 @@ export default function TaskEmptyState({
               <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('gettingStarted.title')}</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{t('gettingStarted.subtitle')}</p>
+              <h2 className="text-xl font-semibold text-n-gray-900 dark:text-n-white">{t('gettingStarted.title')}</h2>
+              <p className="text-sm text-n-gray-600 dark:text-n-gray-400">{t('gettingStarted.subtitle')}</p>
             </div>
           </div>
 
           <div className="mb-4 space-y-3">
-            <div className="rounded-lg border border-blue-100 bg-white p-3 dark:border-blue-800/50 dark:bg-gray-800/60">
-              <h4 className="mb-1 font-medium text-gray-900 dark:text-white">1. {t('gettingStarted.steps.createPRD.title')}</h4>
-              <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">{t('gettingStarted.steps.createPRD.description')}</p>
+            <div className="rounded-lg border border-blue-100 bg-n-white p-3 dark:border-blue-800/50 dark:bg-n-gray-800/60">
+              <h4 className="mb-1 font-medium text-n-gray-900 dark:text-n-white">1. {t('gettingStarted.steps.createPRD.title')}</h4>
+              <p className="mb-3 text-sm text-n-gray-600 dark:text-n-gray-400">{t('gettingStarted.steps.createPRD.description')}</p>
 
               <button
                 onClick={onCreatePrd}
@@ -86,14 +86,14 @@ export default function TaskEmptyState({
               </button>
 
               {existingPrds.length > 0 && (
-                <div className="mt-3 border-t border-gray-200 pt-3 dark:border-gray-700">
-                  <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">{t('gettingStarted.steps.createPRD.existingPRDs')}</p>
+                <div className="mt-3 border-t border-n-gray-200 pt-3 dark:border-n-gray-700">
+                  <p className="mb-2 text-xs text-n-gray-500 dark:text-n-gray-400">{t('gettingStarted.steps.createPRD.existingPRDs')}</p>
                   <div className="flex flex-wrap gap-2">
                     {existingPrds.map((prd) => (
                       <button
                         key={prd.name}
                         onClick={() => onOpenPrd(prd)}
-                        className="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                        className="inline-flex items-center gap-1 rounded bg-n-gray-100 px-2 py-1 text-xs text-n-gray-700 hover:bg-n-gray-200 dark:bg-n-gray-700 dark:text-n-gray-300 dark:hover:bg-n-gray-600"
                       >
                         <FileText className="h-3 w-3" />
                         {prd.name}
@@ -104,32 +104,32 @@ export default function TaskEmptyState({
               )}
             </div>
 
-            <div className="rounded-lg border border-blue-100 bg-white p-3 dark:border-blue-800/50 dark:bg-gray-800/60">
-              <h4 className="mb-1 font-medium text-gray-900 dark:text-white">2. {t('gettingStarted.steps.generateTasks.title')}</h4>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{t('gettingStarted.steps.generateTasks.description')}</p>
+            <div className="rounded-lg border border-blue-100 bg-n-white p-3 dark:border-blue-800/50 dark:bg-n-gray-800/60">
+              <h4 className="mb-1 font-medium text-n-gray-900 dark:text-n-white">2. {t('gettingStarted.steps.generateTasks.title')}</h4>
+              <p className="text-sm text-n-gray-600 dark:text-n-gray-400">{t('gettingStarted.steps.generateTasks.description')}</p>
             </div>
 
-            <div className="rounded-lg border border-blue-100 bg-white p-3 dark:border-blue-800/50 dark:bg-gray-800/60">
-              <h4 className="mb-1 font-medium text-gray-900 dark:text-white">3. {t('gettingStarted.steps.analyzeTasks.title')}</h4>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{t('gettingStarted.steps.analyzeTasks.description')}</p>
+            <div className="rounded-lg border border-blue-100 bg-n-white p-3 dark:border-blue-800/50 dark:bg-n-gray-800/60">
+              <h4 className="mb-1 font-medium text-n-gray-900 dark:text-n-white">3. {t('gettingStarted.steps.analyzeTasks.title')}</h4>
+              <p className="text-sm text-n-gray-600 dark:text-n-gray-400">{t('gettingStarted.steps.analyzeTasks.description')}</p>
             </div>
 
-            <div className="rounded-lg border border-blue-100 bg-white p-3 dark:border-blue-800/50 dark:bg-gray-800/60">
-              <h4 className="mb-1 font-medium text-gray-900 dark:text-white">4. {t('gettingStarted.steps.startBuilding.title')}</h4>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{t('gettingStarted.steps.startBuilding.description')}</p>
+            <div className="rounded-lg border border-blue-100 bg-n-white p-3 dark:border-blue-800/50 dark:bg-n-gray-800/60">
+              <h4 className="mb-1 font-medium text-n-gray-900 dark:text-n-white">4. {t('gettingStarted.steps.startBuilding.title')}</h4>
+              <p className="text-sm text-n-gray-600 dark:text-n-gray-400">{t('gettingStarted.steps.startBuilding.description')}</p>
             </div>
           </div>
 
           <button
             onClick={onCreatePrd}
-            className="inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 font-medium text-white hover:bg-purple-700"
+            className="inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 font-medium text-n-white hover:bg-purple-700"
           >
             <FileText className="h-4 w-4" />
             {t('buttons.addPRD')}
           </button>
         </div>
 
-        <p className="text-sm text-gray-500 dark:text-gray-400">{t('gettingStarted.tip')}</p>
+        <p className="text-sm text-n-gray-500 dark:text-n-gray-400">{t('gettingStarted.tip')}</p>
       </div>
     </div>
   );
