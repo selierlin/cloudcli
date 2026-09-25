@@ -23,6 +23,22 @@ import {
 const wrapper = ({ children }: { children: React.ReactNode }) =>
   React.createElement(ThemeProvider, null, children);
 
+/**
+ * The two metas `applyThemeChrome` publishes to, mirroring `index.html`. They are
+ * created here because the applier only writes metas the shell already ships.
+ */
+function ensureChromeMeta(name: string): void {
+  if (!document.querySelector(`meta[name="${name}"]`)) {
+    const meta = document.createElement('meta');
+    meta.setAttribute('name', name);
+    document.head.appendChild(meta);
+  }
+}
+
+function chromeContent(name: string): string | null {
+  return document.querySelector(`meta[name="${name}"]`)?.getAttribute('content') ?? null;
+}
+
 beforeEach(() => {
   localStorage.clear();
   // The preference store is a module-level singleton, so its in-memory copy
@@ -31,6 +47,8 @@ beforeEach(() => {
   document.documentElement.classList.remove('dark');
   delete document.documentElement.dataset.theme;
   document.documentElement.style.removeProperty('color-scheme');
+  ensureChromeMeta('theme-color');
+  ensureChromeMeta('apple-mobile-web-app-status-bar-style');
 });
 
 test('mounting stores no theme for a user who has never chosen one', () => {
@@ -119,6 +137,27 @@ test('the resolved appearance is published as color-scheme', () => {
   });
 
   assert.equal(document.documentElement.style.colorScheme, 'dark');
+});
+
+/**
+ * The browser chrome — the OS status bar on iOS, the address bar elsewhere — sits
+ * outside the page and so cannot read a token, which is why the effect publishes it
+ * through `applyThemeChrome` at all. jsdom ships no stylesheet, so the pair below
+ * pins both halves: the status bar tracks the appearance, and an unresolvable
+ * theme-colour token keeps the colour `index.html` ships instead of publishing
+ * whatever a failed resolution left behind. The resolved colours themselves are
+ * pinned in the browser suite, where a stylesheet is present.
+ */
+test('the browser chrome follows the appearance', () => {
+  const { result } = renderHook(() => useTheme(), { wrapper });
+  assert.equal(chromeContent('apple-mobile-web-app-status-bar-style'), 'default');
+  assert.equal(chromeContent('theme-color'), '#ffffff');
+
+  act(() => {
+    result.current.toggleDarkMode();
+  });
+
+  assert.equal(chromeContent('apple-mobile-web-app-status-bar-style'), 'black-translucent');
 });
 
 test('both appearances are registered as built-in themes', () => {

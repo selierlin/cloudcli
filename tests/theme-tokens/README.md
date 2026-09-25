@@ -65,6 +65,7 @@ too:
 | `terminal-tokens.spec.ts` | the xterm theme back to the hex board it shipped with |
 | `graph-lanes.spec.ts` | the commit-graph lanes and the ref-badge tint back to the hex array `commitGraph.ts` shipped with |
 | `mobile-terminal-selection.spec.ts` | the long-press handle and context menu back to the literals `mobileTerminalSelection.ts` shipped with |
+| `theme-chrome.spec.ts` | the `theme-color` / iOS status-bar metas to the resolved `--background`, plus the token override, translucent flattening and unknown-token fallback paths |
 
 ## Updating the baseline
 

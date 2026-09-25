@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
-import type { CodeFontFamilyId, FontFamilyId, FontSettingsState, Project, ProjectSession } from '@/shared/types';
+import type { CodeFontFamilyId, FontFamilyId, FontSettingsState, Project, ProjectSession, ThemeManifest } from '@/shared/types';
 
 //----------------- DEPLOYMENT MODE ------------
 
@@ -354,3 +354,129 @@ export const getPageTitle = (
   const displayName = selectedProject?.displayName?.trim();
   return displayName ? `${displayName} - ${DEFAULT_PAGE_TITLE}` : DEFAULT_PAGE_TITLE;
 };
+
+// ---------------------------
+
+//----------------- THEME CHROME ------------
+
+/** The colour `<meta name="theme-color">` falls back to while the token it follows is unavailable. Private to `applyThemeChrome`. */
+const FALLBACK_THEME_COLOR = '#ffffff';
+
+/** How iOS paints the status bar per appearance, when a theme declares no opinion. Private to `applyThemeChrome`. */
+const STATUS_BAR_BY_APPEARANCE = { light: 'default', dark: 'black-translucent' } as const;
+
+/**
+ * Resolves a triplet token (`44 22% 96%`) to the colour the browser paints for it, by writing
+ * `hsl(var(--token))` — the declaration shape Tailwind emits — onto a probe and reading it back,
+ * so expanding the `var()` chain stays the browser's job.
+ *
+ * Returns `''` rather than guessing when the token is not declared, or when it does not hold a
+ * triplet: an undeclared token would otherwise resolve to the probe's inherited colour, and a
+ * token holding a whole colour expression (`#282c34`) makes the declaration invalid and lands in
+ * the same place — either way the caller would publish a colour that is not the theme's.
+ * Private to `applyThemeChrome`.
+ */
+function readTokenColor(token: string): string {
+  if (typeof document === 'undefined') {
+    return '';
+  }
+
+  if (!getComputedStyle(document.documentElement).getPropertyValue(token).trim()) {
+    return '';
+  }
+
+  const probe = document.createElement('div');
+  probe.style.display = 'none';
+  // `src/index.css` transitions colours for 200ms on an appearance switch, so a read taken inside
+  // that window returns the colour the transition started from rather than the new palette.
+  probe.style.transition = 'none';
+  probe.style.color = `hsl(var(${token}))`;
+  if (!probe.style.color) {
+    return '';
+  }
+  document.body.appendChild(probe);
+
+  try {
+    return getComputedStyle(probe).color;
+  } finally {
+    probe.remove();
+  }
+}
+
+/** Splits a computed `rgb()` / `rgba()` colour into 8-bit channels plus alpha; `null` when unparsable. Private to `resolveOpaqueTokenColor`. */
+function parseColorChannels(color: string): { channels: [number, number, number]; alpha: number } | null {
+  const match = /^rgba?\(([^)]+)\)$/.exec(color.trim());
+  if (!match) {
+    return null;
+  }
+
+  const parts = match[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+  if (parts.length < 3 || parts.slice(0, 3).some((value) => !Number.isFinite(value))) {
+    return null;
+  }
+
+  return {
+    channels: [parts[0], parts[1], parts[2]],
+    alpha: parts.length > 3 && Number.isFinite(parts[3]) ? parts[3] : 1,
+  };
+}
+
+/** Formats 8-bit channels as `#rrggbb`. Private to `resolveOpaqueTokenColor`. */
+const toHexColor = (channels: number[]): string =>
+  `#${channels.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`;
+
+/**
+ * Resolves a token to the opaque `#rrggbb` the browser chrome has to be given — the OS paints that
+ * chrome itself, so a translucent colour has nothing to blend against. A translucent token is
+ * flattened onto `backdropToken` (the page behind the chrome); resolution fails (`''`) when that
+ * backdrop is missing or translucent too, leaving the caller's fallback in place.
+ * Private to `applyThemeChrome`.
+ */
+function resolveOpaqueTokenColor(token: string, backdropToken = '--background'): string {
+  const color = parseColorChannels(readTokenColor(token));
+  if (!color) {
+    return '';
+  }
+
+  if (color.alpha >= 1) {
+    return toHexColor(color.channels);
+  }
+
+  const backdrop = token === backdropToken ? null : parseColorChannels(readTokenColor(backdropToken));
+  if (!backdrop || backdrop.alpha < 1) {
+    return '';
+  }
+
+  return toHexColor(
+    color.channels.map((channel, index) =>
+      Math.round(channel * color.alpha + backdrop.channels[index] * (1 - color.alpha)),
+    ),
+  );
+}
+
+/**
+ * Publishes the resolved appearance to the browser chrome, which sits outside the page and so
+ * cannot read a token: `<meta name="theme-color">` (the OS status bar on iOS, the address bar
+ * elsewhere) and the iOS `apple-mobile-web-app-status-bar-style`. A theme overrides either through
+ * `ThemeManifest.themeColor` (a token name) and `ThemeManifest.statusBar`.
+ *
+ * Called by `ThemeContext` on every appearance change and by the theme-token fixture, so a test can
+ * drive the production chain rather than re-typing it.
+ */
+export function applyThemeChrome(
+  appearance: 'light' | 'dark',
+  overrides?: Pick<ThemeManifest, 'themeColor' | 'statusBar'>,
+): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
+  const statusBar = overrides?.statusBar ?? STATUS_BAR_BY_APPEARANCE[appearance];
+  document
+    .querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')
+    ?.setAttribute('content', statusBar);
+
+  const themeColor =
+    resolveOpaqueTokenColor(overrides?.themeColor ?? '--background') || FALLBACK_THEME_COLOR;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColor);
+}

@@ -11,6 +11,7 @@
     "./terminal-tokens.spec.ts",
     "./graph-lanes.spec.ts",
     "./mobile-terminal-selection.spec.ts",
+    "./theme-chrome.spec.ts",
     "./vite.config.ts"
   ]
 }

@@ -2,11 +2,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react';
 
 import { BUILTIN_THEMES } from '@/shared/constants';
+import type { ThemeManifest } from '@/shared/types';
 import {
   readUserPreference,
   subscribeToUserPreferences,
   writeUserPreference,
 } from '@/shared/userSettings';
+import { applyThemeChrome } from '@/shared/utils';
 
 type ThemeContextValue = {
   theme: 'light' | 'dark' | 'system';
@@ -26,17 +28,17 @@ export const useTheme = () => {
 };
 
 /**
- * The built-in theme id for an appearance, which is also the `<html data-theme>`
- * value selecting that theme's overlay. Both appearances are always registered,
- * so a miss means the registry lost an entry and should fail loudly rather than
- * leave the document without a theme id.
+ * The built-in theme for an appearance. Its `id` is also the `<html data-theme>` value selecting
+ * that theme's overlay, and its optional `themeColor` / `statusBar` override what the browser
+ * chrome is painted with. Both appearances are always registered, so a miss means the registry lost
+ * an entry and should fail loudly rather than leave the document without a theme id.
  */
-function builtinThemeIdFor(appearance: 'light' | 'dark'): string {
+function builtinThemeFor(appearance: 'light' | 'dark'): ThemeManifest {
   const manifest = BUILTIN_THEMES.find((candidate) => candidate.appearance === appearance);
   if (!manifest) {
     throw new Error(`No built-in theme registered for the ${appearance} appearance`);
   }
-  return manifest.id;
+  return manifest;
 }
 
 /** Mounted once by App so every module can read and switch the colour theme through useTheme. */
@@ -80,10 +82,13 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   // theme had been fetched — writing this device's system default over the
   // theme the user actually chose on another one.
   useEffect(() => {
+    const appearance = isDarkMode ? 'dark' : 'light';
+    const manifest = builtinThemeFor(appearance);
+
     // The overlay selector. Today both ids resolve to the base palette, so this
     // is inert until a theme carrying its own overlay is selectable; it lives
     // here because the appearance is what decides which default is current.
-    document.documentElement.dataset.theme = builtinThemeIdFor(isDarkMode ? 'dark' : 'light');
+    document.documentElement.dataset.theme = manifest.id;
 
     // Hand the appearance to the UA so the parts we do not paint ourselves —
     // native `select` popups, scroll containers that carry no scrollbar utility,
@@ -92,35 +97,14 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     // visual change*, not an inert interface: `index.css` grew a block of
     // hand-written `rgb()` compensations imitating exactly this, and re-auditing
     // which of them are still needed is a separate slice.
-    document.documentElement.style.colorScheme = isDarkMode ? 'dark' : 'light';
+    document.documentElement.style.colorScheme = appearance;
 
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
+    document.documentElement.classList.toggle('dark', isDarkMode);
 
-      // Update iOS status bar style and theme color for dark mode
-      const statusBarMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-      if (statusBarMeta) {
-        statusBarMeta.setAttribute('content', 'black-translucent');
-      }
-
-      const themeColorMeta = document.querySelector('meta[name="theme-color"]');
-      if (themeColorMeta) {
-        themeColorMeta.setAttribute('content', '#141414'); // Dark background color (hsl(0 0% 8%))
-      }
-    } else {
-      document.documentElement.classList.remove('dark');
-
-      // Update iOS status bar style and theme color for light mode
-      const statusBarMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-      if (statusBarMeta) {
-        statusBarMeta.setAttribute('content', 'default');
-      }
-
-      const themeColorMeta = document.querySelector('meta[name="theme-color"]');
-      if (themeColorMeta) {
-        themeColorMeta.setAttribute('content', '#f6f4ef'); // Light background color (warm cream)
-      }
-    }
+    // The browser chrome sits outside the page, so it cannot read a token either:
+    // `applyThemeChrome` resolves the theme's colour through the browser and
+    // publishes it, in place of the two hex literals this effect used to carry.
+    applyThemeChrome(appearance, manifest);
   }, [isDarkMode]);
 
   // Listen for system theme changes
