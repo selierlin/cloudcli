@@ -112,7 +112,7 @@ const ACCENT_SURFACES = ['--primary', '--ring', '--nav-tab-glow', '--nav-input-f
 /** Which surface families each coverage class promises to move. */
 const MUST_MOVE: Record<string, string[]> = {
   accent: ACCENT_SURFACES,
-  full: [...SURFACES.substrate, ...SURFACES.terminal, ...SURFACES.graph],
+  full: [...SURFACES.substrate, ...SURFACES.terminal, ...SURFACES.graph, ...SURFACES.editor],
 };
 
 /** Which surface families it promises *not* to move. */
@@ -151,31 +151,80 @@ function layerDepthAt(index: number): number {
   return enclosing.filter(Boolean).length;
 }
 
+type OverlayBlock = {
+  /** The full selector text, e.g. `[data-theme="cc-polar"].dark`. */
+  selector: string;
+  declared: Record<string, string>;
+};
+
+/** Every `[data-theme="<id>"]…` rule the stylesheet declares, in file order. */
+function findBlocks(themeId: string): OverlayBlock[] {
+  const needle = `[data-theme="${themeId}"]`;
+  const blocks: OverlayBlock[] = [];
+
+  let from = 0;
+  for (;;) {
+    const start = CSS.indexOf(needle, from);
+    if (start === -1) break;
+
+    const open = openBraceAfter(start);
+    const body = CSS.slice(open + 1, CSS.indexOf('}', start));
+    const declared: Record<string, string> = {};
+    for (const match of body.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)) {
+      declared[match[1]] = match[2].trim();
+    }
+
+    blocks.push({ selector: CSS.slice(start, open).trim(), declared });
+    from = start + needle.length;
+  }
+
+  return blocks;
+}
+
+/** Whether a block's selector matches in `appearance`. */
+function appliesIn(selector: string, appearance: Appearance): boolean {
+  if (selector.endsWith('.dark')) return appearance === 'dark';
+  if (selector.includes(':not(.dark)')) return appearance === 'light';
+  return true;
+}
+
 type Overlay = {
-  /** `--token: value` pairs the overlay block declares. */
+  /** `--token: value` pairs in force in this appearance, later blocks winning. */
   declared: Record<string, string>;
   /** The overrides that replace an existing base value, as `[name, baseValue]`. */
   replaced: [string, string][];
-  /** Line number of the block, for failure messages. */
-  line: number;
 };
 
-function readOverlay(themeId: string, baseTokens: Record<string, string>): Overlay {
-  const selector = `[data-theme="${themeId}"]`;
-  const start = CSS.indexOf(selector);
-  expect(start, `${selector} is not declared in src/index.css`).toBeGreaterThan(-1);
+/**
+ * The overlay as it applies in one appearance: the blocks whose selector matches,
+ * merged in file order.
+ *
+ * Merging by source order is a model, not the cascade itself (which weighs
+ * specificity first) — but it does not have to be right by construction: the
+ * per-theme test asserts every declared value resolves as written in the browser,
+ * so a merge that disagreed with the real cascade would fail there.
+ */
+function readOverlay(
+  themeId: string,
+  appearance: Appearance,
+  baseTokens: Record<string, string>,
+): Overlay {
+  const blocks = findBlocks(themeId);
+  expect(
+    blocks.length,
+    `[data-theme="${themeId}"] is not declared in src/index.css`,
+  ).toBeGreaterThan(0);
 
-  const body = CSS.slice(openBraceAfter(start) + 1, CSS.indexOf('}', start));
   const declared: Record<string, string> = {};
-  for (const match of body.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)) {
-    declared[match[1]] = match[2].trim();
+  for (const block of blocks) {
+    if (appliesIn(block.selector, appearance)) Object.assign(declared, block.declared);
   }
 
   const replaced = Object.entries(declared)
     .filter(([name]) => name in baseTokens)
     .map(([name]) => [name, baseTokens[name]] as [string, string]);
 
-  return { declared, replaced, line: CSS.slice(0, start).split('\n').length };
+  return { declared, replaced };
 }
 
 /**
@@ -219,15 +268,46 @@ function differing(base: Record<string, string>, other: Record<string, string>):
   return Object.keys(base).filter((name) => base[name] !== other[name]);
 }
 
+/**
+ * Resolves the `var()` references in a declared value against the themed
+ * palette, so it can be compared with a computed value.
+ *
+ * A declaration is not always the literal a computed style returns: the palette
+ * block writes triplets, but the editor block writes `hsl(var(--palette-…))`,
+ * and `getComputedStyle` substitutes the reference before reporting. Resolving
+ * against the palette *as the overlay leaves it* is the same substitution the
+ * browser performs, in one pass — a computed custom property is already fully
+ * substituted, so no nesting has to be walked. It still proves the claim that
+ * matters: if the token being checked were shadowed by another declaration, its
+ * computed value would not equal its own expression's resolution.
+ */
+function resolve(expression: string, themed: Record<string, string>): string {
+  return expression.replace(
+    /var\((--[a-z0-9-]+)\)/g,
+    (_match, name: string) => themed[name] ?? `var(${name})`,
+  );
+}
+
 test('every overlay theme is declared outside any @layer', () => {
   expect(OVERLAY_THEMES.length, 'no overlay theme is registered').toBeGreaterThan(0);
 
   const layered: string[] = [];
   for (const theme of OVERLAY_THEMES) {
     const selector = `[data-theme="${theme.id}"]`;
-    const start = CSS.indexOf(selector);
-    expect(start, `${selector} is not declared in src/index.css`).toBeGreaterThan(-1);
-    if (layerDepthAt(start) > 0) layered.push(selector);
+    let from = 0;
+    let found = 0;
+
+    for (;;) {
+      const start = CSS.indexOf(selector, from);
+      if (start === -1) break;
+      found += 1;
+      // `:not(.dark)` and `.dark` variants share this prefix, so every block a
+      // theme declares is visited by walking the occurrences.
+      if (layerDepthAt(start) > 0) layered.push(CSS.slice(start, openBraceAfter(start)).trim());
+      from = start + selector.length;
+    }
+
+    expect(found, `${selector} is not declared in src/index.css`).toBeGreaterThan(0);
   }
 
   expect(
@@ -243,9 +323,11 @@ test('an overlay may only redeclare tokens the base stylesheet declares', async 
 
   const unknown: string[] = [];
   for (const theme of OVERLAY_THEMES) {
-    const overlay = readOverlay(theme.id, base.tokens);
-    expect(Object.keys(overlay.declared).length, `${theme.id} declares no tokens`).toBeGreaterThan(0);
-    for (const name of Object.keys(overlay.declared)) {
+    const blocks = findBlocks(theme.id);
+    const declared = new Set(blocks.flatMap((block) => Object.keys(block.declared)));
+    expect(declared.size, `${theme.id} declares no tokens`).toBeGreaterThan(0);
+
+    for (const name of declared) {
       // A name the base does not declare would enter the token baseline from the
       // overlay alone and read as empty on `<html>` — the baseline suite would
       // report it as uncovered, so it is rejected here with a clearer message.
@@ -263,12 +345,12 @@ for (const theme of OVERLAY_THEMES) {
     for (const appearance of APPEARANCES) {
       const base = await read(page, null, appearance);
       const themed = await read(page, theme.id, appearance);
-      const overlay = readOverlay(theme.id, base.tokens);
+      const overlay = readOverlay(theme.id, appearance, base.tokens);
 
       // 1. The declarations resolve as written — the overlay is not shadowed by
       //    another declaration of the same token in the processed stylesheet.
       const unresolved = Object.entries(overlay.declared)
-        .filter(([name, value]) => themed.tokens[name] !== value)
+        .filter(([name, value]) => themed.tokens[name] !== resolve(value, themed.tokens))
         .map(([name, value]) => `${name}: declared ${value}, resolved ${themed.tokens[name]}`);
 
       // 2. Nothing beyond the reach `coverage` advertises moved.
@@ -308,6 +390,65 @@ for (const theme of OVERLAY_THEMES) {
     }
   });
 }
+
+/**
+ * The editor is the one surface whose base values are appearance-specific
+ * literals, so its overlay has to be split into a light-scoped block and a
+ * `.dark` one. A bare `[data-theme]` selector for the light half would also
+ * match in the dark appearance; it would lose to the `.dark` block by
+ * specificity, so every token that appears in *both* halves would still resolve
+ * correctly and no other check here would notice — but a token added to the
+ * light half and forgotten in the dark one would silently keep its light value.
+ *
+ * That is what this pins. It forces the light half to be scoped — an unscoped
+ * block is not a "light half" at all and is reported as such — and then checks
+ * the consequence: a token the light branch declares on its own must fall back to
+ * the base value in the dark appearance, not keep its light override.
+ */
+test('a light-scoped overlay block does not leak into the dark appearance', async ({ page }) => {
+  await openFixture(page);
+
+  const guarded: string[] = [];
+  const leaks: string[] = [];
+
+  for (const theme of OVERLAY_THEMES) {
+    const blocks = findBlocks(theme.id);
+    if (!blocks.some((block) => block.selector.includes(':not(.dark)'))) continue;
+
+    const lightOnly = new Set<string>();
+    const darkApplicable = new Set<string>();
+    for (const block of blocks) {
+      if (block.selector.includes(':not(.dark)')) {
+        for (const name of Object.keys(block.declared)) lightOnly.add(name);
+      } else {
+        for (const name of Object.keys(block.declared)) darkApplicable.add(name);
+      }
+    }
+
+    const owned = [...lightOnly].filter((name) => !darkApplicable.has(name));
+    expect(
+      owned.length,
+      `${theme.id} scopes a block to light whose tokens the dark half all repeats, ` +
+        `so the leak check covers nothing for it`,
+    ).toBeGreaterThan(0);
+    guarded.push(theme.id);
+
+    const base = await read(page, null, 'dark');
+    const themed = await read(page, theme.id, 'dark');
+    leaks.push(
+      ...owned
+        .filter((name) => themed.tokens[name] !== base.tokens[name])
+        .map((name) => `${theme.id} ${name}: kept ${themed.tokens[name]} instead of ${base.tokens[name]}`),
+    );
+  }
+
+  expect(
+    guarded,
+    'no theme declares a light-scoped block: an overlay whose values differ per appearance has to ' +
+      'scope its light half with `:not(.dark)`, or the dark-appearance leak check covers nothing',
+  ).not.toEqual([]);
+  expect(leaks, `light-scoped overrides leaked into the dark appearance:\n${leaks.join('\n')}`).toEqual([]);
+});
 
 test('the accent theme is the identity when no overlay is picked', async ({ page }) => {
   await openFixture(page);

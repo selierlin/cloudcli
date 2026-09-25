@@ -84,6 +84,14 @@ document order, and the constraint is what keeps it true under a pipeline that
 emits real layers. Second, the layer check is the only guard that covers that —
 the browser check cannot see it.
 
+An overlay whose values differ per appearance (the editor chrome, whose base
+values are literals rather than palette references) has to split into a
+`[data-theme="<id>"]:not(.dark)` block and a `[data-theme="<id>"].dark` one. The
+`:not(.dark)` is load-bearing: a bare selector would match in both appearances
+and still resolve correctly for any token the dark half repeats, so only a token
+forgotten in the dark half would leak — and the leak check keys on the scoping to
+catch exactly that.
+
 ## Updating the baseline
 
 Regenerate only when a token change is intended, and review the diff as part of
