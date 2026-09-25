@@ -349,6 +349,13 @@ export const BUILTIN_THEMES: ThemeManifest[] = [
     source: 'builtin',
     coverage: 'accent',
   },
+  {
+    id: 'cc-polar',
+    name: '极地',
+    appearance: 'system',
+    source: 'builtin',
+    coverage: 'full',
+  },
 ];
 
 // ---------------------------
