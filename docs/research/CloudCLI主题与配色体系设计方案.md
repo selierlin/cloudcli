@@ -1,7 +1,7 @@
 # CloudCLI 主题与配色体系设计方案
 
 > 编写日期：2026-09-24 ｜ 修订：2026-09-25（v5：阶段 0-A / 0-B / 0-C 已实施并验收，记录见 §6）
-> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j / 0-E2k / 0-E2l / 0-E2m / 0-E2n / 0-E2o / 0-E2p / 0-E2q / 0-E2r / 0-E2s / 0-E2t / 0-E2u / 0-E2v / 0-E2w / 0-E2x / 0-E2y / 0-E2z / 0-E3a / 0-E3b / 0-E3c / 0-E3d / 0-E3e / 0-E3f / 0-E3g / 0-E3h / 0-E3i / 0-E3j / 0-E3k / 0-E3l / 0-E3m / 0-E3n / 0-E3o / 0-E3p / 0-E3q / 0-E3r / 0-E3s / 0-E3t / 0-E3u / 0-E3v / 0-E3w / 0-E3x / 0-E3y / 0-E3z / 0-E4a / 0-E4b / 0-E4c / 0-E4d / 0-E4e / 0-E4f / 0-E4g / 0-E4h / 0-E4i / 0-E4j / 0-E4k / 0-E4l / 0-E4m / 0-E4n / 0-E4o / 0-E4p / 0-E4q / 0-E4r / 0-E4s / 0-E4t / 0-E4u / 0-E4v / 0-E4w / 0-E4x / 0-E4y / 0-E4z / 0-E5a / 0-E5b / 0-E5c / 0-E5d / 0-E5e / 0-E5f / 0-E5g / 0-E5h / 0-E5i / 0-E5j / 0-E5k / 0-E5l / 0-E5m / 0-E5n / 0-E5o / 0-E5p / 0-E5q / 0-E5r / 0-E5s / 0-E5t / 0-E5u / 0-E5v / 0-E5w / 0-E5x / 0-E5y / 0-E5z / 0-E6a / 0-E6b / 0-E6c / 0-E6d 一百一十五片，**阶段 0 的迁移分片已全部实施**；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内；0-E3i 修正了产物核对脚本的**前提假设缺口**——脚本原假设"被测文件迁移前不含 `n-*` 令牌"，随分片推进（前片已令牌化的文件被再次触碰）必然被打破；0-E6d 又暴露一处**护栏前提失效**——守恒律反空转护栏里"必须扫到 ≥1 处带透明度修饰的**字面**中性色"这条断言，随阶段 0 归零而失去可满足前提（仓库计数无论捕获组是否健在都读 0），改为对解析形状的合成名断言。截至 0-E6d：中性具名硬编码剩余 **0 处 / 0 文件**（起点 1517 / 105；阶段 0 迁移完成，仅余 1 处豁免 `border-gray-150`）。**阶段 1 已开工**：1-A（主题骨架：`ThemeManifest` + `BUILTIN_THEMES` + `<html data-theme>`）与 1-B 第一步（随 `appearance` 在 `<html>` 写 `color-scheme`，本线**第一个有意的视觉变更**）均已实施并验收；1-B2 的三个子片（删 2 行已失效的 `color-scheme: dark`、textarea 的 `color-scheme` 改为随应用外观、68 处暗色补偿改走既有令牌）也已完成；**其前置 0-F 也已实施**（Git 图 lane 色抽为 `--graph-lane-1..10` ＋ 移动端终端选区菜单 7 处色值令牌化，拆 0-F1 / 0-F2 两片），切片表与记录见 §6）；**1-C 与 1-D 也已完成**（1-C：`theme-color` 与 iOS status-bar 改由令牌派生，`ThemeContext` 里两处手写 hex 删除、两个分支合并，`ThemeManifest` 的 `themeColor` / `statusBar` 覆盖字段一并落地；1-D：新增 `themeId` 偏好键，`ThemeContext` 暴露 `themeId` / `resolvedThemeId` / `setThemeId`，跨设备"未安装该主题"的回落不再静默——**下一片 = 1-E**（两套示范主题的覆盖层 ＋ 注册表扩充 ＋ `coverage` 标注））
+> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j / 0-E2k / 0-E2l / 0-E2m / 0-E2n / 0-E2o / 0-E2p / 0-E2q / 0-E2r / 0-E2s / 0-E2t / 0-E2u / 0-E2v / 0-E2w / 0-E2x / 0-E2y / 0-E2z / 0-E3a / 0-E3b / 0-E3c / 0-E3d / 0-E3e / 0-E3f / 0-E3g / 0-E3h / 0-E3i / 0-E3j / 0-E3k / 0-E3l / 0-E3m / 0-E3n / 0-E3o / 0-E3p / 0-E3q / 0-E3r / 0-E3s / 0-E3t / 0-E3u / 0-E3v / 0-E3w / 0-E3x / 0-E3y / 0-E3z / 0-E4a / 0-E4b / 0-E4c / 0-E4d / 0-E4e / 0-E4f / 0-E4g / 0-E4h / 0-E4i / 0-E4j / 0-E4k / 0-E4l / 0-E4m / 0-E4n / 0-E4o / 0-E4p / 0-E4q / 0-E4r / 0-E4s / 0-E4t / 0-E4u / 0-E4v / 0-E4w / 0-E4x / 0-E4y / 0-E4z / 0-E5a / 0-E5b / 0-E5c / 0-E5d / 0-E5e / 0-E5f / 0-E5g / 0-E5h / 0-E5i / 0-E5j / 0-E5k / 0-E5l / 0-E5m / 0-E5n / 0-E5o / 0-E5p / 0-E5q / 0-E5r / 0-E5s / 0-E5t / 0-E5u / 0-E5v / 0-E5w / 0-E5x / 0-E5y / 0-E5z / 0-E6a / 0-E6b / 0-E6c / 0-E6d 一百一十五片，**阶段 0 的迁移分片已全部实施**；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内；0-E3i 修正了产物核对脚本的**前提假设缺口**——脚本原假设"被测文件迁移前不含 `n-*` 令牌"，随分片推进（前片已令牌化的文件被再次触碰）必然被打破；0-E6d 又暴露一处**护栏前提失效**——守恒律反空转护栏里"必须扫到 ≥1 处带透明度修饰的**字面**中性色"这条断言，随阶段 0 归零而失去可满足前提（仓库计数无论捕获组是否健在都读 0），改为对解析形状的合成名断言。截至 0-E6d：中性具名硬编码剩余 **0 处 / 0 文件**（起点 1517 / 105；阶段 0 迁移完成，仅余 1 处豁免 `border-gray-150`）。**阶段 1 已开工**：1-A（主题骨架：`ThemeManifest` + `BUILTIN_THEMES` + `<html data-theme>`）与 1-B 第一步（随 `appearance` 在 `<html>` 写 `color-scheme`，本线**第一个有意的视觉变更**）均已实施并验收；1-B2 的三个子片（删 2 行已失效的 `color-scheme: dark`、textarea 的 `color-scheme` 改为随应用外观、68 处暗色补偿改走既有令牌）也已完成；**其前置 0-F 也已实施**（Git 图 lane 色抽为 `--graph-lane-1..10` ＋ 移动端终端选区菜单 7 处色值令牌化，拆 0-F1 / 0-F2 两片），切片表与记录见 §6）；**1-C 与 1-D 也已完成**（1-C：`theme-color` 与 iOS status-bar 改由令牌派生，`ThemeContext` 里两处手写 hex 删除、两个分支合并，`ThemeManifest` 的 `themeColor` / `statusBar` 覆盖字段一并落地；1-D：新增 `themeId` 偏好键，`ThemeContext` 暴露 `themeId` / `resolvedThemeId` / `setThemeId`，跨设备"未安装该主题"的回落不再静默——**1-E 也已完成**（覆盖层机制 ＋ 两套示范主题 `cc-ocean`（`accent`）/ `cc-polar`（`full`）＋ 注册表扩充，三片各自独立 commit；修正了 §5.2 的 cascade 假设、定了 `appearance` 的两角色模型——**下一片 = 1-F**（外观设置页主题选择器 ＋ `coverage` badge，i18n 只补 zh-CN））
 > 参照物：WorkBuddy（`/Applications/WorkBuddy.app`，app.asar 解包 + 本机皮肤包实物）、Codex CLI（`@openai/codex@0.155.1`，Rust 二进制字符串解析）
 > 目标读者：评审 AI / 后续实施者
 
@@ -196,6 +196,8 @@ L2 是**主题契约面**：约定一组令牌即构成一个可换肤的完整�
 > **范围界定**（避免与 §4 非目标"不改变语义命名"冲突）：命名不变，只改**值的来源**。对无法自然拆分通道的令牌（`--nav-*` 的 HSL+alpha、尺寸类），L1 可暂不覆盖、保持字面值。`coverage: accent` 类增量主题通过覆盖 L2 实现；`coverage: full` 类主题可选择同时覆盖 L1 与 L2。
 >
 > **L1 的定位必须写进主题开发文档**：它是"内置主题的组织约定 + 完整主题的换色入口"，**不是所有主题的唯一入口**——否则主题作者会误以为改 L1 就能生效。
+>
+> **v9（1-E 已实施）——"最小增量主题"的最短路径落在 L1 上，与上文"accent 类覆盖 L2"相左**：上一段的"`coverage: accent` 类增量主题通过覆盖 L2 实现"被实施结果修正。示范主题 `cc-ocean` 只声明了 **L1 的两个值**（`--palette-brand-500` / `--palette-brand-400`），一个 L2 令牌都没写——因为 L2 的强调色令牌本来就是 L1 的引用（`--primary: var(--palette-brand-500)`），而 `--ring`、`--nav-tab-glow`、`--nav-input-focus-ring` 全部经由同一个 brand 族解析，于是**覆盖 L1 一处、四个强调面在两个外观下同时移动**。若按字面覆盖 L2，需要写四条、还要各补一个 `.dark` 分支，且会**绕过 palette**（触犯契约测试的"no colour token holds a literal value outside the palette"）。故本线的实际分工是：**`accent` 主题 = 覆盖 L1 的一个色族；`full` 主题 = 覆盖 L1 的多个色族**。L2 仍是主题契约面（主题完全可以覆盖它，用户主题尤甚），只是"最小增量主题"的最短路径落在 L1 上。
 
 ### 5.2 主题选择器：`data-theme` 与 `.dark` 双轨共存
 
@@ -225,9 +227,13 @@ L2 是**主题契约面**：约定一组令牌即构成一个可换肤的完整�
 }
 ```
 
-`appearance: system` 时主题不绑定明暗，跟随系统在 `data-theme` 的两个分支间切换。
+`appearance: system` 时主题不绑定明暗，跟随明暗胶囊在 `data-theme` 的两个分支间切换。**（v9：上面那段示例 CSS 只是机制示意，不是 1-E 的落地形态——实际的 `cc-ocean` 只写 L1 的两行，不写 `--primary` / `--ring`；理由见 §5.1 v9。）**
 
 **必须写明的硬约束（否则双轨方案不成立）**：现状 `:root` / `.dark` 全部位于 `@layer base` 内（`src/index.css:45`、`:207`）。CSS Cascade Layers 中 layered 样式恒低于任何 **unlayered** 样式——因此**主题覆盖层必须是普通 CSS，严禁放进任何 `@layer`**。满足此约束时 `[data-theme="x"]` 稳定压过 `@layer base` 内的 base 值，**完全不依赖文件加载顺序**，并顺带消解 §7"`data-theme` 与 `dark:` 原子类叠加优先级困惑"的一半。
+
+> **v9（1-E 已实施）——一处实测修正：处理后没有 `@layer`，这条约束改判为"健壮性约定"**。硬约束段落里"现状 `:root` / `.dark` 全部位于 `@layer base` 内"是**源文件**的事实，但**处理后的样式表里没有任何 `@layer`**——Tailwind v3 把源文件的 `@layer base` 展平成了普通规则。实测（fixture 与构建产物两条路径）：fixture 探针读回 `sheets: 1, rules: 2034, layers: []`，产物 CSS 命中 `@layer` at-rule **0** 次。因此覆盖层今天**靠文档顺序取胜**（它排在文件末尾），不是靠"layered 恒低于 unlayered"。
+>
+> 这一发现不推翻那条约束，而是**改判它的性质**：它从"取胜的机制"降为"在会发出真 layer 的管线下的健壮性约定"——覆盖层一旦被包进 `@layer`，就会被排进那个 layer 的桶里，胜负取决于 layer 顺序（只有 unlayered 才压过全部 layer）。故它由覆盖层测试**结构性**强制（`layerDepthAt` 花括号匹配出 `@layer` 包围层数，要求每个 `[data-theme]` 块都为 0），**不指望 resolved 值能证明它**。反面证据：把覆盖层临时包进 `@layer base` 后，六条浏览器断言**全绿**——这正是"仅凭值断言抓不到它"的证明，也是为什么这条要单独做成结构断言。
 
 ### 5.3 主题数据模型
 
@@ -239,7 +245,12 @@ export type ThemeManifest = {
   id: string;
   /** 展示名（选择器与 aria-label 使用）。 */
   name: string;
-  /** 主题自身的明暗归属；决定 <html class="dark"> 与 color-scheme。 */
+  /**
+   * 两个角色（v9）：'light' / 'dark' 是**外观默认**（基底 `:root` / `.dark` 的别名，
+   * 选择器不提供）；'system' 是**覆盖层主题**（跟随明暗胶囊，选择器提供的那一类）。
+   * "没有覆盖层"由 `themeId === null` 表达，不是第三个取值。
+   * 决定 <html class="dark"> 与 color-scheme 的始终是用户选的明暗，与主题 id 正交。
+   */
   appearance: 'light' | 'dark' | 'system';
   /** 来源：内置 / 用户文件；用于 UI 分区与删除能力判定。 */
   source: 'builtin' | 'user';
@@ -256,6 +267,12 @@ export type ThemeManifest = {
 ```
 
 **注意**：`ThemeManifest` 是"元数据"，**不含色值**。色值只有两个来源——内置主题的 CSS 文件，或用户主题文件/内容。这样元数据可枚举、可校验，色值不受约束。
+
+> **v9（1-E 已实施，两处模型收敛）**：
+>
+> **一、`appearance` 的两个角色别混用**（上文代码注释已按此修正）。`light` / `dark` 是**外观默认**：`ThemeContext` 在没选主题时往 `data-theme` 写的 id，也就是基底 `:root` / `.dark` 的别名，注册表里是 `cc-light` / `cc-dark`。`system` 是**覆盖层主题**：选择器真正提供给用户的那一类（`cc-ocean` / `cc-polar`）。"没有覆盖层"这件事由 `themeId === null` 表达，**不是** `appearance` 的第三个取值。覆盖层测试因此用 `appearance === 'system'` 筛出"要遍历的覆盖层主题"；而"外观默认不带覆盖层"由另一条断言反向钉住（`the accent theme is the identity when no overlay is picked`：对 `cc-light` / `cc-dark` 分别设置 `data-theme` 后，令牌必须与基底逐位相同）——若日后有人给默认别名加了 `[data-theme]` 规则，它会红。**这同时回答了 1-D 留下的模型问题**（§5.6 v8 边界一）：既然 `cc-light` / `cc-dark` 是外观默认而非可选覆盖层，它们就不该出现在选择器里，"显式选了默认别名再切胶囊"这个场景根本不会发生，那一问随之消解。
+>
+> **二、`:not(.dark)` 不是风格选择，是构造上的防漏**。一套主题若其值随外观不同（编辑器 chrome 是**唯一**一处——它的基底是"外观专属字面量"而非 L1 引用），浅色那一半必须写成 `[data-theme="x"]:not(.dark)`，**不能**写成裸 `[data-theme="x"]`。裸选择器在暗色下也命中，只会因特异性输给 `.dark` 块——于是**两半都重复的令牌**照常解析正确、其他断言也看不见问题；但**只在浅色半声明、忘了写进暗色半**的令牌会静默地把浅色值带进暗色。`:not(.dark)` 让这种遗漏在构造上不可能发生。测试里有一条专门钉它：既要求"确实存在浅色限定的块"（否则反空转失败——最初的裸选择器变异正是**全绿**通过，促成这条补强），又要求"浅色半独有的令牌在暗色下回落到基底值"。
 
 ### 5.4 三种主题来源与优先级
 
@@ -435,6 +452,10 @@ grep 只能证明"没有字面硬编码"，证明不了"每套主题的令牌全
 > **v5（0-D 追加）**：fixture 的探针新增 `wrap: 'raw'` 形态，覆盖 `--editor-*` 这类"值即完整颜色表达式"的令牌（Tailwind 的 `hsl(var(--x))` 形态对它们会拼出无效的 `hsl(#282c34)`）。38 个编辑器颜色令牌已纳入基线的 `rendered` 层。**明暗两态共用同一规则集**这一点由 `editorThemeTokens.test.ts` 断言（`--cc-syntax-N` 槽位在两侧解析出不同值），可作为阶段 1"切换主题后编辑器同时变化"的最小前置证据。
 
 > **v6（0-F 追加）**：fixture 多了"**消费者守卫**"这一层——不是查令牌自身，而是**把 JS 消费者真的装上再读它画出来的颜色**。已落地三份：`terminal-tokens.spec.ts`（xterm 主题）、`graph-lanes.spec.ts`（0-F1 新增：lane 色 ＋ `RefBadge` 的 HEAD 底色，后者用"同场渲染 `${hex}22` 作参考值"的方式断言，不写死 alpha）、`mobile-terminal-selection.spec.ts`（0-F2 新增：用桩 terminal 真装 `installMobileTerminalSelection` 后读回手柄 / 菜单的 computed 值）。三份都回到"改造前那串字面量/hex"，与 `terminal-tokens.spec.ts` 同一个思路——**JS 消费者是令牌契约的盲区，`readTokens` 那层看不到它们**。
+
+> **v7（1-E 追加，覆盖面扩到覆盖层，并记一处如实边界）**：契约测试新增 `tests/theme-tokens/theme-overlays.spec.ts`，把"遍历每套覆盖层"这半做掉——它按 `BUILTIN_THEMES` 中 `appearance === 'system'` 的主题逐个遍历，断言（以 `coverage` 的承诺为准）每个覆盖层声明的值在浏览器里**按写的解析**、且"移动的令牌集合"**恰等于**它宣称的可达范围（正向 must-move ＋ 反向 must-not-move ＋ 第三重的 `derivedMoves` 收敛）；再加"覆盖层必须在任何 `@layer` 之外"（结构断言）与"浅色半不泄漏进暗色"两条机制性护栏。**对比度断言（§5.10）仍未做，连同"遍历"的完整化留 1-H。**
+>
+> **如实边界：语法高亮本轮不在任何覆盖层的可达范围内**。`--cc-syntax-1..7` 在 L1 里**没有对应的 `--palette-*` 条目**（是直接字面值），而 §8.9 已决"本轮不升语义名"。因此 `cc-polar` 这类 `full` 主题**不改语法高亮配色**——覆盖层测试的 `SURFACES` 里没有 `syntax` 组，是**如实反映边界而非漏写**。要把它纳入主题覆盖，得先做 §8.9 的改名／映射决策，属后续片。
 
 ### 5.12 Git 图 lane 色的数量上限（避免穷举）
 
@@ -3221,7 +3242,7 @@ Mutation 侧：
 | 1-B2c | 68 处等值字面值改指令牌 | ✅ 已实施（**方案 A**：复用既有令牌保形间接，零变化，`fdf3f879`） |
 | 1-C | `theme-color` 与 iOS `status-bar` 改由 `appearance` 驱动：去掉 `ThemeContext` 里两处硬编码 hex | ✅ 已实施（`1a9a7b78`）。**实现偏差**：不手写 HSL→hex，改用探针把 `hsl(var(--token))` 交给浏览器解析，只保留 alpha 合成；`ThemeManifest` 的 `themeColor` / `statusBar` 覆盖字段一并落地。**唯一有意的视觉变更**：浅色 theme-color `#f6f4ef → #f7f6f3`（原字面已与 `--background` 对不上），暗色逐位不变。见本节 1-C 记录 |
 | 1-D | `themeId` 偏好键 + `ThemeContext` 暴露 `themeId` / `resolvedThemeId` / `setThemeId`（含 §5.6 的跨设备回落边界） | ✅ 已实施（`7ce0fbda`）。两处决策见 §5.6 v8：**system 豁免只属明暗键**（`setThemeId` 无条件写偏好）、**回落不静默**（生效 id 与所选 id 分开暴露 ＋ `console.warn`，选择器提示 UI 留 1-F）。未取主题时行为与改动前逐位一致（无 CSS 改动、产物 CSS 逐字节相同） |
-| 1-E | 两套示范主题的覆盖层（**unlayered** `[data-theme]` 规则，含 `.dark` 分支）+ 注册表扩充 + `coverage` 标注 | 待做 |
+| 1-E | 两套示范主题的覆盖层（**unlayered** `[data-theme]` 规则，含 `.dark` 分支）+ 注册表扩充 + `coverage` 标注 | ✅ 已实施（`695a6c1b` / `29fb85fa` / `08236ef0`，三片）。机制 ＋ `cc-ocean`（`accent`，只覆盖 L1 一个色族）＋ `cc-polar`（`full`：42 条基材/终端/图 ＋ 编辑器浅暗两半）；新增 `theme-overlays.spec.ts`（6 用例 ×2 引擎，逐主题参数化）与 fixture `readWithTheme`。**修正 §5.2 的 cascade 假设**（处理后无 `@layer`，改判为结构约定）；`cc-light` / `cc-dark` 定为外观默认、不进选择器（消解 1-D 边界一）。详见 §6 阶段 1 末 1-E 记录 |
 | 1-F | 外观设置页主题选择器 + `coverage` badge（i18n 只补 zh-CN） | 待做 |
 | 1-G | JS 消费者随主题刷新：xterm 重读 `--term-*` 重设 `options.theme`、CodeMirror compartment reconfigure、Git 图 SVG 直接用 `var(--graph-lane-*)` | 待做（**前置已就位**：`--graph-lane-*` 由 0-F1 落地；且实测 SVG 表现属性 `stroke` / `fill` 直接吃 `var()`，chromium 与 webkit 均支持，故 Git 图这一路**无需刷新机制**——与 xterm 不同） |
 | 1-H | §5.11 契约测试扩到"遍历每套 `[data-theme]` 覆盖层"与 §5.10 对比度断言（`--ring`/`--background` ≥ 3:1、正文 ≥ 4.5:1） | 待做 |
@@ -3234,7 +3255,7 @@ Mutation 侧：
 
 **做了什么**：按 §5.2 的双轨模型建立骨架——`<html>` 同时携带 `class="dark"`（驱动 `dark:` 原子类与 base 语义值）与 `data-theme="<id>"`（选择主题覆盖层）。本片只建立后者：`ThemeContext` 在既有"应用外观"的 effect 里解析出与当前外观对应的内置主题 id 并写 `document.documentElement.dataset.theme`。注册表缺某一档位时**模块期抛错**，不静默留下无主题 id 的文档。
 
-**模型澄清（与 §8.4 字面的关系，重要）**：§8.4 说"把「默认明 / 默认暗」建模为两套内置主题"，本片按字面落地——注册表确实含 `cc-light` / `cc-dark` 两套默认主题，id 保持 `cc-` 前缀（§5.8 的保留名约束）；但**主题选择语义按 §5.2 落地，即主题 id 与明暗正交**：一套具体主题用自己的 `[data-theme="<id>"]` 与 `[data-theme="<id>"].dark` 两条规则同时覆盖明暗两态，`cc-light` / `cc-dark` 只是基底（`index.css` 的 `:root` / `.dark`）的 id 别名，**light/dark/system 胶囊仍是唯一的明暗控制**，不出现第二个明暗选择器。这样 §8.4 的"避免双层选择器心智负担"与 §5.2 的 `.dark` 复合选择器结构同时成立；后续示范主题（1-E）按此模型只需一份覆盖层即可覆盖明暗两态。
+**模型澄清（与 §8.4 字面的关系，重要）**：§8.4 说"把「默认明 / 默认暗」建模为两套内置主题"，本片按字面落地——注册表确实含 `cc-light` / `cc-dark` 两套默认主题，id 保持 `cc-` 前缀（§5.8 的保留名约束）；但**主题选择语义按 §5.2 落地，即主题 id 与明暗正交**：一套具体主题用自己的 `[data-theme="<id>"]` 与 `[data-theme="<id>"].dark` 两条规则同时覆盖明暗两态，`cc-light` / `cc-dark` 只是基底（`index.css` 的 `:root` / `.dark`）的 id 别名，**light/dark/system 胶囊仍是唯一的明暗控制**，不出现第二个明暗选择器。这样 §8.4 的"避免双层选择器心智负担"与 §5.2 的 `.dark` 复合选择器结构同时成立；后续示范主题（1-E）按此模型只需一份覆盖层即可覆盖明暗两态。**（v9 补正：对绝大多数令牌"一份覆盖层"成立，1-E 的两套示范主题都验证了；唯一例外是编辑器 chrome——它的基底值是外观专属字面量而非 L1 引用，浅色半必须用 `:not(.dark)` 显式限定、暗色半另写 `.dark`，见 §5.3 v9 与 1-E 记录。）**
 
 **视觉零变化的三路证据**：
 
@@ -3444,6 +3465,49 @@ Mutation 侧：
 **门槛**：`test:client` **128 文件 / 979 用例**（974 ＋ 本片 5）；`typecheck`（含 server）与 `typecheck:theme-tokens` 干净；`lint` **153 warnings / 0 error**；`build` exit 0。
 
 **与既有账的关系**：阶段 0 迁移账（0 处 / 余 1 处豁免）与 B3 账户（`index.css` 选择器级消费者）均不受影响——本片未碰任何 CSS；阶段 1 不计处数，按片计。
+
+
+#### 1-E 实施记录（2026-09-26，`695a6c1b` / `29fb85fa` / `08236ef0` 三片）
+
+**范围**：三片围绕同一个机制，按"机制 → 覆盖面 → 唯一需要 `.dark` 分支的面"递进。
+
+| 子片 | commit | 内容 |
+|---|---|---|
+| 1-E1 | `695a6c1b` | 覆盖层机制 ＋ 第一套示范主题 `cc-ocean`（`coverage: accent`）：`src/index.css` 新增 unlayered `[data-theme="cc-ocean"]` 块；`BUILTIN_THEMES` 由 2 增至 3（新增 `cc-ocean`）；`ThemeManifest.appearance` 注释扩写为两角色；fixture 新增 `readWithTheme(id, appearance)`；新增 `tests/theme-tokens/theme-overlays.spec.ts`（4 用例 ×2 引擎）＋ README ＋ tsconfig；`themeContext.test.tsx` 把"用作数据"的覆盖层 id 从 `cc-dark` 换成 `cc-ocean`、未安装样本改 `cc-not-installed`、注册表测试改为"外观默认与覆盖层主题分开"（仍 14 用例） |
+| 1-E2 | `29fb85fa` | 注册表增至 4（新增 `cc-polar`，`coverage: full`）＋ 第二套示范主题的**基材**（12 条）＋**终端**（20 条）＋**Git 图**（10 lane）共 42 条声明；`SURFACES` 新增 `cardSurface` 组（`--card` / `--popover` 只在暗色外观进入 full 主题的可达范围） |
+| 1-E3 | `08236ef0` | `cc-polar` 的**编辑器**覆盖层——本线第一个必须拆 `.dark` 分支的面（它基底是外观专属字面量而非 L1 引用）：浅色 `[data-theme="cc-polar"]:not(.dark)` 23 条 ＋ 暗色 `[data-theme="cc-polar"].dark` 28 条；测试新增 `resolve()` 与"浅色半不泄漏进暗色"守卫 |
+
+**做了什么**：把 §5.2 的双轨模型从"骨架"落成"能换肤"。`<html data-theme>` 选覆盖层，`<html class="dark">` 仍唯一控制明暗；每套主题的覆盖层是**跟在 `index.css` 末尾的普通规则**（任何 `@layer` 之外），与基底同处一个文档，靠文档顺序取胜。两套示范主题覆盖了 §4 目标 3 要的两种形态：`cc-ocean` 是**最小增量**（只换强调色），`cc-polar` 是**完整换肤**（基材 / 强调 / 终端 / Git 图 / 编辑器全部换到冷色轴）。
+
+**关键决策**：
+
+1. **`accent` 主题覆盖 L1 而非 L2**（与 §5.1 原字面相反，已回写 §5.1 v9）。`cc-ocean` 只声明 `--palette-brand-500` / `--palette-brand-400` 两个值，`--primary` / `--ring` / `--nav-tab-glow` / `--nav-input-focus-ring` 四个强调面在两个外观下同时移动。收益有三：写法最短、不必写 `.dark` 分支（基底 `:root` / `.dark` 已各自挑好 brand 档位）、且不触犯契约测试"no colour token holds a literal value outside the palette"。
+2. **L1-only 覆盖层不需要 `.dark` 分支**，因为 L1 只在 `:root` 声明一次、不在 `.dark` 镜像；两态差异由基底引用哪个档位承担。**需要 `.dark` 分支的只有"基底值是外观专属字面量"的令牌**——全仓仅编辑器 chrome 一处，这正是 `cc-polar` 拆两半的原因。
+3. **`appearance` 的两个角色落定**（已回写 §5.3 v9）：`light` / `dark` 是外观默认（基底别名，不进选择器），`system` 是覆盖层主题（选择器提供的那一类）。"没有覆盖层"由 `themeId === null` 表达。**这顺带消解了 1-D 记录的模型问题**（§5.6 v8 边界一）：`cc-light` / `cc-dark` 既不是可选覆盖层，"显式选默认别名再切胶囊"这个场景不会发生。
+4. **浅色半用 `:not(.dark)` 限定**（已回写 §5.3 v9）。裸 `[data-theme]` 在暗色下也命中、只输给 `.dark` 块——两半都重复的令牌照样正确，但**只在浅色半声明、忘在暗色半补**的令牌会静默泄漏浅色值。`:not(.dark)` 让这种遗漏构造上不可能。**这条是被变异测试逼出来的**（见下，最初版本全绿）。
+5. **§5.2 的 cascade 硬约束改判性质**（已回写 §5.2 v9）：实测处理后样式表**没有 `@layer`**（fixture `layers: []`、产物 0 at-rule），覆盖层今天靠文档顺序取胜。那条约束从"取胜机制"降为"真 layer 管线下的健壮性约定"，故改由**结构断言**（`layerDepthAt` 数 `@layer` 包围层数 = 0）强制，不指望值断言能证明。
+6. **有意不覆盖的令牌，都写了理由**（留在 CSS 注释里）：`--palette-white` 不覆盖（浅色卡片保持纯白坐在染色基材上，与基底"纯白卡片坐在暖砂上"同构）；`--n-white` / `--n-black` 不覆盖（永远暗色的终端选区 chrome 的白描边 / 黑阴影，本就与外观无关）；`gray` / `zinc` / `slate` / `neutral` 四条兼容 ramp 不覆盖（承载约 1.5k 个工具类站点，设计靠明暗档位而非色相）。
+
+**如实边界（本片未做，不阻塞）**：
+
+1. **语法高亮不在覆盖层可达范围内**：`--cc-syntax-1..7` 在 L1 里没有对应条目，§8.9 又已决"本轮不升语义名"，故 `full` 主题也不改语法高亮。`SURFACES` 里没有 `syntax` 组是**如实反映边界而非漏写**（已记入 §5.11 v7）。
+2. **对比度断言未做**，连同"遍历完整化"随 1-H。本片另跑了一次性对比度自检（见证据表），结论已足以让 1-H 从已知状态起步。
+3. **选择器 / `coverage` badge 未做**（1-F）；**JS 消费者刷新未做**（1-G）。
+
+**证据**：
+
+| 层 | 做法 | 结果 |
+|---|---|---|
+| **变异测试（三条，均已复跑确认）** | ① 把 `cc-ocean` 覆盖层**临时包进 `@layer base`**（补上闭合括号，保持 CSS 合法）② 浅色半**去掉 `:not(.dark)`** 写成裸 `[data-theme="cc-polar"]` ③ 给 `cc-ocean` **越界加一条基材覆盖** `--palette-sand-100` | ① **恰 2 红**——只有结构断言（`every overlay theme is declared outside any @layer`，两引擎各一）变红，**44 条值/浏览器断言全绿**：这正是"仅凭 resolved 值抓不到 layering"的证明，也是它必须单独做成结构断言的原因 ② **恰 2 红**——只有泄漏守卫（两引擎各一）变红。**注意：这条守卫是为这个变异补的**——最初版本此变异**全绿**，因为它只查"浅色半独有的令牌在暗色下是否回落"，而裸选择器下测试甚至不认为存在"浅色半"；补上"必须存在浅色限定块"的反空转断言后才红 ③ **恰 2 红**——`cc-ocean (accent)` 逐主题测试两引擎各一，证明 `coverage` 的**反向** must-not-move 非空转 |
+| **产物核对** | 构建产物 grep `[data-theme` | 三块 `[data-theme=cc-polar]`、`[data-theme=cc-polar]:not(.dark)`、`[data-theme=cc-polar].dark` 均在，且三者 `layerDepthAt` **均为 0**（结构断言常驻，非一次性） |
+| **cascade 实测** | 临时探针（`_probe.spec.ts`，用后即删）读服务端样式表形状 | `sheets: 1, rules: 2034, layers: [], hasUtility: true`；产物命中 `@layer` **0** 次。据此把 §5.2 的"layered 恒低于 unlayered"改判为健壮性约定 |
+| **零变化边界** | 外观默认为恒等 | 新增 `the accent theme is the identity when no overlay is picked`：对 `cc-light` / `cc-dark` 设 `data-theme` 后令牌与基底**逐位相同**——**未选主题时的现有外观零变化**，这张断言也是"日后有人给默认别名加覆盖层"的绊线 |
+| **对比度自检** | 一次性脚本从 HSL 三元组算 sRGB 相对亮度比（未入库，为 1-H 探路） | `cc-polar` 浅色：fg/bg **17.12**、muted/bg **4.58**、primaryFg/primary **4.62**、ring/bg **4.42**；暗色：**13.95 / 5.83 / 6.13 / 6.13**。基底浅色 muted/bg **4.43** 是全仓唯一低于 4.5 的值，`cc-polar` 反而改善。Git lane 最差比 **2.12（浅）/ 4.00（暗）** vs 基底 1.77 / 4.12。修掉两处回归：浅色编辑器 gutter 从 `sand-500` on `sand-100`（**4.15:1**，比基底 4.82 更差）改到 `sand-50`（**4.58:1**）；`cc-ocean` 浅色强调色从文档示例的 `175 84% 32%`（对白字只有 **3.49:1**）改为 `173 75% 27%`（**≈4.9:1**） |
+| **令牌基线** | `test:theme-tokens` | 计数 **34 → 42 → 44 → 46**（1-E1 ＋4 用例×2，1-E2 ＋1×2 逐主题给 `cc-polar`，1-E3 ＋1×2 泄漏守卫）；`token-baseline.json` **逐位未动**——基线读的是不带 `data-theme` 的 `<html>`，覆盖层永不会进基线，这正是覆盖层要用 `readWithTheme` 单独读的原因 |
+
+**门槛**（三片各自跑过；此处为收尾片的最终值）：`test:theme-tokens` **46 通过**；`test:client` **128 文件 / 979 用例**；`typecheck`（含 server）与 `typecheck:theme-tokens` 干净；`lint` **153 warnings / 0 error**；`build` exit 0。
+
+**与既有账的关系**：阶段 0 迁移账（0 处 / 余 1 处豁免）与 B3 账户（`index.css` 选择器级消费者）均不受影响——覆盖层新增的是 `[data-theme]` 选择器块，不是 Tailwind 具名色，故不计入迁移账；阶段 1 不计处数，按片计。三片共改 8 个文件（`src/index.css`、`src/shared/constants.ts`、`src/shared/types.ts`、`src/shared/tests/themeContext.test.tsx`、`tests/theme-tokens/{main.ts, theme-overlays.spec.ts, README.md, tsconfig.json}`），**未触碰任何组件**。
 
 
 ### 阶段 2：用户主题
