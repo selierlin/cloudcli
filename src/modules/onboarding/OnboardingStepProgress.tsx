@@ -27,7 +27,7 @@ export default function OnboardingStepProgress({ currentStep }: OnboardingStepPr
                 <div
                   className={`flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all duration-200 ${
                     isCompleted
-                      ? 'border-emerald-500 bg-emerald-500 text-white shadow-lg shadow-emerald-500/25'
+                      ? 'border-emerald-500 bg-emerald-500 text-n-white shadow-lg shadow-emerald-500/25'
                       : isActive
                         ? 'border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/25'
                         : 'border-border bg-card text-muted-foreground'
