@@ -1,0 +1,202 @@
+import type { ITheme } from '@xterm/xterm';
+
+import { readTerminalTheme, TERMINAL_THEME_TOKENS } from '@/modules/shell/utils/terminalTheme';
+import { EXTREME_TOKENS, SCALE_TOKEN_NAMES } from '@/shared/tests/neutralScale';
+
+import '../../src/index.css';
+import cssSource from '../../src/index.css?raw';
+
+/**
+ * Token contract fixture.
+ *
+ * This page imports the production stylesheet verbatim and exposes the resolved
+ * value of every custom property the stylesheet declares. The browser resolves
+ * `var()` chains for us, so a snapshot taken here is the ground truth for
+ * "the UI did not change": any edit that rewrites a token to reference another
+ * token (a palette indirection) resolves to the identical string.
+ *
+ * The fixture is deliberately framework-free — it never mounts the app, so it
+ * stays fast and cannot be broken by unrelated component work.
+ */
+
+export type Appearance = 'light' | 'dark';
+
+export type TokenRead = {
+  /** Token name -> resolved value (var() replaced, whitespace normalised). */
+  tokens: Record<string, string>;
+  /**
+   * Colour tokens parsed through the same `hsl(var(--x))` path Tailwind uses.
+   * Guards against an indirection that keeps the raw string intact but breaks
+   * when the browser actually parses it as a colour.
+   */
+  rendered: Record<string, string>;
+};
+
+/**
+ * The terminal tokens, plus the semantic aliases the stylesheet declares.
+ * Derived from the runtime token map so a key added there is covered here
+ * without a second hand-maintained list.
+ */
+const TERMINAL_PROBE_TOKENS: string[] = [
+  ...Object.values(TERMINAL_THEME_TOKENS),
+  '--term-error',
+  '--term-success',
+  '--term-warning',
+  '--term-info',
+];
+
+/**
+ * The editor tokens hold a complete colour expression (`hsl(var(--palette-…))`,
+ * `#282c34`, `rgba(…)`) rather than a triplet, because `EditorView.theme()`
+ * writes the value into a rule verbatim. They are therefore probed with a bare
+ * `var()`, which is the shape the editor actually emits.
+ */
+const EDITOR_PROBE_TOKENS: string[] = [
+  '--editor-bg',
+  '--editor-fg',
+  '--editor-caret',
+  '--editor-cursor',
+  '--editor-selection',
+  '--editor-selection-focused',
+  '--editor-gutter-bg',
+  '--editor-gutter-fg',
+  '--editor-active-line-bg',
+  '--editor-active-line-gutter-bg',
+  '--editor-panel-bg',
+  '--editor-panel-fg',
+  '--editor-search-match-bg',
+  '--editor-search-match-selected-bg',
+  '--editor-selection-match-bg',
+  '--editor-matching-bracket-bg',
+  '--editor-nonmatching-bracket-bg',
+  '--editor-fold-placeholder-bg',
+  '--editor-fold-placeholder-fg',
+  '--editor-tooltip-bg',
+  '--editor-tooltip-arrow-border',
+  '--editor-tooltip-arrow',
+  '--editor-autocomplete-selected-bg',
+  '--editor-autocomplete-selected-fg',
+  '--editor-diff-add-bg',
+  '--editor-diff-add-border',
+  '--editor-diff-add-text-bg',
+  '--editor-diff-del-bg',
+  '--editor-diff-del-border',
+  '--editor-diff-del-text-bg',
+  '--editor-minimap-bg',
+  '--editor-minimap-diff-add',
+  '--editor-toolbar-bg',
+  '--editor-toolbar-border',
+  '--editor-toolbar-fg',
+  '--editor-toolbar-hover-bg',
+  '--editor-loading-bg',
+  '--editor-invalid',
+];
+
+/**
+ * The neutral compatibility scale behind `bg-n-gray-*`. Probed through the same
+ * `hsl(var(--token))` path Tailwind emits for those classes, so the baseline is
+ * the colour the browser actually paints for the tokenised class — the other
+ * half of the equivalence proof in src/shared/tests/neutralScale.test.ts.
+ *
+ * Derived from that module's vocabulary rather than hand-listed, so a family or
+ * step added to the scale is covered here without a second edit.
+ */
+const NEUTRAL_SCALE_PROBE_TOKENS: string[] = [...SCALE_TOKEN_NAMES, ...EXTREME_TOKENS];
+
+type Probe = {
+  token: string;
+  property: string;
+  /** How the consumer writes the token: `hsl(var(--x))`, or the bare `var(--x)`. */
+  wrap?: 'hsl' | 'raw';
+};
+
+/**
+ * One probe per consumption shape the stylesheet relies on:
+ * a plain triplet, a triplet carrying an alpha channel, a token consumed
+ * inside `hsl()` by the nav rules, and the bare `var()` the editor emits.
+ */
+const PROBES: Probe[] = [
+  ...EDITOR_PROBE_TOKENS.map((token) => ({ token, property: 'color', wrap: 'raw' as const })),
+  { token: '--background', property: 'backgroundColor' },
+  { token: '--foreground', property: 'color' },
+  { token: '--primary', property: 'backgroundColor' },
+  { token: '--border', property: 'backgroundColor' },
+  { token: '--muted-foreground', property: 'color' },
+  { token: '--nav-glass-bg', property: 'backgroundColor' },
+  { token: '--nav-tab-glow', property: 'backgroundColor' },
+  ...NEUTRAL_SCALE_PROBE_TOKENS.map((token) => ({ token, property: 'backgroundColor' })),
+  // The terminal tokens go through the same `hsl(var(--token))` path the
+  // runtime resolver uses (src/modules/shell/utils/terminalTheme.ts), so a
+  // probe here is the colour xterm actually receives.
+  ...TERMINAL_PROBE_TOKENS.map((token) => ({ token, property: 'color' })),
+];
+
+/** Every custom property the stylesheet declares, sorted. */
+function extractTokenNames(css: string): string[] {
+  const names = new Set<string>();
+  const declaration = /(--[a-z0-9-]+)\s*:/gi;
+  let match: RegExpExecArray | null;
+  while ((match = declaration.exec(css)) !== null) {
+    names.add(match[1]);
+  }
+  return [...names].sort();
+}
+
+const tokenNames = extractTokenNames(cssSource);
+
+function buildProbes(): void {
+  for (const { token, property, wrap = 'hsl' } of PROBES) {
+    const probe = document.createElement('div');
+    probe.dataset.token = token;
+    probe.dataset.property = property;
+    // The stylesheet gives every `div` a 200ms colour transition
+    // (`src/index.css` "Color transitions for theme switching"). Without this
+    // opt-out a read taken right after an appearance flip returns the value the
+    // transition started from, not the resolved palette.
+    probe.style.setProperty('transition', 'none');
+    probe.style.setProperty(
+      property.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`),
+      // The `hsl()` form is the shape Tailwind emits for `bg-background`; the
+      // raw form is the shape `EditorView.theme()` emits.
+      wrap === 'raw' ? `var(${token})` : `hsl(var(${token}))`,
+    );
+    document.body.appendChild(probe);
+  }
+}
+
+function readTokens(appearance: Appearance): TokenRead {
+  document.documentElement.classList.toggle('dark', appearance === 'dark');
+
+  const computed = getComputedStyle(document.documentElement);
+  const tokens: Record<string, string> = {};
+  for (const name of tokenNames) {
+    tokens[name] = computed.getPropertyValue(name).trim();
+  }
+
+  const rendered: Record<string, string> = {};
+  for (const probe of Array.from(document.querySelectorAll<HTMLElement>('[data-token]'))) {
+    const property = probe.dataset.property as string;
+    rendered[probe.dataset.token as string] = getComputedStyle(probe)[
+      property as keyof CSSStyleDeclaration
+    ] as string;
+  }
+
+  return { tokens, rendered };
+}
+
+declare global {
+  interface Window {
+    __THEME_TOKENS__?: {
+      read(appearance: Appearance): TokenRead;
+      /** The xterm theme the shell hook would build right now. */
+      readTerminalTheme(): ITheme;
+    };
+  }
+}
+
+buildProbes();
+
+window.__THEME_TOKENS__ = {
+  read: readTokens,
+  readTerminalTheme,
+};

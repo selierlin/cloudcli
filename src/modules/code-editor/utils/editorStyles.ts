@@ -1,31 +1,38 @@
-export const getEditorLoadingStyles = (isDarkMode: boolean) => {
-  return `
+/**
+ * Static CSS for the editor's non-CodeMirror surfaces (the loading placeholder,
+ * the merge/diff decorations and the toolbar panel), plus the styling the
+ * unified-merge extension's generated nodes cannot get from `EditorView.theme`.
+ *
+ * Every colour is a `var()` reference so the stylesheet does not have to be
+ * re-created when the appearance changes — the previous version took an
+ * `isDarkMode` flag and baked the chosen colour into the string.
+ */
+
+export const EDITOR_LOADING_STYLES = `
     .code-editor-loading {
-      background-color: ${isDarkMode ? '#111827' : '#ffffff'} !important;
+      background-color: var(--editor-loading-bg) !important;
     }
 
     .code-editor-loading:hover {
-      background-color: ${isDarkMode ? '#111827' : '#ffffff'} !important;
+      background-color: var(--editor-loading-bg) !important;
     }
   `;
-};
 
-export const getEditorStyles = (isDarkMode: boolean) => {
-  return `
+export const EDITOR_STYLES = `
     .cm-deletedChunk {
-      background-color: ${isDarkMode ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 235, 235, 1)'} !important;
-      border-left: 3px solid ${isDarkMode ? 'rgba(239, 68, 68, 0.6)' : 'rgb(239, 68, 68)'} !important;
+      background-color: var(--editor-diff-del-bg) !important;
+      border-left: 3px solid var(--editor-diff-del-border) !important;
       padding-left: 4px !important;
     }
 
     .cm-insertedChunk {
-      background-color: ${isDarkMode ? 'rgba(34, 197, 94, 0.15)' : 'rgba(230, 255, 237, 1)'} !important;
-      border-left: 3px solid ${isDarkMode ? 'rgba(34, 197, 94, 0.6)' : 'rgb(34, 197, 94)'} !important;
+      background-color: var(--editor-diff-add-bg) !important;
+      border-left: 3px solid var(--editor-diff-add-border) !important;
       padding-left: 4px !important;
     }
 
     .cm-editor.cm-merge-b .cm-changedText {
-      background: ${isDarkMode ? 'rgba(34, 197, 94, 0.4)' : 'rgba(34, 197, 94, 0.3)'} !important;
+      background: var(--editor-diff-add-text-bg) !important;
       padding-top: 2px !important;
       padding-bottom: 2px !important;
       margin-top: -2px !important;
@@ -33,7 +40,7 @@ export const getEditorStyles = (isDarkMode: boolean) => {
     }
 
     .cm-editor .cm-deletedChunk .cm-changedText {
-      background: ${isDarkMode ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.3)'} !important;
+      background: var(--editor-diff-del-text-bg) !important;
       padding-top: 2px !important;
       padding-bottom: 2px !important;
       margin-top: -2px !important;
@@ -41,14 +48,14 @@ export const getEditorStyles = (isDarkMode: boolean) => {
     }
 
     .cm-gutter.cm-gutter-minimap {
-      background-color: ${isDarkMode ? '#1e1e1e' : '#f5f5f5'};
+      background-color: var(--editor-minimap-bg);
     }
 
     .cm-editor-toolbar-panel {
       padding: 4px 10px;
-      background-color: ${isDarkMode ? '#1f2937' : '#ffffff'};
-      border-bottom: 1px solid ${isDarkMode ? '#374151' : '#e5e7eb'};
-      color: ${isDarkMode ? '#d1d5db' : '#374151'};
+      background-color: var(--editor-toolbar-bg);
+      border-bottom: 1px solid var(--editor-toolbar-border);
+      color: var(--editor-toolbar-fg);
       font-size: 12px;
     }
 
@@ -68,7 +75,7 @@ export const getEditorStyles = (isDarkMode: boolean) => {
 
     .cm-diff-nav-btn:hover,
     .cm-toolbar-btn:hover {
-      background-color: ${isDarkMode ? '#374151' : '#f3f4f6'};
+      background-color: var(--editor-toolbar-hover-bg);
     }
 
     .cm-diff-nav-btn:disabled {
@@ -76,4 +83,3 @@ export const getEditorStyles = (isDarkMode: boolean) => {
       cursor: not-allowed;
     }
   `;
-};

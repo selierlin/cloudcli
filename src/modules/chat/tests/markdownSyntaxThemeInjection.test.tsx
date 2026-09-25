@@ -7,7 +7,8 @@ import { Markdown } from '@/modules/chat/transcript/Markdown';
 
 /**
  * Regression coverage for the `<style id="cc-syntax-theme">` element that
- * Markdown.tsx injects at module scope.
+ * `@/shared/syntaxTheme` injects when it is first imported — <Markdown> renders
+ * through that module, so rendering markdown is what triggers the injection.
  *
  * Every colour in a rendered code block is a `var(--cc-syntax-N)` reference, and
  * that stylesheet is the only place those custom properties are declared — it

@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { EditorView } from '@codemirror/view';
-import { oneDark } from '@codemirror/theme-one-dark';
 import type { Extension } from '@codemirror/state';
 
 import type { CodeEditorGotoTarget } from '@/shared/types';
 
 import MarkdownPreview from '@/modules/code-editor/markdown/MarkdownPreview';
+import { editorDarkTheme, editorLightTheme } from '@/modules/code-editor/utils/editorTheme';
 
 type CodeEditorSurfaceProps = {
   content: string;
@@ -73,7 +73,7 @@ export default function CodeEditorSurface({
       value={content}
       onChange={onChange}
       extensions={extensions}
-      theme={isDarkMode ? oneDark : undefined}
+      theme={isDarkMode ? editorDarkTheme : editorLightTheme}
       height="100%"
       style={{
         fontSize: `${fontSize}px`,
