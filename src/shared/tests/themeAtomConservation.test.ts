@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { expect, test } from 'vitest';
 
 import {
+  matchUsage,
   scanScaleTokenAtoms,
   scanThemeHardcodedAtoms,
   usageKey,
@@ -80,6 +81,12 @@ function census(): Census {
  * `variants` and `opacity` both used to be recorded but unread, and the
  * literal-side `opacity` capture was dead outright (no capturing group in the
  * pattern) until this slice needed it.
+ *
+ * The literal half of the `opacity` assertion reads synthetic names: stage 0
+ * ended with the last literal neutral gone from `src/`, so a repo count can no
+ * longer distinguish a working capture from a dead one — it would read 0 either
+ * way. Parsing an assembled pair directly keeps that half load-bearing for the
+ * case it was written for, a literal coming back.
  */
 test('the census scan does not collapse into a vacuous pass', () => {
   const expectPopulated = (count: number, what: string, consequence: string) =>
@@ -103,11 +110,20 @@ test('the census scan does not collapse into a vacuous pass', () => {
     'no `n-*` utility with a transparency modifier was scanned',
     'a migration that drops `/50` would stop being visible',
   );
-  expectPopulated(
-    literals.filter((hit) => hit.opacity !== null).length,
-    'no literal neutral with a transparency modifier was scanned',
-    'a `/50` literal and a solid one would share a bucket, so the frozen side of the census would be wrong',
-  );
+  // Assembled rather than spelled out: Tailwind scans this file as content, so
+  // a live utility name written here would ship in the bundle.
+  const alpha = ['bg', 'gray', '100/50'].join('-');
+  const solid = ['bg', 'gray', '100'].join('-');
+  const literalOpacity = (name: string) => matchUsage(name)?.usage.opacity ?? null;
+
+  expect(
+    literalOpacity(alpha),
+    'the literal `/50` spelling must parse with its transparency captured — a `/50` literal and a solid one would otherwise share a bucket, so the frozen side of the census would be wrong',
+  ).toBe('50');
+  expect(
+    literalOpacity(solid),
+    'and the solid spelling must take no transparency, or the two collapse into one bucket',
+  ).toBe(null);
   expectPopulated(
     [...literals, ...tokens].filter((hit) => hit.utility.includes('-')).length,
     'no axis-qualified neutral utility was scanned',
