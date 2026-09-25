@@ -1,7 +1,7 @@
 # CloudCLI 主题与配色体系设计方案
 
 > 编写日期：2026-09-24 ｜ 修订：2026-09-25（v5：阶段 0-A / 0-B / 0-C 已实施并验收，记录见 §6）
-> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j / 0-E2k / 0-E2l / 0-E2m / 0-E2n / 0-E2o / 0-E2p / 0-E2q / 0-E2r / 0-E2s / 0-E2t / 0-E2u / 0-E2v / 0-E2w / 0-E2x / 0-E2y / 0-E2z / 0-E3a / 0-E3b / 0-E3c / 0-E3d / 0-E3e / 0-E3f / 0-E3g / 0-E3h / 0-E3i / 0-E3j / 0-E3k / 0-E3l / 0-E3m / 0-E3n / 0-E3o / 0-E3p / 0-E3q / 0-E3r / 0-E3s / 0-E3t / 0-E3u / 0-E3v / 0-E3w / 0-E3x / 0-E3y / 0-E3z / 0-E4a / 0-E4b / 0-E4c / 0-E4d / 0-E4e / 0-E4f / 0-E4g / 0-E4h / 0-E4i / 0-E4j / 0-E4k / 0-E4l / 0-E4m / 0-E4n / 0-E4o / 0-E4p / 0-E4q / 0-E4r / 0-E4s / 0-E4t / 0-E4u / 0-E4v / 0-E4w / 0-E4x / 0-E4y / 0-E4z / 0-E5a / 0-E5b / 0-E5c / 0-E5d / 0-E5e / 0-E5f / 0-E5g / 0-E5h / 0-E5i / 0-E5j / 0-E5k / 0-E5l / 0-E5m / 0-E5n / 0-E5o / 0-E5p / 0-E5q / 0-E5r / 0-E5s / 0-E5t / 0-E5u / 0-E5v / 0-E5w / 0-E5x / 0-E5y / 0-E5z / 0-E6a / 0-E6b / 0-E6c / 0-E6d 一百一十五片，**阶段 0 的迁移分片已全部实施**；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内；0-E3i 修正了产物核对脚本的**前提假设缺口**——脚本原假设"被测文件迁移前不含 `n-*` 令牌"，随分片推进（前片已令牌化的文件被再次触碰）必然被打破；0-E6d 又暴露一处**护栏前提失效**——守恒律反空转护栏里"必须扫到 ≥1 处带透明度修饰的**字面**中性色"这条断言，随阶段 0 归零而失去可满足前提（仓库计数无论捕获组是否健在都读 0），改为对解析形状的合成名断言。截至 0-E6d：中性具名硬编码剩余 **0 处 / 0 文件**（起点 1517 / 105；阶段 0 迁移完成，仅余 1 处豁免 `border-gray-150`）。**阶段 1 已开工**：1-A（主题骨架：`ThemeManifest` + `BUILTIN_THEMES` + `<html data-theme>`）与 1-B 第一步（随 `appearance` 在 `<html>` 写 `color-scheme`，本线**第一个有意的视觉变更**）均已实施并验收；1-B2 的三个子片（删 2 行已失效的 `color-scheme: dark`、textarea 的 `color-scheme` 改为随应用外观、68 处暗色补偿改走既有令牌）也已完成；**其前置 0-F 也已实施**（Git 图 lane 色抽为 `--graph-lane-1..10` ＋ 移动端终端选区菜单 7 处色值令牌化，拆 0-F1 / 0-F2 两片），切片表与记录见 §6）；**1-C 与 1-D 也已完成**（1-C：`theme-color` 与 iOS status-bar 改由令牌派生，`ThemeContext` 里两处手写 hex 删除、两个分支合并，`ThemeManifest` 的 `themeColor` / `statusBar` 覆盖字段一并落地；1-D：新增 `themeId` 偏好键，`ThemeContext` 暴露 `themeId` / `resolvedThemeId` / `setThemeId`，跨设备"未安装该主题"的回落不再静默——**1-E 也已完成**（覆盖层机制 ＋ 两套示范主题 `cc-ocean`（`accent`）/ `cc-polar`（`full`）＋ 注册表扩充，三片各自独立 commit；修正了 §5.2 的 cascade 假设、定了 `appearance` 的两角色模型——**1-F 也已完成**（`f2e03c6f`：外观设置页的配色主题选择器 ＋ `coverage` 徽标 ＋ 跨设备未安装的回落提示，i18n 实补 en ＋ zh-CN；原计划"只补 zh-CN"的前提经实测不成立——仓库现状是 zh-CN ⊆ en——**1-G 也已完成**（`7b406986`：刷新 effect 补 `resolvedThemeId` 依赖，覆盖层的切换 / 清除都会让 xterm 重读 `--term-*`；**另两路经核查无需刷新**——编辑器的 chrome 与 highlight 全是 `var()`、Git 图是 SVG 表现属性；范围据此收窄并回写 §5.6 v10。**阶段 1 至此只剩 1-H**：把 §5.11 契约测试扩到"每个 `[data-theme]` 覆盖层"的完整遍历 ＋ §5.10 对比度断言（`--ring`/`--background` ≥ 3:1、正文 ≥ 4.5:1）——对比度自检的数已在 1-E 记录里备好））
+> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j / 0-E2k / 0-E2l / 0-E2m / 0-E2n / 0-E2o / 0-E2p / 0-E2q / 0-E2r / 0-E2s / 0-E2t / 0-E2u / 0-E2v / 0-E2w / 0-E2x / 0-E2y / 0-E2z / 0-E3a / 0-E3b / 0-E3c / 0-E3d / 0-E3e / 0-E3f / 0-E3g / 0-E3h / 0-E3i / 0-E3j / 0-E3k / 0-E3l / 0-E3m / 0-E3n / 0-E3o / 0-E3p / 0-E3q / 0-E3r / 0-E3s / 0-E3t / 0-E3u / 0-E3v / 0-E3w / 0-E3x / 0-E3y / 0-E3z / 0-E4a / 0-E4b / 0-E4c / 0-E4d / 0-E4e / 0-E4f / 0-E4g / 0-E4h / 0-E4i / 0-E4j / 0-E4k / 0-E4l / 0-E4m / 0-E4n / 0-E4o / 0-E4p / 0-E4q / 0-E4r / 0-E4s / 0-E4t / 0-E4u / 0-E4v / 0-E4w / 0-E4x / 0-E4y / 0-E4z / 0-E5a / 0-E5b / 0-E5c / 0-E5d / 0-E5e / 0-E5f / 0-E5g / 0-E5h / 0-E5i / 0-E5j / 0-E5k / 0-E5l / 0-E5m / 0-E5n / 0-E5o / 0-E5p / 0-E5q / 0-E5r / 0-E5s / 0-E5t / 0-E5u / 0-E5v / 0-E5w / 0-E5x / 0-E5y / 0-E5z / 0-E6a / 0-E6b / 0-E6c / 0-E6d 一百一十五片，**阶段 0 的迁移分片已全部实施**；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内；0-E3i 修正了产物核对脚本的**前提假设缺口**——脚本原假设"被测文件迁移前不含 `n-*` 令牌"，随分片推进（前片已令牌化的文件被再次触碰）必然被打破；0-E6d 又暴露一处**护栏前提失效**——守恒律反空转护栏里"必须扫到 ≥1 处带透明度修饰的**字面**中性色"这条断言，随阶段 0 归零而失去可满足前提（仓库计数无论捕获组是否健在都读 0），改为对解析形状的合成名断言。截至 0-E6d：中性具名硬编码剩余 **0 处 / 0 文件**（起点 1517 / 105；阶段 0 迁移完成，仅余 1 处豁免 `border-gray-150`）。**阶段 1 已开工**：1-A（主题骨架：`ThemeManifest` + `BUILTIN_THEMES` + `<html data-theme>`）与 1-B 第一步（随 `appearance` 在 `<html>` 写 `color-scheme`，本线**第一个有意的视觉变更**）均已实施并验收；1-B2 的三个子片（删 2 行已失效的 `color-scheme: dark`、textarea 的 `color-scheme` 改为随应用外观、68 处暗色补偿改走既有令牌）也已完成；**其前置 0-F 也已实施**（Git 图 lane 色抽为 `--graph-lane-1..10` ＋ 移动端终端选区菜单 7 处色值令牌化，拆 0-F1 / 0-F2 两片），切片表与记录见 §6）；**1-C 与 1-D 也已完成**（1-C：`theme-color` 与 iOS status-bar 改由令牌派生，`ThemeContext` 里两处手写 hex 删除、两个分支合并，`ThemeManifest` 的 `themeColor` / `statusBar` 覆盖字段一并落地；1-D：新增 `themeId` 偏好键，`ThemeContext` 暴露 `themeId` / `resolvedThemeId` / `setThemeId`，跨设备"未安装该主题"的回落不再静默——**1-E 也已完成**（覆盖层机制 ＋ 两套示范主题 `cc-ocean`（`accent`）/ `cc-polar`（`full`）＋ 注册表扩充，三片各自独立 commit；修正了 §5.2 的 cascade 假设、定了 `appearance` 的两角色模型——**1-F 也已完成**（`f2e03c6f`：外观设置页的配色主题选择器 ＋ `coverage` 徽标 ＋ 跨设备未安装的回落提示，i18n 实补 en ＋ zh-CN；原计划"只补 zh-CN"的前提经实测不成立——仓库现状是 zh-CN ⊆ en——**1-G 也已完成**（`7b406986`：刷新 effect 补 `resolvedThemeId` 依赖，覆盖层的切换 / 清除都会让 xterm 重读 `--term-*`；**另两路经核查无需刷新**——编辑器的 chrome 与 highlight 全是 `var()`、Git 图是 SVG 表现属性；范围据此收窄并回写 §5.6 v10。**1-H 也已完成**（`38ef8d8e` / `13b9c696`：§5.10 对比度断言落地为 `contrast.spec.ts`，覆盖"基色 ＋ 每套覆盖层"× 明暗两态的 6 个配对；§5.11 的遍历补上反向守卫，堵住"块存在但未注册"的死 CSS——这是"遍历每套覆盖层"按构造会跳过的那一类；**并含一处有意视觉变更**——基色 `--palette-sand-500` 由 `44%` 调至 `43%`，因宽读下它只到 4.42:1、低于 AA 4.5:1，而 accent 类覆盖层不重调 substrate 会继承它。**阶段 1 至此全部完成**））
 > 参照物：WorkBuddy（`/Applications/WorkBuddy.app`，app.asar 解包 + 本机皮肤包实物）、Codex CLI（`@openai/codex@0.155.1`，Rust 二进制字符串解析）
 > 目标读者：评审 AI / 后续实施者
 
@@ -454,6 +454,8 @@ rg -o -e 'dark:(bg|text|border|ring|stroke|fill|from|to|via|decoration|placehold
 - **不以颜色单独传达状态**：diff 增删、Git lane、状态标签可以换色，但不得去掉非颜色标识（图标 / 符号 / 纹理），保证色盲可用
 - **验收**：内置主题纳入 §5.11 契约测试的对比度断言
 
+> **v1（1-H 落地）**：上面那条"正文 ≥ 4.5:1"的**主语是有分叉的**——"正文小字"若只指 `--foreground`，基色浅色以 18.20:1 轻松通过；若含 `--muted-foreground`（次要文字，UI 里大量小字），基色浅色只有 **4.42:1**，低于下限。1-H 按后者（宽读）落地：主句"必须过 WCAG AA"是规则、括号是举例，故让主句为真，而不是削弱它。为此**有意改动出厂配色**：`--palette-sand-500` `40 5% 44% → 43%`（4.42:1 → 4.59:1）。这不是可选项——accent 类覆盖层不重调 substrate，基色不达标会连带拉垮它们（`cc-ocean` 同为 4.42，只有自带 `sand-500` 的 `cc-polar` 幸免），把基色修好等于同时修好一类主题。断言实际纳入 6 个配对（见 §5.11 v8），其中按钮文字一对由两套覆盖层的作者注释锚定为在范围内；**这不是穷举的文字×表面矩阵**，其余成对令牌（`--secondary-*` / `--accent-*` / `--popover-*` 等）留待逐对论证后再加。
+
 ### 5.11 契约测试（比 grep 验收更可靠）
 
 grep 只能证明"没有字面硬编码"，证明不了"每套主题的令牌全集可解析、明暗双分支都有值"。新增一组自动化契约测试：
@@ -472,6 +474,8 @@ grep 只能证明"没有字面硬编码"，证明不了"每套主题的令牌全
 > **v7（1-E 追加，覆盖面扩到覆盖层，并记一处如实边界）**：契约测试新增 `tests/theme-tokens/theme-overlays.spec.ts`，把"遍历每套覆盖层"这半做掉——它按 `BUILTIN_THEMES` 中 `appearance === 'system'` 的主题逐个遍历，断言（以 `coverage` 的承诺为准）每个覆盖层声明的值在浏览器里**按写的解析**、且"移动的令牌集合"**恰等于**它宣称的可达范围（正向 must-move ＋ 反向 must-not-move ＋ 第三重的 `derivedMoves` 收敛）；再加"覆盖层必须在任何 `@layer` 之外"（结构断言）与"浅色半不泄漏进暗色"两条机制性护栏。**对比度断言（§5.10）仍未做，连同"遍历"的完整化留 1-H。**
 >
 > **如实边界：语法高亮本轮不在任何覆盖层的可达范围内**。`--cc-syntax-1..7` 在 L1 里**没有对应的 `--palette-*` 条目**（是直接字面值），而 §8.9 已决"本轮不升语义名"。因此 `cc-polar` 这类 `full` 主题**不改语法高亮配色**——覆盖层测试的 `SURFACES` 里没有 `syntax` 组，是**如实反映边界而非漏写**。要把它纳入主题覆盖，得先做 §8.9 的改名／映射决策，属后续片。
+
+> **v8（1-H 追加，对比度落地 ＋ 遍历闭合）**：新增 `tests/theme-tokens/contrast.spec.ts`，对"基色 ＋ 每套覆盖层" × 明暗两态断言 6 个配对（`--foreground` / `--muted-foreground` 各落 `--background` 与 `--card`、`--primary-foreground` 落 `--primary`、`--ring` 落 `--background` ≥ 3:1）。**基色纳入遍历是刻意的**：它是未选主题时的出厂外观，且 accent 覆盖层不重调 substrate，只走覆盖层会漏掉真正在发货的那一面（变异 A 即此证）。颜色取 fixture 的 `rendered` 层而非 `tokens`——令牌是三值对，只有被消费才成为颜色；为此给 `PROBES` 补 `--card` / `--primary-foreground` / `--ring`（基线随之 +6 行）。**未加探针的配对先断言令牌在 `rendered` 里、缺则点名报错**，否则 `undefined` 参与比较会恒假通过。遍历侧补反向守卫：样式表里每个 `[data-theme]` 块都必须属于已注册覆盖层、每个注册覆盖层都必须有块——"块存在但未注册"是这类遍历**按构造**会跳过的死 CSS。**用户主题的对比度仍只警告不阻断**（§5.10 留给选项 A 的校验器，属阶段 2），本片只覆盖内置主题。
 
 ### 5.12 Git 图 lane 色的数量上限（避免穷举）
 
@@ -3261,7 +3265,7 @@ Mutation 侧：
 | 1-E | 两套示范主题的覆盖层（**unlayered** `[data-theme]` 规则，含 `.dark` 分支）+ 注册表扩充 + `coverage` 标注 | ✅ 已实施（`695a6c1b` / `29fb85fa` / `08236ef0`，三片）。机制 ＋ `cc-ocean`（`accent`，只覆盖 L1 一个色族）＋ `cc-polar`（`full`：42 条基材/终端/图 ＋ 编辑器浅暗两半）；新增 `theme-overlays.spec.ts`（6 用例 ×2 引擎，逐主题参数化）与 fixture `readWithTheme`。**修正 §5.2 的 cascade 假设**（处理后无 `@layer`，改判为结构约定）；`cc-light` / `cc-dark` 定为外观默认、不进选择器（消解 1-D 边界一）。详见 §6 阶段 1 末 1-E 记录 |
 | 1-F | 外观设置页主题选择器 + `coverage` badge（i18n 只补 zh-CN） | ✅ 已实施（`f2e03c6f`）。`settings/ThemeSelector` 列出 `appearance === 'system'` 的覆盖层主题（外观默认不进列表）＋ 一个「默认」项；徽标按 `coverage` 渲染；`themeId !== resolvedThemeId` 时出一行回落提示，补上 1-D 留下的消费者。归属按 `shared/ui` 准入线放 **settings 模块**（只有一个消费者）。**原计划"i18n 只补 zh-CN"的前提不成立**：实测仓库现状是 zh-CN ⊆ en（en 为键集基准），故实补 en ＋ zh-CN 两处。详见 §6 阶段 1 末 1-F 记录 |
 | 1-G | JS 消费者随主题刷新：xterm 重读 `--term-*` 重设 `options.theme`、CodeMirror compartment reconfigure、Git 图 SVG 直接用 `var(--graph-lane-*)` | ✅ 已实施（`7b406986`）。**实测三路里只有 xterm 需要做**：编辑器（0-D 落地时 chrome 与 highlight 的每个色值都是 `var()`，由注入样式表在绘制时解析）与 Git 图（SVG 表现属性）都无需刷新，故代码改动仅"刷新 effect 补 `resolvedThemeId` 依赖"一处。新增 `shellTerminalThemeRefresh.test.tsx`（桩终端 ＋ 计数读取，4 例）与 `terminal-tokens.spec.ts` 一例（覆盖层确实移动色板 ＝ 刷新的前提）。§5.6 的"JS 消费者需要刷新"已按此收窄（v10）。详见本片记录 |
-| 1-H | §5.11 契约测试扩到"遍历每套 `[data-theme]` 覆盖层"与 §5.10 对比度断言（`--ring`/`--background` ≥ 3:1、正文 ≥ 4.5:1） | 待做 |
+| 1-H | §5.11 契约测试扩到"遍历每套 `[data-theme]` 覆盖层"与 §5.10 对比度断言（`--ring`/`--background` ≥ 3:1、正文 ≥ 4.5:1） | ✅ 已实施（`38ef8d8e` / `13b9c696`）。对比度落地为 `tests/theme-tokens/contrast.spec.ts`：对"基色 ＋ 每套覆盖层"× 明暗两态断言 6 个配对（`--foreground`/`--muted-foreground` 各落 `--background` 与 `--card`、按钮文字落 `--primary`、`--ring` 落 `--background`），颜色读 fixture 的 `rendered` 层。**"正文"的读法是个口径分叉**：窄读（仅 `--foreground`）零改动即可落地，宽读（含 `--muted-foreground`）则基色浅色仅 4.42:1 不达标——用户拍板按宽读，并把 `--palette-sand-500` 由 `44%` 调到 `43%`（4.59:1，浏览器序列化后 4.62）。遍历侧补反向守卫：样式表里每个 `[data-theme]` 块都必须属于已注册覆盖层。详见阶段 1 末 1-H 记录 |
 
 **分片口径**：与阶段 0 同——每片独立迁移、独立验收、独立 commit、可单独回退；批次化（若合批）只合并重量级门槛的调用次数，片内仍逐片验。
 
@@ -3602,6 +3606,49 @@ Mutation 侧：
 **门槛**：`test:client` **130 文件 / 988 用例**（1-F 收官 129/984 ＋ 本片 1 文件 4 用例）；`test:theme-tokens` **48 通过**；`typecheck`（含 server）与 `typecheck:theme-tokens` 干净；`lint` **153 warnings / 0 error**（与 1-F 收官逐位相同）；`build` exit 0。
 
 **与既有账的关系**：阶段 0 迁移账与 B3 账户均不受影响（未碰 CSS）；阶段 1 不计处数，按片计。**本片是本线第一片"先核范围再做"的片**：既定描述里的三路，实测两路早已由更强的实现满足——这与 0-D"实现偏差（比草案更强）"、1-C"探针取代手写 HSL→hex"同体例，故按同样要求**回写 §5.6 v10**（把"JS 消费者需要主动刷新"收窄为"把解析值塞进 JS 对象的那类才需要"）。
+
+#### 1-H 实施记录（2026-09-26，`38ef8d8e` / `13b9c696` 两片）
+
+**范围**：`tests/theme-tokens/contrast.spec.ts`（新，4 用例：基色 ＋ 两套覆盖层，×2 引擎）、`tests/theme-tokens/theme-overlays.spec.ts`（+1 反向守卫）、`tests/theme-tokens/main.ts`（+3 探针）、`tests/theme-tokens/token-baseline.json`（+6 行）、`tests/theme-tokens/README.md`，以及 **`src/index.css` 的一次有意取值变更**（`--palette-sand-500`）。**无 i18n、无组件、无 server 改动。**
+
+**这一片卡在一个口径分叉上，交由用户拍板后按 (b) 落地。** §5.10 首条写"内置主题必须过 WCAG AA（正文小字 ≥ 4.5:1…）"，§5.11 的断言写"正文对比度 ≥ 4.5:1"——两处对"正文"是否含 `--muted-foreground`（次要文字）给了不同读法，而读法决定结论：
+
+| 读法 | 基色浅色 `--muted-foreground` / `--background` | 后果 |
+|---|---|---|
+| 窄（正文 ＝ `--foreground`） | 18.20:1；该对不在断言范围内 | 零改动即可落地 |
+| 宽（所有正常字号文字） | **4.42:1 不达标** | 须改色板或放宽阈值 |
+
+实测该值 **4.42:1**（`--palette-sand-500` `40 5% 44%` 落在 `--palette-sand-50` 上），且 **accent 类覆盖层不重调 substrate、会继承它**——`cc-ocean` 同为 4.42，只有自带 `sand-500: 215 12% 45%` 的 `cc-polar` 幸免。故窄读等于把一条低于 AA 的比值永久豁免。
+
+**关键决策**：
+
+1. **按宽读，调暗基色到刚好达标**（用户拍板 (b)）：`--palette-sand-500` `44% → 43%`，比值 4.42 → **4.59**（浏览器序列化后实测 **4.62**）。依据是 §5.10 主句"必须过 WCAG AA"为规则、括号为举例，(b) 让主句为真而不必削弱任何条款；仓库已有同体例先例——`cc-ocean` 的注释就记录了"浅色步从示例值调暗，因为只到 3.5:1"。
+2. **取最小步长而非留余量**：43% 仅比阈值高 0.09（序列化后 0.12）。选"刚好达标"是因为该值是设计师肉眼可辨的界；若将来某个主题步骤逼近，应当调整那个主题，而不是继续压基色。
+3. **配对取"契约点名的 ＋ 主题作者自己锚定的"**：6 对 = `--foreground` / `--muted-foreground` 各落在 `--background` 与 `--card`、按钮文字落 `--primary`、`--ring` 落 `--background`。按钮一对既未见于 §5.10/§5.11 字面，但**两套覆盖层的注释都以它为标**（cc-ocean 记 3.5:1 不达标、cc-polar 记"4.6:1 才够"），故纳入。**这不是穷举的文字×表面矩阵**，边界写在 spec 头注释里。
+4. **基色纳入遍历，而非只走覆盖层**：基色就是"未选主题"时的出厂外观，且（见上）accent 覆盖层不重调 substrate——只走覆盖层会漏掉**真正在发货的那一面**。变异 A 正是这条的证明。
+5. **颜色读 `rendered` 层而非 `tokens`**：令牌是三值对（`40 5% 43%`），只有被消费时才成为颜色；对比度算的是浏览器实际绘制的色，`rendered` 就是它。为此给 fixture 补 `--card` / `--primary-foreground` / `--ring` 三个探针——`--ring` 此前**没有任何检查把它解析成颜色**。
+6. **未加探针的配对必须点名报错，不能静默 NaN**：`undefined` 参与比较会恒假通过，故先断言两个令牌都在 `rendered` 里，缺则报出令牌名并指向 `PROBES`。
+7. **反向守卫堵"死 CSS"**：所有既有用例都是从 `OVERLAY_THEMES` 走向样式表，于是"存在 `[data-theme]` 块但未注册"这一形态**按构造被跳过**；新增一条断言两个方向都闭合（块 ↔ 注册表）。
+
+**如实边界（不阻塞）**：
+
+1. **用户主题的对比度只警告不阻断**——§5.10 把"非阻断对比度警告"留给选项 A 的令牌校验器，而该校验器属阶段 2，本片未做；本片只覆盖内置主题。
+2. **配对表不是穷举矩阵**：`--secondary-foreground`/`--secondary`、`--accent-foreground`/`--accent`、`--popover-*`、`--card-foreground` 等成对令牌未纳入。纳入的是"样式表确实在画"的那些；扩充需按同样依据逐对论证，不能凭对称感批量加。
+3. **`--ring` / `--card` / `--primary-foreground` 的探针属新增基线面**：基线新增 6 行（3 令牌 × 2 外观），是本片造成的唯一基线变化（片一的 4 行则来自色板取值变更）。
+
+**证据**：
+
+| 层 | 做法 | 结果 |
+|---|---|---|
+| **变异 A（基色退回）** | `--palette-sand-500` 退回 `44%` | **恰 6 红**：基线 ×2、基色对比度 ×2、`cc-ocean` 对比度 ×2；**`cc-polar` 保持绿**。同时证明"基色被继承"与"逐主题独立"两件事，也是 (b) 选择的核心依据 |
+| **变异 B（覆盖层改浅）** | `cc-ocean` 的 `--palette-brand-500` 浅色步 `27% → 80%` | **恰 2 红**（仅 `cc-ocean` 对比度 ×2 引擎），且**基线 0 红**——覆盖层不进基线（基线在无 `data-theme` 下读取），可达性用例也不查对比度。失败信息形如 `light --primary-foreground on --primary: 1.22:1 < 4.5:1 (rgb(248, 250, 252) on rgb(166, 242, 233))` |
+| **变异 C（孤儿块）** | 追加一个未注册的 `[data-theme="cc-ghost"]` 块 | **恰 2 红**（孤儿守卫 ×2 引擎），其余 54 项全绿——正是"按构造会被跳过"的形态被抓住 |
+| **基线 diff 可预测** | `git diff token-baseline.json` | 片一恰 **4 行**（light 的 `--muted-foreground` 与 `--palette-sand-500`、light.rendered 的 `--muted-foreground`、dark 的 `--palette-sand-500`）；片二恰 **+6 行**（3 探针 × 2 外观）。深色 `--muted-foreground` 走 `--palette-ink-400`，未动 |
+| **产物核对** | `grep -- '--palette-sand-500:[^;}]*' dist/assets/*.css` | `40 5% 43%`（基色）＋ `215 12% 45%`（cc-polar）；旧值 `40 5% 44%` **0 处残留** |
+
+**门槛**：`test:theme-tokens` **48 → 56**（4 新用例：1 守卫 ＋ 3 对比度，×2 引擎）；`typecheck:theme-tokens` 干净；`test:client` **130 文件 / 988 用例**（与 1-G 逐位相同）；`lint` **153 warnings / 0 error**；`build` exit 0（取真实退出码，非管道值）。
+
+**与既有账的关系**：阶段 0 迁移账与 B3 账户不受影响。**本片是本线唯一带"出厂配色有意变更"的片**：`--palette-sand-500` 44%→43%，按 1-B / 1-C 的体例单独记账为有意视觉变更（受影响的只有浅色次要文字，1% 亮度）。**阶段 1 至此全部完成。**
 
 
 ### 阶段 2：用户主题
