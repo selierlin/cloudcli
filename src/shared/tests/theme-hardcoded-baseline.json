@@ -1,5 +1,5 @@
 {
-  "total": 60,
+  "total": 56,
   "byFile": {
     "src/modules/chat/composer/ComposerAttachment.tsx": 1,
     "src/modules/chat/composer/PromptInput.tsx": 1,
@@ -30,7 +30,6 @@
     "src/modules/settings/tabs/NotificationsSettingsTab.tsx": 2,
     "src/modules/shell/ShellMinimalView.tsx": 1,
     "src/modules/sidebar/SidebarModeTabs.tsx": 1,
-    "src/modules/sidebar/TaskIndicator.tsx": 4,
     "src/modules/skills/ProviderSkills.tsx": 4,
     "src/modules/task-master/TaskMasterPanel.tsx": 1,
     "src/shared/ui/DarkModeToggle.tsx": 2,
@@ -40,8 +39,7 @@
   "byAtom": {
     "bg: black": 9,
     "bg: gray-100": 1,
-    "bg: gray-50": 1,
-    "bg: gray-900": 7,
+    "bg: gray-900": 6,
     "bg: slate-500": 1,
     "bg: white": 7,
     "bg: zinc-500": 1,
@@ -51,8 +49,6 @@
     "border: slate-500": 1,
     "border: white": 1,
     "shadow: black": 2,
-    "text: gray-400": 1,
-    "text: gray-500": 1,
     "text: gray-900": 1,
     "text: slate-300": 1,
     "text: slate-700": 1,
