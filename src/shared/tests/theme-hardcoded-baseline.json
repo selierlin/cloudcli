@@ -1,14 +1,12 @@
 {
-  "total": 4,
+  "total": 3,
   "byFile": {
-    "src/modules/shell/ShellMinimalView.tsx": 1,
     "src/modules/sidebar/SidebarModeTabs.tsx": 1,
     "src/modules/task-master/TaskMasterPanel.tsx": 1,
     "src/shared/ui/Dialog.tsx": 1
   },
   "byAtom": {
     "bg: black": 1,
-    "bg: gray-900": 1,
     "text: white": 2
   }
 }
