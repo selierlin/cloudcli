@@ -311,7 +311,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
   );
 
   const renderBrowserSurface = (fullscreen = false) => (
-    <div className={cn('flex flex-1 items-center justify-center bg-neutral-950', fullscreen ? 'min-h-[80vh]' : 'min-h-[420px]')}>
+    <div className={cn('flex flex-1 items-center justify-center bg-n-neutral-950', fullscreen ? 'min-h-[80vh]' : 'min-h-[420px]')}>
       {selectedSession?.screenshotDataUrl ? (
         <div className="relative inline-block max-h-full">
           <img
@@ -321,18 +321,18 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
           />
           {cursorStyle && (
             <div
-              className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/90 bg-primary/80 shadow-[0_0_0_6px_hsl(var(--primary)/0.18)]"
+              className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-n-white/90 bg-primary/80 shadow-[0_0_0_6px_hsl(var(--primary)/0.18)]"
               style={cursorStyle}
             >
-              <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white" />
+              <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-n-white" />
             </div>
           )}
         </div>
       ) : (
         <div className="px-6 text-center">
-          <MonitorPlay className="mx-auto h-9 w-9 text-neutral-500" />
-          <div className="mt-3 text-sm font-medium text-neutral-100">{selectedSession?.message || t('screenshot.waiting')}</div>
-          <p className="mt-1 text-xs text-neutral-400">{t('screenshot.nextSnapshot')}</p>
+          <MonitorPlay className="mx-auto h-9 w-9 text-n-neutral-500" />
+          <div className="mt-3 text-sm font-medium text-n-neutral-100">{selectedSession?.message || t('screenshot.waiting')}</div>
+          <p className="mt-1 text-xs text-n-neutral-400">{t('screenshot.nextSnapshot')}</p>
         </div>
       )}
     </div>
@@ -516,9 +516,9 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
       </div>
 
       {isFullscreen && selectedSession && (
-        <div className="fixed inset-0 z-50 bg-black/90 p-6">
-          <div className="flex h-full flex-col rounded-md border border-white/10 bg-black">
-            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 text-sm text-white/80">
+        <div className="fixed inset-0 z-50 bg-n-black/90 p-6">
+          <div className="flex h-full flex-col rounded-md border border-n-white/10 bg-n-black">
+            <div className="flex items-center justify-between border-b border-n-white/10 px-4 py-3 text-sm text-n-white/80">
               <div className="min-w-0 truncate">{selectedSession.title || selectedSession.url || t('sessions.fullscreenTitle')}</div>
               <Button variant="outline" size="sm" onClick={() => setIsFullscreen(false)}>
                 <X className="h-4 w-4" />

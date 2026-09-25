@@ -1,7 +1,6 @@
 {
-  "total": 252,
+  "total": 241,
   "byFile": {
-    "src/modules/browser-use/BrowserUsePanel.tsx": 11,
     "src/modules/chat/composer/CommandMenu.tsx": 6,
     "src/modules/chat/composer/ComposerAttachment.tsx": 1,
     "src/modules/chat/composer/PromptInput.tsx": 1,
@@ -68,7 +67,7 @@
     "src/shared/ui/Tooltip.tsx": 4
   },
   "byAtom": {
-    "bg: black": 19,
+    "bg: black": 17,
     "bg: gray-100": 10,
     "bg: gray-200": 3,
     "bg: gray-50": 6,
@@ -78,11 +77,10 @@
     "bg: gray-800": 10,
     "bg: gray-900": 15,
     "bg: gray-950": 3,
-    "bg: neutral-950": 1,
     "bg: slate-100": 1,
     "bg: slate-500": 1,
     "bg: slate-900": 1,
-    "bg: white": 14,
+    "bg: white": 13,
     "bg: zinc-500": 1,
     "bg: zinc-900": 3,
     "border: gray-200": 9,
@@ -90,7 +88,7 @@
     "border: gray-500": 1,
     "border: gray-700": 10,
     "border: slate-500": 1,
-    "border: white": 4,
+    "border: white": 1,
     "shadow: black": 2,
     "text: gray-100": 2,
     "text: gray-200": 4,
@@ -100,11 +98,8 @@
     "text: gray-600": 12,
     "text: gray-700": 4,
     "text: gray-900": 8,
-    "text: neutral-100": 1,
-    "text: neutral-400": 1,
-    "text: neutral-500": 1,
     "text: slate-300": 2,
     "text: slate-700": 2,
-    "text: white": 40
+    "text: white": 39
   }
 }
