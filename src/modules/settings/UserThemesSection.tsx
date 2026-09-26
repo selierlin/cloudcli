@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/shared/context/ThemeContext';
@@ -6,6 +6,11 @@ import { THEME_RESET_PARAM, THEME_RESET_VALUE } from '@/shared/themeReset';
 import type { ThemeContrastWarning } from '@/shared/userThemeContrast';
 import { addPastedTheme, removePastedTheme } from '@/shared/userThemePastes';
 import type { AddPastedThemeFailure, PastedThemeFormat } from '@/shared/userThemePastes';
+import {
+  getUserThemeStyleState,
+  subscribeToUserThemeStyle,
+} from '@/shared/userThemeStyles';
+import type { UserThemeStyleState } from '@/shared/userThemeStyles';
 import { cn } from '@/shared/utils';
 import { useThemeCssPreview } from '@/modules/settings/hooks/useThemeCssPreview';
 import { useThemePasteFormat } from '@/modules/settings/hooks/useThemePasteFormat';
@@ -60,6 +65,36 @@ const PASTE_FORMATS: ReadonlyArray<{ value: PastedThemeFormat; labelKey: string 
 const placeholderKey = (format: PastedThemeFormat): string =>
   `userThemes.pastePlaceholder.${format}`;
 
+/**
+ * The §5.10 contrast report, the same shape wherever it appears: a status
+ * (not an alert — the theme applies), one line per pair below the floor, and
+ * nothing at all when there is nothing to report.
+ */
+function ContrastReport({ warnings }: { warnings: ThemeContrastWarning[] }) {
+  const { t } = useTranslation('settings');
+  return (
+    <div role="status" className="mt-2 rounded-lg border border-border bg-muted/40 p-2">
+      <p className="text-xs font-medium text-foreground">{t('userThemes.contrastTitle')}</p>
+      <ul className="mt-0.5 space-y-0.5">
+        {warnings.map((warning) => (
+          <li
+            key={`${warning.appearance}-${warning.ink}-${warning.surface}`}
+            className="text-xs text-muted-foreground"
+          >
+            {t('userThemes.contrastWarning', {
+              appearance: t(`userThemes.contrastAppearance.${warning.appearance}`),
+              ink: warning.ink,
+              surface: warning.surface,
+              ratio: warning.ratio.toFixed(2),
+              min: String(warning.min),
+            })}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default function UserThemesSection() {
   const { t } = useTranslation('settings');
   const { userThemes, themeId, setThemeId } = useTheme();
@@ -78,8 +113,25 @@ export default function UserThemesSection() {
   // asking after would be the footgun §5.5 warns about, one reload away.
   const [confirmingCss, setConfirmingCss] = useState(false);
 
+  // The contrast report of the stylesheet in the document (§5.10), read from
+  // the same store the picker's fallback hint reads. A theme file's compile
+  // happens at apply time on the client — the listing never reads content — so
+  // this is where a file's warnings surface without breaking that boundary.
+  const [styleState, setStyleState] = useState<UserThemeStyleState>(getUserThemeStyleState);
+  useEffect(() => subscribeToUserThemeStyle(() => setStyleState(getUserThemeStyleState())), []);
+
   const fileThemes = userThemes.filter((theme) => theme.source === 'user');
   const pastedThemes = userThemes.filter((theme) => theme.source === 'user-paste');
+
+  // The report belongs to the file list only when the theme wearing the page is
+  // one of these files. A paste's report has its own moment (right after the
+  // paste), and showing the same warnings twice would read as two problems.
+  const appliedFileWarnings = useMemo<ThemeContrastWarning[] | null>(() => {
+    if (!styleState.appliedId || styleState.warnings.length === 0) return null;
+    return fileThemes.some((theme) => theme.id === styleState.appliedId)
+      ? styleState.warnings
+      : null;
+  }, [fileThemes, styleState]);
 
   const chooseFormat = (next: PastedThemeFormat) => {
     if (next === format) return;
@@ -141,6 +193,7 @@ export default function UserThemesSection() {
               ))}
             </ul>
           )}
+          {appliedFileWarnings && <ContrastReport warnings={appliedFileWarnings} />}
         </div>
 
         <div className="px-4 py-4">
@@ -291,27 +344,7 @@ export default function UserThemesSection() {
               </p>
             )}
           </div>
-          {warnings.length > 0 && (
-            <div role="status" className="mt-2 rounded-lg border border-border bg-muted/40 p-2">
-              <p className="text-xs font-medium text-foreground">{t('userThemes.contrastTitle')}</p>
-              <ul className="mt-0.5 space-y-0.5">
-                {warnings.map((warning) => (
-                  <li
-                    key={`${warning.appearance}-${warning.ink}-${warning.surface}`}
-                    className="text-xs text-muted-foreground"
-                  >
-                    {t('userThemes.contrastWarning', {
-                      appearance: t(`userThemes.contrastAppearance.${warning.appearance}`),
-                      ink: warning.ink,
-                      surface: warning.surface,
-                      ratio: warning.ratio.toFixed(2),
-                      min: String(warning.min),
-                    })}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {warnings.length > 0 && <ContrastReport warnings={warnings} />}
         </div>
       </SettingsCard>
 

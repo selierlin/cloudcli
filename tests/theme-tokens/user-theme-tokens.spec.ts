@@ -39,7 +39,17 @@ test('a compiled theme is in force under the appearance it declares', async ({ p
     });
   }, { id: FIXTURE_ID, body: themeFor('light') });
 
-  expect(applied.state).toEqual({ appliedId: FIXTURE_ID, failedId: null });
+  // The overlay moves `--background` alone; the pairs whose other side falls
+  // back to the light base's mid-grey fail against a mid-green, and §5.10 says
+  // so without holding the theme back.
+  expect(applied.state).toEqual({
+    appliedId: FIXTURE_ID,
+    failedId: null,
+    warnings: [
+      { appearance: 'light', ink: '--muted-foreground', surface: '--background', ratio: expect.any(Number), min: 4.5 },
+      { appearance: 'light', ink: '--ring', surface: '--background', ratio: expect.any(Number), min: 3 },
+    ],
+  });
   expect(
     applied.background,
     'a token JSON has to reach the page as a stylesheet, not sit in the document as JSON',
@@ -101,7 +111,7 @@ test('a value that tried to leave its declaration never reaches the document', a
   }, FIXTURE_ID);
 
   expect(refused.styleCount, 'a refused file leaves no stylesheet behind').toBe(0);
-  expect(refused.state).toEqual({ appliedId: null, failedId: FIXTURE_ID });
+  expect(refused.state).toEqual({ appliedId: null, failedId: FIXTURE_ID, warnings: [] });
   expect(refused.cached).toBe(false);
   expect(refused.background, 'and the page keeps the palette it shipped with').toBe(base);
   // The end of the chain, whichever layer refused it: a body that tried to

@@ -135,7 +135,7 @@ test('a theme whose file is still in flight cannot land after the reset', async 
     null,
     'the response is the theme the user just escaped, so it has to be dropped rather than injected',
   );
-  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: null });
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: null, warnings: [] });
 });
 
 test('the cleared pick is not undone by the hydrate that follows it', async () => {

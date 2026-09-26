@@ -120,8 +120,9 @@ const seedCache = (
   modifiedAt: number,
   css: string,
   fingerprint: string = CURRENT_FINGERPRINT,
+  warnings: Array<Record<string, unknown>> = [],
 ): void => {
-  localStorage.setItem(STYLE_CACHE_KEY, JSON.stringify({ id, modifiedAt, fingerprint, css }));
+  localStorage.setItem(STYLE_CACHE_KEY, JSON.stringify({ id, modifiedAt, fingerprint, css, warnings }));
 };
 
 beforeEach(() => {
@@ -147,7 +148,7 @@ test('the cached stylesheet is restored for the pick it was written for', async 
 
   assert.equal(styleElement()?.getAttribute('data-cloudcli-user-theme'), 'user-borealis');
   assert.equal(styleElement()?.textContent, ':root{--cached:1}');
-  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: 'user-borealis', failedId: null });
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: 'user-borealis', failedId: null, warnings: [] });
 });
 
 test('what an apply caches is what the next boot restore accepts', async () => {
@@ -182,7 +183,7 @@ test('the cached stylesheet is left alone when the pick has moved on', async () 
   styles.applyBootUserThemeStyle();
 
   assert.equal(styleElement(), null, 'a cache entry is only evidence for the theme it was written for');
-  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: null });
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: null, warnings: [] });
 });
 
 test('an entry is fetched with its mtime, injected and cached', async () => {
@@ -197,7 +198,7 @@ test('an entry is fetched with its mtime, injected and cached', async () => {
   );
   assert.equal(styleElement()?.textContent, ':root{--from-file:1}');
   assert.equal(styleElement()?.getAttribute('data-cloudcli-user-theme'), 'user-borealis');
-  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: 'user-borealis', failedId: null });
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: 'user-borealis', failedId: null, warnings: [] });
   assert.ok(
     JSON.parse(localStorage.getItem(STYLE_CACHE_KEY) ?? 'null')?.css === ':root{--from-file:1}',
     'the content is mirrored so the next load can paint it before the fetch returns',
@@ -249,7 +250,7 @@ test('a JSON theme that cannot be compiled is refused with the reason', async ()
 
   assert.equal(styleElement(), null);
   assert.equal(localStorage.getItem(STYLE_CACHE_KEY), null);
-  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: 'user-borealis' });
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: 'user-borealis', warnings: [] });
   assert.ok(
     vi.mocked(console.warn).mock.calls.some(([, detail]) => String(detail).includes('unreadable-json')),
     'the refusal has to name what was wrong with the file',
@@ -265,7 +266,7 @@ test('a value that tried to leave its declaration refuses the file rather than b
   await styles.applyUserThemeStyle(fileTarget({ format: 'json', fileName: 'borealis.json' }), true);
 
   assert.equal(styleElement(), null, 'a partial sheet must not be injected either');
-  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: 'user-borealis' });
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: 'user-borealis', warnings: [] });
   assert.ok(
     vi.mocked(console.warn).mock.calls.some(([, detail]) => String(detail).includes('unsafe-value')),
     'this is the value that would have written a rule, so the reason has to name it',
@@ -278,7 +279,13 @@ test('declarations the compiler dropped are reported without failing the theme',
 
   await styles.applyUserThemeStyle(fileTarget({ format: 'json', fileName: 'borealis.json' }), true);
 
-  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: 'user-borealis', failedId: null });
+  assert.equal(styles.getUserThemeStyleState().appliedId, 'user-borealis');
+  assert.deepEqual(styles.getUserThemeStyleState().failedId, null);
+  assert.deepEqual(
+    styles.getUserThemeStyleState().warnings.map(({ ink }) => ink),
+    ['--primary-foreground'],
+    'the same theme also carries a contrast report, alongside the dropped-declaration one',
+  );
   assert.match(styleElement()?.textContent ?? '', /--primary: 175 84% 32%;/);
   assert.ok(
     vi.mocked(console.warn).mock.calls.some(([message]) => String(message).includes('ignored 1 declaration')),
@@ -292,10 +299,19 @@ test('a theme that applies but cannot be read is warned about, not held back', a
 
   await styles.applyUserThemeStyle(fileTarget({ format: 'json', fileName: 'borealis.json' }), true);
 
+  const appliedState = styles.getUserThemeStyleState();
+  assert.equal(appliedState.appliedId, 'user-borealis');
+  assert.equal(appliedState.failedId, null);
   assert.deepEqual(
-    styles.getUserThemeStyleState(),
-    { appliedId: 'user-borealis', failedId: null },
+    appliedState.warnings.map(({ appearance, ink, surface, min }) => ({
+      appearance, ink, surface, min,
+    })),
+    [{ appearance: 'light', ink: '--primary-foreground', surface: '--primary', min: 4.5 }],
     '§5.10 asks for a warning; a theme that is hard to read is still the one the user asked for',
+  );
+  assert.ok(
+    Math.abs((appliedState.warnings[0]?.ratio ?? 0) - 3.49) < 0.005,
+    'and the ratio is the one the console line names',
   );
   assert.match(styleElement()?.textContent ?? '', /--primary: 175 84% 32%;/);
   assert.ok(
@@ -327,7 +343,7 @@ test('a .tmTheme is compiled into an overlay rather than injected as plist XML',
   await styles.applyUserThemeStyle(fileTarget({ format: 'tmTheme', fileName: 'dracula.tmTheme' }), true);
 
   const css = styleElement()?.textContent ?? '';
-  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: 'user-borealis', failedId: null });
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: 'user-borealis', failedId: null, warnings: [] });
   assert.match(css, /^\[data-theme="user-borealis"\] \{/, 'the plist has to become an overlay, not be passed through');
   // The terminal resolves these as `hsl(var(--term-…))`, so a hex here would be
   // dropped by the browser and the terminal would silently keep its old colour.
@@ -355,7 +371,11 @@ test('a .tmTheme with a cloudcli key has its own token pairs contrast-checked on
 
   await styles.applyUserThemeStyle(fileTarget({ format: 'tmTheme', fileName: 'dracula.tmTheme' }), true);
 
-  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: 'user-borealis', failedId: null });
+  assert.equal(styles.getUserThemeStyleState().appliedId, 'user-borealis');
+  assert.ok(
+    styles.getUserThemeStyleState().warnings.length === 1,
+    'the embedded key moves main-UI tokens, so its warning rides the state the settings page reads',
+  );
   const css = styleElement()?.textContent ?? '';
   assert.match(css, /--primary: 175 84% 32%;/, 'the embedded block reaches the document');
   assert.ok(
@@ -372,7 +392,7 @@ test('a .tmTheme that is not a plist is refused with the reason', async () => {
   await styles.applyUserThemeStyle(fileTarget({ format: 'tmTheme', fileName: 'dracula.tmTheme' }), true);
 
   assert.equal(styleElement(), null);
-  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: 'user-borealis' });
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: 'user-borealis', warnings: [] });
   assert.ok(
     vi.mocked(console.warn).mock.calls.some(([, detail]) => String(detail).includes('unreadable-plist')),
     'the refusal has to name what was wrong with the file',
@@ -391,7 +411,7 @@ test('a cached copy compiled by another build is not restored', async () => {
   styles.applyBootUserThemeStyle();
 
   assert.equal(styleElement(), null, 'a stale compiled sheet must not reach the first paint');
-  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: null });
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: null, warnings: [] });
 });
 
 test('a cache entry from before the fingerprint existed is not restored either', async () => {
@@ -484,7 +504,7 @@ test('a file that cannot be read is refused, its cached copy dropped, and report
 
   assert.equal(styleElement(), null);
   assert.equal(localStorage.getItem(STYLE_CACHE_KEY), null, 'the copy that painted the wrong theme has to go');
-  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: 'user-borealis' });
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: 'user-borealis', warnings: [] });
   assert.ok(
     vi.mocked(console.warn).mock.calls.some(([message]) => String(message).includes('user-borealis')),
     'a theme that stopped working has to be findable',
@@ -515,7 +535,7 @@ test('the stylesheet is kept while the listing has not answered, and dropped onc
 
   assert.equal(styleElement(), null);
   assert.equal(localStorage.getItem(STYLE_CACHE_KEY), null);
-  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: null });
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: null, warnings: [] });
 });
 
 test('picking a built-in clears a refusal so the next pick is tried', async () => {
@@ -525,7 +545,7 @@ test('picking a built-in clears a refusal so the next pick is tried', async () =
   assert.equal(styles.getUserThemeStyleState().failedId, 'user-borealis');
 
   await styles.applyUserThemeStyle(null, true);
-  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: null });
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: null, warnings: [] });
 
   fileStatus = 200;
   await styles.applyUserThemeStyle(fileTarget({ modifiedAt: 99 }), true);
@@ -543,7 +563,7 @@ test('a response that lands after the user moved on is dropped', async () => {
   await pending;
 
   assert.equal(styleElement(), null, 'the theme the user left must not reappear once its fetch lands');
-  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: null });
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: null, warnings: [] });
   assert.equal(localStorage.getItem(STYLE_CACHE_KEY), null);
 });
 
@@ -574,7 +594,13 @@ test('a pasted pick is restored from its own content before anything is fetched'
     PASTE_ID,
     'a paste needs no cache: its content is in the preference mirror the first paint already has',
   );
-  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: PASTE_ID, failedId: null });
+  const restored = styles.getUserThemeStyleState();
+  assert.equal(restored.appliedId, PASTE_ID);
+  assert.equal(restored.failedId, null);
+  assert.ok(
+    restored.warnings.length === 1,
+    'the compile the boot restore runs reports the same pairs the apply did',
+  );
   assert.deepEqual(fileRequests, []);
 });
 
@@ -595,7 +621,7 @@ test('a paste that no longer compiles is reported rather than painting nothing q
   await styles.applyUserThemeStyle(pasteTarget('not json'), true);
 
   assert.equal(styleElement(), null);
-  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: PASTE_ID });
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: PASTE_ID, warnings: [] });
   assert.ok(
     vi.mocked(console.warn).mock.calls.some(([, detail]) => String(detail).includes('unreadable-json')),
     'the refusal has to name what was wrong',
@@ -611,7 +637,7 @@ test('the boot restore reports a pasted pick it cannot compile', async () => {
   assert.equal(styleElement(), null, 'a first paint that could not compile must not pretend it did');
   assert.deepEqual(
     styles.getUserThemeStyleState(),
-    { appliedId: null, failedId: PASTE_ID },
+    { appliedId: null, failedId: PASTE_ID, warnings: [] },
     'and the state has to say so, or the picker marks the pick as applied while the page never changed',
   );
 });
@@ -649,7 +675,7 @@ test('a css pick is restored as it stands before anything is fetched, too', asyn
     PASTED_CSS,
     'the first paint is the same compile step, so it has to take the same branch',
   );
-  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: PASTE_ID, failedId: null });
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: PASTE_ID, failedId: null, warnings: [] });
   assert.deepEqual(fileRequests, []);
 });
 
@@ -664,7 +690,7 @@ test('the @import gate runs on the content at apply time, not only when it was p
     null,
     'a mirror written by another client never passed the paste-time gate, so this one has to hold too',
   );
-  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: PASTE_ID });
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: PASTE_ID, warnings: [] });
   assert.ok(
     vi.mocked(console.warn).mock.calls.some(([, detail]) => String(detail).includes('import-rule')),
     'and the refusal has to name the rule it was refused for',
@@ -765,5 +791,102 @@ test('the forced recovery channel takes the preview with it', async () => {
   assert.ok(
     previewElement() === null,
     'a draft that made the page unreadable is exactly what this channel has to escape',
+  );
+});
+
+/**
+ * The contrast report travels with the state (§5.10): it describes the sheet in
+ * the document, so it survives a reload through the cache, follows the old
+ * sheet while its replacement is on the way, and goes with the theme when the
+ * theme goes.
+ */
+
+test('the warnings of the applied file theme travel with the cache to the next boot', async () => {
+  fileBody = JSON.stringify({ tokens: { '--primary': '175 84% 32%' } });
+  const first = await loadStores();
+  first.settings.writeUserPreference('themeId', 'user-borealis');
+  await first.styles.applyUserThemeStyle(fileTarget({ format: 'json', fileName: 'borealis.json' }), true);
+  assert.ok(first.styles.getUserThemeStyleState().warnings.length === 1, 'the first session compiled a report');
+
+  document.querySelectorAll(STYLE_SELECTOR).forEach((element) => element.remove());
+
+  const second = await loadStores();
+  second.styles.applyBootUserThemeStyle();
+
+  assert.equal(styleElement()?.getAttribute('data-cloudcli-user-theme'), 'user-borealis');
+  assert.deepEqual(
+    second.styles.getUserThemeStyleState().warnings.map(({ ink }) => ink),
+    ['--primary-foreground'],
+    'the boot restore injects the sheet without recompiling it, so its report has to travel with it',
+  );
+});
+
+test('a cache entry that cannot state its warnings is not restored', async () => {
+  localStorage.setItem(
+    STYLE_CACHE_KEY,
+    JSON.stringify({
+      id: 'user-borealis',
+      modifiedAt: 7,
+      fingerprint: CURRENT_FINGERPRINT,
+      css: ':root{--cached:1}',
+      warnings: 'yesterday',
+    }),
+  );
+  const { styles, settings } = await loadStores();
+  settings.writeUserPreference('themeId', 'user-borealis');
+
+  styles.applyBootUserThemeStyle();
+
+  assert.equal(
+    styleElement(),
+    null,
+    'an entry this build cannot vouch for is treated as one from another build',
+  );
+});
+
+test('switching to a theme that fails takes the old warning off the state', async () => {
+  fileBody = JSON.stringify({ tokens: { '--primary': '175 84% 32%' } });
+  const { styles } = await loadStores();
+  await styles.applyUserThemeStyle(fileTarget({ format: 'json', fileName: 'borealis.json', modifiedAt: 42 }), true);
+  assert.ok(styles.getUserThemeStyleState().warnings.length === 1);
+
+  fileStatus = 500;
+  await styles.applyUserThemeStyle(
+    fileTarget({ id: 'user-nord', format: 'json', fileName: 'nord.json', modifiedAt: 99 }),
+    true,
+  );
+
+  assert.deepEqual(
+    styles.getUserThemeStyleState(),
+    { appliedId: null, failedId: 'user-nord', warnings: [] },
+    'the page has fallen back, so a warning about the theme it was wearing would be read as one about this one',
+  );
+});
+
+test('the old warning stays while the replacement is still loading', async () => {
+  fileBody = JSON.stringify({ tokens: { '--primary': '175 84% 32%' } });
+  const { styles } = await loadStores();
+  await styles.applyUserThemeStyle(fileTarget({ format: 'json', fileName: 'borealis.json', modifiedAt: 42 }), true);
+  assert.ok(styles.getUserThemeStyleState().warnings.length === 1);
+
+  deferFileResponse();
+  const pending = styles.applyUserThemeStyle(
+    fileTarget({ format: 'json', fileName: 'borealis.json', modifiedAt: 99 }),
+    true,
+  );
+  assert.equal(
+    styles.getUserThemeStyleState().warnings.length,
+    1,
+    'until the new sheet lands, what the page wears is the old one, and its report is the current one',
+  );
+  deferred?.resolve(
+    new Response(JSON.stringify({ tokens: { '--term-background': '210 45% 8%' } }), { status: 200 }),
+  );
+  await pending;
+
+  assert.deepEqual(
+    styles.getUserThemeStyleState().warnings,
+    [],
+    'the replacement has nothing to report, and the state describes the sheet now in the document',
   );
 });

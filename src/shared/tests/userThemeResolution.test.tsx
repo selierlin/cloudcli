@@ -199,6 +199,7 @@ test('the cached stylesheet is in force on the first render, before the listing 
       // module derives this from the syntax mapping it embeds.
       fingerprint: JSON.stringify(SYNTAX_TOKEN_MAP),
       css: ':root{--cached:1}',
+      warnings: [],
     }),
   );
   let answer = (): void => {};

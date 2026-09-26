@@ -208,6 +208,7 @@ test('a theme restored from the cache is on offer before the listing answers', a
     // fingerprint is derived from the syntax mapping its output embeds.
     fingerprint: JSON.stringify(SYNTAX_TOKEN_MAP),
     css: ':root{--t:1}',
+    warnings: [],
   }));
 
   const { container } = await renderPicker('user-borealis', { restoreCachedStyle: true });

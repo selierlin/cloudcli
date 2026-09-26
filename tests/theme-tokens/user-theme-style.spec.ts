@@ -42,7 +42,7 @@ test('a fetched theme is in force, and the request names the revision', async ({
   ]);
   expect(applied.styleCount).toBe(1);
   expect(applied.styleId).toBe(FIXTURE_ID);
-  expect(applied.state).toEqual({ appliedId: FIXTURE_ID, failedId: null });
+  expect(applied.state).toEqual({ appliedId: FIXTURE_ID, failedId: null, warnings: [] });
   expect(applied.cached).toBe(true);
   expect(
     applied.background,
@@ -82,7 +82,7 @@ test('a refused file leaves no stylesheet behind and drops the cached copy', asy
   }, FIXTURE_ID);
 
   expect(refused.styleCount).toBe(0);
-  expect(refused.state).toEqual({ appliedId: null, failedId: FIXTURE_ID });
+  expect(refused.state).toEqual({ appliedId: null, failedId: FIXTURE_ID, warnings: [] });
   expect(refused.cached, 'the copy that painted a theme the server now refuses has to go').toBe(false);
   expect(refused.background, 'the page falls back to the palette it shipped with').toBe(base);
 });

@@ -46,7 +46,21 @@ test('a pasted theme reaches the page, and no theme file is ever requested', asy
     'a paste has no file behind it, so asking the server for one would be asking for something that is not there',
   ).toEqual([]);
   expect(applied.styleId).toBe(PASTE_ID);
-  expect(applied.state).toEqual({ appliedId: PASTE_ID, failedId: null });
+  // The pasted token map moves `--background` alone and declares no appearance,
+  // so the overlay is compiled for both and the pairs whose other side falls
+  // back to each base's ink fail against a mid-green — §5.10 says so without
+  // holding the paste back.
+  expect(applied.state).toEqual({
+    appliedId: PASTE_ID,
+    failedId: null,
+    warnings: [
+      { appearance: 'light', ink: '--muted-foreground', surface: '--background', ratio: expect.any(Number), min: 4.5 },
+      { appearance: 'light', ink: '--ring', surface: '--background', ratio: expect.any(Number), min: 3 },
+      { appearance: 'dark', ink: '--foreground', surface: '--background', ratio: expect.any(Number), min: 4.5 },
+      { appearance: 'dark', ink: '--muted-foreground', surface: '--background', ratio: expect.any(Number), min: 4.5 },
+      { appearance: 'dark', ink: '--ring', surface: '--background', ratio: expect.any(Number), min: 3 },
+    ],
+  });
   expect(
     applied.background,
     'the content has to be compiled and injected, not left as JSON',
@@ -70,7 +84,7 @@ test('a pasted stylesheet is in force as it stands, and no theme file is request
     'a paste has no file behind it, whichever of the two formats it is written in',
   ).toEqual([]);
   expect(applied.styleId).toBe(PASTE_ID);
-  expect(applied.state).toEqual({ appliedId: PASTE_ID, failedId: null });
+  expect(applied.state).toEqual({ appliedId: PASTE_ID, failedId: null, warnings: [] });
   expect(
     applied.background,
     'the author\'s own selector has to win over the base palette, not merely exist in the document',
