@@ -204,7 +204,8 @@
       "accent": "Accent",
       "full": "Full"
     },
-    "notInstalled": "\"{{id}}\" is not installed on this device; using the default."
+    "notInstalled": "\"{{id}}\" is not installed on this device; using the default.",
+    "loadFailed": "\"{{id}}\" could not be loaded; using the default."
   },
   "appearanceSettings": {
     "projectSorting": {

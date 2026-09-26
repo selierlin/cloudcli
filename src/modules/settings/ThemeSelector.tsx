@@ -1,23 +1,25 @@
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { BUILTIN_THEMES } from '@/shared/constants';
 import { useTheme } from '@/shared/context/ThemeContext';
+import { refreshUserThemes } from '@/shared/userThemes';
 import { cn } from '@/shared/utils';
 
 /**
- * The themes this selector offers. `appearance: 'system'` is what marks an overlay
- * theme; the appearance defaults are the base palette itself and are switched with
- * the light/dark/system capsule, so they are deliberately absent here.
+ * The themes this selector offers apart from the ones from the server: the
+ * appearance defaults are the base palette itself and are switched with the
+ * light/dark/system capsule, so they are deliberately absent here.
  */
-const OVERLAY_THEMES = BUILTIN_THEMES.filter((theme) => theme.appearance === 'system');
+const BUILTIN_OVERLAY_THEMES = BUILTIN_THEMES.filter((theme) => theme.appearance === 'system');
 
 type ThemeOption = {
   /** The overlay id to write, or null for the appearance default. */
   id: string | null;
   /**
-   * The name shown for the option. A built-in theme carries its own, which is why
-   * it is read off the manifest rather than translated: a user theme (§5.5) will
-   * bring its name with it the same way.
+   * The name shown for the option. A theme carries its own, which is why it is
+   * read off the manifest rather than translated: a user theme brings its name
+   * with it the same way.
    */
   label: string;
   /** How far the theme reaches, shown as a badge; absent themes claim nothing. */
@@ -31,26 +33,32 @@ type ThemeSelectorProps = {
 /** Used by the settings module to pick the overlay theme painted under the current appearance. */
 function ThemeSelector({ ariaLabel }: ThemeSelectorProps) {
   const { t } = useTranslation('settings');
-  const { themeId, resolvedThemeId, setThemeId } = useTheme();
+  const { themeId, setThemeId, userThemes, themeFallback } = useTheme();
 
-  // The option to mark as chosen. A default-alias id (`cc-light` / `cc-dark`) is
-  // reachable through `setThemeId` but carries no overlay of its own, so it reads
-  // as "default" rather than leaving every option unselected.
-  const selectedId = OVERLAY_THEMES.some((theme) => theme.id === themeId) ? themeId : null;
-
-  // A pick synced from another device that this build does not ship. The selection
-  // stays on the user's own choice while the document has already fallen back, so
-  // the mismatch between the two is exactly the case worth surfacing.
-  const missingId = themeId !== null && themeId !== resolvedThemeId ? themeId : null;
+  // The listing is read here as well as on start-up: the start-up attempt can
+  // land before the client has a session, and this screen is the one that has
+  // to show what the host's themes folder holds.
+  useEffect(() => {
+    void refreshUserThemes();
+  }, []);
 
   const options: ThemeOption[] = [
     { id: null, label: t('themeSelector.default') },
-    ...OVERLAY_THEMES.map((theme) => ({
+    ...BUILTIN_OVERLAY_THEMES.map((theme) => ({
       id: theme.id,
       label: theme.name,
       coverage: theme.coverage,
     })),
+    // A file-derived theme declares no reach (§5.8), so it carries no badge.
+    ...userThemes.map((theme) => ({ id: theme.id, label: theme.name })),
   ];
+
+  // The option to mark as chosen. A default-alias id (`cc-light` / `cc-dark`) is
+  // reachable through `setThemeId` but carries no overlay of its own, and a user
+  // theme whose file is still being fetched is not in force yet either, so in
+  // both cases no option of its own is marked rather than every option being
+  // left unselected.
+  const selectedId = options.some((option) => option.id === themeId) ? themeId : null;
 
   return (
     <div className="w-40 space-y-1.5">
@@ -86,9 +94,11 @@ function ThemeSelector({ ariaLabel }: ThemeSelectorProps) {
           );
         })}
       </div>
-      {missingId && (
+      {themeFallback && (
         <p role="status" className="text-xs text-muted-foreground">
-          {t('themeSelector.notInstalled', { id: missingId })}
+          {themeFallback.reason === 'missing'
+            ? t('themeSelector.notInstalled', { id: themeFallback.id })
+            : t('themeSelector.loadFailed', { id: themeFallback.id })}
         </p>
       )}
     </div>

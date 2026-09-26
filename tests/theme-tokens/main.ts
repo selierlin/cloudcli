@@ -5,6 +5,8 @@ import { installMobileTerminalSelection } from '@/modules/shell/utils/mobileTerm
 import { readTerminalTheme, TERMINAL_THEME_TOKENS } from '@/modules/shell/utils/terminalTheme';
 import { EXTREME_TOKENS, SCALE_TOKEN_NAMES } from '@/shared/tests/neutralScale';
 import type { ThemeManifest } from '@/shared/types';
+import { applyUserThemeStyle, getUserThemeStyleState } from '@/shared/userThemeStyles';
+import type { UserThemeStyleState } from '@/shared/userThemeStyles';
 import { applyThemeChrome } from '@/shared/utils';
 
 import '../../src/index.css';
@@ -305,6 +307,110 @@ function readWithTheme(themeId: string | null, appearance: Appearance): TokenRea
   return readTokens(appearance);
 }
 
+/**
+ * The user theme stylesheet path.
+ *
+ * A user theme's colours are not in the bundled stylesheet: they arrive from
+ * `/api/themes/<file>` and are appended to `<head>` at runtime. That is the one
+ * part of the contract this directory can only check in a real engine —
+ * `getComputedStyle` is what shows the injected rules actually reaching the
+ * page — so the production module is driven here with nothing stubbed but the
+ * server, which is the boundary the app itself does not own.
+ */
+export type UserThemeOptions = {
+  id?: string;
+  fileName?: string;
+  modifiedAt?: number;
+  /** Body of the theme file, or `''` for a file the server refuses. */
+  css?: string;
+  /** Status the stub answers with; anything but 200 means the file is not there. */
+  status?: number;
+  /** Whether the listing has been read, which is what makes an absent entry evidence. */
+  listingComplete?: boolean;
+};
+
+export type UserThemeApplication = {
+  /** The theme file URLs the stub was asked for during this application, in order. */
+  requests: string[];
+  /** How many injected stylesheets are in the document; more than one would mean a stale sheet. */
+  styleCount: number;
+  /** The id on the injected stylesheet, or null. */
+  styleId: string | null;
+  /** What the page paints for `--background` while the theme's id is on `<html>`. */
+  background: string;
+  /** What the stylesheet store publishes. */
+  state: UserThemeStyleState;
+  /** Whether a copy of the file survived in localStorage. */
+  cached: boolean;
+};
+
+/** The files the stub answers for, and every theme file URL it has been asked for. */
+const themeFiles = new Map<string, { body: string; status: number }>();
+const themeRequests: string[] = [];
+
+/**
+ * Answers `/api/themes/<file>` from `themeFiles` and forwards everything else.
+ *
+ * Only the server is replaced: `applyUserThemeStyle` still goes through
+ * `authenticatedFetch`, still builds its own `?v=<mtime>`, and still gets a
+ * real `Response` back.
+ */
+function installThemeFileServer(): void {
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === 'string'
+      ? input
+      : input instanceof URL
+        ? input.href
+        : input.url;
+    const match = /^\/api\/themes\/([^?]*)/.exec(url);
+    if (!match) {
+      return nativeFetch(input, init);
+    }
+
+    themeRequests.push(url);
+    const record = themeFiles.get(decodeURIComponent(match[1]));
+    return record
+      ? new Response(record.body, { status: record.status })
+      : new Response('not found', { status: 404 });
+  };
+}
+
+async function applyUserTheme(options: UserThemeOptions = {}): Promise<UserThemeApplication> {
+  const {
+    id = 'user-fixture',
+    fileName = 'fixture.css',
+    modifiedAt = 42,
+    css = '',
+    status = 200,
+    listingComplete = true,
+  } = options;
+
+  if (status === 200) {
+    themeFiles.set(fileName, { body: css, status });
+  } else {
+    themeFiles.delete(fileName);
+  }
+
+  const before = themeRequests.length;
+  await applyUserThemeStyle({ id, name: id, fileName, format: 'css', modifiedAt }, listingComplete);
+
+  // The provider writes the resolved id to `<html data-theme>`; this page is
+  // framework-free, so the step the provider would take is taken here.
+  document.documentElement.dataset.theme = id;
+
+  const probe = document.querySelector<HTMLElement>('[data-token="--background"]');
+  const injected = document.querySelector('style[data-cloudcli-user-theme]');
+  return {
+    requests: themeRequests.slice(before),
+    styleCount: document.querySelectorAll('style[data-cloudcli-user-theme]').length,
+    styleId: injected?.getAttribute('data-cloudcli-user-theme') ?? null,
+    background: probe ? getComputedStyle(probe).backgroundColor : '',
+    state: getUserThemeStyleState(),
+    cached: localStorage.getItem('cloudcli.user-theme-style') !== null,
+  };
+}
+
 declare global {
   interface Window {
     __THEME_TOKENS__?: {
@@ -320,11 +426,14 @@ declare global {
         appearance: Appearance,
         overrides?: Pick<ThemeManifest, 'themeColor' | 'statusBar'>,
       ): { themeColor: string | null; statusBar: string | null };
+      /** Runs the production user-theme stylesheet path against a stubbed file server. */
+      applyUserTheme(options: UserThemeOptions): Promise<UserThemeApplication>;
     };
   }
 }
 
 buildProbes();
+installThemeFileServer();
 
 window.__THEME_TOKENS__ = {
   read: readTokens,
@@ -332,4 +441,5 @@ window.__THEME_TOKENS__ = {
   readTerminalTheme,
   readMobileSelectionChrome,
   readThemeChrome,
+  applyUserTheme,
 };

@@ -1,0 +1,156 @@
+import { api } from '@/shared/api';
+import { getStoredAuthToken } from '@/shared/authToken';
+
+/**
+ * The user theme listing: the theme files the server host offers from
+ * `~/.cloudcli/themes`, as the picker and the theme resolver see them.
+ *
+ * The listing is the only thing that can tell whether a `user-…` id names a
+ * real file, so it has to be reachable from the resolver before the picker is
+ * ever opened — hence a module-level store rather than state inside a
+ * component, the same shape `userSettings` uses for the preference mirror.
+ *
+ * Nothing here reads a theme file's contents; that is `userThemeStyles`.
+ */
+
+/** Formats a theme file may be written in; mirrors the server's `ThemeFileFormat`. */
+export type UserThemeFormat = 'css' | 'json' | 'tmTheme';
+
+/** One theme file the server offers. */
+export type UserThemeEntry = {
+  /** `user-<lowercased filename base>`, the value written to `<html data-theme>`. */
+  id: string;
+  /** Display name in the picker. */
+  name: string;
+  /** On-disk filename; what the serving route takes. */
+  fileName: string;
+  format: UserThemeFormat;
+  /** Last-modified time in ms; the cache-busting `?v=` and the "did it change" check. */
+  modifiedAt: number;
+};
+
+/**
+ * How far the listing has got, which is what decides whether an unresolved
+ * `user-…` id is *missing* or merely *unknown*:
+ *
+ * - `idle` — this session has not asked yet.
+ * - `loading` — the request is in flight.
+ * - `ready` — the listing was read; it is now authoritative.
+ * - `error` — the request failed; the themes may exist but cannot be reached.
+ */
+export type UserThemesStatus = 'idle' | 'loading' | 'ready' | 'error';
+
+export type UserThemesState = {
+  entries: UserThemeEntry[];
+  status: UserThemesStatus;
+};
+
+/**
+ * §5.8 makes the server prefix every id it derives from a filename, which is
+ * what tells an id that can only be confirmed by the listing (`user-borealis`)
+ * apart from one the bundle's own registry already settles (`cc-ocean`).
+ * Only the former has to wait for the listing before it can be called missing.
+ */
+const USER_THEME_ID_PREFIX = 'user-';
+
+const FORMATS = new Set<UserThemeFormat>(['css', 'json', 'tmTheme']);
+
+const isRecord = (value: unknown): value is Record<string, unknown> => (
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+);
+
+/**
+ * Whether a value off the wire is shaped like an entry.
+ *
+ * The server derives these from filenames it has already vetted, but the store
+ * is the boundary between the two: an entry with the wrong shape would end up
+ * as an id in a selector or a path in a request, so it is filtered here rather
+ * than trusted because of where it came from.
+ */
+function isEntry(value: unknown): value is UserThemeEntry {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === 'string' &&
+    isUserThemeId(value.id) &&
+    typeof value.name === 'string' &&
+    typeof value.fileName === 'string' &&
+    typeof value.format === 'string' &&
+    FORMATS.has(value.format as UserThemeFormat) &&
+    typeof value.modifiedAt === 'number' &&
+    Number.isFinite(value.modifiedAt)
+  );
+}
+
+let state: UserThemesState = { entries: [], status: 'idle' };
+let inFlight = false;
+
+const listeners = new Set<() => void>();
+
+function publish(next: UserThemesState): void {
+  state = next;
+  for (const listener of listeners) {
+    listener();
+  }
+}
+
+/** The current listing and how far it has got. Stable between changes, so it can seed state. */
+export function getUserThemesState(): UserThemesState {
+  return state;
+}
+
+/** Subscribes to listing changes; returns the unsubscribe function. */
+export function subscribeToUserThemes(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/** Whether an id could name a file in the themes folder (§5.8's mandatory prefix). */
+export function isUserThemeId(id: string): boolean {
+  return id.startsWith(USER_THEME_ID_PREFIX);
+}
+
+/**
+ * Reads the server's listing.
+ *
+ * Idempotent by design: it is called both when the app mounts and again when
+ * the picker is opened, because the first call can land before the client has
+ * a session token. Once a listing has been read this session there is nothing
+ * to do — a file added while the app is running is picked up on the next load,
+ * which is the reload the acceptance criteria describe.
+ */
+export async function refreshUserThemes(): Promise<void> {
+  if (inFlight || state.status === 'ready') return;
+
+  // The listing sits behind the session token, and this runs on the sign-in
+  // screen too, so without one the request is a guaranteed 401. Staying idle
+  // costs nothing: a later trigger — the pick changing, or the picker opening —
+  // runs this again once there is a session.
+  if (!getStoredAuthToken()) return;
+
+  inFlight = true;
+  publish({ entries: state.entries, status: 'loading' });
+  try {
+    const response = await api.themes.list();
+    if (!response.ok) {
+      throw new Error(`The themes request failed with status ${response.status}`);
+    }
+    const payload: unknown = await response.json();
+    const entries = isRecord(payload) && Array.isArray(payload.themes)
+      ? payload.themes.filter(isEntry)
+      : [];
+    publish({ entries, status: 'ready' });
+  } catch (error) {
+    // Loud, because this is the failure the picker cannot show: with no
+    // listing there is nothing to mark as missing, so a stored user theme
+    // simply does not come back and the console is the only account of why.
+    publish({ entries: state.entries, status: 'error' });
+    console.warn(
+      'Could not list the user themes in ~/.cloudcli/themes; a theme from that folder cannot be applied.',
+      error,
+    );
+  } finally {
+    inFlight = false;
+  }
+}

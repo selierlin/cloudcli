@@ -1,0 +1,273 @@
+import assert from 'node:assert/strict';
+
+import { afterEach, beforeEach, test, vi } from 'vitest';
+
+/**
+ * The one user theme stylesheet the document carries.
+ *
+ * A theme's colours are not in the bundle, so applying one is a fetch plus a
+ * `<style>` element, and both have failure modes that end at the same place:
+ * the default palette. What is pinned here is that each of them is *said* —
+ * a refused file clears the cached copy that made the first paint wrong, a
+ * listing that has not answered yet is not treated as a listing that said no,
+ * and a response that lands after the user moved on is dropped.
+ *
+ * Each test loads a fresh module copy: the store is a module-level singleton
+ * whose state only moves forward.
+ */
+
+/** The cache this module owns. Pinned by name so a rename has to be deliberate. */
+const STYLE_CACHE_KEY = 'cloudcli.user-theme-style';
+
+const STYLE_SELECTOR = 'style[data-cloudcli-user-theme]';
+
+let fileBody = ':root{--from-file:1}';
+let fileStatus = 200;
+let fileRequests: string[] = [];
+let deferred: { promise: Promise<Response>; resolve: (response: Response) => void } | null = null;
+
+/** Holds the next file request open, so a test can decide when — and whether — it lands. */
+const deferFileResponse = (): void => {
+  let resolve!: (response: Response) => void;
+  const promise = new Promise<Response>((settle) => {
+    resolve = settle;
+  });
+  deferred = { promise, resolve };
+};
+
+vi.mock('@/shared/api', () => ({
+  api: {
+    themes: {
+      file: (fileName: string, version: number) => {
+        fileRequests.push(`${fileName}?v=${version}`);
+        if (deferred) return deferred.promise;
+        if (fileStatus !== 200) {
+          return Promise.resolve(new Response('nope', { status: fileStatus }));
+        }
+        return Promise.resolve(new Response(fileBody, { status: 200 }));
+      },
+    },
+    user: { savePreferences: async () => new Response('{}', { status: 200 }) },
+  },
+}));
+
+const loadStores = async () => {
+  vi.resetModules();
+  const styles = await import('@/shared/userThemeStyles');
+  const settings = await import('@/shared/userSettings');
+  return { styles, settings };
+};
+
+const entry = (overrides: Record<string, unknown> = {}) => ({
+  id: 'user-borealis',
+  name: 'Borealis',
+  fileName: 'borealis.css',
+  format: 'css' as const,
+  modifiedAt: 42,
+  ...overrides,
+});
+
+const styleElement = (): HTMLStyleElement | null => document.querySelector(STYLE_SELECTOR);
+
+const seedCache = (id: string, modifiedAt: number, css: string): void => {
+  localStorage.setItem(STYLE_CACHE_KEY, JSON.stringify({ id, modifiedAt, css }));
+};
+
+beforeEach(() => {
+  localStorage.clear();
+  document.querySelectorAll(STYLE_SELECTOR).forEach((element) => element.remove());
+  fileBody = ':root{--from-file:1}';
+  fileStatus = 200;
+  fileRequests = [];
+  deferred = null;
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+test('the cached stylesheet is restored for the pick it was written for', async () => {
+  seedCache('user-borealis', 7, ':root{--cached:1}');
+  const { styles, settings } = await loadStores();
+  settings.writeUserPreference('themeId', 'user-borealis');
+
+  styles.applyCachedUserThemeStyle();
+
+  assert.equal(styleElement()?.getAttribute('data-cloudcli-user-theme'), 'user-borealis');
+  assert.equal(styleElement()?.textContent, ':root{--cached:1}');
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: 'user-borealis', failedId: null });
+});
+
+test('the cached stylesheet is left alone when the pick has moved on', async () => {
+  seedCache('user-borealis', 7, ':root{--cached:1}');
+  const { styles, settings } = await loadStores();
+  settings.writeUserPreference('themeId', 'user-nord');
+
+  styles.applyCachedUserThemeStyle();
+
+  assert.equal(styleElement(), null, 'a cache entry is only evidence for the theme it was written for');
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: null });
+});
+
+test('an entry is fetched with its mtime, injected and cached', async () => {
+  const { styles } = await loadStores();
+
+  await styles.applyUserThemeStyle(entry(), true);
+
+  assert.deepEqual(
+    fileRequests,
+    ['borealis.css?v=42'],
+    'the mtime rides along so a proxy cannot serve an older revision over this one',
+  );
+  assert.equal(styleElement()?.textContent, ':root{--from-file:1}');
+  assert.equal(styleElement()?.getAttribute('data-cloudcli-user-theme'), 'user-borealis');
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: 'user-borealis', failedId: null });
+  assert.ok(
+    JSON.parse(localStorage.getItem(STYLE_CACHE_KEY) ?? 'null')?.css === ':root{--from-file:1}',
+    'the content is mirrored so the next load can paint it before the fetch returns',
+  );
+});
+
+test('an entry already in the document at the same mtime is not fetched again', async () => {
+  const { styles } = await loadStores();
+
+  await styles.applyUserThemeStyle(entry(), true);
+  await styles.applyUserThemeStyle(entry(), true);
+
+  assert.equal(fileRequests.length, 1, 'a re-listing of an unchanged file must not refetch it');
+});
+
+test('an edited file replaces the stylesheet it supersedes', async () => {
+  const { styles } = await loadStores();
+  await styles.applyUserThemeStyle(entry({ modifiedAt: 42 }), true);
+
+  fileBody = ':root{--from-file:2}';
+  await styles.applyUserThemeStyle(entry({ modifiedAt: 99 }), true);
+
+  assert.deepEqual(fileRequests, ['borealis.css?v=42', 'borealis.css?v=99']);
+  assert.equal(document.querySelectorAll(STYLE_SELECTOR).length, 1, 'the old element must not be left behind');
+  assert.equal(styleElement()?.textContent, ':root{--from-file:2}');
+  assert.equal(styles.getUserThemeStyleState().appliedId, 'user-borealis');
+});
+
+test('the replacement is in the document before the element it supersedes leaves', async () => {
+  const { styles } = await loadStores();
+  await styles.applyUserThemeStyle(entry({ modifiedAt: 42 }), true);
+
+  const records: MutationRecord[] = [];
+  const observer = new MutationObserver((batched) => records.push(...batched));
+  observer.observe(document.head, { childList: true });
+  try {
+    fileBody = ':root{--from-file:2}';
+    await styles.applyUserThemeStyle(entry({ modifiedAt: 99 }), true);
+    // The observer callback is a microtask and the swap above is synchronous,
+    // so one turn of the queue is all it takes for the records to arrive;
+    // `takeRecords` covers the case where it ran before this line.
+    await Promise.resolve();
+    records.push(...observer.takeRecords());
+  } finally {
+    observer.disconnect();
+  }
+
+  const ours = (nodes: NodeList): Element[] =>
+    [...nodes].filter((node): node is Element => node instanceof Element
+      && node.hasAttribute('data-cloudcli-user-theme'));
+
+  assert.ok(
+    records.length >= 2,
+    'the swap is expected to be at least two mutations: the new element in, the old one out',
+  );
+
+  // Replay the mutations in the order the document saw them. The page must never
+  // be without a stylesheet in between, which is the flash this ordering avoids.
+  let live = 1;
+  const counts = records.map((record) => {
+    live -= ours(record.removedNodes).length;
+    live += ours(record.addedNodes).length;
+    return live;
+  });
+  assert.ok(
+    counts.every((count) => count > 0),
+    `the document must never be without its theme mid-swap (saw ${counts.join(', ')})`,
+  );
+  assert.equal(document.querySelectorAll(STYLE_SELECTOR).length, 1);
+});
+
+test('a file that cannot be read is refused, its cached copy dropped, and reported', async () => {
+  seedCache('user-borealis', 42, ':root{--cached:1}');
+  const { styles, settings } = await loadStores();
+  settings.writeUserPreference('themeId', 'user-borealis');
+  styles.applyCachedUserThemeStyle();
+  assert.ok(styleElement(), 'the cached copy is in place before the listing contradicts it');
+
+  // The file was edited since that copy was cached, and the revision the
+  // listing points at is refused — a race the client cannot rule out, because
+  // the listing and the fetch are two separate requests.
+  fileStatus = 400;
+  await styles.applyUserThemeStyle(entry({ modifiedAt: 99 }), true);
+
+  assert.equal(styleElement(), null);
+  assert.equal(localStorage.getItem(STYLE_CACHE_KEY), null, 'the copy that painted the wrong theme has to go');
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: 'user-borealis' });
+  assert.ok(
+    vi.mocked(console.warn).mock.calls.some(([message]) => String(message).includes('user-borealis')),
+    'a theme that stopped working has to be findable',
+  );
+});
+
+test('a theme that already failed is not retried on every render', async () => {
+  fileStatus = 500;
+  const { styles } = await loadStores();
+  await styles.applyUserThemeStyle(entry(), true);
+
+  await styles.applyUserThemeStyle(entry(), true);
+
+  assert.equal(fileRequests.length, 1, 'the refusal stands until a reload, rather than looping');
+  assert.equal(styles.getUserThemeStyleState().failedId, 'user-borealis');
+});
+
+test('the stylesheet is kept while the listing has not answered, and dropped once it rules the theme out', async () => {
+  seedCache('user-borealis', 42, ':root{--cached:1}');
+  const { styles, settings } = await loadStores();
+  settings.writeUserPreference('themeId', 'user-borealis');
+  styles.applyCachedUserThemeStyle();
+
+  await styles.applyUserThemeStyle(null, false);
+  assert.ok(styleElement(), 'an unanswered listing is not evidence that the file is gone');
+
+  await styles.applyUserThemeStyle(null, true);
+
+  assert.equal(styleElement(), null);
+  assert.equal(localStorage.getItem(STYLE_CACHE_KEY), null);
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: null });
+});
+
+test('picking a built-in clears a refusal so the next pick is tried', async () => {
+  fileStatus = 404;
+  const { styles } = await loadStores();
+  await styles.applyUserThemeStyle(entry(), true);
+  assert.equal(styles.getUserThemeStyleState().failedId, 'user-borealis');
+
+  await styles.applyUserThemeStyle(null, true);
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: null });
+
+  fileStatus = 200;
+  await styles.applyUserThemeStyle(entry({ modifiedAt: 99 }), true);
+  assert.equal(styles.getUserThemeStyleState().appliedId, 'user-borealis');
+});
+
+test('a response that lands after the user moved on is dropped', async () => {
+  const { styles, settings } = await loadStores();
+  settings.writeUserPreference('themeId', 'user-borealis');
+  deferFileResponse();
+
+  const pending = styles.applyUserThemeStyle(entry(), true);
+  await styles.applyUserThemeStyle(null, true);
+  deferred?.resolve(new Response(':root{--late:1}', { status: 200 }));
+  await pending;
+
+  assert.equal(styleElement(), null, 'the theme the user left must not reappear once its fetch lands');
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: null });
+  assert.equal(localStorage.getItem(STYLE_CACHE_KEY), null);
+});
