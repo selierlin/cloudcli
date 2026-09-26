@@ -23,7 +23,8 @@ export type ThemeFileFormat = 'css' | 'json' | 'tmTheme';
 
 /**
  * One theme file offered to the client. A `.json` file's own `name` and
- * `coverage` are read out of it; everything else is derived from the filename.
+ * `coverage` are read out of it, a `.tmTheme`'s `coverage` claim comes from its
+ * `cloudcli` key; everything else is derived from the filename.
  */
 export type ThemeFileEntry = {
   /**
@@ -86,13 +87,18 @@ const MAX_DECLARED_NAME_LENGTH = 80;
 type DeclaredMetadata = { name?: string; coverage?: 'accent' | 'full' };
 
 /**
- * Reads the metadata a `.json` theme declares about itself.
+ * Reads the metadata a `.json` theme declares about itself, and the `coverage`
+ * claim a `.tmTheme` may carry inside its `cloudcli` key.
  *
- * Only `.json` is read: a `.css` file has nowhere to declare a name, and a
- * `.tmTheme` gets its own slice. A file that does not parse is still listed
- * under its filename — the client is the side that can tell the user why it
- * will not compile, and a file that quietly never appears in the picker is
- * harder to understand than one that appears and is refused.
+ * A `.json` file's `name` and `coverage` are read from the object itself. A
+ * `.tmTheme` gets only the second: a TextMate file that embeds a `cloudcli` key
+ * can reach the main UI (the client compiles it, §5.5 v7), so it can also claim
+ * a reach — and the claim is read here, at the same trust level as a `.json`'s,
+ * rather than left unreadable. A `.css` file has nowhere to declare either. A
+ * file that does not parse is still listed under its filename — the client is
+ * the side that can tell the user why it will not compile, and a file that
+ * quietly never appears in the picker is harder to understand than one that
+ * appears and is refused.
  *
  * `appearance` is deliberately not read here; see `ThemeFileEntry`.
  */
@@ -101,6 +107,7 @@ async function readDeclaredMetadata(
   filePath: string,
   format: ThemeFileFormat,
 ): Promise<DeclaredMetadata> {
+  if (format === 'tmTheme') return readTmThemeCoverage(fileName, filePath);
   if (format !== 'json') return {};
 
   let parsed: unknown;
@@ -129,6 +136,35 @@ async function readDeclaredMetadata(
   }
 
   return metadata;
+}
+
+/**
+ * The plist extraction a `.tmTheme`'s `coverage` claim needs.
+ *
+ * The claim sits inside the `cloudcli` key (§5.5 v7), and reading it does not
+ * justify a plist parser on the server: the value is one `<string>` right after
+ * the `<key>`, which a narrow match finds wherever in the file the author put
+ * it. The first match wins and the value is held to the same two words a
+ * `.json` may declare; anything else warns and leaves the badge off, which is
+ * what the json branch does too.
+ */
+async function readTmThemeCoverage(fileName: string, filePath: string): Promise<DeclaredMetadata> {
+  let body: string;
+  try {
+    body = await fs.readFile(filePath, 'utf8');
+  } catch {
+    return {};
+  }
+
+  const match = /<key>coverage<\/key>\s*<string>([^<]*)<\/string>/.exec(body);
+  if (!match) return {};
+
+  const declared = match[1].trim();
+  if (COVERAGES.has(declared)) {
+    return { coverage: declared as 'accent' | 'full' };
+  }
+  console.warn(`[Themes] ${fileName} declares an unknown coverage; no badge will be shown`);
+  return {};
 }
 
 const EXTENSION_TO_FORMAT: Record<string, ThemeFileFormat> = {

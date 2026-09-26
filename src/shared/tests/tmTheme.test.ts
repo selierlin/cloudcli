@@ -35,6 +35,29 @@ const tmTheme = (...rules: string[]): string =>
     '</dict></plist>',
   ].join('');
 
+/** A `.tmTheme` that also carries a top-level `cloudcli` key with the given inner plist. */
+const withCloudCli = (inner: string, ...rules: string[]): string =>
+  [
+    '<plist version="1.0"><dict>',
+    '<key>name</key><string>Test</string>',
+    `<key>cloudcli</key><dict>${inner}</dict>`,
+    `<key>settings</key><array>${rules.join('')}</array>`,
+    '</dict></plist>',
+  ].join('');
+
+/** The `tokens` dict of a `cloudcli` key, from token → value pairs. */
+const tokenDict = (entries: Array<[string, string]>): string =>
+  `<key>tokens</key><dict>${entries
+    .map(([key, value]) => `<key>${key}</key><string>${value}</string>`)
+    .join('')}</dict>`;
+
+/** Splits a compiled stylesheet into its per-selector blocks, at each block's closing brace. */
+const blockBodies = (css: string): string[] =>
+  css
+    .split('}\n')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
 /** The compiled overlay's declarations, so an assertion can name one token. */
 const declarationsOf = (css: string): Map<string, string> => {
   const body = css.slice(css.indexOf('{') + 1, css.lastIndexOf('}'));
@@ -271,4 +294,155 @@ test('an id that could not sit in a selector refuses the file before it is parse
 
   assert.equal(compiled.ok, false);
   assert.equal(compiled.ok ? null : compiled.reason, 'unsafe-id');
+});
+
+test('an embedded cloudcli key compiles into a second block, placed after the TextMate half', () => {
+  const compiled = compileTmTheme(ID, withCloudCli(
+    tokenDict([['--muted', '210 40% 92%']]),
+    rule([['foreground', '#f8f8f2']]),
+  ));
+
+  assert.ok(compiled.ok, `expected a compile, got ${compiled.ok ? '' : compiled.reason}`);
+  const blocks = blockBodies(compiled.css);
+  assert.equal(blocks.length, 2, 'two payloads, two blocks');
+
+  assert.ok(blocks[0].startsWith(`[data-theme="${ID}"] {`), 'the TextMate half keeps its own selector');
+  assert.equal(
+    declarationsOf(blocks[0]).get(SYNTAX_TOKEN_MAP.punctuation),
+    '#f8f8f2',
+    'the TextMate half is compiled as before',
+  );
+
+  assert.ok(blocks[1].startsWith(`[data-theme="${ID}"] {`));
+  assert.equal(declarationsOf(blocks[1]).get('--muted'), '210 40% 92%');
+});
+
+test('an embedded token that meets a TextMate global wins, because it is the later block', () => {
+  const compiled = compileTmTheme(ID, withCloudCli(
+    tokenDict([['--term-background', '10 20% 30%']]),
+    rule([['background', '#282a36'], ['foreground', '#f8f8f2']]),
+  ));
+
+  assert.ok(compiled.ok);
+  const blocks = blockBodies(compiled.css);
+  assert.equal(blocks.length, 2);
+  assert.equal(declarationsOf(blocks[0]).get('--term-background'), '231 15% 18%');
+  assert.equal(
+    declarationsOf(blocks[1]).get('--term-background'),
+    '10 20% 30%',
+    'the cloudcli key is the more deliberate statement about this app',
+  );
+});
+
+test('a cloudcli key carrying no tokens is reported, and the TextMate half still compiles', () => {
+  const compiled = compileTmTheme(ID, withCloudCli('', rule([['foreground', '#f8f8f2']])));
+
+  assert.ok(compiled.ok);
+  assert.ok(
+    compiled.ignored.some(({ what, reason }) => what === 'cloudcli.tokens' && reason.includes('missing')),
+    'an empty extension key is an author error worth saying out loud',
+  );
+  assert.equal(declarationsOf(compiled.css).get(SYNTAX_TOKEN_MAP.punctuation), '#f8f8f2');
+});
+
+test('a token the whitelist refuses is dropped with the cloudcli prefix, the rest of the block stands', () => {
+  const compiled = compileTmTheme(ID, withCloudCli(
+    tokenDict([
+      ['--sidebar', '0 0% 50%'],
+      ['--muted', '210 40% 92%'],
+    ]),
+    rule([['foreground', '#f8f8f2']]),
+  ));
+
+  assert.ok(compiled.ok);
+  const blocks = blockBodies(compiled.css);
+  assert.equal(blocks.length, 2);
+  assert.equal(declarationsOf(blocks[1]).has('--sidebar'), false);
+  assert.equal(declarationsOf(blocks[1]).get('--muted'), '210 40% 92%');
+  assert.ok(
+    compiled.ignored.some(({ what, reason }) => what === 'cloudcli.--sidebar' && reason.includes('not a token')),
+    'the prefix is what keeps the console line from being read as a TextMate half drop',
+  );
+});
+
+test('an unsafe embedded value refuses the whole embedded block, and the TextMate half stands', () => {
+  const compiled = compileTmTheme(ID, withCloudCli(
+    tokenDict([['--muted', '0 0% 50%} body { color: red }']]),
+    rule([['foreground', '#f8f8f2']]),
+  ));
+
+  assert.ok(compiled.ok, 'the escape-shaped value is the embedded block\u2019s problem, not the file\u2019s');
+  const blocks = blockBodies(compiled.css);
+  assert.equal(blocks.length, 1, 'the refused block leaves nothing behind');
+  assert.ok(!blocks[0].includes('--muted'));
+  assert.ok(
+    compiled.ignored.some(({ what, reason }) => what === 'cloudcli.--muted' && reason.includes('refused')),
+  );
+});
+
+test('an embedded appearance scope scopes the block, and an unknown one is reported with the system fallback', () => {
+  const dark = compileTmTheme(ID, withCloudCli(
+    `<key>appearance</key><string>dark</string>${tokenDict([['--muted', '210 40% 92%']])}`,
+  ));
+
+  assert.ok(dark.ok);
+  const darkBlocks = blockBodies(dark.css);
+  assert.equal(darkBlocks.length, 1);
+  assert.ok(darkBlocks[0].startsWith(`[data-theme="${ID}"].dark {`));
+
+  const unknown = compileTmTheme(ID, withCloudCli(
+    `<key>appearance</key><string>always</string>${tokenDict([['--muted', '210 40% 92%']])}`,
+  ));
+
+  assert.ok(unknown.ok);
+  assert.ok(
+    unknown.ignored.some(({ what, reason }) => what === 'cloudcli.appearance' && reason.includes('not one of')),
+  );
+  assert.ok(blockBodies(unknown.css)[0].startsWith(`[data-theme="${ID}"] {`), 'the fallback is unscoped');
+});
+
+test('a non-string value inside the embedded tokens dict is reported as not a string', () => {
+  const compiled = compileTmTheme(ID, withCloudCli(
+    '<key>tokens</key><dict><key>--muted</key><real>0.5</real></dict>',
+    rule([['foreground', '#f8f8f2']]),
+  ));
+
+  assert.ok(compiled.ok);
+  assert.ok(
+    compiled.ignored.some(({ what, reason }) => what === 'cloudcli.--muted' && reason.includes('not a string')),
+  );
+});
+
+test('the embedded key\u2019s own tokens are contrast-checked like any other option A theme', () => {
+  // §5.5's own example: a light-scoped teal --primary meeting the base
+  // --primary-foreground lands below the AA floor, and the compiler has to say
+  // so through the same `warnings` field a `.json` theme's verdict carries.
+  const compiled = compileTmTheme(ID, withCloudCli(
+    `<key>appearance</key><string>light</string>${tokenDict([['--primary', '175 84% 32%']])}`,
+  ));
+
+  assert.ok(compiled.ok);
+  assert.ok(
+    compiled.warnings.some(({ appearance, ink, surface }) =>
+      appearance === 'light' && ink === '--primary-foreground' && surface === '--primary'),
+    'the embedded key moves main-UI tokens, so §5.10 speaks about it',
+  );
+});
+
+test('a file whose only colours are the embedded key\u2019s still compiles', () => {
+  // The `nothing-usable` verdict belongs to the whole file, so an embedded block
+  // that can stand on its own must not be sunk by an empty TextMate half.
+  const compiled = compileTmTheme(ID, withCloudCli(tokenDict([['--muted', '210 40% 92%']]), rule([])));
+
+  assert.ok(compiled.ok, `expected a compile, got ${compiled.ok ? '' : compiled.reason}`);
+  const blocks = blockBodies(compiled.css);
+  assert.equal(blocks.length, 1, 'the TextMate half contributes no block');
+  assert.equal(declarationsOf(blocks[0]).get('--muted'), '210 40% 92%');
+});
+
+test('a file without a cloudcli key carries no warnings, as before', () => {
+  const compiled = compileTmTheme(ID, tmTheme(rule([['foreground', '#f8f8f2']])));
+
+  assert.ok(compiled.ok);
+  assert.deepEqual(compiled.warnings, []);
 });

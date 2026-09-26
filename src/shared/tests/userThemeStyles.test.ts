@@ -340,6 +340,31 @@ test('a .tmTheme is compiled into an overlay rather than injected as plist XML',
   );
 });
 
+test('a .tmTheme with a cloudcli key has its own token pairs contrast-checked on apply', async () => {
+  fileBody = [
+    '<plist version="1.0"><dict>',
+    '<key>cloudcli</key><dict>',
+    '<key>appearance</key><string>light</string>',
+    '<key>tokens</key><dict><key>--primary</key><string>175 84% 32%</string></dict>',
+    '</dict>',
+    '<key>settings</key><array>',
+    '<dict><key>settings</key><dict><key>foreground</key><string>#f8f8f2</string></dict></dict>',
+    '</array></dict></plist>',
+  ].join('');
+  const { styles } = await loadStores();
+
+  await styles.applyUserThemeStyle(fileTarget({ format: 'tmTheme', fileName: 'dracula.tmTheme' }), true);
+
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: 'user-borealis', failedId: null });
+  const css = styleElement()?.textContent ?? '';
+  assert.match(css, /--primary: 175 84% 32%;/, 'the embedded block reaches the document');
+  assert.ok(
+    vi.mocked(console.warn).mock.calls.some(([, detail]) =>
+      String(detail).includes('light --primary-foreground on --primary: 3.49:1 < 4.5:1')),
+    'the embedded key moves main-UI tokens, so its warnings ride the same console channel a .json\u2019s do',
+  );
+});
+
 test('a .tmTheme that is not a plist is refused with the reason', async () => {
   fileBody = '{"tokens": {"--primary": "175 84% 32%"}}';
   const { styles } = await loadStores();

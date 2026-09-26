@@ -186,6 +186,46 @@ test('a .json theme that cannot be read is still listed, and the reason is repor
   );
 });
 
+test('a .tmTheme may claim a coverage through its cloudcli key, held to the same two words', async () => {
+  const themesDir = await scratchThemesDir();
+  const theme = (coverage?: string) =>
+    [
+      '<plist version="1.0"><dict>',
+      '<key>name</key><string>Nord</string>',
+      coverage === undefined ? '' : `<key>cloudcli</key><dict><key>coverage</key><string>${coverage}</string></dict>`,
+      '<key>settings</key><array><dict><key>settings</key><dict>',
+      '<key>foreground</key><string>#f8f8f2</string>',
+      '</dict></dict></array>',
+      '</dict></plist>',
+    ].join('');
+
+  await writeTheme(themesDir, 'Nord.tmTheme', theme('full'));
+  await writeTheme(themesDir, 'partial.tmTheme', theme('accent'));
+  await writeTheme(themesDir, 'bare.tmTheme', theme());
+  await writeTheme(themesDir, 'odd.tmTheme', theme('everything'));
+
+  let entries: Awaited<ReturnType<typeof scanThemeFiles>> = [];
+  const warnings = await warningsFrom(async () => {
+    entries = await scanThemeFiles(themesDir);
+  });
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+
+  // The claim is read at the same trust level as a `.json`'s: the author says
+  // what the file reaches, and the badge repeats it without checking the work.
+  assert.equal(byId.get('user-nord')?.coverage, 'full');
+  assert.equal(byId.get('user-partial')?.coverage, 'accent');
+  assert.equal(byId.get('user-bare')?.coverage, undefined, 'no claim, no badge');
+  assert.equal(byId.get('user-odd')?.coverage, undefined);
+  assert.ok(
+    warnings.some((warning) => warning.includes('odd.tmTheme') && warning.includes('unknown coverage')),
+    `a reach we drop has to be said out loud (saw: ${warnings.join(' | ')})`,
+  );
+  // `coverage` is the only key this channel reads from a `.tmTheme`: the plist's
+  // own `name` is not this channel's to read, so the filename base labels it.
+  assert.equal(byId.get('user-nord')?.name, 'Nord');
+  assert.equal(byId.get('user-bare')?.name, 'bare');
+});
+
 test('scanThemeFiles de-duplicates files whose base names collide', async () => {
   const themesDir = await scratchThemesDir();
   // Same base, different extension: both would resolve to id `user-nord`.
