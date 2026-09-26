@@ -1,8 +1,11 @@
 import { api } from '@/shared/api';
+import { SYNTAX_TOKEN_MAP } from '@/shared/syntaxTheme';
 import { readUserPreference } from '@/shared/userSettings';
 import type { PastedUserTheme } from '@/shared/types';
 import { findPastedTheme, isPastedThemeId } from '@/shared/userThemePastes';
 import type { UserThemeEntry } from '@/shared/userThemes';
+import { compileTmTheme } from '@/shared/tmTheme';
+import type { TmThemeCompileResult } from '@/shared/tmTheme';
 import { compileUserThemeTokens } from '@/shared/userThemeTokens';
 import type { IgnoredThemeEntry, UserThemeCompileResult } from '@/shared/userThemeTokens';
 
@@ -16,10 +19,10 @@ import type { IgnoredThemeEntry, UserThemeCompileResult } from '@/shared/userThe
  * boot-time restore, the swap when the theme changes, and the removal when it
  * stops being usable.
  *
- * What arrives is either a stylesheet already (`.css`) or a token JSON that has
- * to become one (`compileThemeSource`); either way, what is injected and cached
- * is the compiled stylesheet, which is what lets the boot-time restore stay a
- * pure synchronous injection.
+ * What arrives is either a stylesheet already (`.css`) or something that has to
+ * become one (`.json` through the token compiler, `.tmTheme` through the plist
+ * one); either way, what is injected and cached is the compiled stylesheet,
+ * which is what lets the boot-time restore stay a pure synchronous injection.
  *
  * The two sources differ in exactly one step — how the text is obtained — and
  * that is why they are one store and not two. Two stores would each keep their
@@ -41,11 +44,34 @@ const STORAGE_KEY = 'cloudcli.user-theme-style';
 /** Marks the injected element so it can be found and replaced without touching the bundle's CSS. */
 const STYLE_ELEMENT_ATTRIBUTE = 'data-cloudcli-user-theme';
 
+/**
+ * The part of a compiled user theme that comes from the build rather than from
+ * the theme.
+ *
+ * A `.tmTheme` compiles to declarations naming `--cc-syntax-*` variables, and
+ * those numbers are assigned by `buildSyntaxTheme` in the order it happens to
+ * meet a difference between the two shipped Prism themes — so a Prism bump
+ * renumbers them. The cache holds *compiled* output, so a copy written before
+ * such a bump would restore the previous numbering on the first paint and then
+ * look up to date, because the revision it is checked against is the file's
+ * `modifiedAt`, which has not moved. Folding the mapping into what the cache
+ * stores is what makes that copy fail its own check and be recompiled.
+ *
+ * It is derived from the mapping rather than hand-maintained, for the same
+ * reason the mapping itself is (0-D): a constant somebody has to remember to
+ * bump is a constant that will be forgotten. A build that renumbers only slots
+ * no `.tmTheme` can address leaves the fingerprint alone — correctly, since no
+ * compiled output names them.
+ */
+const COMPILED_OUTPUT_FINGERPRINT = JSON.stringify(SYNTAX_TOKEN_MAP);
+
 type CachedStyle = {
   /** The id the stylesheet was loaded for. */
   id: string;
   /** The file's mtime when it was loaded; a different one means the file changed. */
   modifiedAt: number;
+  /** The build's syntax numbering when this was compiled; see the fingerprint above. */
+  fingerprint: string;
   /** The compiled stylesheet — a `.css` file verbatim, a `.json` one compiled. */
   css: string;
 };
@@ -89,14 +115,32 @@ function toCompiledSource(label: string, compiled: UserThemeCompileResult): Comp
 }
 
 /**
+ * Turns a `.tmTheme` compiler verdict into the pair this module works with.
+ *
+ * Kept apart from the option A adapter rather than folded together: that one
+ * names the offending token, which is the useful half of its message, and this
+ * compiler reports its drops through `ignored` instead.
+ */
+function toTmThemeCompiledSource(
+  fileName: string,
+  compiled: TmThemeCompileResult,
+): CompiledThemeSource {
+  if (compiled.ok) return { ok: true, css: compiled.css, ignored: compiled.ignored };
+  return {
+    ok: false,
+    message: `${fileName} is not a usable .tmTheme: ${compiled.reason}`,
+    ignored: compiled.ignored,
+  };
+}
+
+/**
  * Turns a fetched file body into the stylesheet to inject.
  *
  * `.css` is already one. `.json` is option A and goes through the token
  * compiler, which also decides the appearance scope its overlay is written
- * under. `.tmTheme` is not supported yet — saying so is deliberate: injecting
- * the plist as CSS would put an element in the document that matches nothing,
- * so the picker would show the theme as applied while the page never changed.
- * Refusing it makes the gap visible until the `.tmTheme` slice fills it.
+ * under. `.tmTheme` is option B2 and goes through the plist compiler, whose
+ * overlay covers the syntax, editor and terminal tokens a code theme can speak
+ * about.
  */
 function compileThemeSource(entry: UserThemeEntry, body: string): CompiledThemeSource {
   if (entry.format === 'css') return { ok: true, css: body, ignored: [] };
@@ -105,11 +149,7 @@ function compileThemeSource(entry: UserThemeEntry, body: string): CompiledThemeS
     return toCompiledSource(entry.fileName, compileUserThemeTokens(entry.id, body));
   }
 
-  return {
-    ok: false,
-    message: `${entry.fileName} is a .tmTheme file, which this build cannot compile yet; use .css or .json`,
-    ignored: [],
-  };
+  return toTmThemeCompiledSource(entry.fileName, compileTmTheme(entry.id, body));
 }
 
 /** Obtains the stylesheet for a target: read the file, or compile the content already in hand. */
@@ -183,11 +223,16 @@ function readCache(): CachedStyle | null {
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     if (!isRecord(parsed)) return null;
-    const { id, modifiedAt, css } = parsed;
-    if (typeof id !== 'string' || typeof modifiedAt !== 'number' || typeof css !== 'string') {
+    const { id, modifiedAt, fingerprint, css } = parsed;
+    if (
+      typeof id !== 'string' ||
+      typeof modifiedAt !== 'number' ||
+      typeof fingerprint !== 'string' ||
+      typeof css !== 'string'
+    ) {
       return null;
     }
-    return { id, modifiedAt, css };
+    return { id, modifiedAt, fingerprint, css };
   } catch {
     return null;
   }
@@ -264,6 +309,11 @@ export function clearAppliedUserThemeStyle(): void {
  * preference mirror itself for a pasted theme, whose content needs no fetching.
  * The listing corrects a file afterwards if it changed or is gone.
  *
+ * The cached copy also has to have been compiled by this build
+ * (`COMPILED_OUTPUT_FINGERPRINT`): what it holds is a compiler's output, and a
+ * compiler whose output embeds build-derived names can produce a copy that is
+ * stale in the one way the file's own revision cannot reveal.
+ *
  * Called from `main.tsx` rather than on import, so importing this module in a
  * test can never repaint the document.
  */
@@ -272,12 +322,16 @@ export function applyBootUserThemeStyle(): void {
   if (!pickedId) return;
 
   const cached = readCache();
-  if (cached && cached.id === pickedId) {
+  if (cached && cached.id === pickedId && cached.fingerprint === COMPILED_OUTPUT_FINGERPRINT) {
     injectStyle(cached.id, cached.css);
     applied = { id: cached.id, revision: cached.modifiedAt };
     publish({ appliedId: cached.id, failedId: null });
     return;
   }
+
+  // A cached copy from another build is left in place rather than cleared: the
+  // listing is about to re-read the file and overwrite it, and until then it is
+  // the only thing that knows the theme's revision. It is simply not painted.
 
   // A pasted theme is restored from its own content rather than from a cache,
   // so it is offered exactly as early as a cached file is — but only pasted ids
@@ -376,7 +430,12 @@ export async function applyUserThemeStyle(
     // Only a file needs the mirror: its text is what the next first paint has to
     // have before it can ask for anything, whereas a pasted theme carries its own.
     if (target.kind === 'file') {
-      writeCache({ id, modifiedAt: target.entry.modifiedAt, css: compiled.css });
+      writeCache({
+        id,
+        modifiedAt: target.entry.modifiedAt,
+        fingerprint: COMPILED_OUTPUT_FINGERPRINT,
+        css: compiled.css,
+      });
     }
     applied = { id, revision };
     publish({ appliedId: id, failedId: null });

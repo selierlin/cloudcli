@@ -213,7 +213,7 @@
     "files": {
       "title": "来自主题目录",
       "hint": "由服务器从 ~/.cloudcli/themes/ 读取；增删请直接改那个目录，这里只列出可用项。",
-      "empty": "目录里还没有主题文件。放一个 .css 或 .json 进去再刷新即可。"
+      "empty": "目录里还没有主题文件。放一个 .css、.json 或 .tmTheme 进去再刷新即可。"
     },
     "pastes": {
       "title": "粘贴的主题",

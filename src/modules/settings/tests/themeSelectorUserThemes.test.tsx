@@ -4,6 +4,8 @@ import { act, fireEvent, render } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
+import { SYNTAX_TOKEN_MAP } from '@/shared/syntaxTheme';
+
 /**
  * The picker's half of the user theme listing: the themes a file in
  * `~/.cloudcli/themes` adds, and what it says when one of them cannot be put on
@@ -202,6 +204,9 @@ test('a theme restored from the cache is on offer before the listing answers', a
   localStorage.setItem('cloudcli.user-theme-style', JSON.stringify({
     id: 'user-borealis',
     modifiedAt: 42,
+    // The stylesheet module only restores a copy this build compiled; the
+    // fingerprint is derived from the syntax mapping its output embeds.
+    fingerprint: JSON.stringify(SYNTAX_TOKEN_MAP),
     css: ':root{--t:1}',
   }));
 
