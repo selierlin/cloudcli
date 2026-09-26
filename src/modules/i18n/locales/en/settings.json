@@ -240,6 +240,12 @@
     },
     "pasteSubmit": "Add theme",
     "pasteInvalid": "This content cannot be a theme: {{reason}}",
+    "contrastTitle": "Readability warnings",
+    "contrastWarning": "{{appearance}} contrast: {{ink}} on {{surface}} is only {{ratio}}:1, below {{min}}:1. The theme still applies.",
+    "contrastAppearance": {
+      "light": "Light",
+      "dark": "Dark"
+    },
     "reason": {
       "unsafe-id": "the theme id is unsafe",
       "unreadable-json": "it is not a valid JSON object",

@@ -240,6 +240,12 @@
     },
     "pasteSubmit": "添加主题",
     "pasteInvalid": "这份内容不能作为主题：{{reason}}",
+    "contrastTitle": "配色可读性提醒",
+    "contrastWarning": "{{appearance}}对比度：{{ink}} 落在 {{surface}} 上仅 {{ratio}}:1，低于 {{min}}:1。主题仍会生效。",
+    "contrastAppearance": {
+      "light": "浅色",
+      "dark": "深色"
+    },
     "reason": {
       "unsafe-id": "主题标识不安全",
       "unreadable-json": "不是合法的 JSON 对象",

@@ -101,6 +101,7 @@
           "src/shared/codeEditorSettings.ts",
           "src/shared/userSettings.ts",
           "src/shared/userThemes.ts",
+          "src/shared/userThemeContrast.ts",
           "src/shared/userThemePastes.ts",
           "src/shared/userThemeStyles.ts",
           "src/shared/userThemeTokens.ts",
