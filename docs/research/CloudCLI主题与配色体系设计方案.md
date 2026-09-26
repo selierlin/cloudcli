@@ -1,7 +1,7 @@
 # CloudCLI 主题与配色体系设计方案
 
 > 编写日期：2026-09-24 ｜ 修订：2026-09-25（v5：阶段 0-A / 0-B / 0-C 已实施并验收，记录见 §6）
-> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j / 0-E2k / 0-E2l / 0-E2m / 0-E2n / 0-E2o / 0-E2p / 0-E2q / 0-E2r / 0-E2s / 0-E2t / 0-E2u / 0-E2v / 0-E2w / 0-E2x / 0-E2y / 0-E2z / 0-E3a / 0-E3b / 0-E3c / 0-E3d / 0-E3e / 0-E3f / 0-E3g / 0-E3h / 0-E3i / 0-E3j / 0-E3k / 0-E3l / 0-E3m / 0-E3n / 0-E3o / 0-E3p / 0-E3q / 0-E3r / 0-E3s / 0-E3t / 0-E3u / 0-E3v / 0-E3w / 0-E3x / 0-E3y / 0-E3z / 0-E4a / 0-E4b / 0-E4c / 0-E4d / 0-E4e / 0-E4f / 0-E4g / 0-E4h / 0-E4i / 0-E4j / 0-E4k / 0-E4l / 0-E4m / 0-E4n / 0-E4o / 0-E4p / 0-E4q / 0-E4r / 0-E4s / 0-E4t / 0-E4u / 0-E4v / 0-E4w / 0-E4x / 0-E4y / 0-E4z / 0-E5a / 0-E5b / 0-E5c / 0-E5d / 0-E5e / 0-E5f / 0-E5g / 0-E5h / 0-E5i / 0-E5j / 0-E5k / 0-E5l / 0-E5m / 0-E5n / 0-E5o / 0-E5p / 0-E5q / 0-E5r / 0-E5s / 0-E5t / 0-E5u / 0-E5v / 0-E5w / 0-E5x / 0-E5y / 0-E5z / 0-E6a / 0-E6b / 0-E6c / 0-E6d 一百一十五片，**阶段 0 的迁移分片已全部实施**；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内；0-E3i 修正了产物核对脚本的**前提假设缺口**——脚本原假设"被测文件迁移前不含 `n-*` 令牌"，随分片推进（前片已令牌化的文件被再次触碰）必然被打破；0-E6d 又暴露一处**护栏前提失效**——守恒律反空转护栏里"必须扫到 ≥1 处带透明度修饰的**字面**中性色"这条断言，随阶段 0 归零而失去可满足前提（仓库计数无论捕获组是否健在都读 0），改为对解析形状的合成名断言。截至 0-E6d：中性具名硬编码剩余 **0 处 / 0 文件**（起点 1517 / 105；阶段 0 迁移完成，仅余 1 处豁免 `border-gray-150`）。**阶段 1 已开工**：1-A（主题骨架：`ThemeManifest` + `BUILTIN_THEMES` + `<html data-theme>`）与 1-B 第一步（随 `appearance` 在 `<html>` 写 `color-scheme`，本线**第一个有意的视觉变更**）均已实施并验收；1-B2 的三个子片（删 2 行已失效的 `color-scheme: dark`、textarea 的 `color-scheme` 改为随应用外观、68 处暗色补偿改走既有令牌）也已完成；**其前置 0-F 也已实施**（Git 图 lane 色抽为 `--graph-lane-1..10` ＋ 移动端终端选区菜单 7 处色值令牌化，拆 0-F1 / 0-F2 两片），切片表与记录见 §6）；**1-C 与 1-D 也已完成**（1-C：`theme-color` 与 iOS status-bar 改由令牌派生，`ThemeContext` 里两处手写 hex 删除、两个分支合并，`ThemeManifest` 的 `themeColor` / `statusBar` 覆盖字段一并落地；1-D：新增 `themeId` 偏好键，`ThemeContext` 暴露 `themeId` / `resolvedThemeId` / `setThemeId`，跨设备"未安装该主题"的回落不再静默——**1-E 也已完成**（覆盖层机制 ＋ 两套示范主题 `cc-ocean`（`accent`）/ `cc-polar`（`full`）＋ 注册表扩充，三片各自独立 commit；修正了 §5.2 的 cascade 假设、定了 `appearance` 的两角色模型——**1-F 也已完成**（`f2e03c6f`：外观设置页的配色主题选择器 ＋ `coverage` 徽标 ＋ 跨设备未安装的回落提示，i18n 实补 en ＋ zh-CN；原计划"只补 zh-CN"的前提经实测不成立——仓库现状是 zh-CN ⊆ en——**1-G 也已完成**（`7b406986`：刷新 effect 补 `resolvedThemeId` 依赖，覆盖层的切换 / 清除都会让 xterm 重读 `--term-*`；**另两路经核查无需刷新**——编辑器的 chrome 与 highlight 全是 `var()`、Git 图是 SVG 表现属性；范围据此收窄并回写 §5.6 v10。**1-H 也已完成**（`38ef8d8e` / `13b9c696`：§5.10 对比度断言落地为 `contrast.spec.ts`，覆盖"基色 ＋ 每套覆盖层"× 明暗两态的 6 个配对；§5.11 的遍历补上反向守卫，堵住"块存在但未注册"的死 CSS——这是"遍历每套覆盖层"按构造会跳过的那一类；**并含一处有意视觉变更**——基色 `--palette-sand-500` 由 `44%` 调至 `43%`，因宽读下它只到 4.42:1、低于 AA 4.5:1，而 accent 类覆盖层不重调 substrate 会继承它。**阶段 1 至此全部完成**））
+> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j / 0-E2k / 0-E2l / 0-E2m / 0-E2n / 0-E2o / 0-E2p / 0-E2q / 0-E2r / 0-E2s / 0-E2t / 0-E2u / 0-E2v / 0-E2w / 0-E2x / 0-E2y / 0-E2z / 0-E3a / 0-E3b / 0-E3c / 0-E3d / 0-E3e / 0-E3f / 0-E3g / 0-E3h / 0-E3i / 0-E3j / 0-E3k / 0-E3l / 0-E3m / 0-E3n / 0-E3o / 0-E3p / 0-E3q / 0-E3r / 0-E3s / 0-E3t / 0-E3u / 0-E3v / 0-E3w / 0-E3x / 0-E3y / 0-E3z / 0-E4a / 0-E4b / 0-E4c / 0-E4d / 0-E4e / 0-E4f / 0-E4g / 0-E4h / 0-E4i / 0-E4j / 0-E4k / 0-E4l / 0-E4m / 0-E4n / 0-E4o / 0-E4p / 0-E4q / 0-E4r / 0-E4s / 0-E4t / 0-E4u / 0-E4v / 0-E4w / 0-E4x / 0-E4y / 0-E4z / 0-E5a / 0-E5b / 0-E5c / 0-E5d / 0-E5e / 0-E5f / 0-E5g / 0-E5h / 0-E5i / 0-E5j / 0-E5k / 0-E5l / 0-E5m / 0-E5n / 0-E5o / 0-E5p / 0-E5q / 0-E5r / 0-E5s / 0-E5t / 0-E5u / 0-E5v / 0-E5w / 0-E5x / 0-E5y / 0-E5z / 0-E6a / 0-E6b / 0-E6c / 0-E6d 一百一十五片，**阶段 0 的迁移分片已全部实施**；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内；0-E3i 修正了产物核对脚本的**前提假设缺口**——脚本原假设"被测文件迁移前不含 `n-*` 令牌"，随分片推进（前片已令牌化的文件被再次触碰）必然被打破；0-E6d 又暴露一处**护栏前提失效**——守恒律反空转护栏里"必须扫到 ≥1 处带透明度修饰的**字面**中性色"这条断言，随阶段 0 归零而失去可满足前提（仓库计数无论捕获组是否健在都读 0），改为对解析形状的合成名断言。截至 0-E6d：中性具名硬编码剩余 **0 处 / 0 文件**（起点 1517 / 105；阶段 0 迁移完成，仅余 1 处豁免 `border-gray-150`）。**阶段 1 已开工**：1-A（主题骨架：`ThemeManifest` + `BUILTIN_THEMES` + `<html data-theme>`）与 1-B 第一步（随 `appearance` 在 `<html>` 写 `color-scheme`，本线**第一个有意的视觉变更**）均已实施并验收；1-B2 的三个子片（删 2 行已失效的 `color-scheme: dark`、textarea 的 `color-scheme` 改为随应用外观、68 处暗色补偿改走既有令牌）也已完成；**其前置 0-F 也已实施**（Git 图 lane 色抽为 `--graph-lane-1..10` ＋ 移动端终端选区菜单 7 处色值令牌化，拆 0-F1 / 0-F2 两片），切片表与记录见 §6）；**1-C 与 1-D 也已完成**（1-C：`theme-color` 与 iOS status-bar 改由令牌派生，`ThemeContext` 里两处手写 hex 删除、两个分支合并，`ThemeManifest` 的 `themeColor` / `statusBar` 覆盖字段一并落地；1-D：新增 `themeId` 偏好键，`ThemeContext` 暴露 `themeId` / `resolvedThemeId` / `setThemeId`，跨设备"未安装该主题"的回落不再静默——**1-E 也已完成**（覆盖层机制 ＋ 两套示范主题 `cc-ocean`（`accent`）/ `cc-polar`（`full`）＋ 注册表扩充，三片各自独立 commit；修正了 §5.2 的 cascade 假设、定了 `appearance` 的两角色模型——**1-F 也已完成**（`f2e03c6f`：外观设置页的配色主题选择器 ＋ `coverage` 徽标 ＋ 跨设备未安装的回落提示，i18n 实补 en ＋ zh-CN；原计划"只补 zh-CN"的前提经实测不成立——仓库现状是 zh-CN ⊆ en——**1-G 也已完成**（`7b406986`：刷新 effect 补 `resolvedThemeId` 依赖，覆盖层的切换 / 清除都会让 xterm 重读 `--term-*`；**另两路经核查无需刷新**——编辑器的 chrome 与 highlight 全是 `var()`、Git 图是 SVG 表现属性；范围据此收窄并回写 §5.6 v10。**1-H 也已完成**（`38ef8d8e` / `13b9c696`：§5.10 对比度断言落地为 `contrast.spec.ts`，覆盖"基色 ＋ 每套覆盖层"× 明暗两态的 6 个配对；§5.11 的遍历补上反向守卫，堵住"块存在但未注册"的死 CSS——这是"遍历每套覆盖层"按构造会跳过的那一类；**并含一处有意视觉变更**——基色 `--palette-sand-500` 由 `44%` 调至 `43%`，因宽读下它只到 4.42:1、低于 AA 4.5:1，而 accent 类覆盖层不重调 substrate 会继承它。**1-I 也已完成**（`e4f5cb70`：首帧 chrome 色改为随外观——`<head>` 末尾的内联同步脚本按 `localStorage['theme']` 决定 `<html data-appearance>` / `color-scheme` / `theme-color`，splash 据此出浅色变体，消掉"深色启动画面 ＋ 白色状态栏"的同屏矛盾；**含一处有意视觉变更**——浅色外观的启动画面由深变浅；`manifest` 与 `msapplication` 的安装期静态色如实记为不可达）——**阶段 1 至此全部完成**））
 > 参照物：WorkBuddy（`/Applications/WorkBuddy.app`，app.asar 解包 + 本机皮肤包实物）、Codex CLI（`@openai/codex@0.155.1`，Rust 二进制字符串解析）
 > 目标读者：评审 AI / 后续实施者
 
@@ -380,7 +380,13 @@ export type ThemeManifest = {
 - **"文件主题"与"粘贴主题"是两条存储线**（v3 新增）：前者在服务端目录（只读、随部署卷走、**内容不跨设备同步**），后者存用户偏好（**内容跨设备同步**）。二者的删除、失效、跨设备语义均不同，设置页须按 `ThemeManifest.source` 区分展示，文档写明。
 - **跨设备同步的边界**（v2 新增）：偏好镜像会把 `themeId` 同步到未安装该主题文件的设备，届时应**显式提示"此设备缺少该主题，已回落默认"**而非静默回落。另注意现状怪癖：`setTheme('system')` 不写偏好（`ThemeContext.tsx:113-121`，仅 light/dark 才 `writeUserPreference`），新增 `themeId` 键时需决定 `system` 分支是否同样豁免，避免把本机临时态覆盖成跨设备永久态。
 
-> **v7（1-C 追加）**：上面的启动链路写着"立即在首帧前设置 … `meta theme-color`"，**当前实现并非如此**——`ThemeContext` 的写入在 effect 里，首帧前生效的是 `index.html` 的静态 `<meta name="theme-color" content="#ffffff">`（另 `public/manifest.json` 的 `theme_color`、以及 `mobile/www/index.html` 这个 Capacitor 服务器选择页自成一套 media 查询式 theme-color）。1-C 只把运行期这一环接上令牌（见该片记录），"JS 跑起来之前的那一段"仍是静态值，与首帧防闪烁同属一组问题，**待单独成片**。
+> **v7（1-C 追加）**：上面的启动链路写着"立即在首帧前设置 … `meta theme-color`"，**当前实现并非如此**——`ThemeContext` 的写入在 effect 里，首帧前生效的是 `index.html` 的静态 `<meta name="theme-color" content="#ffffff">`（另 `public/manifest.json` 的 `theme_color`、以及 `mobile/www/index.html` 这个 Capacitor 服务器选择页自成一套 media 查询式 theme-color）。1-C 只把运行期这一环接上令牌（见该片记录），"JS 跑起来之前的那一段"仍是静态值，与首帧防闪烁同属一组问题，**已由 1-I 落地**（见下方 v8）。
+
+> **v8（1-I 已实施）**：上面那句"首帧前生效的是 `index.html` 的静态 `<meta name="theme-color" content="#ffffff">`"**已不再成立**。1-I 在 `<head>` 末尾放了一段同步脚本，读 `localStorage['theme']`（与 `ThemeContext.tsx:74` 同一个键）、缺省回落到系统外观，据此写 `<html data-appearance>`、`color-scheme` 与一条精确的 `theme-color`；splash 增加 `:root[data-appearance='light']` 变体，取令牌解析值（`#f7f6f3` / `#0d0b08` / `#736f68`），交接到 React 首帧时颜色逐位相同。**启动链路那句"立即在首帧前设置 meta theme-color"至此才成立。** 两条 media 限定的 `theme-color` 保留为"脚本未运行"的声明式兜底，脚本运行时会移除它们——所以运行时恒只有一条；脚本必须放在 `<head>` 末尾（先能选到那两条才能移除，否则会留下两条让浏览器自己挑）。
+>
+> **有意视觉变更**：浅色外观的启动画面由深（`#0b0d10`）变浅（`#f7f6f3`）。理由见 1-I 记录——只改 `theme-color` 不动 splash 只是把跳变从深色用户搬到浅色用户；让 splash 一并跟随，两侧才都零矛盾、零跳变。按 1-B / 1-H 体例单独记账。spinner 在浅底上取 green-700（`#15803d`，4.64:1）而非 green-600（仅 3.05:1，余量太薄）。
+>
+> **如实边界**：`manifest.json` 的 `theme_color` / `background_color` 与 `msapplication-TileColor` 是**安装期**静态色，运行时改不了（平台限制），未改并记账——不要把"能跟随外观"当成它们的能力；`mobile/www/index.html` 已有 media 双条、且不加载主题令牌，未动；脚本只能读 `localStorage`，跨设备同步来的偏好要等 bundle 才可达，故该情形（以及手动偏好与系统不符时）首帧按系统外观、挂载后纠正——这是**能做到的最好**，不是遗漏。
 
 > **v8（1-D 追加）**：上面那条"跨设备同步的边界"里的两处待决，已在 1-D 落地（见该片记录）。**决策一**：`system` 分支的豁免**只属于明暗键**，不延伸到 `themeId`——`theme` 键豁免是为了不让"本机跟随系统"这个**临时态**覆盖跨设备的永久选择，而挑主题本身就是一次显式选择、没有 system 对应物，所以 `setThemeId` 无条件写偏好（已断言"system 下选主题仍写入 `themeId`、而 `theme` 仍不写"）。**决策二**：回落不再可能静默——解析层 `resolveTheme(themeId, appearance)` 查不到该 id 时返回外观默认，`ThemeContext` 把**生效 id** 与**用户所选 id** 分开暴露（`resolvedThemeId` / `themeId`），并在 effect 里 `console.warn` 报出"此设备未安装 X、已回落 Y"。**提示 UI 留到 1-F**（届时判 `themeId !== null && themeId !== resolvedThemeId` 即可渲染），1-D 只负责让回落可被观测、可被判据。另记一条本片**未定、不阻塞**的边界：用户显式选了与外观同名的默认别名（`cc-light` / `cc-dark`）之后再切换明暗胶囊，`data-theme` 应留在所选别名还是回到外观默认——这属 1-E 扩充注册表时要一并定的模型问题（1-D 阶段这两个 id 都无覆盖层，两种解释视觉等值，故不影响本片）。
 
@@ -3266,6 +3272,7 @@ Mutation 侧：
 | 1-F | 外观设置页主题选择器 + `coverage` badge（i18n 只补 zh-CN） | ✅ 已实施（`f2e03c6f`）。`settings/ThemeSelector` 列出 `appearance === 'system'` 的覆盖层主题（外观默认不进列表）＋ 一个「默认」项；徽标按 `coverage` 渲染；`themeId !== resolvedThemeId` 时出一行回落提示，补上 1-D 留下的消费者。归属按 `shared/ui` 准入线放 **settings 模块**（只有一个消费者）。**原计划"i18n 只补 zh-CN"的前提不成立**：实测仓库现状是 zh-CN ⊆ en（en 为键集基准），故实补 en ＋ zh-CN 两处。详见 §6 阶段 1 末 1-F 记录 |
 | 1-G | JS 消费者随主题刷新：xterm 重读 `--term-*` 重设 `options.theme`、CodeMirror compartment reconfigure、Git 图 SVG 直接用 `var(--graph-lane-*)` | ✅ 已实施（`7b406986`）。**实测三路里只有 xterm 需要做**：编辑器（0-D 落地时 chrome 与 highlight 的每个色值都是 `var()`，由注入样式表在绘制时解析）与 Git 图（SVG 表现属性）都无需刷新，故代码改动仅"刷新 effect 补 `resolvedThemeId` 依赖"一处。新增 `shellTerminalThemeRefresh.test.tsx`（桩终端 ＋ 计数读取，4 例）与 `terminal-tokens.spec.ts` 一例（覆盖层确实移动色板 ＝ 刷新的前提）。§5.6 的"JS 消费者需要刷新"已按此收窄（v10）。详见本片记录 |
 | 1-H | §5.11 契约测试扩到"遍历每套 `[data-theme]` 覆盖层"与 §5.10 对比度断言（`--ring`/`--background` ≥ 3:1、正文 ≥ 4.5:1） | ✅ 已实施（`38ef8d8e` / `13b9c696`）。对比度落地为 `tests/theme-tokens/contrast.spec.ts`：对"基色 ＋ 每套覆盖层"× 明暗两态断言 6 个配对（`--foreground`/`--muted-foreground` 各落 `--background` 与 `--card`、按钮文字落 `--primary`、`--ring` 落 `--background`），颜色读 fixture 的 `rendered` 层。**"正文"的读法是个口径分叉**：窄读（仅 `--foreground`）零改动即可落地，宽读（含 `--muted-foreground`）则基色浅色仅 4.42:1 不达标——用户拍板按宽读，并把 `--palette-sand-500` 由 `44%` 调到 `43%`（4.59:1，浏览器序列化后 4.62）。遍历侧补反向守卫：样式表里每个 `[data-theme]` 块都必须属于已注册覆盖层。详见阶段 1 末 1-H 记录 |
+| 1-I | 首帧 chrome 色（JS bundle 执行之前的那一段）：splash 跟随明暗 ＋ `theme-color` 改由 `<head>` 末尾的内联同步脚本按存储偏好决定 ＋ `manifest` / `msapplication` 记为不可达 | ✅ 已实施（`e4f5cb70`）。由 1-C 顺带核出、用户拍板"按推荐"落地。**决定让 splash 也一起跟随明暗**——只改 `theme-color` 只是把"跳变"从深色用户搬到浅色用户（splash 恒深时，浅色用户的"深启动画面 → 浅界面"依然在）；一起跟随之后两侧都零矛盾、零跳变。机制不是新引入的，`mobile/www/index.html` 的 theme-color 早已是 media 查询式。含**有意视觉变更**：浅色外观的启动画面由深（`#0b0d10`）变浅（`#f7f6f3`，＝浅色 `--background`）。三处写者（脚本 / splash 规则 / media 兜底）的值按"必须一致"断言，而非各钉字面值。详见本片记录 |
 
 **分片口径**：与阶段 0 同——每片独立迁移、独立验收、独立 commit、可单独回退；批次化（若合批）只合并重量级门槛的调用次数，片内仍逐片验。
 
@@ -3454,7 +3461,7 @@ Mutation 侧：
 
 **顺带记账（均未在本片处理）**：
 
-1. **JS 跑起来之前的 chrome 色**：`index.html` 的静态 `<meta name="theme-color" content="#ffffff">`、`public/manifest.json` 的 `theme_color`，以及 `mobile/www/index.html`（Capacitor 的服务器选择页，自成一套 media 查询式 theme-color）。它们与"首帧无闪烁"是同一组问题，且 §5.6 的启动链路里那句"立即在首帧前设置 … meta theme-color"目前**并不成立**（`ThemeContext` 的写入在 effect 里，首帧前生效的是静态值）。建议单开一片处理，不要塞进 1-C。
+1. ~~**JS 跑起来之前的 chrome 色**~~ **已由 1-I（`e4f5cb70`）落地**：`index.html` 的静态 `<meta name="theme-color" content="#ffffff">` 曾是首帧生效值，且与 splash 的固定深色底**自相矛盾**（深色外观下＝白色状态栏压着一屏深色）；1-I 用一段 `<head>` 末尾的同步脚本把它改为随外观决定，并给 splash 补了浅色变体。`public/manifest.json` 的 `theme_color` 与 `mobile/www/index.html` 的 media 双条**仍在原状**——前者是安装期静态色、运行时改不了（平台限制，记账为不可达），后者是 Capacitor 选择页的独立色板（不加载令牌，方向本就正确）。详见 §5.6 v8 与 1-I 记录。
 2. **`react-scan` 进了生产产物**：`src/main.tsx:3` 静态导入 `scan`，`:18` 才用 `import.meta.env.DEV` 在**运行期**关掉——即关闭的是执行而非打包，整个库（含自带硬编码色的浮层）仍在 bundle 里（产物中 3 处 `#141414` 即出自它的 FPS 面板）。属既有问题、与主题线无关，但既是体积问题也是"未入册的硬编码色"来源，建议单独一句记账。
 
 #### 1-D 实施记录（2026-09-26，`7ce0fbda`）
@@ -3648,7 +3655,50 @@ Mutation 侧：
 
 **门槛**：`test:theme-tokens` **48 → 56**（4 新用例：1 守卫 ＋ 3 对比度，×2 引擎）；`typecheck:theme-tokens` 干净；`test:client` **130 文件 / 988 用例**（与 1-G 逐位相同）；`lint` **153 warnings / 0 error**；`build` exit 0（取真实退出码，非管道值）。
 
-**与既有账的关系**：阶段 0 迁移账与 B3 账户不受影响。**本片是本线唯一带"出厂配色有意变更"的片**：`--palette-sand-500` 44%→43%，按 1-B / 1-C 的体例单独记账为有意视觉变更（受影响的只有浅色次要文字，1% 亮度）。**阶段 1 至此全部完成。**
+**与既有账的关系**：阶段 0 迁移账与 B3 账户不受影响。**本片是本线唯一带"出厂色板取值变更"的片**：`--palette-sand-500` 44%→43%，按 1-B / 1-C 的体例单独记账为有意视觉变更（受影响的只有浅色次要文字，1% 亮度）。**阶段 1 的计划内切片至此全部完成**（随后补做的 1-I 见下）。
+
+#### 1-I 实施记录（2026-09-26，`e4f5cb70`）
+
+**范围**：`index.html`（`<head>` 末尾的首帧外观脚本 ＋ splash 的浅色变体 ＋ `theme-color` 改 media 双条）、`tests/theme-tokens/first-paint.spec.ts`（新，4 用例 × 2 引擎）、`tests/theme-tokens/verify-first-paint.mjs`（新，真实文档行为验证器）、`tests/theme-tokens/README.md`。**无 `src/` 改动、无 i18n、无 server 改动、无基线改动。**
+
+**这一片是 1-C 的尾巴**：1-C 把运行期 `theme-color` 接上了令牌，但"JS bundle 执行之前"那一段仍是静态值——而 §5.6 的启动链路写着"立即在首帧前设置 meta theme-color"，那句话当时**并不成立**。本片让它成立。
+
+**问题不是"少一个属性"，是两处值互相矛盾**：`index.html` 的静态 `theme-color` 是 `#ffffff`，而 splash 的底色是固定的深色 `#0b0d10`。splash 是 `position: fixed; inset: 0; z-index: 99999`，首帧铺满视口；状态栏在它之上。于是"深色启动画面 ＋ 白色状态栏"在**深色外观下**最刺眼（白色状态栏压着一屏深色），浅色外观下也自相矛盾。另记：splash 的存活时间不是"渲染一帧"——它由 `ProtectedRoute` 在认证落定后才撤（`src/utils/splash.ts`），所以这段配色在首次连接时**可见数秒**，不是一闪而过。
+
+**关键决策**：
+
+1. **让 splash 一起跟随明暗，而不是只改 `theme-color`**（本片唯一有意的视觉变更）。splash 恒深时，只把 `theme-color` 改成与 splash 一致，只是把"跳变"从深色用户搬到浅色用户——浅色用户的"深启动画面 → 浅界面"依然存在。让 splash 一并跟随，才是两侧都"零矛盾、零跳变"：浅色用户看到浅启动画面 ＋ 浅状态栏，深色用户看到深启动画面 ＋ 深状态栏。**机制不是新引入的**——`mobile/www/index.html` 的 theme-color 早就是 media 查询式。**记账**：浅色外观的启动画面由深变浅（此前对所有外观都是 `#0b0d10`）。
+2. **浅色 splash 取令牌解析值，不另造一套色**：底色 `#f7f6f3`（＝ `--palette-sand-50`，即浅色 `--background`）、主文字 `#0d0b08`（`--palette-sand-950`）、次文字 `#736f68`（`--palette-sand-500`，1-H 刚钉到 43%）。这样 splash 交接到 React 首帧时**颜色逐位相同**，不发生闪烁。
+3. **spinner 在浅底上用 green-700（`#15803d`）而非 green-600**：绿是"加载中"的语义色，深色底上的 `#4ade80`（11.17:1）保留不动；浅底上 `#16a34a` 只有 **3.05:1**，余量 0.05 太薄，改 `#15803d` 得 **4.64:1**——沿用 1-H 的同一门槛（图形 ≥3:1），并主动留厚。
+4. **用一个内联同步脚本决定外观，而不是纯 media 查询**：media 只反映**系统**外观，而用户可以在应用内手动选明暗。脚本读的正是 `ThemeContext` 读的那个键（`localStorage['theme']`，`ThemeContext.tsx:74`），所以"手动选过"的用户首帧就正确。
+5. **脚本必须放在 `<head>` 末尾，不能放开头**：它要先 `querySelectorAll` 到前面那两条 media meta 才能 `remove()` 掉，否则文档里会留下两条 `theme-color` 让浏览器自己挑（多条时取哪条由浏览器决定，是未定义行为）。
+6. **media 双条保留为"脚本未运行"的声明式兜底**：值取与 splash 相同的两个色。脚本运行时会移除它们并写一条精确的——所以运行时恒只有 **1 条**（行为验证实测）。
+7. **三处写者的值必须一致，断言按"一致"写而非各钉字面**：同一外观的颜色有三个写者（脚本 / splash 规则 / media 兜底）。若各钉一个字面值，一处漂移后其余仍绿。故断言是"每个外观的颜色在它出现的**每一处**都相同"——**契约是一致性本身，不是某个 hex**。
+8. **脚本的 `data-appearance` 挂载后不再维护**（如实边界）：React 挂载后写自己的 `data-theme` / `.dark`，chrome 由 `applyThemeChrome` 重新发布；splash 保持首帧配色直到 `ProtectedRoute` 撤掉它。**不能"挂载即清掉这个标记"**——splash 的存活跨越首次渲染，清掉会让浅色用户的 splash 在认证期间突然变深。
+
+**如实边界（不阻塞）**：
+
+1. **`manifest.json` 的 `theme_color` / `background_color` 不跟随**——PWA 启动画面与安装期磁贴色由 manifest 静态决定，运行时改不了（平台限制）。故**未改**（`#ffffff` 与浅色基准 `#f7f6f3` 肉眼几乎不可辨），已记账。同理 `msapplication-TileColor` 是安装期色、不参与运行期跟随。**不要把"能跟随外观"当成它们的能力。**
+2. **`mobile/www/index.html` 未动**：它是 Capacitor 的服务器选择页，已有 media 双条（`#f7f9fc` / `#0f1115`），方向正确；但它不加载主题令牌，是一套独立色板（用户此时还没连上服务器，没有主题偏好可读）。
+3. **跨设备同步的偏好首帧读不到**：脚本只能读 `localStorage`；`ThemeContext` 还能读同步偏好镜像（`readUserPreference`），那需要 bundle。故"只在另一台设备设过偏好"的用户首帧按系统外观、挂载后被纠正（一次跳变）。手动偏好与系统不符时同理——这是**能做到的最好**，不是遗漏。
+4. **结构断言证明不了行为**：spec 读的是 `index.html` 源文本。"脚本真的跑对"由 `verify-first-paint.mjs` 对**真实文档**做行为验证（见证据表），但它不在 `test:theme-tokens` 里——fixture 加载的是样式表、不是文档，跑不到这段脚本，需要显式调用。
+
+**证据**：
+
+| 层 | 做法 | 结果 |
+|---|---|---|
+| **真实浏览器行为**（`verify-first-paint.mjs`） | 加载真实 `index.html`，跑「系统外观 × 存储偏好」6 组 | 6 组全部一致：`data-appearance` 与 `color-scheme` 都等于"存储偏好、否则系统"；`theme-color` 与 splash 的 computed 背景**逐行相同**（`#0b0d10` ↔ `rgb(11, 13, 16)`、`#f7f6f3` ↔ `rgb(247, 246, 243)`）；`theme-color` meta **恒为 1 条** |
+| **变异 A** | 脚本的深色值改 `#ffffff`（与 splash 矛盾） | **恰 1 红**（"三处一致"） |
+| **变异 B** | 写坏浅色选择器（`data-appearance='lite'`） | **恰 2 红**（一致性 ＋ splash 对比度，各在 light 缺值） |
+| **变异 C** | media 双条换成一条无 media 的静态白 | **恰 2 红**（"必须 media 限定" ＋ 一致性） |
+| **变异 D** | 浅色次文字改 `#cccccc` | **恰 1 红**（splash 对比度） |
+| **变异 E** | 脚本读错键（`themeMode`） | **恰 1 红**（"读的是同一个键"） |
+| **变异 F** | 删掉移除兜底 meta 的循环 | **第一次 0 红 —— 抓到一条空转断言**：原断言只查 `querySelectorAll(...)` 存在、没查真的调用 `remove()`。补上 `.remove()` 后再变异，**恰 1 红** |
+| **产物核对** | `dist/index.html` | 脚本进产物；浅色 splash 3 条规则齐；`theme-color` 恰两条 media 式；静态白 `theme-color` **0 处**；`msapplication-TileColor` 按预期仍为白 |
+
+**门槛**：`test:theme-tokens` **56 → 64**（4 新用例 ×2 引擎）；`typecheck:theme-tokens` 干净；`test:client` **130 文件 / 988 用例**（与 1-H 逐位相同）；`lint` **153 warnings / 0 error**；`build` exit 0（取真实退出码）；`verify-first-paint.mjs` **6/6**。
+
+**与既有账的关系**：阶段 0 迁移账、B3 账户、1-H 的色板账均不受影响。**这是本线第三处有意视觉变更**（1-B 的 `color-scheme` 随外观、1-H 的基色步调暗、本片的浅色启动画面），按同一体例单独记账。**阶段 1 至此真正全部完成**——计划内切片全部收官，顺带开出的 1-I 也一并落地。
 
 
 ### 阶段 2：用户主题
@@ -3678,7 +3728,7 @@ Mutation 侧：
 
 ## 8. 待评审确认的问题（v3：全部已决）
 
-> v2 收敛了 1/3/4/5/6；v3（2026-09-25，三方补充拍板后）2/7/8/9 也已决。**当前无遗留待定项**——由实施新开出来的两项都不阻塞任何后续片：① 0-F1 顺带核出的 §5.12 ">10 lane 参数化回退"（已记在该节 v2，属**可选增强**）；② 1-C 顺带核出的"JS 跑起来之前的 chrome 色"（`index.html` 静态 theme-color / `manifest.json` / `mobile/www` 服务器选择页，已记在 §5.6 v7 与该片记录，**待单独成片**，与"首帧无闪烁"同组）。
+> v2 收敛了 1/3/4/5/6；v3（2026-09-25，三方补充拍板后）2/7/8/9 也已决。**当前无遗留待定项**——由实施新开出来的两项都不阻塞任何后续片：① 0-F1 顺带核出的 §5.12 ">10 lane 参数化回退"（已记在该节 v2，属**可选增强**）；② ~~1-C 顺带核出的"JS 跑起来之前的 chrome 色"~~ **已由 1-I 落地**（`e4f5cb70`，见 §5.6 v8 与 1-I 记录；其中 `manifest.json` 与 `mobile/www` 两处如实记为不可达 / 独立色板）。
 
 1. **用户主题格式**：→ **已决**：三格式并行（A 令牌 JSON 默认 / B 原始 CSS 高级 / B2 `.tmTheme` 生态），见 §5.5。默认维持 A，理由见该节 v2 说明。
 2. **用户主题存放位置**：→ **已决**：采用 `~/.cloudcli/themes/`，Docker 仅文档标注、不做代码适配。**实施约束**：路径解析必须复用 server 现有的 `path.join(os.homedir(), '.cloudcli', …)` 模式，新增一个与 assets 平行的目录常量，严禁主题模块另写第二套拼接。依据：`docker/` 下仅 `claude-code` / `codex` 构建环境 + `shared` + README，无应用 Dockerfile、无 compose，Docker 非分发形态；而 `~/.cloudcli` 已是既有持久化约定（`server/shared/image-attachments.ts:22`、`server/load-env.ts:43`、`server/index.ts:323`）。若 README 补 Docker 说明，须同时覆盖 themes 与 assets 两个挂载点。
