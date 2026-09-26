@@ -191,7 +191,7 @@ test('a .tmTheme may claim a coverage through its cloudcli key, held to the same
   const theme = (coverage?: string) =>
     [
       '<plist version="1.0"><dict>',
-      '<key>name</key><string>Nord</string>',
+      '<key>name</key><string>Nord Night</string>',
       coverage === undefined ? '' : `<key>cloudcli</key><dict><key>coverage</key><string>${coverage}</string></dict>`,
       '<key>settings</key><array><dict><key>settings</key><dict>',
       '<key>foreground</key><string>#f8f8f2</string>',
@@ -220,10 +220,70 @@ test('a .tmTheme may claim a coverage through its cloudcli key, held to the same
     warnings.some((warning) => warning.includes('odd.tmTheme') && warning.includes('unknown coverage')),
     `a reach we drop has to be said out loud (saw: ${warnings.join(' | ')})`,
   );
-  // `coverage` is the only key this channel reads from a `.tmTheme`: the plist's
-  // own `name` is not this channel's to read, so the filename base labels it.
-  assert.equal(byId.get('user-nord')?.name, 'Nord');
-  assert.equal(byId.get('user-bare')?.name, 'bare');
+  // The plist's own top-level `name` is read alongside the claim, at the same
+  // trust level — so the declared label wins even when it is not the filename.
+  assert.equal(byId.get('user-nord')?.name, 'Nord Night');
+  assert.equal(byId.get('user-bare')?.name, 'Nord Night');
+});
+
+test('a .tmTheme\u2019s declared name labels the picker, read only from the top level', async () => {
+  const themesDir = await scratchThemesDir();
+  // `shellVariables` entries legitimately carry a nested `name`; the scan's
+  // depth tracking must not mistake one for the theme's own label. The nested
+  // entry is written *before* the top-level name on purpose — a scan without
+  // the depth gate would take it first and never notice.
+  await writeTheme(
+    themesDir,
+    'nord.tmTheme',
+    [
+      '<plist version="1.0"><dict>',
+      '<key>shellVariables</key><array><dict>',
+      '<key>name</key><string>TM_COMMENT_START</string>',
+      '<key>value</key><string># </string>',
+      '</dict></array>',
+      '<key>name</key><string>Nord</string>',
+      '<key>settings</key><array><dict><key>settings</key><dict>',
+      '<key>foreground</key><string>#f8f8f2</string>',
+      '</dict></dict></array>',
+      '</dict></plist>',
+    ].join(''),
+  );
+  await writeTheme(
+    themesDir,
+    'long.tmTheme',
+    `<plist><dict><key>name</key><string>${'x'.repeat(81)}</string></dict></plist>`,
+  );
+  await writeTheme(themesDir, 'empty.tmTheme', '<plist><dict><key>name</key><string>  </string></dict></plist>');
+  await writeTheme(
+    themesDir,
+    'anon.tmTheme',
+    '<plist><dict><key>settings</key><array><dict><key>settings</key>'
+      + '<dict><key>foreground</key><string>#fff</string></dict></dict></array></dict></plist>',
+  );
+  // The `cloudcli` claim is read alongside the name, wherever the two keys sit.
+  await writeTheme(
+    themesDir,
+    'claim.tmTheme',
+    '<plist><dict><key>name</key><string>Claimed</string>'
+      + '<key>cloudcli</key><dict><key>coverage</key><string>accent</string>'
+      + '<key>tokens</key><dict><key>--primary</key><string>1 2% 3%</string></dict></dict>'
+      + '<key>settings</key><array><dict><key>settings</key>'
+      + '<dict><key>foreground</key><string>#fff</string></dict></dict></array></dict></plist>',
+  );
+
+  const byId = new Map((await scanThemeFiles(themesDir)).map((entry) => [entry.id, entry]));
+
+  assert.equal(byId.get('user-nord')?.name, 'Nord', 'the declared name wins over the filename casing');
+  assert.notEqual(
+    byId.get('user-nord')?.name,
+    'TM_COMMENT_START',
+    'a nested name key is not the theme\u2019s own label',
+  );
+  assert.equal(byId.get('user-long')?.name, 'long', 'a name past the cap falls back to the filename');
+  assert.equal(byId.get('user-empty')?.name, 'empty', 'an empty name is not a name');
+  assert.equal(byId.get('user-anon')?.name, 'anon', 'no declared name, the filename base labels it');
+  assert.equal(byId.get('user-claim')?.name, 'Claimed');
+  assert.equal(byId.get('user-claim')?.coverage, 'accent', 'the cloudcli claim is read alongside the name');
 });
 
 test('scanThemeFiles de-duplicates files whose base names collide', async () => {
