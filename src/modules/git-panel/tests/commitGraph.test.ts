@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { test } from 'vitest';
 
-import { computeCommitGraph } from '@/modules/git-panel/utils/commitGraph';
+import { computeCommitGraph, GRAPH_LANE_COUNT, laneColor, laneTint } from '@/modules/git-panel/utils/commitGraph';
 
 test('linear history stays in a single lane', () => {
   const rows = computeCommitGraph([
@@ -81,4 +81,35 @@ test('commits without parents metadata degrade gracefully', () => {
   // reuses the freed lane.
   assert.deepEqual(rows.map((row) => row.nodeLane), [0, 0]);
   assert.deepEqual(rows.map((row) => row.hasParentContinuation), [false, false]);
+});
+
+test('lanes within the token board resolve through the explicit tokens', () => {
+  // The shape these spell matters: `hsl(var(--graph-lane-N))` is what lets a
+  // theme recolour the graph, and the tint must keep the exact alpha channel
+  // the pre-tokenization `${hex}22` produced.
+  assert.equal(laneColor(0), 'hsl(var(--graph-lane-1))');
+  assert.equal(laneColor(GRAPH_LANE_COUNT - 1), 'hsl(var(--graph-lane-10))');
+  assert.equal(laneTint(3), 'hsl(var(--graph-lane-4) / calc(34 / 255))');
+});
+
+test('lanes past the token board rotate hue instead of wrapping onto lane 1', () => {
+  // §5.12: the pre-2-J wrap painted lane 11 with lane 1's exact colour; the
+  // fallback computes its hue from the stylesheet's two parameters instead.
+  // The multiplier is the 0-based lane index, i.e. `step × (N-1)` for the
+  // 1-based lane number N the design doc counts in.
+  const color = laneColor(10);
+  assert.ok(
+    color === `hsl(calc(var(--graph-lane-base-hue) + var(--graph-lane-hue-step) * 10) 70% 55%)`,
+    color,
+  );
+  assert.ok(
+    !/--graph-lane-\d/.test(color),
+    `fallback must not reuse a lane token: ${color}`,
+  );
+
+  // The tint keeps the same alpha spelling on the fallback branch too.
+  assert.equal(
+    laneTint(11),
+    'hsl(calc(var(--graph-lane-base-hue) + var(--graph-lane-hue-step) * 11) 70% 55% / calc(34 / 255))',
+  );
 });

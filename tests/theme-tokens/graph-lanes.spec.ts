@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
-import { GRAPH_LANE_COUNT, laneTint } from '@/modules/git-panel/utils/commitGraph';
+import { GRAPH_LANE_COUNT, laneColor, laneTint } from '@/modules/git-panel/utils/commitGraph';
 
 /**
  * The History view's commit-graph lanes now come from `--graph-lane-1..10`
@@ -9,6 +9,11 @@ import { GRAPH_LANE_COUNT, laneTint } from '@/modules/git-panel/utils/commitGrap
  * This suite pins the whole chain — declaration, browser resolution and the
  * `hsl(var(--graph-lane-N))` shape the JS hands to SVG — back to the hex array
  * the graph shipped with, because phase 0 promises it renders exactly as before.
+ *
+ * Lanes past the token board are the one deliberate exception (§5.12): instead
+ * of wrapping onto lane 1's colour they rotate hue through two stylesheet
+ * parameters. Those tests assert the formula resolves as written in a real
+ * engine — jsdom does not evaluate `hsl(calc(...))` at all.
  */
 
 /**
@@ -109,5 +114,115 @@ test('the ref-badge tint still paints what appending `22` to the hex did', async
     .map(({ hex, reference, actual }) => `${hex}22: expected ${reference}, got ${actual}`);
 
   expect(drifts, `ref-badge tints drifted:\n${drifts.join('\n')}`).toEqual([]);
+});
+
+/**
+ * §5.12's parametric fallback. The lane expression and the reference spell the
+ * same hue two ways — `calc` over the stylesheet's two parameters versus a
+ * plain number computed here from those same declared parameters — so two
+ * painted elements agreeing is "the formula resolves as written", not a
+ * tautology. The anti-wrap property (a fallback lane never repeats one of the
+ * ten token colours) is asserted against the token lanes' own resolved values.
+ */
+test('lanes past the token board rotate hue and never repeat a token lane', async ({ page }) => {
+  await openFixture(page);
+
+  const reads = await page.evaluate((data) => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const paint = (value: string): string => {
+      const el = document.createElement('div');
+      el.style.setProperty('transition', 'none');
+      el.style.backgroundColor = value;
+      host.appendChild(el);
+      return getComputedStyle(el).backgroundColor;
+    };
+
+    const rootStyle = getComputedStyle(document.documentElement);
+    const base = Number(rootStyle.getPropertyValue('--graph-lane-base-hue'));
+    const step = Number(rootStyle.getPropertyValue('--graph-lane-hue-step'));
+
+    return {
+      base,
+      step,
+      tokenColors: data.tokenExpressions.map(paint),
+      // The lane expressions were built in Node; the references spell the same
+      // hue as a plain number computed here from the declared parameters.
+      fallbackReads: data.fallback.map(({ lane, color, tint }) => ({
+        actual: paint(color),
+        reference: paint(`hsl(${base + step * lane} 70% 55%)`),
+        tintActual: paint(tint),
+        tintReference: paint(`hsl(${base + step * lane} 70% 55% / calc(34 / 255))`),
+      })),
+    };
+  }, {
+    tokenExpressions: Array.from(
+      { length: GRAPH_LANE_COUNT },
+      (_, index) => `hsl(var(--graph-lane-${index + 1}))`,
+    ),
+    fallback: [10, 11, 12, 13, 14].map((lane) => ({
+      lane,
+      color: laneColor(lane),
+      tint: laneTint(lane),
+    })),
+  });
+
+  expect(Number.isFinite(reads.base), `--graph-lane-base-hue read as ${reads.base}`).toBe(true);
+  expect(Number.isFinite(reads.step), `--graph-lane-hue-step read as ${reads.step}`).toBe(true);
+
+  const drifts: string[] = [];
+  reads.fallbackReads.forEach(({ actual, reference, tintActual, tintReference }, index) => {
+    const lane = index + GRAPH_LANE_COUNT;
+    if (actual !== reference) drifts.push(`lane ${lane + 1}: expected ${reference}, got ${actual}`);
+    if (tintActual !== tintReference) {
+      drifts.push(`lane ${lane + 1} tint: expected ${tintReference}, got ${tintActual}`);
+    }
+    if (reads.tokenColors.includes(actual)) {
+      drifts.push(`lane ${lane + 1} repeats a token lane's colour: ${actual}`);
+    }
+  });
+  const distinct = new Set(reads.fallbackReads.map(({ actual }) => actual));
+  if (distinct.size !== reads.fallbackReads.length) {
+    drifts.push('two fallback lanes painted the same colour');
+  }
+
+  expect(drifts, `fallback lanes drifted:\n${drifts.join('\n')}`).toEqual([]);
+});
+
+/**
+ * The two parameters are the contract that lets a theme retune the overflow
+ * lanes without touching `commitGraph.ts`; overriding them has to move the
+ * fallback colour and nothing else.
+ */
+test('the hue parameters retune the fallback lanes and leave the token board alone', async ({ page }) => {
+  await openFixture(page);
+
+  const reads = await page.evaluate((expressions) => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const paint = (value: string): string => {
+      const el = document.createElement('div');
+      el.style.setProperty('transition', 'none');
+      el.style.backgroundColor = value;
+      host.appendChild(el);
+      return getComputedStyle(el).backgroundColor;
+    };
+
+    const root = document.documentElement;
+    const before = paint(expressions.fallback);
+    const tokenBefore = paint(expressions.token);
+    root.style.setProperty('--graph-lane-hue-step', '40');
+    const after = paint(expressions.fallback);
+    const tokenAfter = paint(expressions.token);
+    root.style.removeProperty('--graph-lane-hue-step');
+    const restored = paint(expressions.fallback);
+
+    return { before, after, restored, tokenBefore, tokenAfter };
+  }, { fallback: laneColor(12), token: laneColor(4) });
+
+  expect(reads.before, 'sanity: fallback lane painted').not.toBe('rgba(0, 0, 0, 0)');
+  expect(reads.after).not.toBe(reads.before);
+  expect(reads.restored).toBe(reads.before);
+  expect(reads.tokenAfter).toBe(reads.tokenBefore);
 });
 

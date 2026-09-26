@@ -14,15 +14,25 @@ type GraphCommit = {
   parents?: string[];
 };
 
-/** Lanes the stylesheet declares a colour for (`--graph-lane-1..GRAPH_LANE_COUNT`). */
+/** Lanes the stylesheet declares an explicit colour for (`--graph-lane-1..GRAPH_LANE_COUNT`). */
 export const GRAPH_LANE_COUNT = 10;
 
 // Colours live in `src/index.css` as `--graph-lane-1..10` (see the L1 note
-// there), so a theme recolours the graph like any other surface. Lanes cycle
-// past the last token, VSCode Git Graph style.
-const laneToken = (lane: number) => `--graph-lane-${(lane % GRAPH_LANE_COUNT) + 1}`;
+// there), so a theme recolours the graph like any other surface. Lanes past the
+// last token rotate hue instead of wrapping onto lane 1's colour (§5.12): the
+// stylesheet's `--graph-lane-base-hue` / `--graph-lane-hue-step` drive
+// `hsl(calc(base + step × lane) 70% 55%)`, so a theme retunes every overflow
+// lane by overriding two parameters.
+const laneToken = (lane: number): string | null =>
+  lane < GRAPH_LANE_COUNT ? `--graph-lane-${lane + 1}` : null;
 
-export const laneColor = (lane: number) => `hsl(var(${laneToken(lane)}))`;
+const fallbackHue = (lane: number) =>
+  `calc(var(--graph-lane-base-hue) + var(--graph-lane-hue-step) * ${lane})`;
+
+export const laneColor = (lane: number) => {
+  const token = laneToken(lane);
+  return token ? `hsl(var(${token}))` : `hsl(${fallbackHue(lane)} 70% 55%)`;
+};
 
 /**
  * The HEAD ref badge tints its background with the lane colour. It used to get
@@ -30,7 +40,12 @@ export const laneColor = (lane: number) => `hsl(var(${laneToken(lane)}))`;
  * channel (`0x22` = 34/255) in HSL so the colour still resolves through the
  * token and a theme can recolour it.
  */
-export const laneTint = (lane: number) => `hsl(var(${laneToken(lane)}) / calc(34 / 255))`;
+export const laneTint = (lane: number) => {
+  const token = laneToken(lane);
+  return token
+    ? `hsl(var(${token}) / calc(34 / 255))`
+    : `hsl(${fallbackHue(lane)} 70% 55% / calc(34 / 255))`;
+};
 
 export function computeCommitGraph(commits: GraphCommit[]): CommitGraphRow[] {
   // Each slot holds the commit hash that lane is waiting to reach, or null
