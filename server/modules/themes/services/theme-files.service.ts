@@ -23,8 +23,9 @@ export type ThemeFileFormat = 'css' | 'json' | 'tmTheme';
 
 /**
  * One theme file offered to the client. A `.json` file's own `name` and
- * `coverage` are read out of it, a `.tmTheme`'s `coverage` claim comes from its
- * `cloudcli` key; everything else is derived from the filename.
+ * `coverage` are read out of it, and a `.tmTheme`'s top-level `name` and the
+ * `coverage` claim inside its `cloudcli` key likewise; everything else is
+ * derived from the filename.
  */
 export type ThemeFileEntry = {
   /**
@@ -87,18 +88,20 @@ const MAX_DECLARED_NAME_LENGTH = 80;
 type DeclaredMetadata = { name?: string; coverage?: 'accent' | 'full' };
 
 /**
- * Reads the metadata a `.json` theme declares about itself, and the `coverage`
- * claim a `.tmTheme` may carry inside its `cloudcli` key.
+ * Reads the metadata a `.json` theme declares about itself, and the metadata a
+ * `.tmTheme` declares: its top-level `name` plus the `coverage` claim inside
+ * its `cloudcli` key.
  *
  * A `.json` file's `name` and `coverage` are read from the object itself. A
- * `.tmTheme` gets only the second: a TextMate file that embeds a `cloudcli` key
- * can reach the main UI (the client compiles it, §5.5 v7), so it can also claim
- * a reach — and the claim is read here, at the same trust level as a `.json`'s,
- * rather than left unreadable. A `.css` file has nowhere to declare either. A
- * file that does not parse is still listed under its filename — the client is
- * the side that can tell the user why it will not compile, and a file that
- * quietly never appears in the picker is harder to understand than one that
- * appears and is refused.
+ * `.tmTheme` gets both from its plist — a TextMate file always carries a
+ * top-level `name` worth labeling the picker with, and one that embeds a
+ * `cloudcli` key can reach the main UI (the client compiles it, §5.5 v7), so
+ * it can also claim a reach — and both are read here, at the same trust level
+ * as a `.json`'s. A `.css` file has nowhere to declare either. A file that
+ * does not parse is still listed under its filename — the client is the side
+ * that can tell the user why it will not compile, and a file that quietly
+ * never appears in the picker is harder to understand than one that appears
+ * and is refused.
  *
  * `appearance` is deliberately not read here; see `ThemeFileEntry`.
  */
@@ -107,7 +110,7 @@ async function readDeclaredMetadata(
   filePath: string,
   format: ThemeFileFormat,
 ): Promise<DeclaredMetadata> {
-  if (format === 'tmTheme') return readTmThemeCoverage(fileName, filePath);
+  if (format === 'tmTheme') return readTmThemeDeclaredMetadata(fileName, filePath);
   if (format !== 'json') return {};
 
   let parsed: unknown;
@@ -138,17 +141,25 @@ async function readDeclaredMetadata(
   return metadata;
 }
 
+/** The tags the plist extraction below understands; anything else passes unread. */
+const PLIST_TAG_PATTERN = /<(\/?)(dict|array|key|string)>([^<]*)/g;
+
 /**
- * The plist extraction a `.tmTheme`'s `coverage` claim needs.
+ * The plist extraction a `.tmTheme`'s declared metadata needs.
  *
- * The claim sits inside the `cloudcli` key (§5.5 v7), and reading it does not
- * justify a plist parser on the server: the value is one `<string>` right after
- * the `<key>`, which a narrow match finds wherever in the file the author put
- * it. The first match wins and the value is held to the same two words a
- * `.json` may declare; anything else warns and leaves the badge off, which is
- * what the json branch does too.
+ * Two facts are read: the theme's own `name` from the top-level dict, and the
+ * `coverage` claim inside the `cloudcli` key (§5.5 v7). Neither justifies a
+ * plist parser on the server — but `name` cannot be taken by a bare substring
+ * match, because nested `name` keys are a shape TextMate files legitimately
+ * carry (a `shellVariables` entry is one), so the scan tracks dict/array depth
+ * and only reads `name` at depth one and `coverage` inside the `cloudcli`
+ * dict. An unknown coverage warns and leaves the badge off, which is what the
+ * json branch does too.
  */
-async function readTmThemeCoverage(fileName: string, filePath: string): Promise<DeclaredMetadata> {
+async function readTmThemeDeclaredMetadata(
+  fileName: string,
+  filePath: string,
+): Promise<DeclaredMetadata> {
   let body: string;
   try {
     body = await fs.readFile(filePath, 'utf8');
@@ -156,15 +167,50 @@ async function readTmThemeCoverage(fileName: string, filePath: string): Promise<
     return {};
   }
 
-  const match = /<key>coverage<\/key>\s*<string>([^<]*)<\/string>/.exec(body);
-  if (!match) return {};
+  const metadata: DeclaredMetadata = {};
+  let depth = 0;
+  let scope: 'root' | 'cloudcli' = 'root';
+  let lastKey = '';
 
-  const declared = match[1].trim();
-  if (COVERAGES.has(declared)) {
-    return { coverage: declared as 'accent' | 'full' };
+  for (const [, closing, tag, text] of body.matchAll(PLIST_TAG_PATTERN)) {
+    if (closing) {
+      if (tag === 'dict' || tag === 'array') {
+        depth = Math.max(0, depth - 1);
+        if (depth <= 1) scope = 'root';
+      }
+      continue;
+    }
+    if (tag === 'dict' || tag === 'array') {
+      depth += 1;
+      if (depth === 2 && lastKey === 'cloudcli') scope = 'cloudcli';
+      continue;
+    }
+    if (tag === 'key') {
+      lastKey = text.trim();
+      continue;
+    }
+    // A `<string>` value: the only slots this channel reads are the top-level
+    // `name` and the `coverage` claim inside the `cloudcli` dict.
+    if (lastKey === 'name' && depth === 1 && scope === 'root' && metadata.name === undefined) {
+      const name = text.trim();
+      if (name && name.length <= MAX_DECLARED_NAME_LENGTH) metadata.name = name;
+    } else if (
+      lastKey === 'coverage' &&
+      depth === 2 &&
+      scope === 'cloudcli' &&
+      metadata.coverage === undefined
+    ) {
+      const declared = text.trim();
+      if (COVERAGES.has(declared)) {
+        metadata.coverage = declared as 'accent' | 'full';
+      } else {
+        console.warn(`[Themes] ${fileName} declares an unknown coverage; no badge will be shown`);
+      }
+    }
+    lastKey = '';
   }
-  console.warn(`[Themes] ${fileName} declares an unknown coverage; no badge will be shown`);
-  return {};
+
+  return metadata;
 }
 
 const EXTENSION_TO_FORMAT: Record<string, ThemeFileFormat> = {
