@@ -289,3 +289,73 @@ test('the parts of a file that only the picker needs are not the compiler\u2019s
   assert.ok(!result.css.includes('深海'));
   assert.ok(!result.css.includes('coverage'));
 });
+
+/**
+ * §5.10's contrast warning, as it reaches the compiler's result.
+ *
+ * The one thing this layer has to get right is *which values the check is given*,
+ * and in which of the two shapes: a literal triplet, or the reference to follow.
+ * Everything about what the check then makes of them belongs to
+ * `userThemeContrast`'s own suite.
+ */
+
+test('a theme that compiles but cannot be read carries a warning, and still compiles', () => {
+  const result = compile({ '--primary': '175 84% 32%' });
+
+  assert.ok(result.ok, '§5.10 asks for a warning, not a refusal');
+  assert.deepEqual(
+    result.warnings.map(({ appearance, ink, surface }) => `${appearance} ${ink} on ${surface}`),
+    ['light --primary-foreground on --primary'],
+  );
+  assert.match(
+    result.css,
+    /--primary: 175 84% 32%;/,
+    'and the value the warning is about is in the stylesheet all the same',
+  );
+});
+
+test('a value that is not a colour is not offered to the contrast check', () => {
+  // `--nav-glass` is a legal option A token whose shape is `<triplet> / <alpha>`.
+  // Handed over as a triplet it would drop the alpha and judge a colour the page
+  // never paints, so it must not be offered at all — and a pair pointing at it has
+  // to be left alone rather than warned about on the strength of a value that is
+  // not what reaches the screen.
+  const result = compile(
+    { '--background': 'var(--nav-glass)', '--nav-glass': '0 0% 45% / 0.7' },
+    { appearance: 'light' },
+  );
+
+  assert.ok(result.ok, 'the alpha form is a legal value, not a refusal');
+  assert.match(result.css, /--nav-glass: 0 0% 45% \/ 0\.7;/, 'and it is in the stylesheet as written');
+  assert.deepEqual(result.warnings, [], 'the check is given neither shape, so it has nothing to say');
+});
+
+test('a length or an editor expression is not read as a triplet either', () => {
+  // The other half of the same rule: neither of these is a colour at all, and a
+  // reader that looked for three numbers would still find them in some of them.
+  const result = compile({ '--radius': '0.5rem', '--editor-background': 'hsl(var(--palette-ink-900))' });
+
+  assert.ok(result.ok);
+  assert.deepEqual(result.warnings, []);
+});
+
+test('a reference is handed over as a reference, not as the colour it points at', () => {
+  // Telling the two shapes apart is the compiler's job; a flattened value would
+  // leave the contrast check unable to follow the file's own indirection. The
+  // background is a colour the base's `--foreground` passes on, so a check that
+  // ignored the reference and used the base instead would report a different set.
+  const result = compile(
+    { '--foreground': 'var(--background)', '--background': '0 0% 80%' },
+    { appearance: 'light' },
+  );
+
+  assert.ok(result.ok);
+  assert.deepEqual(
+    result.warnings.map(({ ink, surface }) => `${ink} on ${surface}`),
+    [
+      '--foreground on --background',
+      '--foreground on --card',
+      '--muted-foreground on --background',
+    ],
+  );
+});

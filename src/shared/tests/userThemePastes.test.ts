@@ -92,6 +92,20 @@ test('content the compiler refuses is not stored at all', async () => {
   assert.deepEqual(pastes.getPastedThemes(), [], 'a refused paste must leave no trace');
 });
 
+test('a paste that is stored but cannot be read comes back with its warning', async () => {
+  const { pastes } = await loadStores();
+
+  const added = pastes.addPastedTheme(themeJson());
+
+  assert.ok(added.ok, '§5.10 asks for a warning, so the paste is kept');
+  assert.deepEqual(
+    added.warnings.map(({ appearance, ink, surface }) => `${appearance} ${ink} on ${surface}`),
+    ['light --primary-foreground on --primary'],
+    'the paste box is the only moment its author is looking at anything, so the warning travels back with the entry',
+  );
+  assert.equal(pastes.getPastedThemes().length, 1, 'and it was added all the same');
+});
+
 test('content over the size cap is refused before anything else is looked at', async () => {
   const { pastes } = await loadStores();
   // Padded with an unknown key rather than a huge token value: the cap has to be
@@ -229,8 +243,13 @@ test('a css paste is stored as it stands, shown under its id because a sheet dec
   });
   assert.deepEqual(
     pastes.compilePastedTheme(added.theme),
-    { ok: true, css: CSS_THEME, ignored: [] },
+    { ok: true, css: CSS_THEME, ignored: [], warnings: [] },
     'compiling a css entry is the identity: the sheet is injected as it stands, not mapped to tokens',
+  );
+  assert.deepEqual(
+    added.warnings,
+    [],
+    'and §5.10\'s token-level warning has nothing to say about a stylesheet, which is not a token map',
   );
 });
 

@@ -182,7 +182,10 @@ test('pasting a usable theme adds it under the name it declares', async () => {
   fireEvent.click(buttonWithText(container, 'userThemes.pasteSubmit'));
 
   assert.ok(rowFor(container, 'Deep sea'), 'the pasted theme has to appear in the list it was added to');
-  assert.equal(container.querySelector('[role="alert"]'), null, 'nothing went wrong, so nothing is reported');
+  assert.ok(
+    container.querySelector('[role="alert"]') === null,
+    'nothing went wrong, so nothing is reported',
+  );
   assert.equal(pasteBox(container).value, '', 'the box is cleared so the next paste starts clean');
 });
 
@@ -370,5 +373,102 @@ test('a stored css preference opens in css mode without asking again', async () 
     container.textContent?.includes('userThemes.trust.body'),
     false,
     'the question belongs to the act of switching, and this device already answered it',
+  );
+});
+
+/**
+ * §5.10's contrast warning, where its author can see it.
+ *
+ * The paste box is the only moment a pasted theme's author is looking at
+ * anything, so it is the only moment the warning can reach them. The line these
+ * tests hold is that it is a *warning*: the theme was added, the report is not an
+ * alert, and a theme with nothing to report says nothing.
+ */
+
+test('a paste that is kept but cannot be read is reported as a warning, not a failure', async () => {
+  const { container } = await renderSection();
+
+  fireEvent.change(pasteBox(container), { target: { value: validTheme } });
+  fireEvent.click(buttonWithText(container, 'userThemes.pasteSubmit'));
+
+  assert.ok(rowFor(container, 'Deep sea'), 'the theme was added all the same');
+  const report = container.querySelector('[role="status"]');
+  assert.ok(report, 'a warning with nowhere to appear is not a warning');
+  assert.ok(report.textContent?.includes('userThemes.contrastTitle'));
+  assert.ok(
+    report.textContent?.includes('userThemes.contrastWarning'),
+    'and it has to name the pair and the ratio rather than call the theme bad',
+  );
+  assert.ok(
+    report.textContent?.includes('--primary-foreground'),
+    'the pair from the example: the label colour the base puts on an accent fill',
+  );
+  assert.ok(
+    report.textContent?.includes('userThemes.contrastAppearance.light'),
+    'and which appearance it fails in — the same theme passes in the other one',
+  );
+  assert.ok(report.textContent?.includes('3.49'));
+  // `assert.ok(x === null)` rather than `assert.equal(x, null)`: on failure the
+  // latter asks node to describe a jsdom element, and that inspection is deep
+  // enough to take the worker down instead of reporting the failure.
+  assert.ok(
+    container.querySelector('[role="alert"]') === null,
+    'nothing failed, so this must not be reported the way a refusal is',
+  );
+});
+
+test('a paste with nothing to report shows no warning block', async () => {
+  const { container } = await renderSection();
+
+  // A terminal colour: a legal option A token, and one no §5.10 pair is made of.
+  fireEvent.change(pasteBox(container), {
+    target: { value: JSON.stringify({ tokens: { '--term-background': '210 45% 8%' } }) },
+  });
+  fireEvent.click(buttonWithText(container, 'userThemes.pasteSubmit'));
+
+  assert.equal(pasteBox(container).value, '', 'it was accepted');
+  assert.ok(
+    container.querySelector('[role="status"]') === null,
+    'a block that always renders would teach the reader to ignore it',
+  );
+});
+
+test('a refused paste does not leave the previous theme\'s warning on screen', async () => {
+  const { container } = await renderSection();
+
+  fireEvent.change(pasteBox(container), { target: { value: validTheme } });
+  fireEvent.click(buttonWithText(container, 'userThemes.pasteSubmit'));
+  assert.ok(container.querySelector('[role="status"]'), 'the first paste had something to report');
+
+  fireEvent.change(pasteBox(container), { target: { value: 'not json' } });
+  fireEvent.click(buttonWithText(container, 'userThemes.pasteSubmit'));
+
+  assert.ok(container.querySelector('[role="alert"]'), 'the second paste failed');
+  assert.ok(
+    container.querySelector('[role="status"]') === null,
+    'a report about a theme that is not the one that just failed would be read as a report about it',
+  );
+});
+
+test('a warning for a dark-scoped theme names the dark appearance', async () => {
+  const { container } = await renderSection();
+
+  // A teal dark enough for near-white text: it clears the light base and fails
+  // the dark one, so the label is not decoration — it is the only thing that says
+  // which half of the page the author has to look at.
+  fireEvent.change(pasteBox(container), {
+    target: { value: JSON.stringify({ appearance: 'dark', tokens: { '--primary': '175 84% 20%' } }) },
+  });
+  fireEvent.click(buttonWithText(container, 'userThemes.pasteSubmit'));
+
+  const report = container.querySelector('[role="status"]');
+  assert.ok(report, 'the theme applies, so its report has somewhere to appear');
+  assert.ok(
+    report.textContent?.includes('userThemes.contrastAppearance.dark'),
+    'the appearance the pair fails in, not a fixed one',
+  );
+  assert.ok(
+    report.textContent?.includes('userThemes.contrastAppearance.light') === false,
+    'and not the other, which this theme clears',
   );
 });

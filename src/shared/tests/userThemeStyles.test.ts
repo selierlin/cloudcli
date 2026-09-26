@@ -226,6 +226,13 @@ test('a token JSON is compiled before it is injected, and the compiled sheet is 
     styleElement()?.textContent,
     'the cache feeds the boot-time injection, so it has to hold the compiled sheet, not the JSON',
   );
+  // Every apply goes through the contrast report, so a theme with nothing to
+  // report must be silent — otherwise the console line becomes wallpaper and the
+  // one theme that does need reading never gets noticed.
+  assert.ok(
+    !vi.mocked(console.warn).mock.calls.some(([message]) => String(message).includes('WCAG AA')),
+    'a theme that clears the floors is not warned about',
+  );
 });
 
 test('a JSON theme that cannot be compiled is refused with the reason', async () => {
@@ -273,6 +280,29 @@ test('declarations the compiler dropped are reported without failing the theme',
   assert.ok(
     vi.mocked(console.warn).mock.calls.some(([message]) => String(message).includes('ignored 1 declaration')),
     'a token that never arrives is an author error worth saying out loud',
+  );
+});
+
+test('a theme that applies but cannot be read is warned about, not held back', async () => {
+  fileBody = JSON.stringify({ tokens: { '--primary': '175 84% 32%' } });
+  const { styles } = await loadStores();
+
+  await styles.applyUserThemeStyle(fileTarget({ format: 'json', fileName: 'borealis.json' }), true);
+
+  assert.deepEqual(
+    styles.getUserThemeStyleState(),
+    { appliedId: 'user-borealis', failedId: null },
+    '§5.10 asks for a warning; a theme that is hard to read is still the one the user asked for',
+  );
+  assert.match(styleElement()?.textContent ?? '', /--primary: 175 84% 32%;/);
+  assert.ok(
+    vi.mocked(console.warn).mock.calls.some(([message]) => String(message).includes('WCAG AA')),
+    'the settings page lists files without reading them, so the console is a theme file author\'s only channel',
+  );
+  assert.ok(
+    vi.mocked(console.warn).mock.calls.some(([, detail]) =>
+      String(detail).includes('light --primary-foreground on --primary: 3.49:1 < 4.5:1')),
+    'and it has to name the pair, the ratio and the floor, or there is nothing to act on',
   );
 });
 
@@ -610,5 +640,18 @@ test('the @import gate runs on the content at apply time, not only when it was p
   assert.ok(
     vi.mocked(console.warn).mock.calls.some(([, detail]) => String(detail).includes('import-rule')),
     'and the refusal has to name the rule it was refused for',
+  );
+});
+
+test('a pasted theme that cannot be read is accounted for as it applies, too', async () => {
+  const { styles } = await loadStores();
+  const unreadable = JSON.stringify({ tokens: { '--primary': '175 84% 32%' } });
+
+  await styles.applyUserThemeStyle(pasteTarget(unreadable), true);
+
+  assert.equal(styles.getUserThemeStyleState().appliedId, PASTE_ID);
+  assert.ok(
+    vi.mocked(console.warn).mock.calls.some(([message]) => String(message).includes('WCAG AA')),
+    'its author was told in the paste box, and this is the other half: the apply step reports it as well',
   );
 });

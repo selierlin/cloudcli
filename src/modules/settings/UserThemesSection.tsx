@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/shared/context/ThemeContext';
 import { THEME_RESET_PARAM, THEME_RESET_VALUE } from '@/shared/themeReset';
+import type { ThemeContrastWarning } from '@/shared/userThemeContrast';
 import { addPastedTheme, removePastedTheme } from '@/shared/userThemePastes';
 import type { AddPastedThemeFailure, PastedThemeFormat } from '@/shared/userThemePastes';
 import { cn } from '@/shared/utils';
@@ -28,6 +29,11 @@ import SettingsSection from '@/modules/settings/SettingsSection';
  * effect — and the copy says why, rather than leaving "advanced" to sound like
  * "more options".
  *
+ * A theme that compiles but cannot be read is reported here too (§5.10), and the
+ * report is careful about what it claims: the theme *was* added, so the copy says
+ * it still applies. This is the only moment a pasted theme's author is looking at
+ * the page, which makes it the only moment they can be told.
+ *
  * The reset hint at the bottom is the visible half of §5.6's forced channel: the
  * channel has to work when the page cannot be read, so it cannot be a button —
  * documenting it is the most a readable page can do for the unreadable one.
@@ -51,6 +57,11 @@ export default function UserThemesSection() {
   const { userThemes, themeId, setThemeId } = useTheme();
   const [draft, setDraft] = useState('');
   const [failure, setFailure] = useState<AddPastedThemeFailure | null>(null);
+  // §5.10's contrast report for the theme last added. It is state of its own
+  // rather than part of `failure`, because the two say opposite things about
+  // whether the paste took: a failure means nothing was added, a warning means
+  // something was.
+  const [warnings, setWarnings] = useState<ThemeContrastWarning[]>([]);
   const [format, setFormat] = useThemePasteFormat();
   // Whether a switch to raw CSS is waiting for its confirmation. It is a state
   // of its own rather than a flag derived from the format, because the whole
@@ -77,10 +88,12 @@ export default function UserThemesSection() {
     const result = addPastedTheme(draft, format);
     if (!result.ok) {
       setFailure(result.reason);
+      setWarnings([]);
       return;
     }
     setDraft('');
     setFailure(null);
+    setWarnings(result.warnings);
   };
 
   const rowClass = 'flex items-center justify-between gap-2 py-1';
@@ -246,6 +259,27 @@ export default function UserThemesSection() {
               </p>
             )}
           </div>
+          {warnings.length > 0 && (
+            <div role="status" className="mt-2 rounded-lg border border-border bg-muted/40 p-2">
+              <p className="text-xs font-medium text-foreground">{t('userThemes.contrastTitle')}</p>
+              <ul className="mt-0.5 space-y-0.5">
+                {warnings.map((warning) => (
+                  <li
+                    key={`${warning.appearance}-${warning.ink}-${warning.surface}`}
+                    className="text-xs text-muted-foreground"
+                  >
+                    {t('userThemes.contrastWarning', {
+                      appearance: t(`userThemes.contrastAppearance.${warning.appearance}`),
+                      ink: warning.ink,
+                      surface: warning.surface,
+                      ratio: warning.ratio.toFixed(2),
+                      min: String(warning.min),
+                    })}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </SettingsCard>
 

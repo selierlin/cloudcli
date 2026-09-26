@@ -1,4 +1,5 @@
 import type { PastedUserTheme } from '@/shared/types';
+import type { ThemeContrastWarning } from '@/shared/userThemeContrast';
 import {
   readUserPreference,
   subscribeToUserPreferences,
@@ -193,12 +194,12 @@ function nextPasteId(existing: PastedUserTheme[]): string {
 export type AddPastedThemeFailure = UserThemeCompileFailure | 'too-large' | 'import-rule';
 
 export type AddPastedThemeResult =
-  | { ok: true; theme: PastedUserTheme }
+  | { ok: true; theme: PastedUserTheme; warnings: ThemeContrastWarning[] }
   | { ok: false; reason: AddPastedThemeFailure };
 
 /** What a pasted theme's text is worth: a stylesheet to inject, or a reason it cannot be one. */
 export type PastedThemeCompileResult =
-  | { ok: true; css: string; ignored: IgnoredThemeEntry[] }
+  | { ok: true; css: string; ignored: IgnoredThemeEntry[]; warnings: ThemeContrastWarning[] }
   | { ok: false; reason: AddPastedThemeFailure; token?: string; ignored: IgnoredThemeEntry[] };
 
 /**
@@ -214,12 +215,16 @@ export type PastedThemeCompileResult =
  * Pure — it logs nothing and touches no document — which is what lets the paste
  * path call it to decide whether to store, and the apply path call it again on
  * every load rather than trusting what was stored.
+ *
+ * §5.10's contrast warning rides on the result of the option A branch: it is a
+ * statement about a token map, and a stylesheet is not one — a `css` paste sets
+ * whatever selectors it likes, which no token-level check can speak about.
  */
 export function compilePastedTheme(theme: PastedUserTheme): PastedThemeCompileResult {
   if (theme.format === 'css') {
     return IMPORT_RULE_PATTERN.test(theme.content)
       ? { ok: false, reason: 'import-rule', ignored: [] }
-      : { ok: true, css: theme.content, ignored: [] };
+      : { ok: true, css: theme.content, ignored: [], warnings: [] };
   }
   return compileUserThemeTokens(theme.id, theme.content);
 }
@@ -243,6 +248,10 @@ export function compilePastedTheme(theme: PastedUserTheme): PastedThemeCompileRe
  * "say what you know, invent nothing" rule the listing follows for `coverage`. A
  * stylesheet has nowhere to declare one (a `.css` *file* is named by its
  * filename), so a css paste is shown under its id.
+ *
+ * The contrast warnings come back with the entry rather than being logged here:
+ * this is the only moment a paste's author is looking at anything, so it is the
+ * only moment a warning about what they wrote can reach them (§5.10).
  */
 export function addPastedTheme(
   content: string,
@@ -266,7 +275,7 @@ export function addPastedTheme(
   }
 
   writeUserPreference('userThemePastes', [...existing, theme]);
-  return { ok: true, theme };
+  return { ok: true, theme, warnings: compiled.warnings };
 }
 
 /**

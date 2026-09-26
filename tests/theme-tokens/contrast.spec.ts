@@ -2,6 +2,11 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 import { BUILTIN_THEMES } from '@/shared/constants';
+import {
+  BASE_PAIR_COLORS,
+  CONTRAST_PAIRS,
+  contrastRatioOfTriplets,
+} from '@/shared/userThemeContrast';
 
 /**
  * The a11y contrast contract (§5.10).
@@ -20,11 +25,12 @@ import { BUILTIN_THEMES } from '@/shared/constants';
  * paints. `rendered` is exactly that — the same `hsl(var(--x))` path Tailwind
  * emits, parsed by the browser.
  *
- * The pair list is the contract's own pairs (`--foreground` / `--muted-foreground`
- * on the two neutral surfaces, plus `--ring` on the background) and the button
- * label on its fill. It is deliberately not an exhaustive text x surface matrix:
- * each pair here is one the stylesheet actually paints, and a pair whose token is
- * not probed fails loudly rather than reading `NaN`.
+ * The pair list is the contract's own (§5.10), read from `userThemeContrast`
+ * rather than restated here: the same list drives the warning the option A
+ * compiler gives a user theme, and two copies of one contract drift. It is
+ * deliberately not an exhaustive text × surface matrix — each pair is one the
+ * stylesheet actually paints — and a pair whose token is not probed fails loudly
+ * rather than reading `NaN`.
  */
 
 type Appearance = 'light' | 'dark';
@@ -37,28 +43,6 @@ const OVERLAY_THEMES = BUILTIN_THEMES.filter((theme) => theme.appearance === 'sy
 const SUBJECTS: { id: string | null; label: string }[] = [
   { id: null, label: 'the base palette' },
   ...OVERLAY_THEMES.map((theme) => ({ id: theme.id, label: theme.id })),
-];
-
-type Pair = {
-  /** The token painted as text, or as the visible indicator. */
-  ink: string;
-  /** The token painted behind it. */
-  surface: string;
-  /** The WCAG AA floor: 4.5 for text, 3 for a non-text indicator. */
-  min: number;
-};
-
-const PAIRS: Pair[] = [
-  { ink: '--foreground', surface: '--background', min: 4.5 },
-  { ink: '--foreground', surface: '--card', min: 4.5 },
-  { ink: '--muted-foreground', surface: '--background', min: 4.5 },
-  { ink: '--muted-foreground', surface: '--card', min: 4.5 },
-  // The button label is normal-size text on its own fill. Neither §5.10 nor
-  // §5.11 names the pair, but both overlay themes were authored against it —
-  // `cc-ocean`'s comment records moving its light step off a 3.5:1 value, and
-  // `cc-polar`'s records choosing one that clears 4.6:1 — so it is in scope.
-  { ink: '--primary-foreground', surface: '--primary', min: 4.5 },
-  { ink: '--ring', surface: '--background', min: 3 },
 ];
 
 /** The three sRGB channels of a browser-serialised colour. */
@@ -113,7 +97,7 @@ for (const subject of SUBJECTS) {
     for (const appearance of APPEARANCES) {
       const rendered = await readRendered(page, subject.id, appearance);
 
-      for (const { ink, surface, min } of PAIRS) {
+      for (const { ink, surface, min } of CONTRAST_PAIRS) {
         // A pair the fixture does not probe would read `undefined` and its ratio
         // would be `NaN` — any comparison would quietly pass. Name it instead.
         for (const token of [ink, surface]) {
@@ -141,3 +125,77 @@ for (const subject of SUBJECTS) {
     expect(failures, `${subject.label} contrast failures:\n${failures.join('\n')}`).toEqual([]);
   });
 }
+
+/**
+ * The base the user-theme warning measures against (§5.10 v2).
+ *
+ * `userThemeContrast` holds a copy of the base's pair tokens and the arithmetic
+ * that turns a triplet into a ratio, because a validator is pure and runs where
+ * there is no browser at all. This is what keeps the copy honest: every token it
+ * answers for has to be the value the stylesheet resolves, and every ratio it
+ * computes has to be the one the browser paints. Without it the warning could
+ * disagree with the suite above about a borderline theme — which is worse than
+ * having no warning, because a warning gets acted on.
+ */
+test('the base the user-theme warning measures against is the one the browser paints', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.waitForFunction(() => Boolean(window.__THEME_TOKENS__));
+
+  const unprobed: string[] = [];
+  const wrongTokens: string[] = [];
+  const wrongRatios: string[] = [];
+
+  for (const appearance of APPEARANCES) {
+    const read = await page.evaluate(
+      ({ ap }) => window.__THEME_TOKENS__!.readWithTheme(null, ap),
+      { ap: appearance },
+    );
+
+    for (const { ink, surface } of CONTRAST_PAIRS) {
+      for (const token of [ink, surface]) {
+        const table = BASE_PAIR_COLORS[appearance][token];
+        if (!table) {
+          unprobed.push(`${appearance} ${token} (named by a pair, absent from the table)`);
+        } else if (read.tokens[token] !== table) {
+          wrongTokens.push(
+            `${appearance} ${token}: the table says ${table}, the stylesheet resolves ${read.tokens[token]}`,
+          );
+        }
+        if (!read.rendered[token]) {
+          unprobed.push(`${appearance} ${token} (not in the fixture's PROBES)`);
+        }
+      }
+
+      const browserRatio =
+        read.rendered[ink] && read.rendered[surface]
+          ? contrast(read.rendered[ink], read.rendered[surface])
+          : null;
+      const tableRatio = contrastRatioOfTriplets(
+        BASE_PAIR_COLORS[appearance][ink] ?? '',
+        BASE_PAIR_COLORS[appearance][surface] ?? '',
+      );
+      if (browserRatio !== null && tableRatio !== null && Math.abs(browserRatio - tableRatio) > 0.01) {
+        wrongRatios.push(
+          `${appearance} ${ink} on ${surface}: the table computes ${tableRatio.toFixed(3)}, ` +
+            `the browser paints ${browserRatio.toFixed(3)}`,
+        );
+      }
+    }
+  }
+
+  expect(
+    unprobed,
+    `these tokens cannot be read, so the table cannot be checked:\n${unprobed.join('\n')}`,
+  ).toEqual([]);
+  expect(
+    wrongTokens,
+    'the base table no longer matches the stylesheet, so a user theme would be warned against a stale base:\n' +
+      wrongTokens.join('\n'),
+  ).toEqual([]);
+  expect(
+    wrongRatios,
+    `the warning's arithmetic no longer matches the browser:\n${wrongRatios.join('\n')}`,
+  ).toEqual([]);
+});

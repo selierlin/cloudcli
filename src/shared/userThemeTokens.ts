@@ -1,3 +1,6 @@
+import { findContrastWarnings } from '@/shared/userThemeContrast';
+import type { ThemeColorValue, ThemeContrastWarning } from '@/shared/userThemeContrast';
+
 /**
  * Option A: a token JSON compiled into the overlay stylesheet the app injects.
  *
@@ -29,6 +32,15 @@
  * token or an ill-shaped value costs colour, not safety, and dropping it keeps
  * a theme written against a newer CloudCLI working with the tokens this build
  * knows. Drops are reported so the author can see them.
+ *
+ * **One thing a legal theme can still get wrong: being unreadable.** Shape says
+ * nothing about whether the colours can be read, so the compiler also hands every
+ * colour it accepted to `userThemeContrast`, and the result carries whatever that
+ * finds as `warnings` (§5.10). It is deliberately the same file that gets those
+ * warnings and the same stylesheet that goes out: the warning is information for
+ * the author, not a gate, which is also why the two live in different fields —
+ * `ignored` means "this never happened", `warnings` means "this happened and you
+ * may not want it".
  */
 
 /** The appearance an overlay is scoped to; see `compileUserThemeTokens` for what each means. */
@@ -51,7 +63,17 @@ export type UserThemeCompileFailure =
   | 'nothing-usable';
 
 export type UserThemeCompileResult =
-  | { ok: true; css: string; ignored: IgnoredThemeEntry[] }
+  | {
+      ok: true;
+      css: string;
+      ignored: IgnoredThemeEntry[];
+      /**
+       * The pairs §5.10 would call unreadable. Unlike `ignored`, nothing was
+       * dropped for them: they ride along with a stylesheet that is still the
+       * theme's, because §5.10 asks for a warning and not a refusal.
+       */
+      warnings: ThemeContrastWarning[];
+    }
   | { ok: false; reason: UserThemeCompileFailure; token?: string; ignored: IgnoredThemeEntry[] };
 
 /**
@@ -310,6 +332,15 @@ export function compileUserThemeTokens(themeId: string, body: string): UserTheme
   const ignored: IgnoredThemeEntry[] = [];
   const scope = readAppearance(parsed.appearance, ignored);
   const declarations: string[] = [];
+  /**
+   * The values the contrast check can use, in the two shapes it understands.
+   *
+   * The shape is read here rather than in `userThemeContrast` because this is
+   * where the rules live: a value that is neither a plain triplet nor a lone
+   * `var()` — an alpha form, an editor expression — is not a colour this check
+   * can name, and is simply not offered to it.
+   */
+  const colors = new Map<string, ThemeColorValue>();
 
   for (const [token, declaredValue] of Object.entries(declaredTokens)) {
     if (typeof declaredValue !== 'string') {
@@ -332,6 +363,13 @@ export function compileUserThemeTokens(themeId: string, body: string): UserTheme
       continue;
     }
 
+    const reference = REFERENCE_PATTERN.exec(value);
+    if (reference) {
+      colors.set(token, { kind: 'reference', target: reference[1] });
+    } else if (TRIPLET_PATTERN.test(value)) {
+      colors.set(token, { kind: 'literal', triplet: value });
+    }
+
     declarations.push(`  ${token}: ${value};`);
   }
 
@@ -340,5 +378,10 @@ export function compileUserThemeTokens(themeId: string, body: string): UserTheme
   }
 
   const selector = themeOverlaySelector(themeId, scope);
-  return { ok: true, css: `${selector} {\n${declarations.join('\n')}\n}\n`, ignored };
+  return {
+    ok: true,
+    css: `${selector} {\n${declarations.join('\n')}\n}\n`,
+    ignored,
+    warnings: findContrastWarnings(colors, scope),
+  };
 }

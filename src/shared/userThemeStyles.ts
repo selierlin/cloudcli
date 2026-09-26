@@ -8,6 +8,7 @@ import { compileTmTheme } from '@/shared/tmTheme';
 import type { TmThemeCompileResult } from '@/shared/tmTheme';
 import { compileUserThemeTokens } from '@/shared/userThemeTokens';
 import type { IgnoredThemeEntry, UserThemeCompileResult } from '@/shared/userThemeTokens';
+import type { ThemeContrastWarning } from '@/shared/userThemeContrast';
 
 /**
  * The one user theme stylesheet in the document.
@@ -79,7 +80,7 @@ type CachedStyle = {
 
 /** What one theme's text is worth: a stylesheet to inject, or a reason it cannot be one. */
 type CompiledThemeSource =
-  | { ok: true; css: string; ignored: IgnoredThemeEntry[] }
+  | { ok: true; css: string; ignored: IgnoredThemeEntry[]; warnings: ThemeContrastWarning[] }
   | { ok: false; message: string; ignored: IgnoredThemeEntry[] };
 
 /**
@@ -110,7 +111,9 @@ function targetRevision(target: UserThemeStyleTarget): string | number {
 
 /** Turns a compiler verdict into the pair this module works with, naming the source on failure. */
 function toCompiledSource(label: string, compiled: UserThemeCompileResult): CompiledThemeSource {
-  if (compiled.ok) return { ok: true, css: compiled.css, ignored: compiled.ignored };
+  if (compiled.ok) {
+    return { ok: true, css: compiled.css, ignored: compiled.ignored, warnings: compiled.warnings };
+  }
   const detail = compiled.token ? `${compiled.reason} (${compiled.token})` : compiled.reason;
   return { ok: false, message: `${label} is not a usable token JSON: ${detail}`, ignored: compiled.ignored };
 }
@@ -126,7 +129,11 @@ function toTmThemeCompiledSource(
   fileName: string,
   compiled: TmThemeCompileResult,
 ): CompiledThemeSource {
-  if (compiled.ok) return { ok: true, css: compiled.css, ignored: compiled.ignored };
+  if (compiled.ok) {
+    // A `.tmTheme` speaks about syntax, editor and terminal tokens, none of which
+    // is one of the pairs §5.10 puts a floor under.
+    return { ok: true, css: compiled.css, ignored: compiled.ignored, warnings: [] };
+  }
   return {
     ok: false,
     message: `${fileName} is not a usable .tmTheme: ${compiled.reason}`,
@@ -144,7 +151,9 @@ function toTmThemeCompiledSource(
  */
 function toPastedCompiledSource(theme: PastedUserTheme): CompiledThemeSource {
   const compiled = compilePastedTheme(theme);
-  if (compiled.ok) return { ok: true, css: compiled.css, ignored: compiled.ignored };
+  if (compiled.ok) {
+    return { ok: true, css: compiled.css, ignored: compiled.ignored, warnings: compiled.warnings };
+  }
   const detail = compiled.token ? `${compiled.reason} (${compiled.token})` : compiled.reason;
   return {
     ok: false,
@@ -169,7 +178,9 @@ function toPastedCompiledSource(theme: PastedUserTheme): CompiledThemeSource {
  * (§5.8 v6).
  */
 function compileThemeSource(entry: UserThemeEntry, body: string): CompiledThemeSource {
-  if (entry.format === 'css') return { ok: true, css: body, ignored: [] };
+  // A stylesheet is not a token map, so §5.10's token-level warning says nothing
+  // about it; the same is true of a `css` paste (see `compilePastedTheme`).
+  if (entry.format === 'css') return { ok: true, css: body, ignored: [], warnings: [] };
 
   if (entry.format === 'json') {
     return toCompiledSource(entry.fileName, compileUserThemeTokens(entry.id, body));
@@ -197,6 +208,25 @@ function warnIgnored(id: string, ignored: IgnoredThemeEntry[]): void {
   console.warn(
     `Theme "${id}" ignored ${ignored.length} declaration(s):`,
     ignored.map(({ what, reason }) => `${what} ${reason}`).join('; '),
+  );
+}
+
+/**
+ * Reports a theme that applies but cannot be read (§5.10).
+ *
+ * The console is the only channel a *theme file* has: the settings page lists
+ * files without reading them, so an author who wrote one on the machine sees the
+ * warning here or not at all. A pasted theme's author is also told in the paste
+ * box, where they were looking when they wrote it.
+ */
+function warnContrast(id: string, warnings: ThemeContrastWarning[]): void {
+  if (warnings.length === 0) return;
+  console.warn(
+    `Theme "${id}" applies, but ${warnings.length} pair(s) fall below the WCAG AA floor (§5.10):`,
+    warnings
+      .map(({ appearance, ink, surface, ratio, min }) =>
+        `${appearance} ${ink} on ${surface}: ${ratio.toFixed(2)}:1 < ${min}:1`)
+      .join('; '),
   );
 }
 
@@ -451,6 +481,7 @@ export async function applyUserThemeStyle(
     warnIgnored(id, compiled.ignored);
     if (!compiled.ok) throw new Error(compiled.message);
 
+    warnContrast(id, compiled.warnings);
     injectStyle(id, compiled.css);
     // Only a file needs the mirror: its text is what the next first paint has to
     // have before it can ask for anything, whereas a pasted theme carries its own.
