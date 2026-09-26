@@ -230,3 +230,36 @@ test('reset clears the copy so the next user does not inherit the previous one',
   assert.equal(store.readUserPreference('theme', 'light'), 'light');
   assert.equal(localStorage.getItem('user-preferences'), null);
 });
+
+test('a value pinned for the next hydrate outranks the server copy and is pushed up', async () => {
+  // The case this exists for: a value written before the client has a session,
+  // where the server cannot be told yet. Adopting the server's copy wholesale
+  // would undo it, so the pin has to survive the hydrate — and reach the server,
+  // or the next load would adopt the old value all over again.
+  const store = await loadStore();
+  store.writeUserPreference('themeId', 'paste-1');
+  await vi.advanceTimersByTimeAsync(500);
+  saved.length = 0;
+
+  serverPreferences = { themeId: 'paste-1' };
+  store.preferLocalValueOnHydrate('themeId', null);
+  await store.hydrateUserPreferences();
+
+  const mirror = JSON.parse(localStorage.getItem('user-preferences') ?? '{}') as Record<string, unknown>;
+  assert.equal(mirror.themeId, null, 'the pin has to win over the copy the server just sent');
+
+  await vi.advanceTimersByTimeAsync(500);
+  assert.deepEqual(saved, [{ themeId: null }], 'and it has to be sent, not merely held locally');
+});
+
+test('a pinned value does not leak past a sign-out', async () => {
+  const store = await loadStore();
+  serverPreferences = { themeId: 'paste-1' };
+  store.preferLocalValueOnHydrate('themeId', null);
+
+  store.resetUserPreferences();
+  await store.hydrateUserPreferences();
+
+  const mirror = JSON.parse(localStorage.getItem('user-preferences') ?? '{}') as Record<string, unknown>;
+  assert.equal(mirror.themeId, 'paste-1', 'the next user did not ask for the previous one\'s reset');
+});

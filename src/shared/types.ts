@@ -2057,8 +2057,20 @@ export type ThemeManifest = {
    *   applies. These are the themes the selector offers.
    */
   appearance: 'light' | 'dark' | 'system';
-  /** Where the theme came from; decides whether the UI may offer to delete it. */
-  source: 'builtin' | 'user';
+  /**
+   * Where the theme came from. This is the field the settings page groups by,
+   * because it is what decides the two questions a list of names cannot answer:
+   * whether the theme exists on *this* device, and whether the UI may offer to
+   * delete it.
+   *
+   * - `builtin` — ships with the bundle; cannot be removed.
+   * - `user` — a file in the host's `~/.cloudcli/themes` (read-only, not synced);
+   *   removing it means deleting the file, so the UI must not offer that.
+   * - `user-paste` — typed into the settings page and kept in the user's
+   *   preferences; those preferences are the only copy, so the UI owns it and
+   *   has to offer a way to remove it (§5.4 v3).
+   */
+  source: 'builtin' | 'user' | 'user-paste';
   /** Optional author, shown for user themes. */
   author?: string;
   /** Optional description, shown for user themes. */
@@ -2084,4 +2096,29 @@ export type ThemeManifest = {
   statusBar?: 'default' | 'black' | 'black-translucent';
   /** Optional class the bootstrap sentinel waits for before trusting the theme loaded. */
   sentinelClass?: string;
+};
+
+/**
+ * A theme the user pasted into the settings page.
+ *
+ * The difference from a theme *file* is only where the bytes live, but that one
+ * difference changes every question you can ask about it: a pasted theme exists
+ * on every device the user signs in on (it travels in their preferences, which
+ * the server stores), and no filesystem has a copy to fall back on — so the only
+ * way to remove one is through the UI that created it (§5.4 v3).
+ */
+export type PastedUserTheme = {
+  /** `paste-<n>`, the value written to `<html data-theme>` and the `[data-theme]` selector value. */
+  id: string;
+  /** Display name for the theme selector: the pasted JSON's own `name`, or the id when it declares none. */
+  name: string;
+  /**
+   * The reach the pasted JSON declares, when it declares one — read by the same
+   * rule the listing applies to a file (an unknown value is dropped, an absent
+   * one draws no badge), so the two sources are not described differently just
+   * because their bytes arrive by a different route (§5.8 v4).
+   */
+  coverage?: 'accent' | 'full';
+  /** The option A token JSON as pasted; compiled each time the theme is applied. */
+  content: string;
 };

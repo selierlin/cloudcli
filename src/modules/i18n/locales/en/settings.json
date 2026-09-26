@@ -207,6 +207,37 @@
     "notInstalled": "\"{{id}}\" is not installed on this device; using the default.",
     "loadFailed": "\"{{id}}\" could not be loaded; using the default."
   },
+  "userThemes": {
+    "title": "User themes",
+    "description": "The two sources beyond the colour themes above: files in the themes folder, and token JSON you paste in",
+    "files": {
+      "title": "From the themes folder",
+      "hint": "Read by the server from ~/.cloudcli/themes/; add or remove them in that folder — only what is there is listed here.",
+      "empty": "No theme files yet. Drop a .css or .json in there and reload."
+    },
+    "pastes": {
+      "title": "Pasted themes",
+      "hint": "Kept in your preferences, so they follow you to your other devices.",
+      "empty": "Nothing pasted yet."
+    },
+    "pasteLabel": "Paste token JSON",
+    "pastePlaceholder": "{ \"name\": \"Deep sea\", \"tokens\": { \"--primary\": \"175 84% 32%\" } }",
+    "pasteSubmit": "Add theme",
+    "pasteInvalid": "This JSON cannot be a theme: {{reason}}",
+    "reason": {
+      "unsafe-id": "the theme id is unsafe",
+      "unreadable-json": "it is not a valid JSON object",
+      "no-tokens": "it has no tokens field, or that field is empty",
+      "unsafe-value": "a value contains characters that would break the stylesheet",
+      "nothing-usable": "every token was rejected, so none of them can be used",
+      "too-large": "it is over the 256KB limit"
+    },
+    "use": "Use",
+    "inUse": "In use",
+    "delete": "Delete",
+    "deleteAria": "Delete the theme \"{{name}}\"",
+    "resetHint": "If a theme makes the interface unreadable or unusable, append ?{{param}} to the address and open it again to go back to the default theme."
+  },
   "appearanceSettings": {
     "projectSorting": {
       "label": "Project Sorting",

@@ -207,6 +207,37 @@
     "notInstalled": "「{{id}}」未安装，已用默认配色。",
     "loadFailed": "「{{id}}」加载失败，已用默认配色。"
   },
+  "userThemes": {
+    "title": "用户主题",
+    "description": "配色主题之外的两种来源：主题目录里的文件，以及你粘贴进来的令牌 JSON",
+    "files": {
+      "title": "来自主题目录",
+      "hint": "由服务器从 ~/.cloudcli/themes/ 读取；增删请直接改那个目录，这里只列出可用项。",
+      "empty": "目录里还没有主题文件。放一个 .css 或 .json 进去再刷新即可。"
+    },
+    "pastes": {
+      "title": "粘贴的主题",
+      "hint": "存在你的偏好里，会随账号同步到其它设备。",
+      "empty": "还没有粘贴过主题。"
+    },
+    "pasteLabel": "粘贴令牌 JSON",
+    "pastePlaceholder": "{ \"name\": \"深海\", \"tokens\": { \"--primary\": \"175 84% 32%\" } }",
+    "pasteSubmit": "添加主题",
+    "pasteInvalid": "这份 JSON 不能作为主题：{{reason}}",
+    "reason": {
+      "unsafe-id": "主题标识不安全",
+      "unreadable-json": "不是合法的 JSON 对象",
+      "no-tokens": "缺少 tokens 字段，或其中没有任何令牌",
+      "unsafe-value": "某个取值里含有会破坏样式表的字符",
+      "nothing-usable": "所有令牌都被拒绝了，没有一个可用",
+      "too-large": "内容超过 256KB 上限"
+    },
+    "use": "使用",
+    "inUse": "使用中",
+    "delete": "删除",
+    "deleteAria": "删除主题「{{name}}」",
+    "resetHint": "如果某个主题让界面看不清或点不动，在网址后加上 ?{{param}} 再打开，就会回到默认主题。"
+  },
   "appearanceSettings": {
     "projectSorting": {
       "label": "项目排序",
