@@ -10,6 +10,7 @@ import type { ThemeManifest } from '@/shared/types';
 import { applyUserThemeStyle, getUserThemeStyleState, previewUserThemeStyle } from '@/shared/userThemeStyles';
 import type { UserThemeStyleState } from '@/shared/userThemeStyles';
 import { applyThemeChrome } from '@/shared/utils';
+import { readTokenSnapshot } from '@/shared/tokenSnapshot';
 
 import '../../src/index.css';
 import cssSource from '../../src/index.css?raw';
@@ -303,6 +304,17 @@ function reinjectSyntaxStyleSheet(): void {
   ensureSyntaxStyleElement();
 }
 
+/**
+ * The token preview's read, verbatim from the component's module. The fixture
+ * page is where the real-engine questions about it live: computed-style
+ * enumeration reaching the declared tokens (including names injected at
+ * runtime), the two appearances differing, and the `.dark` class surviving the
+ * internal flip.
+ */
+function readTokenPreviewSnapshot() {
+  return readTokenSnapshot();
+}
+
 function readTokens(appearance: Appearance): TokenRead {
   document.documentElement.classList.toggle('dark', appearance === 'dark');
 
@@ -531,6 +543,11 @@ declare global {
       readSyntaxToken(name: SyntaxSemanticName): string;
       /** Re-runs the production syntax-sheet injection, as a later-loaded chunk would. */
       reinjectSyntaxStyleSheet(): void;
+      /** The token preview's snapshot, in both appearances, taken by the production module. */
+      readTokenPreviewSnapshot(): {
+        groups: { id: string; entries: { name: string; light: string; dark: string; lightSwatch: string | null; darkSwatch: string | null }[] }[];
+        tokenCount: number;
+      };
     };
   }
 }
@@ -548,4 +565,5 @@ window.__THEME_TOKENS__ = {
   previewUserTheme,
   readSyntaxToken,
   reinjectSyntaxStyleSheet,
+  readTokenPreviewSnapshot,
 };

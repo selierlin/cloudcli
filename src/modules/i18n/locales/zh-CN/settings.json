@@ -263,6 +263,14 @@
     "deleteAria": "删除主题「{{name}}」",
     "resetHint": "如果某个主题让界面看不清或点不动，在网址后加上 ?{{param}} 再打开，就会回到默认主题。"
   },
+  "tokenPreview": {
+    "title": "令牌预览",
+    "description": "界面当前解析出的全部设计令牌，明暗两种外观并排显示——供主题作者核对效果",
+    "open": "显示令牌",
+    "close": "收起令牌",
+    "semanticGroup": "语义令牌",
+    "familyGroup": "{{family}} 令牌"
+  },
   "appearanceSettings": {
     "projectSorting": {
       "label": "项目排序",

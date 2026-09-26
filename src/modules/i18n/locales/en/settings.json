@@ -263,6 +263,14 @@
     "deleteAria": "Delete the theme \"{{name}}\"",
     "resetHint": "If a theme makes the interface unreadable or unusable, append ?{{param}} to the address and open it again to go back to the default theme."
   },
+  "tokenPreview": {
+    "title": "Token preview",
+    "description": "Every design token the interface currently resolves, in both appearances side by side — for theme authors checking their work",
+    "open": "Show tokens",
+    "close": "Hide tokens",
+    "semanticGroup": "Semantic tokens",
+    "familyGroup": "{{family}} tokens"
+  },
   "appearanceSettings": {
     "projectSorting": {
       "label": "Project Sorting",

@@ -110,7 +110,8 @@
           "src/shared/chatDrafts.ts",
           "src/shared/quickReplies.ts",
           "src/shared/syntaxHighlighter.ts",
-          "src/shared/syntaxTheme.ts"
+          "src/shared/syntaxTheme.ts",
+          "src/shared/tokenSnapshot.ts"
         ],
         "mode": "file"
       },
