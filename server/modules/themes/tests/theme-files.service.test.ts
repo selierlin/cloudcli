@@ -120,6 +120,72 @@ test('scanThemeFiles lists the accepted formats and skips everything else', asyn
   assert.ok(entries.every((entry) => entry.modifiedAt > 0));
 });
 
+/** Captures `console.warn` for the length of `run`, restoring it afterwards. */
+async function warningsFrom(run: () => Promise<void>): Promise<string[]> {
+  const warnings: string[] = [];
+  const original = console.warn;
+  console.warn = (...args: unknown[]) => {
+    warnings.push(args.map(String).join(' '));
+  };
+  try {
+    await run();
+  } finally {
+    console.warn = original;
+  }
+  return warnings;
+}
+
+test('a theme file\u2019s own name and coverage are read into its entry', async () => {
+  const themesDir = await scratchThemesDir();
+  await writeTheme(
+    themesDir,
+    'deep-sea.json',
+    '{"name":"深海","coverage":"full","tokens":{"--primary":"175 84% 32%"}}',
+  );
+  await writeTheme(themesDir, 'accent.json', '{"coverage":"accent"}');
+  await writeTheme(themesDir, 'plain.css', '[data-theme="user-plain"] { --primary: 1 2% 3%; }');
+
+  const byId = new Map((await scanThemeFiles(themesDir)).map((entry) => [entry.id, entry]));
+
+  assert.equal(byId.get('user-deep-sea')?.name, '深海', 'the declared name wins over the filename');
+  assert.equal(byId.get('user-deep-sea')?.coverage, 'full');
+  assert.equal(byId.get('user-accent')?.coverage, 'accent');
+  assert.equal(byId.get('user-accent')?.name, 'accent', 'an undeclared name falls back to the filename base');
+  assert.equal(byId.get('user-plain')?.coverage, undefined, 'a stylesheet has nowhere to declare a reach');
+  // `appearance` is not read here: in a file it scopes the overlay's rules, which
+  // is the compiler\u2019s business, while this field is the overlay role itself.
+  assert.equal(byId.get('user-deep-sea')?.appearance, 'system');
+});
+
+test('a .json theme that cannot be read is still listed, and the reason is reported', async () => {
+  const themesDir = await scratchThemesDir();
+  await writeTheme(themesDir, 'broken.json', '{"name": "unterminated');
+  await writeTheme(themesDir, 'odd.json', '{"name":"","coverage":"partial"}');
+  await writeTheme(themesDir, 'long.json', JSON.stringify({ name: 'x'.repeat(81) }));
+
+  let entries: Awaited<ReturnType<typeof scanThemeFiles>> = [];
+  const warnings = await warningsFrom(async () => {
+    entries = await scanThemeFiles(themesDir);
+  });
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+
+  // The client is the side that can tell the user why a file will not compile,
+  // so a file the listing cannot read is listed rather than hidden.
+  assert.equal(byId.get('user-broken')?.name, 'broken');
+  assert.equal(byId.get('user-odd')?.name, 'odd', 'an empty name is not a name');
+  assert.equal(byId.get('user-odd')?.coverage, undefined);
+  assert.equal(byId.get('user-long')?.name, 'long', 'a name past the cap falls back to the filename');
+
+  assert.ok(
+    warnings.some((warning) => warning.includes('broken.json') && warning.includes('not readable JSON')),
+    `unreadable JSON has to name the file (saw: ${warnings.join(' | ')})`,
+  );
+  assert.ok(
+    warnings.some((warning) => warning.includes('odd.json') && warning.includes('unknown coverage')),
+    'a reach we drop has to be said out loud',
+  );
+});
+
 test('scanThemeFiles de-duplicates files whose base names collide', async () => {
   const themesDir = await scratchThemesDir();
   // Same base, different extension: both would resolve to id `user-nord`.

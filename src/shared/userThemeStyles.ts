@@ -1,6 +1,8 @@
 import { api } from '@/shared/api';
 import { readUserPreference } from '@/shared/userSettings';
 import type { UserThemeEntry } from '@/shared/userThemes';
+import { compileUserThemeTokens } from '@/shared/userThemeTokens';
+import type { IgnoredThemeEntry } from '@/shared/userThemeTokens';
 
 /**
  * The one user theme stylesheet in the document.
@@ -10,6 +12,11 @@ import type { UserThemeEntry } from '@/shared/userThemes';
  * the whole of the app's runtime-injected styling, so this module owns its
  * lifecycle — the boot-time restore, the swap when the file changes, and the
  * removal when it stops being usable.
+ *
+ * What arrives is either a stylesheet already (`.css`) or a token JSON that has
+ * to become one (`compileThemeSource`); either way, what is injected and cached
+ * is the compiled stylesheet, which is what lets the boot-time restore stay a
+ * pure synchronous injection.
  *
  * The content is mirrored into localStorage because the fetch is asynchronous
  * and the first paint is not: `applyCachedUserThemeStyle` runs before React
@@ -32,9 +39,54 @@ type CachedStyle = {
   id: string;
   /** The file's mtime when it was loaded; a different one means the file changed. */
   modifiedAt: number;
-  /** The file's text, as it came off the wire. */
+  /** The compiled stylesheet — a `.css` file verbatim, a `.json` one compiled. */
   css: string;
 };
+
+/** What one file's body is worth: a stylesheet to inject, or a reason it cannot be one. */
+type CompiledThemeSource =
+  | { ok: true; css: string; ignored: IgnoredThemeEntry[] }
+  | { ok: false; message: string; ignored: IgnoredThemeEntry[] };
+
+/**
+ * Turns a fetched file body into the stylesheet to inject.
+ *
+ * `.css` is already one. `.json` is option A and goes through the token
+ * compiler, which also decides the appearance scope its overlay is written
+ * under. `.tmTheme` is not supported yet — saying so is deliberate: injecting
+ * the plist as CSS would put an element in the document that matches nothing,
+ * so the picker would show the theme as applied while the page never changed.
+ * Refusing it makes the gap visible until the `.tmTheme` slice fills it.
+ */
+function compileThemeSource(entry: UserThemeEntry, body: string): CompiledThemeSource {
+  if (entry.format === 'css') return { ok: true, css: body, ignored: [] };
+
+  if (entry.format === 'json') {
+    const compiled = compileUserThemeTokens(entry.id, body);
+    if (compiled.ok) return { ok: true, css: compiled.css, ignored: compiled.ignored };
+    const detail = compiled.token ? `${compiled.reason} (${compiled.token})` : compiled.reason;
+    return {
+      ok: false,
+      message: `${entry.fileName} is not a usable token JSON: ${detail}`,
+      ignored: compiled.ignored,
+    };
+  }
+
+  return {
+    ok: false,
+    message: `${entry.fileName} is a .tmTheme file, which this build cannot compile yet; use .css or .json`,
+    ignored: [],
+  };
+}
+
+/** Reports what a file got wrong, in one line per problem, without failing the load. */
+function warnIgnored(entry: UserThemeEntry, ignored: IgnoredThemeEntry[]): void {
+  if (ignored.length === 0) return;
+  console.warn(
+    `Theme "${entry.id}" ignored ${ignored.length} declaration(s):`,
+    ignored.map(({ what, reason }) => `${what} ${reason}`).join('; '),
+  );
+}
 
 export type UserThemeStyleState = {
   /** The user theme whose stylesheet is in the document, or null. */
@@ -224,11 +276,15 @@ export async function applyUserThemeStyle(
     if (!response.ok) {
       throw new Error(`The theme file request failed with status ${response.status}`);
     }
-    const css = await response.text();
+    const body = await response.text();
     if (token !== operation) return;
 
-    injectStyle(entry.id, css);
-    writeCache({ id: entry.id, modifiedAt: entry.modifiedAt, css });
+    const compiled = compileThemeSource(entry, body);
+    warnIgnored(entry, compiled.ignored);
+    if (!compiled.ok) throw new Error(compiled.message);
+
+    injectStyle(entry.id, compiled.css);
+    writeCache({ id: entry.id, modifiedAt: entry.modifiedAt, css: compiled.css });
     applied = { id: entry.id, modifiedAt: entry.modifiedAt };
     publish({ appliedId: entry.id, failedId: null });
   } catch (error) {

@@ -94,13 +94,26 @@ function builtinThemeById(id: string): ThemeManifest | null {
 }
 
 /**
- * Presents a theme from the host's themes folder as a manifest. `coverage` is
- * deliberately absent: §5.8 records that a file-derived theme declares no
- * reach, so the picker's badge stays off rather than claiming one nobody
- * checked.
+ * Presents a theme from the host's themes folder as a manifest.
+ *
+ * `appearance` stays `system` whatever the file declares. The two are different
+ * questions that happen to share a name: the manifest field is a *role* — is
+ * this an appearance default (not offered) or an overlay (offered) — and a file
+ * theme is always the latter. What a file's own `appearance` says is a *scope*,
+ * which appearance its rules are written for, and that is applied where the
+ * rules are compiled (`userThemeTokens`) rather than here (§5.6 v13).
+ *
+ * `coverage` is passed through only when the file declared one: an undeclared
+ * reach shows no badge instead of a fabricated one (§5.8 v4).
  */
-function userThemeManifest(id: string, name: string): ThemeManifest {
-  return { id, name, source: 'user', appearance: 'system' };
+function userThemeManifest(
+  id: string,
+  name: string,
+  coverage?: 'accent' | 'full',
+): ThemeManifest {
+  return coverage
+    ? { id, name, source: 'user', appearance: 'system', coverage }
+    : { id, name, source: 'user', appearance: 'system' };
 }
 
 /** Mounted once by App so every module can read and switch the colour theme through useTheme. */
@@ -155,7 +168,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 
   const userThemes = useMemo(() => {
     const offered = userThemeState.entries.map((entry) =>
-      userThemeManifest(entry.id, entry.name));
+      userThemeManifest(entry.id, entry.name, entry.coverage));
     // The theme in force is offered even when the listing has not accounted for
     // it: the boot-time cache can put one on screen before the listing exists,
     // and after a listing that failed there is no other record of it. Without
@@ -198,7 +211,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   // all the default is what stays.
   const manifest = useMemo(() => {
     if (builtinOverlay) return builtinOverlay;
-    if (themeId && userThemeInForce) return userThemeManifest(themeId, pickedEntry?.name ?? themeId);
+    if (themeId && userThemeInForce) {
+      return userThemeManifest(themeId, pickedEntry?.name ?? themeId, pickedEntry?.coverage);
+    }
     return builtinThemeFor(appearance);
   }, [builtinOverlay, themeId, userThemeInForce, pickedEntry, appearance]);
 

@@ -129,6 +129,95 @@ test('an entry is fetched with its mtime, injected and cached', async () => {
   );
 });
 
+test('a token JSON is compiled before it is injected, and the compiled sheet is what is cached', async () => {
+  fileBody = JSON.stringify({
+    appearance: 'dark',
+    tokens: { '--primary': '175 84% 32%', '--term-background': '#0b1220' },
+  });
+  const { styles } = await loadStores();
+
+  await styles.applyUserThemeStyle(entry({ format: 'json', fileName: 'borealis.json' }), true);
+
+  // A raw JSON body injected as CSS would be an element that matches nothing:
+  // the picker would show the theme as applied while the page never changed.
+  assert.match(
+    styleElement()?.textContent ?? '',
+    new RegExp(`^\\[data-theme="user-borealis"\\]\\.dark \\{`),
+    'the body has to be compiled, with the scope the file declared',
+  );
+  assert.ok(
+    !(styleElement()?.textContent ?? '').includes('--term-background'),
+    'a hex on a token consumed through hsl() would be dropped by the browser, so it is dropped here',
+  );
+  assert.equal(
+    JSON.parse(localStorage.getItem(STYLE_CACHE_KEY) ?? 'null')?.css,
+    styleElement()?.textContent,
+    'the cache feeds the boot-time injection, so it has to hold the compiled sheet, not the JSON',
+  );
+});
+
+test('a JSON theme that cannot be compiled is refused with the reason', async () => {
+  seedCache('user-borealis', 42, ':root{--cached:1}');
+  const { styles, settings } = await loadStores();
+  settings.writeUserPreference('themeId', 'user-borealis');
+  styles.applyCachedUserThemeStyle();
+
+  fileBody = 'tokens: --primary: 1 2% 3%';
+  await styles.applyUserThemeStyle(entry({ format: 'json', fileName: 'borealis.json', modifiedAt: 99 }), true);
+
+  assert.equal(styleElement(), null);
+  assert.equal(localStorage.getItem(STYLE_CACHE_KEY), null);
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: 'user-borealis' });
+  assert.ok(
+    vi.mocked(console.warn).mock.calls.some(([, detail]) => String(detail).includes('unreadable-json')),
+    'the refusal has to name what was wrong with the file',
+  );
+});
+
+test('a value that tried to leave its declaration refuses the file rather than being injected', async () => {
+  fileBody = JSON.stringify({
+    tokens: { '--primary': '175 84% 32%', '--background': '0 0% 0% } body { display: none' },
+  });
+  const { styles } = await loadStores();
+
+  await styles.applyUserThemeStyle(entry({ format: 'json', fileName: 'borealis.json' }), true);
+
+  assert.equal(styleElement(), null, 'a partial sheet must not be injected either');
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: 'user-borealis' });
+  assert.ok(
+    vi.mocked(console.warn).mock.calls.some(([, detail]) => String(detail).includes('unsafe-value')),
+    'this is the value that would have written a rule, so the reason has to name it',
+  );
+});
+
+test('declarations the compiler dropped are reported without failing the theme', async () => {
+  fileBody = JSON.stringify({ tokens: { '--primary': '175 84% 32%', '--safe-area-inset-top': '0px' } });
+  const { styles } = await loadStores();
+
+  await styles.applyUserThemeStyle(entry({ format: 'json', fileName: 'borealis.json' }), true);
+
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: 'user-borealis', failedId: null });
+  assert.match(styleElement()?.textContent ?? '', /--primary: 175 84% 32%;/);
+  assert.ok(
+    vi.mocked(console.warn).mock.calls.some(([message]) => String(message).includes('ignored 1 declaration')),
+    'a token that never arrives is an author error worth saying out loud',
+  );
+});
+
+test('a .tmTheme file is refused instead of being injected as an unparseable sheet', async () => {
+  fileBody = '<plist version="1.0"><dict><key>name</key><string>Dracula</string></dict></plist>';
+  const { styles } = await loadStores();
+
+  await styles.applyUserThemeStyle(entry({ format: 'tmTheme', fileName: 'dracula.tmTheme' }), true);
+
+  assert.equal(styleElement(), null);
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: 'user-borealis' });
+  assert.ok(
+    vi.mocked(console.warn).mock.calls.some(([, detail]) => String(detail).includes('tmTheme')),
+    'the gap has to be visible until the .tmTheme parser lands',
+  );
+});
+
 test('an entry already in the document at the same mtime is not fetched again', async () => {
   const { styles } = await loadStores();
 

@@ -1,0 +1,291 @@
+import assert from 'node:assert/strict';
+
+import { test } from 'vitest';
+
+import { SYNTAX_TOKEN_MAP } from '@/shared/syntaxTheme';
+import { compileUserThemeTokens } from '@/shared/userThemeTokens';
+import type { UserThemeCompileResult } from '@/shared/userThemeTokens';
+
+/**
+ * Option A's compiler: a token JSON turned into an overlay stylesheet.
+ *
+ * Two jobs, and the tests keep them apart. The whitelist and the value shapes
+ * are ergonomics — they decide whether a theme's colours arrive — while the
+ * structural gate is the one that carries §5.5's promise that option A cannot
+ * write a selector. A value that could end its declaration is therefore a
+ * refusal of the whole file, not a dropped token, and the cases below are the
+ * shapes that would otherwise let a theme out of its box.
+ */
+
+const ID = 'user-borealis';
+
+function compile(tokens: Record<string, unknown>, extra: Record<string, unknown> = {}): UserThemeCompileResult {
+  return compileUserThemeTokens(ID, JSON.stringify({ ...extra, tokens }));
+}
+
+/** Compiles and returns the stylesheet, failing loudly when the file was refused. */
+function css(tokens: Record<string, unknown>, extra: Record<string, unknown> = {}): string {
+  const result = compile(tokens, extra);
+  assert.ok(result.ok, `expected a stylesheet, got a refusal: ${JSON.stringify(result)}`);
+  return result.css;
+}
+
+/** The tokens the compiler left out, keyed by name for readable assertions. */
+function ignoredNames(result: UserThemeCompileResult): string[] {
+  return result.ignored.map((entry) => entry.what);
+}
+
+test('a token map compiles into an overlay selector', () => {
+  assert.equal(
+    css({ '--primary': '175 84% 32%', '--ring': '175 84% 32%' }),
+    `[data-theme="${ID}"] {\n  --primary: 175 84% 32%;\n  --ring: 175 84% 32%;\n}\n`,
+  );
+});
+
+test('a reference to another token is kept as written', () => {
+  // The L2 tokens are refs to L1 in the stylesheet, so a theme may restate one
+  // rather than flattening it — that is how the palette indirection survives.
+  assert.match(css({ '--background': 'var(--palette-ink-950)' }), /--background: var\(--palette-ink-950\);/);
+});
+
+test('the declared appearance scopes the overlay to one appearance', () => {
+  const tokens = { '--primary': '175 84% 32%' };
+
+  assert.match(
+    css(tokens, { appearance: 'light' }),
+    new RegExp(`^\\[data-theme="${ID}"\\]:not\\(\\.dark\\) \\{`),
+    'a light-only theme must not apply in the dark appearance',
+  );
+  assert.match(
+    css(tokens, { appearance: 'dark' }),
+    new RegExp(`^\\[data-theme="${ID}"\\]\\.dark \\{`),
+  );
+  assert.match(
+    css(tokens, { appearance: 'system' }),
+    new RegExp(`^\\[data-theme="${ID}"\\] \\{`),
+    'system means both appearances, which is what an unscoped overlay does',
+  );
+  assert.match(
+    css(tokens),
+    new RegExp(`^\\[data-theme="${ID}"\\] \\{`),
+    'a file that says nothing is unscoped rather than guessing an appearance',
+  );
+});
+
+test('an unrecognised appearance is reported and falls back to both', () => {
+  const result = compile({ '--primary': '175 84% 32%' }, { appearance: 'twilight' });
+
+  assert.ok(result.ok);
+  assert.match(result.css, new RegExp(`^\\[data-theme="${ID}"\\] \\{`));
+  assert.deepEqual(ignoredNames(result), ['appearance']);
+  assert.match(result.ignored[0].reason, /not one of/);
+});
+
+test('the palette and terminal boards take a triplet, not a complete colour', () => {
+  const result = compile({
+    '--palette-sand-50': '44 22% 96%',
+    // The hex a palette token is most tempting to write. L1 is consumed as
+    // `hsl(var(--palette-…))` too, so this has to be refused for the same
+    // reason the terminal one below is.
+    '--palette-brand-500': '#2f6fdb',
+    // The design doc's own example wrote this as a hex. It has to be refused:
+    // `readTerminalTheme` resolves `--term-*` as `hsl(var(--term-…))`, so a hex
+    // compiles to `hsl(#0b1220)`, the declaration is dropped by the browser,
+    // and the terminal silently keeps whatever colour it had before.
+    '--term-background': '#0b1220',
+  });
+
+  assert.ok(result.ok);
+  assert.match(result.css, /--palette-sand-50: 44 22% 96%;/);
+  assert.ok(!result.css.includes('--palette-brand-500'), 'the palette takes a triplet and nothing else');
+  assert.ok(!result.css.includes('--term-background'), 'the hex form must not reach the stylesheet');
+  assert.deepEqual(ignoredNames(result), ['--palette-brand-500', '--term-background']);
+  assert.match(result.ignored[0].reason, /HSL triplet/, 'and the report has to say what it wanted');
+});
+
+test('the editor chrome takes a complete value, because that is how it is consumed', () => {
+  const result = compile({
+    '--editor-bg': '#282c34',
+    '--editor-gutter-separator': '1px solid #ddd',
+    '--editor-toolbar-bg': 'hsl(var(--palette-white))',
+    '--editor-panel-border': '2px solid black',
+  });
+
+  assert.ok(result.ok);
+  assert.equal(result.ignored.length, 0);
+  assert.match(result.css, /--editor-gutter-separator: 1px solid #ddd;/);
+});
+
+test('the nav glass tokens take an optional alpha, in both spellings', () => {
+  const result = compile({
+    '--nav-glass-bg': 'var(--palette-ink-900) / 0.55',
+    '--nav-tab-glow': '175 84% 32% / 0.18',
+    '--nav-divider-color': '44 22% 96%',
+    '--nav-glass-blur': '24px',
+    '--nav-glass-saturate': '1.6',
+  });
+
+  assert.ok(result.ok);
+  assert.equal(result.ignored.length, 0);
+  assert.match(result.css, /--nav-glass-bg: var\(--palette-ink-900\) \/ 0\.55;/);
+});
+
+test('a value that does not fit its token is dropped, and named', () => {
+  const result = compile({
+    '--primary': 'rebeccapurple',
+    '--nav-glass-blur': 'a lot',
+    '--radius': '0.5rem',
+    '--graph-lane-3': 'var(--palette-graph-3)',
+  });
+
+  assert.ok(result.ok);
+  assert.deepEqual(ignoredNames(result), ['--primary', '--nav-glass-blur']);
+  assert.match(result.ignored[0].reason, /HSL triplet/);
+  assert.match(result.css, /--radius: 0\.5rem;/);
+  assert.match(result.css, /--graph-lane-3: var\(--palette-graph-3\);/);
+});
+
+test('tokens outside the theme surface are dropped rather than compiled', () => {
+  // The syntax variables are named by number, and the numbers move with the
+  // highlighter's own generator (§5.9) — so they are excluded from the theme
+  // surface until they get stable names, and this test takes the name from the
+  // map rather than spelling one out.
+  const syntaxToken = SYNTAX_TOKEN_MAP.keyword;
+  const result = compile({
+    [syntaxToken]: '#ff79c6',
+    '--safe-area-inset-top': '0px',
+    '--mobile-nav-height': '999px',
+    '--header-base-padding': '0px',
+    '--tw-ring-color': '0 0% 0%',
+    '--reasoning-fade-duration': '0s',
+    '--ui-font-sans': 'Comic Sans MS',
+    '--primary': '175 84% 32%',
+  });
+
+  assert.ok(result.ok);
+  assert.deepEqual(ignoredNames(result), [
+    syntaxToken,
+    '--safe-area-inset-top',
+    '--mobile-nav-height',
+    '--header-base-padding',
+    '--tw-ring-color',
+    '--reasoning-fade-duration',
+    '--ui-font-sans',
+  ]);
+  assert.equal(result.css.match(/^\s{2}--/gm)?.length, 1, 'only the semantic token survives');
+});
+
+test('a reference to a token outside the theme surface is dropped too', () => {
+  // Otherwise the whitelist would leak: a theme could borrow the meaning of a
+  // token it is not allowed to set.
+  const result = compile({ '--primary': `var(${SYNTAX_TOKEN_MAP.keyword})` });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.ok === false && result.reason, 'nothing-usable');
+  assert.deepEqual(ignoredNames(result), ['--primary']);
+});
+
+test('a value that could leave its declaration refuses the whole file', () => {
+  // These are the shapes that would end the declaration, start an at-rule or a
+  // comment, or reach for a URL. Pinned here is the *response*: the file is
+  // refused rather than partly applied, which is what the structural gate
+  // decides. The value rules would reject each of these anyway — their
+  // character classes have no `}` or `;` in them — so what this layer buys is
+  // the right message for an author who is writing CSS in the constrained
+  // format, and a promise that does not depend on every rule staying narrow.
+  const escapes: Array<[string, string]> = [
+    ['closing brace', '175 84% 32% } body { display: none'],
+    ['semicolon', '175 84% 32%; body { display: none'],
+    ['at-rule', '175 84% 32% @media all'],
+    ['import', "url('https://example.com/x.css')"],
+    ['comment', '175 84% 32% /* }'],
+    ['important', '175 84% 32% !important'],
+    ['backslash', '175 84% 32% \\7d'],
+    ['angle bracket', '175 84% 32% </style>'],
+    ['line break', '175 84%\n32%'],
+  ];
+
+  for (const [label, value] of escapes) {
+    const result = compile({ '--primary': '175 84% 32%', '--background': value });
+    assert.equal(result.ok, false, `${label} must refuse the file`);
+    assert.equal(result.ok === false && result.reason, 'unsafe-value', label);
+    assert.equal(result.ok === false && result.token, '--background', label);
+  }
+});
+
+test('a body that is not a token map is refused for the right reason', () => {
+  const cases: Array<[string, string, string]> = [
+    ['not JSON at all', '<plist><dict/></plist>', 'unreadable-json'],
+    ['a JSON array', '[]', 'unreadable-json'],
+    ['a JSON string', '"175 84% 32%"', 'unreadable-json'],
+    ['no tokens key', '{"name":"Borealis"}', 'no-tokens'],
+    ['tokens is not an object', '{"tokens":[]}', 'no-tokens'],
+    ['tokens is empty', '{"tokens":{}}', 'no-tokens'],
+  ];
+
+  for (const [label, body, reason] of cases) {
+    const result = compileUserThemeTokens(ID, body);
+    assert.equal(result.ok, false, label);
+    assert.equal(result.ok === false && result.reason, reason, label);
+  }
+});
+
+test('a theme whose every declaration was dropped is refused, not applied empty', () => {
+  const result = compile({ '--primary': 'rebeccapurple' });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.ok === false && result.reason, 'nothing-usable');
+  assert.deepEqual(ignoredNames(result), ['--primary']);
+});
+
+test('an absurdly long value is dropped rather than carried into the document', () => {
+  // The cap is not about safety — the structural gate already covers that — but
+  // about not letting one declaration of a 256KB file become a 256KB value in
+  // the injected sheet and in the cache that mirrors it.
+  const result = compile({ '--editor-bg': '#'.repeat(120), '--primary': '175 84% 32%' });
+
+  assert.ok(result.ok);
+  assert.deepEqual(ignoredNames(result), ['--editor-bg']);
+});
+
+test('a non-string value is reported rather than stringified into the stylesheet', () => {
+  const result = compile({ '--primary': 175, '--ring': '175 84% 32%' });
+
+  assert.ok(result.ok);
+  assert.deepEqual(ignoredNames(result), ['--primary']);
+  assert.match(result.ignored[0].reason, /not a string/);
+  assert.ok(!result.css.includes('175;'), 'a number must not be coerced into a declaration');
+});
+
+test('an id that could break the selector refuses the file', () => {
+  for (const id of ['cc-ocean', 'borealis', 'user-a"] { --x: 1 } /*', 'user-a b']) {
+    const result = compileUserThemeTokens(id, JSON.stringify({ tokens: { '--primary': '175 84% 32%' } }));
+    assert.equal(result.ok, false, id);
+    assert.equal(result.ok === false && result.reason, 'unsafe-id', id);
+  }
+});
+
+test('declarations keep the order the file wrote them in', () => {
+  const result = compile({
+    '--ring': '175 84% 32%',
+    '--primary': '175 84% 32%',
+    '--background': '44 22% 96%',
+  });
+
+  assert.ok(result.ok);
+  assert.deepEqual(
+    [...result.css.matchAll(/^\s{2}(--[a-z-]+):/gm)].map((match) => match[1]),
+    ['--ring', '--primary', '--background'],
+    'a stable order keeps the compiled stylesheet diffable',
+  );
+});
+
+test('the parts of a file that only the picker needs are not the compiler\u2019s business', () => {
+  // `name` and `coverage` are read by the listing, so the compiler must neither
+  // require them nor let them reach the stylesheet.
+  const result = compile({ '--primary': '175 84% 32%' }, { name: '深海', coverage: 'full' });
+
+  assert.ok(result.ok);
+  assert.ok(!result.css.includes('深海'));
+  assert.ok(!result.css.includes('coverage'));
+});

@@ -22,9 +22,8 @@ import path from 'node:path';
 export type ThemeFileFormat = 'css' | 'json' | 'tmTheme';
 
 /**
- * One theme file offered to the client. Metadata is derived from the filename —
- * formats that carry their own metadata (a `name` or `appearance` key) are
- * parsed later, in the client's option-A pipeline.
+ * One theme file offered to the client. A `.json` file's own `name` and
+ * `coverage` are read out of it; everything else is derived from the filename.
  */
 export type ThemeFileEntry = {
   /**
@@ -32,20 +31,26 @@ export type ThemeFileEntry = {
    * file can never sanitize into a builtin `cc-` id and silently shadow it.
    */
   id: string;
-  /** Display name in the picker — the filename base, verbatim. */
+  /** Display name in the picker: the name the file declares, or its filename base. */
   name: string;
   /** Always `user`: these entries came from the themes folder, not the builtin registry. */
   source: 'user';
   /**
-   * Always `system` while metadata is filename-derived: a user file is an
-   * overlay theme, the kind the picker offers (see §5.3 v9 on the two roles of
-   * `appearance`). Whether a file may declare a different value is decided when
-   * option A starts reading metadata out of the file.
+   * Always `system`, because this field is the *role* a theme plays: `system` is
+   * an overlay, the kind the picker offers, and `light` / `dark` are the
+   * appearance defaults it does not (§5.3 v9). A file's own `appearance` key
+   * answers a different question — which appearance its rules are written for —
+   * and is applied where those rules are compiled, not here (§5.6 v13).
    */
   appearance: 'system';
   /** On-disk filename; the identifier the serving route accepts. */
   fileName: string;
   format: ThemeFileFormat;
+  /**
+   * The reach the file declares, when it declares a valid one. Absent means
+   * undeclared, and the picker shows no badge rather than a fabricated one.
+   */
+  coverage?: 'accent' | 'full';
   /** Last-modified time in ms; the client uses it as the cache-busting `?v=`. */
   modifiedAt: number;
 };
@@ -66,6 +71,65 @@ const THEME_FILE_NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 
 /** §5.8: `@import` would let a theme pull in stylesheets the server never vetted. */
 const IMPORT_RULE_PATTERN = /@import/i;
+
+/** The reach values a file may declare; anything else is dropped rather than listed. */
+const COVERAGES = new Set(['accent', 'full']);
+
+/**
+ * Longest display name taken from a file. Longer ones fall back to the filename
+ * base: the name is drawn in the picker, and the point of reading it is a nicer
+ * label, not an unbounded string off disk.
+ */
+const MAX_DECLARED_NAME_LENGTH = 80;
+
+/** What a theme file says about itself, beyond what its filename already tells us. */
+type DeclaredMetadata = { name?: string; coverage?: 'accent' | 'full' };
+
+/**
+ * Reads the metadata a `.json` theme declares about itself.
+ *
+ * Only `.json` is read: a `.css` file has nowhere to declare a name, and a
+ * `.tmTheme` gets its own slice. A file that does not parse is still listed
+ * under its filename — the client is the side that can tell the user why it
+ * will not compile, and a file that quietly never appears in the picker is
+ * harder to understand than one that appears and is refused.
+ *
+ * `appearance` is deliberately not read here; see `ThemeFileEntry`.
+ */
+async function readDeclaredMetadata(
+  fileName: string,
+  filePath: string,
+  format: ThemeFileFormat,
+): Promise<DeclaredMetadata> {
+  if (format !== 'json') return {};
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await fs.readFile(filePath, 'utf8'));
+  } catch {
+    console.warn(`[Themes] ${fileName} is not readable JSON; listing it under its filename`);
+    return {};
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+
+  const record = parsed as Record<string, unknown>;
+  const metadata: DeclaredMetadata = {};
+
+  const name = typeof record.name === 'string' ? record.name.trim() : '';
+  if (name && name.length <= MAX_DECLARED_NAME_LENGTH) {
+    metadata.name = name;
+  }
+
+  if (record.coverage !== undefined) {
+    if (typeof record.coverage === 'string' && COVERAGES.has(record.coverage)) {
+      metadata.coverage = record.coverage as 'accent' | 'full';
+    } else {
+      console.warn(`[Themes] ${fileName} declares an unknown coverage; no badge will be shown`);
+    }
+  }
+
+  return metadata;
+}
 
 const EXTENSION_TO_FORMAT: Record<string, ThemeFileFormat> = {
   '.css': 'css',
@@ -154,15 +218,18 @@ async function inspectThemeFile(themesDir: string, fileName: string): Promise<Th
     }
 
     const base = themeFileBase(fileName);
-    return {
+    const declared = await readDeclaredMetadata(fileName, filePath, format);
+    const entry: ThemeFileEntry = {
       id: `${USER_THEME_ID_PREFIX}${base.toLowerCase()}`,
-      name: base,
+      name: declared.name ?? base,
       source: 'user',
       appearance: 'system',
       fileName,
       format,
       modifiedAt: stats.mtimeMs,
     };
+    if (declared.coverage) entry.coverage = declared.coverage;
+    return entry;
   } catch {
     return null;
   }

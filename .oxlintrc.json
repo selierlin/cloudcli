@@ -102,6 +102,7 @@
           "src/shared/userSettings.ts",
           "src/shared/userThemes.ts",
           "src/shared/userThemeStyles.ts",
+          "src/shared/userThemeTokens.ts",
           "src/shared/chatDrafts.ts",
           "src/shared/quickReplies.ts",
           "src/shared/syntaxHighlighter.ts",
