@@ -130,16 +130,23 @@ const NUMBER_PATTERN = /^\d+(?:\.\d+)?(?:px|rem|em|%)?$/;
  * tokens are written straight into `EditorView.theme()` rules rather than
  * consumed through `hsl()` (see §5.11 v5). One shape covers all of them: the
  * characters a CSS value is made of, with the escape hatches already removed by
- * the structural gate. This is deliberately looser than the colour rules below
- * — a wrong value here costs one editor decoration, and the browser drops it.
+ * the structural gate. The shape is deliberately looser than the colour rules
+ * below — a wrong value costs one editor decoration, and the browser drops it —
+ * but §5.8 v4's reference rule holds here too: every `var()` inside the value
+ * has to point at a token a theme may set, which `matchesRule` checks. A loose
+ * shape is not a licence to borrow names outside the contract.
  */
 const EXPRESSION_PATTERN = /^[-a-zA-Z0-9 .,%()#/_]+$/;
+
+/** Every `var(--x)` target inside a value, for the reference rule above. */
+const REFERENCE_TARGET_PATTERN = /var\((--[a-z0-9-]+)\)/g;
 
 type ValueRule =
   | 'triplet'
   | 'triplet-or-reference'
   | 'triplet-or-reference-with-optional-alpha'
   | 'length'
+  | 'number'
   | 'number-or-length'
   | 'expression';
 
@@ -149,6 +156,7 @@ const RULE_DESCRIPTION: Record<ValueRule, string> = {
   'triplet-or-reference-with-optional-alpha':
     'an HSL triplet or var() reference, optionally followed by " / <alpha>"',
   length: 'a length (e.g. "0.5rem")',
+  number: 'a plain number (e.g. "315.3")',
   'number-or-length': 'a number, optionally with a unit',
   expression: 'a CSS value without quotes or escapes',
 };
@@ -180,7 +188,13 @@ const SEMANTIC_TOKENS = new Set([
   '--secondary-foreground',
 ]);
 
-const EXACT_RULES = new Map<string, ValueRule>([['--radius', 'length']]);
+const EXACT_RULES = new Map<string, ValueRule>([
+  ['--radius', 'length'],
+  // §5.12's two knobs: a theme overrides these two numbers and the whole graph
+  // recolours, which is the deal v3 struck and P2-3 cashed into this list.
+  ['--graph-lane-base-hue', 'number'],
+  ['--graph-lane-hue-step', 'number'],
+]);
 
 /**
  * The token families a theme may move, each with the shape its consumers can
@@ -251,10 +265,22 @@ function matchesRule(rule: ValueRule, value: string): boolean {
     }
     case 'length':
       return LENGTH_PATTERN.test(value);
+    case 'number':
+      return /^\d+(?:\.\d+)?$/.test(value);
     case 'number-or-length':
       return NUMBER_PATTERN.test(value);
-    case 'expression':
-      return EXPRESSION_PATTERN.test(value);
+    case 'expression': {
+      if (!EXPRESSION_PATTERN.test(value)) return false;
+      // §5.8 v4's reference rule reaches here too: the expression shape may
+      // carry var(), and every target inside it has to be one a theme could
+      // have set directly — otherwise an editor token could borrow a numbered
+      // syntax variable, whose meaning moves with a Prism renumber (§5.9),
+      // from a name the whitelist deliberately never authorized.
+      for (const match of value.matchAll(REFERENCE_TARGET_PATTERN)) {
+        if (ruleForToken(match[1]) === null) return false;
+      }
+      return true;
+    }
   }
 }
 

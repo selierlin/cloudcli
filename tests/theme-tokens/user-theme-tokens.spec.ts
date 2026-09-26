@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { laneColor } from '@/modules/git-panel/utils/commitGraph';
+
 /**
  * A token JSON theme, in a real engine.
  *
@@ -119,4 +121,60 @@ test('a value that tried to leave its declaration never reaches the document', a
   // visible rather than only that the sheet is absent.
   const bodyDisplay = await page.evaluate(() => getComputedStyle(document.body).display);
   expect(bodyDisplay).not.toBe('none');
+});
+
+/**
+ * §5.12 v3 promised that a theme can retune the overflow lanes by overriding
+ * the two hue parameters; P2-3 cashed that promise into option A's whitelist,
+ * after the whitelist spent weeks refusing the very tokens the deal names.
+ * What a unit test cannot prove is that the compiled overlay — `[data-theme]`
+ * scoping, equal specificity against `:root`, document order — actually moves
+ * the parameters the JS formula reads. The engine settles it.
+ */
+test('a token theme retunes the lane overflow through the two hue knobs', async ({ page }) => {
+  await page.goto('/');
+  const applied = await page.evaluate(({ id, body }) => {
+    return window.__THEME_TOKENS__!.applyUserTheme({
+      id,
+      fileName: 'lanes.json',
+      format: 'json',
+      css: body,
+    });
+  }, {
+    id: FIXTURE_ID,
+    body: JSON.stringify({
+      tokens: { '--graph-lane-base-hue': '10', '--graph-lane-hue-step': '100' },
+    }),
+  });
+
+  // Neither knob is a colour, so the contrast check has nothing to say.
+  expect(applied.state).toEqual({ appliedId: FIXTURE_ID, failedId: null, warnings: [] });
+
+  const reads = await page.evaluate((fallbackExpression) => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const paint = (value: string): string => {
+      const el = document.createElement('div');
+      el.style.setProperty('transition', 'none');
+      el.style.backgroundColor = value;
+      host.appendChild(el);
+      return getComputedStyle(el).backgroundColor;
+    };
+    const rootStyle = getComputedStyle(document.documentElement);
+    return {
+      declaredBase: rootStyle.getPropertyValue('--graph-lane-base-hue').trim(),
+      declaredStep: rootStyle.getPropertyValue('--graph-lane-hue-step').trim(),
+      fallback: paint(fallbackExpression),
+      // The reference spells the same resolved hue as a plain number: the
+      // theme's 10 + 100 × 12 wraps to the colour the formula must produce.
+      reference: paint('hsl(1210 70% 55%)'),
+      tokenLane: paint('hsl(var(--graph-lane-1))'),
+      tokenReference: paint('hsl(var(--graph-lane-1))'),
+    };
+  }, laneColor(12));
+
+  expect(reads.declaredBase, 'the overlay, not :root, now owns the base hue').toBe('10');
+  expect(reads.declaredStep).toBe('100');
+  expect(reads.fallback, 'the overflow lane follows the theme\u2019s parameters').toBe(reads.reference);
+  expect(reads.tokenLane, 'the token board itself is untouched by the knobs').toBe(reads.tokenReference);
 });

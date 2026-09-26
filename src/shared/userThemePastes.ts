@@ -5,6 +5,7 @@ import {
   subscribeToUserPreferences,
   writeUserPreference,
 } from '@/shared/userSettings';
+import { containsImportAtRule } from '@/shared/cssAtRules';
 import { compileUserThemeTokens } from '@/shared/userThemeTokens';
 import type { IgnoredThemeEntry, UserThemeCompileFailure } from '@/shared/userThemeTokens';
 
@@ -68,13 +69,14 @@ const FORMATS = new Set<PastedThemeFormat>(['json', 'css']);
  * would let a theme load rules nothing vetted. A pasted stylesheet has no server
  * in front of it — the text goes straight from the settings box into the document
  * — so this is the only gate of its kind, and the same refusal has to exist here
- * or the constraint would hold for files and not for pastes. Same pattern as the
- * server's, deliberately: two gates for one rule should agree on what the rule is.
+ * or the constraint would hold for files and not for pastes. Since §5.8 v8 both
+ * gates call the *same* implementation — `containsImportAtRule`, the escape-aware
+ * scanner in `cssAtRules.ts` — so agreeing on what the rule is is structural, not
+ * a promise to keep two regexes in sync.
  *
  * Only a stylesheet can carry the rule; option A's output is a block of
  * declarations, so `json` needs no such check.
  */
-const IMPORT_RULE_PATTERN = /@import/i;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -210,7 +212,7 @@ export type PastedThemeCompileResult =
  * nothing outside this module knows it. `json` goes through option A's token
  * compiler, which is where its whitelist and value shapes are enforced; `css` is
  * option B and is injected as it stands, minus the one gate a stylesheet needs
- * and a block of declarations cannot (`IMPORT_RULE_PATTERN`).
+ * and a block of declarations cannot (`containsImportAtRule`).
  *
  * Pure — it logs nothing and touches no document — which is what lets the paste
  * path call it to decide whether to store, and the apply path call it again on
@@ -231,7 +233,7 @@ export function compilePastedTheme(theme: PastedUserTheme): PastedThemeCompileRe
   }
 
   if (theme.format === 'css') {
-    return IMPORT_RULE_PATTERN.test(theme.content)
+    return containsImportAtRule(theme.content)
       ? { ok: false, reason: 'import-rule', ignored: [] }
       : { ok: true, css: theme.content, ignored: [], warnings: [] };
   }

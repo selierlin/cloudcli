@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { extname, join } from 'node:path';
 
 import { expect, test } from 'vitest';
 
@@ -219,15 +219,24 @@ test('the selector → variable mapping is frozen', () => {
 
 // Vitest runs with the repository root as its working directory, and
 // `import.meta.url` is not a file URL under its module runner.
-const SOURCE_ROOT = join(process.cwd(), 'src');
+//
+// The scan covers every tree a hand-written `--cc-syntax-N` could hide in —
+// the client sources, the server, and the browser suites (§5.8 v8). The
+// generator and this file's snapshot remain the only places a number may
+// appear, and both live under `src`.
+const SCAN_ROOTS: ReadonlyArray<{ root: string; extensions: string[] }> = [
+  { root: join(process.cwd(), 'src'), extensions: ['.ts', '.tsx'] },
+  { root: join(process.cwd(), 'server'), extensions: ['.ts', '.js'] },
+  { root: join(process.cwd(), 'tests'), extensions: ['.ts'] },
+];
 
-const sourceFiles = (directory: string): string[] =>
+const sourceFiles = (directory: string, extensions: string[]): string[] =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
     if (entry.isDirectory()) {
-      return sourceFiles(path);
+      return sourceFiles(path, extensions);
     }
-    return entry.name.endsWith('.ts') || entry.name.endsWith('.tsx') ? [path] : [];
+    return extensions.includes(extname(entry.name)) ? [path] : [];
   });
 
 test('no call site hard-codes a syntax variable number', () => {
@@ -241,13 +250,15 @@ test('no call site hard-codes a syntax variable number', () => {
   const pattern = /--cc-syntax-[0-9]/;
   const offenders: string[] = [];
 
-  for (const path of sourceFiles(SOURCE_ROOT)) {
-    const relative = path.slice(SOURCE_ROOT.length + 1);
-    if (allowed.has(relative)) {
-      continue;
-    }
-    if (pattern.test(readFileSync(path, 'utf8'))) {
-      offenders.push(relative);
+  for (const { root, extensions } of SCAN_ROOTS) {
+    for (const path of sourceFiles(root, extensions)) {
+      const relative = path.slice(root.length + 1);
+      if (root === process.cwd() + '/src' && allowed.has(relative)) {
+        continue;
+      }
+      if (pattern.test(readFileSync(path, 'utf8'))) {
+        offenders.push(path.slice(process.cwd().length + 1));
+      }
     }
   }
 

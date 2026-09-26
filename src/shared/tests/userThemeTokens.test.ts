@@ -359,3 +359,58 @@ test('a reference is handed over as a reference, not as the colour it points at'
     ],
   );
 });
+
+/**
+ * §5.8 v8: the reference rule reaches the expression shape too (P2-2), and the
+ * §5.12 lane knobs joined the authorization surface (P2-3).
+ */
+
+test('an expression value may only reference tokens the theme could have set', () => {
+  // The expression shape is loose on purpose — it goes into EditorView.theme()
+  // as a complete value — but looseness of shape is not looseness of contract:
+  // a name the whitelist never authorized must not become a colour source.
+  const rejected = compile({
+    '--editor-fg': `var(${SYNTAX_TOKEN_MAP.keyword})`,
+    '--editor-bg': '#282c34',
+  });
+  assert.ok(rejected.ok);
+  assert.deepEqual(ignoredNames(rejected), ['--editor-fg']);
+
+  const geometry = compile({ '--editor-fg': 'var(--safe-area-top)', '--editor-bg': '#282c34' });
+  assert.ok(geometry.ok);
+  assert.deepEqual(ignoredNames(geometry), ['--editor-fg']);
+
+  // The legal spellings are untouched: a complete value that borrows a themed
+  // token — even embedded mid-value, not as the whole value — compiles.
+  const accepted = compile({
+    '--editor-fg': 'hsl(var(--palette-white))',
+    '--editor-panel-border': '1px solid var(--primary)',
+    '--editor-bg': '#282c34',
+  });
+  assert.ok(accepted.ok);
+  assert.deepEqual(accepted.ignored, []);
+  assert.match(accepted.css, /--editor-panel-border: 1px solid var\(--primary\);/);
+});
+
+test('the §5.12 lane knobs take the numbers the fallback formula is made of', () => {
+  const accepted = compile({
+    '--graph-lane-base-hue': '315.3',
+    '--graph-lane-hue-step': '95.1',
+    '--primary': '175 84% 32%',
+  });
+  assert.ok(accepted.ok);
+  assert.equal(accepted.ignored.length, 0);
+  assert.match(accepted.css, /--graph-lane-base-hue: 315\.3;/);
+  assert.match(accepted.css, /--graph-lane-hue-step: 95\.1;/);
+
+  // A hue is a plain number: a unit would ride into `hsl(calc(base + step * n))`
+  // and silently unmake the colour, and a negative step is a name the rule never
+  // promised — the factory pair is positive and the formula wraps by itself.
+  const rejected = compile({
+    '--graph-lane-base-hue': '10px',
+    '--graph-lane-hue-step': '-5',
+    '--primary': '175 84% 32%',
+  });
+  assert.ok(rejected.ok);
+  assert.deepEqual(ignoredNames(rejected), ['--graph-lane-base-hue', '--graph-lane-hue-step']);
+});

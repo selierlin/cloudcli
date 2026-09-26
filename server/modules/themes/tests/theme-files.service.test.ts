@@ -333,3 +333,43 @@ test('readThemeFile refuses unsafe names, missing files and rejected content', a
   assert.equal((await readThemeFile(themesDir, 'huge.css')).status, 'invalid');
   assert.equal((await readThemeFile(themesDir, 'absent.css')).status, 'missing');
 });
+
+test('the import gate catches the escaped spellings a literal regex cannot see', async () => {
+  // `@im\70 ort` and friends are CSSImportRules in a real engine: the tokenizer
+  // decodes the ident escapes before any rule exists. A literal /@import/i saw
+  // none of them (§5.8 v8); the shared scanner has to refuse every form the
+  // client's paste gate refuses, which is what the shared vector list pins.
+  const themesDir = await scratchThemesDir();
+  await writeTheme(themesDir, 'escaped.css', '@im\\70 ort url(https://evil.example/x.css);');
+  await writeTheme(themesDir, 'initial.css', '@\\69 mport "x.css";');
+  await writeTheme(themesDir, 'clean.css', 'a { color: red }');
+
+  const entries = await scanThemeFiles(themesDir);
+  assert.deepEqual(entries.map((entry) => entry.fileName), ['clean.css']);
+
+  const served = await readThemeFile(themesDir, 'escaped.css');
+  assert.equal(served.status, 'invalid', 'the serving route re-applies the gate');
+  assert.equal((await readThemeFile(themesDir, 'clean.css')).status, 'found');
+});
+
+test('a symlink inside the themes folder is followed; one that leaves it is not', async () => {
+  const themesDir = await scratchThemesDir();
+  const elsewhere = await scratchThemesDir();
+
+  await writeTheme(themesDir, 'clean.css', 'a { color: red }');
+  // Points at a sibling *inside* the folder: the current behaviour is to
+  // follow it, and this test is what makes a future change to that answer red.
+  await fs.symlink(path.join(themesDir, 'clean.css'), path.join(themesDir, 'alias.css'));
+  // Points outside: whatever the lexical check sees, the canonical path is not
+  // the folder's, and serving it would be a way around the folder boundary.
+  await writeTheme(elsewhere, 'secret.css', 'body { display: none }');
+  await fs.symlink(path.join(elsewhere, 'secret.css'), path.join(themesDir, 'leak.css'));
+
+  const listed = (await scanThemeFiles(themesDir)).map((entry) => entry.fileName);
+  assert.ok(listed.includes('alias.css'), 'a contained symlink is a theme like any other');
+  assert.equal(listed.includes('leak.css'), false, 'an escaping symlink is refused');
+
+  const served = await readThemeFile(themesDir, 'leak.css');
+  assert.equal(served.status, 'invalid', 'the serving route holds the same line');
+  assert.equal((await readThemeFile(themesDir, 'alias.css')).status, 'found');
+});
