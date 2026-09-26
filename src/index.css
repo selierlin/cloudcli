@@ -1673,3 +1673,169 @@
   --editor-toolbar-hover-bg: hsl(var(--palette-ink-800));
   --editor-loading-bg: hsl(var(--palette-ink-950));
 }
+
+/* cc-catppuccin — coverage: full. Catppuccin, the board the Codex TUI defaults
+   to: `catppuccin-mocha` when its terminal background is dark, `catppuccin-latte`
+   when it is light. Codex's own "theme" is a *syntax* theme and nothing else —
+   its shell borrows the terminal's colours — so what is translated here is the
+   colour board, not a chrome. That is why this theme exists at all: the syntax
+   half already has a home in `.tmTheme` files, and the shell half is this one.
+
+   Both appearances are Catppuccin's own flavours — the light half is Latte, the
+   dark half Mocha — mapped onto the L1 families the base already publishes, so
+   one appearance-agnostic block lets the capsule pick each step, exactly as
+   `cc-polar` does.
+
+   Two values are deliberately *not* Catppuccin's:
+
+   - `--palette-sand-500`. Latte's own secondary text (`subtext0`, #6c6f85)
+     reaches only 4.37:1 on Latte's base — under the AA floor §5.10 puts every
+     shipped theme behind — so the next step down (`subtext1`, #5c5f77, 5.53:1)
+     is used instead. Same account as the base's own `sand-500` move from 44% to
+     43% in 1-H.
+   - `--palette-danger-800`, left at the base's dark red. Every red in Mocha is
+     a pastel meant to be *read* on a dark surface, and lands near 2:1 as a
+     *fill* with light text on it; the dark half's destructive button therefore
+     keeps the base fill, which reads at 6.9:1 under Mocha's `text`. The light
+     half does take Latte's red (5.2:1 under the frost label, against the base's
+     3.6:1).
+
+   `--palette-white` is deliberately not overridden either: the light card stays
+   pure white on the tinted substrate, the way the base's card sits on warm
+   sand. */
+[data-theme="cc-catppuccin"] {
+  /* Substrate — light: Latte. base / mantle / surface0 / subtext1 / text.
+     `sand-950` repeats `text`: Latte publishes one deep ink, and the base only
+     tells `--foreground` from `--secondary-foreground` by depth. */
+  --palette-sand-50: 220 23.08% 94.9%;
+  --palette-sand-100: 220 21.95% 91.96%;
+  --palette-sand-200: 222.86 15.91% 82.75%;
+  --palette-sand-500: 233.33 12.8% 41.37%;
+  --palette-sand-800: 233.79 16.02% 35.49%;
+  --palette-sand-950: 233.79 16.02% 35.49%;
+
+  /* Substrate — dark: Mocha. base / surface0 / surface1 / surface2 / subtext0
+     / text. */
+  --palette-ink-950: 240 21.05% 14.9%;
+  --palette-ink-900: 236.84 16.24% 22.94%;
+  --palette-ink-850: 234.29 13.21% 31.18%;
+  --palette-ink-800: 232.5 12% 39.22%;
+  --palette-ink-400: 227.65 23.61% 71.76%;
+  --palette-ink-100: 226.15 63.93% 88.04%;
+
+  /* Accent: Catppuccin blue, the hue its syntax board leans on. The light step
+     is Latte's (white label clears 4.7:1), the dark step Mocha's. */
+  --palette-brand-500: 219.91 91.49% 53.92%;
+  --palette-brand-400: 217.17 91.87% 75.88%;
+
+  /* Danger: Latte's red is the light fill (see the note above for why the dark
+     fill is left alone). */
+  --palette-danger-500: 347.08 86.67% 44.12%;
+
+  /* Terminal board — Mocha's ANSI-16. The board is appearance-agnostic by
+     construction (it is declared once in `:root` and never mirrored in `.dark`),
+     so a theme gives it one flavour and it keeps it in both appearances. Slots
+     keep their meanings: red is error/deleted, green success/added, blue info.
+     Catppuccin publishes fourteen colours for sixteen slots, so the `bright-*`
+     half reuses the same accents; only the two ends step apart — `bright-black`
+     up to surface2 and `bright-white` up to `text` — which is what stops the
+     board reading as eight repeated pairs. */
+  --palette-term-bg: 240 21.05% 14.9%;
+  --palette-term-fg: 226.15 63.93% 88.04%;
+  --palette-term-cursor: 9.6 55.56% 91.18%;
+  --palette-term-selection: 232.5 12% 39.22%;
+  --palette-term-black: 234.29 13.21% 31.18%;
+  --palette-term-red: 343.27 81.25% 74.9%;
+  --palette-term-green: 115.45 54.1% 76.08%;
+  --palette-term-yellow: 41.35 86.05% 83.14%;
+  --palette-term-blue: 217.17 91.87% 75.88%;
+  --palette-term-magenta: 267.41 83.51% 80.98%;
+  --palette-term-cyan: 170 57.35% 73.33%;
+  --palette-term-white: 226.67 35.29% 80%;
+  --palette-term-bright-black: 232.5 12% 39.22%;
+  --palette-term-bright-red: 350.4 65.22% 77.45%;
+  --palette-term-bright-green: 115.45 54.1% 76.08%;
+  --palette-term-bright-yellow: 41.35 86.05% 83.14%;
+  --palette-term-bright-blue: 217.17 91.87% 75.88%;
+  --palette-term-bright-magenta: 267.41 83.51% 80.98%;
+  --palette-term-bright-cyan: 170 57.35% 73.33%;
+  --palette-term-bright-white: 226.15 63.93% 88.04%;
+
+  /* Graph lanes. The same ten hues in the same order, so a lane still reads as
+     itself — the method `cc-polar`'s lanes use. Saturation is levelled at 55%
+     (Catppuccin's own accents are pastels picked for a dark base and fall to
+     1.1–2.1:1 on Latte) and lightness is the point that maximises the *worse*
+     of the two substrates, which puts every lane at 3.76:1 or better on both.
+     The graph suite pins the base board, not this one — a theme's lanes are the
+     theme's decision. */
+  --palette-graph-1: 198.6 55% 42%;
+  --palette-graph-2: 24.6 55% 45%;
+  --palette-graph-3: 270.7 55% 59.5%;
+  --palette-graph-4: 142.1 55% 35%;
+  --palette-graph-5: 0 55% 56%;
+  --palette-graph-6: 45.4 55% 36.5%;
+  --palette-graph-7: 173.4 55% 34.5%;
+  --palette-graph-8: 330.4 55% 54%;
+  --palette-graph-9: 238.7 55% 63%;
+  --palette-graph-10: 83.7 55% 33.5%;
+}
+
+/* The editor's two halves, split the way `cc-polar`'s are and for the same
+   reason: its base values are appearance-specific literals rather than L1
+   references, so a single block would leak light chrome into dark mode. */
+[data-theme="cc-catppuccin"]:not(.dark) {
+  --editor-bg: hsl(var(--palette-sand-50));
+  --editor-toolbar-bg: hsl(var(--palette-sand-50));
+  --editor-loading-bg: hsl(var(--palette-sand-50));
+  --editor-selection: hsl(var(--palette-sand-200));
+  --editor-selection-focused: hsl(var(--palette-brand-500) / 0.22);
+  --editor-gutter-bg: hsl(var(--palette-sand-50));
+  --editor-gutter-fg: hsl(var(--palette-sand-500));
+  --editor-gutter-separator: 1px solid hsl(var(--palette-sand-200));
+  --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.14);
+  --editor-active-line-gutter-bg: hsl(var(--palette-sand-100));
+  --editor-panel-bg: hsl(var(--palette-sand-100));
+  --editor-panel-border: 1px solid hsl(var(--palette-sand-200));
+  --editor-fold-placeholder-bg: hsl(var(--palette-sand-100));
+  --editor-fold-placeholder-fg: hsl(var(--palette-sand-500));
+  --editor-tooltip-bg: hsl(var(--palette-sand-100));
+  --editor-tooltip-border: 1px solid hsl(var(--palette-sand-200));
+  --editor-tooltip-arrow-border: hsl(var(--palette-sand-200));
+  --editor-tooltip-arrow: hsl(var(--palette-sand-100));
+  --editor-autocomplete-selected-bg: hsl(var(--palette-brand-500));
+  --editor-minimap-bg: hsl(var(--palette-sand-100));
+  --editor-toolbar-border: hsl(var(--palette-sand-200));
+  --editor-toolbar-fg: hsl(var(--palette-sand-800));
+  --editor-toolbar-hover-bg: hsl(var(--palette-sand-100));
+}
+
+[data-theme="cc-catppuccin"].dark {
+  --editor-bg: hsl(var(--palette-ink-950));
+  --editor-fg: hsl(var(--palette-ink-100));
+  --editor-caret: hsl(var(--palette-brand-400));
+  --editor-cursor: hsl(var(--palette-brand-400));
+  --editor-selection: hsl(var(--palette-ink-850));
+  --editor-selection-focused: hsl(var(--palette-ink-850));
+  --editor-gutter-bg: hsl(var(--palette-ink-950));
+  --editor-gutter-fg: hsl(var(--palette-ink-400));
+  --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.06);
+  --editor-active-line-gutter-bg: hsl(var(--palette-ink-900));
+  --editor-panel-bg: hsl(var(--palette-ink-900));
+  --editor-panel-fg: hsl(var(--palette-ink-100));
+  --editor-search-match-bg: hsl(var(--palette-brand-400) / 0.35);
+  --editor-search-match-outline: 1px solid hsl(var(--palette-brand-400));
+  --editor-search-match-selected-bg: hsl(var(--palette-brand-400) / 0.18);
+  --editor-matching-bracket-bg: hsl(var(--palette-brand-400) / 0.28);
+  --editor-nonmatching-bracket-bg: hsl(var(--palette-danger-500) / 0.28);
+  --editor-fold-placeholder-fg: hsl(var(--palette-ink-400));
+  --editor-tooltip-bg: hsl(var(--palette-ink-850));
+  --editor-tooltip-arrow: hsl(var(--palette-ink-850));
+  --editor-autocomplete-selected-bg: hsl(var(--palette-ink-850));
+  --editor-autocomplete-selected-fg: hsl(var(--palette-ink-100));
+  --editor-minimap-bg: hsl(var(--palette-ink-950));
+  --editor-toolbar-bg: hsl(var(--palette-ink-850));
+  --editor-toolbar-border: hsl(var(--palette-ink-800));
+  --editor-toolbar-fg: hsl(var(--palette-ink-100));
+  --editor-toolbar-hover-bg: hsl(var(--palette-ink-800));
+  --editor-loading-bg: hsl(var(--palette-ink-950));
+}

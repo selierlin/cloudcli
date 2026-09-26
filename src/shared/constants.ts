@@ -356,6 +356,13 @@ export const BUILTIN_THEMES: ThemeManifest[] = [
     source: 'builtin',
     coverage: 'full',
   },
+  {
+    id: 'cc-catppuccin',
+    name: '卡布奇诺',
+    appearance: 'system',
+    source: 'builtin',
+    coverage: 'full',
+  },
 ];
 
 // ---------------------------
