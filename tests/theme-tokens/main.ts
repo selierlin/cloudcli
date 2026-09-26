@@ -7,7 +7,7 @@ import { EXTREME_TOKENS, SCALE_TOKEN_NAMES } from '@/shared/tests/neutralScale';
 import { ensureSyntaxStyleElement, SYNTAX_TOKEN_MAP } from '@/shared/syntaxTheme';
 import type { SyntaxSemanticName } from '@/shared/syntaxTheme';
 import type { ThemeManifest } from '@/shared/types';
-import { applyUserThemeStyle, getUserThemeStyleState } from '@/shared/userThemeStyles';
+import { applyUserThemeStyle, getUserThemeStyleState, previewUserThemeStyle } from '@/shared/userThemeStyles';
 import type { UserThemeStyleState } from '@/shared/userThemeStyles';
 import { applyThemeChrome } from '@/shared/utils';
 
@@ -395,6 +395,23 @@ export type UserThemeApplication = {
   cached: boolean;
 };
 
+/**
+ * What the page looks like with a draft on it.
+ *
+ * `isLast` is the half of this a jsdom test cannot reach: the preview and the
+ * applied theme are both plain `<style>` elements at the same specificity, so
+ * which one the page wears is settled by document order alone, and only an
+ * engine that actually cascades can say that the draft won.
+ */
+export type UserThemePreview = {
+  /** How many preview elements are in the document; more than one would be a stale draft. */
+  previewCount: number;
+  /** What the page paints for `--background` with the draft in place. */
+  background: string;
+  /** Whether the preview is the last element in `<head>`, which is what makes it win. */
+  isLast: boolean;
+};
+
 /** The files the stub answers for, and every theme file URL it has been asked for. */
 const themeFiles = new Map<string, { body: string; status: number }>();
 const themeRequests: string[] = [];
@@ -472,6 +489,25 @@ async function applyUserTheme(options: UserThemeOptions = {}): Promise<UserTheme
   };
 }
 
+/**
+ * The advanced mode's draft, driven through the production function.
+ *
+ * `null` is what the settings page sends when the box is empty, so it is also
+ * how this fixture asks the other question: whether taking the draft away leaves
+ * the theme that was already in the document where it was.
+ */
+function previewUserTheme(css: string | null): UserThemePreview {
+  previewUserThemeStyle(css);
+
+  const probe = document.querySelector<HTMLElement>('[data-token="--background"]');
+  const preview = document.querySelector('style[data-cloudcli-theme-preview]');
+  return {
+    previewCount: document.querySelectorAll('style[data-cloudcli-theme-preview]').length,
+    background: probe ? getComputedStyle(probe).backgroundColor : '',
+    isLast: preview !== null && preview === document.head.lastElementChild,
+  };
+}
+
 declare global {
   interface Window {
     __THEME_TOKENS__?: {
@@ -489,6 +525,8 @@ declare global {
       ): { themeColor: string | null; statusBar: string | null };
       /** Runs the production user-theme stylesheet path against a stubbed file server. */
       applyUserTheme(options: UserThemeOptions): Promise<UserThemeApplication>;
+      /** Puts a draft stylesheet in the document, or takes it away, and reads what the page paints. */
+      previewUserTheme(css: string | null): UserThemePreview;
       /** What one shared syntax slot resolves to right now. */
       readSyntaxToken(name: SyntaxSemanticName): string;
       /** Re-runs the production syntax-sheet injection, as a later-loaded chunk would. */
@@ -507,6 +545,7 @@ window.__THEME_TOKENS__ = {
   readMobileSelectionChrome,
   readThemeChrome,
   applyUserTheme,
+  previewUserTheme,
   readSyntaxToken,
   reinjectSyntaxStyleSheet,
 };

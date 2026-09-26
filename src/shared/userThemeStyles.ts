@@ -39,12 +39,30 @@ import type { ThemeContrastWarning } from '@/shared/userThemeContrast';
  * The markup is `<style data-cloudcli-user-theme="<id>">`, appended to `<head>`
  * and never parsed as HTML (§5.8) — the text is handed to the CSS parser and
  * nothing else.
+ *
+ * A *preview* is the second element this module owns: a draft the settings page
+ * is still editing, injected so the page can be seen wearing it (§5.5). It is
+ * the same kind of object — a stylesheet in the document — which is why it lives
+ * here rather than in the settings module: one place has to know every
+ * stylesheet that was put in the head, or a later cleanup will miss one.
  */
 
 const STORAGE_KEY = 'cloudcli.user-theme-style';
 
 /** Marks the injected element so it can be found and replaced without touching the bundle's CSS. */
 const STYLE_ELEMENT_ATTRIBUTE = 'data-cloudcli-user-theme';
+
+/**
+ * Marks the preview element: a draft stylesheet shown while it is being written.
+ *
+ * Deliberately a different attribute rather than a second value of the one
+ * above, because the two have opposite lifetimes. The applied element is
+ * persisted and cached; the preview is neither, and it has to survive every
+ * operation that touches the applied one except the forced recovery channel.
+ * Finding them by one attribute would make each removal a chance to take the
+ * other with it.
+ */
+const PREVIEW_ELEMENT_ATTRIBUTE = 'data-cloudcli-theme-preview';
 
 /**
  * The part of a compiled user theme that comes from the build rather than from
@@ -312,6 +330,41 @@ function injectedStyles(): HTMLStyleElement[] {
   return [...document.querySelectorAll<HTMLStyleElement>(`style[${STYLE_ELEMENT_ATTRIBUTE}]`)];
 }
 
+/** The preview element, if one is in the document. */
+function previewStyle(): HTMLStyleElement | null {
+  return document.querySelector<HTMLStyleElement>(`style[${PREVIEW_ELEMENT_ATTRIBUTE}]`);
+}
+
+/**
+ * Shows a draft stylesheet, or takes it away when `css` is null.
+ *
+ * Nothing here is stored: a preview is not a theme, it is the page trying one
+ * on, and `null` is what the editor sends while the draft is empty or is not
+ * being shown at all. What is injected is exactly what pasting the same text
+ * would inject, because the settings page compiles the draft through the same
+ * function the paste path does — a preview that disagreed with the result would
+ * be worse than no preview.
+ *
+ * A draft can make the page unreadable. That is the risk raw CSS already carries
+ * on the paste line (§5.5 v5), with one property this path adds: a preview lives
+ * only in the document, so a reload clears it. The forced channel
+ * (`?theme=default`) clears it too, since escaping a draft that broke the page
+ * is exactly what that channel is for.
+ */
+export function previewUserThemeStyle(css: string | null): void {
+  const existing = previewStyle();
+  if (css === null) {
+    existing?.remove();
+    return;
+  }
+
+  const element = existing ?? document.createElement('style');
+  element.setAttribute(PREVIEW_ELEMENT_ATTRIBUTE, '');
+  element.textContent = css;
+  // Appending *moves* an existing element, which is what keeps the preview last.
+  document.head.appendChild(element);
+}
+
 /**
  * Puts `css` in the document for `id`, replacing whatever element was there.
  *
@@ -329,6 +382,12 @@ function injectStyle(id: string, css: string): void {
   for (const stale of previous) {
     stale.remove();
   }
+
+  // The preview goes back to the end. Both are plain `<style>` elements at the
+  // same specificity, so the later one wins, and a preview buried under the
+  // theme it is meant to be trying out would silently stop being shown.
+  const preview = previewStyle();
+  if (preview) document.head.appendChild(preview);
 }
 
 function removeInjectedStyles(): void {
@@ -349,6 +408,9 @@ function removeInjectedStyles(): void {
 export function clearAppliedUserThemeStyle(): void {
   operation += 1;
   removeInjectedStyles();
+  // The preview goes with it: this is the forced recovery channel, and a draft
+  // that left the page unreadable is one of the things it has to escape.
+  previewStyle()?.remove();
   clearCache();
   applied = null;
   publish({ appliedId: null, failedId: null });

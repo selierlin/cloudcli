@@ -119,6 +119,26 @@ test('content over the size cap is refused before anything else is looked at', a
   assert.deepEqual(pastes.getPastedThemes(), [], 'and nothing is stored');
 });
 
+test('the size cap lives in the compile step, so a preview cannot show content a paste would refuse', async () => {
+  const { pastes } = await loadStores();
+  const oversizedJson = JSON.stringify({
+    tokens: { '--primary': '175 84% 32%' },
+    padding: 'x'.repeat(256 * 1024),
+  });
+  const oversizedSheet = `:root { --a: 1; }\n${'x'.repeat(256 * 1024)}`;
+
+  assert.deepEqual(
+    pastes.compilePastedTheme({ id: 'paste-1', name: '', content: oversizedJson, format: 'json' }),
+    { ok: false, reason: 'too-large', ignored: [] },
+    'the settings page compiles a draft through this function before anything is stored, so the cap has to be here',
+  );
+  assert.deepEqual(
+    pastes.compilePastedTheme({ id: 'paste-1', name: '', content: oversizedSheet, format: 'css' }),
+    { ok: false, reason: 'too-large', ignored: [] },
+    'and it holds for both formats, since both are compiled by the same call',
+  );
+});
+
 test('a value that tried to leave its declaration refuses the paste', async () => {
   const { pastes } = await loadStores();
 
