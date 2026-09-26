@@ -16,6 +16,7 @@ import SettingsRow from '@/modules/settings/SettingsRow';
 import SettingsSection from '@/modules/settings/SettingsSection';
 import SettingsToggle from '@/modules/settings/SettingsToggle';
 import ThemeSelector from '@/modules/settings/ThemeSelector';
+import TokenPreviewSection from '@/modules/settings/TokenPreviewSection';
 import UserThemesSection from '@/modules/settings/UserThemesSection';
 
 const FONT_SELECT_CLASS =
@@ -65,6 +66,8 @@ export default function AppearanceSettingsTab({
       </SettingsSection>
 
       <UserThemesSection />
+
+      <TokenPreviewSection />
 
       <SettingsSection title={t('mainTabs.appearance')}>
         <SettingsCard>
