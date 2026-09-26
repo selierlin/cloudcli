@@ -562,9 +562,11 @@ export async function applyUserThemeStyle(
   const revision = targetRevision(target);
 
   if (applied?.id === id && applied.revision === revision) return;
-  // A theme that already failed this session is not retried on every render:
-  // the console carries the reason, and a reload is what picks up a fixed file.
-  if (state.failedId === id) return;
+  // A theme that failed is retried whenever this is called for it again: the
+  // call arrives on a pick change or a re-listing, both of which are the user
+  // asking again — a fixed file should come back without a reload, and the
+  // refusal would otherwise be a one-way door (§5.8 v8). The console carries
+  // the reason either way.
 
   const token = ++operation;
   // A newer version of the theme being fetched keeps the version already on

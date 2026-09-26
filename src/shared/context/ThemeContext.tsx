@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react';
 
 import { BUILTIN_THEMES } from '@/shared/constants';
+import { AUTH_TOKEN_REFRESHED_EVENT } from '@/shared/authToken';
 import type { ThemeManifest } from '@/shared/types';
 import {
   applyUserThemeStyle,
@@ -180,9 +181,23 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   // Re-attempted when the pick changes, not only on mount: the first attempt can
   // land before the client has a session token, and a pick arriving from the
   // preference mirror after sign-in is exactly when the listing is needed.
+  //
+  // Sign-in does not touch `themeId`, so there is also this listener: without
+  // it a listing that failed for lack of a token would be a one-way door for
+  // the whole session — the pick never changes, the effect never re-fires, and
+  // the error is all the picker would ever have to show (§5.8 v8). The refresh
+  // itself is a no-op while the listing is ready; it exists for the failure.
   useEffect(() => {
     void refreshUserThemes();
   }, [themeId]);
+
+  useEffect(() => {
+    const retry = () => {
+      void refreshUserThemes();
+    };
+    window.addEventListener(AUTH_TOKEN_REFRESHED_EVENT, retry);
+    return () => window.removeEventListener(AUTH_TOKEN_REFRESHED_EVENT, retry);
+  }, []);
 
   const userThemes = useMemo(() => {
     const offered = [
@@ -240,26 +255,49 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     return null;
   }, [pickedEntry, pickedPaste]);
 
-  // A user theme is in force exactly while its stylesheet is in the document.
-  // That is also the only evidence the first paint can have — the listing has
-  // not answered yet — which is why this reads the stylesheet rather than the
-  // listing.
-  const userThemeInForce = Boolean(
-    themeId && !builtinOverlay && styleState.appliedId === themeId,
-  );
+  // A user theme is in force from the moment its stylesheet is in the document
+  // until something replaces or removes it — not only while it is also the
+  // pick. That wider reading is what keeps a switch from flashing (§5.6 v15):
+  // when the pick changes, `themeId` moves first and the new sheet arrives a
+  // fetch later, and collapsing `in force` to `appliedId === themeId` would
+  // drop `data-theme` onto the appearance default in between, unmatching the
+  // sheet the page is still wearing and painting the base palette for the
+  // whole round trip. It is also the only evidence the first paint can have —
+  // the listing has not answered yet — which is why this reads the stylesheet
+  // rather than the listing.
+  const userThemeInForce = Boolean(themeId && !builtinOverlay && styleState.appliedId !== null);
 
-  // What the document actually gets. A user theme is only in force once its
-  // stylesheet is there: until then the appearance default shows instead of a
-  // `data-theme` nothing matches, and when the stylesheet cannot be loaded at
-  // all the default is what stays.
+  // What the document actually gets: the pick once its stylesheet is there,
+  // the *previous* theme while the pick's is on its way, and the appearance
+  // default when nothing is in force or the pick failed outright — a failure
+  // tears the sheet down, so the default is what stays.
   const manifest = useMemo(() => {
     if (builtinOverlay) return builtinOverlay;
-    if (themeId && userThemeInForce) {
-      if (pickedPaste) return userThemeManifest(themeId, pickedPaste.name, 'user-paste', pickedPaste.coverage);
-      return userThemeManifest(themeId, pickedEntry?.name ?? themeId, 'user', pickedEntry?.coverage);
+    const forcedId = styleState.appliedId;
+    if (themeId && forcedId && styleState.failedId !== themeId) {
+      if (forcedId === themeId) {
+        if (pickedPaste) return userThemeManifest(themeId, pickedPaste.name, 'user-paste', pickedPaste.coverage);
+        return userThemeManifest(themeId, pickedEntry?.name ?? themeId, 'user', pickedEntry?.coverage);
+      }
+      // Still wearing the previous theme while the pick loads. Its identity is
+      // looked up by its own id, from whichever list remembers it.
+      const previousPaste = pastedThemes.find((theme) => theme.id === forcedId);
+      if (previousPaste) return userThemeManifest(forcedId, previousPaste.name, 'user-paste', previousPaste.coverage);
+      const previousEntry = userThemeState.entries.find((entry) => entry.id === forcedId);
+      return userThemeManifest(forcedId, previousEntry?.name ?? forcedId, 'user', previousEntry?.coverage);
     }
     return builtinThemeFor(appearance);
-  }, [builtinOverlay, themeId, userThemeInForce, pickedPaste, pickedEntry, appearance]);
+  }, [
+    builtinOverlay,
+    themeId,
+    styleState.appliedId,
+    styleState.failedId,
+    pickedPaste,
+    pickedEntry,
+    pastedThemes,
+    userThemeState.entries,
+    appearance,
+  ]);
 
   const resolvedThemeId = manifest.id;
 
@@ -308,12 +346,13 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   }), [theme]);
 
   // The stylesheet follows the pick. `listingComplete` distinguishes "no such
-  // file" from "not answered yet": only a listing that has been read settles it.
+  // file" from "not answered yet": only a listing that has been *read* settles
+  // it. A listing that failed is not evidence — the theme on screen may well be
+  // perfectly fine, and tearing it down because a request could not be answered
+  // would trade a working theme for a fallback nobody asked for (§5.8 v8). The
+  // fallback hint below still reports an unverifiable pick as such.
   useEffect(() => {
-    void applyUserThemeStyle(
-      applyTarget,
-      userThemeState.status === 'ready' || userThemeState.status === 'error',
-    );
+    void applyUserThemeStyle(applyTarget, userThemeState.status === 'ready');
   }, [applyTarget, userThemeState.status]);
 
   // Applying the theme to the document and persisting it are deliberately

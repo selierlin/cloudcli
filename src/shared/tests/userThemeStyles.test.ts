@@ -511,15 +511,26 @@ test('a file that cannot be read is refused, its cached copy dropped, and report
   );
 });
 
-test('a theme that already failed is not retried on every render', async () => {
+test('a failed theme is retried when it is asked for again, and comes back once fixed', async () => {
+  // The old behaviour refused a retry for the rest of the session: the refusal
+  // was a one-way door, and a user who fixed the file could not get the theme
+  // back without a reload. A repeat call is a user asking again — a pick change
+  // or a re-listing — so it retries (§5.8 v8).
   fileStatus = 500;
   const { styles } = await loadStores();
   await styles.applyUserThemeStyle(fileTarget(), true);
-
-  await styles.applyUserThemeStyle(fileTarget(), true);
-
-  assert.equal(fileRequests.length, 1, 'the refusal stands until a reload, rather than looping');
   assert.equal(styles.getUserThemeStyleState().failedId, 'user-borealis');
+
+  // Still failing: the retry happens (a second request) and the refusal stands.
+  await styles.applyUserThemeStyle(fileTarget(), true);
+  assert.equal(fileRequests.length, 2, 'a repeat call is a retry, not a loop');
+  assert.equal(styles.getUserThemeStyleState().failedId, 'user-borealis');
+
+  // Fixed: the same call the user's re-pick produces now applies.
+  fileStatus = 200;
+  await styles.applyUserThemeStyle(fileTarget({ modifiedAt: 99 }), true);
+  assert.equal(styles.getUserThemeStyleState().failedId, null);
+  assert.equal(styles.getUserThemeStyleState().appliedId, 'user-borealis');
 });
 
 test('the stylesheet is kept while the listing has not answered, and dropped once it rules the theme out', async () => {

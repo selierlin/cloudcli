@@ -359,8 +359,13 @@ export const getPageTitle = (
 
 //----------------- THEME CHROME ------------
 
-/** The colour `<meta name="theme-color">` falls back to while the token it follows is unavailable. Private to `applyThemeChrome`. */
-const FALLBACK_THEME_COLOR = '#ffffff';
+/**
+ * The colour `<meta name="theme-color">` falls back to while the token it follows is unavailable,
+ * per appearance — the base `--background` each palette ships (§5.8 v8). A dark page falling back
+ * to white would repaint the iOS status bar into the one state the palette was chosen to avoid.
+ * Private to `applyThemeChrome`.
+ */
+const FALLBACK_THEME_COLOR = { light: '#f7f6f3', dark: '#141414' } as const;
 
 /** How iOS paints the status bar per appearance, when a theme declares no opinion. Private to `applyThemeChrome`. */
 const STATUS_BAR_BY_APPEARANCE = { light: 'default', dark: 'black-translucent' } as const;
@@ -477,6 +482,6 @@ export function applyThemeChrome(
     ?.setAttribute('content', statusBar);
 
   const themeColor =
-    resolveOpaqueTokenColor(overrides?.themeColor ?? '--background') || FALLBACK_THEME_COLOR;
+    resolveOpaqueTokenColor(overrides?.themeColor ?? '--background') || FALLBACK_THEME_COLOR[appearance];
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColor);
 }
