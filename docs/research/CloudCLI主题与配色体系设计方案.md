@@ -523,11 +523,13 @@ export type ThemeManifest = {
 >
 > **四、这条通道为什么必须跟着粘贴线一起上。** 粘贴主题**不在磁盘上**，坏了没有文件系统可以绕过——它正是粘贴线一上线就需要的逃生门。跟着 2-E（原始 CSS）走等于先把 footgun 发给用户再补退路，所以本片把"恢复通道"从 2-E 挪到 2-D，2-E 只留原始 CSS（选项 B）与 `.tmTheme`（B2）。选项 A 的粘贴内容**天然免疫"破坏布局"**（只能写白名单令牌），但**不免疫"合法但有害"**——`--foreground` 与 `--background` 写成同一个三元组就能把界面变成看不清（§5.10 的对比度只警告不阻断），这正是通道要覆盖的情形。
 
+> **v15（实施轮批 2 追加，TIP ⑧）——首帧"不闪"隐性依赖 splash 盖屏，记为已知依赖。** `data-theme` 由 `ThemeContext` 在 useEffect（首帧绘制**之后**）写入，`data-appearance` / `color-scheme` / `theme-color` 由 1-I 的内联脚本在首帧前写好——所以"启动不闪默认基色"这一保证，其时间轴是「内联脚本管首帧 → splash 盖住其余 → useEffect 接管」。splash 提前消失（路由重构、SSR、桌面壳去除 splash）会把 useEffect 之前那一段暴露出来。三个写者的分段职责已在 `main.tsx` 的 splash 注释里就地注明（代码注释比文档记录更难被后人漏掉，Pi 复核建议照办）。
+
 ### 5.7 硬编码收口清单（阶段 0 的施工面）
 
 | 目标 | 文件 | 收口方式 |
 |---|---|---|
-| **Tailwind 具名中性色（界面骨架）** → 三分法**第一类**（v3 定为必做） | 中性色 **1502 处**（设计期 grep 口径；0-E2e 发现该口径漏了轴限定形态，真实口径为 **1517 处**，见该片记录），分布于 **105 个文件**（热点：`AskUserQuestionPanel.tsx` 84、`TaskDetailModal.tsx` 72、`McpServerFormModal.tsx` 69、`TaskBoardToolbar.tsx` 60、`AgentConnectionsStep.tsx` 60、`VersionUpgradeModal.tsx` 55…） | **v4 定案（A1 保值档位令牌）**：`bg-gray-100 dark:bg-gray-700` → `bg-n-gray-100 dark:bg-n-gray-700`——只把字面档位换成令牌引用，取值**逐档等于现状 Tailwind 中性值**。初稿写的 `bg-slate-800 → bg-card` / `text-zinc-400 → text-muted-foreground` **不可行**：实测本片存在 **89 种不同的 `(light, dark)` 元组**，而一个令牌类只能承载**一对**值，折叠到 ~15 个角色令牌必然改色（light 整体偏暖、dark 卡片 `#1f2937 → #1f1f1f`，单点 ΔRGB 最大 100），DoD 的"阈值 0"当场作废。保值档位层由 0-E1（`gray`）与 0-E1b（`zinc` / `slate` / `neutral`）建设（见下方实施记录）。**按文件集群分片，热点文件（>50 处）单独成片**；`bg-x dark:bg-y` 是成对结构（实测同文件对 ≥ 335 处，本仓粗测 414），**替换必须一次完成、同时消灭两半，不设中间态**。**代价（记账）**：`dark:` 双写结构保留（§5.7 第一类字面要求未满足），且档位跨角色耦合（`--n-gray-700` 同时承载 light 正文色与 dark 抬升面）；两者都由**阶段 2 的语义化改名**收口——与 `--cc-syntax-N` 本轮"只加间接与护栏、阶段 2 一次到位改名"（§8.9）同构。**进度**：**0-E6d 后剩余 0 处 / 0 文件**（`AskUserQuestionPanel.tsx` 84、`TaskDetailModal.tsx` 72、`McpServerFormModal.tsx` 69、`TaskBoardToolbar.tsx` 60、`VersionUpgradeModal.tsx` 55、`CodeEditorHeader.tsx` 52、`FolderBrowserModal.tsx` 46、`TaskEmptyState.tsx` 46、`AccountContent.tsx` 41、`toolConfigs.ts` 38、`QuestionAnswerContent.tsx` 35、`NextTaskBanner.tsx` 33、`TaskMasterSetupModal.tsx` 32、`GithubAuthenticationCard.tsx` 31、`PrdEditorHeader.tsx` 30、`GenerateTasksModal.tsx` 30、`CreateTaskModal.tsx` 30、`TaskHelpModal.tsx` 30、`TaskCard.tsx` 30、`fileIcons.ts` 28、`TaskListContent.tsx` 24、`MessageComponent.tsx` 24、`CodeEditorBinaryFile.tsx` 23、`CodeEditorMediaPreview.tsx` 22、`TaskFiltersPanel.tsx` 22、`TaskQuickSortBar.tsx` 18、`OverwriteConfirmModal.tsx` 18、`StepReview.tsx` 18、`SidebarProjectItem.tsx` 16、`taskKanban.ts` 16、`ImageViewer.tsx` 14、`ProjectCreationWizard.tsx` 14、`ShellHeader.tsx` 14、`TaskBoardContent.tsx` 14、`ToolDiffViewer.tsx` 12、`MarkdownPreview.tsx` 12、`UserMessageStickyHeader.tsx` 12、`TerminalShortcutsPanel.tsx` 11、`TextContent.tsx` 11、`BrowserUsePanel.tsx` 11、`QuickSettingsHandle.tsx` 10、`WorkspacePathField.tsx` 10、`ProviderLoginModal.tsx` 9、`WizardProgress.tsx` 9、`SidebarModals.tsx` 8、`ExecutionProcessSummary.tsx` 8、`PrdEditorFooter.tsx` 8、`ChatMessagesPane.tsx` 8、`StepConfiguration.tsx` 8、`ShellConnectionOverlay.tsx` 7、`MarkdownCodeBlock.tsx` 7、`Shell.tsx` 7、`CommandMenu.tsx` 6、`SessionOptions.tsx` 6、`SidebarContent.tsx` 6、`SidebarRecentConversations.tsx` 6、`MessageSpeakControl.tsx` 5、`CodeEditorLoadingState.tsx` 5、`PrdEditorLoadingState.tsx` 5、`ShellEmptyState.tsx` 5、`StandaloneShellEmptyState.tsx` 5、`StandaloneShellHeader.tsx` 5、`FileListContent.tsx` 4、`ToolStatusBadge.tsx` 4、`ChatMessageImages.tsx` 4、`MessageCopyControl.tsx` 4、`CodeEditorFooter.tsx` 4、`EditorSidebar.tsx` 4、`FileTree.tsx` 4、`TaskIndicator.tsx` 4、`ProviderSkills.tsx` 4、`Tooltip.tsx` 4、`LoadAllMessagesOverlay.tsx` 3、`CodeEditorSurface.tsx` 3、`MermaidDiagram.tsx` 3、`PrdEditorWorkspace.tsx` 3、`OneLineDisplay.tsx` 2、`GitPanelHeader.tsx` 2、`ConfirmActionModal.tsx` 2、`RemoveWorktreeModal.tsx` 2、`WizardFooter.tsx` 2、`WorkspaceTabs.tsx` 2、`NotificationsSettingsTab.tsx` 2、`DarkModeToggle.tsx` 2、`ComposerAttachment.tsx` 1、`PromptInput.tsx` 1、`VoiceInputButton.tsx` 1、`CommandResultModal.tsx` 1、`Markdown.tsx` 1、`CodeEditor.tsx` 1、`MergeWorktreeModal.tsx` 1、`NewBranchModal.tsx` 1、`NewWorktreeModal.tsx` 1、`AgentConnectionCard.tsx` 1、`Onboarding.tsx` 1、`OnboardingStepProgress.tsx` 1、`PluginSettingsTab.tsx` 1、`WorkspaceErrorBoundary.tsx` 1、`SettingsToggle.tsx` 1、`AgentSelectorSection.tsx` 1、`ShellMinimalView.tsx` 1、`SidebarModeTabs.tsx` 1、`TaskMasterPanel.tsx` 1、`Dialog.tsx` 1 均已清零）。沿革：0-E0 全量 **1502 处 / 105 文件** → 0-E2 后 1439 / 104 → 0-E2c 不变（纯护栏片）→ 0-E2d −84 → **0-E2e 扩面 +15 又同片清零 −15，剩余量不变**（但覆盖面从 1502 增至 **1517**，见 0-E2e 记录的口径变化）→ 0-E2f −72 → 0-E2g −69 → 0-E2h −60 → 0-E2i −55 → 0-E2j −52 → 0-E2k −46 → 0-E2l −46 → 0-E2m −41 → 0-E2n −38 → 0-E2o −35 → 0-E2p −33 → 0-E2q −32 → 0-E2r −31 → 0-E2s −30 → 0-E2t −30 → 0-E2u −30 → 0-E2v −30 → 0-E2w −30 → 0-E2x −28 → 0-E2y −24 → 0-E2z −24 → 0-E3a −23 → 0-E3b −22 → 0-E3c −22 → 0-E3d −18 → 0-E3e −18 → 0-E3f −18 → 0-E3g −16 → 0-E3h −16 → 0-E3i −14 → 0-E3j −14 → 0-E3k −14 → 0-E3l −14 → 0-E3m −12 → 0-E3n −12 → 0-E3o −12 → 0-E3p −11 → 0-E3q −11 → 0-E3r −11 → 0-E3s −10 → 0-E3t −10 → 0-E3u −9 → 0-E3v −9 → 0-E3w −8 → 0-E3x −8 → 0-E3y −8 → 0-E3z −8 → 0-E4a −8 → 0-E4b −7 → 0-E4c −7 → 0-E4d −7 → 0-E4e −6 → 0-E4f −6 → 0-E4g −6 → 0-E4h −6 → 0-E4i −5 → 0-E4j −5 → 0-E4k −5 → 0-E4l −5 → 0-E4m −5 → 0-E4n −5 → 0-E4o −4 → 0-E4p −4 → 0-E4q −4 → 0-E4r −4 → 0-E4s −4 → 0-E4t −4 → 0-E4u −4 → 0-E4v −4 → 0-E4w −4 → 0-E4x −4 → 0-E4y −3 → 0-E4z −3 → 0-E5a −3 → 0-E5b −3 → 0-E5c −2 → 0-E5d −2 → 0-E5e −2 → 0-E5f −2 → 0-E5g −2 → 0-E5h −2 → 0-E5i −2 → 0-E5j −2 → 0-E5k −1 → 0-E5l −1 → 0-E5m −1 → 0-E5n −1 → 0-E5o −1 → 0-E5p −1 → 0-E5q −1 → 0-E5r −1 → 0-E5s −1 → 0-E5t −1 → 0-E5u −1 → 0-E5v −1 → 0-E5w −1 → 0-E5x −1 → 0-E5y −1 → 0-E5z −1 → 0-E6a −1 → 0-E6b −1 → 0-E6c −1 → 0-E6d −1。另处置 2 处旧式 `*-opacity-*` 共现隐雷，见 0-E2 记录。**0-E2c** 补上配对层守恒律——0-E0 时代的全量字面命中数（1439 剩余 ＋ 1 豁免 ＋ 62 已迁移 = 1502）即冻结总量起点，从数字上追溯确认了 0-E2b 的迁移守恒 |
+| **Tailwind 具名中性色（界面骨架）** → 三分法**第一类**（v3 定为必做） | 中性色 **1502 处**（设计期 grep 口径；0-E2e 发现该口径漏了轴限定形态，真实口径为 **1517 处**，见该片记录），分布于 **105 个文件**（热点：`AskUserQuestionPanel.tsx` 84、`TaskDetailModal.tsx` 72、`McpServerFormModal.tsx` 69、`TaskBoardToolbar.tsx` 60、`AgentConnectionsStep.tsx` 60、`VersionUpgradeModal.tsx` 55…） | **v4 定案（A1 保值档位令牌）**：`bg-gray-100 dark:bg-gray-700` → `bg-n-gray-100 dark:bg-n-gray-700`——只把字面档位换成令牌引用，取值**逐档等于现状 Tailwind 中性值**。初稿写的 `bg-slate-800 → bg-card` / `text-zinc-400 → text-muted-foreground` **不可行**：实测本片存在 **89 种不同的 `(light, dark)` 元组**，而一个令牌类只能承载**一对**值，折叠到 ~15 个角色令牌必然改色（light 整体偏暖、dark 卡片 `#1f2937 → #1f1f1f`，单点 ΔRGB 最大 100），DoD 的"阈值 0"当场作废。保值档位层由 0-E1（`gray`）与 0-E1b（`zinc` / `slate` / `neutral`）建设（见下方实施记录）。**按文件集群分片，热点文件（>50 处）单独成片**；`bg-x dark:bg-y` 是成对结构（实测同文件对 ≥ 335 处，本仓粗测 414），**替换必须一次完成、同时消灭两半，不设中间态**。**代价（记账）**：`dark:` 双写结构保留（§5.7 第一类字面要求未满足），且档位跨角色耦合（`--n-gray-700` 同时承载 light 正文色与 dark 抬升面）；两者原本记由**阶段 2 的语义化改名**收口——该收口**未立项**（见下方"语义化改名（显式未做）"小节），与 `--cc-syntax-N` 本轮"只加间接与护栏、改名以立项为前提"（§8.9）同构。**进度**：**0-E6d 后剩余 0 处 / 0 文件**（`AskUserQuestionPanel.tsx` 84、`TaskDetailModal.tsx` 72、`McpServerFormModal.tsx` 69、`TaskBoardToolbar.tsx` 60、`VersionUpgradeModal.tsx` 55、`CodeEditorHeader.tsx` 52、`FolderBrowserModal.tsx` 46、`TaskEmptyState.tsx` 46、`AccountContent.tsx` 41、`toolConfigs.ts` 38、`QuestionAnswerContent.tsx` 35、`NextTaskBanner.tsx` 33、`TaskMasterSetupModal.tsx` 32、`GithubAuthenticationCard.tsx` 31、`PrdEditorHeader.tsx` 30、`GenerateTasksModal.tsx` 30、`CreateTaskModal.tsx` 30、`TaskHelpModal.tsx` 30、`TaskCard.tsx` 30、`fileIcons.ts` 28、`TaskListContent.tsx` 24、`MessageComponent.tsx` 24、`CodeEditorBinaryFile.tsx` 23、`CodeEditorMediaPreview.tsx` 22、`TaskFiltersPanel.tsx` 22、`TaskQuickSortBar.tsx` 18、`OverwriteConfirmModal.tsx` 18、`StepReview.tsx` 18、`SidebarProjectItem.tsx` 16、`taskKanban.ts` 16、`ImageViewer.tsx` 14、`ProjectCreationWizard.tsx` 14、`ShellHeader.tsx` 14、`TaskBoardContent.tsx` 14、`ToolDiffViewer.tsx` 12、`MarkdownPreview.tsx` 12、`UserMessageStickyHeader.tsx` 12、`TerminalShortcutsPanel.tsx` 11、`TextContent.tsx` 11、`BrowserUsePanel.tsx` 11、`QuickSettingsHandle.tsx` 10、`WorkspacePathField.tsx` 10、`ProviderLoginModal.tsx` 9、`WizardProgress.tsx` 9、`SidebarModals.tsx` 8、`ExecutionProcessSummary.tsx` 8、`PrdEditorFooter.tsx` 8、`ChatMessagesPane.tsx` 8、`StepConfiguration.tsx` 8、`ShellConnectionOverlay.tsx` 7、`MarkdownCodeBlock.tsx` 7、`Shell.tsx` 7、`CommandMenu.tsx` 6、`SessionOptions.tsx` 6、`SidebarContent.tsx` 6、`SidebarRecentConversations.tsx` 6、`MessageSpeakControl.tsx` 5、`CodeEditorLoadingState.tsx` 5、`PrdEditorLoadingState.tsx` 5、`ShellEmptyState.tsx` 5、`StandaloneShellEmptyState.tsx` 5、`StandaloneShellHeader.tsx` 5、`FileListContent.tsx` 4、`ToolStatusBadge.tsx` 4、`ChatMessageImages.tsx` 4、`MessageCopyControl.tsx` 4、`CodeEditorFooter.tsx` 4、`EditorSidebar.tsx` 4、`FileTree.tsx` 4、`TaskIndicator.tsx` 4、`ProviderSkills.tsx` 4、`Tooltip.tsx` 4、`LoadAllMessagesOverlay.tsx` 3、`CodeEditorSurface.tsx` 3、`MermaidDiagram.tsx` 3、`PrdEditorWorkspace.tsx` 3、`OneLineDisplay.tsx` 2、`GitPanelHeader.tsx` 2、`ConfirmActionModal.tsx` 2、`RemoveWorktreeModal.tsx` 2、`WizardFooter.tsx` 2、`WorkspaceTabs.tsx` 2、`NotificationsSettingsTab.tsx` 2、`DarkModeToggle.tsx` 2、`ComposerAttachment.tsx` 1、`PromptInput.tsx` 1、`VoiceInputButton.tsx` 1、`CommandResultModal.tsx` 1、`Markdown.tsx` 1、`CodeEditor.tsx` 1、`MergeWorktreeModal.tsx` 1、`NewBranchModal.tsx` 1、`NewWorktreeModal.tsx` 1、`AgentConnectionCard.tsx` 1、`Onboarding.tsx` 1、`OnboardingStepProgress.tsx` 1、`PluginSettingsTab.tsx` 1、`WorkspaceErrorBoundary.tsx` 1、`SettingsToggle.tsx` 1、`AgentSelectorSection.tsx` 1、`ShellMinimalView.tsx` 1、`SidebarModeTabs.tsx` 1、`TaskMasterPanel.tsx` 1、`Dialog.tsx` 1 均已清零）。沿革：0-E0 全量 **1502 处 / 105 文件** → 0-E2 后 1439 / 104 → 0-E2c 不变（纯护栏片）→ 0-E2d −84 → **0-E2e 扩面 +15 又同片清零 −15，剩余量不变**（但覆盖面从 1502 增至 **1517**，见 0-E2e 记录的口径变化）→ 0-E2f −72 → 0-E2g −69 → 0-E2h −60 → 0-E2i −55 → 0-E2j −52 → 0-E2k −46 → 0-E2l −46 → 0-E2m −41 → 0-E2n −38 → 0-E2o −35 → 0-E2p −33 → 0-E2q −32 → 0-E2r −31 → 0-E2s −30 → 0-E2t −30 → 0-E2u −30 → 0-E2v −30 → 0-E2w −30 → 0-E2x −28 → 0-E2y −24 → 0-E2z −24 → 0-E3a −23 → 0-E3b −22 → 0-E3c −22 → 0-E3d −18 → 0-E3e −18 → 0-E3f −18 → 0-E3g −16 → 0-E3h −16 → 0-E3i −14 → 0-E3j −14 → 0-E3k −14 → 0-E3l −14 → 0-E3m −12 → 0-E3n −12 → 0-E3o −12 → 0-E3p −11 → 0-E3q −11 → 0-E3r −11 → 0-E3s −10 → 0-E3t −10 → 0-E3u −9 → 0-E3v −9 → 0-E3w −8 → 0-E3x −8 → 0-E3y −8 → 0-E3z −8 → 0-E4a −8 → 0-E4b −7 → 0-E4c −7 → 0-E4d −7 → 0-E4e −6 → 0-E4f −6 → 0-E4g −6 → 0-E4h −6 → 0-E4i −5 → 0-E4j −5 → 0-E4k −5 → 0-E4l −5 → 0-E4m −5 → 0-E4n −5 → 0-E4o −4 → 0-E4p −4 → 0-E4q −4 → 0-E4r −4 → 0-E4s −4 → 0-E4t −4 → 0-E4u −4 → 0-E4v −4 → 0-E4w −4 → 0-E4x −4 → 0-E4y −3 → 0-E4z −3 → 0-E5a −3 → 0-E5b −3 → 0-E5c −2 → 0-E5d −2 → 0-E5e −2 → 0-E5f −2 → 0-E5g −2 → 0-E5h −2 → 0-E5i −2 → 0-E5j −2 → 0-E5k −1 → 0-E5l −1 → 0-E5m −1 → 0-E5n −1 → 0-E5o −1 → 0-E5p −1 → 0-E5q −1 → 0-E5r −1 → 0-E5s −1 → 0-E5t −1 → 0-E5u −1 → 0-E5v −1 → 0-E5w −1 → 0-E5x −1 → 0-E5y −1 → 0-E5z −1 → 0-E6a −1 → 0-E6b −1 → 0-E6c −1 → 0-E6d −1。另处置 2 处旧式 `*-opacity-*` 共现隐雷，见 0-E2 记录。**0-E2c** 补上配对层守恒律——0-E0 时代的全量字面命中数（1439 剩余 ＋ 1 豁免 ＋ 62 已迁移 = 1502）即冻结总量起点，从数字上追溯确认了 0-E2b 的迁移守恒 |
 | **状态色（成功 / 错误 / 警告 / 信息）** → 三分法**第二类** | 约 300 处（如 `bg-green-500 dark:bg-green-600`） | **保留 `dark:`，作为"主题不应控制的色"**。`--status-*` 令牌的**定义与替换捆绑为同一个后续片（可晚于阶段 0），阶段 0 不引入**——否则会重演 DSH 指出的"无消费者死令牌"覆辙（保留 `dark:` 的组件不读令牌，覆盖 `--status-*` 无效）。替换完成前，主题开发文档须诚实写明"状态色暂不受主题控制" |
 | **品牌色 / 文件图标色 / 装饰色** → 三分法**第三类** | 约 1000 处（`fileIcons.ts`、agent 品牌色、渐变色） | **明确豁免**，写入机器可校验的豁免清单（§6），主题不覆盖 |
 | **`dark:` 前缀总览**（v3 定口径） | 实测 `dark:` 共约 **1302 处** = 中性具名 **529** + 彩色具名 **581** + 语义令牌类 **6** + 结构性变体（`dark:prose-invert` 等）约 186。**注意：`dark:` + 具名色合计约 1110 处（86%），均为硬编码**，须按三分法分流 | **验收只统计"`dark:` + 具名色"**（目标收敛到豁免清单），**不统计"`dark:` 总数归零"**——`dark:bg-card` 这类**指向令牌**的 dark 变体天然无害、主题完全接管，计入会白费力气。另：全项目语义令牌类的 `dark:` 用法仅 6 处，说明现状暗色处理基本是"具名色双写"模式 |
@@ -537,7 +539,7 @@ export type ThemeManifest = {
 | 第二处语法高亮 ✅ | `src/modules/code-editor/markdown/MarkdownCodeBlock.tsx:69` | **0-B 已统一**：改走 `src/shared/syntaxTheme.ts` 的 `syntaxTheme.style`，直连 Prism 主题的分支已删除 |
 | Git 图 lane 色 ✅ | ~~`src/modules/git-panel/utils/commitGraph.ts:20-29`（10 lane）＋ `git-panel/history/CommitHistoryItem.tsx`（`'#0ea5e9'` fallback）~~ | **0-F1 已完成**：抽为 L1 `--palette-graph-1..10` ＋ L2 `--graph-lane-1..10`（**只在 `:root` 声明**——这 10 色本就是"明暗都看得清"的一套，同 term board 的性质，不做 `.dark` 镜像）；`laneColor` 返回 `hsl(var(--graph-lane-N))`，`RefBadge` 的 HEAD 底色新增 `laneTint` 给 `hsl(var(--graph-lane-N) / calc(34 / 255))`（原为 `${hex}22`，`0x22`＝34/255）。**§5.12 的参数化回退已由 2-J 落地**（见该节 v3） |
 | 终端选区菜单 ✅ | ~~`src/modules/shell/utils/mobileTerminalSelection.ts:179-228`（**7 处**）~~ | **0-F2 已完成**：7 处字面色值改走令牌（`--palette-brand-400` / `--n-white` / `--n-black` / `--n-gray-800` / `--n-gray-50`）。这块 chrome 贴在终端上、终端板明暗恒深，所以用**外观无关**的令牌而非语义令牌（写 `--card` / `--foreground` 会让它随浅色外观翻白，是可见改变）。**只动色值，事件处理一行未改**（长按 / 拖拽 / 惯性滚动），故行为面无回归；配色面由新增的 `tests/theme-tokens/mobile-terminal-selection.spec.ts` 常驻断言覆盖（真正装上 `installMobileTerminalSelection` 读回 computed 值） |
-| 滚动条 / 表单件 / placeholder ✅ | `src/index.css`（滚动条 / checkbox / radio / textarea / placeholder 的暗色补偿，0-C 时代记 66 处） | **先加 `color-scheme`（§5.6），再重审这批补偿**。**第一步已做**：1-B 把 `color-scheme` 写上了 `<html>`。**重审已完成且改判**（见 §6 的 1-B2 记录）：① 锚点累计偏移 +223，实得 **69 处色值声明**；② **"这些补偿是在手写模拟 `color-scheme`"的前提不成立**——实测真正失效的只有 2 行 `color-scheme: dark`，同段的 `background-color` / `border-color` 与 placeholder 的 `gray-600` 都是刻意的外观选择，**不能成批删除，只能令牌化**；③ 68/69 处与既有令牌像素级等值。**已实施（1-B2a/b/c）**：删 2 行失效 `color-scheme`、textarea 改为继承 `<html>`、68 处按**方案 A**（复用既有令牌保形间接）改走令牌——中性档走 `--n-*`，两处 blue 走外观无关的 L1 `--palette-brand-500` / `-400`（`.dark` 块内写 L2 `--primary` / `--ring` 会解析成 dark 值），`.dark` 内的 `rgb(20 20 20)` / `rgb(31 31 31)` 走 L2 `--background` / `--card`，仅 `rgb(237 235 230)` 无等值令牌保留字面。**最终没有新建 `--scrollbar-*` / `--control-*` / `--placeholder` 三组**：那三组的原意（"承接删不掉的部分"）随结论 ② 一并作废，新建只会多出约 20 个令牌并让阶段 2 的语义化改名多做一遍
+| 滚动条 / 表单件 / placeholder ✅ | `src/index.css`（滚动条 / checkbox / radio / textarea / placeholder 的暗色补偿，0-C 时代记 66 处） | **先加 `color-scheme`（§5.6），再重审这批补偿**。**第一步已做**：1-B 把 `color-scheme` 写上了 `<html>`。**重审已完成且改判**（见 §6 的 1-B2 记录）：① 锚点累计偏移 +223，实得 **69 处色值声明**；② **"这些补偿是在手写模拟 `color-scheme`"的前提不成立**——实测真正失效的只有 2 行 `color-scheme: dark`，同段的 `background-color` / `border-color` 与 placeholder 的 `gray-600` 都是刻意的外观选择，**不能成批删除，只能令牌化**；③ 68/69 处与既有令牌像素级等值。**已实施（1-B2a/b/c）**：删 2 行失效 `color-scheme`、textarea 改为继承 `<html>`、68 处按**方案 A**（复用既有令牌保形间接）改走令牌——中性档走 `--n-*`，两处 blue 走外观无关的 L1 `--palette-brand-500` / `-400`（`.dark` 块内写 L2 `--primary` / `--ring` 会解析成 dark 值），`.dark` 内的 `rgb(20 20 20)` / `rgb(31 31 31)` 走 L2 `--background` / `--card`，仅 `rgb(237 235 230)` 无等值令牌保留字面。**最终没有新建 `--scrollbar-*` / `--control-*` / `--placeholder` 三组**：那三组的原意（"承接删不掉的部分"）随结论 ② 一并作废，新建只会多出约 20 个令牌并让未来的语义化改名多做一遍（改名轮未立项，见 §5.7"语义化改名（显式未做）"）
 | agent 品牌色 / Logo | `AgentSelectorSection.tsx`、`*Logo.tsx` | **保持硬编码**，在 `index.css` 顶部集中声明豁免清单并注明"品牌标识，不随主题变化" |
 
 验收（v3 定口径）：grep 必须**同时匹配字面色值与具名色原子类**，只匹配前者会漏掉占比约 98% 的具名色；对 `dark:` 则**只统计 `dark:` + 具名色**，不统计 `dark:` + 令牌类。
@@ -552,6 +554,21 @@ rg -o -e 'dark:(bg|text|border|ring|stroke|fill|from|to|via|decoration|placehold
 ```
 
 剩余命中**必须全部落在机器可校验的豁免清单内**（§6 阶段 0），清单外命中即验收失败。**0-E0 已把它落成两份独立资产**：`src/shared/tests/themeHardcodedAllowlist.ts`（**永不**迁移项，逐条 `file + token + 理由`）与 `src/shared/tests/theme-hardcoded-baseline.json`（**派生快照 = 待迁移项**，逐片收敛到空）；护栏 `themeHardcodedAtoms.test.ts` 断言"剩余命中 ⊆ 基线"且"豁免清单无死项"，并在失败时报出**具体文件与原子**的计数漂移。注意口径：二者只覆盖**中性族**——扫描器 `themeHardcodedAtoms.ts` 在构造上就只找中性具名色，彩色 / 状态 / 品牌 / 图标色（约 1700 处）不经此清单。**注意：grep 只能证明"没有硬编码"，证明不了"每套主题的令牌全集可解析"——后者由 §5.11 的契约测试承担。**
+
+**口径附注（TIP ⑦，实施轮批 3 归档）——`prose-gray` 的三分法归属**：`prose-gray` 5 处（`MessageComponent.tsx` 4 处、`PrdEditorBody.tsx` 1 处）不在 1517 口径与守恒律内（扫描器 ATOM 只认工具类前缀，认不出 `prose-gray` 这个 prose 插件修饰符）。归属裁定：它落在本表**第一类**（界面骨架的中性文字色，随明暗成对、语义上应受主题控制）——但它是 prose 排版域的默认配套而非独立硬编码，**不追加入迁移清单、不刷新冻结基准**；若未来做第一类的残余收口或语义化改名，应把它一并纳入口径（届时属"护栏覆盖面变化"事项）。此归属只记文档，不改扫描器。
+
+### 语义化改名（显式未做；前提：改名轮立项）
+
+实施轮审阅（P3）核出：文档多处把收口动作记给"阶段 2 的语义化改名"，而实际实施的阶段 2 是用户主题线（2-A..2-M）——**这是命名撞车**：本节与 §6 记录里的"阶段 2"一直指改名轮，实施排期里的"阶段 2"做的是用户主题。改名轮**至今未立项**，以下到期条款全部悬置，逐条标注前提：
+
+1. **§5.7 v4 的 `dark:` 双写与档位耦合**：A1 保值层保留了 `bg-n-gray-100 dark:bg-n-gray-700` 的双写结构与"一个令牌承载一对值"的档位耦合，原记"阶段 2 一次收口"。**前提：改名轮立项**（届时按新语义名消除双写、拆耦合）。
+2. **附录 A 的 `--n-*` 层**：原记"阶段 2 改名后整层删除"。**前提已由 2026-09-26 拍板取代：`--n-*` 是永久契约面**——1520 处消费者＋已进用户主题白名单（`userThemeTokens.ts`），依赖只增不减，"将来整层删除"是破坏性变更。改名轮若立项，`--n-*` 是改名后的**保留层**而非删除对象。
+3. **0-E1 记录的 tailwind `n-*` 键**：原记"阶段 2 改名后本键删除"。按同一条拍板改写：改名轮若立项，键随改名一并调整，但不因"改名完成"而删除。
+4. **§8.9 的 `--cc-syntax-N` 改名**：编号仍是实现细节、白名单仍不授权（§5.8 v4），不受 `--n-*` 拍板影响。**前提：改名轮立项**（届时一次到位升语义名，白名单同步扩充——即 2-C 记录的"到期条件"）。
+5. **2-C 白名单注释的扩充到期条件**：白名单是当前样式表的快照，`--cc-syntax-*` / 几何族 / `--tw-*` 未授权。扩充随改名轮立项触发，**此前白名单边界维持现状**。
+
+触发条件与去向：改名轮是否立项属排期决策、不在主题线范围内；立项时上述 5 条应整体重估（届时本小节转为实施记录）。
+
 
 ### 5.8 安全与健壮性（借 WorkBuddy 的约束）
 
@@ -1005,7 +1022,7 @@ grep 只能证明"没有字面硬编码"，证明不了"每套主题的令牌全
 | 文件 | 变化 |
 |---|---|
 | `src/index.css` | L1 新增 **11 个** `--palette-gray-50..950`（Tailwind `gray` 逐档值，**1 位小数 HSL 三元组精确往返**，55 个档位全族实测 0 失配）；L2 新增 **13 个** `--n-gray-50..950` + `--n-white` + `--n-black`。**只在 `:root` 声明**：档位表与外观无关，"明暗差异"仍由各站点选哪个档位表达（`bg-n-gray-100 dark:bg-n-gray-700`），与原字面类行为一致。两个极值**复用**既有 `--palette-white` / `--palette-black`，不另造同值令牌 |
-| `tailwind.config.js` | 注册 `n-gray`（11 档）、`n-white`、`n-black` → `hsl(var(--n-*))`。类名形态 `bg-n-gray-100`：`n` = neutral，且不再被 §5.7 的具名色 grep 命中（这正是 A1 让审计可清零的原因）。**阶段 2 改名后本键删除** |
+| `tailwind.config.js` | 注册 `n-gray`（11 档）、`n-white`、`n-black` → `hsl(var(--n-*))`。类名形态 `bg-n-gray-100`：`n` = neutral，且不再被 §5.7 的具名色 grep 命中（这正是 A1 让审计可清零的原因）。**改名轮若立项，本键随改名一并调整；`--n-*` 令牌层本身是永久契约面（2026-09-26 拍板，见 §5.7），不因改名删除** |
 | `src/shared/tests/neutralScale.ts`（新增） | 档位表的单一事实源：`GRAY_STEPS`、`grayHex`（**运行期读 `tailwindcss/colors`**，不重述字面值）、`hexToHslTriplet` / `hslTripletToHex`、命名与声明读取助手 |
 | `src/shared/tests/neutralScale.test.ts`（新增） | 31 项等值护栏，见下 |
 | `tests/theme-tokens/main.ts` | 13 个 `--n-*` 加 `hsl()` 探针，进契约基线 |
@@ -1781,6 +1798,8 @@ Mutation 侧：
 - `hover:bg-gray-50` / `hover:bg-gray-100`——`.tsx` 仍有未迁移消费者（后者 `src` 计数 11），规则对**未迁移元素**仍有效，但对 0-E2t / 0-E2u 等已迁移元素已失配。
 
 **影响面**：仅在触屏（`hover:none`）且发生 sticky hover 时可观测，视觉差异是"hover 态未被强制 `inherit`"。**取舍（已拍板，用户 2026-09-25）**：选项为 **B1** 逐片把这三行补成 `n-*` 选择器；**B2** 旧＋新两套并存（零行为变化，阶段 0 末删旧）；**B3** 不动，作为已知差异记账、交阶段 2 语义化改名时统一重排这些引用。**结论：采纳 B3**——理由：实际影响需触屏 sticky hover 才可观测，且阶段 2 本就要重排 `index.css` 的这些引用。配套决定：**扫描器 `themeHardcodedAtoms.ts` 暂不把 CSS 选择器级引用纳入口径**（若纳入须刷新冻结基准量 1517，属"护栏覆盖面变化"事项，本阶段不做）。这三行**不改、不删**，作为阶段 2 的显式待办保留。（探针侧的 `.css` 支撑已就地修复——那是核对工具的覆盖面，不入库。）
+
+> **B3 账状态更新（2026-09-26，实施轮批 3 `fe86d589`）**：实施轮审阅（P1-1）核出 B3 的前提——"阶段 2 本就要重排这些引用"——随改名轮未立项而失效，四个字面选择器自消费者改名起就**从未命中**，死码持续发布到 `dist`。账已按当年被否的 B1 收口：触屏抑制块的选择器改对齐 `n-*` 保值档位（零视觉变更——规则本就不匹配，只是让它们重新命中），`.dark .bg-gray-800 textarea` 两处同源全死规则一并删除；并新增结构护栏钉住"抑制块不得再引用退役字面档位"（含反空转断言）。本记录的"待办保留"状态就此关闭。
 
 **验收**：`test:client` **128 文件 / 970 用例**；`typecheck`、`typecheck:theme-tokens`、`lint`（153 warnings / **0 error**）、`npm run build`、`test:theme-tokens` 16 项全绿；守恒律 2/2、基线 3/3。未改 `index.css` / `tailwind.config.js`。
 
@@ -4065,7 +4084,7 @@ Mutation 侧：
 1. **`.tmTheme` 未支持**（显式拒绝），归 2-E。
 2. **§5.10 的"用户主题对比度只警告不阻断"仍未实现**：2-C 的校验器是**形状校验器**，只问"值能不能被消费端解析"，不问"读了清不清楚"。一个形状完全合法、但 `--foreground` 落 `--background` 不足 3:1 的主题，2-C **照收不误**。把"合法但不可读"变成可见警告仍待后续片（可并入 2-D 或独立成片）。
 3. **被丢条目只在控制台**：`warnIgnored` 写 `console.warn`，选择器 / 设置页看不到"你写的哪一条被丢了"。呈现归 2-D。
-4. **白名单是当前样式表的快照**：`--cc-syntax-*` / 几何族 / `--tw-*` 未授权（§5.8 v4），随阶段 2 语义化改名要同步扩充——这是**到期条件**，不是永久边界。
+4. **白名单是当前样式表的快照**：`--cc-syntax-*` / 几何族 / `--tw-*` 未授权（§5.8 v4），随语义化改名立项时同步扩充——这是**到期条件**（改名轮未立项，见 §5.7"语义化改名（显式未做）"），不是永久边界。另：`--n-*` 兼容档位层已拍板为**永久契约面**（同见 §5.7），不在"随改名调整"的范畴内。
 
 **证据**
 
@@ -4567,7 +4586,7 @@ Mutation 侧：
 
 编辑器：`--editor-background` `--editor-gutter-bg` `--editor-toolbar-bg` `--editor-toolbar-border` `--editor-toolbar-fg` `--editor-diff-add` `--editor-diff-add-strong` `--editor-diff-del` `--editor-diff-del-strong`
 
-兼容档位（0-E1 已落地，13 个）：`--n-gray-50..950` + `--n-white` + `--n-black`，全部 `var(--palette-*)`。这是 **A1 保值层**——**唯一一类不承载语义、只承载"原 Tailwind 档位"的令牌**（见 §5.7 v4）。Tailwind 侧以 `n-gray` / `n-white` / `n-black` 三个键注册，类名为 `bg-n-gray-100`。**阶段 2 语义化改名后整层删除**。两个极值直接复用既有 `--palette-white` / `--palette-black`，不另造同值令牌（避免死令牌）。
+兼容档位（0-E1 已落地，13 个）：`--n-gray-50..950` + `--n-white` + `--n-black`，全部 `var(--palette-*)`。这是 **A1 保值层**——**唯一一类不承载语义、只承载"原 Tailwind 档位"的令牌**（见 §5.7 v4）。Tailwind 侧以 `n-gray` / `n-white` / `n-black` 三个键注册，类名为 `bg-n-gray-100`。**`--n-*` 是永久契约面（2026-09-26 拍板，见 §5.7）**：1520 处消费者＋已进用户主题白名单意味着依赖只增不减，"改名后整层删除"是破坏性变更、已排除——改名轮若立项，本层作为改名后的**保留层**继续存在。两个极值直接复用既有 `--palette-white` / `--palette-black`，不另造同值令牌（避免死令牌）。
 
 图表（0-F1 已落地）：`--graph-lane-1..10`（L1 对应 `--palette-graph-1..10`，10 个色值即改造前 `commitGraph.ts` 的 hex 数组，**只在 `:root` 声明**——明暗共用）。消费形态与其它令牌不同：`laneColor` 返回的是**完整颜色表达式** `hsl(var(--graph-lane-N))`（SVG `stroke` / `fill` 与内联 `style` 直接吃），`laneTint` 给 `hsl(var(--graph-lane-N) / calc(34 / 255))`。**§5.12 的参数化回退（`--graph-lane-base-hue` / `--graph-lane-hue-step`）未引入**，见该节 v2
 
@@ -4899,7 +4918,7 @@ Mutation 侧：
 
 **v4 补记（0-E1 实施后，对上面"修正 ①"的再修正）**：原拍板假设第一类可"换成 `bg-card` 同时消灭两半"，从而让 class-1 的 `dark:` 双写自然消失。**实测证伪**（理由与数据见 §5.7 v4 / 0-E 记录）：本片存在 **89 种不同的 `(light, dark)` 元组**，语义令牌类只能承载一对值，强行折叠必然改色。故 0-E 采用 **A1 保值档位**——`bg-gray-100 dark:bg-gray-700 → bg-n-gray-100 dark:bg-n-gray-700`：**成对替换的原子性不变**（一次改完两半、不设中间态），但**两半都保留**，`dark: + 具名色` 收敛为 `dark: + 令牌类`。
 
-这对验收口径的影响：§5.7 与上面的"只统计 `dark:` + **具名色**"现在正是 A1 的收敛对象（`bg-n-gray-100` 不再被具名色 grep 命中，`dark:bg-n-gray-700` 亦不计入），**所以口径不用改，只是"具名色"的终点从"换成 `bg-card`"变成"换成 `bg-n-gray-*`"**。代价（`dark:` 双写在 class-1 内继续存在、档位跨角色耦合）已在 §5.7 v4 记账，由**阶段 2 语义化改名**一次收口——与 §8.9 对 `--cc-syntax-N` 的"本轮只加间接、阶段 2 改名"完全同构。
+这对验收口径的影响：§5.7 与上面的"只统计 `dark:` + **具名色**"现在正是 A1 的收敛对象（`bg-n-gray-100` 不再被具名色 grep 命中，`dark:bg-n-gray-700` 亦不计入），**所以口径不用改，只是"具名色"的终点从"换成 `bg-card`"变成"换成 `bg-n-gray-*`"**。代价（`dark:` 双写在 class-1 内继续存在、档位跨角色耦合）已在 §5.7 v4 记账，由**阶段 2 语义化改名**一次收口——与 §8.9 对 `--cc-syntax-N` 的"本轮只加间接、阶段 2 改名"完全同构。（**后续记账，2026-09-26**：语义化改名轮未立项，见 §5.7"语义化改名（显式未做）"；本条改名决策只涉 `--cc-syntax-N`——编号仍是实现细节、白名单仍不授权——不受 `--n-*` 永久契约面拍板的影响，但仍以改名轮立项为前提。）
 - **语义名草案（本轮定方向不实现，同意 DSH）**：以 Prism 语义类别为根（comment / string / keyword / function / number / operator / punctuation / tag / attr-name / constant …）、属性作后缀（`-color` / `-style` / `-weight`），CodeMirror `HighlightStyle` 的 tag 名向同一套类别对齐——chat 与编辑器两条高亮路径共用一套命名，阶段 2 前一次到位改名，避免两次重命名。
 
 ### 四项总表
@@ -5067,13 +5086,13 @@ Mutation 侧：
 ### 逐条处置（三选一体例；标注"修"的均按本线规矩走完整门槛：测试＋变异＋双绿）
 
 **P1-1 触屏 hover 抑制失效——修（采纳审阅建议，即当年被否的 B1）。**
-四个死选择器各补对应 `n-*` 行（`.hover\:bg-n-gray-50:hover` 等），字面旧行删除，`dist` 死码同批消失；`.dark .bg-gray-800 textarea` 两处全死选择器同源同批清掉。当年 B3 的理由是"阶段 2 本就要重排这些引用"——该前提随改名轮未做而失效，维持 B3 只会让死码继续发布。修后更新 0-F 记录里 B3 账的状态（"由 2-N 收口"）。
+四个死选择器各补对应 `n-*` 行（`.hover\:bg-n-gray-50:hover` 等），字面旧行删除，`dist` 死码同批消失；`.dark .bg-gray-800 textarea` 两处全死选择器同源同批清掉。当年 B3 的理由是"阶段 2 本就要重排这些引用"——该前提随改名轮未做而失效，维持 B3 只会让死码继续发布。修后更新 0-F 记录里 B3 账的状态（"由 2-N 收口"）。**已实施（批 3，`fe86d589`；0-F 记录的 B3 账状态随本节文档提交一并更新；新增结构护栏钉住"抑制块不得再引用退役字面档位"）**。
 
 **P1-2 PRD 编辑器 oneDark 残留——修。**
-`PrdEditorBody.tsx` 切 `editorLightTheme` / `editorDarkTheme` ＋ `editorHighlightExtension`（与 code-editor 同源；按 1-G 判据，其色值经 `var()` 交给 CSS，无需 JS 数值刷新）；护栏扫描范围从 code-editor 模块目录扩为**全 `src` 的 import 扫描**（`@codemirror/theme-one-dark` 全仓零导入才算过），文档断言同步改回全称。修复前如实记账：阶段 1 验收"编辑器同时变化"在 PRD 编辑器上自始未达成。
+`PrdEditorBody.tsx` 切 `editorLightTheme` / `editorDarkTheme` ＋ `editorHighlightExtension`（与 code-editor 同源；按 1-G 判据，其色值经 `var()` 交给 CSS，无需 JS 数值刷新）；护栏扫描范围从 code-editor 模块目录扩为**全 `src` 的 import 扫描**（`@codemirror/theme-one-dark` 全仓零导入才算过），文档断言同步改回全称。修复前如实记账：阶段 1 验收"编辑器同时变化"在 PRD 编辑器上自始未达成。**已实施（批 3，`fe86d589`）**。
 
 **P1-3 切换闪默认基色——修（放宽 in-force 判定）。**
-作者拍板取"放宽"：`userThemeInForce` 改为"appliedId 非空且该 pick 未被否定（未失败、未被清）"，B 就绪后同帧翻属性＋删旧元素。理由：数百 ms 的整页基色闪烁是用户可感知的，且与 §5.6"避免闪白"验收直接冲突；"宁可默认也不空匹配"的注释取舍由本拍板取代。审阅指出的附带不一致（裸 `:root{}` 的 `.css` 切换期间继续生效）在实现时一并处理并以测试钉住。
+作者拍板取"放宽"：`userThemeInForce` 改为"appliedId 非空且该 pick 未被否定（未失败、未被清）"，B 就绪后同帧翻属性＋删旧元素。理由：数百 ms 的整页基色闪烁是用户可感知的，且与 §5.6"避免闪白"验收直接冲突；"宁可默认也不空匹配"的注释取舍由本拍板取代。审阅指出的附带不一致（裸 `:root{}` 的 `.css` 切换期间继续生效）在实现时一并处理并以测试钉住。**已实施（批 2，`e5e2d07b`）。实施注记**：放宽的承重点最终落在 manifest 解析分支——manifest 改按"文档里穿着的那份"解析（pick 先行、新样式表在途时续穿旧主题，按在途 id 从粘贴镜像或清单条目查身份；`failedId === themeId` 例外回落默认），`userThemeInForce` 只是随行放宽；变异 M2 曾打在已不承重的 `userThemeInForce` 上假绿，换锚点打 manifest 本体后转红。
 
 **P1-4 清单失败拆缓存 ＋ failedId 重试死锁（Pi）——合并修。**
 两问同根（失败态的生命周期），一并处理：
@@ -5081,29 +5100,33 @@ Mutation 侧：
 - `failedId` 补 reset 入口：清单 ready 时若失败 id 仍在新清单中则清除（Pi 建议①）；用户重选同 id 不再被 `state.failedId === id` 短路（Pi 建议②的 force 语义随重选自带）；
 - 两处相左的模块文档统一改写为与实现一致，并各配一条测试（error 不拆缓存 / 失败后重试可恢复）。
 
+  **已实施（批 2，`e5e2d07b`）。实施注记（与原方案的两处出入，如实记）**：① Pi 建议①的"清单 ready 时清除 failedId"未采纳——userThemes store 是"ready 冻结"设计（整个会话只拉一次清单，`refreshUserThemes` 在 ready 态直接 return），"ready 时再清"没有第二次 ready 可等；改为**移除 `state.failedId === id` 的请求短路（重复请求即重试）**＋在 `ThemeContext` 监听 `AUTH_TOKEN_REFRESHED_EVENT`（登录不改变 pick，该事件是失败清单唯一合理的重试触发点）。② 跨源切换（粘贴 → 文件）续穿的用例曾补入又撤去：它依赖清单重列，而 ready 冻结下重列不发生——**"清单是否回答了当前 pick"的 epoch 方案整组撤掉**，只留三处真修复；这是 store 冻结设计对新机制的硬边界，如实记账而非硬塞。
+
 **P2-1 `@import` 转义绕过——修（两侧同步真解析）。**
-服务端与粘贴线同批改 postcss 解析（依赖已在树内）：walk 到 at-rule 节点名 `import` 即拒，不再字面匹配；补 `@im\70 ort` 测试用例钉住（审阅已给真实 Chromium 证据）。两道闸门用同一份实现或同一份测试向量，维持文档自立的规矩——"同一条规则的两道闸门给出一致的答案"。
+服务端与粘贴线同批改 postcss 解析（依赖已在树内）：walk 到 at-rule 节点名 `import` 即拒，不再字面匹配；补 `@im\70 ort` 测试用例钉住（审阅已给真实 Chromium 证据）。两道闸门用同一份实现或同一份测试向量，维持文档自立的规矩——"同一条规则的两道闸门给出一致的答案"。**已实施（批 1，`bc4d88d1`）。实施时改判**：postcss 方案否——它是 devDependency（运行时不可用）且同样**不解码 at-rule 名转义**（`@im\70 ort` 在它眼里也是 `im\70 ort`）；改为自写**转义感知的 at-rule 名扫描器**（新增共享模块 `cssAtRules.ts`，按 CSS Syntax §4.3.7 解析 ident：hex 转义 1–6 位＋可选单空格终止、`\` 后任意字符、非 ASCII），服务端文件线与客户端粘贴线调同一份实现、共享同一组 17 条测试向量（`cssImportVectors.ts`），含近失误报（`@importx` / `@2import` 不拒）与保守误报（注释/字符串里的字面 `@import` 拒掉——闸门宁可误报）的取舍测试。这是上面三处拍板中唯一在实施时改判的一处，判据：审阅建议的工具自身满足不了审阅指出的威胁模型。
 
 **P2-2 expression 白名单纯度——修（一行级）。**
-expression 值提取全部 `var(--x)` 目标逐一过 `referencesThemableToken`（审阅确认 `hsl(var(--palette-sand-50))` 类合法写法不受影响——以回归测试证明，不以转述为准）。
+expression 值提取全部 `var(--x)` 目标逐一过 `referencesThemableToken`（审阅确认 `hsl(var(--palette-sand-50))` 类合法写法不受影响——以回归测试证明，不以转述为准）。**已实施（批 1，`bc4d88d1`）**。
 
 **P2-3 lane 参数未进授权面——修。**
-`--graph-lane-base-hue` / `--graph-lane-hue-step` 各加 exact 规则（number，允许小数——315.3 / 95.1 是 §5.12 v3 的出厂默认值），授权面表同步；补"选项 A 主题覆盖两参数即整图调色"的真引擎用例——这是 §5.12 v3 拍板时承诺、却没有兑现到授权面的能力。
+`--graph-lane-base-hue` / `--graph-lane-hue-step` 各加 exact 规则（number，允许小数——315.3 / 95.1 是 §5.12 v3 的出厂默认值），授权面表同步；补"选项 A 主题覆盖两参数即整图调色"的真引擎用例——这是 §5.12 v3 拍板时承诺、却没有兑现到授权面的能力。**已实施（批 1，`bc4d88d1`；真引擎用例并证明覆盖层在同等特异性下按文档顺序压过 `:root`）**。
 
 **P3 语义化改名未发生——改文档＋一项拍板。**
 - §5.7 补"语义化改名（显式未做）"小节：列出全部 5 处到期条款（§5.7 v4 的 `dark:` 双写与档位耦合、附录 A 的 `--n-*` 整层删除、0-E1 记录的 tailwind `n-*` 键删除、§8.9 的 `--cc-syntax-N` 改名、2-C 白名单注释的扩充到期条件），逐条标注"前提：改名轮立项"；
 - **作者拍板：`--n-*` 兼容承诺为永久契约面。** 1520 处消费者＋已有用户主题可能开始依赖它，"将来整层删除"在依赖者只增不减的今天是破坏性变更；改名轮若立项，`--n-*` 是改名后的**保留层**而非删除对象。附录 A、0-E1 记录等处的"删除"措辞按此改写；
 - §8.9 的 `--cc-syntax-N` 改名不受该拍板影响（编号仍是实现细节、白名单仍不授权）。
 
+  **已实施（文档动作随本节提交落地）**：§5.7 已补"语义化改名（显式未做；前提：改名轮立项）"小节（列全 5 处到期条款）；附录 A、0-E1 记录、2-C 白名单注释、§5.9 记账、§8.9 拍板结论处的"删除 / 阶段 2 收口"措辞已按"永久契约面"改写并互指。
+
 **TIP 逐条简答：**
-① symlink realpath 照抄 plugins 加固＋"当前行为是跟随"测试——采纳，随批 1；
-② TOCTOU readFile 后按 Buffer 长度复核——采纳，随批 1；
-③ themes 路由 `asyncHandler` 对齐——采纳，随批 1；
-④ `FALLBACK_THEME_COLOR` 按 appearance 取兜底——采纳，随批 2；
-⑤ denylist 护栏扫描范围——采纳"扩 `server/` 与 `tests/theme-tokens/`，并在测试注释写明范围即边界"；
-⑥ token-contract 测试名口径——采纳"扩 hex/rgb() 形态＋对 `--editor-*` 显式豁免＋改测试名注明口径"；
-⑦ `prose-gray` 归属——采纳"在三分法明示归属"（只记文档）；
-⑧ splash 依赖——采纳"§5.6 记为已知依赖"；
+① symlink realpath 照抄 plugins 加固＋"当前行为是跟随"测试——采纳，随批 1（**已实施，`bc4d88d1`**：`canonicalWithin` realpath 双向包容，逃逸即拒、目录内跟随由测试钉住）；
+② TOCTOU readFile 后按 Buffer 长度复核——采纳，随批 1（**已实施，`bc4d88d1`**：取更强做法——`fs.open` 单句柄读，闸门判定与下发字节同一句柄）；
+③ themes 路由 `asyncHandler` 对齐——采纳，随批 1（**已实施，`bc4d88d1`**）；
+④ `FALLBACK_THEME_COLOR` 按 appearance 取兜底——采纳，随批 2（**已实施，`e5e2d07b`**：`{ light: '#f7f6f3', dark: '#141414' }`，对应两外观的 `--background` 基色）；
+⑤ denylist 护栏扫描范围——采纳"扩 `server/` 与 `tests/theme-tokens/`，并在测试注释写明范围即边界"（**已实施，`bc4d88d1`**：`SCAN_ROOTS` 三根，offenders 报完整路径）；
+⑥ token-contract 测试名口径——采纳"扩 hex/rgb() 形态＋对 `--editor-*` 显式豁免＋改测试名注明口径"（**已实施，批 3 `fe86d589`**：扩网后 71 处字面全落编辑器板）；
+⑦ `prose-gray` 归属——采纳"在三分法明示归属"（**已随本节文档提交落地**，见 §5.7 口径附注：归第一类、不追加入迁移清单）；
+⑧ splash 依赖——采纳"§5.6 记为已知依赖"（**已随本节文档提交落地**，见 §5.6 v15；`main.tsx` 的 splash 注释同步补三个写者的分段职责）；
 ⑨ 同⑤。
 另 Pi 的 `color-scheme` 行内样式 TIP——**采纳"注释标注为故意例外"**：主题声明 `color-scheme` 本就不该发生（它由 appearance 驱动），行内样式是最强的保证而非缺陷；偏好写入防抖 TIP——**暂不采纳**（写入频率无实测证据，先观察）。
 
@@ -5117,10 +5140,10 @@ expression 值提取全部 `var(--x)` 目标逐一过 `referencesThemableToken`�
 
 其中三处是**作者的拍板**而非审阅者的建议，若审阅者有异议请在下一轮直接反驳，作者在对应批开工前接受改判：
 1. **P1-3 取"放宽 in-force"**（另一个候选是"保持现行为、记 v12 显式边界"——不改行为、只改文档）；
-2. **P2-1 取 postcss 真解析**（另一个候选是"收紧字面正则覆盖转义形态"——可挡已知形态但规范上不完备）；
+2. ~~**P2-1 取 postcss 真解析**~~（**实施时改判为自写转义感知扫描器**，见上方 P2-1 的实施注记——postcss 是 devDependency 且同样不解码 at-rule 名转义，满足不了审阅指出的威胁模型；改判属"审阅建议的工具失效"，威胁模型与"真解析、挡转义"的拍板意图不变）；
 3. **P3 取 `--n-*` 永久契约面**（另一个候选是"迁移期条款＋破坏性删除"——需改名轮立项并发布公告）。
 
-以上处置未动任何代码；三批各自成片实施后，本节将由作者补"已实施（commit）"标注。
+以上处置在回应时未动任何代码。**三批已全部实施**：批 1 `bc4d88d1`（校验器与闸门）、批 2 `e5e2d07b`（加载链路与状态生命周期）、批 3 `fe86d589`（触屏 hover 与 PRD 编辑器）；各批均走完整门槛（测试＋变异全 RED＋双绿＋红集对照），实施注记与两处实施时改判已逐条回填上文学内标注，文档侧动作（P3、TIP ⑦⑧、0-F 的 B3 账状态）随本节提交落地。
 
 ---
 
