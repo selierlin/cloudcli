@@ -1,7 +1,7 @@
 # CloudCLI 主题与配色体系设计方案
 
 > 编写日期：2026-09-24 ｜ 修订：2026-09-25（v5：阶段 0-A / 0-B / 0-C 已实施并验收，记录见 §6）
-> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j / 0-E2k / 0-E2l / 0-E2m / 0-E2n / 0-E2o / 0-E2p / 0-E2q / 0-E2r / 0-E2s / 0-E2t / 0-E2u / 0-E2v / 0-E2w / 0-E2x / 0-E2y / 0-E2z / 0-E3a / 0-E3b / 0-E3c / 0-E3d / 0-E3e / 0-E3f / 0-E3g / 0-E3h / 0-E3i / 0-E3j / 0-E3k / 0-E3l / 0-E3m / 0-E3n / 0-E3o / 0-E3p / 0-E3q / 0-E3r / 0-E3s / 0-E3t / 0-E3u / 0-E3v / 0-E3w / 0-E3x / 0-E3y / 0-E3z / 0-E4a / 0-E4b / 0-E4c / 0-E4d / 0-E4e / 0-E4f / 0-E4g / 0-E4h / 0-E4i / 0-E4j / 0-E4k / 0-E4l / 0-E4m / 0-E4n / 0-E4o / 0-E4p / 0-E4q / 0-E4r / 0-E4s / 0-E4t / 0-E4u / 0-E4v / 0-E4w / 0-E4x / 0-E4y / 0-E4z / 0-E5a / 0-E5b / 0-E5c / 0-E5d / 0-E5e / 0-E5f / 0-E5g / 0-E5h / 0-E5i / 0-E5j / 0-E5k / 0-E5l / 0-E5m / 0-E5n / 0-E5o / 0-E5p / 0-E5q / 0-E5r / 0-E5s / 0-E5t / 0-E5u / 0-E5v / 0-E5w / 0-E5x / 0-E5y / 0-E5z / 0-E6a / 0-E6b / 0-E6c / 0-E6d 一百一十五片，**阶段 0 的迁移分片已全部实施**；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内；0-E3i 修正了产物核对脚本的**前提假设缺口**——脚本原假设"被测文件迁移前不含 `n-*` 令牌"，随分片推进（前片已令牌化的文件被再次触碰）必然被打破；0-E6d 又暴露一处**护栏前提失效**——守恒律反空转护栏里"必须扫到 ≥1 处带透明度修饰的**字面**中性色"这条断言，随阶段 0 归零而失去可满足前提（仓库计数无论捕获组是否健在都读 0），改为对解析形状的合成名断言。截至 0-E6d：中性具名硬编码剩余 **0 处 / 0 文件**（起点 1517 / 105；阶段 0 迁移完成，仅余 1 处豁免 `border-gray-150`）。**阶段 1 已开工**：1-A（主题骨架：`ThemeManifest` + `BUILTIN_THEMES` + `<html data-theme>`）与 1-B 第一步（随 `appearance` 在 `<html>` 写 `color-scheme`，本线**第一个有意的视觉变更**）均已实施并验收；1-B2 的三个子片（删 2 行已失效的 `color-scheme: dark`、textarea 的 `color-scheme` 改为随应用外观、68 处暗色补偿改走既有令牌）也已完成；**其前置 0-F 也已实施**（Git 图 lane 色抽为 `--graph-lane-1..10` ＋ 移动端终端选区菜单 7 处色值令牌化，拆 0-F1 / 0-F2 两片），切片表与记录见 §6）；**1-C 与 1-D 也已完成**（1-C：`theme-color` 与 iOS status-bar 改由令牌派生，`ThemeContext` 里两处手写 hex 删除、两个分支合并，`ThemeManifest` 的 `themeColor` / `statusBar` 覆盖字段一并落地；1-D：新增 `themeId` 偏好键，`ThemeContext` 暴露 `themeId` / `resolvedThemeId` / `setThemeId`，跨设备"未安装该主题"的回落不再静默——**1-E 也已完成**（覆盖层机制 ＋ 两套示范主题 `cc-ocean`（`accent`）/ `cc-polar`（`full`）＋ 注册表扩充，三片各自独立 commit；修正了 §5.2 的 cascade 假设、定了 `appearance` 的两角色模型——**1-F 也已完成**（`f2e03c6f`：外观设置页的配色主题选择器 ＋ `coverage` 徽标 ＋ 跨设备未安装的回落提示，i18n 实补 en ＋ zh-CN；原计划"只补 zh-CN"的前提经实测不成立——仓库现状是 zh-CN ⊆ en——**1-G 也已完成**（`7b406986`：刷新 effect 补 `resolvedThemeId` 依赖，覆盖层的切换 / 清除都会让 xterm 重读 `--term-*`；**另两路经核查无需刷新**——编辑器的 chrome 与 highlight 全是 `var()`、Git 图是 SVG 表现属性；范围据此收窄并回写 §5.6 v10。**1-H 也已完成**（`38ef8d8e` / `13b9c696`：§5.10 对比度断言落地为 `contrast.spec.ts`，覆盖"基色 ＋ 每套覆盖层"× 明暗两态的 6 个配对；§5.11 的遍历补上反向守卫，堵住"块存在但未注册"的死 CSS——这是"遍历每套覆盖层"按构造会跳过的那一类；**并含一处有意视觉变更**——基色 `--palette-sand-500` 由 `44%` 调至 `43%`，因宽读下它只到 4.42:1、低于 AA 4.5:1，而 accent 类覆盖层不重调 substrate 会继承它。**1-I 也已完成**（`e4f5cb70`：首帧 chrome 色改为随外观——`<head>` 末尾的内联同步脚本按 `localStorage['theme']` 决定 `<html data-appearance>` / `color-scheme` / `theme-color`，splash 据此出浅色变体，消掉"深色启动画面 ＋ 白色状态栏"的同屏矛盾；**含一处有意视觉变更**——浅色外观的启动画面由深变浅；`manifest` 与 `msapplication` 的安装期静态色如实记为不可达）——**阶段 1 至此全部完成**））
+> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j / 0-E2k / 0-E2l / 0-E2m / 0-E2n / 0-E2o / 0-E2p / 0-E2q / 0-E2r / 0-E2s / 0-E2t / 0-E2u / 0-E2v / 0-E2w / 0-E2x / 0-E2y / 0-E2z / 0-E3a / 0-E3b / 0-E3c / 0-E3d / 0-E3e / 0-E3f / 0-E3g / 0-E3h / 0-E3i / 0-E3j / 0-E3k / 0-E3l / 0-E3m / 0-E3n / 0-E3o / 0-E3p / 0-E3q / 0-E3r / 0-E3s / 0-E3t / 0-E3u / 0-E3v / 0-E3w / 0-E3x / 0-E3y / 0-E3z / 0-E4a / 0-E4b / 0-E4c / 0-E4d / 0-E4e / 0-E4f / 0-E4g / 0-E4h / 0-E4i / 0-E4j / 0-E4k / 0-E4l / 0-E4m / 0-E4n / 0-E4o / 0-E4p / 0-E4q / 0-E4r / 0-E4s / 0-E4t / 0-E4u / 0-E4v / 0-E4w / 0-E4x / 0-E4y / 0-E4z / 0-E5a / 0-E5b / 0-E5c / 0-E5d / 0-E5e / 0-E5f / 0-E5g / 0-E5h / 0-E5i / 0-E5j / 0-E5k / 0-E5l / 0-E5m / 0-E5n / 0-E5o / 0-E5p / 0-E5q / 0-E5r / 0-E5s / 0-E5t / 0-E5u / 0-E5v / 0-E5w / 0-E5x / 0-E5y / 0-E5z / 0-E6a / 0-E6b / 0-E6c / 0-E6d 一百一十五片，**阶段 0 的迁移分片已全部实施**；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内；0-E3i 修正了产物核对脚本的**前提假设缺口**——脚本原假设"被测文件迁移前不含 `n-*` 令牌"，随分片推进（前片已令牌化的文件被再次触碰）必然被打破；0-E6d 又暴露一处**护栏前提失效**——守恒律反空转护栏里"必须扫到 ≥1 处带透明度修饰的**字面**中性色"这条断言，随阶段 0 归零而失去可满足前提（仓库计数无论捕获组是否健在都读 0），改为对解析形状的合成名断言。截至 0-E6d：中性具名硬编码剩余 **0 处 / 0 文件**（起点 1517 / 105；阶段 0 迁移完成，仅余 1 处豁免 `border-gray-150`）。**阶段 1 已开工**：1-A（主题骨架：`ThemeManifest` + `BUILTIN_THEMES` + `<html data-theme>`）与 1-B 第一步（随 `appearance` 在 `<html>` 写 `color-scheme`，本线**第一个有意的视觉变更**）均已实施并验收；1-B2 的三个子片（删 2 行已失效的 `color-scheme: dark`、textarea 的 `color-scheme` 改为随应用外观、68 处暗色补偿改走既有令牌）也已完成；**其前置 0-F 也已实施**（Git 图 lane 色抽为 `--graph-lane-1..10` ＋ 移动端终端选区菜单 7 处色值令牌化，拆 0-F1 / 0-F2 两片），切片表与记录见 §6）；**1-C 与 1-D 也已完成**（1-C：`theme-color` 与 iOS status-bar 改由令牌派生，`ThemeContext` 里两处手写 hex 删除、两个分支合并，`ThemeManifest` 的 `themeColor` / `statusBar` 覆盖字段一并落地；1-D：新增 `themeId` 偏好键，`ThemeContext` 暴露 `themeId` / `resolvedThemeId` / `setThemeId`，跨设备"未安装该主题"的回落不再静默——**1-E 也已完成**（覆盖层机制 ＋ 两套示范主题 `cc-ocean`（`accent`）/ `cc-polar`（`full`）＋ 注册表扩充，三片各自独立 commit；修正了 §5.2 的 cascade 假设、定了 `appearance` 的两角色模型——**1-F 也已完成**（`f2e03c6f`：外观设置页的配色主题选择器 ＋ `coverage` 徽标 ＋ 跨设备未安装的回落提示，i18n 实补 en ＋ zh-CN；原计划"只补 zh-CN"的前提经实测不成立——仓库现状是 zh-CN ⊆ en——**1-G 也已完成**（`7b406986`：刷新 effect 补 `resolvedThemeId` 依赖，覆盖层的切换 / 清除都会让 xterm 重读 `--term-*`；**另两路经核查无需刷新**——编辑器的 chrome 与 highlight 全是 `var()`、Git 图是 SVG 表现属性；范围据此收窄并回写 §5.6 v10。**1-H 也已完成**（`38ef8d8e` / `13b9c696`：§5.10 对比度断言落地为 `contrast.spec.ts`，覆盖"基色 ＋ 每套覆盖层"× 明暗两态的 6 个配对；§5.11 的遍历补上反向守卫，堵住"块存在但未注册"的死 CSS——这是"遍历每套覆盖层"按构造会跳过的那一类；**并含一处有意视觉变更**——基色 `--palette-sand-500` 由 `44%` 调至 `43%`，因宽读下它只到 4.42:1、低于 AA 4.5:1，而 accent 类覆盖层不重调 substrate 会继承它。**1-I 也已完成**（`e4f5cb70`：首帧 chrome 色改为随外观——`<head>` 末尾的内联同步脚本按 `localStorage['theme']` 决定 `<html data-appearance>` / `color-scheme` / `theme-color`，splash 据此出浅色变体，消掉"深色启动画面 ＋ 白色状态栏"的同屏矛盾；**含一处有意视觉变更**——浅色外观的启动画面由深变浅；`manifest` 与 `msapplication` 的安装期静态色如实记为不可达）——**阶段 1 至此全部完成**；**阶段 2 已开工**：2-A（服务端主题目录：`server/modules/themes/` 列举 `~/.cloudcli/themes/` ＋静态只读服务，§5.8 的五道闸门全部落地；并据此改判 §5.6 v3 那句"直接复用 plugins 的 resolveAsset、不必新写目录遍历与校验"——见 §5.6 v11 与 §5.8 v3）已实施））
 > 参照物：WorkBuddy（`/Applications/WorkBuddy.app`，app.asar 解包 + 本机皮肤包实物）、Codex CLI（`@openai/codex@0.155.1`，Rust 二进制字符串解析）
 > 目标读者：评审 AI / 后续实施者
 
@@ -376,7 +376,7 @@ export type ThemeManifest = {
 - **`color-scheme` 必须显式设置**（v2 新增）：在 `<html>` 上随 `appearance` 写 `color-scheme: light|dark`，浏览器据此自动渲染原生滚动条、checkbox / radio、`<input>`、`<textarea>` 与 `::placeholder`，使 §1.2 #8 的 66 处暗色补偿大部分可删（现状这些补偿正是在手写模拟 `color-scheme`）。**执行顺序：先加 `color-scheme`，再重审 66 处是否仍需保留**，避免先令牌化一堆本可删除的补偿。
 - **JS 消费者需要主动刷新**（v2 新增）：CSS 变量变化不触发任何事件，xterm 的 `ITheme` 不支持 `var()`，CodeMirror 的 `EditorView.theme()` 在扩展创建时求值。因此主题切换后必须显式重读——xterm 走 `getComputedStyle(document.documentElement)` 重读 `--term-*` 后重设 `terminal.options.theme`；CodeMirror 走 compartment reconfigure。Git 图无此问题：`CommitGraphStrip.tsx` 是 SVG，`stroke` 可直接写 `var(--graph-lane-N)`。
 - **"加载成功但破坏 UI"必须有恢复通道**（v2 新增）：失败回落只覆盖"文件缺失 / 格式非法"，覆盖不了选项 B 的 `body{display:none}` / `font-size:0` / `visibility:hidden` 这类**合法但有害**的 CSS——此时用户连切回默认主题的入口都看不到。必须提供强制恢复通道（三选一）：① 全局快捷键（如 `Ctrl/Cmd+Shift+Alt+R` 重置主题）；② 启动参数 / 环境变量 `CLOUDCLI_RESET_THEME=1`；③ URL 查询参数 `?theme=default`。建议**再加**一道自愈哨兵：注入主题 CSS 后 300ms 内若 `<html>` 未出现该主题预设的 `sentinelClass`，判定异常、自动回落并告警。选项 A 因只能写白名单令牌而天然免疫，这一点应在设置页"高级模式"开关处以文案明示。
-- **用户主题 URL 必须带版本参数**（v2 新增，v3 补注）：`/api/themes/<id>.css` 若无 `?v=`，浏览器 / 中间层会缓存旧文件——用户改了 `~/.cloudcli/themes/` 里的文件、刷新后看不到变化，与阶段 2 验收冲突。服务端列目录时返回每文件 mtime（或内容 hash），前端拼 `?v=<mtime>`。服务端实现**直接复用 `server/modules/plugins/plugins.routes.ts:26` 的 `/:name/assets/*` + `resolveAsset` 模式**（已含路径安全 + 扩展名约束），不必新写目录遍历与校验。**v3 补注**：该模式已发 `Content-Type` 与 `Cache-Control: no-store, no-cache, must-revalidate`（`plugins.routes.ts:29-30`），因此浏览器侧本就无缓存，`?v=` 属"兜住中间层 / 代理缓存 + 便于排障"的加固而非硬性必需——若复用该模式就顺手保留。
+- **用户主题 URL 必须带版本参数**（v2 新增，v3 补注）：`/api/themes/<id>.css` 若无 `?v=`，浏览器 / 中间层会缓存旧文件——用户改了 `~/.cloudcli/themes/` 里的文件、刷新后看不到变化，与阶段 2 验收冲突。服务端列目录时返回每文件 mtime（或内容 hash），前端拼 `?v=<mtime>`。服务端实现**直接复用 `server/modules/plugins/plugins.routes.ts:26` 的 `/:name/assets/*` + `resolveAsset` 模式**（已含路径安全 + 扩展名约束），不必新写目录遍历与校验。**v3 补注**：该模式已发 `Content-Type` 与 `Cache-Control: no-store, no-cache, must-revalidate`（`plugins.routes.ts:29-30`），因此浏览器侧本就无缓存，`?v=` 属"兜住中间层 / 代理缓存 + 便于排障"的加固而非硬性必需——若复用该模式就顺手保留。**（"直接复用该模式"这个前提经 2-A 实测不成立，见下方 v11；v3 补注里"该模式已发 `Cache-Control`"与"`?v=` 属加固而非必需"两条仍然成立并被 2-A 沿用。）**
 - **"文件主题"与"粘贴主题"是两条存储线**（v3 新增）：前者在服务端目录（只读、随部署卷走、**内容不跨设备同步**），后者存用户偏好（**内容跨设备同步**）。二者的删除、失效、跨设备语义均不同，设置页须按 `ThemeManifest.source` 区分展示，文档写明。
 - **跨设备同步的边界**（v2 新增）：偏好镜像会把 `themeId` 同步到未安装该主题文件的设备，届时应**显式提示"此设备缺少该主题，已回落默认"**而非静默回落。另注意现状怪癖：`setTheme('system')` 不写偏好（`ThemeContext.tsx:113-121`，仅 light/dark 才 `writeUserPreference`），新增 `themeId` 键时需决定 `system` 分支是否同样豁免，避免把本机临时态覆盖成跨设备永久态。
 
@@ -399,6 +399,14 @@ export type ThemeManifest = {
 > - **Git 图：不需要**（原 bullet 已对），`CommitGraphStrip.tsx` 是 SVG，表现属性直接吃 `var(--graph-lane-N)`。
 >
 > 判据可复述为一句：**看色值最终交给谁**——交给 CSS（注入的样式表、SVG 表现属性、内联 `style`）就不用刷新；交给 JS 数值对象（xterm 的 `ITheme`）才要。
+
+> **v11（2-A 已实施）——上面 v3 那句"服务端实现**直接复用** `plugins.routes.ts` 的 `/:name/assets/*` + `resolveAsset` 模式（已含路径安全 + 扩展名约束），**不必新写目录遍历与校验**"作为字面前提不成立，2-A 改为新写 `server/modules/themes/`。两条实测理由：**
+>
+> **一、那个函数绑在 plugins 注册表上，接不了任意目录。** `resolvePluginAssetPath(name, assetPath)` 先过 `getPluginDir(name)`，而后者是 `scanPlugins()` 的结果里按 name 找、路径固定为 `getPluginsDir()/plugin.dirName`（`plugin-registry.service.ts:227-232`）；`scanPlugins` 只认带 `manifest.json` 的目录。主题文件既不是插件、也不在 plugins 目录下——"复用"得先假装它是插件，语义不成立。
+>
+> **二、它没有任何扩展名约束，v3 那句括号里只有前半为真。** 函数体只做 realpath 规范化 + 包含检查（`plugin-registry.service.ts:238-249`），`contentType` 仅用于响应头；而且它以 `*` 通配**嵌套**路径，与"主题目录是平铺的单层文件"形态不同。
+>
+> **真正值得沿用、也确实被沿用的**是两条：① v3 后半句说的 `Content-Type` + `Cache-Control` ——2-A 照此发了 `no-store`；② 目录包含检查的写法——2-A 用的是 assets 模块那份 `path.resolve(root) + path.sep` 直系子项判据（对应 §5.8"只读该目录"），**未**照搬 plugins 的 realpath 加固，理由与到期条件见 §5.8 v3 的"如实边界"。这条 v11 与 0-D / 1-G 那两条同体例：**文档写的实现前提被更强的实测取代时，改判并回写条款**。
 
 ### 5.7 硬编码收口清单（阶段 0 的施工面）
 
@@ -441,6 +449,25 @@ rg -o -e 'dark:(bg|text|border|ring|stroke|fill|from|to|via|decoration|placehold
 - 目录固定为 `~/.cloudcli/themes/`，只读该目录，只返回 `*.css` / `*.json` / `*.tmTheme`
 - 前端注入位置固定（`<link>` 或 `<style>`），不做 HTML 解析
 - **恢复通道**：见 §5.6 的强制重置手段 + 自愈哨兵
+
+> **v3（2-A 已实施）——上面的约束已成代码，落在 `server/modules/themes/services/theme-files.service.ts`，不再只是文档：**
+>
+> | §5.8 约束 | 2-A 落地 |
+> |---|---|
+> | 文件名 sanitize（仅 `[a-zA-Z0-9._-]`，拒绝 `.` / `..`） | `THEME_FILE_NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/` ＋显式拒 `..`（模式本身允许点）＋首字符须为字母数字（顺带挡掉 dotfile） |
+> | id 前缀强制 | `user-` ＋文件名主干小写；内置 `cc-` 与它由构造成不可能撞车 |
+> | 选择器注入防护 | **同一条模式**——"文件名安全"与"选择器安全"共用一个字符集，不是两套规则 |
+> | 大小上限 256KB | `MAX_THEME_FILE_BYTES`，**列举与下发两处都查**（下发处再查一次，挡"列出后被改"） |
+> | 拒绝 `@import` | 只扫 `.css`——另两种格式没有规则体 |
+> | 目录固定 / 只读该目录 / 只返回三种扩展名 | `getUserThemesDir()`（§8.2 的平行常量）＋扩展名白名单＋直系子项包含检查 |
+> | 前端注入位置固定 | **不属本片**（归 2-B） |
+> | 恢复通道 | **不属本片**（CSS 的"合法但有害"随选项 B 那一片） |
+>
+> **如实边界（两条）**：
+>
+> ① **目录内的符号链接会被跟随**。名单来自 `readdir`，而 `path.resolve` 不解析符号链接，故 `themes/evil.css -> /etc/passwd` 这类会被读出。**未**做 plugins / `image-attachments.ts` 那种 realpath 二次校验：能写该目录的只有服务进程的 OS 用户，而该用户本就能读目标文件，不构成越权提升——多写一次 realpath 换不到安全性。**到期条件**：一旦新增"网页上传主题文件"的入口（网页用户可写该目录），这条边界必须重评。
+>
+> ② **`appearance` 恒为 `system`、`coverage` 不声明**。元数据全由文件名派生，文件自己写的 `name` / `appearance` 这一版**不读**（归选项 A 的解析片）；选择器对未声明 `coverage` 的条目不渲染徽标（1-F 已如此），所以这里"不编一个默认值"是刻意的、不是漏写。
 
 ### 5.9 与既有能力的关系
 
@@ -3707,6 +3734,57 @@ Mutation 侧：
 
 **验收**：往 `~/.cloudcli/themes/` 放一个文件，刷新后主题出现在选择器中并可生效（改文件后刷新能看到变化，即 `?v=` 生效）；非法文件被拒绝且不影响启动；删除文件后回落默认；**"合法但有害"的 CSS 可用 §5.6 的恢复通道退出**；跨设备同步到未安装主题的设备时给出显式提示而非静默回落（**前半"回落可观测"已由 1-D 提供**：生效 id 与所选 id 分离 ＋ `console.warn`；剩余的选择器提示 UI 随 1-F 落地）。
 
+**切片表（v1，2-A 已实施）**
+
+| 片 | 范围 | 状态 |
+|---|---|---|
+| 2-A | 服务端主题目录：列举 `~/.cloudcli/themes/` ＋ 静态只读下发（§5.8 的闸门；**不做内容解析**） | ✅ 已实施（`bdfd5bbb`），见下方记录 |
+| 2-B | 前端加载链路：拉清单 → 合并进选择器 → 注入 ＋ 缓存（`?v=<mtime>`）＋ 加载中 / 失败两态的回落可观测 | 待做 |
+| 2-C | 选项 A：令牌白名单 ＋ 值格式校验，并开始读文件自带的元数据（`name` / `appearance` / `coverage`），编译成 `[data-theme]` 覆盖层 | 待做 |
+| 2-D | 设置页用户主题分区：选择、删除、（可选）粘贴内容；按 `ThemeManifest.source` 区分展示 | 待做 |
+| 2-E | 选项 B（原始 CSS）＋ B2（`.tmTheme` → 语法 / 终端 / 编辑器令牌），连同 CSS 的"合法但有害"恢复通道（§5.6） | 待做 |
+
+**为什么 2-A 先做**：它是 2-B 的前置——前端要的清单、`?v=` 用的 mtime、以及"文件被拒"这一态都出自这两个端点；整片落在服务端，可独立验收（放文件 → 列表出现；坏文件 → 被拒且不影响启动）。2-C / 2-E 是解析层、2-D 是 UI 层，都不阻塞"放一个 `.css` 就能生效"这条最小闭环——`.css` 本身就是覆盖层，只需 2-A ＋ 2-B。
+
+#### 2-A 实施记录（2026-09-26，`bdfd5bbb`）
+
+**范围**：新增 `server/modules/themes/`（`themes.routes.ts` 薄路由 ＋ `services/theme-files.service.ts` ＋ `index.ts` barrel）＋ `server/shared/utils.ts` 的 `getUserThemesDir()`；`server/index.ts` 把 router 挂到 `/api/themes` 的 `authenticateToken` 之后。两个端点：`GET /api/themes` 列清单、`GET /api/themes/:fileName` 原样下发。
+
+**决策（6 条）**
+
+1. **元数据全部由文件名派生**：`id = 'user-' + 主干小写`、`name = 主干原样`、`format` 由扩展名定、`modifiedAt` 取 mtime（供 2-B 拼 `?v=`）。文件自己写的 `name` / `appearance` 这一版不读——那属于选项 A 的解析片。代价：一个 `.json` 里写的 `"name": "深海"` 现在显示为文件名，这是**有意的分片边界**而非遗漏。
+2. **新写服务而非复用 plugins 的 `resolveAsset`**：§5.6 v3 原句"直接复用、不必新写目录遍历与校验"经核实站不住（该函数绑在 plugins 注册表上、且没有扩展名约束），改判并回写 §5.6 v11。真正沿用过来的是 `Content-Type` + `Cache-Control: no-store` 与"直系子项包含检查"的写法。
+3. **`getUserThemesDir()` 放 `server/shared/utils.ts`**：§8.2 要求"新增一个与 assets 平行的目录常量、严禁主题模块另写第二套拼接"。它与后端规范"只用一处的工具放组件文件内"相冲突，此处按 §8.2（已决条款）优先，并在函数注释里写明是 `getGlobalImageAssetsDir` 的平行物。
+4. **列表对不合格文件是跳过并告警，不是报错**：对应验收里"非法文件被拒绝且**不影响启动**"——一个坏文件不该让整个列表 500。告警点名文件与原因。
+5. **去重按 id、排序大小写不敏感**：`Nord.tmTheme` 与 `nord.css` 同为 `user-nord`，若都列出会让两份清单争同一个 `[data-theme]` 值。排序用确定性的折叠比较（不用 `localeCompare`，它随 ICU 变），同题时 `.css` 因比较序取胜——恰好是全保真的那个格式。
+6. **服务层每个入口显式收 `themesDir`**：生产调用方传 `getUserThemesDir()`，测试传临时目录。这是为了让 §5.8 那几道闸门（上限 / `@import` / 去重）能在临时目录里被真正跑到，而不是只测纯函数——`npm test` 里没有任何一处会碰真实 `~/.cloudcli/themes/`。
+
+**如实边界（2 条）**：目录内符号链接会被跟随、`appearance` 恒为 `system` 且不声明 `coverage`——两条的完整理由与到期条件写在 §5.8 v3。
+
+**证据**
+
+| 项 | 预期 | 实测 |
+|---|---|---|
+| 服务层测试 | — | 9 项（扩展名映射 / 主干 / 名字安全 / 路径解析 / 空目录 / 列举过滤 / 去重 / 读取内容类型 / 读取拒绝） |
+| 路由层测试 | — | 3 项，把真 router 挂到 express 上真发 HTTP（仓库无 supertest）；靠覆写 `process.env.HOME` 指向临时目录驱动，路由按请求解析该路径 |
+| 变异：去文件名模式检查 | 名字类 | **恰 2 红** |
+| 变异：去扩展名闸门 | 名字类 ＋ 路径解析 | **恰 2 红** |
+| 变异：去大小上限 | 列表 ＋ 下发 | **恰 2 红** |
+| 变异：去 `@import` 闸门 | 列表 ＋ 下发 | **恰 2 红** |
+| 变异：去 id 去重 | 去重 | **恰 1 红** |
+| 变异：id 前缀 `user-` → `cc-` | 列表 ＋ 去重 | **恰 2 红**——直接证明 §5.8 的前缀规则被断言，而非只写在文档里 |
+| 变异：`appearance` `system` → `dark` | 列表 | **恰 1 红** |
+| 变异：**去掉目录包含检查** | 名字类 | **0 红 —— 被前一层完全屏蔽**：名字闸门已不许任何分隔符，逃逸路径在 `path.resolve` 之前就被拒。如实记为**纵深防御行、当前无测试可命中**（不是漏测，是"归前一层管"） |
+| 变异：路由 `400` → `500` | 路由状态映射 | **恰 1 红** |
+| 变异：路由 `no-store` → `public` | 路由缓存头 | **恰 1 红** |
+| 端到端（真 HOME ＋ 真 HTTP） | — | 列表只给合法两项（超限 / `@import` 被跳并告警）；下发的内容类型 / `nosniff` / `no-store` 正确；`@import` 与超限 → 400、缺失 → 404、`..%2Fauth.db` → 400 |
+| 基线对照 | 服务端失败集不变 | `git stash` 前后各跑一次 `npm test`，**失败集逐行一致**（20 行，全在 Codex / WorkBuddy / Claude 路径解析 / OpenCode 区域，均为预存在的环境相关失败） |
+| 产物核对 | 新模块进产物 | `dist-server/server/modules/themes/*.js` 齐；`dist-server/server/index.js` 有 `app.use('/api/themes', authenticateToken, themesRoutes)`；平台常量（`user-` / 256KB / `@import`）都在 |
+
+**门槛**：`npm test` 1012 项（992 通过 / 19 失败 / 1 跳过，与 stash 基线逐行一致，净新增 0 失败）；`typecheck`（前后端两个 project）干净；`lint` **153 warnings / 0 error**（与基线相同，无新增）；`build` exit 0（取真实退出码）；`test:client` **130 文件 / 988 用例**（与 1-I 逐位相同）。
+
+**与既有账的关系**：**本片无任何视觉变更**——它只新增只读端点，不进前端。阶段 0 迁移账、B3 账户、1-H 的色板账、1-I 的首帧账均不受影响。
+
 ---
 
 ## 7. 风险与取舍
@@ -4078,7 +4156,7 @@ Mutation 侧：
 **结论：采用 `~/.cloudcli/themes/`，Docker 仅文档标注、不做代码适配；路径解析必须复用 server 现有 `path.join(os.homedir(), '.cloudcli', …)` 模式（新增与 assets 平行的目录常量），严禁主题模块另写第二套拼接。与 Pi / DSH 完全一致，复核支撑采纳：**
 
 - 已实测 `docker/` 下仅 `claude-code` / `codex` / `shared` 三个构建环境与 README，无应用 Dockerfile、无 compose——Docker 非分发形态，为其预设 `/data/themes/` 属过度设计。
-- 已实测 `server/index.ts:323`（`path.join(os.homedir(), '.cloudcli', 'local-server.json')`）与 `plugins.routes.ts` 的 `/:name/assets/*` + `resolveAsset` 模式（`Content-Type` / `Cache-Control` 已齐）均存在，阶段 2 静态提供直接复用。
+- 已实测 `server/index.ts:323`（`path.join(os.homedir(), '.cloudcli', 'local-server.json')`）与 `plugins.routes.ts` 的 `/:name/assets/*` + `resolveAsset` 模式（`Content-Type` / `Cache-Control` 已齐）均存在，阶段 2 静态提供直接复用。**2-A 修正**：后半句不成立——那个 `resolveAsset` 绑在 plugins 注册表上（`getPluginDir` 只认带 `manifest.json` 的已扫描插件），且其函数体**没有**扩展名约束，故 2-A 新写了 `server/modules/themes/`；真正沿用过来的是 `Content-Type` + `Cache-Control: no-store` 与"直系子项包含检查"的写法。见 §5.6 v11 与 §5.8 v3。
 - 一处补充进 README 口径的要求：**"文件主题"与"粘贴主题"是两条存储线**——前者在服务端目录（只读、随部署卷走、内容不跨设备同步），后者存用户偏好（跨设备同步内容）。二者的删除、失效、跨设备语义均不同，设置页须按 `source` 区分展示，文档写明。
 
 ### §8.7 阶段 0 拆分口径
