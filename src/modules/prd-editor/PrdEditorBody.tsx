@@ -1,10 +1,14 @@
 import { useMemo } from 'react';
 import { markdown } from '@codemirror/lang-markdown';
-import { oneDark } from '@codemirror/theme-one-dark';
 import { EditorView } from '@codemirror/view';
 import CodeMirror from '@uiw/react-codemirror';
 
-import { MarkdownPreview } from '@/modules/code-editor';
+import {
+  MarkdownPreview,
+  editorDarkTheme,
+  editorHighlightExtension,
+  editorLightTheme,
+} from '@/modules/code-editor';
 
 type PrdEditorBodyProps = {
   content: string;
@@ -23,7 +27,7 @@ export default function PrdEditorBody({
   wordWrap,
 }: PrdEditorBodyProps) {
   const extensions = useMemo(
-    () => [markdown(), ...(wordWrap ? [EditorView.lineWrapping] : [])],
+    () => [markdown(), editorHighlightExtension, ...(wordWrap ? [EditorView.lineWrapping] : [])],
     [wordWrap],
   );
 
@@ -40,7 +44,7 @@ export default function PrdEditorBody({
       value={content}
       onChange={onContentChange}
       extensions={extensions}
-      theme={isDarkMode ? oneDark : undefined}
+      theme={isDarkMode ? editorDarkTheme : editorLightTheme}
       height="100%"
       style={{
         fontSize: '14px',
