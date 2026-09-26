@@ -17,6 +17,7 @@
     "./mobile-terminal-selection.spec.ts",
     "./theme-chrome.spec.ts",
     "./theme-overlays.spec.ts",
+    "./user-theme-paste.spec.ts",
     "./user-theme-tmtheme.spec.ts",
     "./vite.config.ts"
   ]

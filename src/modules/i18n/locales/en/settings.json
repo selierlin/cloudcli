@@ -209,7 +209,7 @@
   },
   "userThemes": {
     "title": "User themes",
-    "description": "The two sources beyond the colour themes above: files in the themes folder, and token JSON you paste in",
+    "description": "The two sources beyond the colour themes above: files in the themes folder, and theme content you paste in (token JSON or raw CSS)",
     "files": {
       "title": "From the themes folder",
       "hint": "Read by the server from ~/.cloudcli/themes/; add or remove them in that folder — only what is there is listed here.",
@@ -220,17 +220,34 @@
       "hint": "Kept in your preferences, so they follow you to your other devices.",
       "empty": "Nothing pasted yet."
     },
-    "pasteLabel": "Paste token JSON",
-    "pastePlaceholder": "{ \"name\": \"Deep sea\", \"tokens\": { \"--primary\": \"175 84% 32%\" } }",
+    "mode": {
+      "label": "Format",
+      "json": "Token JSON",
+      "css": "Raw CSS",
+      "hint": "Token JSON can only set whitelisted tokens, so it cannot break the layout; raw CSS can write any selector, and can make the interface unreadable or unclickable. Switching affects only what you paste next.",
+      "cssNote": "The rules are injected only while the theme is picked, so you can write :root and .dark directly — no [data-theme] needed."
+    },
+    "trust": {
+      "title": "Turn on raw CSS?",
+      "body": "The CSS you paste is injected into the page as it stands: it can make the interface unreadable, unclickable, or even cover this settings page. If that happens, append ?theme=default to the address and open it again to go back to the default theme.",
+      "confirm": "I understand, turn it on",
+      "cancel": "Cancel"
+    },
+    "pasteLabel": "Paste the theme",
+    "pastePlaceholder": {
+      "json": "{ \"name\": \"Deep sea\", \"tokens\": { \"--primary\": \"175 84% 32%\" } }",
+      "css": ":root { --primary: 175 84% 32%; }"
+    },
     "pasteSubmit": "Add theme",
-    "pasteInvalid": "This JSON cannot be a theme: {{reason}}",
+    "pasteInvalid": "This content cannot be a theme: {{reason}}",
     "reason": {
       "unsafe-id": "the theme id is unsafe",
       "unreadable-json": "it is not a valid JSON object",
       "no-tokens": "it has no tokens field, or that field is empty",
       "unsafe-value": "a value contains characters that would break the stylesheet",
       "nothing-usable": "every token was rejected, so none of them can be used",
-      "too-large": "it is over the 256KB limit"
+      "too-large": "it is over the 256KB limit",
+      "import-rule": "@import is not allowed, because it would pull in stylesheets nothing vetted"
     },
     "use": "Use",
     "inUse": "In use",

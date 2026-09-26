@@ -69,6 +69,7 @@ too:
 | `first-paint.spec.ts` | the chrome that paints *before* the bundle runs: that the splash and the `theme-color` meta agree in both appearances, that the inline script reaches all three consumers, and that every declared `theme-color` is media-scoped |
 | `theme-overlays.spec.ts` | each `[data-theme]` overlay: that it is declared outside any `@layer`, that it resolves as written, that it moves exactly the surfaces its `coverage` advertises, and that the traversal is complete in both directions (no unregistered `[data-theme]` block, no registered theme without one) |
 | `user-theme-tmtheme.spec.ts` | a `.tmTheme` file's compiled overlay: that the editor and terminal tokens it names actually move (a hex written into a terminal token would resolve to nothing), and that its `--cc-syntax-*` overrides outrank the runtime-injected base syntax sheet even when that sheet is injected afterwards |
+| `user-theme-paste.spec.ts` | both formats a paste may be written in: that each reaches the page, that a base-palette colour is actually beaten (a `[data-theme]` block for option A, the author's own `:root` for option B), and that neither asks the server for a file that does not exist |
 | `contrast.spec.ts` | the WCAG AA floors of §5.10 — body / secondary / button text at 4.5:1, the focus ring at 3:1 — for the base palette and every overlay |
 
 ## Overlay themes

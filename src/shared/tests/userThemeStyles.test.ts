@@ -78,10 +78,14 @@ const fileTarget = (overrides: Record<string, unknown> = {}) => ({
 
 const PASTE_ID = 'paste-1';
 
-/** The paste half: the content is in hand, so nothing about it is fetched. */
-const pasteTarget = (content: string) => ({
+/**
+ * The paste half: the content is in hand, so nothing about it is fetched.
+ * `format` defaults to option A's, which is what most of these cases paste; the
+ * css ones say so, because that is the whole difference the store dispatches on.
+ */
+const pasteTarget = (content: string, format: 'json' | 'css' = 'json') => ({
   kind: 'paste' as const,
-  theme: { id: PASTE_ID, name: 'Deep sea', content },
+  theme: { id: PASTE_ID, name: 'Deep sea', content, format },
 });
 
 const pastedJson = (tokens: Record<string, string>): string =>
@@ -91,9 +95,10 @@ const pastedJson = (tokens: Record<string, string>): string =>
 const seedPastedPick = (
   settings: { writeUserPreference: (key: never, value: unknown) => void },
   content: string,
+  format: 'json' | 'css' = 'json',
 ): void => {
   settings.writeUserPreference('userThemePastes' as never, [
-    { id: PASTE_ID, name: 'Deep sea', content },
+    { id: PASTE_ID, name: 'Deep sea', content, format },
   ]);
   settings.writeUserPreference('themeId' as never, PASTE_ID);
 };
@@ -550,5 +555,60 @@ test('the boot restore reports a pasted pick it cannot compile', async () => {
     styles.getUserThemeStyleState(),
     { appliedId: null, failedId: PASTE_ID },
     'and the state has to say so, or the picker marks the pick as applied while the page never changed',
+  );
+});
+
+/**
+ * The css half of the paste line (§5.5 v5, §5.8 v6). Two claims the store owes
+ * this format: its text is what gets injected, and the one gate a stylesheet
+ * needs is applied to the content rather than only to the act of pasting.
+ */
+
+const PASTED_CSS = '[class*=toolbar] { background: hsl(200 50% 20%); }';
+
+test('a css paste reaches the document as it stands, rather than being compiled', async () => {
+  const { styles } = await loadStores();
+
+  await styles.applyUserThemeStyle(pasteTarget(PASTED_CSS, 'css'), true);
+
+  assert.equal(
+    styleElement()?.textContent,
+    PASTED_CSS,
+    'option B is a stylesheet already; recompiling it would be rewriting the author\'s own selectors',
+  );
+  assert.equal(styles.getUserThemeStyleState().appliedId, PASTE_ID);
+  assert.deepEqual(fileRequests, [], 'a paste has no file behind it, whatever format it is in');
+});
+
+test('a css pick is restored as it stands before anything is fetched, too', async () => {
+  const { styles, settings } = await loadStores();
+  seedPastedPick(settings, PASTED_CSS, 'css');
+
+  styles.applyBootUserThemeStyle();
+
+  assert.equal(
+    styleElement()?.textContent,
+    PASTED_CSS,
+    'the first paint is the same compile step, so it has to take the same branch',
+  );
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: PASTE_ID, failedId: null });
+  assert.deepEqual(fileRequests, []);
+});
+
+test('the @import gate runs on the content at apply time, not only when it was pasted', async () => {
+  const { styles } = await loadStores();
+  const hostile = `${PASTED_CSS}\n@import url("https://example.invalid/x.css");`;
+
+  await styles.applyUserThemeStyle(pasteTarget(hostile, 'css'), true);
+
+  assert.equal(
+    styleElement(),
+    null,
+    'a mirror written by another client never passed the paste-time gate, so this one has to hold too',
+  );
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: PASTE_ID });
+  assert.ok(
+    vi.mocked(console.warn).mock.calls.some(([, detail]) => String(detail).includes('import-rule')),
+    'and the refusal has to name the rule it was refused for',
   );
 });

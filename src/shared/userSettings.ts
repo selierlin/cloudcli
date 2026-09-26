@@ -34,6 +34,17 @@ export type UserPreferences = {
    * them.
    */
   userThemePastes: PastedUserTheme[];
+  /**
+   * The format a newly pasted theme is written in: `json` for option A's token
+   * map, `css` for option B's raw stylesheet. It is the settings page's advanced
+   * mode, and it is read by `@/modules/settings/hooks/useThemePasteFormat`.
+   *
+   * This decides what the paste box compiles next, not how an entry already in
+   * `userThemePastes` is read — each of those records the format it was written
+   * in (`PastedUserTheme.format`), so switching modes never re-reads a stored
+   * theme as something else.
+   */
+  themePasteFormat: 'json' | 'css';
   userLanguage: string;
   tasksEnabled: boolean;
   projectSortOrder: 'name' | 'date';
@@ -86,6 +97,10 @@ const LEGACY_STORAGE_KEYS: Record<UserPreferenceKey, string> = {
   // is what leaves the list unset so the server's copy (or an empty list) is what
   // this device starts from.
   userThemePastes: '',
+  // The paste format never had a browser-local home either, and an empty key
+  // leaves it unset so the server's copy wins — or, with none, the reader's own
+  // default, which is option A's format (the safe one).
+  themePasteFormat: '',
   userLanguage: 'userLanguage',
   tasksEnabled: 'tasks-enabled',
   projectSortOrder: 'claude-settings',

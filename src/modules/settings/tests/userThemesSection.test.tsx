@@ -31,7 +31,7 @@ const fileEntry = {
   modifiedAt: 42,
 };
 
-const pasteEntry = { id: 'paste-1', name: 'Deep sea', content: validTheme };
+const pasteEntry = { id: 'paste-1', name: 'Deep sea', content: validTheme, format: 'json' as const };
 
 let listing: () => Promise<Response> = async () => new Response('{}', { status: 200 });
 
@@ -57,17 +57,27 @@ vi.mock('react-i18next', () => ({
 const listed = (themes: unknown[]): (() => Promise<Response>) =>
   async () => new Response(JSON.stringify({ themes }), { status: 200 });
 
-/** Renders the section over a fresh copy of the stores, with the state already stored. */
+/**
+ * Renders the section over a fresh copy of the stores, with the state already
+ * stored. The settings module is returned as well, because what the section
+ * *writes* is half of what these tests are about. `storedPasteFormat` is a
+ * `string` rather than the two known values because one case is about a value
+ * this build does not know arriving from the mirror.
+ */
 async function renderSection(
   themes: unknown[] = [],
   pastes: Array<Record<string, unknown>> = [],
   themeId: string | null = null,
+  storedPasteFormat: string | null = null,
 ) {
   vi.resetModules();
   const settings = await import('@/shared/userSettings');
   settings.writeUserPreference('themeId', themeId);
   if (pastes.length > 0) {
     settings.writeUserPreference('userThemePastes', pastes);
+  }
+  if (storedPasteFormat !== null) {
+    settings.writeUserPreference('themePasteFormat', storedPasteFormat);
   }
 
   listing = listed(themes);
@@ -80,7 +90,7 @@ async function renderSection(
     </ThemeProvider>,
   );
   await settle();
-  return opened;
+  return { ...opened, settings };
 }
 
 /** Lets the listing and the re-render it causes finish. */
@@ -211,4 +221,154 @@ test('the use button puts a theme in force and says which one is in use', async 
 
   assert.equal(document.documentElement.dataset.theme, 'paste-1');
   assert.equal(buttonWithText(rowFor(container, 'Deep sea'), 'userThemes.inUse').getAttribute('aria-pressed'), 'true');
+});
+
+/**
+ * The advanced mode (§5.5 v5): the same box writes one of two formats, and the
+ * one that can break the page is behind a confirmation.
+ *
+ * The line these tests hold is the one between *asking* and *having decided*:
+ * a switch that stored the format and then asked would leave the footgun armed
+ * on the next reload, which is exactly what §5.6's forced channel exists to
+ * cover — so the assertion that the preference is still unset before the answer
+ * is the point of the first of them.
+ */
+
+const modeButton = (root: HTMLElement, format: 'json' | 'css'): HTMLButtonElement =>
+  buttonWithText(root, `userThemes.mode.${format}`);
+
+test('the paste box offers both formats, writes option A, and states the difference', async () => {
+  const { container } = await renderSection();
+
+  assert.equal(modeButton(container, 'json').getAttribute('aria-checked'), 'true');
+  assert.equal(modeButton(container, 'css').getAttribute('aria-checked'), 'false');
+  assert.ok(
+    container.textContent?.includes('userThemes.mode.hint'),
+    '§5.6 requires the safety difference to be stated at the switch, not left to the word "advanced"',
+  );
+  assert.equal(
+    pasteBox(container).getAttribute('placeholder'),
+    'userThemes.pastePlaceholder.json',
+    'the example has to match the format being written, or it teaches the wrong one',
+  );
+  assert.equal(
+    container.textContent?.includes('userThemes.mode.cssNote'),
+    false,
+    'the note is about writing a stylesheet, so it belongs to that mode',
+  );
+});
+
+test('an unrecognised stored format opens as option A, the safe one', async () => {
+  const { container } = await renderSection([], [], null, 'scss');
+
+  assert.equal(
+    modeButton(container, 'json').getAttribute('aria-checked'),
+    'true',
+    'the mirror is writable by other clients, and a value this build cannot read must not leave the switch pointing at neither mode',
+  );
+});
+
+test('a preference that arrives after the section is open moves the switch with it', async () => {
+  const { container, settings } = await renderSection();
+  assert.equal(modeButton(container, 'json').getAttribute('aria-checked'), 'true');
+
+  await act(async () => {
+    settings.writeUserPreference('themePasteFormat', 'css');
+  });
+
+  assert.equal(
+    modeButton(container, 'css').getAttribute('aria-checked'),
+    'true',
+    'the preference arrives from a hydrate as well as from this page, so the switch has to follow the store',
+  );
+});
+
+test('switching to css asks first, and the preference is written only on a yes', async () => {
+  const { container, settings } = await renderSection();
+
+  fireEvent.click(modeButton(container, 'css'));
+
+  assert.ok(
+    container.textContent?.includes('userThemes.trust.body'),
+    'the risk has to be spelled out before the mode takes effect',
+  );
+  assert.equal(settings.readUserPreference('themePasteFormat', null), null, 'asking is not deciding');
+
+  fireEvent.click(buttonWithText(container, 'userThemes.trust.confirm'));
+
+  assert.equal(settings.readUserPreference('themePasteFormat', null), 'css');
+  assert.equal(modeButton(container, 'css').getAttribute('aria-checked'), 'true');
+  assert.equal(
+    container.textContent?.includes('userThemes.trust.body'),
+    false,
+    'and the question goes away with the answer',
+  );
+});
+
+test('declining the confirmation leaves the box writing option A', async () => {
+  const { container, settings } = await renderSection();
+
+  fireEvent.click(modeButton(container, 'css'));
+  fireEvent.click(buttonWithText(container, 'userThemes.trust.cancel'));
+
+  assert.equal(settings.readUserPreference('themePasteFormat', null), null);
+  assert.equal(modeButton(container, 'json').getAttribute('aria-checked'), 'true');
+});
+
+test('in css mode the box stores a stylesheet, under the format the mode names', async () => {
+  const { container, settings } = await renderSection();
+
+  fireEvent.click(modeButton(container, 'css'));
+  fireEvent.click(buttonWithText(container, 'userThemes.trust.confirm'));
+  const css = ':root { --primary: 175 84% 32%; }';
+  fireEvent.change(pasteBox(container), { target: { value: css } });
+  fireEvent.click(buttonWithText(container, 'userThemes.pasteSubmit'));
+
+  assert.deepEqual(
+    settings.readUserPreference('userThemePastes', null),
+    [{ id: 'paste-1', name: 'paste-1', content: css, format: 'css' }],
+    'the entry records the format of the mode it was pasted in, not the mode later in force',
+  );
+  assert.ok(rowFor(container, 'paste-1'), 'and a stylesheet has no name of its own, so it is its id');
+  assert.equal(pasteBox(container).getAttribute('placeholder'), 'userThemes.pastePlaceholder.css');
+  assert.ok(
+    container.textContent?.includes('userThemes.mode.cssNote'),
+    'a paste cannot know the id it will get, so the form that needs no id has to be spelled out',
+  );
+});
+
+test('going back to option A takes effect at once, and is not a question', async () => {
+  const { container, settings } = await renderSection([], [], null, 'css');
+
+  fireEvent.click(modeButton(container, 'json'));
+
+  assert.equal(settings.readUserPreference('themePasteFormat', null), 'json');
+  assert.equal(
+    container.textContent?.includes('userThemes.trust.body'),
+    false,
+    'only the direction that can break the page is worth confirming',
+  );
+});
+
+test('clicking raw CSS while it is already in force asks nothing', async () => {
+  const { container } = await renderSection([], [], null, 'css');
+
+  fireEvent.click(modeButton(container, 'css'));
+
+  assert.equal(
+    container.textContent?.includes('userThemes.trust.body'),
+    false,
+    'there is no switch to confirm, so asking would be a question with no answer to change',
+  );
+});
+
+test('a stored css preference opens in css mode without asking again', async () => {
+  const { container } = await renderSection([], [], null, 'css');
+
+  assert.equal(modeButton(container, 'css').getAttribute('aria-checked'), 'true');
+  assert.equal(
+    container.textContent?.includes('userThemes.trust.body'),
+    false,
+    'the question belongs to the act of switching, and this device already answered it',
+  );
 });

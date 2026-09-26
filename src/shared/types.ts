@@ -2119,6 +2119,23 @@ export type PastedUserTheme = {
    * because their bytes arrive by a different route (§5.8 v4).
    */
   coverage?: 'accent' | 'full';
-  /** The option A token JSON as pasted; compiled each time the theme is applied. */
+  /**
+   * How `content` is meant to be read — option A's token JSON (`json`) or option
+   * B's raw stylesheet (`css`), the two formats the paste line accepts.
+   *
+   * A theme *file* carries its format in its extension, which the listing reads;
+   * a paste has no filename, so the format is recorded here when the entry is
+   * added and is what the compiler dispatches on. It is part of the entry rather
+   * than a property of the apply call so that re-reading the entry from the
+   * preference mirror compiles the same way it did when it was pasted.
+   *
+   * `.tmTheme` is not one of these: a plist is not something typed into a text
+   * box, and it has no paste line (2-E delivered the file route only).
+   */
+  format: 'json' | 'css';
+  /**
+   * The pasted text, compiled each time the theme is applied: option A's token
+   * map, or option B's stylesheet injected as it stands.
+   */
   content: string;
 };
