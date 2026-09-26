@@ -80,7 +80,7 @@ test('a .tmTheme moves the editor and terminal tokens it names', async ({ page }
   expect(result.requests, 'a .tmTheme is a theme file like any other').toEqual([
     '/api/themes/dracula.tmTheme?v=42',
   ]);
-  expect(result.state).toEqual({ appliedId: FIXTURE_ID, failedId: null });
+  expect(result.state).toEqual({ appliedId: FIXTURE_ID, failedId: null, warnings: [] });
   expect(result.cached, 'its compiled sheet is what the next first paint needs').toBe(true);
 
   expect(result.afterEditor).toBe(EDITOR_BG_COLOR);

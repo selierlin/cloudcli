@@ -94,6 +94,13 @@ type CachedStyle = {
   fingerprint: string;
   /** The compiled stylesheet — a `.css` file verbatim, a `.json` one compiled. */
   css: string;
+  /**
+   * The contrast report the compile that produced `css` also produced (§5.10).
+   * It travels with the sheet because the boot-time restore injects `css`
+   * without recompiling it: a warning known to the last session but dropped
+   * here would make the same theme read differently across a reload.
+   */
+  warnings: ThemeContrastWarning[];
 };
 
 /** What one theme's text is worth: a stylesheet to inject, or a reason it cannot be one. */
@@ -234,10 +241,12 @@ function warnIgnored(id: string, ignored: IgnoredThemeEntry[]): void {
 /**
  * Reports a theme that applies but cannot be read (§5.10).
  *
- * The console is the only channel a *theme file* has: the settings page lists
- * files without reading them, so an author who wrote one on the machine sees the
- * warning here or not at all. A pasted theme's author is also told in the paste
- * box, where they were looking when they wrote it.
+ * The console is one of two channels a *theme file* has: the warnings also
+ * travel on the style state (`UserThemeStyleState.warnings`), which the
+ * settings page shows next to the file that is in use. The console stays
+ * because the settings page is not always open, and the author of a file is
+ * often looking at a terminal instead. A pasted theme's author is also told in
+ * the paste box, where they were looking when they wrote it.
  */
 function warnContrast(id: string, warnings: ThemeContrastWarning[]): void {
   if (warnings.length === 0) return;
@@ -259,6 +268,14 @@ export type UserThemeStyleState = {
    * leaving a pick that quietly stopped working.
    */
   failedId: string | null;
+  /**
+   * The contrast report of the stylesheet in the document (§5.10) — what the
+   * compile that produced it also produced. It describes what is on screen, so
+   * it follows `appliedId` in and out: empty while nothing is applied, while a
+   * load is refused, and while a replacement is on its way it is the *old*
+   * sheet's, which is still what the page is wearing.
+   */
+  warnings: ThemeContrastWarning[];
 };
 
 /** What the currently applied stylesheet was built from, for the "is this still current" check. */
@@ -267,7 +284,7 @@ type AppliedStyle = {
   revision: string | number;
 };
 
-let state: UserThemeStyleState = { appliedId: null, failedId: null };
+let state: UserThemeStyleState = { appliedId: null, failedId: null, warnings: [] };
 let applied: AppliedStyle | null = null;
 
 /**
@@ -290,22 +307,39 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+/**
+ * Whether a cached warnings field is one this module could have written. The
+ * cache is only ever trusted whole — a field this build cannot vouch for
+ * invalidates the entry rather than being read loosely, exactly like a
+ * fingerprint it does not recognise.
+ */
+function isWarningList(value: unknown): value is ThemeContrastWarning[] {
+  return Array.isArray(value) && value.every((warning) =>
+    isRecord(warning)
+    && (warning.appearance === 'light' || warning.appearance === 'dark')
+    && typeof warning.ink === 'string'
+    && typeof warning.surface === 'string'
+    && typeof warning.ratio === 'number'
+    && typeof warning.min === 'number');
+}
+
 function readCache(): CachedStyle | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     if (!isRecord(parsed)) return null;
-    const { id, modifiedAt, fingerprint, css } = parsed;
+    const { id, modifiedAt, fingerprint, css, warnings } = parsed;
     if (
       typeof id !== 'string' ||
       typeof modifiedAt !== 'number' ||
       typeof fingerprint !== 'string' ||
-      typeof css !== 'string'
+      typeof css !== 'string' ||
+      !isWarningList(warnings)
     ) {
       return null;
     }
-    return { id, modifiedAt, fingerprint, css };
+    return { id, modifiedAt, fingerprint, css, warnings };
   } catch {
     return null;
   }
@@ -415,7 +449,7 @@ export function clearAppliedUserThemeStyle(): void {
   previewStyle()?.remove();
   clearCache();
   applied = null;
-  publish({ appliedId: null, failedId: null });
+  publish({ appliedId: null, failedId: null, warnings: [] });
 }
 
 /**
@@ -442,7 +476,7 @@ export function applyBootUserThemeStyle(): void {
   if (cached && cached.id === pickedId && cached.fingerprint === COMPILED_OUTPUT_FINGERPRINT) {
     injectStyle(cached.id, cached.css);
     applied = { id: cached.id, revision: cached.modifiedAt };
-    publish({ appliedId: cached.id, failedId: null });
+    publish({ appliedId: cached.id, failedId: null, warnings: cached.warnings });
     return;
   }
 
@@ -465,13 +499,13 @@ export function applyBootUserThemeStyle(): void {
     // written by another build (a format this one does not compile, or a
     // stylesheet carrying the `@import` this build refuses), so the honest
     // report is a refusal rather than a first paint wearing nothing.
-    publish({ appliedId: null, failedId: theme.id });
+    publish({ appliedId: null, failedId: theme.id, warnings: [] });
     return;
   }
 
   injectStyle(theme.id, compiled.css);
   applied = { id: theme.id, revision: theme.content };
-  publish({ appliedId: theme.id, failedId: null });
+  publish({ appliedId: theme.id, failedId: null, warnings: compiled.warnings });
 }
 
 /** The current stylesheet state. Stable between changes, so it can seed React state. */
@@ -520,7 +554,7 @@ export async function applyUserThemeStyle(
     removeInjectedStyles();
     clearCache();
     applied = null;
-    publish({ appliedId: null, failedId: null });
+    publish({ appliedId: null, failedId: null, warnings: [] });
     return;
   }
 
@@ -536,7 +570,9 @@ export async function applyUserThemeStyle(
   // A newer version of the theme being fetched keeps the version already on
   // screen until the replacement is in hand, so the id stays resolved and
   // nothing downstream — the terminal reads tokens on this id — sees a gap.
-  publish({ appliedId: applied?.id ?? null, failedId: null });
+  // The warnings follow the same logic: until the new sheet lands, what the
+  // page wears is still the old one, so its report is still the current one.
+  publish({ appliedId: applied?.id ?? null, failedId: null, warnings: state.warnings });
 
   try {
     const compiled = await loadCompiledSource(target);
@@ -555,10 +591,11 @@ export async function applyUserThemeStyle(
         modifiedAt: target.entry.modifiedAt,
         fingerprint: COMPILED_OUTPUT_FINGERPRINT,
         css: compiled.css,
+        warnings: compiled.warnings,
       });
     }
     applied = { id, revision };
-    publish({ appliedId: id, failedId: null });
+    publish({ appliedId: id, failedId: null, warnings: compiled.warnings });
   } catch (error) {
     if (token !== operation) return;
 
@@ -567,7 +604,7 @@ export async function applyUserThemeStyle(
     removeInjectedStyles();
     clearCache();
     applied = null;
-    publish({ appliedId: null, failedId: id });
+    publish({ appliedId: null, failedId: id, warnings: [] });
     console.warn(`Theme "${id}" could not be loaded; falling back to the default.`, error);
   }
 }

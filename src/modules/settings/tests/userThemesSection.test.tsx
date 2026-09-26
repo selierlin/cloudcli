@@ -34,12 +34,13 @@ const fileEntry = {
 const pasteEntry = { id: 'paste-1', name: 'Deep sea', content: validTheme, format: 'json' as const };
 
 let listing: () => Promise<Response> = async () => new Response('{}', { status: 200 });
+let fileBody = ':root{--t:1}';
 
 vi.mock('@/shared/api', () => ({
   api: {
     themes: {
       list: () => listing(),
-      file: async () => new Response(':root{--t:1}', { status: 200 }),
+      file: async () => new Response(fileBody, { status: 200 }),
     },
     user: { savePreferences: async () => new Response('{}', { status: 200 }) },
   },
@@ -184,6 +185,7 @@ function ensureChromeMeta(name: string): void {
 beforeEach(() => {
   localStorage.clear();
   localStorage.setItem('auth-token', 'header.payload.signature');
+  fileBody = ':root{--t:1}';
   document
     .querySelectorAll('style[data-cloudcli-user-theme], style[data-cloudcli-theme-preview]')
     .forEach((element) => element.remove());
@@ -604,4 +606,72 @@ test('option A is not previewed and says nothing about previewing', async () => 
 
   assert.ok(previewElement() === null, '§5.5 puts the preview on the advanced switch');
   assert.equal(container.textContent?.includes('userThemes.previewing'), false);
+});
+
+/**
+ * §5.10's contrast report for a theme *file* (2-L). The listing never reads
+ * file content (2-D, deliberate), but the apply step does — and its report
+ * rides the style state, which is what this section renders. The line these
+ * tests hold: the report belongs to the file list only while a file is what
+ * the page is wearing, and a paste's report keeps its own moment.
+ */
+
+test('the applied file theme\u2019s readability warnings are shown where the file is listed', async () => {
+  fileBody = JSON.stringify({ tokens: { '--primary': '175 84% 32%' } });
+  const { container } = await renderSection([{ ...fileEntry, format: 'json', fileName: 'borealis.json' }]);
+
+  fireEvent.click(buttonWithText(rowFor(container, 'Borealis'), 'userThemes.use'));
+  await settle();
+
+  const report = container.querySelector('[role="status"]');
+  assert.ok(report, 'a warning with nowhere to appear is not a warning');
+  assert.ok(report.textContent?.includes('userThemes.contrastTitle'));
+  assert.ok(
+    report.textContent?.includes('--primary-foreground'),
+    'the report names the pair, the same one the console line names',
+  );
+});
+
+test('a file theme with nothing to report puts no block in the file list', async () => {
+  fileBody = JSON.stringify({ tokens: { '--term-background': '210 45% 8%' } });
+  const { container } = await renderSection([{ ...fileEntry, format: 'json', fileName: 'borealis.json' }]);
+
+  fireEvent.click(buttonWithText(rowFor(container, 'Borealis'), 'userThemes.use'));
+  await settle();
+
+  assert.ok(
+    container.querySelector('[role="status"]') === null,
+    'a block that always renders would teach the reader to ignore it',
+  );
+});
+
+test('the file report follows the theme: picking another one takes it away', async () => {
+  fileBody = JSON.stringify({ tokens: { '--primary': '175 84% 32%' } });
+  const warned = { ...fileEntry, format: 'json' as const, fileName: 'borealis.json' };
+  const clean = { ...fileEntry, id: 'user-nord', name: 'Nord', format: 'json' as const, fileName: 'nord.json' };
+  const { container } = await renderSection([warned, clean]);
+
+  fireEvent.click(buttonWithText(rowFor(container, 'Borealis'), 'userThemes.use'));
+  await settle();
+  assert.ok(container.querySelector('[role="status"]'), 'the warned theme is in force, so its report shows');
+
+  fileBody = JSON.stringify({ tokens: { '--term-background': '210 45% 8%' } });
+  fireEvent.click(buttonWithText(rowFor(container, 'Nord'), 'userThemes.use'));
+  await settle();
+
+  assert.ok(
+    container.querySelector('[role="status"]') === null,
+    'a report about the theme that just left would be read as one about the theme that just arrived',
+  );
+});
+
+test('an applied paste keeps its report out of the file list', async () => {
+  const { container } = await renderSection([], [pasteEntry], 'paste-1');
+  await settle();
+
+  assert.equal(document.documentElement.dataset.theme, 'paste-1');
+  assert.ok(
+    container.querySelector('[role="status"]') === null,
+    'a paste\u2019s report has its own moment — right after the paste — and the file list is not it',
+  );
 });
