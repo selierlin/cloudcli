@@ -240,6 +240,8 @@
     },
     "pasteSubmit": "添加主题",
     "pasteInvalid": "这份内容不能作为主题：{{reason}}",
+    "previewing": "已在页面上预览，尚未保存",
+    "previewUnavailable": "无法预览：{{reason}}",
     "contrastTitle": "配色可读性提醒",
     "contrastWarning": "{{appearance}}对比度：{{ink}} 落在 {{surface}} 上仅 {{ratio}}:1，低于 {{min}}:1。主题仍会生效。",
     "contrastAppearance": {

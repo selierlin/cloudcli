@@ -15,6 +15,10 @@ import { expect, test } from '@playwright/test';
  * `@layer` at-rules, so `[data-theme="<id>"]` beats `:root` only because it
  * comes later. An injected sheet is therefore only correct if it lands at the
  * end of `<head>`, which is what the colour read below measures.
+ *
+ * Advanced mode's draft is the same question asked twice over: it is a second
+ * injected sheet, layered on the applied one, and which of the two the page
+ * wears is again nothing but which came last.
  */
 
 const FIXTURE_ID = 'user-fixture';
@@ -81,4 +85,41 @@ test('a refused file leaves no stylesheet behind and drops the cached copy', asy
   expect(refused.state).toEqual({ appliedId: null, failedId: FIXTURE_ID });
   expect(refused.cached, 'the copy that painted a theme the server now refuses has to go').toBe(false);
   expect(refused.background, 'the page falls back to the palette it shipped with').toBe(base);
+});
+
+/** A draft with no `[data-theme]` in it: advanced mode has no id to write, so it aims at `:root`. */
+const PREVIEW_CSS = ':root { --background: 300 60% 40%; }';
+const PREVIEW_COLOR = 'rgb(163, 41, 163)';
+
+test('a draft wins over the theme it is drafted against, and giving it up restores that theme', async ({ page }) => {
+  await page.goto('/');
+
+  const applied = await page.evaluate(({ id, css }) => {
+    return window.__THEME_TOKENS__!.applyUserTheme({ id, css });
+  }, { id: FIXTURE_ID, css: FIXTURE_CSS });
+  expect(applied.background, 'the theme is in force before the draft is written').toBe(FIXTURE_COLOR);
+
+  const previewed = await page.evaluate((css) => {
+    return window.__THEME_TOKENS__!.previewUserTheme(css);
+  }, PREVIEW_CSS);
+
+  expect(previewed.previewCount).toBe(1);
+  expect(
+    previewed.background,
+    'the two sheets have the same specificity, so the draft is only seen if it comes last',
+  ).toBe(PREVIEW_COLOR);
+  expect(
+    previewed.isLast,
+    'an apply that landed after the draft would bury it, and the preview would silently stop showing',
+  ).toBe(true);
+
+  const cleared = await page.evaluate(() => {
+    return window.__THEME_TOKENS__!.previewUserTheme(null);
+  });
+
+  expect(cleared.previewCount).toBe(0);
+  expect(
+    cleared.background,
+    'a draft is not a theme: giving it up leaves the theme that was already applied',
+  ).toBe(FIXTURE_COLOR);
 });

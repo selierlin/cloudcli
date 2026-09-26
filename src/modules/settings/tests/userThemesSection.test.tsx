@@ -54,6 +54,43 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
+/**
+ * Advanced mode's surface is CodeMirror, which wants a laid-out document that
+ * jsdom does not provide. What this file is about is the section's behaviour
+ * around that control, so it stands in as a textarea taking the same two props —
+ * the value, and what to do when it changes — and it is still found through the
+ * label's `for`, exactly as the real one is.
+ *
+ * It carries a test id of its own, because the stand-in and option A's plain box
+ * would otherwise be the same element to a query: which one is on screen is the
+ * thing one test below asks, and without this it could not.
+ */
+vi.mock('@uiw/react-codemirror', () => {
+  function CodeMirrorStub({
+    id,
+    value,
+    placeholder,
+    onChange,
+  }: {
+    id?: string;
+    value?: string;
+    placeholder?: string;
+    onChange?: (value: string) => void;
+  }) {
+    return (
+      <textarea
+        data-testid="theme-css-editor"
+        id={id}
+        value={value}
+        placeholder={placeholder}
+        onChange={(event) => onChange?.(event.target.value)}
+      />
+    );
+  }
+
+  return { default: CodeMirrorStub };
+});
+
 const listed = (themes: unknown[]): (() => Promise<Response>) =>
   async () => new Response(JSON.stringify({ themes }), { status: 200 });
 
@@ -102,6 +139,19 @@ async function settle(): Promise<void> {
   });
 }
 
+/**
+ * Waits out advanced mode's preview debounce (300ms) and the render it causes.
+ * Comfortably past the boundary rather than at it, so the test does not depend
+ * on which side of it a timer happens to land.
+ */
+async function passPreviewDebounce(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 350);
+    });
+  });
+}
+
 /** The list item a theme is rendered as, found through its name. */
 function rowFor(container: HTMLElement, name: string): HTMLElement {
   const label = [...container.querySelectorAll('span')].find((span) => span.textContent === name);
@@ -134,7 +184,9 @@ function ensureChromeMeta(name: string): void {
 beforeEach(() => {
   localStorage.clear();
   localStorage.setItem('auth-token', 'header.payload.signature');
-  document.querySelectorAll('style[data-cloudcli-user-theme]').forEach((element) => element.remove());
+  document
+    .querySelectorAll('style[data-cloudcli-user-theme], style[data-cloudcli-theme-preview]')
+    .forEach((element) => element.remove());
   document.documentElement.classList.remove('dark');
   delete document.documentElement.dataset.theme;
   document.documentElement.style.removeProperty('color-scheme');
@@ -471,4 +523,85 @@ test('a warning for a dark-scoped theme names the dark appearance', async () => 
     report.textContent?.includes('userThemes.contrastAppearance.light') === false,
     'and not the other, which this theme clears',
   );
+});
+
+/**
+ * Advanced mode's live preview (§5.5): the page wears the draft while it is
+ * written.
+ *
+ * The hook has its own file for the debounce and the injection; what this file
+ * holds is the section's half — that the box says which of the two things
+ * happened, because "the page just changed under me" and "the page refused the
+ * draft" look the same from the outside otherwise.
+ */
+
+const previewElement = (): HTMLStyleElement | null =>
+  document.querySelector('style[data-cloudcli-theme-preview]');
+
+/** Opens the section already in advanced mode, past the trust confirmation. */
+async function openAdvancedMode() {
+  const opened = await renderSection();
+  fireEvent.click(modeButton(opened.container, 'css'));
+  fireEvent.click(buttonWithText(opened.container, 'userThemes.trust.confirm'));
+  return opened;
+}
+
+test('advanced mode edits the draft in the editor rather than the plain box', async () => {
+  const { container } = await renderSection();
+  assert.ok(
+    container.querySelector('[data-testid="theme-css-editor"]') === null,
+    'option A is a token map, and §5.5 puts the editor on the advanced switch',
+  );
+
+  fireEvent.click(modeButton(container, 'css'));
+  fireEvent.click(buttonWithText(container, 'userThemes.trust.confirm'));
+
+  assert.ok(
+    container.querySelector('[data-testid="theme-css-editor"]'),
+    'advanced mode has to reach for the editor rather than leave the box a plain textarea',
+  );
+});
+
+test('a draft in advanced mode is put on the page and reported as a preview', async () => {
+  const { container } = await openAdvancedMode();
+
+  fireEvent.change(pasteBox(container), { target: { value: ':root { --draft: 1; }' } });
+  await passPreviewDebounce();
+
+  assert.equal(previewElement()?.textContent, ':root { --draft: 1; }');
+  assert.ok(
+    container.textContent?.includes('userThemes.previewing'),
+    'the page changed, so the box has to say why — otherwise a preview reads as a saved theme',
+  );
+});
+
+test('a draft that cannot be previewed says so and takes the previous one away', async () => {
+  const { container } = await openAdvancedMode();
+
+  fireEvent.change(pasteBox(container), { target: { value: ':root { --draft: 1; }' } });
+  await passPreviewDebounce();
+  assert.ok(previewElement(), 'the first draft was applied, so there is one to take away');
+
+  fireEvent.change(pasteBox(container), { target: { value: '@import url("x.css");' } });
+  await passPreviewDebounce();
+
+  assert.ok(
+    previewElement() === null,
+    'a refused draft must not leave the previous one on the page — the author would read it as this one',
+  );
+  assert.ok(container.textContent?.includes('userThemes.previewUnavailable'));
+  assert.ok(
+    container.textContent?.includes('userThemes.reason.import-rule'),
+    'and the reason is the same one a paste of this text would give',
+  );
+});
+
+test('option A is not previewed and says nothing about previewing', async () => {
+  const { container } = await renderSection();
+
+  fireEvent.change(pasteBox(container), { target: { value: validTheme } });
+  await passPreviewDebounce();
+
+  assert.ok(previewElement() === null, '§5.5 puts the preview on the advanced switch');
+  assert.equal(container.textContent?.includes('userThemes.previewing'), false);
 });

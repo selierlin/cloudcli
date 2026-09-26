@@ -7,9 +7,11 @@ import type { ThemeContrastWarning } from '@/shared/userThemeContrast';
 import { addPastedTheme, removePastedTheme } from '@/shared/userThemePastes';
 import type { AddPastedThemeFailure, PastedThemeFormat } from '@/shared/userThemePastes';
 import { cn } from '@/shared/utils';
+import { useThemeCssPreview } from '@/modules/settings/hooks/useThemeCssPreview';
 import { useThemePasteFormat } from '@/modules/settings/hooks/useThemePasteFormat';
 import SettingsCard from '@/modules/settings/SettingsCard';
 import SettingsSection from '@/modules/settings/SettingsSection';
+import ThemeCssEditor from '@/modules/settings/ThemeCssEditor';
 
 /**
  * The settings page's user-theme section: what the two sources hold, and the two
@@ -28,6 +30,12 @@ import SettingsSection from '@/modules/settings/SettingsSection';
  * that can produce a theme this page cannot undo, so it asks once before it takes
  * effect — and the copy says why, rather than leaving "advanced" to sound like
  * "more options".
+ *
+ * Advanced mode is also where the box stops being a plain textarea: a stylesheet
+ * gets a CSS-aware editor, and the page is made to wear the draft while it is
+ * written (§5.5). The preview is not a saved theme and is not presented as one —
+ * the section says it is a preview — and it is what the paste would produce,
+ * because both go through the same compiler.
  *
  * A theme that compiles but cannot be read is reported here too (§5.10), and the
  * report is careful about what it claims: the theme *was* added, so the copy says
@@ -63,6 +71,7 @@ export default function UserThemesSection() {
   // something was.
   const [warnings, setWarnings] = useState<ThemeContrastWarning[]>([]);
   const [format, setFormat] = useThemePasteFormat();
+  const preview = useThemeCssPreview(format, draft);
   // Whether a switch to raw CSS is waiting for its confirmation. It is a state
   // of its own rather than a flag derived from the format, because the whole
   // point of asking is that nothing has been decided yet — writing first and
@@ -235,15 +244,38 @@ export default function UserThemesSection() {
           <label className="mt-3 block text-sm text-muted-foreground" htmlFor="user-theme-paste">
             {t('userThemes.pasteLabel')}
           </label>
-          <textarea
-            id="user-theme-paste"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder={t(placeholderKey(format))}
-            rows={4}
-            spellCheck={false}
-            className="mt-1 w-full rounded-lg border border-input bg-background p-2 font-mono text-xs text-foreground focus:border-primary focus:ring-1 focus:ring-primary"
-          />
+          {format === 'css' ? (
+            <ThemeCssEditor
+              id="user-theme-paste"
+              placeholder={t(placeholderKey(format))}
+              value={draft}
+              onChange={setDraft}
+            />
+          ) : (
+            <textarea
+              id="user-theme-paste"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder={t(placeholderKey(format))}
+              rows={4}
+              spellCheck={false}
+              className="mt-1 w-full rounded-lg border border-input bg-background p-2 font-mono text-xs text-foreground focus:border-primary focus:ring-1 focus:ring-primary"
+            />
+          )}
+          {preview.kind !== 'idle' && (
+            <p
+              className={cn(
+                'mt-1 text-xs',
+                preview.kind === 'previewing' ? 'text-muted-foreground' : 'text-destructive',
+              )}
+            >
+              {preview.kind === 'previewing'
+                ? t('userThemes.previewing')
+                : t('userThemes.previewUnavailable', {
+                    reason: t(`userThemes.reason.${preview.reason}`),
+                  })}
+            </p>
+          )}
           <div className="mt-2 flex items-center gap-3">
             <button
               type="button"

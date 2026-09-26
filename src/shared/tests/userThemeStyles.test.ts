@@ -24,6 +24,9 @@ const STYLE_CACHE_KEY = 'cloudcli.user-theme-style';
 
 const STYLE_SELECTOR = 'style[data-cloudcli-user-theme]';
 
+/** The preview element; a different attribute from the applied one, on purpose. */
+const PREVIEW_SELECTOR = 'style[data-cloudcli-theme-preview]';
+
 let fileBody = ':root{--from-file:1}';
 let fileStatus = 200;
 let fileRequests: string[] = [];
@@ -123,7 +126,7 @@ const seedCache = (
 
 beforeEach(() => {
   localStorage.clear();
-  document.querySelectorAll(STYLE_SELECTOR).forEach((element) => element.remove());
+  document.querySelectorAll(`${STYLE_SELECTOR}, ${PREVIEW_SELECTOR}`).forEach((element) => element.remove());
   fileBody = ':root{--from-file:1}';
   fileStatus = 200;
   fileRequests = [];
@@ -653,5 +656,89 @@ test('a pasted theme that cannot be read is accounted for as it applies, too', a
   assert.ok(
     vi.mocked(console.warn).mock.calls.some(([message]) => String(message).includes('WCAG AA')),
     'its author was told in the paste box, and this is the other half: the apply step reports it as well',
+  );
+});
+
+/**
+ * The preview element (§5.5's advanced mode): a draft the settings page is still
+ * writing, put on the page so its author can see it.
+ *
+ * It is the same kind of object as the applied stylesheet — a `<style>` in the
+ * head — so what is worth pinning is exactly what follows from the two sharing a
+ * document: a preview never becomes the applied theme, it stays the last
+ * stylesheet so it is the one seen, and the forced recovery channel takes it away
+ * with everything else.
+ */
+
+const previewElement = (): HTMLStyleElement | null => document.querySelector(PREVIEW_SELECTOR);
+
+/** Whether `later` follows `earlier` in document order. */
+const follows = (earlier: Element, later: Element): boolean =>
+  Boolean(earlier.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+test('a preview reaches the document without becoming the applied theme', async () => {
+  const { styles } = await loadStores();
+  await styles.applyUserThemeStyle(pasteTarget(pastedJson({ '--primary': '175 84% 32%' })), true);
+
+  styles.previewUserThemeStyle(':root { --draft: 1; }');
+
+  assert.equal(previewElement()?.textContent, ':root { --draft: 1; }');
+  assert.equal(
+    styles.getUserThemeStyleState().appliedId,
+    PASTE_ID,
+    'a preview is not a theme: what is picked and applied must not move with a draft',
+  );
+  assert.ok(
+    !(styleElement()?.textContent ?? '').includes('--draft'),
+    'and the draft is a second element rather than a rewrite of the applied one',
+  );
+});
+
+test('a preview stays after the applied stylesheet, so the draft is the one seen', async () => {
+  const { styles } = await loadStores();
+  styles.previewUserThemeStyle(':root { --draft: 1; }');
+
+  await styles.applyUserThemeStyle(pasteTarget(pastedJson({ '--primary': '175 84% 32%' })), true);
+
+  const applied = styleElement();
+  const preview = previewElement();
+  assert.ok(applied && preview, 'both stylesheets are expected to be in the document');
+  assert.ok(
+    follows(applied, preview),
+    'same specificity, so only the later sheet is seen — an apply that buried the preview would stop showing it',
+  );
+});
+
+test('a later preview replaces the one before it', async () => {
+  const { styles } = await loadStores();
+
+  styles.previewUserThemeStyle(':root { --draft: 1; }');
+  styles.previewUserThemeStyle(':root { --draft: 2; }');
+
+  assert.equal(document.querySelectorAll(PREVIEW_SELECTOR).length, 1, 'one draft, one element');
+  assert.equal(previewElement()?.textContent, ':root { --draft: 2; }');
+});
+
+test('removing the preview leaves the applied theme alone', async () => {
+  const { styles } = await loadStores();
+  await styles.applyUserThemeStyle(pasteTarget(pastedJson({ '--primary': '175 84% 32%' })), true);
+  styles.previewUserThemeStyle(':root { --draft: 1; }');
+
+  styles.previewUserThemeStyle(null);
+
+  assert.ok(previewElement() === null);
+  assert.equal(styles.getUserThemeStyleState().appliedId, PASTE_ID);
+  assert.ok(styleElement(), 'the theme the user picked has to survive the draft going away');
+});
+
+test('the forced recovery channel takes the preview with it', async () => {
+  const { styles } = await loadStores();
+  styles.previewUserThemeStyle(':root { --draft: 1; }');
+
+  styles.clearAppliedUserThemeStyle();
+
+  assert.ok(
+    previewElement() === null,
+    'a draft that made the page unreadable is exactly what this channel has to escape',
   );
 });

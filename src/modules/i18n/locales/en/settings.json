@@ -240,6 +240,8 @@
     },
     "pasteSubmit": "Add theme",
     "pasteInvalid": "This content cannot be a theme: {{reason}}",
+    "previewing": "Previewing on the page — not saved yet",
+    "previewUnavailable": "Preview unavailable: {{reason}}",
     "contrastTitle": "Readability warnings",
     "contrastWarning": "{{appearance}} contrast: {{ink}} on {{surface}} is only {{ratio}}:1, below {{min}}:1. The theme still applies.",
     "contrastAppearance": {

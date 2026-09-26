@@ -221,6 +221,15 @@ export type PastedThemeCompileResult =
  * whatever selectors it likes, which no token-level check can speak about.
  */
 export function compilePastedTheme(theme: PastedUserTheme): PastedThemeCompileResult {
+  // The size cap sits here rather than in `addPastedTheme` so that every reader
+  // of this text agrees on what is acceptable, for the same reason the `@import`
+  // gate below does: the settings page previews a draft through this function
+  // before anything is stored, and a preview that rendered content the paste
+  // would refuse would be showing a theme that cannot exist.
+  if (new TextEncoder().encode(theme.content).length > MAX_PASTE_BYTES) {
+    return { ok: false, reason: 'too-large', ignored: [] };
+  }
+
   if (theme.format === 'css') {
     return IMPORT_RULE_PATTERN.test(theme.content)
       ? { ok: false, reason: 'import-rule', ignored: [] }
@@ -257,10 +266,6 @@ export function addPastedTheme(
   content: string,
   format: PastedThemeFormat = 'json',
 ): AddPastedThemeResult {
-  if (new TextEncoder().encode(content).length > MAX_PASTE_BYTES) {
-    return { ok: false, reason: 'too-large' };
-  }
-
   const existing = getPastedThemes();
   const id = nextPasteId(existing);
 
