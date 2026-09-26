@@ -40,6 +40,20 @@ import type {
  */
 export const IS_PLATFORM = process.env.VITE_IS_PLATFORM === 'true';
 
+//----------------- GLOBAL USER DATA DIRECTORIES ------------
+/**
+ * Folder holding user-supplied theme files, read by the Themes module and served
+ * to the client under `/api/themes`.
+ *
+ * Declared here rather than inside the Themes module so the `~/.cloudcli` layout
+ * keeps a single definition — the shared counterpart to
+ * `getGlobalImageAssetsDir` in `server/shared/image-attachments.ts`. The Themes
+ * module must pass this value around, never assemble the path itself.
+ */
+export function getUserThemesDir(): string {
+  return path.join(os.homedir(), '.cloudcli', 'themes');
+}
+
 // ---------------------------
 //----------------- NORMALIZED MESSAGE HELPER INPUT TYPES ------------
 /**
