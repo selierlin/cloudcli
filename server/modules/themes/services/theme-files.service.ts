@@ -1,6 +1,8 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
+import { containsImportAtRule } from '../../../../src/shared/cssAtRules.js';
+
 /**
  * User theme files, read from the server host's `~/.cloudcli/themes` folder and
  * handed to the client through the Themes module's routes.
@@ -70,9 +72,6 @@ const USER_THEME_ID_PREFIX = 'user-';
  * spaces or `]` in a filename would break that selector or inject one.
  */
 const THEME_FILE_NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
-
-/** §5.8: `@import` would let a theme pull in stylesheets the server never vetted. */
-const IMPORT_RULE_PATTERN = /@import/i;
 
 /** The reach values a file may declare; anything else is dropped rather than listed. */
 const COVERAGES = new Set(['accent', 'full']);
@@ -269,12 +268,41 @@ export function resolveThemeFilePath(themesDir: string, fileName: string): strin
 }
 
 /**
- * Whether a stylesheet pulls in another file. Only CSS is scanned — the other
- * formats carry no rules of their own.
+ * The realpath containment the assets module uses (§5.8 v8): a symlink inside
+ * the themes folder is followed as long as it lands inside the folder's own
+ * canonical path, and one that leaves it is refused rather than served.
+ *
+ * Returns the canonical path, null when the file is gone (the callers treat
+ * that like any other missing file), or `'escape'` when a symlink resolves
+ * outside the folder.
  */
-async function carriesImportRule(filePath: string, format: ThemeFileFormat): Promise<boolean> {
-  if (format !== 'css') return false;
-  return IMPORT_RULE_PATTERN.test(await fs.readFile(filePath, 'utf8'));
+async function canonicalWithin(
+  themesDir: string,
+  filePath: string,
+): Promise<string | null | 'escape'> {
+  let real: string;
+  try {
+    real = await fs.realpath(filePath);
+  } catch {
+    return null;
+  }
+  try {
+    const realRoot = await fs.realpath(themesDir);
+    return real.startsWith(realRoot + path.sep) ? real : 'escape';
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether a stylesheet pulls in another file. Only CSS is scanned — the other
+ * formats carry no rules of their own. The scan is `containsImportAtRule`, the
+ * escape-aware at-rule scanner shared with the paste gate (§5.8 v8): a literal
+ * `/@import/i` let `@im\70 ort` through, which a real engine tokenizes as an
+ * ident and honours.
+ */
+function carriesImportRule(body: string, format: ThemeFileFormat): boolean {
+  return format === 'css' && containsImportAtRule(body);
 }
 
 /**
@@ -287,20 +315,36 @@ async function inspectThemeFile(themesDir: string, fileName: string): Promise<Th
   const format = themeFileFormat(fileName);
   if (!filePath || !format) return null;
 
+  const canonical = await canonicalWithin(themesDir, filePath);
+  if (canonical === 'escape') {
+    console.warn(`[Themes] Skipping ${fileName}: resolves outside the themes folder`);
+    return null;
+  }
+  if (canonical === null) return null;
+
   try {
-    const stats = await fs.stat(filePath);
+    const stats = await fs.stat(canonical);
     if (!stats.isFile()) return null;
     if (stats.size > MAX_THEME_FILE_BYTES) {
       console.warn(`[Themes] Skipping ${fileName}: larger than ${MAX_THEME_FILE_BYTES} bytes`);
       return null;
     }
-    if (await carriesImportRule(filePath, format)) {
+
+    // The gates read the body once and judge those bytes: a file swapped between
+    // the stat and the read cannot slip a larger or import-carrying body past
+    // the size the old body passed (§5.8 v8).
+    const body = await fs.readFile(canonical, 'utf8');
+    if (Buffer.byteLength(body, 'utf8') > MAX_THEME_FILE_BYTES) {
+      console.warn(`[Themes] Skipping ${fileName}: grew past the size cap between the stat and the read`);
+      return null;
+    }
+    if (carriesImportRule(body, format)) {
       console.warn(`[Themes] Skipping ${fileName}: @import is not allowed`);
       return null;
     }
 
     const base = themeFileBase(fileName);
-    const declared = await readDeclaredMetadata(fileName, filePath, format);
+    const declared = await readDeclaredMetadata(fileName, canonical, format);
     const entry: ThemeFileEntry = {
       id: `${USER_THEME_ID_PREFIX}${base.toLowerCase()}`,
       name: declared.name ?? base,
@@ -375,20 +419,40 @@ export async function readThemeFile(themesDir: string, fileName: string) {
   const format = themeFileFormat(fileName);
   if (!filePath || !format) return { status: 'invalid' as const };
 
+  const canonical = await canonicalWithin(themesDir, filePath);
+  if (canonical === 'escape') return { status: 'invalid' as const };
+  if (canonical === null) return { status: 'missing' as const };
+
+  // One open handle ties the stat and the read to the same inode, and both
+  // gates run on the very bytes that get served — a file swapped in between
+  // cannot present one body to the gates and send another to the client
+  // (§5.8 v8).
+  let handle: fs.FileHandle;
   try {
-    const stats = await fs.stat(filePath);
+    handle = await fs.open(canonical, 'r');
+  } catch {
+    return { status: 'missing' as const };
+  }
+  try {
+    const stats = await handle.stat();
     if (!stats.isFile() || stats.size > MAX_THEME_FILE_BYTES) {
       return { status: 'invalid' as const };
     }
-    if (await carriesImportRule(filePath, format)) {
+    const content = await handle.readFile();
+    if (content.length > MAX_THEME_FILE_BYTES) {
+      return { status: 'invalid' as const };
+    }
+    if (carriesImportRule(content.toString('utf8'), format)) {
       return { status: 'invalid' as const };
     }
     return {
       status: 'found' as const,
-      content: await fs.readFile(filePath),
+      content,
       contentType: FORMAT_TO_CONTENT_TYPE[format],
     };
   } catch {
     return { status: 'missing' as const };
+  } finally {
+    await handle.close();
   }
 }

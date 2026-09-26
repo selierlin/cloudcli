@@ -111,6 +111,7 @@
           "src/shared/quickReplies.ts",
           "src/shared/syntaxHighlighter.ts",
           "src/shared/syntaxTheme.ts",
+          "src/shared/cssAtRules.ts",
           "src/shared/tokenSnapshot.ts"
         ],
         "mode": "file"
