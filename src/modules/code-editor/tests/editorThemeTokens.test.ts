@@ -17,7 +17,7 @@ import { editorChrome, editorHighlightStyle } from '@/modules/code-editor/utils/
  * hide the indirection.
  */
 
-const EDITOR_MODULE = join(process.cwd(), 'src', 'modules', 'code-editor');
+const SRC_ROOT = join(process.cwd(), 'src');
 const STYLESHEET = readFileSync(join(process.cwd(), 'src', 'index.css'), 'utf8');
 
 const declaredEditorTokens = new Set(
@@ -82,13 +82,17 @@ test('the syntax slots the highlighter borrows exist in the Prism sheet', () => 
   assert.deepEqual(missing, [], 'these syntax variables are not declared by the Prism sheet');
 });
 
-test('the editor no longer depends on the upstream one-dark theme', () => {
-  const sources = readdirSync(EDITOR_MODULE, { recursive: true, encoding: 'utf8' })
-    .filter((entry) => (entry.endsWith('.ts') || entry.endsWith('.tsx')) && !entry.startsWith('tests'))
-    .map((entry) => readFileSync(join(EDITOR_MODULE, entry), 'utf8'));
+test('no module depends on the upstream one-dark theme', () => {
+  // The scan used to cover only this module directory — which is exactly how
+  // the PRD editor carried a live oneDark import through the entire theme line
+  // unnoticed (§5.8 v8). Every module shares the same editor surface, so the
+  // guarantee is repo-wide over `src`.
+  const sources = readdirSync(SRC_ROOT, { recursive: true, encoding: 'utf8' })
+    .filter((entry) => (entry.endsWith('.ts') || entry.endsWith('.tsx')) && !entry.includes('tests'))
+    .map((entry) => readFileSync(join(SRC_ROOT, entry), 'utf8'));
 
-  // Matching the import (not a bare mention) so the module may still explain in
+  // Matching the import (not a bare mention) so a module may still explain in
   // prose what it replaced.
   const offenders = sources.filter((source) => /from '@codemirror\/theme-one-dark'/.test(source));
-  assert.deepEqual(offenders, [], 'one-dark is still imported somewhere in the module');
+  assert.deepEqual(offenders, [], 'one-dark is still imported somewhere in src');
 });

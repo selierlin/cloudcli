@@ -133,11 +133,15 @@ test('every palette token is consumed by at least one declaration', () => {
 
 /**
  * Colour declarations must resolve through the palette rather than hold a
- * literal. Size, duration and env() tokens are out of scope; only HSL triplets
- * are classified as colours. Reads declaration text for the same reason as
- * above.
+ * literal. The net covers every literal colour shape a declaration can carry —
+ * HSL triplets, hex and rgb()/rgba() — with one explicit exemption: the
+ * `--editor-*` board is written into `EditorView.theme()` rules that consume
+ * complete CSS values, and 0-D deliberately keeps those as literal colours
+ * rather than routing them through the HSL palette (§5.8 v8 states the scope
+ * the test name used to overclaim). Size, duration and env() tokens are out of
+ * scope. Reads declaration text for the same reason as above.
  */
-test('no colour token holds a literal value outside the palette', () => {
+test('no colour token holds a literal value outside the palette and the editor board', () => {
   const css = readStylesheet();
   const literals: string[] = [];
 
@@ -145,7 +149,10 @@ test('no colour token holds a literal value outside the palette', () => {
     const [, name, rawValue] = match;
     const value = rawValue.trim();
     if (name.startsWith(PALETTE_PREFIX)) continue;
-    if (!HSL_TRIPLET.test(value)) continue;
+    if (name.startsWith('--editor-')) continue;
+    const isLiteralColour =
+      HSL_TRIPLET.test(value) || /^#[0-9a-fA-F]{3,8}$/.test(value) || /^rgba?\(/.test(value);
+    if (!isLiteralColour) continue;
     literals.push(`${name}: ${value}`);
   }
 
@@ -153,4 +160,30 @@ test('no colour token holds a literal value outside the palette', () => {
     literals,
     `colour tokens still holding literal values instead of var(--palette-*):\n${literals.join('\n')}`,
   ).toEqual([]);
+});
+
+
+/**
+ * The touch-device hover-suppression blocks reference utility classes *as
+ * selector text*, which no atom scanner sees (the selector-level consumer gap
+ * 0-F recorded). The stage-0 rename retired the literal gray atoms and left
+ * these selectors dead for the whole user-theme line until the review caught
+ * it — this guard is what makes a future rename turn red instead of silently
+ * detaching the rules again (§5.8 v8).
+ */
+test('the touch-hover suppression blocks reference the compatibility scale, not retired atoms', () => {
+  const css = readStylesheet();
+
+  const retired = css.match(
+    /\.hover\\:bg-(?:gray|zinc|slate|neutral)-\d+|\.hover\\:text-(?:gray|zinc|slate|neutral)-\d+|\.dark\\:hover\\:bg-(?:gray|zinc|slate|neutral)-\d+/g,
+  );
+  const listed = retired ? retired.join('\n') : '';
+  expect(retired, `retired literal atoms still referenced as selectors:\n${listed}`).toBeNull();
+
+  // Anti-embers: the guards must still name the live classes, or the blocks
+  // could go quietly empty while this test stays green.
+  expect(css).toMatch(/\.hover\\:bg-n-gray-50:hover/);
+  expect(css).toMatch(/\.hover\\:bg-n-gray-100:hover/);
+  expect(css).toMatch(/\.dark\\:hover\\:bg-n-gray-700:hover/);
+  expect(css).toMatch(/\.hover\\:text-n-gray-900:hover/);
 });

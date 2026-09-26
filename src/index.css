@@ -864,12 +864,6 @@
     }
   }
   
-  /* Ensure parent container doesn't override textarea styles */
-  .dark .bg-gray-800 textarea {
-    color: hsl(var(--n-gray-100)) !important;
-    -webkit-text-fill-color: hsl(var(--n-gray-100)) !important;
-  }
-  
   /* Fix focus-within container issues in dark mode */
   .dark .focus-within\:ring-2:focus-within {
     background-color: hsl(var(--background)) !important;
@@ -894,7 +888,6 @@
   }
   
   /* More specific selector for chat input textarea */
-  .dark .bg-gray-800 textarea::placeholder,
   .dark textarea.bg-transparent::placeholder {
     color: hsl(var(--n-gray-600)) !important; /* gray-600 - darker gray */
     opacity: 1 !important;
@@ -1084,10 +1077,10 @@
         opacity: 1 !important;
       }
       
-      .hover\:bg-gray-50:hover,
-      .hover\:bg-gray-100:hover,
+      .hover\:bg-n-gray-50:hover,
+      .hover\:bg-n-gray-100:hover,
       .hover\:bg-red-200:hover,
-      .dark\:hover\:bg-gray-700:hover,
+      .dark\:hover\:bg-n-gray-700:hover,
       .dark\:hover\:bg-red-900\/50:hover {
         background-color: inherit;
       }
@@ -1120,9 +1113,9 @@
     [role="button"]:hover,
     .cursor-pointer:hover,
     a:hover,
-    .hover\:bg-gray-50:hover,
-    .hover\:bg-gray-100:hover,
-    .hover\:text-gray-900:hover,
+    .hover\:bg-n-gray-50:hover,
+    .hover\:bg-n-gray-100:hover,
+    .hover\:text-n-gray-900:hover,
     .hover\:opacity-100:hover {
       background-color: inherit !important;
       color: inherit !important;
