@@ -1,7 +1,7 @@
 # CloudCLI 主题与配色体系设计方案
 
 > 编写日期：2026-09-24 ｜ 修订：2026-09-25（v5：阶段 0-A / 0-B / 0-C 已实施并验收，记录见 §6）
-> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j / 0-E2k / 0-E2l / 0-E2m / 0-E2n / 0-E2o / 0-E2p / 0-E2q / 0-E2r / 0-E2s / 0-E2t / 0-E2u / 0-E2v / 0-E2w / 0-E2x / 0-E2y / 0-E2z / 0-E3a / 0-E3b / 0-E3c / 0-E3d / 0-E3e / 0-E3f / 0-E3g / 0-E3h / 0-E3i / 0-E3j / 0-E3k / 0-E3l / 0-E3m / 0-E3n / 0-E3o / 0-E3p / 0-E3q / 0-E3r / 0-E3s / 0-E3t / 0-E3u / 0-E3v / 0-E3w / 0-E3x / 0-E3y / 0-E3z / 0-E4a / 0-E4b / 0-E4c / 0-E4d / 0-E4e / 0-E4f / 0-E4g / 0-E4h / 0-E4i / 0-E4j / 0-E4k / 0-E4l / 0-E4m / 0-E4n / 0-E4o / 0-E4p / 0-E4q / 0-E4r / 0-E4s / 0-E4t / 0-E4u / 0-E4v / 0-E4w / 0-E4x / 0-E4y / 0-E4z / 0-E5a / 0-E5b / 0-E5c / 0-E5d / 0-E5e / 0-E5f / 0-E5g / 0-E5h / 0-E5i / 0-E5j / 0-E5k / 0-E5l / 0-E5m / 0-E5n / 0-E5o / 0-E5p / 0-E5q / 0-E5r / 0-E5s / 0-E5t / 0-E5u / 0-E5v / 0-E5w / 0-E5x / 0-E5y / 0-E5z / 0-E6a / 0-E6b / 0-E6c / 0-E6d 一百一十五片，**阶段 0 的迁移分片已全部实施**；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内；0-E3i 修正了产物核对脚本的**前提假设缺口**——脚本原假设"被测文件迁移前不含 `n-*` 令牌"，随分片推进（前片已令牌化的文件被再次触碰）必然被打破；0-E6d 又暴露一处**护栏前提失效**——守恒律反空转护栏里"必须扫到 ≥1 处带透明度修饰的**字面**中性色"这条断言，随阶段 0 归零而失去可满足前提（仓库计数无论捕获组是否健在都读 0），改为对解析形状的合成名断言。截至 0-E6d：中性具名硬编码剩余 **0 处 / 0 文件**（起点 1517 / 105；阶段 0 迁移完成，仅余 1 处豁免 `border-gray-150`）。**阶段 1 已开工**：1-A（主题骨架：`ThemeManifest` + `BUILTIN_THEMES` + `<html data-theme>`）与 1-B 第一步（随 `appearance` 在 `<html>` 写 `color-scheme`，本线**第一个有意的视觉变更**）均已实施并验收；1-B2 的三个子片（删 2 行已失效的 `color-scheme: dark`、textarea 的 `color-scheme` 改为随应用外观、68 处暗色补偿改走既有令牌）也已完成；**其前置 0-F 也已实施**（Git 图 lane 色抽为 `--graph-lane-1..10` ＋ 移动端终端选区菜单 7 处色值令牌化，拆 0-F1 / 0-F2 两片），切片表与记录见 §6）；**1-C 与 1-D 也已完成**（1-C：`theme-color` 与 iOS status-bar 改由令牌派生，`ThemeContext` 里两处手写 hex 删除、两个分支合并，`ThemeManifest` 的 `themeColor` / `statusBar` 覆盖字段一并落地；1-D：新增 `themeId` 偏好键，`ThemeContext` 暴露 `themeId` / `resolvedThemeId` / `setThemeId`，跨设备"未安装该主题"的回落不再静默——**1-E 也已完成**（覆盖层机制 ＋ 两套示范主题 `cc-ocean`（`accent`）/ `cc-polar`（`full`）＋ 注册表扩充，三片各自独立 commit；修正了 §5.2 的 cascade 假设、定了 `appearance` 的两角色模型——**1-F 也已完成**（`f2e03c6f`：外观设置页的配色主题选择器 ＋ `coverage` 徽标 ＋ 跨设备未安装的回落提示，i18n 实补 en ＋ zh-CN；原计划"只补 zh-CN"的前提经实测不成立——仓库现状是 zh-CN ⊆ en——**1-G 也已完成**（`7b406986`：刷新 effect 补 `resolvedThemeId` 依赖，覆盖层的切换 / 清除都会让 xterm 重读 `--term-*`；**另两路经核查无需刷新**——编辑器的 chrome 与 highlight 全是 `var()`、Git 图是 SVG 表现属性；范围据此收窄并回写 §5.6 v10。**1-H 也已完成**（`38ef8d8e` / `13b9c696`：§5.10 对比度断言落地为 `contrast.spec.ts`，覆盖"基色 ＋ 每套覆盖层"× 明暗两态的 6 个配对；§5.11 的遍历补上反向守卫，堵住"块存在但未注册"的死 CSS——这是"遍历每套覆盖层"按构造会跳过的那一类；**并含一处有意视觉变更**——基色 `--palette-sand-500` 由 `44%` 调至 `43%`，因宽读下它只到 4.42:1、低于 AA 4.5:1，而 accent 类覆盖层不重调 substrate 会继承它。**1-I 也已完成**（`e4f5cb70`：首帧 chrome 色改为随外观——`<head>` 末尾的内联同步脚本按 `localStorage['theme']` 决定 `<html data-appearance>` / `color-scheme` / `theme-color`，splash 据此出浅色变体，消掉"深色启动画面 ＋ 白色状态栏"的同屏矛盾；**含一处有意视觉变更**——浅色外观的启动画面由深变浅；`manifest` 与 `msapplication` 的安装期静态色如实记为不可达）——**阶段 1 至此全部完成**；**阶段 2 已开工**：2-A（服务端主题目录：`server/modules/themes/` 列举 `~/.cloudcli/themes/` ＋静态只读服务，§5.8 的五道闸门全部落地；并据此改判 §5.6 v3 那句"直接复用 plugins 的 resolveAsset、不必新写目录遍历与校验"——见 §5.6 v11 与 §5.8 v3）已实施；**2-B 也已实施**：前端加载链路（清单 store ＋ 样式 store ＋ 解析并入 ＋ 选择器合并与回落提示 ＋ 启动期缓存注入），并据此改判 §5.6 框图的"首次加载走 `<link>`"——实际统一走 `fetch` ＋ `<style>`，见 §5.6 v12））
+> 状态：**已定稿并正在实施**（§8 无遗留待定项；阶段 0 已完成 0-A / 0-B / 0-C / 0-D / 0-E0 / 0-E1 / 0-E1b / 0-E2a / 0-E2b / 0-E2c / 0-E2d / 0-E2e / 0-E2f / 0-E2g / 0-E2h / 0-E2i / 0-E2j / 0-E2k / 0-E2l / 0-E2m / 0-E2n / 0-E2o / 0-E2p / 0-E2q / 0-E2r / 0-E2s / 0-E2t / 0-E2u / 0-E2v / 0-E2w / 0-E2x / 0-E2y / 0-E2z / 0-E3a / 0-E3b / 0-E3c / 0-E3d / 0-E3e / 0-E3f / 0-E3g / 0-E3h / 0-E3i / 0-E3j / 0-E3k / 0-E3l / 0-E3m / 0-E3n / 0-E3o / 0-E3p / 0-E3q / 0-E3r / 0-E3s / 0-E3t / 0-E3u / 0-E3v / 0-E3w / 0-E3x / 0-E3y / 0-E3z / 0-E4a / 0-E4b / 0-E4c / 0-E4d / 0-E4e / 0-E4f / 0-E4g / 0-E4h / 0-E4i / 0-E4j / 0-E4k / 0-E4l / 0-E4m / 0-E4n / 0-E4o / 0-E4p / 0-E4q / 0-E4r / 0-E4s / 0-E4t / 0-E4u / 0-E4v / 0-E4w / 0-E4x / 0-E4y / 0-E4z / 0-E5a / 0-E5b / 0-E5c / 0-E5d / 0-E5e / 0-E5f / 0-E5g / 0-E5h / 0-E5i / 0-E5j / 0-E5k / 0-E5l / 0-E5m / 0-E5n / 0-E5o / 0-E5p / 0-E5q / 0-E5r / 0-E5s / 0-E5t / 0-E5u / 0-E5v / 0-E5w / 0-E5x / 0-E5y / 0-E5z / 0-E6a / 0-E6b / 0-E6c / 0-E6d 一百一十五片，**阶段 0 的迁移分片已全部实施**；0-E2 暴露的护栏缺口已由 0-E2c 的守恒律闭合，0-E2d 是第一个在"双绿"门槛下通过的迁移片，0-E2e 闭合了扫描器的**覆盖面缺口**——轴限定中性色此前完全不在任何护栏视野内；0-E3i 修正了产物核对脚本的**前提假设缺口**——脚本原假设"被测文件迁移前不含 `n-*` 令牌"，随分片推进（前片已令牌化的文件被再次触碰）必然被打破；0-E6d 又暴露一处**护栏前提失效**——守恒律反空转护栏里"必须扫到 ≥1 处带透明度修饰的**字面**中性色"这条断言，随阶段 0 归零而失去可满足前提（仓库计数无论捕获组是否健在都读 0），改为对解析形状的合成名断言。截至 0-E6d：中性具名硬编码剩余 **0 处 / 0 文件**（起点 1517 / 105；阶段 0 迁移完成，仅余 1 处豁免 `border-gray-150`）。**阶段 1 已开工**：1-A（主题骨架：`ThemeManifest` + `BUILTIN_THEMES` + `<html data-theme>`）与 1-B 第一步（随 `appearance` 在 `<html>` 写 `color-scheme`，本线**第一个有意的视觉变更**）均已实施并验收；1-B2 的三个子片（删 2 行已失效的 `color-scheme: dark`、textarea 的 `color-scheme` 改为随应用外观、68 处暗色补偿改走既有令牌）也已完成；**其前置 0-F 也已实施**（Git 图 lane 色抽为 `--graph-lane-1..10` ＋ 移动端终端选区菜单 7 处色值令牌化，拆 0-F1 / 0-F2 两片），切片表与记录见 §6）；**1-C 与 1-D 也已完成**（1-C：`theme-color` 与 iOS status-bar 改由令牌派生，`ThemeContext` 里两处手写 hex 删除、两个分支合并，`ThemeManifest` 的 `themeColor` / `statusBar` 覆盖字段一并落地；1-D：新增 `themeId` 偏好键，`ThemeContext` 暴露 `themeId` / `resolvedThemeId` / `setThemeId`，跨设备"未安装该主题"的回落不再静默——**1-E 也已完成**（覆盖层机制 ＋ 两套示范主题 `cc-ocean`（`accent`）/ `cc-polar`（`full`）＋ 注册表扩充，三片各自独立 commit；修正了 §5.2 的 cascade 假设、定了 `appearance` 的两角色模型——**1-F 也已完成**（`f2e03c6f`：外观设置页的配色主题选择器 ＋ `coverage` 徽标 ＋ 跨设备未安装的回落提示，i18n 实补 en ＋ zh-CN；原计划"只补 zh-CN"的前提经实测不成立——仓库现状是 zh-CN ⊆ en——**1-G 也已完成**（`7b406986`：刷新 effect 补 `resolvedThemeId` 依赖，覆盖层的切换 / 清除都会让 xterm 重读 `--term-*`；**另两路经核查无需刷新**——编辑器的 chrome 与 highlight 全是 `var()`、Git 图是 SVG 表现属性；范围据此收窄并回写 §5.6 v10。**1-H 也已完成**（`38ef8d8e` / `13b9c696`：§5.10 对比度断言落地为 `contrast.spec.ts`，覆盖"基色 ＋ 每套覆盖层"× 明暗两态的 6 个配对；§5.11 的遍历补上反向守卫，堵住"块存在但未注册"的死 CSS——这是"遍历每套覆盖层"按构造会跳过的那一类；**并含一处有意视觉变更**——基色 `--palette-sand-500` 由 `44%` 调至 `43%`，因宽读下它只到 4.42:1、低于 AA 4.5:1，而 accent 类覆盖层不重调 substrate 会继承它。**1-I 也已完成**（`e4f5cb70`：首帧 chrome 色改为随外观——`<head>` 末尾的内联同步脚本按 `localStorage['theme']` 决定 `<html data-appearance>` / `color-scheme` / `theme-color`，splash 据此出浅色变体，消掉"深色启动画面 ＋ 白色状态栏"的同屏矛盾；**含一处有意视觉变更**——浅色外观的启动画面由深变浅；`manifest` 与 `msapplication` 的安装期静态色如实记为不可达）——**阶段 1 至此全部完成**；**阶段 2 已开工**：2-A（服务端主题目录：`server/modules/themes/` 列举 `~/.cloudcli/themes/` ＋静态只读服务，§5.8 的五道闸门全部落地；并据此改判 §5.6 v3 那句"直接复用 plugins 的 resolveAsset、不必新写目录遍历与校验"——见 §5.6 v11 与 §5.8 v3）已实施；**2-B 也已实施**：前端加载链路（清单 store ＋ 样式 store ＋ 解析并入 ＋ 选择器合并与回落提示 ＋ 启动期缓存注入），并据此改判 §5.6 框图的"首次加载走 `<link>`"——实际统一走 `fetch` ＋ `<style>`，见 §5.6 v12）；**2-C 也已实施**：选项 A 令牌编译（白名单 ＋ 值形状校验 ＋ `appearance` 作用域）＋ 文件自带 `name` / `coverage` 的读取——含一处口径裁定（文件里的 `appearance` 是"作用域"而非"角色"，§5.6 v13）与一处示例改判（`--term-*` 必须三元组，写 hex 会静默坏）；**下一片 = 2-D**）
 > 参照物：WorkBuddy（`/Applications/WorkBuddy.app`，app.asar 解包 + 本机皮肤包实物）、Codex CLI（`@openai/codex@0.155.1`，Rust 二进制字符串解析）
 > 目标读者：评审 AI / 后续实施者
 
@@ -298,17 +298,26 @@ export type ThemeManifest = {
 {
   "name": "深海",
   "appearance": "light",
+  "coverage": "accent",
   "tokens": {
     "--primary": "175 84% 32%",
     "--ring": "175 84% 32%",
-    "--term-background": "#0b1220"
+    "--term-background": "210 45% 8%"
   }
 }
 ```
 
 - 优点：**可校验**（白名单令牌、值格式），无法写选择器 → 不可能破坏布局，也不可能用 `url()` 外联
 - 缺点：只能改已令牌化的东西
-- 实现：读取后编译成 `[data-theme="x"]{ --a: b; … }` 注入
+- 实现：读取后**校验并编译**成 `[data-theme="x"]{ --a: b; … }` 注入；`name` / `coverage` 由服务端列举时读出，`appearance` 限定这套规则只在某一外观下生效
+
+> **v3（2-C 已实施）——三处落定，其中一处是本示例自己的 bug：**
+>
+> **一、`appearance` 在这里是"限定作用的外观"，不是 §5.3 那个"角色"。** 两个问题共用一个名字，必须分清：`ThemeManifest.appearance` 是**角色**（`light` / `dark` = 外观默认、不进选择器；`system` = 覆盖层、进选择器），而文件里的 `appearance` 是**作用域**（这套规则写给哪个外观）。用户主题永远是覆盖层，角色恒为 `system`，所以作用域由**编译期**处理：`light` → `[data-theme="x"]:not(.dark)`、`dark` → `[data-theme="x"].dark`、`system` 或缺省 → 裸 `[data-theme="x"]`（＝`.css` 主题今天的行为）。这条读法是两处文档相左时的裁定，取舍与另两种读法见 §5.6 v13。
+>
+> **二、`--term-background` 原示例值写的是 hex，那是错的。** `--term-*` 由 `readTerminalTheme` 以 `hsl(var(--term-…))` 解析（`src/modules/shell/utils/terminalTheme.ts:60`），所以 `#0b1220` 会编译成 `hsl(#0b1220)`、被浏览器丢弃，终端**静默**保留上一个颜色。正确写法是三元组（示例已改为 `210 45% 8%`）。2-C 的校验器按同一判据把这种形状**丢弃并上报**，于是这类错误从"静默无效果"变成"控制台说得出哪一条令牌错了"。**判据与 §5.9 那两条消费者判据同源**：色值最终交给 `hsl(...)` 解析的令牌收三元组，交给 `EditorView.theme()` 之类直接写规则的收完整表达式。
+>
+> **三、`coverage` 现在读得到，`name` 也是。** 服务端列举 `.json` 时读它自带的 `name` 与 `coverage`（`readDeclaredMetadata`）；未声明则回落文件名、不画徽标（§5.8 v4）。
 
 **选项 B：原始 CSS（自由式，作为进阶）**
 
@@ -420,6 +429,16 @@ export type ThemeManifest = {
 >
 > **框图未要求、2-B 补上的**：失败不只是 `console.warn`，而是**上屏可见**——`failedId` 经解析层变成选择器里一行 `role="status"`。上面"跨设备同步的边界"只要求提示"未安装"，2-B 把"装了但读不出来"也一并提示，这才是验收里"失败回落可观测"的完整读法。另外框图写的"后台校验是否有更新"落成了**清单即校验**：`applyUserThemeStyle` 以 `(id, mtime)` 为键，mtime 未变是空转、变了才重取——不额外发探测请求。
 
+> **v13（2-C 已实施）——上面"读取后编译成 `[data-theme="x"]{ … }` 注入"这一步已落地，并在此定死一个两处文档相左的问题：`.json` 文件里的 `appearance` 是"这套规则写给哪个外观"（作用域），不是 §5.3 那个"角色"。**
+>
+> **一、编译步骤落在哪**。`src/shared/userThemeTokens.ts` 把 `.json` body 编译成覆盖层样式表：逐条查令牌白名单、按令牌家族校验值形状，通过的写成 `  --token: value;`（**保持文件里的声明顺序**），拼进 `[data-theme="…"] { … }`。`.css` 不经此步（它本来就是样式表，原样注入），`.tmTheme` **显式拒绝**——把 plist 当 CSS 注入会往文档里放一个匹配不到任何东西的元素，选择器会显示"已生效"而页面从未变过；拒绝让这个缺口可见，等 2-E 来填。
+>
+> **二、口径裁定（本片唯一停下拍板处）**。§5.3 定义 `ThemeManifest.appearance` 是**角色**：`light` / `dark` 是外观默认、不进选择器，`system` 是覆盖层、进选择器（§5.3 v9）。若文件自带的 `appearance` 也照"角色"读，一个用户文件永远只能是 `system`（文件主题一定是覆盖层），这个键便毫无作用。故取**作用域**读法、在**编译期**生效：`light` → `[data-theme="x"]:not(.dark)`、`dark` → `[data-theme="x"].dark`、`system` 或缺省 → 裸 `[data-theme="x"]`（＝`.css` 主题今天的行为）。**`:not(.dark)` 不是可有可无**：裸选择器在暗外观下同样匹配，只是靠特异性输给 `.dark`，那正是内置覆盖层 `cc-polar` 当初被给同一形状来避免的静默泄漏。
+>
+> **三、被否掉的另两种读法（留档以便回退）**：① **"删掉这个键"**——则用户主题无法表达"我这套值只适用于浅色"，一个自带浅色板又没有保护的主题会在暗外观下把两套基值混在一起；② **"按角色读、即只接受 `system`"**——等于把键变成恒真，读者会以为它有作用。两种都否。若将来改判，只需改 `selectorFor` 一处。
+>
+> **四、值形状的判据与 §5.9 同源**：色值最终交给 `hsl(...)` 解析的令牌收**三元组**，交给 `EditorView.theme()` 之类直接写规则的收**完整表达式**。示例里的 hex bug 与本条白名单落地同源于此，见 §5.8 v4。
+
 ### 5.7 硬编码收口清单（阶段 0 的施工面）
 
 | 目标 | 文件 | 收口方式 |
@@ -479,13 +498,33 @@ rg -o -e 'dark:(bg|text|border|ring|stroke|fill|from|to|via|decoration|placehold
 >
 > ① **目录内的符号链接会被跟随**。名单来自 `readdir`，而 `path.resolve` 不解析符号链接，故 `themes/evil.css -> /etc/passwd` 这类会被读出。**未**做 plugins / `image-attachments.ts` 那种 realpath 二次校验：能写该目录的只有服务进程的 OS 用户，而该用户本就能读目标文件，不构成越权提升——多写一次 realpath 换不到安全性。**到期条件**：一旦新增"网页上传主题文件"的入口（网页用户可写该目录），这条边界必须重评。
 >
-> ② **`appearance` 恒为 `system`、`coverage` 不声明**。元数据全由文件名派生，文件自己写的 `name` / `appearance` 这一版**不读**（归选项 A 的解析片）；选择器对未声明 `coverage` 的条目不渲染徽标（1-F 已如此），所以这里"不编一个默认值"是刻意的、不是漏写。
+> ② **元数据只读该读的**。2-A 时元数据全由文件名派生；2-C 起 `.json` 文件自带的 `name` 与 `coverage` 会被读出（`readDeclaredMetadata`，名字上限 80 字符、未知 `coverage` 告警并丢该字段），`appearance` **仍不读**——它不属于服务端：它决定规则写进哪个选择器，是编译期的事（见 §5.6 v13）。选择器对未声明 `coverage` 的条目不渲染徽标（1-F 已如此），所以"不编一个默认值"是刻意的、不是漏写。
+
+> **v4（2-C 已实施）——令牌白名单与值校验已成代码（`src/shared/userThemeTokens.ts`）。三件事：授权面、有意不授权的三族、以及拒绝粒度。**
+>
+> | 授权面 | 令牌 | 值形状 |
+> |---|---|---|
+> | L2 语义令牌（**逐个列出**） | `--background` / `--foreground` / `--border` / `--input` / `--ring` / `--card(-foreground)` / `--popover(-foreground)` / `--primary(-foreground)` / `--secondary(-foreground)` / `--accent(-foreground)` / `--destructive(-foreground)` / `--muted(-foreground)`（共 19 个） | 三元组，或指向另一个**可授权**令牌的 `var()` |
+> | L1 色板 | `--palette-*` | 三元组（原始色板恒为三元组） |
+> | 兼容档位 / Git lane | `--n-*`、`--graph-lane-1..10` | 三元组或 `var()` |
+> | 终端板 | `--term-*` | 三元组或 `var()`——**不能是 hex**：`readTerminalTheme` 以 `hsl(var(--term-…))` 解析，hex 会编译成 `hsl(#0b1220)` 被丢弃、终端静默不变（§5.5 v3 已据此改了示例） |
+> | 编辑器 chrome | `--editor-*` | 完整 CSS 表达式（这些令牌直接写进 `EditorView.theme()` 规则，不经 `hsl()`，见 §5.11 v5） |
+> | 导航玻璃板 | `--nav-glass-blur` / `--nav-glass-saturate`；其余 `--nav-*` | 数值（可带单位）；三元组或 `var()`，可选 ` / <alpha>` 后缀 |
+> | 圆角 | `--radius` | 长度 |
+>
+> **一、按家族授权，不按枚举**：`--palette-*` / `--n-*` / `--term-*` 是**样式表自己的清单**、会长会变（`--palette-gray-*` 随阶段 2 退役），逐个枚举会让一个写给旧版本的合法主题在退役当天开始失败。L2 语义令牌则**逐个列出**——一个覆盖它们的模式会放进任何"看着像"的名字。
+>
+> **二、有意不授权的三族（不是遗漏）**：`--cc-syntax-*`（编号尚无稳定语义名、语义名要等阶段 2，授权会让主题绑上会重排的编号，见 §5.9）；几何族 `--safe-area-*` / `--mobile-*` / `--header-*`（不是主题该管的事）；`--tw-*`（框架内部，藏在 `--ring` 后面）。**`var()` 引用的目标也必须自身可授权**——否则主题能借一个引用去读它不能直接写的令牌，白名单漏空。
+>
+> **三、拒绝粒度分两层，这是"结构闸门"真正买到的东西**：值里出现会提前结束声明或引入 at-rule 的字符（`}` / `;` / `@` / `!` / `\` / `<>` / 换行 / `url(` / `/*`）⇒ **整份文件拒绝**（写原始 CSS 的人用错了格式，该整份退回）；未知令牌、非字符串、或值形状不对 ⇒ **丢这一条 ＋ 上报**，文件照常可用。**如实记**：以今天的规则集，每条值规则自己的字符类已经排除了所有能逃逸的字符，故这个结构闸门**当前挡不住任何东西**，任何变异测试都证明不出它；它买的是"这份承诺写在一处、将来放宽某条规则时不会静默开洞"与上面这层**拒绝语义**。模块注释已按此改写，不声称一个演示不出的防御。
+>
+> **四、drop 而非 fatal 是刻意的**：一个写给更新版 CloudCLI 的主题（用了本版还不认识的令牌）应当在认识的部分照常工作，丢失的只是颜色、不是安全。丢失项由 `warnIgnored` 以一行 `console.warn` 报出。服务端与客户端对 `coverage` 的读法刻意不同——服务端严格（未知 ⇒ 告警 ＋ 丢该字段）、客户端宽松（未知 ⇒ 不画徽标但条目存活），因为客户端上"丢一个主题"的代价大于"少一个徽标"。
 
 ### 5.9 与既有能力的关系
 
 | 既有能力 | 关系 |
 |---|---|
-| `--cc-syntax-N` 变量化 | **继承；本轮不升语义名，只做三件事挡风险**（v3 已决）。现状：编号由"遍历 selector×property 时遇到差异的先后顺序"决定（`src/shared/syntaxTheme.ts:33-75`），源主题增删任一差异属性则其后编号整体重排；评估时消费者实测仅 4 个文件、全在 chat 模块内，但 **0-B 已使其跨出 chat**（chat 的 `Markdown.tsx`、code-editor 的 `MarkdownCodeBlock.tsx` + 3 个测试共用 `src/shared/syntaxTheme.ts`），编号不再只是模块内部实现，故下文三件事由加固升级为**必要**。**0-D 已完成**：**①** 导出 `SYNTAX_TOKEN_MAP` 常量（`{ keywordColor: 3, … }` 形态）把编号与语义绑定一次，内部引用走常量而非手写 `--cc-syntax-3`；**②** 加**黄金映射测试**——现有测试只断言 `var(--cc-syntax-\d+)` 的**形状**（`src/shared/tests/syntaxTheme.test.ts` 的 `assert.match`），未锁住具体映射，Prism 依赖 bump 导致编号重排时测试照绿；因 `buildSyntaxTheme()` 是纯函数，用 **inline snapshot** 固化 `{ style, css }` 即可（快照即对照表、零维护、diff 可读），并叠加"变量总数不变"作第一道信号；**③** 加 **denylist grep 护栏**——生成器与快照之外**禁止任何文件手写 `--cc-syntax-[0-9]` 字面量**，新消费者只允许消费 `style` / `css` 产物或 `SYNTAX_TOKEN_MAP`，CI 命中即红。**语义名草案（本轮定方向不实现）**：以 Prism 语义类别为根（comment / string / keyword / function / number / operator / punctuation / tag / attr-name / constant）、属性作后缀（`-color` / `-style` / `-weight`），如 `--cc-syntax-comment-color`；CodeMirror `HighlightStyle` 的 tag 名向同一套类别对齐，chat 与编辑器共用一套命名，**阶段 2 前一次到位改名**。<br>**0-D 实现偏差（比草案更强）**：`SYNTAX_TOKEN_MAP` 不是手写编号表，而是由 `deriveTokenMap` 从 `buildSyntaxTheme` 的产物**反查派生**——编号一旦因 Prism bump 重排，映射自动跟着走，不会出现"常量表与实际编号不一致"的中间态；找不到槽位时在模块加载期 `throw`，把改名变成构建期失败。黄金对照改用 `collectSyntaxVariables` 的完整"selector.property → 变量"快照 + 变量总数，另把每个语义槽位的 One Dark 色值冻结成表——后者能抓住"两个槽位对调"这类快照看不出的错误 |
+| `--cc-syntax-N` 变量化 | **继承；本轮不升语义名，只做三件事挡风险**（v3 已决）。现状：编号由"遍历 selector×property 时遇到差异的先后顺序"决定（`src/shared/syntaxTheme.ts:33-75`），源主题增删任一差异属性则其后编号整体重排；评估时消费者实测仅 4 个文件、全在 chat 模块内，但 **0-B 已使其跨出 chat**（chat 的 `Markdown.tsx`、code-editor 的 `MarkdownCodeBlock.tsx` + 3 个测试共用 `src/shared/syntaxTheme.ts`），编号不再只是模块内部实现，故下文三件事由加固升级为**必要**。**0-D 已完成**：**①** 导出 `SYNTAX_TOKEN_MAP` 常量（`{ keywordColor: 3, … }` 形态）把编号与语义绑定一次，内部引用走常量而非手写 `--cc-syntax-3`；**②** 加**黄金映射测试**——现有测试只断言 `var(--cc-syntax-\d+)` 的**形状**（`src/shared/tests/syntaxTheme.test.ts` 的 `assert.match`），未锁住具体映射，Prism 依赖 bump 导致编号重排时测试照绿；因 `buildSyntaxTheme()` 是纯函数，用 **inline snapshot** 固化 `{ style, css }` 即可（快照即对照表、零维护、diff 可读），并叠加"变量总数不变"作第一道信号；**③** 加 **denylist grep 护栏**——生成器与快照之外**禁止任何文件手写 `--cc-syntax-[0-9]` 字面量**，新消费者只允许消费 `style` / `css` 产物或 `SYNTAX_TOKEN_MAP`，CI 命中即红。**语义名草案（本轮定方向不实现）**：以 Prism 语义类别为根（comment / string / keyword / function / number / operator / punctuation / tag / attr-name / constant）、属性作后缀（`-color` / `-style` / `-weight`），如 `--cc-syntax-comment-color`；CodeMirror `HighlightStyle` 的 tag 名向同一套类别对齐，chat 与编辑器共用一套命名，**阶段 2 前一次到位改名**。<br>**0-D 实现偏差（比草案更强）**：`SYNTAX_TOKEN_MAP` 不是手写编号表，而是由 `deriveTokenMap` 从 `buildSyntaxTheme` 的产物**反查派生**——编号一旦因 Prism bump 重排，映射自动跟着走，不会出现"常量表与实际编号不一致"的中间态；找不到槽位时在模块加载期 `throw`，把改名变成构建期失败。黄金对照改用 `collectSyntaxVariables` 的完整"selector.property → 变量"快照 + 变量总数，另把每个语义槽位的 One Dark 色值冻结成表——后者能抓住"两个槽位对调"这类快照看不出的错误。<br>**2-C 补**：用户主题的令牌白名单据此**不授权** `--cc-syntax-*`（族不授权，`var()` 引用的目标也不授权），把"编号未稳定"这条约束挡在白名单之外——见 §5.8 v4 |
 | 字体设置（`--ui-font-*` / `--ui-code-font-*`） | 正交，不动。主题可选择性覆盖，但默认不应覆盖用户字体选择 |
 | `meta[name=theme-color]` | 由主题的 `appearance` 决定。**取值链已闭环（1-C 已实施，`1a9a7b78`）**：`--background` 是 HSL 三元组而 `meta[content]` 只接受具体颜色，原设计为此要求"统一解析函数（HSL→hex、alpha 与背景合并）"——1-C 改用**探针法**（把 `hsl(var(--token))` 交给浏览器解析再回读），浏览器即完成 HSL→hex 这一半，只保留真正必要的 alpha 合成。iOS `apple-mobile-web-app-status-bar-style` 原按明暗二值硬编码写死，现与 theme-color 一起由 `applyThemeChrome(appearance, manifest)` 统一发布；`ThemeManifest` 的两个可选覆盖字段（`themeColor` 取**令牌名**、`statusBar` 取 iOS 关键字）已落地并被断言覆盖 |
 | 跨设备偏好同步 | 沿用现有偏好存储，新增 `themeId` 一个键即可；边界见 §5.6 |
@@ -3742,23 +3781,25 @@ Mutation 侧：
 
 ### 阶段 2：用户主题
 
-服务端提供主题目录列举与静态文件（复用 `plugins.routes.ts` 的 `/:name/assets/*` 模式）；前端加载链路含"缓存同步注入 / 后台校验更新 / 加载中 / 失败回落"；设置页支持选择与（可选）粘贴内容。若采纳选项 A，需实现令牌白名单校验；若支持 B2，需实现 `.tmTheme` 解析。
+服务端提供主题目录列举与静态文件下发（**新写 `server/modules/themes/`**，而非复用 plugins 的 `resolveAsset`——见 §5.6 v11）；前端加载链路含"缓存同步注入 / 后台校验更新 / 加载中 / 失败回落"；设置页支持选择与（可选）粘贴内容。选项 A 的令牌白名单校验已由 2-C 落地；B2 的 `.tmTheme` 解析仍待 2-E。
 
 **验收**：往 `~/.cloudcli/themes/` 放一个文件，刷新后主题出现在选择器中并可生效（改文件后刷新能看到变化，即 `?v=` 生效）；非法文件被拒绝且不影响启动；删除文件后回落默认；**"合法但有害"的 CSS 可用 §5.6 的恢复通道退出**；跨设备同步到未安装主题的设备时给出显式提示而非静默回落（**前半"回落可观测"已由 1-D 提供**：生效 id 与所选 id 分离 ＋ `console.warn`；剩余的选择器提示 UI 随 1-F 落地）。
 
-**切片表（v2，2-A / 2-B 已实施）**
+**切片表（v3，2-A / 2-B / 2-C 已实施）**
 
 | 片 | 范围 | 状态 |
 |---|---|---|
 | 2-A | 服务端主题目录：列举 `~/.cloudcli/themes/` ＋ 静态只读下发（§5.8 的闸门；**不做内容解析**） | ✅ 已实施（`bdfd5bbb`），见下方记录 |
-| 2-B | 前端加载链路：拉清单 → 合并进选择器 → 注入 ＋ 缓存（`?v=<mtime>`）＋ 加载中 / 失败两态的回落可观测 | ✅ 已实施，见下方记录 |
-| 2-C | 选项 A：令牌白名单 ＋ 值格式校验，并开始读文件自带的元数据（`name` / `appearance` / `coverage`），编译成 `[data-theme]` 覆盖层 | 待做 |
+| 2-B | 前端加载链路：拉清单 → 合并进选择器 → 注入 ＋ 缓存（`?v=<mtime>`）＋ 加载中 / 失败两态的回落可观测 | ✅ 已实施（`7a5c77ce`），见下方记录 |
+| 2-C | 选项 A：令牌白名单 ＋ 值格式校验，并开始读文件自带的元数据（`name` / `coverage`），编译成 `[data-theme]` 覆盖层（含 `appearance` 作用域） | ✅ 已实施（`463772bd`），见下方记录 |
 | 2-D | 设置页用户主题分区：选择、删除、（可选）粘贴内容；按 `ThemeManifest.source` 区分展示 | 待做 |
 | 2-E | 选项 B（原始 CSS）＋ B2（`.tmTheme` → 语法 / 终端 / 编辑器令牌），连同 CSS 的"合法但有害"恢复通道（§5.6） | 待做 |
 
 **为什么 2-A 先做**：它是 2-B 的前置——前端要的清单、`?v=` 用的 mtime、以及"文件被拒"这一态都出自这两个端点；整片落在服务端，可独立验收（放文件 → 列表出现；坏文件 → 被拒且不影响启动）。2-C / 2-E 是解析层、2-D 是 UI 层，都不阻塞"放一个 `.css` 就能生效"这条最小闭环——`.css` 本身就是覆盖层，只需 2-A ＋ 2-B。
 
 **为什么 2-B 接着做**：它是那条最小闭环的另一半，做完之后**验收的第一句就可以真跑**（往 `~/.cloudcli/themes/` 放一个 `.css` → 刷新 → 出现在选择器里 → 选中即生效），其余四句中的三句也同时成立（改文件后刷新能看到变化、删除文件后回落默认、跨设备同步来的未安装主题给出显式提示）。剩下 2-C / 2-D / 2-E 都只让这条闭环**更厚**：2-C 让文件能自带 `name` / `appearance` / `coverage` 并限权令牌，2-D 给设置页加用户主题分区，2-E 才动"合法但有害的 CSS"的恢复通道与 `.tmTheme` 解析。2-B 也因此是**唯一一片能独立证明"运行期注入的样式真的压过基色"**的片子——那是个浏览器行为问题，jsdom 证不了，所以本片附带了一条真引擎 spec。
+
+**为什么 2-C 接着做**：最小闭环只对 `.css` 成立——`.json` 走到 2-B 的 `compileThemeSource` 时还是个"不是样式表的 body"，不被编译就等于**放进去也没用**；所以 2-C 是把选项 A（默认格式，§5.5）从"文档里的承诺"变成"能用的格式"的那一片，也是三条格式里唯一需要"解析"而非"透传"的一条。它同时兑现两笔欠账：§5.10 那句"用户主题的对比度只警告不阻断、留给选项 A 的校验器"，以及 §5.8 边界② 记的"文件自带的元数据不读"。2-D 仍可独立成片（UI 层，与解析无关），2-E 才是"合法但有害"的恢复通道与 `.tmTheme`。
 
 #### 2-A 实施记录（2026-09-26，`bdfd5bbb`）
 
@@ -3867,6 +3908,70 @@ Mutation 侧：
 
 **顺带记一条与本片无关的基线事实**：记录里"`npm test` 1012 项 / 19 失败"与本次"1015 / 20"都不是稳定值——已验证与本次改动无关（stash 前后同值）。已查明的一处来源是 `npm test` 的 glob 为 `server/**/*.test.ts` **＋** `server/**/*.test.js`，而仓库里恰好有一个已入库的 `.js` 测试（`server/modules/providers/list/opencode/opencode-runtime.provider.test.js`），故文件集是 **131** 而非 130。**结论：服务端套件只能做 A/B 红集对照，不能拿绝对计数当基线。**
 
+#### 2-C 实施记录（2026-09-26，`463772bd`）
+
+**范围**：新增 `src/shared/userThemeTokens.ts`（令牌白名单 ＋ 值形状规则 ＋ 结构闸门 ＋ `.json` → 覆盖层编译）；`src/shared/userThemeStyles.ts` 加 `compileThemeSource` 格式分派与 `warnIgnored`，并把**编译产物**（而非原文）注入与写缓存；`src/shared/userThemes.ts` 加 `coverage`（`isEntry` 改为宽松的 `readEntry`）；`server/modules/themes/services/theme-files.service.ts` 加 `readDeclaredMetadata`；`ThemeContext` / `ThemeSelector` 透传 `coverage`；`tests/theme-tokens/main.ts` 加 `format` 选项，新增真引擎 spec。测试：新文件 1 个 18 项，既有三处补 7 项，服务端补 3 项，真引擎 spec 3 项（2 引擎）。`.oxlintrc.json` 登记新 shared 模块。
+
+**决策（11 条）**
+
+1. **文件里的 `appearance` 取"作用域"读法，编译期生效**——这是本片唯一停下拍板处。§5.3 的 `ThemeManifest.appearance` 是**角色**（`light` / `dark` 是外观默认、`system` 是覆盖层），照角色读则文件这个键恒为 `system`、毫无作用。改为作用域：`light` → `:not(.dark)`、`dark` → `.dark`、`system` / 缺省 → 裸选择器。另两种被否读法（删键 / 只收 `system`）留档于 §5.6 v13；将来改判只动 `selectorFor` 一处。
+2. **服务端只读"显示用"的元数据**：`name` / `coverage` 在列举时读出，`appearance` 不读。分工判据是**这个字段改变的是列表还是样式表**——前者归服务端，后者归编译器。
+3. **白名单按家族授权，L2 逐个列出**：家族（`--palette-*` / `--n-*` / `--term-*` / `--editor-*` / `--nav-*`）会随样式表演化，逐个枚举会让写给旧版的合法主题在令牌退役当天开始失败；L2 语义令牌（19 个）逐个列出，因为一个模式会放进任何"看着像"的名字。
+4. **`var()` 引用的目标也须自身可授权**：否则一次引用就能读到白名单外的令牌，白名单等于漏空。
+5. **值形状按"色值最终交给谁"定**（与 §5.9 两条消费者判据同源）：交给 `hsl(...)` 的收**三元组**，交给 `EditorView.theme()` 的收**完整表达式**；`--term-*` 因此**拒绝 hex**——`#0b1220` 会编译成 `hsl(#0b1220)`、被浏览器丢弃、终端静默不变。这条同时修掉 §5.5 示例自身的 hex bug（§5.5 v3）。
+6. **结构闸门如实定性**：它当前**挡不住任何东西**——每条值规则自己的字符类已排除逃逸字符，关掉它的真引擎变异是 0 红（见下方证据）。它买的是"整份拒绝 vs 丢一条"的**拒绝语义**，以及"将来放宽某条规则不会静默开洞"的单一承诺点。模块注释与测试注释据此改写，不声称一个演示不出的防御。
+7. **拒绝粒度分两层**：逃逸形状 ⇒ **整份拒绝**（写原始 CSS 的人用错格式）；未知令牌 / 非字符串 / 形状不合 ⇒ **丢该条 ＋ `warnIgnored` 报出**，文件照常可用；一条都不剩 ⇒ `nothing-usable` 整份拒绝（不注入一个空块）。
+8. **`.tmTheme` 显式拒绝**：不静默把 plist 当 CSS 注入——那会往文档里放一个匹配不到东西的元素，选择器显示"已生效"而页面没变。缺口可见，等 2-E。
+9. **缓存编译产物而非原文**：启动期恢复是纯同步注入（`main.tsx` 在 React 挂载前调），存原文就得在启动路径再编译一次；存编译产物让恢复保持一行 `textContent`，编译失败也只需在加载路径处理一次。
+10. **`coverage` 两端读法不同**：服务端严格（未知 ⇒ 告警 ＋ 丢字段）、客户端宽松（未知 ⇒ 只不画徽标、条目存活）。理由：客户端上"丢一个主题"的代价大于"少一个徽标"。
+11. **`readEntry` 取代 `isEntry`**：只有 `coverage` 宽松，`format` 仍严格——未知格式没有编译器可用，留着也没法注入。
+
+**如实边界（4 条）**
+
+1. **`.tmTheme` 未支持**（显式拒绝），归 2-E。
+2. **§5.10 的"用户主题对比度只警告不阻断"仍未实现**：2-C 的校验器是**形状校验器**，只问"值能不能被消费端解析"，不问"读了清不清楚"。一个形状完全合法、但 `--foreground` 落 `--background` 不足 3:1 的主题，2-C **照收不误**。把"合法但不可读"变成可见警告仍待后续片（可并入 2-D 或独立成片）。
+3. **被丢条目只在控制台**：`warnIgnored` 写 `console.warn`，选择器 / 设置页看不到"你写的哪一条被丢了"。呈现归 2-D。
+4. **白名单是当前样式表的快照**：`--cc-syntax-*` / 几何族 / `--tw-*` 未授权（§5.8 v4），随阶段 2 语义化改名要同步扩充——这是**到期条件**，不是永久边界。
+
+**证据**
+
+| 项 | 预期 | 实测 |
+|---|---|---|
+| 新增 / 补测单测 | — | `userThemeTokens` 18；`userThemeStyles` 16（＋5）；`userThemes` 9（＋1）；`themeSelectorUserThemes` 6（＋1）；合计 **＋25**，与 `test:client` 增量逐位吻合 |
+| 服务端单测 | — | 14 项（service 11 ＋ routes 3）全过 |
+| 真引擎 spec | 浅色限定的覆盖层**只在浅色生效、不泄漏进暗色** | 3 项 × chromium ＋ webkit 全绿（jsdom 证不了"不泄漏"，故用真引擎） |
+| 变异：id 模式放宽 | 选择器安全 | 恰 1 红 |
+| 变异：白名单兜底成 `expression` | 白名单 | 恰 3 红 |
+| 变异：语义集合漏掉 `--primary` | 编译 | 恰 10 红（红面最广——`--primary` 是示例主题的主角） |
+| 变异：alpha 变回必填 | 导航玻璃板 | 恰 1 红 |
+| 变异：`triplet` 规则放松 | 三元组 | 恰 1 红（**改瞄后**：原用例没喂到"规则恰为 `triplet`"的令牌，补 `--palette-brand-500: '#2f6fdb'` 后命中） |
+| 变异：`expression` 规则收紧 | 编辑器 chrome | 恰 1 红 |
+| 变异：`light` 限定去掉 `:not(.dark)` | 作用域 | 恰 1 红 |
+| 变异：`dark` 限定去掉 `.dark` | 作用域 | 恰 2 红 |
+| 变异：非法 `appearance` 静默吞掉 | 作用域上报 | 恰 1 红 |
+| 变异：空 `tokens` 闸门关掉 | 编译 | 恰 1 红 |
+| 变异：`nothing-usable` 闸门关掉 | 编译 | 恰 2 红 |
+| 变异：**非字符串值强制 `String()`** | — | 起初 0 红——**变异点落在 `typeof` 闸门之后，是死代码**（与 2-A 那处被屏蔽的包含检查同类）；改瞄到闸门自己的理由串 → 恰 1 红 |
+| 变异：值长上限去掉 | 编译 | 恰 1 红 |
+| 变异：声明顺序反转 | 编译 | 恰 2 红 |
+| 变异：`json` 分支关掉 | 格式分派 | 恰 4 红 |
+| 变异：`.tmTheme` 直接当 CSS 注入 | 格式分派 | 恰 1 红 |
+| 变异：缓存存原始 body | 缓存 | 恰 1 红 |
+| 变异：被丢弃令牌静默 | 上报 | 恰 1 红 |
+| 变异：服务端不读元数据 | 元数据 | 恰 2 红 |
+| 变异：`coverage` 不做校验 | 元数据 | 恰 1 红 |
+| 变异：名字长上限去掉 | 元数据 | 恰 1 红 |
+| 变异：名字不再回落文件名 | 元数据 | 恰 1 红 |
+| 变异：客户端 `coverage` 不再白名单化 | 清单 | 恰 1 红 |
+| 变异：**结构闸门关掉** | — | 单测 **恰 2 红**（拒绝语义），**真引擎 0 红**（逃逸形状到不了文档——值规则已排除逃逸字符）。两数之差正是决策 6 那句话的证据 |
+| 产物核对（客户端） | 编译器进主 chunk | 五个失败原因串（`unsafe-id` / `unreadable-json` / `no-tokens` / `unsafe-value` / `nothing-usable`）＋ 白名单与作用域文案各命中 1 处 |
+| 产物核对（服务端） | 元数据读取进产物 | `dist-server/server/modules/themes/services/theme-files.service.js` 含 `readDeclaredMetadata` / `declares an unknown coverage` / `MAX_DECLARED_NAME_LENGTH` |
+| 基线对照 | 服务端失败集不变 | `git stash push -u` 前后各跑一次 `npm test`（基线 1015 项 / 本片 1017 项，＋2 为本片新增服务端用例）；`# fail` 随运行在 **19~21** 间漂移。把 `ok N - ` 前缀归一后做**名字集**对照：基线有而 2-C 无为 **0 行**、2-C 有而基线无为 **2 行**（`getStatus detects a codebuddy executable on PATH`、`workbuddy run closes one stdin…`）——两条都在已知的 WorkBuddy / CodeBuddy 抖动区，**同一棵树重跑本身就会变**，非本片回归 |
+
+**门槛**：`npm test` **1017 项、1 跳过**，失败数随运行在 **20~21** 间漂移（本记录复核两次分别为 995 通过 / 21 失败与 996 / 20），漂移的正是上述两条环境抖动——按名字集与 stash 基线**仅差它们**；`typecheck`（前后端两个 project）与 `typecheck:theme-tokens` 均干净；`lint` **153 warnings / 0 error**（与 2-A / 2-B 相同，无新增）；`test:client` **135 文件 / 1043 用例全过**（2-B 为 134 / 1018，差 **＋1 文件 / ＋25 用例**，与本片新增逐位吻合）；`build` exit 0；浏览器套件 `theme-tokens` **76 项全过**（2-B 70，＋6 ＝ 新 spec 3 项 × 2 引擎）。
+
+**与既有账的关系**：**本片在出厂状态下无视觉变更**——`~/.cloudcli/themes/` 为空时新代码路径都不执行，基色 / 覆盖层 / 首帧 chrome / 阶段 0 迁移账 / B3 账均不变。**但有一处对已存在用户文件的定义变更**：2-B 时任何格式的文件都**原样注入**，故一个 `.json` 文件此前是"把 JSON 当 CSS 注入"（大多被解析器丢弃、等于没用）；2-C 起 `.json` 必须通过白名单与形状校验，畸形 JSON 会被**拒**而不再注入。这是本片的目的而非回归，仅影响已有用户文件，在此点明。
+
 ---
 
 ## 7. 风险与取舍
@@ -3891,6 +3996,8 @@ Mutation 侧：
 > v2 收敛了 1/3/4/5/6；v3（2026-09-25，三方补充拍板后）2/7/8/9 也已决。**当前无遗留待定项**——由实施新开出来的两项都不阻塞任何后续片：① 0-F1 顺带核出的 §5.12 ">10 lane 参数化回退"（已记在该节 v2，属**可选增强**）；② ~~1-C 顺带核出的"JS 跑起来之前的 chrome 色"~~ **已由 1-I 落地**（`e4f5cb70`，见 §5.6 v8 与 1-I 记录；其中 `manifest.json` 与 `mobile/www` 两处如实记为不可达 / 独立色板）。
 >
 > **v4（2026-09-26 补记）**：阶段 2 的 2-A / 2-B 实施**均未开出新的 §8 项**——两片都只落地已决条款或改判已写的实现前提（分别见 §5.6 v11 / v12），没有产生需要拍板的模型问题。故截至 2-B：**§5.12 的 ">10 lane 参数化回退"仍是唯一一处待拍板项，且仍是可选增强、不阻塞 2-C / 2-D / 2-E 任何一片**。
+>
+> **v5（2026-09-26 补记）**：2-C 实施**也未开出新的 §8 项**——它遇到并解决的是文档内部的一处口径相左（`.json` 文件里的 `appearance` 是"作用域"还是"角色"），属"改判已写条款并回写"而非"新待拍板"，裁定与另两种被否读法记在 §5.6 v13。故截至 2-C：**§5.12 的 ">10 lane 参数化回退"仍是唯一一处待拍板项**（可选增强，不阻塞 2-D / 2-E）。
 
 1. **用户主题格式**：→ **已决**：三格式并行（A 令牌 JSON 默认 / B 原始 CSS 高级 / B2 `.tmTheme` 生态），见 §5.5。默认维持 A，理由见该节 v2 说明。
 2. **用户主题存放位置**：→ **已决**：采用 `~/.cloudcli/themes/`，Docker 仅文档标注、不做代码适配。**实施约束**：路径解析必须复用 server 现有的 `path.join(os.homedir(), '.cloudcli', …)` 模式，新增一个与 assets 平行的目录常量，严禁主题模块另写第二套拼接。依据：`docker/` 下仅 `claude-code` / `codex` 构建环境 + `shared` + README，无应用 Dockerfile、无 compose，Docker 非分发形态；而 `~/.cloudcli` 已是既有持久化约定（`server/shared/image-attachments.ts:22`、`server/load-env.ts:43`、`server/index.ts:323`）。若 README 补 Docker 说明，须同时覆盖 themes 与 assets 两个挂载点。
