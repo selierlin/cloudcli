@@ -4,6 +4,7 @@ import { scan } from 'react-scan'
 
 import App from '@/App'
 import { dismissSplash } from '@/utils/splash'
+import { applyCachedUserThemeStyle } from '@/shared/userThemeStyles'
 import '@/index.css'
 import 'katex/dist/katex.min.css'
 
@@ -29,6 +30,13 @@ if ('serviceWorker' in navigator) {
 // auth verification settles. Fallback: force it away 15s after boot so an abnormal
 // startup sequence can never leave the splash covering the UI indefinitely.
 window.setTimeout(dismissSplash, 15000)
+
+// A user theme's colours come from a file, not the bundle, so its stylesheet is
+// fetched and injected at runtime. Restoring the cached copy here — before React
+// mounts, while the splash still covers the screen — is what keeps a reload from
+// painting the default and then switching once the fetch returns. The listing
+// confirms the cached copy afterwards, and replaces it when the file changed.
+applyCachedUserThemeStyle()
 
 const rootElement = document.getElementById('root')
 if (!rootElement) {

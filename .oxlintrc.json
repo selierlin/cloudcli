@@ -100,6 +100,8 @@
           "src/shared/voiceConfig.ts",
           "src/shared/codeEditorSettings.ts",
           "src/shared/userSettings.ts",
+          "src/shared/userThemes.ts",
+          "src/shared/userThemeStyles.ts",
           "src/shared/chatDrafts.ts",
           "src/shared/quickReplies.ts",
           "src/shared/syntaxHighlighter.ts",

@@ -204,7 +204,8 @@
       "accent": "强调色",
       "full": "完整"
     },
-    "notInstalled": "「{{id}}」未安装，已用默认配色。"
+    "notInstalled": "「{{id}}」未安装，已用默认配色。",
+    "loadFailed": "「{{id}}」加载失败，已用默认配色。"
   },
   "appearanceSettings": {
     "projectSorting": {

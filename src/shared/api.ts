@@ -490,6 +490,17 @@ export const api = {
       get(`/api/assets/images/${encodeURIComponent(filename)}`, options),
   },
 
+  // User themes, stored globally under ~/.cloudcli/themes and served read-only.
+  themes: {
+    list: () => get('/api/themes'),
+    // `version` is the file's mtime. The route sends `Cache-Control: no-store`
+    // and the server resolves the path per request, so this is not what makes a
+    // refresh see an edited file — it keeps a proxy or an intermediate cache
+    // from serving one over it, and it names the exact revision in a request log.
+    file: (fileName: string, version: number) =>
+      get(`/api/themes/${encodeURIComponent(fileName)}${query({ v: version })}`),
+  },
+
   // TaskMaster endpoints — all addressed by DB projectId post-migration.
   taskmaster: {
     // Update a task
