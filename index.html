@@ -15,6 +15,9 @@
          load (especially on a first connection), and is removed by the main.tsx
          once React has mounted. -->
     <style>
+      /* The splash paints before index.css and the JS bundle exist, so its colours
+         are literals rather than tokens. The block below is the dark pair, which is
+         also the fallback when the script at the end of <head> did not run. */
       #app-splash {
         position: fixed;
         inset: 0;
@@ -55,6 +58,20 @@
         text-align: center;
         line-height: 1.5;
       }
+      /* Light appearance. The colours are the ones the light tokens resolve to
+         (--background / --foreground / --muted-foreground), so the splash hands over
+         to the first React paint without a jump in either direction. */
+      :root[data-appearance='light'] #app-splash {
+        background: #f7f6f3;
+        color: #0d0b08;
+      }
+      :root[data-appearance='light'] .splash-spinner {
+        border-color: rgba(0, 0, 0, 0.12);
+        border-top-color: #15803d;
+      }
+      :root[data-appearance='light'] .splash-sub {
+        color: #736f68;
+      }
     </style>
 
     <!-- PWA Manifest -->
@@ -69,12 +86,64 @@
     <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" />
     
-    <!-- Theme Color -->
-    <meta name="theme-color" content="#ffffff" />
+    <!-- Theme Color. These two media-scoped values are the declaration-only
+         fallback; the script at the end of <head> removes them and writes one exact
+         value once it has resolved the stored appearance, because a media query
+         tracks the OS and not the in-app picker. -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f7f6f3" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0d10" />
+    <!-- Windows tile colour, painted when the app is pinned and not while it runs:
+         it cannot follow the appearance, so it stays a literal rather than a second
+         source of truth. -->
     <meta name="msapplication-TileColor" content="#ffffff" />
     
     <!-- Prevent zoom on iOS -->
     <meta name="format-detection" content="telephone=no" />
+
+    <!-- First-paint appearance. The bundle that normally applies the theme has not
+         been downloaded yet, so the splash and the browser chrome would otherwise
+         contradict each other (a dark launch screen under a white status bar). This
+         synchronous script resolves the appearance here instead and hands it to the
+         two tags that need it. It reads the key ThemeContext reads first, so the
+         stored in-app pick wins; when that key is absent it falls back to the OS
+         preference, which is what the media scoped tags above track. The picker can
+         also live in the synced preference store, which is only reachable once the
+         bundle runs — a pick made on another device is corrected then, and so is the
+         mismatch between a manual pick and the OS preference.
+
+         `data-appearance` is not maintained after mount: React writes its own
+         `data-theme` / `.dark` and re-publishes the chrome through applyThemeChrome,
+         while the splash keeps the first-paint colours until ProtectedRoute dismisses
+         it. Setting it was necessary because the splash outlives the first render. -->
+    <script>
+      (function () {
+        var pref;
+        try {
+          pref = localStorage.getItem('theme');
+        } catch (e) {
+          // Storage can be blocked; fall through to the OS preference.
+        }
+        if (pref !== 'light' && pref !== 'dark') {
+          pref = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light';
+        }
+
+        var root = document.documentElement;
+        root.dataset.appearance = pref;
+        root.style.colorScheme = pref;
+
+        var colour = pref === 'dark' ? '#0b0d10' : '#f7f6f3';
+        var stale = document.querySelectorAll('meta[name="theme-color"]');
+        for (var i = 0; i < stale.length; i++) {
+          stale[i].remove();
+        }
+        var meta = document.createElement('meta');
+        meta.name = 'theme-color';
+        meta.content = colour;
+        document.head.appendChild(meta);
+      })();
+    </script>
   </head>
   <body>
     <div id="app-splash">

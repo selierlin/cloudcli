@@ -66,6 +66,7 @@ too:
 | `graph-lanes.spec.ts` | the commit-graph lanes and the ref-badge tint back to the hex array `commitGraph.ts` shipped with |
 | `mobile-terminal-selection.spec.ts` | the long-press handle and context menu back to the literals `mobileTerminalSelection.ts` shipped with |
 | `theme-chrome.spec.ts` | the `theme-color` / iOS status-bar metas to the resolved `--background`, plus the token override, translucent flattening and unknown-token fallback paths |
+| `first-paint.spec.ts` | the chrome that paints *before* the bundle runs: that the splash and the `theme-color` meta agree in both appearances, that the inline script reaches all three consumers, and that every declared `theme-color` is media-scoped |
 | `theme-overlays.spec.ts` | each `[data-theme]` overlay: that it is declared outside any `@layer`, that it resolves as written, that it moves exactly the surfaces its `coverage` advertises, and that the traversal is complete in both directions (no unregistered `[data-theme]` block, no registered theme without one) |
 | `contrast.spec.ts` | the WCAG AA floors of §5.10 — body / secondary / button text at 4.5:1, the focus ring at 3:1 — for the base palette and every overlay |
 
@@ -106,6 +107,35 @@ The base palette is included on purpose. It is what ships when no theme is
 picked, and an `accent` overlay inherits its substrate untouched — so a base
 value below the floor takes every accent theme down with it, which is exactly how
 `--palette-sand-500` came to be pinned at 43%.
+
+## Before the bundle runs
+
+Every check above applies the theme from JavaScript, so it only exists once the
+bundle has downloaded. Until then the page is the static document: the splash
+paints from literals in `index.html`, and the browser chrome takes its colour
+from a `<meta name="theme-color">` no token can reach. The two are on screen
+together, so `first-paint.spec.ts` pins the one thing that has to hold between
+them — that they **agree**, in both appearances.
+
+Each appearance's colour has three writers: the inline script at the end of
+`<head>` (which resolves the appearance and rewrites the meta), the splash rules
+(which select on `<html data-appearance>`), and the media-scoped metas left as
+the no-script fallback. The assertion is therefore that the value is the same
+everywhere it appears; pinning each occurrence to its own literal would keep
+passing after one of them drifted.
+
+That spec reads the source text, so it proves the document is wired consistently,
+not that the script behaves — the fixture imports the stylesheet, not the
+document, so nothing in this directory executes the inline script. The behaviour
+is checked separately against the real `index.html`:
+
+```sh
+node tests/theme-tokens/verify-first-paint.mjs
+```
+
+It runs all six combinations of OS appearance and stored preference and fails
+unless `data-appearance`, `color-scheme`, the single remaining `theme-color` meta
+and the splash's computed background all agree.
 
 ## Updating the baseline
 
