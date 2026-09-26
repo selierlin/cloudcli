@@ -30,6 +30,13 @@ if ('serviceWorker' in navigator) {
 // never flashes the intermediate loading pages; ProtectedRoute dismisses it when
 // auth verification settles. Fallback: force it away 15s after boot so an abnormal
 // startup sequence can never leave the splash covering the UI indefinitely.
+//
+// The splash is also the middle segment of the first-paint color chain: the inline
+// <head> script paints data-appearance/color-scheme/theme-color before first paint,
+// and ThemeContext's useEffect (which runs after first paint) picks up from there —
+// this splash covers the gap in between. Removing it or letting it disappear any
+// earlier (routing rework, SSR, desktop shell) would expose that gap as a flash of
+// default base colors. Known dependency recorded in the design doc §5.6 v15.
 window.setTimeout(dismissSplash, 15000)
 
 // §5.6's forced way out of a theme that left the interface unusable. It runs
