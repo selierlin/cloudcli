@@ -148,9 +148,11 @@ function toTmThemeCompiledSource(
   compiled: TmThemeCompileResult,
 ): CompiledThemeSource {
   if (compiled.ok) {
-    // A `.tmTheme` speaks about syntax, editor and terminal tokens, none of which
-    // is one of the pairs §5.10 puts a floor under.
-    return { ok: true, css: compiled.css, ignored: compiled.ignored, warnings: [] };
+    // The TextMate half speaks about syntax, editor and terminal tokens, none of
+    // which is one of the pairs §5.10 puts a floor under — so these warnings can
+    // only be non-empty because the file carried a `cloudcli` key, whose tokens
+    // are option A's and are warned about like any other option A theme's.
+    return { ok: true, css: compiled.css, ignored: compiled.ignored, warnings: compiled.warnings };
   }
   return {
     ok: false,

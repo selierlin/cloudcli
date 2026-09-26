@@ -1,7 +1,8 @@
 import { SYNTAX_TOKEN_MAP } from '@/shared/syntaxTheme';
 import type { SyntaxSemanticName } from '@/shared/syntaxTheme';
+import type { ThemeContrastWarning } from '@/shared/userThemeContrast';
 import type { IgnoredThemeEntry } from '@/shared/userThemeTokens';
-import { isThemableThemeId, themeOverlaySelector } from '@/shared/userThemeTokens';
+import { compileUserThemeTokens, isThemableThemeId, themeOverlaySelector } from '@/shared/userThemeTokens';
 
 /**
  * Option B2: a Sublime / TextMate `.tmTheme` compiled into the overlay stylesheet.
@@ -13,17 +14,27 @@ import { isThemableThemeId, themeOverlaySelector } from '@/shared/userThemeToken
  * as any other user theme, and what comes out is a `[data-theme]` overlay like
  * the other two formats produce.
  *
- * **What it reaches, and why that is less than the other formats.** A `.tmTheme`
- * carries colours for *code*: a global foreground / background / caret /
- * selection, and a list of `scope` rules naming the colour of keywords, strings,
- * comments and so on. It has nothing to say about the app's own surfaces — no
- * `--card`, no `--border` — so the overlay covers the syntax palette, the editor
- * chrome and the terminal board, and leaves the main UI on the base palette.
- * §5.5 B2 anticipated this and pointed at an embedded `cloudcli` key or a
- * same-named `.css` to fill the rest in; the second of those turns out not to be
- * reachable (the listing de-duplicates by id, §5.8 v6), so a `.tmTheme` on its
- * own is a *part* theme. Nothing here pretends otherwise, and `coverage` is not
- * declared, so the picker draws no badge.
+ * **What it reaches, and why that is less than the other formats — unless the
+ * author asks for more.** A `.tmTheme` carries colours for *code*: a global
+ * foreground / background / caret / selection, and a list of `scope` rules
+ * naming the colour of keywords, strings, comments and so on. It has nothing to
+ * say about the app's own surfaces — no `--card`, no `--border` — so the overlay
+ * covers the syntax palette, the editor chrome and the terminal board, and
+ * leaves the main UI on the base palette. A same-named `.css` cannot fill the
+ * rest in (the listing de-duplicates by id, §5.8 v6), so the one way to widen
+ * the reach is the optional `cloudcli` key: a top-level plist `<dict>` holding
+ * option A's own payload (`tokens`, plus the optional `appearance` scope) and
+ * optionally the file's `coverage` claim. The embedded block is compiled by the
+ * option A compiler itself — this module hands it a JSON rendering of the dict,
+ * so there is exactly one implementation of the whitelist, the value shapes, the
+ * refusal semantics and the contrast warnings, and a plist cannot drift from a
+ * `.json` that says the same thing (§5.5 v7). A dict that fails is dropped
+ * whole, never the file: the TextMate half was judged by its own rules and
+ * stands.
+ *
+ * `coverage` is not read here: it is a claim about the file, and the server
+ * reads claims (§5.8) — a `.tmTheme` that declares one gets the picker badge,
+ * one that does not is listed bare, exactly like a `.json`.
  *
  * **Two places the format needs translating rather than copying.** Both come from
  * one rule — a token's value has to be shaped like whatever consumes it (§5.9):
@@ -51,7 +62,19 @@ export type TmThemeCompileFailure =
   | 'nothing-usable';
 
 export type TmThemeCompileResult =
-  | { ok: true; css: string; ignored: IgnoredThemeEntry[] }
+  | {
+      ok: true;
+      css: string;
+      ignored: IgnoredThemeEntry[];
+      /**
+       * The §5.10 verdicts the `cloudcli` key's own tokens earned. The TextMate
+       * half speaks about syntax, editor and terminal tokens, none of which is
+       * one of the pairs §5.10 puts a floor under — so with no embedded key this
+       * is empty, and it is only ever non-empty because the author asked the
+       * theme to move main-UI tokens too.
+       */
+      warnings: ThemeContrastWarning[];
+    }
   | { ok: false; reason: TmThemeCompileFailure; ignored: IgnoredThemeEntry[] };
 
 /**
@@ -131,7 +154,12 @@ const SYNTAX_SCOPE_PATTERNS: ReadonlyArray<{ pattern: string; slot: SyntaxSemant
 type TmThemeScopeRule = { scopes: string[]; foreground: string | null; fontStyle: string | null };
 
 /** What a `.tmTheme` body says, before any of it has been judged. */
-type ParsedTmTheme = { globals: Map<string, string>; rules: TmThemeScopeRule[] };
+type ParsedTmTheme = {
+  globals: Map<string, string>;
+  rules: TmThemeScopeRule[];
+  /** The optional `cloudcli` key's payload, already read out of the plist. */
+  embedded: { tokens: Record<string, string>; appearance: string | null } | null;
+};
 
 /**
  * The `<key>`/value pairs of a plist `<dict>`.
@@ -175,6 +203,58 @@ function readChildString(entries: Map<string, Element>, key: string): string | n
 /** The raw text of a plist value, whatever kind it is. Judged later, together with the rest. */
 function readChildText(entries: Map<string, Element>, key: string): string | null {
   return entries.get(key)?.textContent?.trim() ?? null;
+}
+
+/**
+ * What the optional `cloudcli` key states, in the shape the option A compiler
+ * takes it.
+ *
+ * The key mirrors a `.json` theme's own object one plist dict at a time: `tokens`
+ * is a `<dict>` of token name → string value, `appearance` the optional scope.
+ * Both are read with the same leniency as anywhere else in this format — a
+ * `tokens` that is not a `<dict>`, an `appearance` that is not a `<string>`, and
+ * a token value that is not a `<string>` are each reported and dropped rather
+ * than guessed at, because this file was written by a person and they have to be
+ * able to see what did not take. Other keys the dict may carry (the file's
+ * `coverage` claim among them) belong to the server's metadata channel and are
+ * deliberately invisible here: this function returns what a *stylesheet* needs.
+ */
+function readEmbeddedCloudCli(
+  entries: Map<string, Element>,
+  ignored: IgnoredThemeEntry[],
+): { tokens: Record<string, string>; appearance: string | null } | null {
+  const dict = readChildDict(entries, 'cloudcli');
+  if (!dict) return null;
+
+  const values = readDict(dict);
+  const tokens: Record<string, string> = {};
+  const tokensElement = values.get('tokens');
+  if (!tokensElement) {
+    ignored.push({ what: 'cloudcli.tokens', reason: 'is missing; the embedded token block is ignored' });
+  } else if (tokensElement.tagName !== 'dict') {
+    ignored.push({ what: 'cloudcli.tokens', reason: 'is not a plist <dict>; the embedded token block is ignored' });
+  } else {
+    for (const [key, value] of readDict(tokensElement)) {
+      if (value.tagName !== 'string') {
+        ignored.push({ what: `cloudcli.${key}`, reason: 'is not a string value' });
+        continue;
+      }
+      const text = value.textContent?.trim();
+      if (text) tokens[key] = text;
+    }
+  }
+
+  const appearanceElement = values.get('appearance');
+  let appearance: string | null = null;
+  if (appearanceElement) {
+    if (appearanceElement.tagName !== 'string') {
+      ignored.push({ what: 'cloudcli.appearance', reason: 'is not a string value' });
+    } else {
+      appearance = appearanceElement.textContent?.trim() ?? null;
+    }
+  }
+
+  return { tokens, appearance };
 }
 
 /** The colour in a value, or null when it is not one this compiler may write out. */
@@ -242,7 +322,7 @@ function slotForScope(selector: string): SyntaxSemanticName | null {
  * format by hand would mean re-implementing entity handling and self-closing
  * tags to no benefit.
  */
-function parseTmTheme(body: string): ParsedTmTheme | null {
+function parseTmTheme(body: string, ignored: IgnoredThemeEntry[]): ParsedTmTheme | null {
   const parsedDocument = new DOMParser().parseFromString(body, 'application/xml');
   if (parsedDocument.querySelector('parsererror')) return null;
 
@@ -252,7 +332,8 @@ function parseTmTheme(body: string): ParsedTmTheme | null {
   const top = root.firstElementChild;
   if (top?.tagName !== 'dict') return null;
 
-  const settings = readDict(top).get('settings');
+  const topEntries = readDict(top);
+  const settings = topEntries.get('settings');
   if (settings?.tagName !== 'array') return null;
 
   const globals = new Map<string, string>();
@@ -286,7 +367,7 @@ function parseTmTheme(body: string): ParsedTmTheme | null {
     });
   }
 
-  return { globals, rules };
+  return { globals, rules, embedded: readEmbeddedCloudCli(topEntries, ignored) };
 }
 
 /**
@@ -300,10 +381,9 @@ export function compileTmTheme(themeId: string, body: string): TmThemeCompileRes
     return { ok: false, reason: 'unsafe-id', ignored: [] };
   }
 
-  const parsed = parseTmTheme(body);
-  if (!parsed) return { ok: false, reason: 'unreadable-plist', ignored: [] };
-
   const ignored: IgnoredThemeEntry[] = [];
+  const parsed = parseTmTheme(body, ignored);
+  if (!parsed) return { ok: false, reason: 'unreadable-plist', ignored: [] };
   const declarations = new Map<string, string>();
 
   for (const { key, term, expression } of GLOBAL_COLOUR_TOKENS) {
@@ -355,11 +435,60 @@ export function compileTmTheme(themeId: string, body: string): TmThemeCompileRes
     if (colour) declarations.set(SYNTAX_TOKEN_MAP[slot], colour);
   }
 
-  if (declarations.size === 0) {
+  // The embedded `cloudcli` key, if the author wrote one, is the option A
+  // payload restated in plist syntax — so it is judged by the option A compiler
+  // itself, never by a second opinion. The dict is handed over as JSON, which is
+  // exactly what it is: the same `{ tokens, appearance }` object a `.json`
+  // theme's body would parse into. Everything the compiler reports is prefixed
+  // `cloudcli.` so a console line cannot be mistaken for a TextMate half drop.
+  //
+  // A refusal here drops the embedded block and nothing else. The compiler's
+  // verdict is scoped to the payload it was given; the TextMate half was judged
+  // by its own rules and stands. `unreadable-json` cannot happen (the body was
+  // stringified here) and `unsafe-id` was checked above, so every remaining
+  // verdict means "drop the block, say why".
+  let embeddedCss: string | null = null;
+  let warnings: ThemeContrastWarning[] = [];
+  if (parsed.embedded) {
+    const { tokens, appearance } = parsed.embedded;
+    const body: Record<string, unknown> = { tokens };
+    if (appearance !== null) body.appearance = appearance;
+
+    const compiled = compileUserThemeTokens(themeId, JSON.stringify(body));
+    if (compiled.ok) {
+      embeddedCss = compiled.css;
+      warnings = compiled.warnings;
+      ignored.push(...compiled.ignored.map(({ what, reason }) => ({ what: `cloudcli.${what}`, reason })));
+    } else {
+      ignored.push(...compiled.ignored.map(({ what, reason }) => ({ what: `cloudcli.${what}`, reason })));
+      if (compiled.reason === 'unsafe-value') {
+        ignored.push({
+          what: `cloudcli.${compiled.token}`,
+          reason: 'is not an option-A value; the whole embedded token block is refused',
+        });
+      } else {
+        ignored.push({
+          what: 'cloudcli',
+          reason: `states no usable token (${compiled.reason}); the embedded token block is ignored`,
+        });
+      }
+    }
+  }
+
+  if (declarations.size === 0 && embeddedCss === null) {
     return { ok: false, reason: 'nothing-usable', ignored };
   }
 
-  const lines = [...declarations].map(([token, value]) => `  ${token}: ${value};`);
-  const css = `${themeOverlaySelector(themeId, 'system')} {\n${lines.join('\n')}\n}\n`;
-  return { ok: true, css, ignored };
+  const blocks: string[] = [];
+  if (declarations.size > 0) {
+    const lines = [...declarations].map(([token, value]) => `  ${token}: ${value};`);
+    blocks.push(`${themeOverlaySelector(themeId, 'system')} {\n${lines.join('\n')}\n}\n`);
+  }
+  // The embedded block goes last. The two halves are plain declarations under
+  // same-specificity selectors, so when both state one token — an embedded
+  // `--term-background` meeting the TextMate global of the same name — document
+  // order decides, and the key the author wrote *for this app* is the more
+  // deliberate of the two statements.
+  if (embeddedCss) blocks.push(embeddedCss);
+  return { ok: true, css: blocks.join(''), ignored, warnings };
 }
