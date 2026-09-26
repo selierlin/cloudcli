@@ -123,6 +123,32 @@ test('entries that could not have come from the themes folder are dropped', asyn
   );
 });
 
+test('a declared reach is carried, and one this build does not know costs only the badge', async () => {
+  signIn();
+  listing = listingOf([
+    entry({ id: 'user-accent', coverage: 'accent' }),
+    entry({ id: 'user-full', coverage: 'full' }),
+    entry({ id: 'user-undeclared' }),
+    // A reach the server knows and this bundle does not. It only decides
+    // whether a badge is drawn, so the entry has to survive it — dropping a
+    // working theme over an unrecognised label would be the wrong trade.
+    entry({ id: 'user-future', coverage: 'partial' }),
+  ]);
+  const store = await loadStore();
+
+  await store.refreshUserThemes();
+
+  assert.deepEqual(
+    store.getUserThemesState().entries.map(({ id, coverage }) => [id, coverage]),
+    [
+      ['user-accent', 'accent'],
+      ['user-full', 'full'],
+      ['user-undeclared', undefined],
+      ['user-future', undefined],
+    ],
+  );
+});
+
 test('an mtime that is not a finite number is dropped', async () => {
   signIn();
   // `1e999` is legal JSON and parses to `Infinity`, which `JSON.stringify`

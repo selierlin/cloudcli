@@ -49,8 +49,13 @@ function ThemeSelector({ ariaLabel }: ThemeSelectorProps) {
       label: theme.name,
       coverage: theme.coverage,
     })),
-    // A file-derived theme declares no reach (§5.8), so it carries no badge.
-    ...userThemes.map((theme) => ({ id: theme.id, label: theme.name })),
+    // A file-derived theme carries the reach its file declared, and no badge
+    // when it declared none (§5.8 v4) — the file is the only thing that can say.
+    ...userThemes.map((theme) => ({
+      id: theme.id,
+      label: theme.name,
+      coverage: theme.coverage,
+    })),
   ];
 
   // The option to mark as chosen. A default-alias id (`cc-light` / `cc-dark`) is

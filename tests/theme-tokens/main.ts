@@ -321,6 +321,8 @@ export type UserThemeOptions = {
   id?: string;
   fileName?: string;
   modifiedAt?: number;
+  /** Format the listed file claims, which is what decides how the body is compiled. */
+  format?: 'css' | 'json' | 'tmTheme';
   /** Body of the theme file, or `''` for a file the server refuses. */
   css?: string;
   /** Status the stub answers with; anything but 200 means the file is not there. */
@@ -381,6 +383,7 @@ async function applyUserTheme(options: UserThemeOptions = {}): Promise<UserTheme
     id = 'user-fixture',
     fileName = 'fixture.css',
     modifiedAt = 42,
+    format = 'css',
     css = '',
     status = 200,
     listingComplete = true,
@@ -393,7 +396,7 @@ async function applyUserTheme(options: UserThemeOptions = {}): Promise<UserTheme
   }
 
   const before = themeRequests.length;
-  await applyUserThemeStyle({ id, name: id, fileName, format: 'css', modifiedAt }, listingComplete);
+  await applyUserThemeStyle({ id, name: id, fileName, format, modifiedAt }, listingComplete);
 
   // The provider writes the resolved id to `<html data-theme>`; this page is
   // framework-free, so the step the provider would take is taken here.

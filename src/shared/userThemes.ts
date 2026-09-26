@@ -16,15 +16,25 @@ import { getStoredAuthToken } from '@/shared/authToken';
 /** Formats a theme file may be written in; mirrors the server's `ThemeFileFormat`. */
 export type UserThemeFormat = 'css' | 'json' | 'tmTheme';
 
+/** How far a theme says it reaches; mirrors `ThemeManifest['coverage']`. */
+export type UserThemeCoverage = 'accent' | 'full';
+
 /** One theme file the server offers. */
 export type UserThemeEntry = {
   /** `user-<lowercased filename base>`, the value written to `<html data-theme>`. */
   id: string;
-  /** Display name in the picker. */
+  /** Display name in the picker: the name the file declares, or its filename base. */
   name: string;
   /** On-disk filename; what the serving route takes. */
   fileName: string;
   format: UserThemeFormat;
+  /**
+   * The reach the file declares, when it declares one. Absent means the theme
+   * says nothing about its reach, and the picker shows no badge rather than
+   * claiming one nobody checked — the state every file-derived theme was in
+   * before option A started reading it out of the file (§5.8 v4).
+   */
+  coverage?: UserThemeCoverage;
   /** Last-modified time in ms; the cache-busting `?v=` and the "did it change" check. */
   modifiedAt: number;
 };
@@ -55,30 +65,52 @@ const USER_THEME_ID_PREFIX = 'user-';
 
 const FORMATS = new Set<UserThemeFormat>(['css', 'json', 'tmTheme']);
 
+const COVERAGES = new Set<UserThemeCoverage>(['accent', 'full']);
+
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 );
 
 /**
- * Whether a value off the wire is shaped like an entry.
+ * Reads one entry off the wire, or null when it is not shaped like one.
  *
  * The server derives these from filenames it has already vetted, but the store
  * is the boundary between the two: an entry with the wrong shape would end up
  * as an id in a selector or a path in a request, so it is filtered here rather
  * than trusted because of where it came from.
+ *
+ * `coverage` is the one field read leniently — an unknown value is dropped
+ * rather than failing the entry. It only decides whether a badge is drawn, and
+ * losing a theme because this build does not know a reach the server does would
+ * be the wrong trade; an unknown `format` gets the strict treatment because
+ * there would be nothing to compile with.
  */
-function isEntry(value: unknown): value is UserThemeEntry {
-  if (!isRecord(value)) return false;
-  return (
-    typeof value.id === 'string' &&
-    isUserThemeId(value.id) &&
-    typeof value.name === 'string' &&
-    typeof value.fileName === 'string' &&
-    typeof value.format === 'string' &&
-    FORMATS.has(value.format as UserThemeFormat) &&
-    typeof value.modifiedAt === 'number' &&
-    Number.isFinite(value.modifiedAt)
-  );
+function readEntry(value: unknown): UserThemeEntry | null {
+  if (!isRecord(value)) return null;
+  if (
+    typeof value.id !== 'string' ||
+    !isUserThemeId(value.id) ||
+    typeof value.name !== 'string' ||
+    typeof value.fileName !== 'string' ||
+    typeof value.format !== 'string' ||
+    !FORMATS.has(value.format as UserThemeFormat) ||
+    typeof value.modifiedAt !== 'number' ||
+    !Number.isFinite(value.modifiedAt)
+  ) {
+    return null;
+  }
+
+  const entry: UserThemeEntry = {
+    id: value.id,
+    name: value.name,
+    fileName: value.fileName,
+    format: value.format as UserThemeFormat,
+    modifiedAt: value.modifiedAt,
+  };
+  if (COVERAGES.has(value.coverage as UserThemeCoverage)) {
+    entry.coverage = value.coverage as UserThemeCoverage;
+  }
+  return entry;
 }
 
 let state: UserThemesState = { entries: [], status: 'idle' };
@@ -138,7 +170,10 @@ export async function refreshUserThemes(): Promise<void> {
     }
     const payload: unknown = await response.json();
     const entries = isRecord(payload) && Array.isArray(payload.themes)
-      ? payload.themes.filter(isEntry)
+      ? payload.themes.flatMap((candidate: unknown) => {
+          const entry = readEntry(candidate);
+          return entry ? [entry] : [];
+        })
       : [];
     publish({ entries, status: 'ready' });
   } catch (error) {

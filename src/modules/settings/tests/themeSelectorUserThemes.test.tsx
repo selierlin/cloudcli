@@ -130,7 +130,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-test('the listing adds options to the picker, and they claim no reach', async () => {
+test('the listing adds options to the picker, and a theme that declares no reach claims none', async () => {
   listing = listed([entry]);
   const { container } = await renderPicker('user-borealis');
   await settle();
@@ -140,12 +140,32 @@ test('the listing adds options to the picker, and they claim no reach', async ()
   assert.equal(
     option.querySelectorAll('span').length,
     1,
-    'a file-derived theme declares no reach (§5.8), so it carries no badge',
+    'a file that declares no coverage carries no badge (§5.8 v4)',
   );
   assert.equal(status(container), null);
 
   fireEvent.click(optionButton(container, 'themeSelector.default'));
   assert.equal(document.documentElement.dataset.theme, 'cc-light');
+});
+
+test('a badge is drawn for the reach a file declares, and only then', async () => {
+  listing = listed([
+    { ...entry, coverage: 'full' },
+    { ...entry, id: 'user-nord', name: 'Nord', fileName: 'nord.json', format: 'json', coverage: 'accent' },
+    { ...entry, id: 'user-plain', name: 'Plain', fileName: 'plain.css' },
+  ]);
+  const { container } = await renderPicker(null);
+  await settle();
+
+  /** Everything inside the option that is not the label — the badge, when there is one. */
+  const badge = (label: string) =>
+    [...optionButton(container, label).querySelectorAll('span')]
+      .map((span) => span.textContent)
+      .filter((text) => text !== label);
+
+  assert.deepEqual(badge('Borealis'), ['themeSelector.coverage.full']);
+  assert.deepEqual(badge('Nord'), ['themeSelector.coverage.accent']);
+  assert.deepEqual(badge('Plain'), [], 'a theme that says nothing about its reach claims nothing');
 });
 
 test('a theme whose stylesheet failed stays on offer and is explained', async () => {
