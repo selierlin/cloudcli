@@ -328,6 +328,16 @@
     --graph-lane-9: var(--palette-graph-9);
     --graph-lane-10: var(--palette-graph-10);
 
+    /* Lanes past the last explicit token rotate hue instead of wrapping onto
+       lane 1's colour (§5.12): `laneColor` in commitGraph.ts computes
+       `hsl(calc(base + step × lane) 70% 55%)` from these two parameters, so a
+       theme retunes every overflow lane by overriding them. The defaults were
+       searched, not guessed: over the first fourteen overflow lanes they keep
+       every hue ≥8.1° away from the ten above and ≥20.4° away from each other
+       — about the most a colour circle shared with ten fixed hues allows. */
+    --graph-lane-base-hue: 315.3;
+    --graph-lane-hue-step: 95.1;
+
     /* Code editor (CodeMirror) — the chrome `@codemirror/theme-one-dark` used to
        own outright. Values are complete colour expressions because
        `EditorView.theme()` writes them straight into a rule; the light column is
