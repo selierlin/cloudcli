@@ -63,7 +63,7 @@ async function loadTheme(
 
   const styles = await import('@/shared/userThemeStyles');
   if (restoreCachedStyle) {
-    styles.applyCachedUserThemeStyle();
+    styles.applyBootUserThemeStyle();
   }
 
   const context = await import('@/shared/context/ThemeContext');
@@ -210,4 +210,74 @@ test('the cached stylesheet is in force on the first render, before the listing 
   answer();
   await settle();
   assert.equal(result.current.resolvedThemeId, 'user-borealis');
+});
+
+/**
+ * A pasted theme is the second source, and its whole difference from a file is
+ * that nothing about it is a request: the content is already in the preference
+ * mirror, so it resolves without the listing ever being consulted.
+ */
+const pasted = {
+  id: 'paste-1',
+  name: 'Deep sea',
+  content: JSON.stringify({ name: 'Deep sea', tokens: { '--primary': '175 84% 32%' } }),
+};
+
+test('a pasted theme is applied from the preference mirror, without waiting for the listing', async () => {
+  // The listing is deliberately left unanswered: a paste does not come from it,
+  // and a pick that waited for a request it does not depend on would show the
+  // default for as long as that request took.
+  let answer = (): void => {};
+  listing = () => new Promise<Response>((resolve) => {
+    answer = () => resolve(new Response(JSON.stringify({ themes: [] }), { status: 200 }));
+  });
+
+  const { result } = await loadTheme({ themeId: 'paste-1', userThemePastes: [pasted] });
+
+  // Before its stylesheet is in the document the theme is not yet in force, and
+  // that must not read as "missing": a hint the next frame retracts is worse than
+  // the wait, which is exactly why a paste resolves from the mirror rather than
+  // from an answer that has not arrived.
+  assert.equal(result.current.themeFallback, null);
+
+  await settle();
+
+  assert.deepEqual(result.current.userThemes, [
+    { id: 'paste-1', name: 'Deep sea', source: 'user-paste', appearance: 'system' },
+  ]);
+  assert.equal(result.current.resolvedThemeId, 'paste-1');
+  assert.equal(document.documentElement.dataset.theme, 'paste-1');
+  assert.equal(result.current.themeFallback, null);
+  assert.ok(
+    document.querySelector('style[data-cloudcli-user-theme="paste-1"]'),
+    'the paste is in force only because its stylesheet is in the document',
+  );
+
+  answer();
+  await settle();
+  assert.equal(result.current.resolvedThemeId, 'paste-1');
+});
+
+test('a pick naming a pasted theme that is gone is reported missing', async () => {
+  const { result } = await loadTheme({ themeId: 'paste-9' });
+  await settle();
+
+  assert.deepEqual(result.current.themeFallback, { id: 'paste-9', reason: 'missing' });
+  assert.equal(result.current.resolvedThemeId, 'cc-light');
+  assert.equal(document.documentElement.dataset.theme, 'cc-light');
+  assert.ok(warned('paste-9'), 'the pick the user made has to stay findable');
+});
+
+test('a pasted theme that cannot compile is a load failure, not a missing theme', async () => {
+  // Stored content is compiled when it is pasted, so this should not happen — but
+  // the two reasons read differently to a user, and reporting the wrong one sends
+  // them looking for a file that never existed.
+  const { result } = await loadTheme({
+    themeId: 'paste-1',
+    userThemePastes: [{ id: 'paste-1', name: 'Broken', content: 'not json' }],
+  });
+  await settle();
+
+  assert.deepEqual(result.current.themeFallback, { id: 'paste-1', reason: 'loadFailed' });
+  assert.equal(result.current.resolvedThemeId, 'cc-light');
 });

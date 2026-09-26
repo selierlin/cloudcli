@@ -4,7 +4,8 @@ import { scan } from 'react-scan'
 
 import App from '@/App'
 import { dismissSplash } from '@/utils/splash'
-import { applyCachedUserThemeStyle } from '@/shared/userThemeStyles'
+import { applyThemeResetRequest } from '@/shared/themeReset'
+import { applyBootUserThemeStyle } from '@/shared/userThemeStyles'
 import '@/index.css'
 import 'katex/dist/katex.min.css'
 
@@ -31,12 +32,18 @@ if ('serviceWorker' in navigator) {
 // startup sequence can never leave the splash covering the UI indefinitely.
 window.setTimeout(dismissSplash, 15000)
 
-// A user theme's colours come from a file, not the bundle, so its stylesheet is
-// fetched and injected at runtime. Restoring the cached copy here — before React
-// mounts, while the splash still covers the screen — is what keeps a reload from
-// painting the default and then switching once the fetch returns. The listing
-// confirms the cached copy afterwards, and replaces it when the file changed.
-applyCachedUserThemeStyle()
+// §5.6's forced way out of a theme that left the interface unusable. It runs
+// before anything is restored, so the reset is already in force on the first
+// paint — and it is a URL parameter because that is the one channel that works
+// when the settings page itself cannot be read.
+applyThemeResetRequest()
+
+// A user theme's colours come from a file or from a paste, not the bundle, so its
+// stylesheet is fetched or compiled and injected at runtime. Restoring it here —
+// before React mounts, while the splash still covers the screen — is what keeps a
+// reload from painting the default and then switching once the fetch returns. The
+// listing confirms a file afterwards, and replaces it when the file changed.
+applyBootUserThemeStyle()
 
 const rootElement = document.getElementById('root')
 if (!rootElement) {

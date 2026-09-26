@@ -316,6 +316,11 @@ function readWithTheme(themeId: string | null, appearance: Appearance): TokenRea
  * `getComputedStyle` is what shows the injected rules actually reaching the
  * page — so the production module is driven here with nothing stubbed but the
  * server, which is the boundary the app itself does not own.
+ *
+ * The second source takes the same path with the fetch replaced by content the
+ * caller already has (`paste`). Driving both through one entry point is
+ * deliberate: the difference between them is supposed to be one step, and a
+ * `paste` reading with no requests recorded is what shows it stayed that way.
  */
 export type UserThemeOptions = {
   id?: string;
@@ -325,6 +330,11 @@ export type UserThemeOptions = {
   format?: 'css' | 'json' | 'tmTheme';
   /** Body of the theme file, or `''` for a file the server refuses. */
   css?: string;
+  /**
+   * Token JSON whose content is *in hand* rather than served — the pasted source.
+   * When given, nothing is asked of the stub: proving that is the point.
+   */
+  paste?: string;
   /** Status the stub answers with; anything but 200 means the file is not there. */
   status?: number;
   /** Whether the listing has been read, which is what makes an absent entry evidence. */
@@ -385,18 +395,26 @@ async function applyUserTheme(options: UserThemeOptions = {}): Promise<UserTheme
     modifiedAt = 42,
     format = 'css',
     css = '',
+    paste,
     status = 200,
     listingComplete = true,
   } = options;
 
-  if (status === 200) {
-    themeFiles.set(fileName, { body: css, status });
-  } else {
-    themeFiles.delete(fileName);
+  if (paste === undefined) {
+    if (status === 200) {
+      themeFiles.set(fileName, { body: css, status });
+    } else {
+      themeFiles.delete(fileName);
+    }
   }
 
   const before = themeRequests.length;
-  await applyUserThemeStyle({ id, name: id, fileName, format, modifiedAt }, listingComplete);
+  await applyUserThemeStyle(
+    paste === undefined
+      ? { kind: 'file', entry: { id, name: id, fileName, format, modifiedAt } }
+      : { kind: 'paste', theme: { id, name: id, content: paste } },
+    listingComplete,
+  );
 
   // The provider writes the resolved id to `<html data-theme>`; this page is
   // framework-free, so the step the provider would take is taken here.

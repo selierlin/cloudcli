@@ -8,6 +8,12 @@ import {
   getUserThemeStyleState,
   subscribeToUserThemeStyle,
 } from '@/shared/userThemeStyles';
+import type { UserThemeStyleTarget } from '@/shared/userThemeStyles';
+import {
+  getPastedThemes,
+  isPastedThemeId,
+  subscribeToPastedThemes,
+} from '@/shared/userThemePastes';
 import {
   getUserThemesState,
   isUserThemeId,
@@ -49,9 +55,11 @@ type ThemeContextValue = {
   /** Picks an overlay theme; null returns to the appearance default. */
   setThemeId: (themeId: string | null) => void;
   /**
-   * The overlay themes the server host offers from `~/.cloudcli/themes`. Empty
-   * until the listing arrives; a pick can still resolve from a cached
-   * stylesheet before then.
+   * The overlay themes the user can pick: the ones the server host offers from
+   * `~/.cloudcli/themes` (`source: 'user'`) and the ones they pasted
+   * (`source: 'user-paste'`). The file half is empty until the listing arrives; a
+   * pick can still resolve from a restored stylesheet before then, and the pasted
+   * half is in memory from the first render.
    */
   userThemes: ThemeManifest[];
   /** Set when the picked overlay is not in force; null while it is, and while it is still loading. */
@@ -94,26 +102,30 @@ function builtinThemeById(id: string): ThemeManifest | null {
 }
 
 /**
- * Presents a theme from the host's themes folder as a manifest.
+ * Presents a theme the user owns as a manifest: one from the host's themes folder
+ * (`source: 'user'`) or one they pasted (`source: 'user-paste'`). The settings
+ * page groups by that field, so it has to travel with the manifest (§5.4 v3).
  *
  * `appearance` stays `system` whatever the file declares. The two are different
  * questions that happen to share a name: the manifest field is a *role* — is
- * this an appearance default (not offered) or an overlay (offered) — and a file
- * theme is always the latter. What a file's own `appearance` says is a *scope*,
- * which appearance its rules are written for, and that is applied where the
- * rules are compiled (`userThemeTokens`) rather than here (§5.6 v13).
+ * this an appearance default (not offered) or an overlay (offered) — and a user
+ * theme is always the latter. What a pasted or filed theme declares under the
+ * same name is a *scope*, which appearance its rules are written for, and that is
+ * applied where the rules are compiled (`userThemeTokens`) rather than here
+ * (§5.6 v13).
  *
- * `coverage` is passed through only when the file declared one: an undeclared
+ * `coverage` is passed through only when the theme declared one: an undeclared
  * reach shows no badge instead of a fabricated one (§5.8 v4).
  */
 function userThemeManifest(
   id: string,
   name: string,
+  source: 'user' | 'user-paste',
   coverage?: 'accent' | 'full',
 ): ThemeManifest {
   return coverage
-    ? { id, name, source: 'user', appearance: 'system', coverage }
-    : { id, name, source: 'user', appearance: 'system' };
+    ? { id, name, source, appearance: 'system', coverage }
+    : { id, name, source, appearance: 'system' };
 }
 
 /** Mounted once by App so every module can read and switch the colour theme through useTheme. */
@@ -159,6 +171,12 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => subscribeToUserThemes(() => setUserThemeState(getUserThemesState())), []);
   useEffect(() => subscribeToUserThemeStyle(() => setStyleState(getUserThemeStyleState())), []);
 
+  // The pasted themes are the second source, and they come from the preference
+  // store rather than from a request: they are already in memory when the first
+  // render runs, and they arrive from another device the same way `themeId` does.
+  const [pastedThemes, setPastedThemes] = useState(getPastedThemes);
+  useEffect(() => subscribeToPastedThemes(() => setPastedThemes(getPastedThemes())), []);
+
   // Re-attempted when the pick changes, not only on mount: the first attempt can
   // land before the client has a session token, and a pick arriving from the
   // preference mirror after sign-in is exactly when the listing is needed.
@@ -167,18 +185,26 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   }, [themeId]);
 
   const userThemes = useMemo(() => {
-    const offered = userThemeState.entries.map((entry) =>
-      userThemeManifest(entry.id, entry.name, entry.coverage));
-    // The theme in force is offered even when the listing has not accounted for
-    // it: the boot-time cache can put one on screen before the listing exists,
-    // and after a listing that failed there is no other record of it. Without
-    // this the picker would mark the default while that theme is what the
-    // document is actually wearing.
+    const offered = [
+      ...userThemeState.entries.map((entry) =>
+        userThemeManifest(entry.id, entry.name, 'user', entry.coverage)),
+      ...pastedThemes.map((theme) =>
+        userThemeManifest(theme.id, theme.name, 'user-paste', theme.coverage)),
+    ];
+    // The theme in force is offered even when nothing has accounted for it: the
+    // boot-time restore can put one on screen before the listing exists, and
+    // after a listing that failed there is no other record of it. Without this
+    // the picker would mark the default while that theme is what the document is
+    // actually wearing.
     if (styleState.appliedId && !offered.some((theme) => theme.id === styleState.appliedId)) {
-      offered.push(userThemeManifest(styleState.appliedId, styleState.appliedId));
+      offered.push(userThemeManifest(
+        styleState.appliedId,
+        styleState.appliedId,
+        isPastedThemeId(styleState.appliedId) ? 'user-paste' : 'user',
+      ));
     }
     return offered;
-  }, [userThemeState, styleState.appliedId]);
+  }, [userThemeState, pastedThemes, styleState.appliedId]);
 
   // The built-in overlay the pick names, if the bundle ships one. User themes
   // are deliberately not looked up here: what puts one in force is its
@@ -197,6 +223,23 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     [themeId, userThemeState],
   );
 
+  // The pasted theme the pick names, when it names one. It is looked up apart from
+  // the listing because it is not in it — and there is no "still on its way" case
+  // for a paste: its content is already in memory.
+  const pickedPaste = useMemo(
+    () => (themeId ? pastedThemes.find((theme) => theme.id === themeId) ?? null : null),
+    [themeId, pastedThemes],
+  );
+
+  // What the document should be wearing: a file to fetch, or a paste to compile.
+  // `null` covers both "no theme picked" and "the pick is not accounted for yet",
+  // which is why the listing flag travels alongside it.
+  const applyTarget = useMemo<UserThemeStyleTarget | null>(() => {
+    if (pickedPaste) return { kind: 'paste', theme: pickedPaste };
+    if (pickedEntry) return { kind: 'file', entry: pickedEntry };
+    return null;
+  }, [pickedEntry, pickedPaste]);
+
   // A user theme is in force exactly while its stylesheet is in the document.
   // That is also the only evidence the first paint can have — the listing has
   // not answered yet — which is why this reads the stylesheet rather than the
@@ -212,10 +255,11 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const manifest = useMemo(() => {
     if (builtinOverlay) return builtinOverlay;
     if (themeId && userThemeInForce) {
-      return userThemeManifest(themeId, pickedEntry?.name ?? themeId, pickedEntry?.coverage);
+      if (pickedPaste) return userThemeManifest(themeId, pickedPaste.name, 'user-paste', pickedPaste.coverage);
+      return userThemeManifest(themeId, pickedEntry?.name ?? themeId, 'user', pickedEntry?.coverage);
     }
     return builtinThemeFor(appearance);
-  }, [builtinOverlay, themeId, userThemeInForce, pickedEntry, appearance]);
+  }, [builtinOverlay, themeId, userThemeInForce, pickedPaste, pickedEntry, appearance]);
 
   const resolvedThemeId = manifest.id;
 
@@ -225,6 +269,13 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   // the next render retracts is worse than a wait.
   const themeFallback = useMemo<ThemeFallback | null>(() => {
     if (!themeId || builtinOverlay || userThemeInForce) return null;
+    // A pasted theme is settled by the preference mirror alone: either it is in
+    // the list — and its stylesheet is compiled from what is already in memory, so
+    // there is nothing to wait for — or it was removed, and the pick is missing.
+    if (isPastedThemeId(themeId)) {
+      if (styleState.failedId === themeId) return { id: themeId, reason: 'loadFailed' };
+      return pickedPaste ? null : { id: themeId, reason: 'missing' };
+    }
     // A built-in id the registry does not ship, and the listing could not have
     // been what ruled it out, so it is settled without waiting for anything.
     if (!isUserThemeId(themeId)) return { id: themeId, reason: 'missing' };
@@ -239,7 +290,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     // can reach it, so the pick is not going to come back either.
     if (userThemeState.status === 'error') return { id: themeId, reason: 'loadFailed' };
     return null;
-  }, [themeId, builtinOverlay, userThemeInForce, pickedEntry, styleState.failedId, userThemeState.status]);
+  }, [themeId, builtinOverlay, userThemeInForce, pickedEntry, pickedPaste, styleState.failedId, userThemeState.status]);
 
   // The theme now lives in auth.db, so a change made on another device (or in
   // another tab) arrives through the preference store rather than a re-render.
@@ -260,10 +311,10 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   // file" from "not answered yet": only a listing that has been read settles it.
   useEffect(() => {
     void applyUserThemeStyle(
-      pickedEntry,
+      applyTarget,
       userThemeState.status === 'ready' || userThemeState.status === 'error',
     );
-  }, [pickedEntry, userThemeState.status]);
+  }, [applyTarget, userThemeState.status]);
 
   // Applying the theme to the document and persisting it are deliberately
   // separate. Persisting from here would also fire on mount — before the stored

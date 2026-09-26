@@ -66,7 +66,7 @@ async function renderPicker(
   // document before the picker exists, exactly as it would be on a reload.
   if (restoreCachedStyle) {
     const styles = await import('@/shared/userThemeStyles');
-    styles.applyCachedUserThemeStyle();
+    styles.applyBootUserThemeStyle();
   }
 
   const { ThemeProvider } = await import('@/shared/context/ThemeContext');

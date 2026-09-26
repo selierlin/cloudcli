@@ -1,6 +1,6 @@
 import { api } from '@/shared/api';
 import { CODE_EDITOR_STORAGE_KEYS } from '@/shared/constants';
-import type { QuickReply } from '@/shared/types';
+import type { PastedUserTheme, QuickReply } from '@/shared/types';
 
 /**
  * The one reader and writer for the settings that used to live in browser
@@ -26,6 +26,14 @@ export type UserPreferences = {
    * `[data-theme]` overlay is layered on top of it.
    */
   themeId: string | null;
+  /**
+   * The themes the user pasted in the settings page. They live here rather than
+   * in the host's themes folder precisely because this store is synced: a pasted
+   * theme follows the user to their other devices, which is the whole point of
+   * the second source (§5.4 v3). Only `@/shared/userThemePastes` reads or writes
+   * them.
+   */
+  userThemePastes: PastedUserTheme[];
   userLanguage: string;
   tasksEnabled: boolean;
   projectSortOrder: 'name' | 'date';
@@ -74,6 +82,10 @@ const LEGACY_STORAGE_KEYS: Record<UserPreferenceKey, string> = {
   // this key is the one thing the appearance cannot express. An empty legacy key
   // is therefore what keeps it unset rather than seeded from a stale value.
   themeId: '',
+  // Pasted themes never had a browser-local home either, and an empty legacy key
+  // is what leaves the list unset so the server's copy (or an empty list) is what
+  // this device starts from.
+  userThemePastes: '',
   userLanguage: 'userLanguage',
   tasksEnabled: 'tasks-enabled',
   projectSortOrder: 'claude-settings',
@@ -110,6 +122,12 @@ let preferences: PreferenceRecord = {};
 let pendingServerWrites: PreferenceRecord = {};
 let serverWriteTimer: ReturnType<typeof setTimeout> | null = null;
 let hasHydrated = false;
+
+/**
+ * Values that must win over the server's copy the next time preferences hydrate.
+ * See `preferLocalValueOnHydrate` for why such a thing has to exist.
+ */
+let hydrateOverrides: PreferenceRecord = {};
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -217,6 +235,21 @@ export function writeUserPreferences(updates: PreferenceRecord): void {
   writeMirror();
   queueServerWrite(changed);
   notifyListeners();
+}
+
+/**
+ * Makes `value` win over the server's copy of `key` when preferences hydrate,
+ * and pushes it up so the server agrees.
+ *
+ * A plain local write is not enough for this. Hydration adopts the server's copy
+ * wholesale, so a value written *before* the client has a session — when the
+ * server cannot be told yet — would be replaced by the very copy it was meant to
+ * supersede. The theme reset channel is exactly that case: it clears a pick on
+ * the strength of a URL parameter at boot, and the hydrate that follows would
+ * otherwise put the unusable pick straight back (§5.6).
+ */
+export function preferLocalValueOnHydrate(key: UserPreferenceKey, value: unknown): void {
+  hydrateOverrides = { ...hydrateOverrides, [key]: value };
 }
 
 /** Subscribes to any preference change; returns the unsubscribe function. */
@@ -346,6 +379,15 @@ export async function hydrateUserPreferences(): Promise<void> {
     }
   }
 
+  // A local value that outranks the server's copy on this load. It is queued as
+  // a migration rather than merely adopted: the point of the override is that
+  // the value sticks, so the server has to end up holding it too (§5.6).
+  for (const [key, value] of Object.entries(hydrateOverrides) as Array<[UserPreferenceKey, unknown]>) {
+    serverPreferences[key] = value;
+    migrated[key] = value;
+  }
+  hydrateOverrides = {};
+
   // Anything still queued for a key the server just answered for was computed
   // from pre-hydrate state and is now stale. Letting it flush would push this
   // device's start-up value over the one that was just fetched — the exact
@@ -377,6 +419,9 @@ export function hasHydratedUserPreferences(): boolean {
 export function resetUserPreferences(): void {
   preferences = {};
   pendingServerWrites = {};
+  // An override belongs to the user who asked for it, so it does not outlive
+  // their session: the next user on this device must not inherit a cleared pick.
+  hydrateOverrides = {};
   hasHydrated = false;
   if (serverWriteTimer !== null) {
     clearTimeout(serverWriteTimer);

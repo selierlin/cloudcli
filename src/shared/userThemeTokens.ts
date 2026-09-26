@@ -57,8 +57,13 @@ export type UserThemeCompileResult =
  * §5.8's id rule, restated at the point the id is written into a selector. The
  * listing vets ids already, but this function is exported and takes the id as
  * an argument, so it checks its own input rather than trusting the caller.
+ *
+ * Both prefixes are accepted because both carry option A content: `user-` is a
+ * file the host serves, `paste-` is a theme the user typed in, which has no file
+ * and never will (§5.8 v4). The character class is the same either way — it is
+ * the selector's requirement, not the source's.
  */
-const THEME_ID_PATTERN = /^user-[a-z0-9._-]+$/;
+const THEME_ID_PATTERN = /^(?:user|paste)-[a-z0-9._-]+$/;
 
 /** Longest value accepted. Real values are a few dozen characters; this only stops absurdity. */
 const MAX_VALUE_LENGTH = 100;
@@ -259,9 +264,10 @@ function readAppearance(
 /**
  * Compiles a `.json` theme body into an overlay stylesheet.
  *
- * `themeId` is the id the listing derived from the filename (already
- * `user-`prefixed); the file's own `name` and `coverage` are read by the
- * listing, not here — this function only cares about what the stylesheet needs.
+ * `themeId` is the id the content is offered under — the listing's filename-derived
+ * `user-…` for a file, or a pasted theme's `paste-…`; the file's own `name` and
+ * `coverage` are read by whoever lists it, not here — this function only cares
+ * about what the stylesheet needs.
  *
  * Returns the stylesheet, or why the file was refused, plus everything that was
  * dropped along the way so the caller can report it. Pure: it logs nothing and

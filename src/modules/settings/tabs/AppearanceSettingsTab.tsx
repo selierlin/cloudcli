@@ -16,6 +16,7 @@ import SettingsRow from '@/modules/settings/SettingsRow';
 import SettingsSection from '@/modules/settings/SettingsSection';
 import SettingsToggle from '@/modules/settings/SettingsToggle';
 import ThemeSelector from '@/modules/settings/ThemeSelector';
+import UserThemesSection from '@/modules/settings/UserThemesSection';
 
 const FONT_SELECT_CLASS =
   'w-full touch-manipulation rounded-lg border border-input bg-card p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary sm:w-28';
@@ -62,6 +63,8 @@ export default function AppearanceSettingsTab({
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
+
+      <UserThemesSection />
 
       <SettingsSection title={t('mainTabs.appearance')}>
         <SettingsCard>
