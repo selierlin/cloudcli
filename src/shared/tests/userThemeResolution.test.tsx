@@ -5,6 +5,7 @@ import React from 'react';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { SYNTAX_TOKEN_MAP } from '@/shared/syntaxTheme';
+import { AUTH_TOKEN_REFRESHED_EVENT } from '@/shared/authToken';
 
 /**
  * How the theme provider resolves a pick that names a file in the host's
@@ -290,4 +291,99 @@ test('a pasted theme that cannot compile is a load failure, not a missing theme'
 
   assert.deepEqual(result.current.themeFallback, { id: 'paste-1', reason: 'loadFailed' });
   assert.equal(result.current.resolvedThemeId, 'cc-light');
+});
+
+/**
+ * §5.8 v8: the failure paths that used to cost the user their working theme.
+ * A listing that cannot be answered is not evidence about the file, a switch
+ * must not flash the base palette while the new sheet is on the wire, and a
+ * session that arrives late must not leave the listing stuck in its error.
+ */
+
+test('a listing that fails leaves the cached theme on screen', async () => {
+  localStorage.setItem(
+    STYLE_CACHE_KEY,
+    JSON.stringify({
+      id: 'user-borealis',
+      modifiedAt: 42,
+      fingerprint: JSON.stringify(SYNTAX_TOKEN_MAP),
+      css: ':root{--cached:1}',
+      warnings: [],
+    }),
+  );
+  listing = async () => {
+    throw new Error('offline');
+  };
+  const { result } = await loadTheme({ themeId: 'user-borealis' }, { restoreCachedStyle: true });
+  await settle();
+
+  assert.ok(
+    document.querySelector('style[data-cloudcli-user-theme="user-borealis"]'),
+    'a request that could not be answered is not evidence that the file is gone',
+  );
+  assert.equal(result.current.resolvedThemeId, 'user-borealis');
+  assert.equal(
+    result.current.themeFallback,
+    null,
+    'the theme is visibly working, so a "load failed" hint would contradict the screen',
+  );
+});
+
+test('switching themes keeps the old one on screen until the new sheet lands', async () => {
+  const second = { ...entry, id: 'user-nord', name: 'Nord', fileName: 'nord.css' };
+  listing = listed([entry, second]);
+  const { result } = await loadTheme({ themeId: 'user-borealis' });
+  await settle();
+  assert.equal(document.documentElement.dataset.theme, 'user-borealis');
+
+  let answer = (): void => {};
+  file = () => new Promise<Response>((resolve) => {
+    answer = () => resolve(new Response(':root{--nord:1}', { status: 200 }));
+  });
+  await act(async () => {
+    result.current.setThemeId('user-nord');
+  });
+
+  assert.equal(
+    document.documentElement.dataset.theme,
+    'user-borealis',
+    'the pick moved first, but the page keeps wearing the theme whose sheet it has',
+  );
+  assert.ok(
+    document.querySelector('style[data-cloudcli-user-theme="user-borealis"]'),
+    'and the old sheet is still in the document, not just in the attribute',
+  );
+
+  answer();
+  await settle();
+
+  assert.equal(document.documentElement.dataset.theme, 'user-nord');
+  assert.ok(document.querySelector('style[data-cloudcli-user-theme="user-nord"]'));
+  assert.equal(
+    document.querySelector('style[data-cloudcli-user-theme="user-borealis"]'),
+    null,
+    'the old sheet goes with the frame that stops matching it',
+  );
+});
+
+test('a refreshed session token retries the listing a failed attempt blocked', async () => {
+  let calls = 0;
+  listing = () => {
+    calls += 1;
+    return calls === 1
+      ? Promise.reject(new Error('expired'))
+      : Promise.resolve(new Response(JSON.stringify({ themes: [entry] }), { status: 200 }));
+  };
+  const { result } = await loadTheme({ themeId: 'user-borealis' });
+  await settle();
+  assert.equal(calls, 1);
+  assert.notEqual(result.current.resolvedThemeId, 'user-borealis');
+
+  await act(async () => {
+    window.dispatchEvent(new Event(AUTH_TOKEN_REFRESHED_EVENT));
+  });
+  await settle();
+
+  assert.equal(calls, 2, 'sign-in does not change the pick, so the event is what re-arms the listing');
+  assert.equal(result.current.resolvedThemeId, 'user-borealis');
 });

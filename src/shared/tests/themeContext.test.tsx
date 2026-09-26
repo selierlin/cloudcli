@@ -145,20 +145,21 @@ test('the resolved appearance is published as color-scheme', () => {
  * outside the page and so cannot read a token, which is why the effect publishes it
  * through `applyThemeChrome` at all. jsdom ships no stylesheet, so the pair below
  * pins both halves: the status bar tracks the appearance, and an unresolvable
- * theme-colour token keeps the colour `index.html` ships instead of publishing
- * whatever a failed resolution left behind. The resolved colours themselves are
- * pinned in the browser suite, where a stylesheet is present.
+ * theme-colour token falls back to the *base palette of the current appearance*
+ * (§5.8 v8) instead of a white that a dark page never asked for. The resolved
+ * colours themselves are pinned in the browser suite, where a stylesheet is present.
  */
 test('the browser chrome follows the appearance', () => {
   const { result } = renderHook(() => useTheme(), { wrapper });
   assert.equal(chromeContent('apple-mobile-web-app-status-bar-style'), 'default');
-  assert.equal(chromeContent('theme-color'), '#ffffff');
+  assert.equal(chromeContent('theme-color'), '#f7f6f3');
 
   act(() => {
     result.current.toggleDarkMode();
   });
 
   assert.equal(chromeContent('apple-mobile-web-app-status-bar-style'), 'black-translucent');
+  assert.equal(chromeContent('theme-color'), '#141414');
 });
 
 test('the registry keeps the appearance defaults and the overlay themes apart', () => {
