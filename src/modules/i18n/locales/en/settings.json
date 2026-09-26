@@ -213,7 +213,7 @@
     "files": {
       "title": "From the themes folder",
       "hint": "Read by the server from ~/.cloudcli/themes/; add or remove them in that folder — only what is there is listed here.",
-      "empty": "No theme files yet. Drop a .css or .json in there and reload."
+      "empty": "No theme files yet. Drop a .css, .json or .tmTheme in there and reload."
     },
     "pastes": {
       "title": "Pasted themes",

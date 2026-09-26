@@ -104,6 +104,7 @@
           "src/shared/userThemePastes.ts",
           "src/shared/userThemeStyles.ts",
           "src/shared/userThemeTokens.ts",
+          "src/shared/tmTheme.ts",
           "src/shared/themeReset.ts",
           "src/shared/chatDrafts.ts",
           "src/shared/quickReplies.ts",

@@ -1,7 +1,11 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "types": ["vite/client", "node", "@playwright/test"]
+    // `react-syntax-highlighter` is listed because `src/shared/syntaxTheme.ts`
+    // imports its Prism styles, and that package's types are a set of
+    // `declare module` blocks — which only reach the program if the package is
+    // named here, since `types` turns off the automatic `@types` sweep.
+    "types": ["vite/client", "node", "@playwright/test", "react-syntax-highlighter"]
   },
   "include": [
     "../../playwright.theme-tokens.config.ts",
@@ -13,6 +17,7 @@
     "./mobile-terminal-selection.spec.ts",
     "./theme-chrome.spec.ts",
     "./theme-overlays.spec.ts",
+    "./user-theme-tmtheme.spec.ts",
     "./vite.config.ts"
   ]
 }

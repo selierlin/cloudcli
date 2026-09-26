@@ -68,6 +68,7 @@ too:
 | `theme-chrome.spec.ts` | the `theme-color` / iOS status-bar metas to the resolved `--background`, plus the token override, translucent flattening and unknown-token fallback paths |
 | `first-paint.spec.ts` | the chrome that paints *before* the bundle runs: that the splash and the `theme-color` meta agree in both appearances, that the inline script reaches all three consumers, and that every declared `theme-color` is media-scoped |
 | `theme-overlays.spec.ts` | each `[data-theme]` overlay: that it is declared outside any `@layer`, that it resolves as written, that it moves exactly the surfaces its `coverage` advertises, and that the traversal is complete in both directions (no unregistered `[data-theme]` block, no registered theme without one) |
+| `user-theme-tmtheme.spec.ts` | a `.tmTheme` file's compiled overlay: that the editor and terminal tokens it names actually move (a hex written into a terminal token would resolve to nothing), and that its `--cc-syntax-*` overrides outrank the runtime-injected base syntax sheet even when that sheet is injected afterwards |
 | `contrast.spec.ts` | the WCAG AA floors of §5.10 — body / secondary / button text at 4.5:1, the focus ring at 3:1 — for the base palette and every overlay |
 
 ## Overlay themes
@@ -93,6 +94,19 @@ values are literals rather than palette references) has to split into a
 and still resolve correctly for any token the dark half repeats, so only a token
 forgotten in the dark half would leak — and the leak check keys on the scoping to
 catch exactly that.
+
+## User themes and the syntax base layer
+
+A user theme is a stylesheet appended to `<head>` at runtime, so it wins over the
+base palette for the same reason the built-in overlays do: document order. That
+makes one ordering a correctness requirement rather than a detail. The syntax
+palette's variables are declared by a sheet `src/shared/syntaxTheme.ts` injects at
+module scope, and a `.tmTheme` compiles to declarations naming exactly those
+variables — so the base sheet has to land **ahead** of any overlay, which is what
+`ensureSyntaxStyleElement` does by inserting at the front of `<head>`. Its one-shot
+import always runs before an overlay exists, so the fixture exercises the case
+that matters by removing the element and calling the function again through
+`reinjectSyntaxStyleSheet`.
 
 ## Contrast floors (§5.10)
 

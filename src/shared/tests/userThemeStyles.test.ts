@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
+import { SYNTAX_TOKEN_MAP } from '@/shared/syntaxTheme';
+
 /**
  * The one user theme stylesheet the document carries.
  *
@@ -98,8 +100,20 @@ const seedPastedPick = (
 
 const styleElement = (): HTMLStyleElement | null => document.querySelector(STYLE_SELECTOR);
 
-const seedCache = (id: string, modifiedAt: number, css: string): void => {
-  localStorage.setItem(STYLE_CACHE_KEY, JSON.stringify({ id, modifiedAt, css }));
+/**
+ * The fingerprint a cache entry written by *this* build carries. Derived from the
+ * same mapping the module derives it from, so the test cannot pin a value the
+ * build would not produce; the "another build" case below passes one by hand.
+ */
+const CURRENT_FINGERPRINT = JSON.stringify(SYNTAX_TOKEN_MAP);
+
+const seedCache = (
+  id: string,
+  modifiedAt: number,
+  css: string,
+  fingerprint: string = CURRENT_FINGERPRINT,
+): void => {
+  localStorage.setItem(STYLE_CACHE_KEY, JSON.stringify({ id, modifiedAt, fingerprint, css }));
 };
 
 beforeEach(() => {
@@ -126,6 +140,30 @@ test('the cached stylesheet is restored for the pick it was written for', async 
   assert.equal(styleElement()?.getAttribute('data-cloudcli-user-theme'), 'user-borealis');
   assert.equal(styleElement()?.textContent, ':root{--cached:1}');
   assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: 'user-borealis', failedId: null });
+});
+
+test('what an apply caches is what the next boot restore accepts', async () => {
+  const first = await loadStores();
+  first.settings.writeUserPreference('themeId', 'user-borealis');
+  await first.styles.applyUserThemeStyle(fileTarget(), true);
+  assert.ok(localStorage.getItem(STYLE_CACHE_KEY), 'an apply is expected to leave a cached copy');
+
+  // The element the apply injected is taken out of the document, or it would
+  // satisfy the assertion below whether or not the restore worked — the point is
+  // that storage alone is enough to repaint on the next boot.
+  document.querySelectorAll(STYLE_SELECTOR).forEach((element) => element.remove());
+
+  // A fresh session, with nothing but what the first one left in storage. The
+  // cache is only worth writing if the module's own check accepts it, and that
+  // check is what a build change has to be able to fail (§5.5 v4).
+  const second = await loadStores();
+  second.styles.applyBootUserThemeStyle();
+
+  assert.equal(
+    styleElement()?.getAttribute('data-cloudcli-user-theme'),
+    'user-borealis',
+    'the copy the module wrote must pass the check the module makes of it',
+  );
 });
 
 test('the cached stylesheet is left alone when the pick has moved on', async () => {
@@ -233,8 +271,39 @@ test('declarations the compiler dropped are reported without failing the theme',
   );
 });
 
-test('a .tmTheme file is refused instead of being injected as an unparseable sheet', async () => {
-  fileBody = '<plist version="1.0"><dict><key>name</key><string>Dracula</string></dict></plist>';
+test('a .tmTheme is compiled into an overlay rather than injected as plist XML', async () => {
+  fileBody = [
+    '<plist version="1.0"><dict>',
+    '<key>settings</key><array>',
+    '<dict><key>settings</key><dict>',
+    '<key>background</key><string>#282a36</string>',
+    '<key>foreground</key><string>#f8f8f2</string>',
+    '<key>caret</key><string>#f8f8f0</string>',
+    '</dict></dict>',
+    '<dict><key>scope</key><string>keyword</string>',
+    '<key>settings</key><dict><key>foreground</key><string>#ff79c6</string></dict></dict>',
+    '</array></dict></plist>',
+  ].join('');
+  const { styles } = await loadStores();
+
+  await styles.applyUserThemeStyle(fileTarget({ format: 'tmTheme', fileName: 'dracula.tmTheme' }), true);
+
+  const css = styleElement()?.textContent ?? '';
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: 'user-borealis', failedId: null });
+  assert.match(css, /^\[data-theme="user-borealis"\] \{/, 'the plist has to become an overlay, not be passed through');
+  // The terminal resolves these as `hsl(var(--term-…))`, so a hex here would be
+  // dropped by the browser and the terminal would silently keep its old colour.
+  assert.match(css, /--term-background: 231 15% 18%;/);
+  assert.match(css, /--term-cursor: \d+ \d+% \d+%;/);
+  assert.match(css, /--editor-bg: #282a36;/, 'the editor takes the colour whole');
+  assert.ok(
+    css.includes(`${SYNTAX_TOKEN_MAP.keyword}: #ff79c6;`),
+    'the syntax slot is addressed through the derived mapping, never by a hand-written number',
+  );
+});
+
+test('a .tmTheme that is not a plist is refused with the reason', async () => {
+  fileBody = '{"tokens": {"--primary": "175 84% 32%"}}';
   const { styles } = await loadStores();
 
   await styles.applyUserThemeStyle(fileTarget({ format: 'tmTheme', fileName: 'dracula.tmTheme' }), true);
@@ -242,9 +311,34 @@ test('a .tmTheme file is refused instead of being injected as an unparseable she
   assert.equal(styleElement(), null);
   assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: 'user-borealis' });
   assert.ok(
-    vi.mocked(console.warn).mock.calls.some(([, detail]) => String(detail).includes('tmTheme')),
-    'the gap has to be visible until the .tmTheme parser lands',
+    vi.mocked(console.warn).mock.calls.some(([, detail]) => String(detail).includes('unreadable-plist')),
+    'the refusal has to name what was wrong with the file',
   );
+});
+
+test('a cached copy compiled by another build is not restored', async () => {
+  // What a `.tmTheme` compiles to names `--cc-syntax-*` variables, whose numbers
+  // a Prism bump can reorder. The file's own revision cannot see that, so a copy
+  // from a previous build would paint last build's numbering and then look
+  // current — the fingerprint is the only thing that can contradict it.
+  seedCache('user-borealis', 7, ':root{--cached:1}', 'a-fingerprint-from-another-build');
+  const { styles, settings } = await loadStores();
+  settings.writeUserPreference('themeId', 'user-borealis');
+
+  styles.applyBootUserThemeStyle();
+
+  assert.equal(styleElement(), null, 'a stale compiled sheet must not reach the first paint');
+  assert.deepEqual(styles.getUserThemeStyleState(), { appliedId: null, failedId: null });
+});
+
+test('a cache entry from before the fingerprint existed is not restored either', async () => {
+  localStorage.setItem(STYLE_CACHE_KEY, JSON.stringify({ id: 'user-borealis', modifiedAt: 7, css: ':root{--cached:1}' }));
+  const { styles, settings } = await loadStores();
+  settings.writeUserPreference('themeId', 'user-borealis');
+
+  styles.applyBootUserThemeStyle();
+
+  assert.equal(styleElement(), null, 'an entry that cannot state its build is treated as one from another build');
 });
 
 test('an entry already in the document at the same mtime is not fetched again', async () => {

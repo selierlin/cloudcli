@@ -4,6 +4,8 @@ import { GRAPH_LANE_COUNT } from '@/modules/git-panel/utils/commitGraph';
 import { installMobileTerminalSelection } from '@/modules/shell/utils/mobileTerminalSelection';
 import { readTerminalTheme, TERMINAL_THEME_TOKENS } from '@/modules/shell/utils/terminalTheme';
 import { EXTREME_TOKENS, SCALE_TOKEN_NAMES } from '@/shared/tests/neutralScale';
+import { ensureSyntaxStyleElement, SYNTAX_TOKEN_MAP } from '@/shared/syntaxTheme';
+import type { SyntaxSemanticName } from '@/shared/syntaxTheme';
 import type { ThemeManifest } from '@/shared/types';
 import { applyUserThemeStyle, getUserThemeStyleState } from '@/shared/userThemeStyles';
 import type { UserThemeStyleState } from '@/shared/userThemeStyles';
@@ -270,6 +272,37 @@ function readThemeChrome(
   };
 }
 
+/**
+ * What one syntax slot resolves to right now.
+ *
+ * Read through the same bare `var()` shape the Prism style object hands the
+ * highlighter. A user theme that moves syntax colours — a `.tmTheme` compiles to
+ * exactly these names — has to beat the base sheet the stylesheet module injects,
+ * and "does it" is a document-order question only a real engine can answer.
+ */
+function readSyntaxToken(name: SyntaxSemanticName): string {
+  const probe = document.createElement('div');
+  probe.style.setProperty('transition', 'none');
+  probe.style.setProperty('color', `var(${SYNTAX_TOKEN_MAP[name]})`);
+  document.body.appendChild(probe);
+  try {
+    return getComputedStyle(probe).color;
+  } finally {
+    probe.remove();
+  }
+}
+
+/**
+ * Runs the production syntax-sheet injection again, the way a later-loaded chunk
+ * would if that module ever stopped being part of the entry graph. The module
+ * itself injects once, before any overlay exists, so this is the only way to ask
+ * whether an overlay still wins when the base sheet arrives second.
+ */
+function reinjectSyntaxStyleSheet(): void {
+  document.getElementById('cc-syntax-theme')?.remove();
+  ensureSyntaxStyleElement();
+}
+
 function readTokens(appearance: Appearance): TokenRead {
   document.documentElement.classList.toggle('dark', appearance === 'dark');
 
@@ -449,6 +482,10 @@ declare global {
       ): { themeColor: string | null; statusBar: string | null };
       /** Runs the production user-theme stylesheet path against a stubbed file server. */
       applyUserTheme(options: UserThemeOptions): Promise<UserThemeApplication>;
+      /** What one shared syntax slot resolves to right now. */
+      readSyntaxToken(name: SyntaxSemanticName): string;
+      /** Re-runs the production syntax-sheet injection, as a later-loaded chunk would. */
+      reinjectSyntaxStyleSheet(): void;
     };
   }
 }
@@ -463,4 +500,6 @@ window.__THEME_TOKENS__ = {
   readMobileSelectionChrome,
   readThemeChrome,
   applyUserTheme,
+  readSyntaxToken,
+  reinjectSyntaxStyleSheet,
 };

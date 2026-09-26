@@ -2,7 +2,8 @@
  * Option A: a token JSON compiled into the overlay stylesheet the app injects.
  *
  * A `.css` user theme is already a stylesheet, so `userThemeStyles` hands it to
- * the CSS parser unchanged. A `.json` one is not: it is a map of token names to
+ * the CSS parser unchanged, and a `.tmTheme` is compiled by `tmTheme.ts`. A
+ * `.json` one is not: it is a map of token names to
  * values that has to be turned into `[data-theme="…"] { --a: b; … }` first, and
  * that is what this module does — plus the two gates that make option A worth
  * having (§5.5): a name outside the list below is not a token this app defines,
@@ -55,8 +56,8 @@ export type UserThemeCompileResult =
 
 /**
  * §5.8's id rule, restated at the point the id is written into a selector. The
- * listing vets ids already, but this function is exported and takes the id as
- * an argument, so it checks its own input rather than trusting the caller.
+ * listing vets ids already, but the compilers take the id as an argument, so they
+ * check their own input rather than trusting the caller.
  *
  * Both prefixes are accepted because both carry option A content: `user-` is a
  * file the host serves, `paste-` is a theme the user typed in, which has no file
@@ -64,6 +65,17 @@ export type UserThemeCompileResult =
  * the selector's requirement, not the source's.
  */
 const THEME_ID_PATTERN = /^(?:user|paste)-[a-z0-9._-]+$/;
+
+/**
+ * Whether an id may be written into an overlay selector.
+ *
+ * Exported because the `.tmTheme` compiler builds the same `[data-theme="…"]`
+ * selector and so has to enforce the same rule; two compilers sharing one
+ * selector shape should not each carry their own idea of what is safe in it.
+ */
+export function isThemableThemeId(id: string): boolean {
+  return THEME_ID_PATTERN.test(id);
+}
 
 /** Longest value accepted. Real values are a few dozen characters; this only stops absurdity. */
 const MAX_VALUE_LENGTH = 100;
@@ -232,16 +244,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * The selector the overlay is written under.
  *
  * `system` is unscoped and applies in both appearances, which is what a `.css`
- * theme does today. `light` and `dark` restrict it to one — the construct the
- * built-in themes already use (`[data-theme="cc-polar"]:not(.dark)` and
- * `[data-theme="cc-polar"].dark`, §5.3 v9): a theme whose values assume one
+ * theme does today, and what a `.tmTheme` always gets: a code theme states one
+ * palette, not one per appearance. `light` and `dark` restrict it to one — the
+ * construct the built-in themes already use (`[data-theme="cc-polar"]:not(.dark)`
+ * and `[data-theme="cc-polar"].dark`, §5.3 v9): a theme whose values assume one
  * appearance must not be applied under the other, where they would meet the
  * other half's base values. `:not(.dark)` rather than a bare selector for the
  * light half, because a bare one also matches in the dark appearance and would
  * only lose to `.dark` on specificity — which is exactly the silent leak the
  * built-in overlays were given the same shape to prevent.
+ *
+ * Exported because the `.tmTheme` compiler writes the same selector: one shape,
+ * one place to change it.
  */
-function selectorFor(themeId: string, scope: UserThemeAppearance): string {
+export function themeOverlaySelector(themeId: string, scope: UserThemeAppearance): string {
   if (scope === 'light') return `[data-theme="${themeId}"]:not(.dark)`;
   if (scope === 'dark') return `[data-theme="${themeId}"].dark`;
   return `[data-theme="${themeId}"]`;
@@ -274,7 +290,7 @@ function readAppearance(
  * touches no document.
  */
 export function compileUserThemeTokens(themeId: string, body: string): UserThemeCompileResult {
-  if (!THEME_ID_PATTERN.test(themeId)) {
+  if (!isThemableThemeId(themeId)) {
     return { ok: false, reason: 'unsafe-id', token: themeId, ignored: [] };
   }
 
@@ -323,6 +339,6 @@ export function compileUserThemeTokens(themeId: string, body: string): UserTheme
     return { ok: false, reason: 'nothing-usable', ignored };
   }
 
-  const selector = selectorFor(themeId, scope);
+  const selector = themeOverlaySelector(themeId, scope);
   return { ok: true, css: `${selector} {\n${declarations.join('\n')}\n}\n`, ignored };
 }

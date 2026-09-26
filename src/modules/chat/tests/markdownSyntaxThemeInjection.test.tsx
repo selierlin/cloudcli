@@ -4,6 +4,7 @@ import { test, vi } from 'vitest';
 import { render } from '@testing-library/react';
 
 import { Markdown } from '@/modules/chat/transcript/Markdown';
+import { ensureSyntaxStyleElement } from '@/shared/syntaxTheme';
 
 /**
  * Regression coverage for the `<style id="cc-syntax-theme">` element that
@@ -20,7 +21,9 @@ import { Markdown } from '@/modules/chat/transcript/Markdown';
  * These tests render markdown through the real <Markdown>, read the custom
  * properties the rendered code block actually references, and require the
  * injected stylesheet to declare them. They also pin the two ways the element
- * must stay unique: across many renders, and across a re-evaluation of the module.
+ * must stay unique — across many renders, and across a re-evaluation of the
+ * module — and where it must sit in <head>, since a user theme's overlay is
+ * appended after it and equal specificity is settled by document order.
  */
 
 const STYLE_ELEMENT_SELECTOR = 'style#cc-syntax-theme';
@@ -92,6 +95,34 @@ test('rendering many times does not inject the stylesheet again', () => {
   renderMarkdown();
 
   assert.equal(document.querySelectorAll(STYLE_ELEMENT_SELECTOR).length, 1);
+});
+
+test('the stylesheet lands ahead of everything else in <head>, so an overlay can outrank it', () => {
+  // A user theme's colours are not in the bundle either: its sheet is *appended*
+  // to <head>, and `:root` and `[data-theme="…"]` weigh the same, so the later
+  // element wins (that is how the built-in overlays work too). Landing first is
+  // therefore what lets a `.tmTheme`'s `--cc-syntax-*` declarations arrive at
+  // all; appending this base sheet would put it after the theme and the theme's
+  // syntax colours would be discarded without a word.
+  //
+  // The decoy stands in for that later sheet. It has to be in <head> before the
+  // placement happens, or an append would also land first and the assertion
+  // would hold for the wrong reason.
+  const decoy = document.createElement('style');
+  decoy.dataset.decoy = 'a-later-overlay';
+  document.head.appendChild(decoy);
+  document.querySelector(STYLE_ELEMENT_SELECTOR)?.remove();
+
+  ensureSyntaxStyleElement();
+
+  assert.equal(
+    document.head.firstElementChild,
+    document.querySelector(STYLE_ELEMENT_SELECTOR),
+    'the syntax palette is a base layer, so its sheet belongs at the front of <head>',
+  );
+  assert.ok(decoy.parentElement, 'the decoy overlay should still be in <head>');
+
+  decoy.remove();
 });
 
 test('re-evaluating the module reuses the stylesheet already in the document', async () => {

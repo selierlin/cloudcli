@@ -149,13 +149,35 @@ export const SYNTAX_TOKEN_MAP = deriveTokenMap();
 
 const STYLE_ELEMENT_ID = 'cc-syntax-theme';
 
-// Injected at module scope because the values are derived from the Prism theme
-// objects at runtime and so cannot live in index.css. ThemeContext toggles
-// `.dark` on <html>, which is what repaints the tokens. The id check keeps the
-// element unique across a re-evaluation of this module.
-if (!document.getElementById(STYLE_ELEMENT_ID)) {
+/**
+ * Puts the syntax palette in the document, ahead of everything else in `<head>`.
+ *
+ * These variables are a *base* layer, and a user theme is an overlay that has to
+ * be able to move them — a `.tmTheme` compiles to exactly these names, and a
+ * `.css` theme can set them too. Both sides declare on the same element (`:root`
+ * and `[data-theme="…"]` both match `<html>`, and weigh the same), so the one
+ * that comes *later* in document order wins, and an overlay's element is
+ * appended to the end of `<head>`. Landing at the front is therefore what makes
+ * an override work regardless of when this runs: if it ran after an overlay had
+ * been injected, appending would put the base palette last and the theme's
+ * syntax colours would be discarded without a word.
+ *
+ * The values are derived from the Prism theme objects at runtime, so they cannot
+ * live in `index.css`; `ThemeContext` toggles `.dark` on `<html>`, which is what
+ * repaints the tokens. The id check keeps the element unique across a
+ * re-evaluation — and is why a caller that wants to exercise the ordering above
+ * removes the element before calling this again: a normal import runs once,
+ * before any overlay exists.
+ *
+ * Exported for the tests that drive the late-injection case, where a decoy
+ * element is already in `<head>`.
+ */
+export function ensureSyntaxStyleElement(): void {
+  if (document.getElementById(STYLE_ELEMENT_ID)) return;
   const styleElement = document.createElement('style');
   styleElement.id = STYLE_ELEMENT_ID;
   styleElement.textContent = syntaxTheme.css;
-  document.head.appendChild(styleElement);
+  document.head.insertBefore(styleElement, document.head.firstChild);
 }
+
+ensureSyntaxStyleElement();

@@ -4,6 +4,8 @@ import { act, renderHook } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
+import { SYNTAX_TOKEN_MAP } from '@/shared/syntaxTheme';
+
 /**
  * How the theme provider resolves a pick that names a file in the host's
  * themes folder.
@@ -190,7 +192,14 @@ test('a listing that could not be read is a failure, not a theme that is missing
 test('the cached stylesheet is in force on the first render, before the listing answers', async () => {
   localStorage.setItem(
     STYLE_CACHE_KEY,
-    JSON.stringify({ id: 'user-borealis', modifiedAt: 42, css: ':root{--cached:1}' }),
+    JSON.stringify({
+      id: 'user-borealis',
+      modifiedAt: 42,
+      // A cache entry is only evidence if this build compiled it; the stylesheet
+      // module derives this from the syntax mapping it embeds.
+      fingerprint: JSON.stringify(SYNTAX_TOKEN_MAP),
+      css: ':root{--cached:1}',
+    }),
   );
   let answer = (): void => {};
   listing = () => new Promise<Response>((resolve) => {
