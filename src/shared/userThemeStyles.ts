@@ -2,7 +2,7 @@ import { api } from '@/shared/api';
 import { SYNTAX_TOKEN_MAP } from '@/shared/syntaxTheme';
 import { readUserPreference } from '@/shared/userSettings';
 import type { PastedUserTheme } from '@/shared/types';
-import { findPastedTheme, isPastedThemeId } from '@/shared/userThemePastes';
+import { compilePastedTheme, findPastedTheme, isPastedThemeId } from '@/shared/userThemePastes';
 import type { UserThemeEntry } from '@/shared/userThemes';
 import { compileTmTheme } from '@/shared/tmTheme';
 import type { TmThemeCompileResult } from '@/shared/tmTheme';
@@ -19,10 +19,11 @@ import type { IgnoredThemeEntry, UserThemeCompileResult } from '@/shared/userThe
  * boot-time restore, the swap when the theme changes, and the removal when it
  * stops being usable.
  *
- * What arrives is either a stylesheet already (`.css`) or something that has to
- * become one (`.json` through the token compiler, `.tmTheme` through the plist
- * one); either way, what is injected and cached is the compiled stylesheet,
- * which is what lets the boot-time restore stay a pure synchronous injection.
+ * What arrives is either a stylesheet already (`.css`, and a pasted `css` theme)
+ * or something that has to become one (`.json` through the token compiler,
+ * `.tmTheme` through the plist one, and a pasted `json` theme the same way);
+ * either way, what is injected and cached is the compiled stylesheet, which is
+ * what lets the boot-time restore stay a pure synchronous injection.
  *
  * The two sources differ in exactly one step — how the text is obtained — and
  * that is why they are one store and not two. Two stores would each keep their
@@ -134,6 +135,25 @@ function toTmThemeCompiledSource(
 }
 
 /**
+ * Turns a pasted theme's compiler verdict into the pair this module works with.
+ *
+ * It goes through `compilePastedTheme` rather than naming a compiler of its own
+ * because a paste's format belongs to the entry: option A's text and option B's
+ * are both stored in the same list, and that function is the one place that knows
+ * which is which (§5.5 v5).
+ */
+function toPastedCompiledSource(theme: PastedUserTheme): CompiledThemeSource {
+  const compiled = compilePastedTheme(theme);
+  if (compiled.ok) return { ok: true, css: compiled.css, ignored: compiled.ignored };
+  const detail = compiled.token ? `${compiled.reason} (${compiled.token})` : compiled.reason;
+  return {
+    ok: false,
+    message: `Pasted theme "${theme.id}" is not a usable theme: ${detail}`,
+    ignored: compiled.ignored,
+  };
+}
+
+/**
  * Turns a fetched file body into the stylesheet to inject.
  *
  * `.css` is already one. `.json` is option A and goes through the token
@@ -141,6 +161,12 @@ function toTmThemeCompiledSource(
  * under. `.tmTheme` is option B2 and goes through the plist compiler, whose
  * overlay covers the syntax, editor and terminal tokens a code theme can speak
  * about.
+ *
+ * This is the *file* route. A paste has the same three-way question but goes
+ * through `compilePastedTheme` instead, and the `.css` halves of the two differ
+ * on purpose: the server already refused a file whose stylesheet carries
+ * `@import`, and nothing refuses a paste, so that gate lives on the paste side
+ * (§5.8 v6).
  */
 function compileThemeSource(entry: UserThemeEntry, body: string): CompiledThemeSource {
   if (entry.format === 'css') return { ok: true, css: body, ignored: [] };
@@ -155,10 +181,7 @@ function compileThemeSource(entry: UserThemeEntry, body: string): CompiledThemeS
 /** Obtains the stylesheet for a target: read the file, or compile the content already in hand. */
 async function loadCompiledSource(target: UserThemeStyleTarget): Promise<CompiledThemeSource> {
   if (target.kind === 'paste') {
-    return toCompiledSource(
-      `Pasted theme "${target.theme.id}"`,
-      compileUserThemeTokens(target.theme.id, target.theme.content),
-    );
+    return toPastedCompiledSource(target.theme);
   }
 
   const response = await api.themes.file(target.entry.fileName, target.entry.modifiedAt);
@@ -341,11 +364,13 @@ export function applyBootUserThemeStyle(): void {
   const theme = findPastedTheme(pickedId);
   if (!theme) return;
 
-  const compiled = compileUserThemeTokens(theme.id, theme.content);
+  const compiled = toPastedCompiledSource(theme);
   if (!compiled.ok) {
-    // Should not happen — the content was compiled when it was pasted — but if a
-    // later build tightens the rules, this is the honest report rather than a
-    // first paint wearing nothing and no explanation.
+    // Should not happen — the content was compiled when it was pasted, and a
+    // paste's text cannot change afterwards. It can still happen for a list
+    // written by another build (a format this one does not compile, or a
+    // stylesheet carrying the `@import` this build refuses), so the honest
+    // report is a refusal rather than a first paint wearing nothing.
     publish({ appliedId: null, failedId: theme.id });
     return;
   }

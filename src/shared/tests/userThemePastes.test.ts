@@ -50,6 +50,7 @@ test('a pasted theme is stored under a sequential id, with the name it declares'
     name: 'Deep sea',
     coverage: 'accent',
     content: themeJson({ coverage: 'accent' }),
+    format: 'json',
   });
   assert.deepEqual(pastes.getPastedThemes(), [result.theme]);
   assert.deepEqual(
@@ -202,4 +203,105 @@ test('the list keeps its identity between reads so it can seed React state', asy
 
   pastes.addPastedTheme(themeJson({ name: 'Other' }));
   assert.notEqual(pastes.getPastedThemes(), first, 'and a change does have to be visible as one');
+});
+
+/**
+ * The css half of the paste line (§5.5 v5, §5.8 v6).
+ *
+ * A stylesheet is not compiled, so what is worth pinning is that it is stored
+ * exactly as typed — and that the one gate a block of declarations cannot need
+ * still applies to it, because a paste has no server in front of it.
+ */
+
+const CSS_THEME = ':root { --primary: 175 84% 32%; }';
+
+test('a css paste is stored as it stands, shown under its id because a sheet declares no name', async () => {
+  const { pastes } = await loadStores();
+
+  const added = pastes.addPastedTheme(CSS_THEME, 'css');
+
+  assert.ok(added.ok);
+  assert.deepEqual(added.theme, {
+    id: 'paste-1',
+    name: 'paste-1',
+    content: CSS_THEME,
+    format: 'css',
+  });
+  assert.deepEqual(
+    pastes.compilePastedTheme(added.theme),
+    { ok: true, css: CSS_THEME, ignored: [] },
+    'compiling a css entry is the identity: the sheet is injected as it stands, not mapped to tokens',
+  );
+});
+
+test('an @import anywhere in a pasted stylesheet refuses it', async () => {
+  const { pastes } = await loadStores();
+  const withTrailingImport = `${CSS_THEME}\n@import url("https://example.invalid/x.css");`;
+
+  assert.deepEqual(
+    pastes.addPastedTheme(withTrailingImport, 'css'),
+    { ok: false, reason: 'import-rule' },
+    'the gate is not a prefix check — the rule can sit anywhere in the text',
+  );
+  assert.deepEqual(pastes.getPastedThemes(), [], 'a refused paste must leave no trace');
+});
+
+test('the @import gate belongs to the stylesheet format, not to every paste', async () => {
+  const { pastes } = await loadStores();
+
+  // In option A the same text cannot reach the document at all: `@` is one of the
+  // characters the structural gate refuses, so the whole file is refused. A
+  // different verdict on purpose — the two formats have different escape routes.
+  assert.deepEqual(
+    pastes.addPastedTheme(JSON.stringify({ tokens: { '--primary': '@import url(x)' } }), 'json'),
+    { ok: false, reason: 'unsafe-value' },
+  );
+});
+
+test('an entry stored before formats existed is read as option A, which is the only thing it can be', async () => {
+  const { pastes, settings } = await loadStores();
+  settings.writeUserPreference('userThemePastes', [
+    { id: 'paste-1', name: 'Kept', content: themeJson() },
+  ]);
+
+  const [theme] = pastes.getPastedThemes();
+
+  assert.equal(theme?.format, 'json', 'only this format was ever written without one');
+  assert.ok(
+    theme && pastes.compilePastedTheme(theme).ok,
+    'and the entry it was written as is still the entry it is read as',
+  );
+});
+
+test('a stored entry claiming a format this build cannot compile costs itself, not the list', async () => {
+  const { pastes, settings } = await loadStores();
+  settings.writeUserPreference('userThemePastes', [
+    { id: 'paste-1', name: 'Kept', content: themeJson() },
+    { id: 'paste-2', name: 'From a newer build', content: CSS_THEME, format: 'scss' },
+  ]);
+
+  assert.deepEqual(
+    pastes.getPastedThemes().map((theme) => theme.id),
+    ['paste-1'],
+    'there would be nothing to compile that row with, which is the rule `readEntry` uses for a file too',
+  );
+});
+
+test('a css paste that happens to read as JSON still declares no metadata', async () => {
+  const { pastes } = await loadStores();
+  // Option A's keys belong to option A. A stylesheet has nowhere to declare a
+  // name or a reach (§5.8 v5), so this text is a stylesheet that declares
+  // nothing — not a theme that named itself on the way in.
+  const jsonShaped = JSON.stringify({
+    name: 'Deep sea',
+    coverage: 'accent',
+    tokens: { '--primary': '175 84% 32%' },
+  });
+
+  const added = pastes.addPastedTheme(jsonShaped, 'css');
+
+  assert.ok(added.ok);
+  assert.equal(added.theme.name, 'paste-1');
+  assert.equal(added.theme.coverage, undefined);
+  assert.equal(added.theme.format, 'css');
 });

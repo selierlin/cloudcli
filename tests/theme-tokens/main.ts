@@ -364,10 +364,16 @@ export type UserThemeOptions = {
   /** Body of the theme file, or `''` for a file the server refuses. */
   css?: string;
   /**
-   * Token JSON whose content is *in hand* rather than served — the pasted source.
+   * The content whose text is *in hand* rather than served — the pasted source.
    * When given, nothing is asked of the stub: proving that is the point.
    */
   paste?: string;
+  /**
+   * The format the pasted content is written in. A paste has no filename, so
+   * this is the only thing that says which compiler it goes to; option A's is
+   * the default because it is the mode the settings page opens in.
+   */
+  pasteFormat?: 'json' | 'css';
   /** Status the stub answers with; anything but 200 means the file is not there. */
   status?: number;
   /** Whether the listing has been read, which is what makes an absent entry evidence. */
@@ -429,6 +435,7 @@ async function applyUserTheme(options: UserThemeOptions = {}): Promise<UserTheme
     format = 'css',
     css = '',
     paste,
+    pasteFormat = 'json',
     status = 200,
     listingComplete = true,
   } = options;
@@ -445,7 +452,7 @@ async function applyUserTheme(options: UserThemeOptions = {}): Promise<UserTheme
   await applyUserThemeStyle(
     paste === undefined
       ? { kind: 'file', entry: { id, name: id, fileName, format, modifiedAt } }
-      : { kind: 'paste', theme: { id, name: id, content: paste } },
+      : { kind: 'paste', theme: { id, name: id, content: paste, format: pasteFormat } },
     listingComplete,
   );
 
