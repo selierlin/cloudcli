@@ -4530,11 +4530,11 @@ Mutation 侧：
 
 **证据**：新增主题自动进入既有四道遍历型护栏（`contrast.spec.ts` 的 SUBJECTS、`theme-overlays.spec.ts` 的 `MUST_MOVE`/`MUST_NOT_MOVE`/`derivedMoves`/`@layer` 结构断言/浅色块不泄漏、`token-baseline` 的"每个 palette 令牌至少被消费一次"）；`themeContext.test.tsx` 与 `themeSelector.test.tsx` 都是遍历 `BUILTIN_THEMES` 的形态，新增条目零改测试即被覆盖。取值本身用**仓库自己的对比度算法**（`userThemeContrast.ts` 的同一套 HSL→8 位通道→WCAG，脚本复现出文档记载的基色 4.62 以证明没算错）预检：**6 配对 × 明暗两态全过**，最低浅色 `--primary-foreground` on `--primary` = 4.70；`ring` on `background` 浅色 4.34（下限 3）。34 个 Catppuccin hex 转 HSL 三元组**逐个精确往返**（`paintedChannels` 取整后与原 hex 逐字节相同）。
 
-**门槛**：`lint` **153 warnings / 0 errors**（无新增）；`test:client` **144 文件 / 1208 用例全过**（未变——选择器与注册表测试都是遍历式，新增主题不增用例）；`npm test` **1021 / 1000 通过 / 20 失败 / 1 跳过**（未动 `server/`）；`theme-tokens` **106 passed / 2 failed**（基线 102 passed / 2 failed → ＋4 passed 恰为新增主题在 `contrast.spec.ts` 与 `theme-overlays.spec.ts` 各 ＋1 用例 × 2 引擎）；`build` exit 0。
+**门槛**：`lint` **153 warnings / 0 errors**（无新增）；`test:client` **144 文件 / 1208 用例全过**（未变——选择器与注册表测试都是遍历式，新增主题不增用例）；`npm test` **1021 / 1000 通过 / 20 失败 / 1 跳过**（未动 `server/`）；`theme-tokens` **108 passed / 0 failed**（基线 102 passed / 2 failed → ＋4 passed 为新增主题在 `contrast.spec.ts` 与 `theme-overlays.spec.ts` 各 ＋1 用例 × 2 引擎；另 −2 failed 为陈旧断言修复后转绿，见下）；`build` exit 0。
 
-**一处既有红，如实记账（不是本片引入）**：`theme-chrome.spec.ts:118` 在 chromium / webkit 两引擎都红——断言"未知名 token 回落到 `index.html` 的 `#ffffff`"，实测回落到 `#f7f6f3`。成因是 **1-I（`e4f5cb70`）把浅色首帧 chrome 从 `#ffffff` 改成派生值**，同步改了 `index.html:93` 与 `src/shared/utils.ts:368` 的 `FALLBACK_THEME_COLOR.light`，但这条断言（及其上方那句"`index.html` ships `#ffffff`"的注释）没跟上。**HEAD `6de6904f` 上就红**：本片以 `git stash` 做全量 A/B，基线读数与加片后**逐字节同名同数**（同为这两条）。**同时修订一处旧记录**：2-M 与实施轮把 `theme-tokens` 记作"102 全过"，实为 **102 passed / 2 failed**——那两个数此前被当成一个"全过"的读数。修断言属改护栏，未擅自动手，留给用户定夺。
+**一处既有红，如实记账（不是本片引入）**：`theme-chrome.spec.ts:118` 在 chromium / webkit 两引擎都红——断言"未知名 token 回落到 `index.html` 的 `#ffffff`"，实测回落到 `#f7f6f3`。成因是 **1-I（`e4f5cb70`）把浅色首帧 chrome 从 `#ffffff` 改成派生值**，同步改了 `index.html:93` 与 `src/shared/utils.ts:368` 的 `FALLBACK_THEME_COLOR.light`，但这条断言（及其上方那句"`index.html` ships `#ffffff`"的注释）没跟上。**HEAD `6de6904f` 上就红**：本片以 `git stash` 做全量 A/B，基线读数与加片后**逐字节同名同数**（同为这两条）。**同时修订一处旧记录**：2-M 与实施轮把 `theme-tokens` 记作"102 全过"，实为 **102 passed / 2 failed**——那两个数此前被当成一个"全过"的读数。修断言属改护栏，未擅自动手，留给用户定夺。**已修（2026-09-27，后续会话）**：按用户批复把期望值与上方注释一并更新为 `#f7f6f3`（= `FALLBACK_THEME_COLOR.light`，与 `index.html:93` 同值），保留了"不可解析的令牌必须回落到出厂基色、而不是发布探针的继承色"这条原意——**实现侧未动**，两条红纯粹是期望值陈旧。修后 `theme-tokens` 读数为 108 passed / 0 failed。
 
-**与既有账的关系**：**出厂状态无视觉变更**（新增主题只在用户主动选中时生效）。**待拍板清单仍为空**；**新增一笔可做未做账**：上述 `theme-chrome.spec.ts:118` 的陈旧断言（1-I 的遗留，两行可修）。没有自动顺延的下一片。
+**与既有账的关系**：**出厂状态无视觉变更**（新增主题只在用户主动选中时生效）。**待拍板清单仍为空**；上述 `theme-chrome.spec.ts:118` 的陈旧断言**已就地结清**（本片曾记为新增的一笔可做未做账，2026-09-27 后续会话修毕）。没有自动顺延的下一片。
 
 ---
 
