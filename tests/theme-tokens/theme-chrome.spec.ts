@@ -127,7 +127,8 @@ test('a theme may override the status bar, and an unknown token falls back', asy
   });
 
   expect(out.statusBarOverride.statusBar).toBe('default');
-  // `index.html` ships `#ffffff`; an unresolvable token must keep that rather than
-  // publish the probe's inherited colour as if it were the theme's.
-  expect(out.unknownToken.themeColor).toBe('#ffffff');
+  // An unresolvable token must keep the fallback the appearance ships — the base `--background`
+  // (`FALLBACK_THEME_COLOR.light`, which `index.html` also ships) — rather than publish the
+  // probe's inherited colour as if it were the theme's.
+  expect(out.unknownToken.themeColor).toBe('#f7f6f3');
 });
