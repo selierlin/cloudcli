@@ -65,7 +65,13 @@ CloudCLI **只读上述 4 张**。`event` 表虽不读，但它的 `type` 带修
 | `tool_use` | `part.state.status` 为 `completed` / `error`（仅终态发一次） | `tool` | `part.tool` / `part.callID` / `part.state.input` / `part.state.output` |
 | `step_start` | 立即 | `step-start` | 无正文（项目不渲染） |
 | `step_finish` | 立即 | `step-finish` | `part.tokens` / `part.cost` / `part.reason` |
-| `error` | 收到 `session.error` | —（信封顶层） | 信封 `error` |
+| `error` | 收到 `session.error` | —（信封顶层） | 信封 `error`（**对象**，见下） |
+
+`error` 信封的 `error` 是**对象**而非字符串：二进制里三处调用都是 `Z("error",{error:<err>.error})`
+（实时流那处为 `J.error`），且 CLI 自己按 `J.error.data.message` 读它 —— 形状 `{ name, data: { message } }`，
+与历史 `message.data.error` 同一个形状（`name` 如 `UnknownError` / `APIError`）。
+实时分支只认字符串时整条会退化成兜底文案，真因全丢（2026-09-27 修，见
+`normalizeMessage` 的 `error` 分支）。
 
 `isUserTextEcho` 会跳过 `role === 'user'` 的回显（`raw.role` / `raw.message.role` / **`raw.part.role`**
 三处都看 —— 作者知道 `part` 存在，是读正文时漏了 `part.text`）。
@@ -149,6 +155,9 @@ node .agents/skills/opencode-compat-check/check-opencode-format.mjs --no-binary 
    - `[二进制契约对照]` 的 🆕 → **即使本地库还没出现**也能发现的类型（1.18.31 的 union 有 10 个
      part 类型，真实库往往只出现 5 个，只靠数据面必漏）。这部分是离线提取，不联网。
    - `ℹ️ 未做契约提取` → `--no-binary`，或 PATH 里没有 `opencode`；此时以数据面为准并说明局限。
+   - **脚本只比对 type / 列名的存在性，不比对字段形状** —— 「✅ 全匹配」不代表读取链路没有缺口。
+     字段从字符串变对象这类漂移脚本看不见，需人工核对被读字段的取值形状
+     （2026-09-27 的 `error` 就是这样漏掉的：type 集合一直对，实时分支却整条退化成兜底文案）。
 4. 若发现真实变化：按「适配指引」改代码，加单测验证。
 5. 把新确认的类型更新进本 SKILL.md 的「格式基线」，并同步脚本的 `KNOWN_*` 常量。
 

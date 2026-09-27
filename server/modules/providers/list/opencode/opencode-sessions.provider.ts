@@ -303,13 +303,22 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
     }
 
     if (type === 'error') {
+      // The envelope carries the error itself (`Z("error",{error:J.error})`), and that
+      // object matches the sqlite `message.data.error` shape (`{name, data:{message}}`).
+      // Only the string form can be rendered as-is, so unwrap `data.message` before
+      // falling back to the raw JSON dump.
+      const errorPayload = payload.error;
+      const errorContent = readOptionalString(errorPayload)
+        ?? readOptionalString(readObjectRecord(readObjectRecord(errorPayload)?.data)?.message)
+        ?? formatToolContent(errorPayload);
+
       return [createNormalizedMessage({
         id: baseId,
         sessionId: eventSessionId,
         timestamp,
         provider: PROVIDER,
         kind: 'error',
-        content: readOptionalString(payload.error) ?? readOptionalString(payload.message) ?? 'Unknown OpenCode error',
+        content: errorContent || readOptionalString(payload.message) || 'Unknown OpenCode error',
       })];
     }
 
