@@ -452,6 +452,34 @@ test('OpenCode sessions provider reads reasoning and tool payloads out of the pa
   assert.deepEqual(toolUse[0]?.toolResult, { content: 'hi\n', isError: false });
 });
 
+test('OpenCode sessions provider surfaces object-shaped live error envelopes', () => {
+  const provider = new OpenCodeSessionsProvider();
+
+  // `opencode run --format json` emits `{type:'error', error:<object>}` (the CLI's own
+  // `Z("error",{error:J.error})`), carrying the same `{name, data:{message}}` shape the
+  // sqlite history stores. Reading it as a plain string loses the reason entirely.
+  const normalized = provider.normalizeMessage({
+    type: 'error',
+    sessionID: 'open-session-live',
+    error: {
+      name: 'UnknownError',
+      data: { message: 'Type validation failed: Value: {"wuand_billing":{}}' },
+    },
+  }, null);
+
+  assert.equal(normalized.length, 1);
+  assert.equal(normalized[0]?.kind, 'error');
+  assert.match(normalized[0]?.content ?? '', /Type validation failed/);
+
+  const stringError = provider.normalizeMessage({
+    type: 'error',
+    sessionID: 'open-session-live',
+    error: 'boom',
+  }, null);
+
+  assert.equal(stringError[0]?.content, 'boom');
+});
+
 test('OpenCode sessions provider reads sqlite history and token usage', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-history-'));
   const workspacePath = path.join(tempRoot, 'workspace');
