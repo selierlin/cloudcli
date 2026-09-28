@@ -1,6 +1,6 @@
 ---
 name: theme-authoring
-description: 为 CloudCLI 创作或修改主题。两条通道：内置配色主题（`BUILTIN_THEMES` + `src/index.css` 的 `[data-theme]` 令牌覆盖层，随包发布、受契约守卫）与用户 CSS 主题（自由式样式表，落 `~/.cloudcli/themes/`，零代码改动、无守卫）。含通道判据、令牌体系、服务端文件闸门、DOM 锚点分级、对比度守恒、免登录验证配方。触发词：做个主题、配色主题、CSS 主题、皮肤、换个配色、改配色、主题不生效、主题没反应。
+description: 为 CloudCLI 创作或修改主题。两条通道：内置配色主题（`BUILTIN_THEMES` + `src/index.css` 的 `[data-theme]` 令牌覆盖层，随包发布、受契约守卫）与用户 CSS 主题（自由式样式表，落 `~/.cloudcli/themes/`，零代码改动、无守卫）。含通道判据、令牌体系、服务端文件闸门、DOM 锚点分级、对比度守恒、免登录验证配方。通道 A 的完整方法（参照物选择、三种来源形态、板令牌产出、契约读法、验证配方、回写清单）见 `builtin-channel.md`；通道 B 的选择器分级见 `selectors.md`、验证配方见 `verification.md`。触发词：做个主题、配色主题、CSS 主题、皮肤、换个配色、改配色、主题不生效、主题没反应。
 ---
 
 # CloudCLI 主题创作
@@ -32,7 +32,33 @@ description: 为 CloudCLI 创作或修改主题。两条通道：内置配色主
 | `coverage` 徽标 | 可声明 | 文件里无处声明 → 无徽标 |
 | 代价 | 改代码 + 回写设计文档 + commit | 两个文件，零代码 |
 
+**细节不在这份文件里**——判完通道，去读对应分册：
+
+| 你要做的事 | 读哪份 |
+|---|---|
+| 从参照物产出一套内置主题（通道 A 的全部方法） | **`builtin-channel.md`** |
+| 给用户 CSS 主题写选择器 | `selectors.md`（**写前必读**） |
+| 验证用户 CSS 主题真的生效 | `verification.md` |
+
+本文件是索引：判通道、认令牌层、避坑。
+
 ## 通道 A：内置配色主题
+
+**动手前读 `builtin-channel.md`**——方法在那里。本节只放两样：读者**不点开分册也能安全
+动手**的 **3 条硬约束**，以及最小骨架。
+
+### 3 条硬约束
+
+| # | 硬约束 | 由谁守 | 漏写的后果 |
+|---|---|---|---|
+| 1 | 只赋 `--palette-*` / `--editor-*` **字面值**，其余一律引用 | `token-contract.spec.ts` | 测试**报错** |
+| 2 | 覆盖层放在**任何 `@layer` 之外** | `theme-overlays.spec.ts` 的结构断言 | 测试**报错** |
+| 3 | 浅色半边**必须**写成 `[data-theme="<id>"]:not(.dark)` | **无守卫** | **静默**——那套主题的泄漏检查整条失效 |
+
+前两条漏写会被 CI 拦住（在这里点名只为省一次折返）；**第 3 条无守卫、漏写不报错**，
+它是三条里唯一必须读理由的，见分册 M6。
+
+### 骨架
 
 1. `src/shared/constants.ts` 的 `BUILTIN_THEMES` 注册一项：
 
@@ -42,9 +68,10 @@ description: 为 CloudCLI 创作或修改主题。两条通道：内置配色主
 
    `appearance` 是**外观角色**（`light` / `dark` / `system`）；`system` 表示「两种外观都能用」。
    `cc-light` / `cc-dark` 是外观默认本身，不是可选主题。
+   `coverage` 取 `full` 还是 `accent` **有判据**（分册 M4）——别为显得完整而虚报。
 
-2. `src/index.css` 写 `[data-theme="cc-<name>"]` 块。**只赋 `--palette-*` / `--editor-*`
-   字面值，其余一律引用**。`cc-ocean` 全文就两个值，却带动四个强调面、两种外观：
+2. `src/index.css` 写 `[data-theme="cc-<name>"]` 块。`cc-ocean` 是 `accent` 的典型，
+   全文两个值就带动四个强调面、两种外观：
 
    ```css
    [data-theme="cc-ocean"] {
@@ -53,17 +80,19 @@ description: 为 CloudCLI 创作或修改主题。两条通道：内置配色主
    }
    ```
 
-3. **覆盖层放在任何 `@layer` 之外**。这是结构约定（Tailwind v3 处理后样式表零 `@layer`、
-   覆盖层靠文档顺序取胜），不是「layered 必输」机制——所以它由结构断言守着，别指望层叠机制。
+   但 `full` 不是这个量级：**45~60 条声明 × 2~3 个块**（基色块 + `:not(.dark)` + `.dark`）。
+   **每个值从哪来**是分册 M1–M3、M5 的事，别凭直觉填。
 
-4. 明暗：家族模型天然分 sand（浅底）/ ink（深底）。要只作用单一外观，用 `:not(.dark)` / `.dark`。
+3. 明暗：家族模型天然分 sand（浅底）/ ink（深底），所以 L1 只写一遍、两种外观各自取档；
+   只有需要**只作用单一外观**时才另写 `:not(.dark)` / `.dark` 块（浅色那半是硬约束 3）。
 
-5. 跑守卫：`npm run test:theme-tokens`（遍历双向守卫 + 对比度 6 配对）。
-   新增令牌的片可以用「先不刷基线跑契约测试：0 漂移 + 未覆盖项数 = 新令牌数 × 2」反证只新增。
+4. 跑守卫：`npm run test:theme-tokens`（遍历双向守卫 + 对比度 6 配对）。
+   新增**令牌**片的技巧：先不刷基线跑契约测试，「0 漂移 + 未覆盖项数 = 新令牌数 × 2」反证只新增。
+   新增**主题**片的对账期望（恰 `+4`）见分册 V4。
 
-6. 回写 `docs/research/CloudCLI主题与配色体系设计方案.md`。
+5. 回写 `docs/research/CloudCLI主题与配色体系设计方案.md` 三处（清单与锚点纪律见分册 D1）。
 
-7. commit：**subject 必须以汉字字符起头**（commitlint `subject-case` 连大写拉丁词开头都拒）。
+6. commit：**subject 必须以汉字字符起头**（commitlint `subject-case` 连大写拉丁词开头都拒）。
 
 ## 通道 B：用户 CSS 主题
 
@@ -141,5 +170,6 @@ description: 为 CloudCLI 创作或修改主题。两条通道：内置配色主
 
 ## 验证
 
-见 `verification.md`。**不许跳过**：通道 B 一个守卫都没有，唯一能证明「它真的生效了」的
-就是真装真读。
+通道 A 见 `builtin-channel.md` 的 V1–V4，通道 B 见 `verification.md`。**两边都不许跳过**：
+通道 B 一个守卫都没有，唯一能证明「它真的生效了」的就是真装真读；通道 A 的守卫**只覆盖
+源码**，「值真的画到屏幕上了」同样只有真机读数能证明。

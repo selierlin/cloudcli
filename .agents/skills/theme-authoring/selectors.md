@@ -10,7 +10,7 @@
 | 锚点 | 谁写 | 说明 |
 |---|---|---|
 | `html.dark` | `ThemeContext.tsx` `classList.toggle('dark', …)` | 深色外观。**`dark` 类在 `<html>` 上，不是 `<body>`** |
-| `html[data-theme="…"]` | `ThemeContext.tsx` `documentElement.dataset.theme` | 值是 `resolvedThemeId`：`cc-light` / `cc-dark` / `cc-ocean` / `user-<name>` … |
+| `html[data-theme="…"]` | `ThemeContext.tsx` `documentElement.dataset.theme` | 值是 `resolvedThemeId`。完整取值见 `src/shared/constants.ts` 的 `BUILTIN_THEMES`（`cc-*` 的内置项 ＋ 用户主题的 `user-<name>`） |
 | `html[data-appearance="light\|dark"]` | `index.html` 内联脚本 | **只在首帧**——挂载后不再维护，改由 `style.colorScheme` 表达 |
 | `[data-user-anchor]` | `LazyMessageRow.tsx` | 懒加载消息行的 wrapper |
 | `[data-message-timestamp]` | `MessageComponent.tsx` | 消息行 wrapper。**在 `LazyMessageRow` 的里层，两者不是同一级** |
