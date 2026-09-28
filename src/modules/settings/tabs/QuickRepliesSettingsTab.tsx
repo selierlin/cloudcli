@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 
+import SettingsCard from '@/modules/settings/SettingsCard';
 import SettingsSection from '@/modules/settings/SettingsSection';
 import { Button, Input } from '@/shared/ui';
 import { useQuickReplies } from '@/shared/hooks/useQuickReplies';
@@ -49,9 +50,11 @@ export default function QuickRepliesSettingsTab() {
         title={t('quickRepliesSettings.title')}
         description={t('quickRepliesSettings.description')}
       >
-        <div className="space-y-3">
+        <SettingsCard divided className="overflow-hidden">
           {quickReplies.length === 0 && (
-            <p className="text-sm text-muted-foreground">{t('quickRepliesSettings.empty')}</p>
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+              {t('quickRepliesSettings.empty')}
+            </p>
           )}
 
           {quickReplies.map((reply, index) => (
@@ -59,16 +62,39 @@ export default function QuickRepliesSettingsTab() {
               // Snippets have no id: they are a user-ordered list of two strings,
               // and the row's position is what identifies it to the buttons below.
               key={index}
-              className="space-y-2 rounded-lg border border-border p-3"
+              className="flex flex-wrap items-center gap-2 px-3 py-1.5"
             >
-              <div className="flex items-center gap-1">
-                <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-                  {quickReplyLabel(reply)}
-                </span>
+              <span className="hidden w-6 shrink-0 select-none text-right text-xs tabular-nums leading-none text-muted-foreground/60 sm:block">
+                {index + 1}
+              </span>
+              <Input
+                value={reply.label ?? ''}
+                onChange={(event) => writeQuickReplies(
+                  setQuickReplyAt(quickReplies, index, { label: event.target.value }),
+                )}
+                maxLength={MAX_QUICK_REPLY_LABEL_LENGTH}
+                // An empty name means "name this row by its text", which is what
+                // the placeholder shows.
+                placeholder={quickReplyLabel(reply)}
+                aria-label={t('quickRepliesSettings.labelField')}
+                // Idle rows read as editable text, not as a stack of nested
+                // boxes: the border only appears on hover/focus.
+                className="h-8 w-28 shrink-0 border-transparent bg-transparent px-2 shadow-none hover:border-input sm:w-32"
+              />
+              <Input
+                value={reply.text}
+                onChange={(event) => writeQuickReplies(
+                  setQuickReplyAt(quickReplies, index, { text: event.target.value }),
+                )}
+                maxLength={MAX_QUICK_REPLY_TEXT_LENGTH}
+                aria-label={t('quickRepliesSettings.textField')}
+                className="h-8 min-w-32 flex-1 border-transparent bg-transparent px-2 shadow-none hover:border-input"
+              />
+              <div className="flex items-center gap-0.5">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-9 w-9 p-0 text-muted-foreground hover:text-foreground"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                   disabled={index === 0}
                   onClick={() => writeQuickReplies(moveQuickReply(quickReplies, index, -1))}
                   aria-label={t('quickRepliesSettings.moveUp')}
@@ -79,7 +105,7 @@ export default function QuickRepliesSettingsTab() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-9 w-9 p-0 text-muted-foreground hover:text-foreground"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                   disabled={index === quickReplies.length - 1}
                   onClick={() => writeQuickReplies(moveQuickReply(quickReplies, index, 1))}
                   aria-label={t('quickRepliesSettings.moveDown')}
@@ -90,7 +116,7 @@ export default function QuickRepliesSettingsTab() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-9 w-9 p-0 text-muted-foreground hover:text-destructive"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                   onClick={() => writeQuickReplies(removeQuickReplyAt(quickReplies, index))}
                   aria-label={t('quickRepliesSettings.remove')}
                   title={t('quickRepliesSettings.remove')}
@@ -98,72 +124,48 @@ export default function QuickRepliesSettingsTab() {
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
-
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <Input
-                  value={reply.label ?? ''}
-                  onChange={(event) => writeQuickReplies(
-                    setQuickReplyAt(quickReplies, index, { label: event.target.value }),
-                  )}
-                  maxLength={MAX_QUICK_REPLY_LABEL_LENGTH}
-                  // An empty name means "name this row by its text", which is what
-                  // the placeholder shows.
-                  placeholder={quickReplyLabel(reply)}
-                  aria-label={t('quickRepliesSettings.labelField')}
-                />
-                <Input
-                  value={reply.text}
-                  onChange={(event) => writeQuickReplies(
-                    setQuickReplyAt(quickReplies, index, { text: event.target.value }),
-                  )}
-                  maxLength={MAX_QUICK_REPLY_TEXT_LENGTH}
-                  aria-label={t('quickRepliesSettings.textField')}
-                  className="sm:col-span-2"
-                />
-              </div>
             </div>
           ))}
 
-          <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <Input
-                value={newLabel}
-                onChange={(event) => setNewLabel(event.target.value)}
-                maxLength={MAX_QUICK_REPLY_LABEL_LENGTH}
-                placeholder={t('quickRepliesSettings.labelPlaceholder')}
-                aria-label={t('quickRepliesSettings.labelField')}
-              />
-              <Input
-                value={newText}
-                onChange={(event) => setNewText(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    handleAdd();
-                  }
-                }}
-                maxLength={MAX_QUICK_REPLY_TEXT_LENGTH}
-                placeholder={t('quickRepliesSettings.textPlaceholder')}
-                aria-label={t('quickRepliesSettings.textField')}
-                className="sm:col-span-2"
-              />
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-muted-foreground">
-                {atLimit
-                  ? t('quickRepliesSettings.limitReached', { max: MAX_QUICK_REPLIES })
-                  : t('quickRepliesSettings.limit', {
-                    used: quickReplies.length,
-                    max: MAX_QUICK_REPLIES,
-                  })}
-              </p>
-              <Button onClick={handleAdd} disabled={!canAdd} size="sm" className="h-9 px-4">
-                <Plus className="h-4 w-4" />
-                {t('quickRepliesSettings.add')}
-              </Button>
-            </div>
+          <div className="flex flex-wrap items-center gap-2 bg-muted/30 px-3 py-2.5">
+            <span aria-hidden="true" className="hidden w-6 shrink-0 sm:block" />
+            <Input
+              value={newLabel}
+              onChange={(event) => setNewLabel(event.target.value)}
+              maxLength={MAX_QUICK_REPLY_LABEL_LENGTH}
+              placeholder={t('quickRepliesSettings.labelPlaceholder')}
+              aria-label={t('quickRepliesSettings.labelField')}
+              className="h-8 w-28 shrink-0 px-2 shadow-none sm:w-32"
+            />
+            <Input
+              value={newText}
+              onChange={(event) => setNewText(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  handleAdd();
+                }
+              }}
+              maxLength={MAX_QUICK_REPLY_TEXT_LENGTH}
+              placeholder={t('quickRepliesSettings.textPlaceholder')}
+              aria-label={t('quickRepliesSettings.textField')}
+              className="h-8 min-w-32 flex-1 px-2 shadow-none"
+            />
+            <Button onClick={handleAdd} disabled={!canAdd} size="sm" className="h-8 px-3">
+              <Plus className="h-4 w-4" />
+              {t('quickRepliesSettings.add')}
+            </Button>
           </div>
-        </div>
+        </SettingsCard>
+
+        <p className="text-xs text-muted-foreground">
+          {atLimit
+            ? t('quickRepliesSettings.limitReached', { max: MAX_QUICK_REPLIES })
+            : t('quickRepliesSettings.limit', {
+              used: quickReplies.length,
+              max: MAX_QUICK_REPLIES,
+            })}
+        </p>
       </SettingsSection>
     </div>
   );

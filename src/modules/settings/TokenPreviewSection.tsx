@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ChevronDown } from 'lucide-react';
 
 import { readTokenSnapshot } from '@/shared/tokenSnapshot';
 import type { TokenSnapshot } from '@/shared/tokenSnapshot';
+import { Button } from '@/shared/ui';
+import { cn } from '@/shared/utils';
 import SettingsCard from '@/modules/settings/SettingsCard';
 import SettingsSection from '@/modules/settings/SettingsSection';
 
@@ -34,62 +37,69 @@ export default function TokenPreviewSection() {
   return (
     <SettingsSection title={t('tokenPreview.title')} description={t('tokenPreview.description')}>
       <SettingsCard>
-        <button
-          type="button"
-          aria-expanded={snapshot !== null}
-          onClick={toggle}
-          className="text-sm font-medium text-primary hover:underline"
-        >
-          {t(snapshot === null ? 'tokenPreview.open' : 'tokenPreview.close')}
-        </button>
+        <div className="p-4">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-expanded={snapshot !== null}
+            onClick={toggle}
+          >
+            {t(snapshot === null ? 'tokenPreview.open' : 'tokenPreview.close')}
+            <ChevronDown
+              aria-hidden="true"
+              className={cn('transition-transform duration-200', snapshot !== null && 'rotate-180')}
+            />
+          </Button>
 
-        {snapshot !== null && (
-          <div className="mt-4 space-y-6">
-            {snapshot.groups.map((group) => (
-              <div key={group.id}>
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {t(group.id === 'semantic' ? 'tokenPreview.semanticGroup' : 'tokenPreview.familyGroup', {
-                    family: group.id,
-                  })}
-                  <span className="ml-2 font-normal normal-case">{group.entries.length}</span>
-                </h4>
-                <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
-                  {group.entries.map((entry) => (
-                    <li key={entry.name} className="flex items-center gap-3 px-3 py-1.5">
-                      <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">
-                        {entry.name}
-                      </span>
-                      <span className="flex items-center gap-1.5" data-appearance-column="light">
-                        <span
-                          aria-hidden
-                          data-token-swatch={entry.name}
-                          data-scope="light"
-                          className="h-4 w-4 shrink-0 rounded border border-border"
-                          style={entry.lightSwatch ? { background: entry.lightSwatch } : undefined}
-                        />
-                        <span className="w-36 truncate font-mono text-xs text-muted-foreground">
-                          {entry.light}
+          {snapshot !== null && (
+            <div className="mt-4 space-y-6">
+              {snapshot.groups.map((group) => (
+                <div key={group.id}>
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {t(group.id === 'semantic' ? 'tokenPreview.semanticGroup' : 'tokenPreview.familyGroup', {
+                      family: group.id,
+                    })}
+                    <span className="ml-2 font-normal normal-case">{group.entries.length}</span>
+                  </h4>
+                  <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
+                    {group.entries.map((entry) => (
+                      <li key={entry.name} className="flex items-center gap-3 px-3 py-1.5">
+                        <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">
+                          {entry.name}
                         </span>
-                      </span>
-                      <span className="flex items-center gap-1.5" data-appearance-column="dark">
-                        <span
-                          aria-hidden
-                          data-token-swatch={entry.name}
-                          data-scope="dark"
-                          className="h-4 w-4 shrink-0 rounded border border-border"
-                          style={entry.darkSwatch ? { background: entry.darkSwatch } : undefined}
-                        />
-                        <span className="w-36 truncate font-mono text-xs text-muted-foreground">
-                          {entry.dark}
+                        <span className="flex items-center gap-1.5" data-appearance-column="light">
+                          <span
+                            aria-hidden
+                            data-token-swatch={entry.name}
+                            data-scope="light"
+                            className="h-4 w-4 shrink-0 rounded border border-border"
+                            style={entry.lightSwatch ? { background: entry.lightSwatch } : undefined}
+                          />
+                          <span className="w-36 truncate font-mono text-xs text-muted-foreground">
+                            {entry.light}
+                          </span>
                         </span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        )}
+                        <span className="flex items-center gap-1.5" data-appearance-column="dark">
+                          <span
+                            aria-hidden
+                            data-token-swatch={entry.name}
+                            data-scope="dark"
+                            className="h-4 w-4 shrink-0 rounded border border-border"
+                            style={entry.darkSwatch ? { background: entry.darkSwatch } : undefined}
+                          />
+                          <span className="w-36 truncate font-mono text-xs text-muted-foreground">
+                            {entry.dark}
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </SettingsCard>
     </SettingsSection>
   );
