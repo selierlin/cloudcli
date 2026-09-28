@@ -2,7 +2,14 @@ import type { ITheme, Terminal } from '@xterm/xterm';
 
 import { GRAPH_LANE_COUNT } from '@/modules/git-panel/utils/commitGraph';
 import { installMobileTerminalSelection } from '@/modules/shell/utils/mobileTerminalSelection';
-import { readTerminalTheme, TERMINAL_THEME_TOKENS } from '@/modules/shell/utils/terminalTheme';
+import {
+  FALLBACK_TERMINAL_FONT_FAMILY,
+  readTerminalTheme,
+  readThemedTerminalFontFamily,
+  resolveTerminalFontFamily,
+  TERMINAL_THEME_TOKENS,
+} from '@/modules/shell/utils/terminalTheme';
+import type { TerminalFontFamilyId } from '@/shared/types';
 import { EXTREME_TOKENS, SCALE_TOKEN_NAMES } from '@/shared/tests/neutralScale';
 import { ensureSyntaxStyleElement, SYNTAX_TOKEN_MAP } from '@/shared/syntaxTheme';
 import type { SyntaxSemanticName } from '@/shared/syntaxTheme';
@@ -305,6 +312,29 @@ function reinjectSyntaxStyleSheet(): void {
 }
 
 /**
+ * The bare, fallback-less read of the terminal font token.
+ *
+ * `readThemedTerminalFontFamily` cannot be asked about a token the base sheet
+ * never declares — the stylesheet always declares `--term-font-family` — so the
+ * "no value" states are produced by overriding it instead. This helper is what
+ * shows the failure the production guard exists to prevent: with no `var()`
+ * fallback and no value behind the token, the probe reads the *inherited* stack,
+ * which is a real font stack and so indistinguishable from a declared one.
+ */
+function probeFontFamilyWithoutFallback(token: string): string {
+  const probe = document.createElement('div');
+  probe.style.display = 'none';
+  probe.style.transition = 'none';
+  probe.style.fontFamily = `var(${token})`;
+  document.body.appendChild(probe);
+  try {
+    return getComputedStyle(probe).fontFamily;
+  } finally {
+    probe.remove();
+  }
+}
+
+/**
  * The token preview's read, verbatim from the component's module. The fixture
  * page is where the real-engine questions about it live: computed-style
  * enumeration reaching the declared tokens (including names injected at
@@ -528,6 +558,14 @@ declare global {
       readWithTheme(themeId: string | null, appearance: Appearance): TokenRead;
       /** The xterm theme the shell hook would build right now. */
       readTerminalTheme(): ITheme;
+      /** The themed terminal font stack, or null when the token carries no value. */
+      readThemedTerminalFontFamily(): string | null;
+      /** The stack xterm would use for a given user preference. */
+      resolveTerminalFontFamily(choice: TerminalFontFamilyId): string;
+      /** The production fallback stack, so the suite can assert the literal. */
+      fallbackTerminalFontFamily: string;
+      /** A bare `var(token)` with no fallback — the failure the production guard prevents. */
+      probeFontFamilyWithoutFallback(token: string): string;
       /** The colours the mobile selection chrome injects right now. */
       readMobileSelectionChrome(): Record<string, string>;
       /** The browser-chrome metas for an appearance, written by the production applier. */
@@ -559,6 +597,10 @@ window.__THEME_TOKENS__ = {
   read: readTokens,
   readWithTheme,
   readTerminalTheme,
+  readThemedTerminalFontFamily,
+  resolveTerminalFontFamily,
+  fallbackTerminalFontFamily: FALLBACK_TERMINAL_FONT_FAMILY,
+  probeFontFamilyWithoutFallback,
   readMobileSelectionChrome,
   readThemeChrome,
   applyUserTheme,

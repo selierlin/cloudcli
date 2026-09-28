@@ -8,6 +8,11 @@ import { beforeEach, test, vi } from 'vitest';
 
 import { useShellTerminal } from '@/modules/shell/hooks/useShellTerminal';
 import { ThemeProvider, useTheme } from '@/shared/context/ThemeContext';
+import {
+  FONT_SETTINGS_CHANGED_EVENT,
+  readFontSettings,
+  writeFontSettings,
+} from '@/shared/utils';
 import { resetUserPreferences, writeUserPreference } from '@/shared/userSettings';
 
 /**
@@ -17,17 +22,29 @@ import { resetUserPreferences, writeUserPreference } from '@/shared/userSettings
  * changes. The editor and the git graph are the opposite case and need no such
  * refresh — their colours are `var()` rules the browser re-resolves on its own.
  *
+ * The same applies to the face: the grid is built from measured glyphs, so a new
+ * font (from a theme or from Settings) has to be pushed in and re-fitted.
+ *
  * `readTerminalTheme` is stubbed so the test can count reads: a sentinel per call
  * is what tells "the effect re-ran" apart from "it re-read the same values".
+ * `resolveTerminalFontFamily` is stubbed for the same reason — it returns the
+ * choice, so the test can name the face it expects to land in `options`.
  */
 
 const reads = vi.hoisted(() => ({ count: 0 }));
 
 vi.mock('@/modules/shell/utils/terminalTheme', () => ({
   readTerminalTheme: () => ({ background: `read-${(reads.count += 1)}` }),
+  resolveTerminalFontFamily: (choice: string) => `stub-font-${choice}`,
+  FALLBACK_TERMINAL_FONT_FAMILY: 'stub-fallback-stack',
 }));
 
-type StubTerminal = { options: { theme?: { background?: string } } };
+type StubTerminal = {
+  options: { theme?: { background?: string }; fontFamily?: string; fontSize?: number };
+  cols: number;
+  rows: number;
+  clearTextureAtlas?: () => void;
+};
 
 /**
  * The hook's other effects stay out of the way: the terminal-construction effect
@@ -37,10 +54,30 @@ type StubTerminal = { options: { theme?: { background?: string } } };
  * The refs are created once and closed over, the way `useRef` would hold them —
  * `terminalRef` is an effect dependency, so a fresh object per render would
  * rebuild the theme on every render and mask what the tests below measure.
+ *
+ * The stub starts out the way construction leaves a real terminal: font options
+ * already resolved from the stored settings. Otherwise the mount-time face check
+ * would see `undefined -> resolved` and re-fit, and every count below would carry
+ * a stray first call.
  */
 function renderTerminal() {
-  const terminal: StubTerminal = { options: {} };
+  const fit = vi.fn();
+  const atlas = vi.fn();
+  const sent: unknown[] = [];
+  const socket = {
+    readyState: WebSocket.OPEN,
+    send: (payload: string) => sent.push(JSON.parse(payload)),
+  } as unknown as WebSocket;
+
+  const terminal: StubTerminal = {
+    options: { fontFamily: 'stub-font-theme', fontSize: 14 },
+    cols: 80,
+    rows: 24,
+    clearTextureAtlas: atlas,
+  };
   const terminalRef = { current: terminal as unknown as Terminal };
+  const fitAddonRef = { current: { fit } as unknown as FitAddon | null };
+  const wsRef = { current: socket };
 
   const view = renderHook(
     () => {
@@ -48,8 +85,8 @@ function renderTerminal() {
       useShellTerminal({
         terminalContainerRef: { current: null },
         terminalRef,
-        fitAddonRef: { current: null as unknown as FitAddon | null },
-        wsRef: { current: null },
+        fitAddonRef,
+        wsRef,
         selectedProject: null,
         minimal: false,
         isRestarting: false,
@@ -64,7 +101,7 @@ function renderTerminal() {
     },
   );
 
-  return { view, terminal };
+  return { view, terminal, fit, sent, atlas };
 }
 
 beforeEach(() => {
@@ -127,4 +164,89 @@ test('a re-render that changes no theme does not re-read the board', () => {
   });
 
   assert.equal(reads.count, 1, 'an unrelated re-render must not rebuild the terminal theme');
+});
+
+/**
+ * A face change moves the glyph metrics, so a repaint is not enough: the grid has
+ * to be re-measured and the pty told, or the remote side keeps rendering into the
+ * old one. The atlas is dropped as well — its cache belongs to the face it was
+ * built for.
+ */
+test('a font choice reaches the live terminal: face, atlas, fit and the pty', async () => {
+  const { terminal, fit, sent, atlas } = renderTerminal();
+
+  await act(async () => {
+    writeFontSettings({ ...readFontSettings(), terminalFontFamily: 'fira-code' });
+    window.dispatchEvent(new Event(FONT_SETTINGS_CHANGED_EVENT));
+  });
+
+  assert.equal(terminal.options.fontFamily, 'stub-font-fira-code');
+  assert.equal(fit.mock.calls.length, 1, 'a new face must re-fit the grid');
+  assert.deepEqual(sent, [{ type: 'resize', cols: 80, rows: 24 }]);
+  assert.equal(atlas.mock.calls.length, 1, 'the glyph atlas belongs to the face it was built for');
+});
+
+/**
+ * The size path needs the same treatment as the face path — it moves the metrics
+ * too. It used to refresh without fitting, which left the pty on the old grid.
+ */
+test('a terminal font-size change re-fits and tells the pty too', async () => {
+  const { terminal, fit, sent } = renderTerminal();
+
+  await act(async () => {
+    writeFontSettings({ ...readFontSettings(), terminalFontSize: '20' });
+    window.dispatchEvent(new Event(FONT_SETTINGS_CHANGED_EVENT));
+  });
+
+  assert.equal(terminal.options.fontSize, 20);
+  assert.equal(fit.mock.calls.length, 1);
+  assert.deepEqual(sent, [{ type: 'resize', cols: 80, rows: 24 }]);
+});
+
+/**
+ * The guard that makes the two above mean something: they must be measuring the
+ * change, not "every font event re-fits". A no-op event should cost nothing.
+ */
+test('a font event that changes nothing does not re-fit', async () => {
+  const { fit, sent } = renderTerminal();
+
+  await act(async () => {
+    window.dispatchEvent(new Event(FONT_SETTINGS_CHANGED_EVENT));
+  });
+
+  assert.equal(fit.mock.calls.length, 0);
+  assert.deepEqual(sent, []);
+});
+
+/**
+ * The order is the whole point of waiting: `fit()` measures glyphs, so fitting
+ * before the face lands sizes the grid for the fallback. jsdom has no
+ * `FontFaceSet`, so this stubs one — which also makes the optional call in the
+ * hook observable at all.
+ */
+test('a face change waits for the font before re-fitting', async () => {
+  const order: string[] = [];
+  const load = vi.fn(async () => {
+    order.push('load');
+    return [];
+  });
+  const fonts = document as unknown as { fonts?: unknown };
+  fonts.fonts = { load };
+
+  try {
+    const { fit } = renderTerminal();
+    fit.mockImplementation(() => {
+      order.push('fit');
+    });
+
+    await act(async () => {
+      writeFontSettings({ ...readFontSettings(), terminalFontFamily: 'jetbrains-mono' });
+      window.dispatchEvent(new Event(FONT_SETTINGS_CHANGED_EVENT));
+    });
+
+    assert.deepEqual(load.mock.calls[0], ['14px stub-font-jetbrains-mono']);
+    assert.deepEqual(order, ['load', 'fit'], 'the grid must be measured once the face is in');
+  } finally {
+    delete fonts.fonts;
+  }
 });

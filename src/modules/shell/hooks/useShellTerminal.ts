@@ -18,14 +18,17 @@ import { TERMINAL_INIT_DELAY_MS } from '@/shared/constants';
 import { installMobileTerminalSelection } from '@/modules/shell/utils/mobileTerminalSelection';
 import { sendSocketMessage } from '@/modules/shell/utils/socket';
 import { ensureXtermFocusStyles } from '@/modules/shell/utils/terminalStyles';
-import { readTerminalTheme } from '@/modules/shell/utils/terminalTheme';
+import { readTerminalTheme, resolveTerminalFontFamily, FALLBACK_TERMINAL_FONT_FAMILY } from '@/modules/shell/utils/terminalTheme';
 
 const TERMINAL_RESIZE_DELAY_MS = 50;
 
 const TERMINAL_OPTIONS: ITerminalOptions = {
   cursorBlink: true,
   fontSize: 14,
-  fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+  // The value the terminal shipped with, and the same literal the base stylesheet
+  // mirrors as `--term-font-family`. A theme or a user choice replaces it at
+  // construction and on change (see `resolveTerminalFontFamily`).
+  fontFamily: FALLBACK_TERMINAL_FONT_FAMILY,
   allowProposedApi: true,
   allowTransparency: false,
   convertEol: true,
@@ -35,6 +38,97 @@ const TERMINAL_OPTIONS: ITerminalOptions = {
   macOptionIsMeta: true,
   macOptionClickForcesSelection: true,
 };
+
+/**
+ * A face that has not landed yet is invisible to xterm: it sizes the grid from
+ * measured glyphs, so a `fit()` taken before the font arrives lays the terminal
+ * out for whatever fallback answered and the characters sit wrong afterwards.
+ * `FontFaceSet.load` requests the face and resolves once it is usable, and
+ * resolves empty for a family the machine does not have — an uninstalled font
+ * therefore does not stall the terminal. jsdom has no `document.fonts` (the
+ * vitest suite runs there), hence the optional call.
+ */
+async function waitForTerminalFont(fontFamily: string, fontSize: number): Promise<void> {
+  try {
+    await document.fonts?.load(`${fontSize}px ${fontFamily}`);
+  } catch {
+    // `load` rejects on a stack the CSS parser cannot read (a theme can declare
+    // one). Nothing to do about it here: the terminal still renders with the
+    // closest face that does exist.
+  }
+}
+
+/**
+ * Measure the grid once the face is in, then tell the pty what came out.
+ *
+ * Both call sites need this for the same reason: xterm derives the grid from
+ * measured glyphs, so a `fit()` taken while the face is still on its way sizes the
+ * terminal for whatever answered instead — and a repaint alone would leave the pty
+ * rendering into the grid from before the change. The atlas is dropped as well;
+ * its cache belongs to the face it was built for.
+ *
+ * A family that is already available — every system face, and any stack on a
+ * second call — makes `load` resolve without fetching anything, so waiting is the
+ * cheap branch. The disposal check lives here because the wait is the only await
+ * between setting the option and fitting.
+ */
+async function fitAfterFontReady(
+  terminal: Terminal,
+  terminalRef: MutableRefObject<Terminal | null>,
+  fitAddonRef: MutableRefObject<FitAddon | null>,
+  wsRef: MutableRefObject<WebSocket | null>,
+): Promise<void> {
+  await waitForTerminalFont(
+    terminal.options.fontFamily ?? FALLBACK_TERMINAL_FONT_FAMILY,
+    Number(terminal.options.fontSize),
+  );
+  // The terminal can be disposed while the face loads.
+  if (terminalRef.current !== terminal) {
+    return;
+  }
+
+  terminal.clearTextureAtlas?.();
+  const fitAddon = fitAddonRef.current;
+  if (!fitAddon) {
+    return;
+  }
+
+  fitAddon.fit();
+  sendSocketMessage(wsRef.current, {
+    type: 'resize',
+    cols: terminal.cols,
+    rows: terminal.rows,
+  });
+}
+
+/**
+ * Push the current font settings into a live terminal.
+ *
+ * A stylesheet change never reaches xterm, and neither does a new font: the grid
+ * comes from measured glyphs rather than from CSS. A size change needs the same
+ * treatment as a face change — both move the metrics, and the old code refreshed
+ * without re-fitting, so the pty never learned the new grid.
+ */
+function applyTerminalFont(
+  terminal: Terminal,
+  terminalRef: MutableRefObject<Terminal | null>,
+  fitAddonRef: MutableRefObject<FitAddon | null>,
+  wsRef: MutableRefObject<WebSocket | null>,
+): void {
+  const settings = readFontSettings();
+  const fontSize = Number(settings.terminalFontSize);
+  const fontFamily = resolveTerminalFontFamily(settings.terminalFontFamily);
+  const faceChanged = terminal.options.fontFamily !== fontFamily;
+  const sizeChanged = terminal.options.fontSize !== fontSize;
+  if (!faceChanged && !sizeChanged) {
+    return;
+  }
+
+  terminal.options.fontSize = fontSize;
+  terminal.options.fontFamily = fontFamily;
+
+  void fitAfterFontReady(terminal, terminalRef, fitAddonRef, wsRef);
+}
 
 // CLIs running inside the pty (e.g. `claude auth login`'s "press c to copy"
 // device-flow prompt) write to the clipboard via an OSC 52 escape sequence,
@@ -141,9 +235,11 @@ export function useShellTerminal({
       return;
     }
 
+    const fontSettings = readFontSettings();
     const nextTerminal = new Terminal({
       ...TERMINAL_OPTIONS,
-      fontSize: Number(readFontSettings().terminalFontSize),
+      fontSize: Number(fontSettings.terminalFontSize),
+      fontFamily: resolveTerminalFontFamily(fontSettings.terminalFontFamily),
       theme: readTerminalTheme(),
     });
     terminalRef.current = nextTerminal;
@@ -260,18 +356,14 @@ export function useShellTerminal({
     });
 
     window.setTimeout(() => {
-      const currentFitAddon = fitAddonRef.current;
       const currentTerminal = terminalRef.current;
-      if (!currentFitAddon || !currentTerminal) {
+      if (!currentTerminal) {
         return;
       }
 
-      currentFitAddon.fit();
-      sendSocketMessage(wsRef.current, {
-        type: 'resize',
-        cols: currentTerminal.cols,
-        rows: currentTerminal.rows,
-      });
+      // The first fit decides the grid for everything the pty sends next, so it
+      // waits for the face like every later change does.
+      void fitAfterFontReady(currentTerminal, terminalRef, fitAddonRef, wsRef);
     }, TERMINAL_INIT_DELAY_MS);
 
     setIsInitialized(true);
@@ -330,20 +422,19 @@ export function useShellTerminal({
     wsRef,
   ]);
 
-  // Apply terminal font-size changes (Settings → Appearance → Fonts) live.
+  // Apply terminal font changes (Settings → Appearance → Fonts) live.
   useEffect(() => {
-    const applyFontSize = () => {
+    const applyFontSettings = () => {
       const terminal = terminalRef.current;
       if (!terminal) {
         return;
       }
-      terminal.options.fontSize = Number(readFontSettings().terminalFontSize);
-      terminal.refresh(0, terminal.rows - 1);
+      applyTerminalFont(terminal, terminalRef, fitAddonRef, wsRef);
     };
 
-    window.addEventListener(FONT_SETTINGS_CHANGED_EVENT, applyFontSize);
-    return () => window.removeEventListener(FONT_SETTINGS_CHANGED_EVENT, applyFontSize);
-  }, [terminalRef]);
+    window.addEventListener(FONT_SETTINGS_CHANGED_EVENT, applyFontSettings);
+    return () => window.removeEventListener(FONT_SETTINGS_CHANGED_EVENT, applyFontSettings);
+  }, [fitAddonRef, terminalRef, wsRef]);
 
   // xterm paints into a canvas and needs concrete colours, so a stylesheet change
   // never reaches an open terminal on its own. Re-read the --term-* tokens whenever
@@ -358,7 +449,11 @@ export function useShellTerminal({
     }
 
     terminal.options.theme = readTerminalTheme();
-  }, [isDarkMode, resolvedThemeId, terminalRef]);
+    // `--term-font-family` is a `--term-*` token like the colours, so the same
+    // refresh carries the face — an overlay's light and dark blocks may even
+    // declare different ones.
+    applyTerminalFont(terminal, terminalRef, fitAddonRef, wsRef);
+  }, [fitAddonRef, isDarkMode, resolvedThemeId, terminalRef, wsRef]);
 
   return {
     isInitialized,

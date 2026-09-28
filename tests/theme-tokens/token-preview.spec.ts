@@ -73,6 +73,22 @@ test('both appearances resolve differently, and match the fixture read of the sa
   ).toBe(staticRead);
 });
 
+test('the terminal font token is listed, and is not painted as a colour', async ({ page }) => {
+  await page.goto('/');
+
+  const entry = await page.evaluate(() => {
+    const snapshot = window.__THEME_TOKENS__!.readTokenPreviewSnapshot();
+    const term = snapshot.groups.find((group) => group.id === 'term');
+    return term?.entries.find((item) => item.name === '--term-font-family');
+  });
+
+  // The terminal board is no longer homogeneous: this one token holds a family
+  // list, so the group has to list it without inventing a swatch for it (§6.6).
+  expect(entry, 'the term group lists the font token').toBeDefined();
+  expect(entry!.lightSwatch).toBeNull();
+  expect(entry!.darkSwatch).toBeNull();
+});
+
 test('the appearance in force survives the read, from either side', async ({ page }) => {
   await page.goto('/');
 

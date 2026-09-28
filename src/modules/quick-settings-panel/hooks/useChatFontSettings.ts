@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { FONT_SETTINGS_CHANGED_EVENT, readFontSettings, writeFontSettings } from '@/shared/utils';
-import type { CodeFontFamilyId, FontFamilyId, FontSettingsState } from '@/shared/types';
+import type { CodeFontFamilyId, FontFamilyId, FontSettingsState, TerminalFontFamilyId } from '@/shared/types';
 
 /**
  * Lightweight facade over the shared font-settings localStorage cache.
@@ -56,16 +56,25 @@ export function useChatFontSettings() {
     window.dispatchEvent(new Event(FONT_SETTINGS_CHANGED_EVENT));
   };
 
+  const setTerminalFontFamily = (value: TerminalFontFamilyId) => {
+    const next: FontSettingsState = { ...state, terminalFontFamily: value };
+    setState(next);
+    writeFontSettings(next);
+    window.dispatchEvent(new Event(FONT_SETTINGS_CHANGED_EVENT));
+  };
+
   return {
     uiFontSize: state.uiFontSize,
     terminalFontSize: state.terminalFontSize,
     fontFamily: state.fontFamily,
     codeFontSize: state.codeFontSize,
     codeFontFamily: state.codeFontFamily,
+    terminalFontFamily: state.terminalFontFamily,
     setUiFontSize,
     setTerminalFontSize,
     setFontFamily,
     setCodeFontSize,
     setCodeFontFamily,
+    setTerminalFontFamily,
   };
 }

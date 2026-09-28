@@ -138,8 +138,10 @@ test('every palette token is consumed by at least one declaration', () => {
  * `--editor-*` board is written into `EditorView.theme()` rules that consume
  * complete CSS values, and 0-D deliberately keeps those as literal colours
  * rather than routing them through the HSL palette (§5.8 v8 states the scope
- * the test name used to overclaim). Size, duration and env() tokens are out of
- * scope. Reads declaration text for the same reason as above.
+ * the test name used to overclaim). Font stacks are out of scope too:
+ * `--term-font-family` holds a family list, not a colour. Size, duration and
+ * env() tokens are out of scope. Reads declaration text for the same reason as
+ * above.
  */
 test('no colour token holds a literal value outside the palette and the editor board', () => {
   const css = readStylesheet();
@@ -150,6 +152,12 @@ test('no colour token holds a literal value outside the palette and the editor b
     const value = rawValue.trim();
     if (name.startsWith(PALETTE_PREFIX)) continue;
     if (name.startsWith('--editor-')) continue;
+    // The terminal board is no longer homogeneous (unlike every other `--term-*`
+    // it holds no colour), so it is named here rather than left to the shape
+    // filter below — a rewrite of this loop by family would otherwise have to
+    // rediscover the exemption (§3.3). The shape filter already skips it today;
+    // this line buys visibility, not a red test.
+    if (name === '--term-font-family') continue;
     const isLiteralColour =
       HSL_TRIPLET.test(value) || /^#[0-9a-fA-F]{3,8}$/.test(value) || /^rgba?\(/.test(value);
     if (!isLiteralColour) continue;

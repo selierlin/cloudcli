@@ -5,10 +5,11 @@ import {
   CODE_FONT_FAMILY_OPTIONS,
   CODE_FONT_SIZE_OPTIONS,
   FONT_FAMILY_OPTIONS,
+  TERMINAL_FONT_FAMILY_OPTIONS,
   TERMINAL_FONT_SIZE_OPTIONS,
   UI_FONT_SIZE_OPTIONS,
 } from '@/shared/utils';
-import type { CodeEditorSettingsState, CodeFontFamilyId, FontFamilyId, ProjectSortOrder } from '@/shared/types';
+import type { CodeEditorSettingsState, CodeFontFamilyId, FontFamilyId, ProjectSortOrder, TerminalFontFamilyId } from '@/shared/types';
 import { LanguageSelector } from '@/modules/i18n';
 import { useChatFontSettings } from '@/modules/quick-settings-panel';
 import SettingsCard from '@/modules/settings/SettingsCard';
@@ -179,6 +180,25 @@ export default function AppearanceSettingsTab({
             >
               {TERMINAL_FONT_SIZE_OPTIONS.map((size) => (
                 <option key={size} value={size}>{size}px</option>
+              ))}
+            </select>
+          </SettingsRow>
+
+          <SettingsRow
+            label={t('appearanceSettings.fontSettings.terminalFontFamily.label')}
+            description={t('appearanceSettings.fontSettings.terminalFontFamily.description')}
+          >
+            <select
+              value={fontSettings.terminalFontFamily}
+              onChange={(event) => fontSettings.setTerminalFontFamily(event.target.value as TerminalFontFamilyId)}
+              className={FONT_SELECT_CLASS}
+            >
+              {TERMINAL_FONT_FAMILY_OPTIONS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.id === 'theme'
+                    ? t('appearanceSettings.fontSettings.terminalFontFamilyOptions.theme')
+                    : t(`appearanceSettings.fontSettings.codeFontFamilyOptions.${option.id}`)}
+                </option>
               ))}
             </select>
           </SettingsRow>

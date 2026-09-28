@@ -1,5 +1,8 @@
 import type { ITheme } from '@xterm/xterm';
 
+import type { TerminalFontFamilyId } from '@/shared/types';
+import { CODE_FONT_FAMILY_CSS } from '@/shared/utils';
+
 /**
  * The terminal is the one surface the stylesheet cannot style directly: xterm
  * paints into a canvas and needs concrete colour values, not `var()` references.
@@ -75,4 +78,69 @@ export function readTerminalTheme(): ITheme {
   } finally {
     probe.remove();
   }
+}
+
+/**
+ * The stack xterm falls back to when neither a theme nor the user names one.
+ *
+ * This is the single TS literal for the value; the base stylesheet mirrors it as
+ * `--term-font-family`, which the contract requires the base layer to declare so
+ * an overlay may redeclare it. Each copy is anchored by a test, so changing one
+ * alone is a red test rather than a silent divergence: the stylesheet's copy by
+ * the token contract's baseline (`tests/theme-tokens/token-contract.spec.ts`),
+ * this literal by `tests/theme-tokens/terminal-tokens.spec.ts`.
+ */
+export const FALLBACK_TERMINAL_FONT_FAMILY = 'Menlo, Monaco, "Courier New", monospace';
+
+/**
+ * The stack a theme declares for the terminal, or null when it declares none.
+ *
+ * The value check is what makes "no value" observable. `font-family` is
+ * inherited, so a token carrying no value leaves the probe's declaration invalid
+ * at computed-value time and the probe silently reads the *body's* stack — a
+ * real font stack that nothing downstream could tell from a declared one. Asking
+ * the token for its computed value first separates the two: `getPropertyValue`
+ * returns `''` when a custom property has no value, which covers both a token
+ * nothing declares and an empty declaration (`--term-font-family: ;`, which a
+ * `.css` theme may write). A `var()` fallback argument cannot stand in for this
+ * — an empty value is not guaranteed-invalid, so the fallback never fires for it.
+ *
+ * The read is taken off `body`, the same node the probe hangs from, so a theme
+ * that declares the token on `body` rather than `:root` is seen by both; reading
+ * elsewhere would reintroduce the scope split the two channels must agree on
+ * (§3.6).
+ *
+ * Known limit: a value that is present but not a valid `font-family` (e.g.
+ * `0 0% 0%`) still lands on the body's stack, because the browser drops the
+ * declaration rather than reporting it. Recorded rather than guessed at — a
+ * "looks like the body's stack" heuristic would misfire on themes that
+ * deliberately align the terminal font with the UI font.
+ */
+export function readThemedTerminalFontFamily(): string | null {
+  const declared = getComputedStyle(document.body).getPropertyValue('--term-font-family').trim();
+  if (!declared) return null;
+
+  const probe = document.createElement('div');
+  probe.style.display = 'none';
+  probe.style.transition = 'none';
+  probe.style.fontFamily = 'var(--term-font-family)';
+  document.body.appendChild(probe);
+
+  try {
+    return getComputedStyle(probe).fontFamily;
+  } finally {
+    probe.remove();
+  }
+}
+
+/**
+ * The stack xterm should use, given the user's preference.
+ *
+ * `'theme'` means the user has expressed no opinion, so the theme's stack (or
+ * the fallback) wins; a concrete id is the user overriding the theme. The two
+ * never share a variable, which is why no cascade rule is needed here (§3.2).
+ */
+export function resolveTerminalFontFamily(choice: TerminalFontFamilyId): string {
+  if (choice === 'theme') return readThemedTerminalFontFamily() ?? FALLBACK_TERMINAL_FONT_FAMILY;
+  return CODE_FONT_FAMILY_CSS[choice];
 }

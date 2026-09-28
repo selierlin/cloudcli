@@ -31,7 +31,7 @@
 | 主题上下文 | `src/shared/context/ThemeContext.tsx` | light/dark/system、`<html class="dark">`、meta theme-color、跨设备持久化 |
 | 主题切换 UI | `src/shared/ui/ThemeModeSelector.tsx`（挂在外观设置页） | 三选一胶囊，可扩展为多主题选择器 |
 | 语法高亮已令牌化 | `src/shared/syntaxTheme.ts` + `Markdown.tsx:182` | **亮点**：把 Prism 的 oneLight/oneDark 编译成 `--cc-syntax-N`，主题切换只是变量翻转，tokenization 不重跑。0-B 片后由 chat 与编辑器两条 markdown 路径**共用同一单例** |
-| 字体令牌 | `--ui-font-family` / `--ui-font-size` / `--ui-code-font-*`，外观设置页已有 UI | 与主题正交，无需改动 |
+| 字体令牌 | `--ui-font-family` / `--ui-font-size` / `--ui-code-font-*`；**`--term-font-family`**（终端字体，2026-09-28 追加），外观设置页已有 UI | `--ui-font-*` / `--ui-code-font-*` 与主题**正交，无需改动**；但 **`--term-font-family` 属 `--term-*` 令牌家族、与主题相关**——覆盖层主题可自行维护一个值。改判依据与三层优先级（用户设置 ＞ 主题令牌 ＞ 硬编码兜底）见《CloudCLI 终端字体动态配置方案》§3.1 / §4 |
 | 外观设置页 | `src/modules/settings/tabs/AppearanceSettingsTab.tsx` | 主题选择器的天然落点 |
 
 ### 1.2 缺口（撑不起"主题"的原因）
@@ -646,7 +646,7 @@ rg -o -e 'dark:(bg|text|border|ring|stroke|fill|from|to|via|decoration|placehold
 | 既有能力 | 关系 |
 |---|---|
 | `--cc-syntax-N` 变量化 | **继承；本轮不升语义名，只做三件事挡风险**（v3 已决）。现状：编号由"遍历 selector×property 时遇到差异的先后顺序"决定（`src/shared/syntaxTheme.ts:33-75`），源主题增删任一差异属性则其后编号整体重排；评估时消费者实测仅 4 个文件、全在 chat 模块内，但 **0-B 已使其跨出 chat**（chat 的 `Markdown.tsx`、code-editor 的 `MarkdownCodeBlock.tsx` + 3 个测试共用 `src/shared/syntaxTheme.ts`），编号不再只是模块内部实现，故下文三件事由加固升级为**必要**。**0-D 已完成**：**①** 导出 `SYNTAX_TOKEN_MAP` 常量（`{ keywordColor: 3, … }` 形态）把编号与语义绑定一次，内部引用走常量而非手写 `--cc-syntax-3`；**②** 加**黄金映射测试**——现有测试只断言 `var(--cc-syntax-\d+)` 的**形状**（`src/shared/tests/syntaxTheme.test.ts` 的 `assert.match`），未锁住具体映射，Prism 依赖 bump 导致编号重排时测试照绿；因 `buildSyntaxTheme()` 是纯函数，用 **inline snapshot** 固化 `{ style, css }` 即可（快照即对照表、零维护、diff 可读），并叠加"变量总数不变"作第一道信号；**③** 加 **denylist grep 护栏**——生成器与快照之外**禁止任何文件手写 `--cc-syntax-[0-9]` 字面量**，新消费者只允许消费 `style` / `css` 产物或 `SYNTAX_TOKEN_MAP`，CI 命中即红。**语义名草案（本轮定方向不实现）**：以 Prism 语义类别为根（comment / string / keyword / function / number / operator / punctuation / tag / attr-name / constant）、属性作后缀（`-color` / `-style` / `-weight`），如 `--cc-syntax-comment-color`；CodeMirror `HighlightStyle` 的 tag 名向同一套类别对齐，chat 与编辑器共用一套命名，**阶段 2 前一次到位改名**。<br>**0-D 实现偏差（比草案更强）**：`SYNTAX_TOKEN_MAP` 不是手写编号表，而是由 `deriveTokenMap` 从 `buildSyntaxTheme` 的产物**反查派生**——编号一旦因 Prism bump 重排，映射自动跟着走，不会出现"常量表与实际编号不一致"的中间态；找不到槽位时在模块加载期 `throw`，把改名变成构建期失败。黄金对照改用 `collectSyntaxVariables` 的完整"selector.property → 变量"快照 + 变量总数，另把每个语义槽位的 One Dark 色值冻结成表——后者能抓住"两个槽位对调"这类快照看不出的错误。<br>**2-C 补**：用户主题的令牌白名单据此**不授权** `--cc-syntax-*`（族不授权，`var()` 引用的目标也不授权），把"编号未稳定"这条约束挡在白名单之外——见 §5.8 v4 |
-| 字体设置（`--ui-font-*` / `--ui-code-font-*`） | 正交，不动。主题可选择性覆盖，但默认不应覆盖用户字体选择 |
+| 字体设置（`--ui-font-*` / `--ui-code-font-*`） | 正交，不动。主题可选择性覆盖，但默认不应覆盖用户字体选择——**后半句此前一直落不了地**：终端把字形交给 canvas 里的 xterm（字体由 JS 传、不经 CSS），主题**没有任何覆盖字体的入口**，所谓"可选择性覆盖"是句空头承诺。《CloudCLI 终端字体动态配置方案》（2026-09-28）新增 `--term-font-family` 后这半句**第一次真正可被覆盖**，而该方案的**三层优先级**（用户设置 ＞ 主题令牌 ＞ 硬编码兜底）正是"可选择性覆盖、且不覆盖用户选择"的实现——主题能被用户的选择盖过，用户也能用"跟随主题"把决定权交回主题 |
 | `meta[name=theme-color]` | 由主题的 `appearance` 决定。**取值链已闭环（1-C 已实施，`1a9a7b78`）**：`--background` 是 HSL 三元组而 `meta[content]` 只接受具体颜色，原设计为此要求"统一解析函数（HSL→hex、alpha 与背景合并）"——1-C 改用**探针法**（把 `hsl(var(--token))` 交给浏览器解析再回读），浏览器即完成 HSL→hex 这一半，只保留真正必要的 alpha 合成。iOS `apple-mobile-web-app-status-bar-style` 原按明暗二值硬编码写死，现与 theme-color 一起由 `applyThemeChrome(appearance, manifest)` 统一发布；`ThemeManifest` 的两个可选覆盖字段（`themeColor` 取**令牌名**、`statusBar` 取 iOS 关键字）已落地并被断言覆盖 |
 | 跨设备偏好同步 | 沿用现有偏好存储，新增 `themeId` 一个键即可；边界见 §5.6 |
 
@@ -4622,7 +4622,7 @@ Mutation 侧：
 
 **L2 semantic（新增，阶段 0 引入）**
 
-终端（0-C 已落地，L1 对应 `--palette-term-*`，20 个）：`--term-background` `--term-foreground` `--term-cursor` `--term-cursor-accent` `--term-selection-bg` `--term-selection-fg` `--term-ansi-{black,red,green,yellow,blue,magenta,cyan,white}` `--term-ansi-bright-{black,red,green,yellow,blue,magenta,cyan,white}`
+终端（0-C 已落地；L1 对应 **20 个** `--palette-term-*`，下面这行 L2 是 **22 个**）：`--term-background` `--term-foreground` `--term-cursor` `--term-cursor-accent` `--term-selection-bg` `--term-selection-fg` `--term-ansi-{black,red,green,yellow,blue,magenta,cyan,white}` `--term-ansi-bright-{black,red,green,yellow,blue,magenta,cyan,white}`。**`--term-font-family`（v4 追加，2026-09-28）** 是本家族首个**非颜色**成员——终端字体栈（基色层默认 `Menlo, Monaco, "Courier New", monospace`，覆盖层主题可重定义；三层优先级与授权面见《CloudCLI 终端字体动态配置方案》）。该家族由此 **22 颜色 + 1 字体 = 23 个**（另有 4 个语义别名，见下条）
 
 终端语义别名（v2 新增，0-C 已落地）：`--term-error` `--term-success` `--term-warning` `--term-info`。ANSI 色在 CLI 生态里是**语义色而非装饰色**——`git diff`、`ls`、`grep`、`npm` 都靠红=错误 / 删除、绿=成功 / 新增、黄=警告、蓝=信息来传达状态。主题作者若把"红"改蓝，diff 增删将无法区分。开发文档须写明"改 hue 可以，但保持语义对应关系"。（实现注：别名目前无 UI 消费者，属**给主题作者的契约命名**，由 `tests/theme-tokens` 断言其与 `--term-ansi-*` 的映射关系。）
 
@@ -4632,7 +4632,7 @@ Mutation 侧：
 
 兼容档位（0-E1 已落地，13 个）：`--n-gray-50..950` + `--n-white` + `--n-black`，全部 `var(--palette-*)`。这是 **A1 保值层**——**唯一一类不承载语义、只承载"原 Tailwind 档位"的令牌**（见 §5.7 v4）。Tailwind 侧以 `n-gray` / `n-white` / `n-black` 三个键注册，类名为 `bg-n-gray-100`。**`--n-*` 是永久契约面（2026-09-26 拍板，见 §5.7）**：1520 处消费者＋已进用户主题白名单意味着依赖只增不减，"改名后整层删除"是破坏性变更、已排除——改名轮若立项，本层作为改名后的**保留层**继续存在。两个极值直接复用既有 `--palette-white` / `--palette-black`，不另造同值令牌（避免死令牌）。
 
-图表（0-F1 已落地）：`--graph-lane-1..10`（L1 对应 `--palette-graph-1..10`，10 个色值即改造前 `commitGraph.ts` 的 hex 数组，**只在 `:root` 声明**——明暗共用）。消费形态与其它令牌不同：`laneColor` 返回的是**完整颜色表达式** `hsl(var(--graph-lane-N))`（SVG `stroke` / `fill` 与内联 `style` 直接吃），`laneTint` 给 `hsl(var(--graph-lane-N) / calc(34 / 255))`。**§5.12 的参数化回退（`--graph-lane-base-hue` / `--graph-lane-hue-step`）未引入**，见该节 v2
+图表（0-F1 已落地）：`--graph-lane-1..10`（L1 对应 `--palette-graph-1..10`，10 个色值即改造前 `commitGraph.ts` 的 hex 数组，**只在 `:root` 声明**——明暗共用）。消费形态与其它令牌不同：lane ≤ 10 时 `laneColor` 返回**完整颜色表达式** `hsl(var(--graph-lane-N))`（SVG `stroke` / `fill` 与内联 `style` 直接吃），`laneTint` 给 `hsl(var(--graph-lane-N) / calc(34 / 255))`；lane ≥ 11 走 **§5.12 的参数化回退**（**v4 订正：2-J 已引入**，2026-09-26，原文「未引入」是 0-F1 时点的快照）——`--graph-lane-base-hue` / `--graph-lane-hue-step`（出厂默认 `315.3` / `95.1`），由 `commitGraph.ts:30` 生成 `hsl(calc(var(--graph-lane-base-hue) + var(--graph-lane-hue-step) * lane) 70% 55%)`（0 基索引；`laneTint` 再带 ` / calc(34 / 255)`），**前 10 条 lane 的显式令牌路径逐位不变**；两个参数已进选项 A 白名单（`number`，允许小数）。详见该节 v3
 
 状态色（v2 新增，**v3 标注引入时机**）：`--status-success` `--status-warning` `--status-error` `--status-info`——**阶段 0 不引入**。其定义必须与"状态色 `dark:` 类的替换"捆绑为同一个后续片：替换完成前定义它只会产出**无消费者的死令牌**（保留 `dark:` 的组件不读令牌，覆盖 `--status-error` 无任何效果），正是 DSH 在 L1 上指出的同一类覆辙。替换完成前，主题开发文档须写明"状态色暂不受主题控制"。
 
