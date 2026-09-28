@@ -34,8 +34,11 @@
 
 - IntelliJ 形态：jar 内可以有多份 theme JSON，由 `plugin.xml` 的 `themeProvider`
   扩展点注册。**认 JSON 里的 `name` 字段，不认文件名**。
-- 判据：能**自洽描述外观**的那一个是**自足形态**——`parentTheme` 为空（或该字段缺省）、
-  `ui` 键最全的那些。
+- 判据：能**自洽描述外观**的那些是**自足形态**——`parentTheme` 为空（或该字段缺省）、
+  `ui` 键最全。
+- **自足的可能不止一个**（2-P 的 `One Dark` 与 `One Dark Vivid` 都是，`ui` 都是 57 条）。
+  别自己挑：把它们连同各自的 `ui` 键数一并列出，交需求方定——挑哪个是审美决定，
+  不是技术判据。
 - 挂着父主题的变体只表达**增量**：它省掉的键**来自父主题**。照它写，会把**父主题的颜色**
   静默带进来——不是缺色，是错色。
 
@@ -85,9 +88,14 @@
 
 **terminal 16 槽**
 
-- 参照物只发布 8 槽、或**用粗体而非色值区分 bright**（IntelliJ：`FONT_TYPE: 1`）时，
-  bright **必须自己派生**：保色相饱和，按参照物自身 normal→bright 的**步长档位**抬明度。
-  步长取参照物的，不取直觉值。
+- **bright 槽「有值」不等于可照抄**：One Dark 的 `CONSOLE_*_BRIGHT_OUTPUT` 与对应的
+  `CONSOLE_*_OUTPUT` **逐字同值**，差异只靠 `FONT_TYPE: 1`（粗体）表现；中性两槽
+  （black / white 的 bright）在源里**根本不存在**。这两种情况都得自己派生——照抄会得到
+  「十六槽只有八种颜色」。
+- **彩色槽的派生**：保色相与饱和，只抬明度。抬多少取**出厂基色自己** normal→bright 的
+  步长当量级（**不是参照物的**——它的步长恰恰是 0，正因为同值才需要派生），不取直觉值。
+- **中性两槽不走这条规则**（没有可比色相）：回 M5 的老路，去参照物**自己的别处**找——
+  2-P 取的是 `startBorderColor` 与 `selectionForeground`。
 - `CONSOLE_BACKGROUND_KEY` 为**空值**时，读作「用编辑器页画控制台」——取编辑器页色，
   不要另配一个。
 
@@ -96,10 +104,12 @@
 先问参照物：它的「编辑器页」与「窗口 / 面板」是**同色**还是**差一档**？差一档时
 `--editor-bg` 取**面板**那档。
 
-> 事故（2-P）：`one_dark.xml` 用 `FONT_TYPE: 1` 区分 bright ⇒ 8 个 bright 全数派生，
-> 幅度取基色自身 normal→bright 的 +8.4~+13.2；`CONSOLE_BACKGROUND_KEY` 空 ⇒ 取
-> `#282c34`；`--editor-bg` 取 `ink-900` 而非三套姊妹主题惯用的 `ink-950`。
-> 2-O / 2-N 同族，只是各自缺一到两条。
+> 事故（2-P）：`one_dark.xml` 的 bright 与 normal 逐字同值（靠 `FONT_TYPE: 1` 区分）⇒
+> 六个彩色 bright 全数派生，色相饱和不动、明度 **+9 点**，量级取自**出厂基色**自己的
+> normal→bright 步长（+8.4 ~ +13.2）；两个中性 bright 源里没有 ⇒ 取参照物 UI 的
+> `startBorderColor` `#464c55` / `selectionForeground` `#d7dae0`。
+> `CONSOLE_BACKGROUND_KEY` 空 ⇒ 取 `#282c34`；`--editor-bg` 取 `ink-900` 而非三套姊妹主题
+> 惯用的 `ink-950`。2-O / 2-N 同族，只是各自缺一到两条。
 
 ### M4 · `coverage` 取值判据与契约读法
 
