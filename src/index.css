@@ -2037,3 +2037,208 @@
   --editor-toolbar-hover-bg: hsl(var(--palette-ink-800));
   --editor-loading-bg: hsl(var(--palette-ink-950));
 }
+
+/* cc-onedark — "One Dark" as the IntelliJ plugin of that name ships it
+   (`one-dark-theme-6.2.5.jar`, Mark Skelton).
+
+   **Which of the plugin's four themes is read.** It registers four
+   `themeProvider`s: `One Dark` and `One Dark Vivid` are self-contained
+   (`parentTheme: null`, 57 `ui` keys), while `One Dark Islands` and
+   `One Dark Vivid Islands` sit on `parentTheme: "Islands Dark"` and declare
+   only 38 — the ones they omit are *Islands Dark's* colours, not One Dark's, so
+   the self-contained form is the one that answers "what does One Dark's
+   interface look like" and it is what this block reads. The two forms agree on
+   almost every value; they differ mainly in which layer `ToolWindow` and
+   `Popup` are assigned to. Both share the editor scheme `one_dark.xml`.
+
+   **The dark half is the source's own values**: `backgroundColor` #202329 →
+   `ink-950`, `panelColor` #282c34 → `ink-900`, `borderColor` #333841 →
+   `ink-850`, `hoverBackground` #3d424b → `ink-800`, `foregroundColor` #abb2bf →
+   `ink-100`, `accentColor` #568AF2 → `brand-400`. The dark button label needs
+   no deviation: `--primary-foreground` resolves through `ink-950`, and #202329
+   under #568AF2 reads 4.73:1 — the same structural move that makes this model's
+   dark primary a light fill carrying dark text.
+
+   **Three deviations, each forced by §5.10, each staying inside the source's own
+   palette** (the treatment `cc-catppuccin`'s `subtext0` → `subtext1` set):
+
+   - `ink-400` (`--muted-foreground`) is #a0a7b4, the source's
+     `BookmarkMnemonicAvailable.foreground`, not One Dark's comment grey #5c6370:
+     that grey is meant to be read *on* a dark surface and lands at 2.32:1
+     against `ink-900`. Every other grey the source publishes is short of 4.5
+     except the body foreground itself, so this is the nearest legal step rather
+     than a choice among equals.
+   - The light `brand-500` is #4269b9 (`Button.default.focusedBorderColor`)
+     rather than `accentColor`: #568AF2 under a near-white label reads 3.33:1.
+     As in `cc-catppuccin`, the side that fails is the *reference*, not the base.
+   - The light `danger-500` is #cd3359 (`errorForeground`) rather than the red
+     #e06c75, whose near-white label reads 3.05:1. The dark `danger-800` keeps
+     the base's fill for `cc-catppuccin`'s reason: One Dark's reds are pastels
+     meant to be read on a dark surface and reach about 1.5:1 as a fill under
+     `ink-100`.
+
+   **The light half is invented, because the source has no light flavour at all**
+   — all four of its themes declare `dark: true`. It keeps the source's hue and
+   saturation (220°, ~13%, the cool blue-grey of #202329 and #282c34) and
+   re-solves lightness against a light substrate, which is the same constraint
+   Atom's One Light answers; the two agree on hue, so nothing foreign is
+   introduced. Its three text steps are the source's own greys, which *are*
+   legible the other way round: #202329 as `--foreground` (15.74:1 on white),
+   #5c6370 as `--muted-foreground` (6.05:1), #3d424b as the two secondary steps.
+   The light substrate's own levels (96 / 92 / 87%) are the base's, since the
+   source states none.
+
+   **The dark editor is where this theme differs from its siblings.** The base's
+   dark editor is *already* One Dark — #282c34 page, #abb2bf foreground, #528bff
+   caret, #21252b panel — so these values largely repeat the base's on purpose.
+   What moves is that the literals now resolve through the theme's own L1
+   (`ink-900` / `ink-100` / `ink-850`), so the editor follows the substrate
+   instead of standing beside it. `--editor-bg` therefore reads `ink-900` — One
+   Dark's editor page *is* its panel colour, one step above its window — where
+   every other overlay takes `ink-950`.
+
+   **Terminal.** `one_dark.xml` publishes the full ANSI board
+   (`CONSOLE_RED_OUTPUT` and friends) plus `CARET_COLOR` #528bff. Its
+   `CONSOLE_BACKGROUND_KEY` is empty, so the IDE paints the console with the
+   editor's own page, and #282c34 is what One Dark's terminal actually shows.
+   The eight normal slots are the source's values verbatim; the eight `bright-*`
+   ones are derived, because One Dark separates them with `FONT_TYPE: 1` (bold)
+   rather than with a colour and this board is sixteen independent values. Each
+   keeps its hue and saturation and steps nine points of lightness — the
+   magnitude the base's own normal→bright steps use (+8.4 to +13.2).
+
+   **Graph lanes**: the same ten hues in the same order, saturation levelled at
+   60% (within the range of One Dark's syntax colours), lightness the point that
+   maximises the *worse* of the two substrates, which puts every lane at 3.76:1
+   or better on both.
+
+   `--palette-white`, the `gray` / `zinc` / `slate` / `neutral` compatibility
+   ramps and `--n-white` / `--n-black` are left alone for the reasons the base
+   records and `theme-overlays.spec.ts` enforces. */
+[data-theme="cc-onedark"] {
+  /* Substrate — light: invented (see above). Text steps are the source's own
+     greys, read against a light substrate. */
+  --palette-sand-50: 220 13% 96%;
+  --palette-sand-100: 220 13% 92%;
+  --palette-sand-200: 220 13% 87%;
+  --palette-sand-500: 219 9.8% 40%;
+  --palette-sand-800: 218.57 10.29% 26.67%;
+  --palette-sand-950: 220 12.33% 14.31%;
+
+  /* Substrate — dark: `backgroundColor` / `panelColor` / `borderColor` /
+     `hoverBackground` / `BookmarkMnemonicAvailable.foreground` /
+     `foregroundColor`. */
+  --palette-ink-950: 220 12.33% 14.31%;
+  --palette-ink-900: 220 13.04% 18.04%;
+  --palette-ink-850: 218.57 12.07% 22.75%;
+  --palette-ink-800: 218.57 10.29% 26.67%;
+  --palette-ink-400: 219 11.76% 66.67%;
+  --palette-ink-100: 219 13.51% 70.98%;
+
+  /* Accent: the dark step is `accentColor` itself, the light step
+     `Button.default.focusedBorderColor` (see the second deviation). */
+  --palette-brand-500: 220.34 47.41% 49.22%;
+  --palette-brand-400: 220 85.71% 64.31%;
+
+  /* Danger: `errorForeground` is the light fill (third deviation); the dark
+     fill stays the base's. */
+  --palette-danger-500: 345.19 60.63% 50.2%;
+
+  /* Terminal board — `one_dark.xml`'s ANSI-16 verbatim in the normal half, the
+     `bright-*` half derived (see above). `CONSOLE_BACKGROUND_KEY` is empty in
+     the source, so the board takes the page the IDE actually paints it with. */
+  --palette-term-bg: 220 13.04% 18.04%;
+  --palette-term-fg: 219 13.51% 70.98%;
+  --palette-term-cursor: 220.23 100% 66.08%;
+  --palette-term-selection: 220.8 16.34% 30%;
+  --palette-term-black: 0 0% 0%;
+  --palette-term-red: 355.34 65.17% 65.1%;
+  --palette-term-green: 94.86 38.14% 61.96%;
+  --palette-term-yellow: 39.06 67.09% 69.02%;
+  --palette-term-blue: 207.04 81.61% 65.88%;
+  --palette-term-magenta: 286.34 59.76% 66.86%;
+  --palette-term-cyan: 186.67 46.96% 54.9%;
+  --palette-term-white: 219 13.51% 70.98%;
+  --palette-term-bright-black: 216 9.68% 30.39%;
+  --palette-term-bright-red: 355.34 65.17% 74.1%;
+  --palette-term-bright-green: 94.86 38.14% 70.96%;
+  --palette-term-bright-yellow: 39.06 67.09% 78.02%;
+  --palette-term-bright-blue: 207.04 81.61% 74.88%;
+  --palette-term-bright-magenta: 286.34 59.76% 75.86%;
+  --palette-term-bright-cyan: 186.67 46.96% 63.9%;
+  --palette-term-bright-white: 220 12.68% 86.08%;
+
+  /* Graph lanes — the method `cc-islands`' lanes use. */
+  --palette-graph-1: 198.6 60% 42.4%;
+  --palette-graph-2: 24.6 60% 45.3%;
+  --palette-graph-3: 270.7 60% 60.9%;
+  --palette-graph-4: 142.1 60% 34.9%;
+  --palette-graph-5: 0 60% 57%;
+  --palette-graph-6: 45.4 60% 36.4%;
+  --palette-graph-7: 173.4 60% 34%;
+  --palette-graph-8: 330.4 60% 55.3%;
+  --palette-graph-9: 238.7 60% 64.5%;
+  --palette-graph-10: 83.7 60% 33.3%;
+}
+
+/* The editor's two halves, split the way the other overlays' are and for the same
+   reason: its base values are appearance-specific literals rather than L1
+   references, so a single block would leak light chrome into dark mode. */
+[data-theme="cc-onedark"]:not(.dark) {
+  --editor-bg: hsl(var(--palette-sand-50));
+  --editor-toolbar-bg: hsl(var(--palette-sand-50));
+  --editor-loading-bg: hsl(var(--palette-sand-50));
+  --editor-selection: hsl(var(--palette-sand-200));
+  --editor-selection-focused: hsl(var(--palette-brand-500) / 0.22);
+  --editor-gutter-bg: hsl(var(--palette-sand-50));
+  --editor-gutter-fg: hsl(var(--palette-sand-500));
+  --editor-gutter-separator: 1px solid hsl(var(--palette-sand-200));
+  --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.14);
+  --editor-active-line-gutter-bg: hsl(var(--palette-sand-100));
+  --editor-panel-bg: hsl(var(--palette-sand-100));
+  --editor-panel-border: 1px solid hsl(var(--palette-sand-200));
+  --editor-fold-placeholder-bg: hsl(var(--palette-sand-100));
+  --editor-fold-placeholder-fg: hsl(var(--palette-sand-500));
+  --editor-tooltip-bg: hsl(var(--palette-sand-100));
+  --editor-tooltip-border: 1px solid hsl(var(--palette-sand-200));
+  --editor-tooltip-arrow-border: hsl(var(--palette-sand-200));
+  --editor-tooltip-arrow: hsl(var(--palette-sand-100));
+  --editor-autocomplete-selected-bg: hsl(var(--palette-brand-500));
+  --editor-minimap-bg: hsl(var(--palette-sand-100));
+  --editor-toolbar-border: hsl(var(--palette-sand-200));
+  --editor-toolbar-fg: hsl(var(--palette-sand-800));
+  --editor-toolbar-hover-bg: hsl(var(--palette-sand-100));
+}
+
+[data-theme="cc-onedark"].dark {
+  /* `ink-900`, not the `ink-950` the other overlays take — One Dark's editor page
+     is its panel colour, one step above its window (see the note above). */
+  --editor-bg: hsl(var(--palette-ink-900));
+  --editor-fg: hsl(var(--palette-ink-100));
+  --editor-caret: hsl(var(--palette-brand-400));
+  --editor-cursor: hsl(var(--palette-brand-400));
+  --editor-selection: hsl(var(--palette-ink-850));
+  --editor-selection-focused: hsl(var(--palette-ink-850));
+  --editor-gutter-bg: hsl(var(--palette-ink-900));
+  --editor-gutter-fg: hsl(var(--palette-ink-400));
+  --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.06);
+  --editor-active-line-gutter-bg: hsl(var(--palette-ink-850));
+  --editor-panel-bg: hsl(var(--palette-ink-850));
+  --editor-panel-fg: hsl(var(--palette-ink-100));
+  --editor-search-match-bg: hsl(var(--palette-brand-400) / 0.35);
+  --editor-search-match-outline: 1px solid hsl(var(--palette-brand-400));
+  --editor-search-match-selected-bg: hsl(var(--palette-brand-400) / 0.18);
+  --editor-matching-bracket-bg: hsl(var(--palette-brand-400) / 0.28);
+  --editor-nonmatching-bracket-bg: hsl(var(--palette-danger-500) / 0.28);
+  --editor-fold-placeholder-fg: hsl(var(--palette-ink-400));
+  --editor-tooltip-bg: hsl(var(--palette-ink-850));
+  --editor-tooltip-arrow: hsl(var(--palette-ink-850));
+  --editor-autocomplete-selected-bg: hsl(var(--palette-ink-850));
+  --editor-autocomplete-selected-fg: hsl(var(--palette-ink-100));
+  --editor-minimap-bg: hsl(var(--palette-ink-900));
+  --editor-toolbar-bg: hsl(var(--palette-ink-850));
+  --editor-toolbar-border: hsl(var(--palette-ink-800));
+  --editor-toolbar-fg: hsl(var(--palette-ink-100));
+  --editor-toolbar-hover-bg: hsl(var(--palette-ink-800));
+  --editor-loading-bg: hsl(var(--palette-ink-900));
+}
