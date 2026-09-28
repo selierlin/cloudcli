@@ -58,6 +58,11 @@ export default function ExecutionProcessSummary({
   // identity as a live run grows. This state turns sticky positioning off once
   // the inert end marker reaches the panel top, limiting it to the process.
   const [isSticky, setIsSticky] = useState(!collapsed);
+  // Inline `top` while the stuck title must sit below a higher sticky band
+  // (the user-message section header, the background-tasks strip) instead of
+  // hiding underneath it. Null leaves the shared pin class in charge, which is
+  // exactly the pre-band pin, so the no-band case keeps its current behavior.
+  const [bandOffsetTop, setBandOffsetTop] = useState<number | null>(null);
 
   useLayoutEffect(() => {
     if (collapsed) {
@@ -76,14 +81,54 @@ export default function ExecutionProcessSummary({
       return;
     }
 
+    // Sticky bands pinned above the transcript that a stuck title must stack
+    // below instead of hiding underneath. The user-message header only counts
+    // while actually visible (`data-pinned` drops while it bridges out for an
+    // arriving message); the tasks strip keeps zero height while nothing runs,
+    // which self-guards it.
+    const readBandRects = () => {
+      const rects: { top: number; bottom: number }[] = [];
+      for (const selector of ['[data-user-sticky-header][data-pinned]', '[data-background-tasks-band]']) {
+        const band = scrollContainer.querySelector<HTMLElement>(selector);
+        if (!band) continue;
+        const bandRect = band.getBoundingClientRect();
+        if (bandRect.height > 0) rects.push({ top: bandRect.top, bottom: bandRect.bottom });
+      }
+      // Ascending order: a band only pushes the title below itself, so a lower
+      // band must be judged against the already-pushed position.
+      return rects.sort((a, b) => a.top - b.top);
+    };
+
     const updateSticky = () => {
       const panelRect = scrollContainer.getBoundingClientRect();
       const buttonRect = button.getBoundingClientRect();
       const endRect = endMarker.getBoundingClientRect();
-      const buttonAtOrAbovePanel = buttonRect.top <= panelRect.top;
-      const tailClearsPin = endRect.top > panelRect.top + buttonRect.height;
-      const tailClearsPlusMargin = endRect.top > panelRect.top + buttonRect.height + STICKY_REENGAGE_MARGIN;
 
+      // Where the title's top pins: the panel top, pushed below every band that
+      // overlaps the title's candidate zone. A band the panel-top title cannot
+      // reach (the tasks strip without the section header) leaves the pin
+      // exactly where it sits today.
+      let pinTop = panelRect.top;
+      for (const band of readBandRects()) {
+        if (band.top < pinTop + buttonRect.height && band.bottom > pinTop) {
+          pinTop = band.bottom;
+        }
+      }
+
+      const buttonAtOrAbovePanel = buttonRect.top <= panelRect.top;
+      const tailClearsPin = endRect.top > pinTop + buttonRect.height;
+      const tailClearsPlusMargin = endRect.top > pinTop + buttonRect.height + STICKY_REENGAGE_MARGIN;
+
+      // The class pin (-top-3/sm:-top-4) cancels the pane's pt-3/sm:pt-4
+      // padding; re-derive that cancellation from the live padding so the
+      // stacked top lands flush under the band at either breakpoint. jsdom
+      // resolves no stylesheet padding, so fall back to the mobile value there.
+      const panePaddingTop = parseFloat(getComputedStyle(scrollContainer).paddingTop);
+      const nextBandOffsetTop = pinTop > panelRect.top
+        ? pinTop - panelRect.top - (Number.isFinite(panePaddingTop) ? panePaddingTop : 12)
+        : null;
+
+      setBandOffsetTop((current) => (current === nextBandOffsetTop ? current : nextBandOffsetTop));
       setIsSticky((current) => {
         if (current) {
           // Stuck: stay pinned until the process tail reaches the pinned title.
@@ -102,12 +147,26 @@ export default function ExecutionProcessSummary({
       : new ResizeObserver(updateSticky);
     resizeObserver?.observe(button);
     resizeObserver?.observe(endMarker);
+    // A band can appear or leave without any scroll: a background task starts
+    // or finishes and the strip slot grows from zero, so watch its size too.
+    const tasksBand = scrollContainer.querySelector<HTMLElement>('[data-background-tasks-band]');
+    if (tasksBand) {
+      resizeObserver?.observe(tasksBand);
+    }
+    // The section header's visibility flips from React state while its slot
+    // and size deliberately stay put, so only its `data-pinned` attribute
+    // changes — watch that and re-run the pin computation without a scroll.
+    const headerPinnedObserver = typeof MutationObserver === 'undefined'
+      ? undefined
+      : new MutationObserver(updateSticky);
+    headerPinnedObserver?.observe(scrollContainer, { subtree: true, attributeFilter: ['data-pinned'] });
     updateSticky();
 
     return () => {
       scrollContainer.removeEventListener('scroll', updateSticky);
       window.removeEventListener('resize', updateSticky);
       resizeObserver?.disconnect();
+      headerPinnedObserver?.disconnect();
     };
   }, [collapsed, processEndKey]);
   const providerLabel = getChatProviderLabel(provider, t);
@@ -148,6 +207,7 @@ export default function ExecutionProcessSummary({
       <button
         ref={buttonRef}
         type="button"
+        style={bandOffsetTop != null ? { top: `${bandOffsetTop}px` } : undefined}
         className={`group flex min-h-7 w-full items-center gap-1.5 rounded-md px-1.5 text-left text-xs font-medium text-n-gray-500 transition-colors hover:bg-n-gray-100 hover:text-n-gray-700 dark:text-n-gray-400 dark:hover:bg-n-gray-800 dark:hover:text-n-gray-200 ${!collapsed && isSticky ? 'sticky -top-3 sm:-top-4 z-10 bg-background/95 backdrop-blur-sm' : ''}`}
         aria-expanded={!collapsed}
         onClick={onToggle}

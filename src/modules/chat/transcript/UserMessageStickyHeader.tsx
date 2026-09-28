@@ -134,6 +134,12 @@ export default function UserMessageStickyHeader({
       onClick={handleJump}
       title="回到这条提问"
       tabIndex={isBridging ? -1 : undefined}
+      // Band markers for ExecutionProcessSummary: while visibly pinned, this
+      // header is a band the process title must stack below. `data-pinned`
+      // drops while bridging (the real row is taking over) so the title
+      // returns to the panel top for the arriving message.
+      data-user-sticky-header
+      data-pinned={isBridging ? undefined : 'true'}
       className={`mb-2 flex w-full items-center gap-2 rounded-lg border border-n-gray-200 bg-n-white/95 px-3 py-2 text-left shadow-sm backdrop-blur-sm transition-colors hover:bg-n-gray-100 dark:border-n-gray-700 dark:bg-n-gray-800/95 dark:hover:bg-n-gray-800 ${pinClass} ${bridgedClass}`}
     >
       <CornerDownLeft aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-n-gray-400 dark:text-n-gray-500" />
