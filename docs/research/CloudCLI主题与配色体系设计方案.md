@@ -203,6 +203,8 @@ L2 是**主题契约面**：约定一组令牌即构成一个可换肤的完整�
 
 > **v11（2-O 已实施）——预制主题增至四套；`full` 覆盖层第一次动到"标签色"这一档 L1。** 新增 `cc-islands`（`appearance: system`、`source: builtin`、`coverage: full`），即 IntelliJ IDEA 的 Islands Dark / Islands Light。它与 2-N 的形态差别值得记下：Codex **没有**外壳色板（只有语法主题），所以 2-N 是"借"；Islands 随包发行一整套 329/330 条的分层色板（`layer-0/1/2` ＋ `text-*` ＋ `accent-*`），所以本片是"**译**"——`ui` 的默认键 `*` 把背景绑在 `tool-window-bg`（= `layer-0-bg`）上，这一条就定下了 `--background` 的落点。取值上第一次出现"**参照物的顶层在 cloudcli 里不可移动**"：Islands Light 的编辑器/弹窗页是纯白，而纯白即 `--palette-white`（被 `--n-white` 共用、属 `fixed` 组），且 `MUST_MOVE.full` 又要求 `--editor-bg` 必须动 —— 两条约束不可能同时成立，取后者（照 `cc-polar` / `cc-catppuccin` 的先例，编辑器页取基材色）。另有一处**新形态的 L1 移动**：`--palette-frost-50`（`--primary-foreground` / `--destructive-foreground` 唯一的来源）第一次被主题改动 —— 理由不是审美而是 §5.11 的硬约束，Islands 的按钮蓝 `#3871E1` 配出厂那档偏白标签只有 4.34:1。详见 §6 阶段 2 的 2-O 记录，其中还如实记了一处**既有护栏的覆盖面缺口**（浅色半整块没写 `:not(.dark)` 的主题会被泄漏守卫整体跳过）。
 
+> **v12（2-P 已实施）——预制主题增至五套；第一次遇到「参照物只有暗色」的主题，浅色半边须自造。** 新增 `cc-onedark`（`appearance: system`、`source: builtin`、`coverage: full`），即 IntelliJ IDEA 的 One Dark Theme 插件（`one-dark-theme-6.2.5.jar`）。它构成本线的第三种来源形态：2-N 的 Codex **没有**外壳色板（"借"），2-O 的 Islands **自带**完整色板（"译"），而 One Dark **自带完整色板但只有暗色** —— 插件注册的四个 `themeProvider` 全部 `dark: true`，没有任何浅色 flavour。于是本片第一次需要**自造浅色半边**：保持参照物的色相与饱和（220°、~13%，即 `#202329` / `#282c34` 的冷蓝灰），按浅底重解明度，文字三档直接复用其自有灰阶（`#202329` 作正文、`#5c6370` 作次级文字 —— 后者在浅底上是 6.05:1，恰好达标）。另有一处与 2-O 相反却同源的事实：**cloudcli 出厂的暗色编辑器本来就是 One Dark 的色板**（`#282c34` / `#abb2bf` / `#528bff` / `#21252b`），所以本主题暗色编辑器块的渲染值大半与出厂相同，真正移动的是"字面值改为引用主题自己的 L1"。三处 §5.10 偏离（次级文字提档 / 浅色强调取 `Button.default.focusedBorderColor` / 浅色危险色取 `errorForeground`）均取参照物自己的另一档，与 2-N 的 `subtext0` → `subtext1` 同族。详见 §6 阶段 2 的 2-P 记录。
+
 ### 5.2 主题选择器：`data-theme` 与 `.dark` 双轨共存
 
 现状 `<html class="dark">` 需要保留（Tailwind `darkMode: ["class"]`、大量 `dark:` 原子类依赖它）。方案：
@@ -3945,6 +3947,7 @@ Mutation 侧：
 | 2-M | 令牌预览页（§6 阶段 1 的"可选随附功能"，主题线最后一笔未做项） | ✅ 已实施，见下方记录 |
 | 2-N | 预制主题 `cc-catppuccin`：Codex TUI 的默认色板（暗 = Mocha、浅 = Latte），清账后由用户新需求驱动的增量 | ✅ 已实施，见下方记录 |
 | 2-O | 预制主题 `cc-islands`：IntelliJ IDEA 的 Islands Dark / Islands Light（IDE 当前默认外观），清账后由用户新需求驱动的增量 | ✅ 已实施，见下方记录 |
+| 2-P | 预制主题 `cc-onedark`：IntelliJ IDEA 的 One Dark Theme 插件（`one-dark-theme-6.2.5.jar`），2-O 之后由用户新需求驱动的增量；本线第一套"参照物只有暗色、浅色半边需自造"的主题 | ✅ 已实施，见下方记录 |
 
 **为什么 2-G 接着做（本片开工时的范围裁定）**：2-F1 的记录把这条挂成"待 2-G"时只写了一句话，本片开工第一件事是把它读全——§5.10 的原文是"选项 A 的令牌校验器附带**非阻断**对比度警告"，**主语是校验器、不是界面**。读全之后有两点变了：① 2-C 落地校验器时只做了形状，"非阻断警告"这一半**一次都没做过**（不是"做得不够"），所以本片不是补丁而是首做；② 2-F1 记的"`var()` 可链 ⇒ 编译期算不出"这条理由**只否掉了"把警告做成阻断式的预检"**（含"算不准就别做"），并**不否掉**这件事本身能做成一个诚实的、有明确射程的警告——把"算不出"读成"做不了"会把它永久搁置。故本片把射程划清（见 §5.10 v2：基准＝出厂基色、三处不判、沉默不是通过）后照做，**没有改判 2-F1 的范围裁定**（它说的"不可与粘贴线同片落地"依然成立，本片独立成片正是那个裁定的结果）。**2-H 不阻塞**：编辑器控件与"警告是否可达"无关。
 
@@ -4604,6 +4607,74 @@ Mutation 侧：
 **门槛**：`lint` **153 warnings / 0 errors**（无新增）；`typecheck` ＋ `typecheck:theme-tokens` 均 exit 0；`test:client` **147 文件 / 1230 用例全过**（未变——选择器与注册表测试都是遍历式，新增主题不增用例）；`theme-tokens` **128 passed / 0 failed**；`build` exit 0；`npm test` **1029 / 1004 通过 / 24 失败 / 1 跳过**，而 `git diff HEAD -- server/` **= 0 行**且 `git status --short -- server/` 为空、服务端测试无一读取 `src/` 或 `dist/` ⇒ **红集不可能因本片改变**（比 stash A/B 更硬）。本次失败名集仍是既有那批（Codex 目录 / Claude 路径解析 / WorkBuddy 引擎 / OpenCode / DSH 权限），条数 24 高于 2-N 记的 20，属该基线自身的漂移。
 
 **与既有账的关系**：**出厂状态无视觉变更**（新增主题只在用户主动选中时生效）；`--palette-white`、`gray`/`zinc`/`slate`/`neutral` 兼容斜坡、`--n-*` 一律未动。**待拍板清单仍为空**；新增两笔可做未做账（都不阻塞、也无人要求）：① 上述泄漏守卫的覆盖面缺口（属改护栏）；② `.icls` 编辑器**语法**配色不在任何覆盖层可达范围内（§8.9 的既有边界，Islands 的 editor scheme 里另有 30 余条语法色本片未接线）。没有自动顺延的下一片。
+
+#### 2-P 实施记录（2026-09-28）
+
+**范围**：新增第五套预制主题 `cc-onedark`。来源同 2-N / 2-O，也是用户的新要求——"IntelliJ IDEA 中我刚刚安装了一个新的主题：One Dark Theme，你先帮我看看里面有什么主题内容…参考并给我的 cloudcli 定制下"。清账后主题线无待拍板、无待办，故同样是用户驱动的新增量，切片表顺延编号。
+
+**开工第一件事是看清"参照物有几个"** —— 本片与 2-O 的第一处不同。插件是用户自己装的（`~/Library/Application Support/JetBrains/IntelliJIdea2026.2/plugins/one-dark-theme/lib/one-dark-theme-6.2.5.jar`，28 KB 一个 jar），`plugin.xml` 一次注册了**四个** `themeProvider`：
+
+| 名称 | 父主题 | `ui` 条数 | `editorScheme` |
+|---|---|---|---|
+| `One Dark` | 无（自足） | 57 | `one_dark.xml` |
+| `One Dark Vivid` | 无（自足） | 57 | `one_dark_vivid.xml` |
+| `One Dark Islands` | `Islands Dark` | 38 | `one_dark.xml` |
+| `One Dark Vivid Islands` | `Islands Dark` | 38 | `one_dark_vivid.xml` |
+
+**只有前两个是自足的**：Islands 形态省掉的那 19 条 `ui` 不是 One Dark 的颜色、而是 Islands Dark 的。cloudcli 的覆盖层叠在**出厂 sand/ink 基色**上（不是叠在 `cc-islands` 上），"增量"语义在这里本来就不成立，故取自足形态；两形态的色值几乎一致（差别只在 `ToolWindow` / `Popup` 归哪一层）。参照源经用户拍板定为 `One Dark`（标准色，非 Vivid）、名称定为「暗夜一号」；用户同时拍板"只做一套"与"浅色半边自造、尽量保持 One Dark 风格"。
+
+**暗色半边取原值**：`ui` 的默认键 `*` 把背景绑在 `backgroundColor` 上，落点由此顺推：
+
+| cloudcli L1 落点 | One Dark 令牌 | 值 |
+|---|---|---|
+| `--background` ← `ink-950` | `backgroundColor` | `#202329` |
+| `--card` / `--popover` ← `ink-900` | `panelColor` | `#282c34` |
+| `--muted` / `--secondary` / `--accent` / `--border` ← `ink-850` | `borderColor` | `#333841` |
+| `--input` ← `ink-800` | `hoverBackground` | `#3d424b` |
+| `--muted-foreground` ← `ink-400` | `BookmarkMnemonicAvailable.foreground`（偏离 1） | `#a0a7b4` |
+| `--foreground` ← `ink-100` | `foregroundColor` | `#abb2bf` |
+| `--primary` / `--ring`（暗） ← `brand-400` | `accentColor` | `#568AF2` |
+
+暗色的按钮标签**不需要偏离**：`--primary-foreground` 走 `ink-950`，`#202329` 压在 `#568AF2` 上读 **4.73:1** —— 与基色暗色的"亮填充 + 深字"是同一个结构性巧合（One Dark 自己用白字，只有 3.33:1，反而要改的是它）。
+
+**三处偏离，都取参照物自己的另一档**（与 2-N 的 `subtext0` → `subtext1` 同族；都写进了 CSS 注释）：
+
+1. `ink-400` 取 `#a0a7b4`（`BookmarkMnemonicAvailable.foreground`）而非注释灰 `#5c6370`：后者是"在暗底上读"的色，压在 `ink-900` 上只有 **2.32:1**。One Dark 灰阶里除正文色自己外没有别的档能过 4.5（`#7e8491` 4.20 / 3.73、`#a0a7b4` 6.51 / 5.79），所以这是"最近的一档"而非"同等候选里挑一个"。
+2. 浅色 `brand-500` 取 `#4269b9`（`Button.default.focusedBorderColor`）而非 `accentColor`：`#568AF2` 配近白标签只有 **3.33:1**。与 2-N 一样，**不达标的是参照物自己、不是基色**。
+3. 浅色 `danger-500` 取 `#cd3359`（`errorForeground`）而非红 `#e06c75`（配近白 3.05:1）；暗色 `danger-800` 保留基色填充，理由同 2-N —— One Dark 的红是"在暗底上读"的粉彩，作填充配 `ink-100` 只有约 **1.5:1**。
+
+**浅色半边是自造的 —— 本片第一次**。参照物四套主题**全部** `dark: true`，没有任何浅色 flavour。做法：保持它的色相与饱和（220°、~13%，即 `#202329` / `#282c34` 的冷蓝灰），按浅底重解明度；**文字三档直接用它自己的灰阶**，因为它们在浅底上恰好合法 —— `#202329` 作 `--foreground`（白卡上 15.74:1）、`#5c6370` 作 `--muted-foreground`（6.05:1）、`#3d424b` 作两档次级正文。浅底自己那三档（96 / 92 / 87%）沿用基色的明度骨架，因为参照物没有给出。这与 Atom 的 One Light 是同一条约束、同一个色相（One Light 本就是同一作者把同一套色相按浅底重解的结果），所以没有引入任何外来色。
+
+**暗色编辑器：一处与 2-O 相反却同源的事实**。cloudcli **出厂的暗色编辑器本来就是 One Dark 的板** —— `.dark` 里写着 `--editor-bg: #282c34`、`--editor-fg: #abb2bf`、`--editor-caret: #528bff`、`--editor-panel-bg: #21252b`。所以本主题暗色编辑器块的**渲染值大半与出厂相同**，真正移动的是"字面值改为引用主题自己的 L1"（`ink-900` / `ink-100` / `ink-850`），编辑器由此跟随基材而非站在旁边。`--editor-bg` 因此读 `ink-900`（One Dark 的编辑器页**就是**它的面板色、比窗口高一档），而其余覆盖层取 `ink-950` —— 这是本片与三套姊妹主题唯一的结构性差异。
+
+**终端板**：`one_dark.xml` 发布了完整 ANSI 板（`CONSOLE_RED_OUTPUT` 等）＋ `CARET_COLOR` `#528bff`；`CONSOLE_BACKGROUND_KEY` 在源里是**空的**，IDE 因此用编辑器页画控制台，`#282c34` 才是 One Dark 终端真实的底色。普通八槽取原值，**八个 `bright-*` 是派生的** —— One Dark 用 `FONT_TYPE: 1`（粗体）而不是色值区分它们，而本板是十六个独立值；每个保持色相与饱和、明度 +9 点，量级取自基色自己的 normal→bright 步长（+8.4 ~ +13.2）。board 声明一次、两态都用暗版（用户拍板沿用 2-O 先例）。
+
+**graph lane** 沿用 2-N / 2-O 的方法：十色相与顺序照旧，饱和度统一 60%（在 One Dark 语法色的量级内），明度取"两底较差者最大"—— 每条在 `#F3F4F6` 与 `#202329` 上都不低于 **3.76:1**。
+
+**证据**（全部本片实测）：
+
+| 手段 | 结果 |
+|---|---|
+| 对比度（真引擎，两引擎同值） | 浅 `fg/bg 14.31`、`fg/card 15.74`、`muted-fg/bg 5.49`、`muted-fg/card 6.05`、`label/primary 5.08`、`ring/bg 4.83`；暗 `7.39 / 6.57 / 6.51 / 5.79 / 4.73 / 4.73` —— **6 配对 × 2 态全过**，最低 4.73 |
+| 28 个 hex → HSL 三元组 | **逐个精确往返**（取整 8 位通道后与原 hex 逐字节相同） |
+| `theme-tokens` A/B | 无本片改动 **128 passed** → 有本片改动 **132 passed**，**恰 +4** = 两个 spec 各 ＋1 用例 × 2 引擎，与 2-O 记下的形态逐位吻合 |
+| 产物核对 | 三块规则（裸 / `:not(.dark)` / `.dark`）均入包、L1 块 45 条声明、8 个关键值逐个命中、全表零 `@layer`、`--palette-danger-800` 未被误写 |
+
+**反向验证（5 组变异，全部按预期报红，各恰 2 红 = 两引擎）**：
+
+| 变异 | 结果 |
+|---|---|
+| M1 浅色 `brand-500` 换回 `accentColor` | **恰 2 红**（`contrast.spec.ts`）：`light --primary-foreground on --primary: 3.18:1 < 4.5:1` —— 与预算的 3.33 同量级（差异来自真引擎按 8 位通道取整后的实测值） |
+| M2 `ink-400` 换回注释灰 `#5c6370` | **恰 2 红**：`dark --muted-foreground on --background: 2.60:1` ／ `on --card: 2.32:1` —— 与预算逐位相同 |
+| M3 删掉浅色编辑器块 | **恰 2 红**（`theme-overlays.spec.ts`）：`cc-onedark claims coverage "full" but left these unchanged in light: --editor-bg …` |
+| M4 浅色块写成 `:not(.dark), [data-theme="cc-onedark"]` | **恰 2 红**，命中"该主题的泄漏检查覆盖不到任何东西"那条反空转断言 |
+| M5 动固定档 `--palette-gray-100` | **恰 2 红**：`moved surfaces it does not advertise: --n-gray-100` |
+
+（M5 第一次跑是"全绿"，成因是**夹具把变异吃掉了** —— 我填的值与基色完全相同（都是 Tailwind 的 `220 14.3% 95.9%`），声明虽在、值未变；换一个真不同的值后即报红。这与 §8 反向验证清单里"夹具先把非法值吃掉"同族，记在此处备查。）
+
+**门槛**：`lint` **153 warnings / 0 errors**（无新增）；`typecheck` ＋ `typecheck:theme-tokens` 均 exit 0；`build` exit 0；`test:client` **1230 全过**（未变 —— 注册表与选择器测试都是遍历式）；`theme-tokens` **132 passed / 0 failed**；`npm test` **1029 / 1008 通过 / 20 失败 / 1 跳过**，而 `git diff HEAD -- server/` **= 0 行**且 `git status --short -- server/` 为空 ⇒ **红集不可能因本片改变**（比 stash A/B 更硬）。失败名集仍是既有那批（Codex 目录 / Claude 路径解析 / WorkBuddy 引擎 / OpenCode / DSH 权限），条数 20 落在该基线自身已知的 20~24 漂移区。
+
+**与既有账的关系**：**出厂状态无视觉变更**（新增主题只在用户主动选中时生效）；`--palette-white`、`gray` / `zinc` / `slate` / `neutral` 兼容斜坡、`--n-*` 一律未动。**待拍板清单仍为空**。2-O 记下的两笔可做未做账（泄漏守卫的覆盖面缺口、编辑器语法色未接线）**状态不变**，本片同样未动它们 —— 后者对本主题尤其明显：`one_dark.xml` 有 497 条语法属性，本片一条未接（§8.9 的既有边界）。没有自动顺延的下一片。
 
 ---
 
