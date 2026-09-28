@@ -16,12 +16,16 @@ type OpenCodeCredentialsStatus = {
 };
 
 const OPENCODE_ENV_CREDENTIAL_KEYS = [
+  'OPENCODE_API_KEY',
   'ANTHROPIC_API_KEY',
   'OPENAI_API_KEY',
   'GOOGLE_GENERATIVE_AI_API_KEY',
   'GROQ_API_KEY',
   'OPENROUTER_API_KEY',
 ];
+
+/** Global OpenCode config files, in the order the CLI loads them. */
+const OPENCODE_CONFIG_FILES = ['config.json', 'opencode.json', 'opencode.jsonc'];
 
 export class OpenCodeProviderAuth implements IProviderAuth {
   /**
@@ -91,6 +95,24 @@ export class OpenCodeProviderAuth implements IProviderAuth {
       }
     }
 
+    // A provider declared with options in OpenCode's own global config is
+    // connected without an auth-store entry: its `apiKey` may even be a
+    // `{file:...}` reference, which is how dotfiles-managed installs keep the
+    // key out of the repo. `opencode-models.provider.ts` already reads these
+    // same files (in this same load order) to decide which models the picker
+    // may offer, so omitting them here made the status badge contradict the
+    // model list on every install configured this way.
+    if (await this.hasConfiguredProvider()) {
+      return {
+        authenticated: true,
+        // No account exists to name here: the credential is whatever the
+        // user's own config points at. The UI reports the source itself
+        // rather than printing a provider id as if it were a user.
+        email: null,
+        method: 'opencode_config',
+      };
+    }
+
     const envCredential = OPENCODE_ENV_CREDENTIAL_KEYS.find((key) => process.env[key]?.trim());
     if (envCredential) {
       return {
@@ -106,5 +128,39 @@ export class OpenCodeProviderAuth implements IProviderAuth {
       method: null,
       error: 'OpenCode not configured',
     };
+  }
+
+  /**
+   * Reports whether OpenCode's global config declares a provider it can route
+   * with, i.e. a `provider.<id>` block carrying options such as a `baseURL` or
+   * an `apiKey` (possibly a `{file:...}` reference).
+   *
+   * A block that only declares `models` is skipped: it describes what the user
+   * wants to pick, not a connection, and reporting it as configured would
+   * claim a credential the install may not have.
+   */
+  private async hasConfiguredProvider(): Promise<boolean> {
+    const configDir = path.join(os.homedir(), '.config', 'opencode');
+
+    for (const configFile of OPENCODE_CONFIG_FILES) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(await readFile(path.join(configDir, configFile), 'utf8'));
+      } catch {
+        // Missing, unreadable, or comment-bearing (.jsonc) files contribute
+        // nothing; the remaining candidates and the env fallback still apply.
+        continue;
+      }
+
+      const providers = readObjectRecord(readObjectRecord(parsed)?.provider) ?? {};
+      for (const rawProvider of Object.values(providers)) {
+        const options = readObjectRecord(readObjectRecord(rawProvider)?.options);
+        if (options && Object.keys(options).length > 0) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 }

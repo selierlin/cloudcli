@@ -524,7 +524,8 @@
       "disconnected": "已断开",
       "checkingAuth": "正在检查认证状态...",
       "loggedInAs": "登录为 {{email}}",
-      "authenticatedUser": "已认证用户"
+      "authenticatedUser": "已认证用户",
+      "connectedViaLocalConfig": "已通过本地配置连接"
     },
     "quota": {
       "title": "额度",
