@@ -120,15 +120,16 @@
 
 `tests/theme-tokens/theme-overlays.spec.ts` 用 `SURFACES` / `MUST_MOVE` / `MUST_NOT_MOVE` 静态断言各 coverage 类「承诺动哪些面」。
 
-该文件的遍历集合是 `OVERLAY_THEMES = BUILTIN_THEMES.filter((theme) => theme.appearance === 'system')`（`theme-overlays.spec.ts:45`），即三套覆盖层主题，其 coverage 实测为（`src/shared/constants.ts:330-366`）：
+该文件的遍历集合是 `OVERLAY_THEMES = BUILTIN_THEMES.filter((theme) => theme.appearance === 'system')`（`theme-overlays.spec.ts:45`），即覆盖层主题，其 coverage 实测为（`src/shared/constants.ts:330-374`）：
 
 | 主题 | coverage |
 | --- | --- |
 | `cc-ocean` | `accent` |
 | `cc-polar` | `full` |
 | `cc-catppuccin` | `full` |
+| `cc-islands` | `full` |
 
-（`cc-light` / `cc-dark` 是 appearance 默认，不带覆盖层，被上述过滤器排除。）
+（`cc-light` / `cc-dark` 是 appearance 默认，不带覆盖层，被上述过滤器排除。下表与本节其余文字写于只有三套覆盖层时，结论对**任何** `full` 覆盖层同样成立 —— 2-O 新增 `cc-islands` 后实测未变。）
 
 **关键结论：`--term-font-family` 不得加入 `SURFACES.terminal`。** 两个方向都会错，且这是**机械结果**而非文档约定（`moved` 的定义见 `derivedMoves()`，`theme-overlays.spec.ts:236-249`：**覆盖层只要重新声明就计入 `moved`，与值是否等于基线无关**）：
 
