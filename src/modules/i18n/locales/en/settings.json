@@ -541,7 +541,8 @@
       "disconnected": "Disconnected",
       "checkingAuth": "Checking authentication status...",
       "loggedInAs": "Logged in as {{email}}",
-      "authenticatedUser": "authenticated user"
+      "authenticatedUser": "authenticated user",
+      "connectedViaLocalConfig": "Connected via local configuration"
     },
     "quota": {
       "title": "Quota",

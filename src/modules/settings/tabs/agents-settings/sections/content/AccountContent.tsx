@@ -126,12 +126,16 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
               <div className={`text-sm ${config.subtextClass}`}>
                 {authStatus.loading ? (
                   t('agents.authStatus.checkingAuth')
-                ) : authStatus.authenticated ? (
-                  t('agents.authStatus.loggedInAs', {
-                    email: authStatus.email || t('agents.authStatus.authenticatedUser'),
-                  })
-                ) : (
+                ) : !authStatus.authenticated ? (
                   t('agents.authStatus.notConnected')
+                ) : authStatus.email ? (
+                  t('agents.authStatus.loggedInAs', { email: authStatus.email })
+                ) : (
+                  // Providers wired up through local files (OpenCode's
+                  // opencode.json, ZCode's cli/config.json) have no account to
+                  // name, so "logged in as <something>" would read as a user
+                  // that does not exist.
+                  t('agents.authStatus.connectedViaLocalConfig')
                 )}
               </div>
             </div>
