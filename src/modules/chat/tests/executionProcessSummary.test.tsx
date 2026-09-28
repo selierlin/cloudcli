@@ -1,4 +1,4 @@
-import { fireEvent, render } from "@testing-library/react";
+import { act, fireEvent, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import ExecutionProcessSummary from "@/modules/chat/transcript/ExecutionProcessSummary";
@@ -142,5 +142,228 @@ describe("execution process summary", () => {
 
     summaryRect.mockRestore();
     endRect.mockRestore();
+  });
+
+  it("stacks the pinned title below a visibly pinned user-message header", () => {
+    const view = render(
+      <div className="chat-messages-pane" style={{ paddingTop: "12px" }}>
+        <div data-user-sticky-header data-pinned style={{ top: "-12px" }} />
+        <ExecutionProcessSummary
+          collapsed={false}
+          hasAttention={false}
+          isActiveRun={false}
+          isWindowTruncated={false}
+          labelKind="execution"
+          provider="workbuddy"
+          processEndKey="process:test"
+          toolCount={17}
+          onToggle={() => {}}
+        />
+        <div data-execution-process-end="process:test" />
+      </div>,
+    );
+    const panel = view.container.querySelector<HTMLElement>(".chat-messages-pane")!;
+    const summary = view.getByRole("button");
+    const endMarker = view.container.querySelector<HTMLElement>("[data-execution-process-end]")!;
+    const headerBand = view.container.querySelector<HTMLElement>("[data-user-sticky-header]")!;
+
+    vi.spyOn(panel, "getBoundingClientRect").mockReturnValue({ top: 0 } as DOMRect);
+    vi.spyOn(headerBand, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 40, height: 40 } as DOMRect);
+    vi.spyOn(summary, "getBoundingClientRect").mockReturnValue({ top: -4, height: 28 } as DOMRect);
+    vi.spyOn(endMarker, "getBoundingClientRect").mockReturnValue({ top: 200 } as DOMRect);
+
+    fireEvent.scroll(panel);
+
+    expect(summary.className).toContain("sticky");
+    // Band bottom (40) minus the pane padding the class pin cancels (12).
+    expect(summary.style.top).toBe("28px");
+  });
+
+  it("derives the stacked top from the live pane padding for the wider breakpoint", () => {
+    const view = render(
+      <div className="chat-messages-pane" style={{ paddingTop: "16px" }}>
+        <div data-user-sticky-header data-pinned />
+        <ExecutionProcessSummary
+          collapsed={false}
+          hasAttention={false}
+          isActiveRun={false}
+          isWindowTruncated={false}
+          labelKind="execution"
+          provider="workbuddy"
+          processEndKey="process:test"
+          toolCount={17}
+          onToggle={() => {}}
+        />
+        <div data-execution-process-end="process:test" />
+      </div>,
+    );
+    const panel = view.container.querySelector<HTMLElement>(".chat-messages-pane")!;
+    const summary = view.getByRole("button");
+    const endMarker = view.container.querySelector<HTMLElement>("[data-execution-process-end]")!;
+    const headerBand = view.container.querySelector<HTMLElement>("[data-user-sticky-header]")!;
+
+    vi.spyOn(panel, "getBoundingClientRect").mockReturnValue({ top: 0 } as DOMRect);
+    vi.spyOn(headerBand, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 40, height: 40 } as DOMRect);
+    vi.spyOn(summary, "getBoundingClientRect").mockReturnValue({ top: -4, height: 28 } as DOMRect);
+    vi.spyOn(endMarker, "getBoundingClientRect").mockReturnValue({ top: 200 } as DOMRect);
+
+    fireEvent.scroll(panel);
+
+    // Same band, sm: pane padding — the top must differ from the 12px case,
+    // proving the padding is really read rather than hardcoded.
+    expect(summary.style.top).toBe("24px");
+  });
+
+  it("stacks below the background-tasks band as well when both bands show", () => {
+    const view = render(
+      <div className="chat-messages-pane" style={{ paddingTop: "12px" }}>
+        <div data-user-sticky-header data-pinned />
+        <div data-background-tasks-band />
+        <ExecutionProcessSummary
+          collapsed={false}
+          hasAttention={false}
+          isActiveRun={false}
+          isWindowTruncated={false}
+          labelKind="execution"
+          provider="workbuddy"
+          processEndKey="process:test"
+          toolCount={17}
+          onToggle={() => {}}
+        />
+        <div data-execution-process-end="process:test" />
+      </div>,
+    );
+    const panel = view.container.querySelector<HTMLElement>(".chat-messages-pane")!;
+    const summary = view.getByRole("button");
+    const endMarker = view.container.querySelector<HTMLElement>("[data-execution-process-end]")!;
+    const headerBand = view.container.querySelector<HTMLElement>("[data-user-sticky-header]")!;
+    const tasksBand = view.container.querySelector<HTMLElement>("[data-background-tasks-band]")!;
+
+    vi.spyOn(panel, "getBoundingClientRect").mockReturnValue({ top: 0 } as DOMRect);
+    vi.spyOn(headerBand, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 40, height: 40 } as DOMRect);
+    vi.spyOn(tasksBand, "getBoundingClientRect").mockReturnValue({ top: 52, bottom: 82, height: 30 } as DOMRect);
+    vi.spyOn(summary, "getBoundingClientRect").mockReturnValue({ top: -4, height: 28 } as DOMRect);
+    vi.spyOn(endMarker, "getBoundingClientRect").mockReturnValue({ top: 200 } as DOMRect);
+
+    fireEvent.scroll(panel);
+
+    // The title would overlap the tasks band at the header-stacked position
+    // (40 + 28 > 52), so it must drop below the lower band instead.
+    expect(summary.style.top).toBe("70px");
+  });
+
+  it("keeps the class pin when only the lower tasks band shows without the header", () => {
+    const view = render(
+      <div className="chat-messages-pane" style={{ paddingTop: "12px" }}>
+        <div data-background-tasks-band />
+        <ExecutionProcessSummary
+          collapsed={false}
+          hasAttention={false}
+          isActiveRun={false}
+          isWindowTruncated={false}
+          labelKind="execution"
+          provider="workbuddy"
+          processEndKey="process:test"
+          toolCount={17}
+          onToggle={() => {}}
+        />
+        <div data-execution-process-end="process:test" />
+      </div>,
+    );
+    const panel = view.container.querySelector<HTMLElement>(".chat-messages-pane")!;
+    const summary = view.getByRole("button");
+    const endMarker = view.container.querySelector<HTMLElement>("[data-execution-process-end]")!;
+    const tasksBand = view.container.querySelector<HTMLElement>("[data-background-tasks-band]")!;
+
+    vi.spyOn(panel, "getBoundingClientRect").mockReturnValue({ top: 0 } as DOMRect);
+    vi.spyOn(tasksBand, "getBoundingClientRect").mockReturnValue({ top: 52, bottom: 82, height: 30 } as DOMRect);
+    vi.spyOn(summary, "getBoundingClientRect").mockReturnValue({ top: -4, height: 28 } as DOMRect);
+    vi.spyOn(endMarker, "getBoundingClientRect").mockReturnValue({ top: 200 } as DOMRect);
+
+    fireEvent.scroll(panel);
+
+    // The tasks band sits fully below the panel-top title zone, so the pin
+    // must stay exactly where it was before the band existed.
+    expect(summary.className).toContain("sticky");
+    expect(summary.style.top).toBe("");
+  });
+
+  it("returns to the class pin when the header band stops showing", async () => {
+    const view = render(
+      <div className="chat-messages-pane" style={{ paddingTop: "12px" }}>
+        <div data-user-sticky-header data-pinned />
+        <ExecutionProcessSummary
+          collapsed={false}
+          hasAttention={false}
+          isActiveRun={false}
+          isWindowTruncated={false}
+          labelKind="execution"
+          provider="workbuddy"
+          processEndKey="process:test"
+          toolCount={17}
+          onToggle={() => {}}
+        />
+        <div data-execution-process-end="process:test" />
+      </div>,
+    );
+    const panel = view.container.querySelector<HTMLElement>(".chat-messages-pane")!;
+    const summary = view.getByRole("button");
+    const endMarker = view.container.querySelector<HTMLElement>("[data-execution-process-end]")!;
+    const headerBand = view.container.querySelector<HTMLElement>("[data-user-sticky-header]")!;
+
+    vi.spyOn(panel, "getBoundingClientRect").mockReturnValue({ top: 0 } as DOMRect);
+    vi.spyOn(headerBand, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 40, height: 40 } as DOMRect);
+    vi.spyOn(summary, "getBoundingClientRect").mockReturnValue({ top: -4, height: 28 } as DOMRect);
+    vi.spyOn(endMarker, "getBoundingClientRect").mockReturnValue({ top: 200 } as DOMRect);
+
+    fireEvent.scroll(panel);
+    expect(summary.style.top).toBe("28px");
+
+    // The header bridges out for an arriving message: its slot stays but the
+    // pinned marker drops, and the offset must follow without any scroll.
+    await act(async () => {
+      headerBand.removeAttribute("data-pinned");
+    });
+    expect(summary.style.top).toBe("");
+  });
+
+  it("holds the pin only until the process tail reaches the lowered pin", () => {
+    const view = render(
+      <div className="chat-messages-pane" style={{ paddingTop: "12px" }}>
+        <div data-user-sticky-header data-pinned />
+        <ExecutionProcessSummary
+          collapsed={false}
+          hasAttention={false}
+          isActiveRun={false}
+          isWindowTruncated={false}
+          labelKind="execution"
+          provider="workbuddy"
+          processEndKey="process:test"
+          toolCount={17}
+          onToggle={() => {}}
+        />
+        <div data-execution-process-end="process:test" />
+      </div>,
+    );
+    const panel = view.container.querySelector<HTMLElement>(".chat-messages-pane")!;
+    const summary = view.getByRole("button");
+    const endMarker = view.container.querySelector<HTMLElement>("[data-execution-process-end]")!;
+    const headerBand = view.container.querySelector<HTMLElement>("[data-user-sticky-header]")!;
+    const endRect = vi.spyOn(endMarker, "getBoundingClientRect");
+
+    vi.spyOn(panel, "getBoundingClientRect").mockReturnValue({ top: 0 } as DOMRect);
+    vi.spyOn(headerBand, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 40, height: 40 } as DOMRect);
+    vi.spyOn(summary, "getBoundingClientRect").mockReturnValue({ top: -4, height: 28 } as DOMRect);
+
+    // Still clear of the lowered pin zone plus the reengage margin -> stuck.
+    endRect.mockReturnValue({ top: 120 } as DOMRect);
+    fireEvent.scroll(panel);
+    expect(summary.className).toContain("sticky");
+
+    // Would clear the old panel-top pin (0 + 28) but not the lowered one —
+    // the answer text must not slide behind the stacked title.
+    endRect.mockReturnValue({ top: 50 } as DOMRect);
+    fireEvent.scroll(panel);
+    expect(summary.className).not.toContain("sticky");
   });
 });

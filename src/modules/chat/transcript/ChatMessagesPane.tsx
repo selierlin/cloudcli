@@ -429,8 +429,14 @@ function ChatMessagesPane({
         /* Stuck at 40px: the fork's full-width UserMessageStickyHeader pins
            flush at the top (roughly its first 22px) at z-20; upstream placed
            this strip at top-3, which slides it under that opaque bar. Below
-           the header band both stay fully visible. */
-        <div className="pointer-events-none sticky right-4 top-10 z-10 mb-2 flex items-start justify-between gap-2 sm:px-4">
+           the header band both stay fully visible. The data attribute marks
+           this slot as a sticky band so ExecutionProcessSummary can stack the
+           pinned process title below it when both show; it keeps zero height
+           while no task runs, which self-guards it. */
+        <div
+          data-background-tasks-band
+          className="pointer-events-none sticky right-4 top-10 z-10 mb-2 flex items-start justify-between gap-2 sm:px-4"
+        >
           {/* Running background work stays in view while the transcript scrolls under it. */}
           <div className="pointer-events-auto min-w-0 pl-4 sm:pl-0">
             <BackgroundTasksStrip

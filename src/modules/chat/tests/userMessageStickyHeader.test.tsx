@@ -151,4 +151,51 @@ describe("user message sticky header", () => {
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "center", behavior: "smooth" });
     expect(q1.classList.contains("search-highlight-flash")).toBe(true);
   });
+
+  it("marks itself as a sticky band for the process title while visibly pinned", () => {
+    const { container, getByText } = renderHeader(new Map([["q1", "第一句提问全文内容"]]));
+    const q1 = container.querySelector<HTMLElement>('[data-user-anchor="q1"]')!;
+    const q2 = container.querySelector<HTMLElement>('[data-user-anchor="q2"]')!;
+
+    vi.spyOn(container, "getBoundingClientRect").mockReturnValue(rect(0, 460));
+    vi.spyOn(q1, "getBoundingClientRect").mockReturnValue(rect(-100, -20));
+    // Keep q2 deeply scrolled off so the unmocked zero rect never wins.
+    vi.spyOn(q2, "getBoundingClientRect").mockReturnValue(rect(-900, -800));
+
+    fireEvent.scroll(container);
+
+    const headerButton = getByText("第一句提问全文内容").closest("button")!;
+    expect(headerButton.dataset.userStickyHeader).toBe("true");
+    expect(headerButton.dataset.pinned).toBe("true");
+  });
+
+  it("drops the pinned-band marker while bridging out for an arriving message", () => {
+    const { container, getByText } = renderHeader(new Map([["q1", "第一句提问全文内容"]]));
+    const q1 = container.querySelector<HTMLElement>('[data-user-anchor="q1"]')!;
+
+    // q1 is arriving back: its row spans the top edge, so the header turns
+    // invisible and must not hold the process title below its slot.
+    vi.spyOn(container, "getBoundingClientRect").mockReturnValue(rect(0, 460));
+    vi.spyOn(q1, "getBoundingClientRect").mockReturnValue(rect(-120, 60));
+
+    fireEvent.scroll(container);
+
+    const headerButton = getByText("第一句提问全文内容").closest("button")!;
+    expect(headerButton.dataset.userStickyHeader).toBe("true");
+    expect(headerButton.dataset.pinned).toBeUndefined();
+  });
+
+  it("carries no band marker before any anchor has scrolled off the top", () => {
+    const { container } = renderHeader(new Map([["q1", "第一句提问全文内容"]]));
+    const q1 = container.querySelector<HTMLElement>('[data-user-anchor="q1"]')!;
+
+    vi.spyOn(container, "getBoundingClientRect").mockReturnValue(rect(0, 460));
+    vi.spyOn(q1, "getBoundingClientRect").mockReturnValue(rect(200, 300));
+
+    fireEvent.scroll(container);
+
+    const standIn = container.querySelector("button")!;
+    expect(standIn.dataset.userStickyHeader).toBeUndefined();
+    expect(standIn.dataset.pinned).toBeUndefined();
+  });
 });
