@@ -201,6 +201,8 @@ L2 是**主题契约面**：约定一组令牌即构成一个可换肤的完整�
 
 > **v10（2-N 已实施）——预制主题从两套增到三套，并记一处"照抄参照物会被自家契约拦下"的取值修正。** 新增 `cc-catppuccin`（`appearance: system`、`source: builtin`、`coverage: full`），即 Codex TUI 默认色板 Catppuccin（暗 = Mocha、浅 = Latte）。它是**第一个把两个外观都映射到某个外部色板的具体 flavour** 的覆盖层（`cc-ocean` 只动 brand 族、`cc-polar` 是自选的冷调），因此也是第一个会撞上 §5.11 对比度契约的"外来色板"：Latte 自己的次级文字 `subtext0`（`#6c6f85`）在 Latte 基色上只有 **4.37:1**，低于 AA —— 与 1-H 的 `--palette-sand-500` 44%→43% 是同一类账，处置也一样（改用 `subtext1`，5.53:1），只是这次的**成因不是基色不达标、而是参照物本身不达标**。详见 §6 阶段 2 的 2-N 记录。
 
+> **v11（2-O 已实施）——预制主题增至四套；`full` 覆盖层第一次动到"标签色"这一档 L1。** 新增 `cc-islands`（`appearance: system`、`source: builtin`、`coverage: full`），即 IntelliJ IDEA 的 Islands Dark / Islands Light。它与 2-N 的形态差别值得记下：Codex **没有**外壳色板（只有语法主题），所以 2-N 是"借"；Islands 随包发行一整套 329/330 条的分层色板（`layer-0/1/2` ＋ `text-*` ＋ `accent-*`），所以本片是"**译**"——`ui` 的默认键 `*` 把背景绑在 `tool-window-bg`（= `layer-0-bg`）上，这一条就定下了 `--background` 的落点。取值上第一次出现"**参照物的顶层在 cloudcli 里不可移动**"：Islands Light 的编辑器/弹窗页是纯白，而纯白即 `--palette-white`（被 `--n-white` 共用、属 `fixed` 组），且 `MUST_MOVE.full` 又要求 `--editor-bg` 必须动 —— 两条约束不可能同时成立，取后者（照 `cc-polar` / `cc-catppuccin` 的先例，编辑器页取基材色）。另有一处**新形态的 L1 移动**：`--palette-frost-50`（`--primary-foreground` / `--destructive-foreground` 唯一的来源）第一次被主题改动 —— 理由不是审美而是 §5.11 的硬约束，Islands 的按钮蓝 `#3871E1` 配出厂那档偏白标签只有 4.34:1。详见 §6 阶段 2 的 2-O 记录，其中还如实记了一处**既有护栏的覆盖面缺口**（浅色半整块没写 `:not(.dark)` 的主题会被泄漏守卫整体跳过）。
+
 ### 5.2 主题选择器：`data-theme` 与 `.dark` 双轨共存
 
 现状 `<html class="dark">` 需要保留（Tailwind `darkMode: ["class"]`、大量 `dark:` 原子类依赖它）。方案：
@@ -3942,6 +3944,7 @@ Mutation 侧：
 | 2-L | 文件主题的可读性警告上界面（2-G 边界 1 的收账，§5.10 v3） | ✅ 已实施，见下方记录 |
 | 2-M | 令牌预览页（§6 阶段 1 的"可选随附功能"，主题线最后一笔未做项） | ✅ 已实施，见下方记录 |
 | 2-N | 预制主题 `cc-catppuccin`：Codex TUI 的默认色板（暗 = Mocha、浅 = Latte），清账后由用户新需求驱动的增量 | ✅ 已实施，见下方记录 |
+| 2-O | 预制主题 `cc-islands`：IntelliJ IDEA 的 Islands Dark / Islands Light（IDE 当前默认外观），清账后由用户新需求驱动的增量 | ✅ 已实施，见下方记录 |
 
 **为什么 2-G 接着做（本片开工时的范围裁定）**：2-F1 的记录把这条挂成"待 2-G"时只写了一句话，本片开工第一件事是把它读全——§5.10 的原文是"选项 A 的令牌校验器附带**非阻断**对比度警告"，**主语是校验器、不是界面**。读全之后有两点变了：① 2-C 落地校验器时只做了形状，"非阻断警告"这一半**一次都没做过**（不是"做得不够"），所以本片不是补丁而是首做；② 2-F1 记的"`var()` 可链 ⇒ 编译期算不出"这条理由**只否掉了"把警告做成阻断式的预检"**（含"算不准就别做"），并**不否掉**这件事本身能做成一个诚实的、有明确射程的警告——把"算不出"读成"做不了"会把它永久搁置。故本片把射程划清（见 §5.10 v2：基准＝出厂基色、三处不判、沉默不是通过）后照做，**没有改判 2-F1 的范围裁定**（它说的"不可与粘贴线同片落地"依然成立，本片独立成片正是那个裁定的结果）。**2-H 不阻塞**：编辑器控件与"警告是否可达"无关。
 
@@ -4535,6 +4538,72 @@ Mutation 侧：
 **一处既有红，如实记账（不是本片引入）**：`theme-chrome.spec.ts:118` 在 chromium / webkit 两引擎都红——断言"未知名 token 回落到 `index.html` 的 `#ffffff`"，实测回落到 `#f7f6f3`。成因是 **1-I（`e4f5cb70`）把浅色首帧 chrome 从 `#ffffff` 改成派生值**，同步改了 `index.html:93` 与 `src/shared/utils.ts:368` 的 `FALLBACK_THEME_COLOR.light`，但这条断言（及其上方那句"`index.html` ships `#ffffff`"的注释）没跟上。**HEAD `6de6904f` 上就红**：本片以 `git stash` 做全量 A/B，基线读数与加片后**逐字节同名同数**（同为这两条）。**同时修订一处旧记录**：2-M 与实施轮把 `theme-tokens` 记作"102 全过"，实为 **102 passed / 2 failed**——那两个数此前被当成一个"全过"的读数。修断言属改护栏，未擅自动手，留给用户定夺。**已修（2026-09-27，后续会话）**：按用户批复把期望值与上方注释一并更新为 `#f7f6f3`（= `FALLBACK_THEME_COLOR.light`，与 `index.html:93` 同值），保留了"不可解析的令牌必须回落到出厂基色、而不是发布探针的继承色"这条原意——**实现侧未动**，两条红纯粹是期望值陈旧。修后 `theme-tokens` 读数为 108 passed / 0 failed。
 
 **与既有账的关系**：**出厂状态无视觉变更**（新增主题只在用户主动选中时生效）。**待拍板清单仍为空**；上述 `theme-chrome.spec.ts:118` 的陈旧断言**已就地结清**（本片曾记为新增的一笔可做未做账，2026-09-27 后续会话修毕）。没有自动顺延的下一片。
+
+---
+
+#### 2-O 实施记录（2026-09-28）
+
+**范围**：新增第四套预制主题 `cc-islands`。来源同 2-N，也是用户的新要求——"参考 IntelliJ IDEA 设置里外观下的 Islands Dark / Islands Light，看看能否获取到主题信息，参考并给 cloudcli 定制一下"。清账后主题线无待拍板、无待办，故同样是用户驱动的新增量，切片表顺延编号。
+
+**开工先看清参照物是什么**（本片最有价值的一步，结论与 2-N 相反）。参照物就在本机：`~/Applications/IntelliJ IDEA.app`。主题不是外部文档、也不必联网，而是**随包发行的资源**：
+
+| 事实 | 证据 |
+|---|---|
+| 主题 JSON 在 `Contents/lib/intellij.platform.ide.impl.jar` 的 `themes/islands/` 下 | `unzip -l` 列出 `ManyIslandsDark.theme.json`（54 KB）/ `ManyIslandsLight.theme.json`（55 KB）/ `ManyIslandsDarcula.theme.json` / `HighContrast.theme.json` |
+| **文件名不叫 Islands，认 `name` 字段** | 两者 `name` 分别是 `Islands Dark` / `Islands Light`；`parentTheme` 为内部的 `ExperimentalDark` / `ExperimentalLightWithLightHeader`。按文件名找会一无所获 |
+| **Islands 有一套完整的 UI 色板**，不是 Codex 那种"只有语法" | `colors` 段 329 / 330 条：`gray-10..160`＋七个色相各 16 档＋语义层（`layer-0/1/2-bg`、`text-default/muted/secondary`、`accent-*-bg`、`control-*`…）；`ui` 段 110 组键把它们绑到具体控件 |
+| 用户当前用的就是它 | `options/colors.scheme.xml` 写着 `<global_color_scheme name="Islands Dark" />`；`colors/` 里另有一份用户导出的 `_@user_Islands Dark.icls`（`partialSave`，只存了字体与行距） |
+
+推论：2-N 是"借"（Codex 没有外壳色板，只能借 Catppuccin 的板），**本片是"译"**——把 Islands 自己的板译进 cloudcli 的令牌模型。
+
+**板的结构决定了映射**。Islands 的每个界面面都指向三层之一，而 `ui` 里的默认键 `*` 把 `foreground / background / borderColor` 绑到 `text-default / **tool-window-bg** / tool-window-border`——`tool-window-bg` 就是 `layer-0-bg`。也就是说 Islands 的**主导面是 layer-0**，这直接定下 `--background ← layer-0-bg`，其余按基色既有的高低次序顺推：
+
+| cloudcli L1 落点 | Islands 令牌 | 暗（= Islands Dark） | 浅（= Islands Light） |
+|---|---|---|---|
+| `--background` | `layer-0-bg`（`*` / `tool-window-bg`） | `gray-10` `#191A1C` | `gray-150` `#E9EAEE` |
+| `--card` / `--popover` | `layer-1-bg`（popup / main window） | `gray-30` `#26282C` | 纯白（见下） |
+| `--muted` / `--secondary` / `--accent` / `--border` | `layer-2-bg` / `layer-1-border` | `gray-40` `#33353B` | `gray-140` `#DDDFE4` |
+| `--input` | `control-border` | `gray-50` `#40434A` | `gray-130` `#D1D3D9` |
+| `--muted-foreground` | `text-muted` | `gray-100` `#9FA2A8` | `gray-70` `#5F6269` |
+| `--foreground` | `text-default` | `gray-130` `#D1D3D9` | `black` `#000000` |
+| `--primary` / `--ring` | `accent-brand-bg` = `blue-80` | `blue-100`（见下） | `blue-80` `#3871E1` |
+
+**三处有意偏离，各有必须偏离的理由**（都写进了 CSS 注释）：
+
+1. **`--palette-frost-50` 从 `210 40% 98%` 提到纯白**。这是本线**第一次动"标签色"这一档 L1**（前几套主题只动 substrates / accent / 板）。理由：Islands 的按钮填充是 `accent-brand-bg = blue-80 #3871E1`、标签是 `text-over-accent = white`，而基色那档偏白的 `frost-50` 压上去只有 **4.34:1**——低于基色自己守住的 4.94:1。纯白读到 **4.55:1**，于是标签保持 Islands 的原值、配对也仍然合法。
+2. **`--palette-danger-500` 取 red-80（`#C54E58`）而非浅色 flavour 自己的 `accent-error-bg`（red-90 `#E4656E`）**：red-90 配白标签只有 **3.31:1**，比基色已经勉强的 3.76:1 还差。同色阶深一档的 red-80 读 **4.56:1**。（这一对 §5.10 不守，但守不守是运气，好不好用是事实。）
+3. **`--palette-danger-800` 取 red-60（`#80383E`）而非暗色 flavour 的 red-80**：暗色的标签是浅字而非 IntelliJ 那种小字号白压强调色，red-80 配 `ink-100` 只有 **3.03:1**，red-60 读 **5.50:1**。
+
+**一处"参照物的顶层在这个令牌模型里不可移动"**：Islands Light 的编辑器页是它的**顶层**（`layer-2-bg` = 纯白），而纯白正是 `--palette-white`——被 `--n-white`（终端选区的白描边）共用，属 `theme-overlays.spec.ts` 的 `fixed` 组，任何主题都不得动。于是浅色半边照 `cc-polar` / `cc-catppuccin` 的先例走：**card 保持纯白坐在染色基材上**（这恰好就是 Islands Light 的观感），编辑器页则取基材色——而 `MUST_MOVE.full` 明列 `--editor-bg` 必须动，这条硬约束与"编辑器页=白"在 Islands 这里不可能同时成立，取前者。
+
+**终端板：Islands 的既有值取一半、色阶补一半**。Islands 的编辑器 scheme（`themes/islands/IslandSchemeDark.xml`）只给了 `CONSOLE_BACKGROUND_KEY` `#191A1C`、`CONSOLE_NORMAL_OUTPUT` `#BCBEC4`、`CARET_COLOR` `#CED0D6` 三个——**没有 ANSI-16**；新版 IDE 的终端 ANSI 色由主题色阶派生，不在任何资源文件里。故 board 的 bg / fg / cursor 取其既有值（bg 恰好等于暗色 `layer-0`，面板因此不显得是外来面），十六个槽位从色阶读：`-90` 档作工作半轴（彼此相差不到 0.08、在 console 背景上都在 5.3:1 附近），`-100` 档作 `bright-*` 半轴，槽位语义照旧（红=错误/删除、绿=成功/新增、蓝=信息）。board 与基色一样**声明一次、两态都用暗版**。
+
+**graph lane** 沿用 2-N 记录下来的那条方法（也在本片被再次验证有效）：十色相与顺序照旧，饱和度统一 60%，明度取"两底较差者最大"的那一点——每条在 `#E9EAEE` 与 `#191A1C` 上都不低于 **3.79:1**（比 2-N 的 3.76 略宽）。Islands 只发布七个色相、不是十条 lane，所以这里"留色相、只动温度与档位"是必要的，不是偷懒。
+
+**证据**（全部为本片实测，非推算）：
+
+| 手段 | 结果 |
+|---|---|
+| 对比度（真引擎，两引擎同值） | 浅 `fg/bg 17.47`、`fg/card 21.00`、`muted-fg/bg 5.08`、`muted-fg/card 6.11`、`label/primary 4.55`、`ring/bg 3.78`；暗 `11.64 / 9.86 / 6.81 / 5.77 / 6.83 / 6.83` —— **6 配对 × 2 态全过** |
+| 34 个 Islands hex → HSL 三元组 | **逐个精确往返**（取整 8 位通道后与原 hex 逐字节相同） |
+| `theme-tokens` A/B | 无本片改动 **124 passed** → 有本片改动 **128 passed**，**恰 +4** = `contrast.spec.ts` 与 `theme-overlays.spec.ts` 各 ＋1 用例 × 2 引擎（新主题自动进 `SUBJECTS` 与 `OVERLAYS`），与预测逐位吻合 |
+| 产物核对 | `dist/assets/*.css` 里三块 `[data-theme=cc-islands]` / `:not(.dark)` / `.dark` 均在，全表零 `@layer` |
+| 真机观感 | transcript fixture 真组件、明暗两态截图；`--n-white` 与 `--n-gray-*` 读数未动（固定组守住） |
+
+**反向验证（4 组变异，全部按预期报红）**：
+
+| 变异 | 结果 |
+|---|---|
+| M1 浅色 `brand-500` 调亮到 blue-90 | **恰 2 红**（仅 `contrast.spec.ts` × 2 引擎）——4.55 → 3.29，标签配对被抓住 |
+| M2 删掉浅色编辑器块 | **恰 2 红**（`theme-overlays.spec.ts`）：`cc-islands claims coverage "full" but left these unchanged in light: --editor-bg …` |
+| M4 改动 `--palette-gray-100` 的值 | **恰 2 红**：`moved surfaces it does not advertise: --n-gray-100`（固定组护栏有效） |
+| M5 浅色块选择器写成 `:not(.dark), [data-theme="cc-islands"]` | **恰 2 红**，命中"该主题的泄漏检查覆盖不到任何东西"那条反空转断言 |
+
+**一处既有护栏的覆盖面缺口，如实记账（不是本片引入，未擅自动手）**：`theme-overlays.spec.ts` 的"浅色块不泄漏进暗色"用例**对整块浅色半没写 `:not(.dark)` 的主题整体跳过**——它先做 `if (!blocks.some(b => b.selector.includes(':not(.dark'))) continue;`，之后那句 `expect(owned.length).toBeGreaterThan(0)` 才跑得到。实测：把 `cc-islands` 的浅色块改成裸选择器（M3）会让 `--editor-panel-border` / `--editor-fold-placeholder-bg` / `--editor-tooltip-border` / `--editor-tooltip-arrow-border` 四条泄漏进暗色，而**全套 6 例仍全绿**（其余主题守着 `guarded` 非空，所以那条全局断言也过）。测试自身的注释写着"forces the light half to be scoped"，按主题读并不成立。修它属**改护栏**，留给用户定夺——本片的实际文件写对了（`:not(.dark)`），缺口只是"下一个人写错时没人拦"。
+
+**门槛**：`lint` **153 warnings / 0 errors**（无新增）；`typecheck` ＋ `typecheck:theme-tokens` 均 exit 0；`test:client` **147 文件 / 1230 用例全过**（未变——选择器与注册表测试都是遍历式，新增主题不增用例）；`theme-tokens` **128 passed / 0 failed**；`build` exit 0；`npm test` **1029 / 1004 通过 / 24 失败 / 1 跳过**，而 `git diff HEAD -- server/` **= 0 行**且 `git status --short -- server/` 为空、服务端测试无一读取 `src/` 或 `dist/` ⇒ **红集不可能因本片改变**（比 stash A/B 更硬）。本次失败名集仍是既有那批（Codex 目录 / Claude 路径解析 / WorkBuddy 引擎 / OpenCode / DSH 权限），条数 24 高于 2-N 记的 20，属该基线自身的漂移。
+
+**与既有账的关系**：**出厂状态无视觉变更**（新增主题只在用户主动选中时生效）；`--palette-white`、`gray`/`zinc`/`slate`/`neutral` 兼容斜坡、`--n-*` 一律未动。**待拍板清单仍为空**；新增两笔可做未做账（都不阻塞、也无人要求）：① 上述泄漏守卫的覆盖面缺口（属改护栏）；② `.icls` 编辑器**语法**配色不在任何覆盖层可达范围内（§8.9 的既有边界，Islands 的 editor scheme 里另有 30 余条语法色本片未接线）。没有自动顺延的下一片。
 
 ---
 

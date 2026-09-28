@@ -1849,3 +1849,191 @@
   --editor-toolbar-hover-bg: hsl(var(--palette-ink-800));
   --editor-loading-bg: hsl(var(--palette-ink-950));
 }
+
+/* cc-islands — coverage: full. IntelliJ IDEA's Islands Dark / Islands Light, the
+   board the IDE ships as its current default appearance. Both flavours are one
+   theme because they are one design in two appearances, which is exactly what
+   `appearance: 'system'` means here.
+
+   The source is the platform's own theme JSON (`themes/islands/ManyIslandsDark` and
+   `ManyIslandsLight.theme.json`, inside `intellij.platform.ide.impl.jar`), read as a
+   *layered* board rather than a list of hexes. Every Islands surface names one of
+   three stacked layers, and the layer model is what carries over:
+
+     layer-0  the working surface — `*` and `tool-window-bg` both point here
+     layer-1  one step up          — dialogs, the main window frame, popups' base
+     layer-2  the top step         — popups in the light flavour
+
+   Mapped onto the L1 families the base already publishes, step for step:
+
+     --background       ← layer-0-bg      dark gray-10  = #191A1C / light gray-150 = #E9EAEE
+     --card / --popover ← layer-1-bg      dark gray-30  = #26282C / light white (see below)
+     --muted / --secondary / --accent / --border
+                        ← layer-2-bg      dark gray-40  = #33353B / light gray-140 = #DDDFE4
+     --input            ← control-border  dark gray-50  = #40434A / light gray-130 = #D1D3D9
+     --foreground       ← text-default    dark gray-130 = #D1D3D9 / light black    = #000000
+     --muted-foreground ← text-muted      dark gray-100 = #9FA2A8 / light gray-70  = #5F6269
+
+   Three deliberate deviations, each with the reason it was needed:
+
+   - `--palette-frost-50` moves from the base's `210 40% 98%` to pure white. Islands'
+     button fill is `accent-brand-bg` = blue-80 (#3871E1) with `text-over-accent` =
+     white; the base's off-white label reaches only 4.34:1 on it, under the §5.10
+     floor the base itself clears at 4.94:1. Pure white reaches 4.55:1, so the label
+     stays Islands' own and the pair stays legal.
+   - `--palette-danger-500` takes red-80 rather than the light flavour's own
+     `accent-error-bg` (red-90, #E4656E): red-90 under a white label is 3.31:1, worse
+     than the base's already-marginal 3.76:1. red-80 is the same ramp one step deeper
+     and reaches 4.56:1.
+   - `--palette-danger-800` takes red-60 rather than the dark flavour's red-80. That
+     pair is not one §5.10 guards, but the dark label is light text rather than
+     IntelliJ's white-on-accent at UI size: red-80 under `ink-100` reads 3.03:1,
+     where red-60 reads 5.50:1.
+
+   Islands Light's editor page is its top layer, which in this token model is pure
+   white — and white is the one L1 step no theme may move, because `--palette-white`
+   also backs `--n-white`. The light card therefore stays pure white on the tinted
+   substrate, the treatment `cc-polar` and `cc-catppuccin` give it too, and the
+   editor's own page takes the substrate as it does in both of those.
+
+   `--palette-white`, the `gray` / `zinc` / `slate` / `neutral` compatibility ramps
+   and `--n-white` / `--n-black` are left alone for the reasons the base records and
+   `theme-overlays.spec.ts` enforces. */
+[data-theme="cc-islands"] {
+  /* Substrate — light: frame / inset / border / muted text / secondary text. */
+  --palette-sand-50: 228 12.82% 92.35%;
+  --palette-sand-100: 222.86 11.48% 88.04%;
+  --palette-sand-200: 225 9.52% 83.53%;
+  --palette-sand-500: 222 5% 39.22%;
+  --palette-sand-800: 222 6.17% 31.76%;
+  --palette-sand-950: 0 0% 0%;
+
+  /* Substrate — dark: layer-0 / layer-1 / layer-2 / control border / muted text /
+     default text. */
+  --palette-ink-950: 220 5.66% 10.39%;
+  --palette-ink-900: 220 7.32% 16.08%;
+  --palette-ink-850: 225 7.27% 21.57%;
+  --palette-ink-800: 222 7.25% 27.06%;
+  --palette-ink-400: 220 4.92% 64.12%;
+  --palette-ink-100: 225 9.52% 83.53%;
+
+  /* Accent: `accent-brand-bg` is blue-80 in both flavours. The light step is that
+     value; the dark step is blue-100, the kind of step the base's dark appearance
+     also picks (a light fill carrying dark text), which clears 6.83:1 on `ink-950`. */
+  --palette-brand-500: 219.76 73.8% 55.1%;
+  --palette-brand-400: 219.57 98.6% 71.96%;
+
+  /* The label colour the accent fill needs — see the first deviation above. */
+  --palette-frost-50: 0 0% 100%;
+
+  /* Danger — see the second and third deviations above. */
+  --palette-danger-500: 354.96 50.64% 53.92%;
+  --palette-danger-800: 355 39.13% 36.08%;
+
+  /* Terminal board — Islands' console as its editor scheme states it:
+     `CONSOLE_BACKGROUND_KEY` #191A1C (the dark layer-0 again, so the panel does not
+     read as a foreign surface), `CONSOLE_NORMAL_OUTPUT` #BCBEC4 and `CARET_COLOR`
+     #CED0D6. Islands publishes no ANSI-16 of its own — the IDE draws the terminal's
+     ANSI palette from the theme's colour ramps — so the sixteen slots are read off
+     those ramps, keeping every slot's meaning (red is error/deleted, green
+     success/added, blue info). The `-90` steps are the working half: within 0.08 of
+     each other at ~5.3:1 on the console background; the `-100` steps are the
+     `bright-*` half. As in the base the board is declared once and stays dark in
+     both appearances. */
+  --palette-term-bg: 220 5.66% 10.39%;
+  --palette-term-fg: 225 6.35% 75.29%;
+  --palette-term-cursor: 225 8.89% 82.35%;
+  --palette-term-selection: 218.87 45.81% 30.39%;
+  --palette-term-black: 220 7.32% 16.08%;
+  --palette-term-red: 355.75 70.17% 64.51%;
+  --palette-term-green: 142.78 33.62% 46.08%;
+  --palette-term-yellow: 37.37 82.16% 41.76%;
+  --palette-term-blue: 220.12 93.26% 65.1%;
+  --palette-term-magenta: 253.97 78.38% 70.98%;
+  --palette-term-cyan: 174 34.78% 45.1%;
+  --palette-term-white: 225 9.52% 83.53%;
+  --palette-term-bright-black: 222 6.17% 31.76%;
+  --palette-term-bright-red: 356.97 85.61% 72.75%;
+  --palette-term-bright-green: 139.7 29.78% 55.88%;
+  --palette-term-bright-yellow: 36.08 65.29% 52.55%;
+  --palette-term-bright-blue: 219.57 98.6% 71.96%;
+  --palette-term-bright-magenta: 252.24 84.48% 77.25%;
+  --palette-term-bright-cyan: 172.94 29.57% 54.9%;
+  --palette-term-bright-white: 210 14.29% 97.25%;
+
+  /* Graph lanes. Islands publishes seven hues, not ten lanes, so the board's ten
+     hues stay in their own order and only their temperature and level move — the
+     method `cc-polar`'s lanes use. Saturation is levelled at 60% and lightness is
+     the point that maximises the *worse* of the two substrates (#E9EAEE and
+     #191A1C), which puts every lane at 3.79:1 or better on both. */
+  --palette-graph-1: 198.6 60% 40.1%;
+  --palette-graph-2: 24.6 60% 42.9%;
+  --palette-graph-3: 270.7 60% 58.5%;
+  --palette-graph-4: 142.1 60% 32.9%;
+  --palette-graph-5: 0 60% 54.1%;
+  --palette-graph-6: 45.4 60% 34.4%;
+  --palette-graph-7: 173.4 60% 32.2%;
+  --palette-graph-8: 330.4 60% 52%;
+  --palette-graph-9: 238.7 60% 62.6%;
+  --palette-graph-10: 83.7 60% 31.5%;
+}
+
+/* The editor's two halves, split the way `cc-polar`'s and `cc-catppuccin`'s are and
+   for the same reason: its base values are appearance-specific literals rather than
+   L1 references, so a single block would leak light chrome into dark mode. */
+[data-theme="cc-islands"]:not(.dark) {
+  --editor-bg: hsl(var(--palette-sand-50));
+  --editor-toolbar-bg: hsl(var(--palette-sand-50));
+  --editor-loading-bg: hsl(var(--palette-sand-50));
+  --editor-selection: hsl(var(--palette-sand-200));
+  --editor-selection-focused: hsl(var(--palette-brand-500) / 0.22);
+  --editor-gutter-bg: hsl(var(--palette-sand-50));
+  --editor-gutter-fg: hsl(var(--palette-sand-500));
+  --editor-gutter-separator: 1px solid hsl(var(--palette-sand-200));
+  --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.14);
+  --editor-active-line-gutter-bg: hsl(var(--palette-sand-100));
+  --editor-panel-bg: hsl(var(--palette-sand-100));
+  --editor-panel-border: 1px solid hsl(var(--palette-sand-200));
+  --editor-fold-placeholder-bg: hsl(var(--palette-sand-100));
+  --editor-fold-placeholder-fg: hsl(var(--palette-sand-500));
+  --editor-tooltip-bg: hsl(var(--palette-sand-100));
+  --editor-tooltip-border: 1px solid hsl(var(--palette-sand-200));
+  --editor-tooltip-arrow-border: hsl(var(--palette-sand-200));
+  --editor-tooltip-arrow: hsl(var(--palette-sand-100));
+  --editor-autocomplete-selected-bg: hsl(var(--palette-brand-500));
+  --editor-minimap-bg: hsl(var(--palette-sand-100));
+  --editor-toolbar-border: hsl(var(--palette-sand-200));
+  --editor-toolbar-fg: hsl(var(--palette-sand-800));
+  --editor-toolbar-hover-bg: hsl(var(--palette-sand-100));
+}
+
+[data-theme="cc-islands"].dark {
+  --editor-bg: hsl(var(--palette-ink-950));
+  --editor-fg: hsl(var(--palette-ink-100));
+  --editor-caret: hsl(var(--palette-brand-400));
+  --editor-cursor: hsl(var(--palette-brand-400));
+  --editor-selection: hsl(var(--palette-ink-850));
+  --editor-selection-focused: hsl(var(--palette-ink-850));
+  --editor-gutter-bg: hsl(var(--palette-ink-950));
+  --editor-gutter-fg: hsl(var(--palette-ink-400));
+  --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.06);
+  --editor-active-line-gutter-bg: hsl(var(--palette-ink-900));
+  --editor-panel-bg: hsl(var(--palette-ink-900));
+  --editor-panel-fg: hsl(var(--palette-ink-100));
+  --editor-search-match-bg: hsl(var(--palette-brand-400) / 0.35);
+  --editor-search-match-outline: 1px solid hsl(var(--palette-brand-400));
+  --editor-search-match-selected-bg: hsl(var(--palette-brand-400) / 0.18);
+  --editor-matching-bracket-bg: hsl(var(--palette-brand-400) / 0.28);
+  --editor-nonmatching-bracket-bg: hsl(var(--palette-danger-500) / 0.28);
+  --editor-fold-placeholder-fg: hsl(var(--palette-ink-400));
+  --editor-tooltip-bg: hsl(var(--palette-ink-850));
+  --editor-tooltip-arrow: hsl(var(--palette-ink-850));
+  --editor-autocomplete-selected-bg: hsl(var(--palette-ink-850));
+  --editor-autocomplete-selected-fg: hsl(var(--palette-ink-100));
+  --editor-minimap-bg: hsl(var(--palette-ink-950));
+  --editor-toolbar-bg: hsl(var(--palette-ink-850));
+  --editor-toolbar-border: hsl(var(--palette-ink-800));
+  --editor-toolbar-fg: hsl(var(--palette-ink-100));
+  --editor-toolbar-hover-bg: hsl(var(--palette-ink-800));
+  --editor-loading-bg: hsl(var(--palette-ink-950));
+}

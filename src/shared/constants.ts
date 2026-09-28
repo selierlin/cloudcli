@@ -363,6 +363,13 @@ export const BUILTIN_THEMES: ThemeManifest[] = [
     source: 'builtin',
     coverage: 'full',
   },
+  {
+    id: 'cc-islands',
+    name: '岛屿',
+    appearance: 'system',
+    source: 'builtin',
+    coverage: 'full',
+  },
 ];
 
 // ---------------------------
