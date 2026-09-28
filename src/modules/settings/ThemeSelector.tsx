@@ -66,11 +66,14 @@ function ThemeSelector({ ariaLabel }: ThemeSelectorProps) {
   const selectedId = options.some((option) => option.id === themeId) ? themeId : null;
 
   return (
-    <div className="w-40 space-y-1.5">
+    // Two compact columns on a phone (the row stacks there, so the list owns
+    // the full width); the single narrow column the settings row reserves on
+    // the desktop layout from `sm:` up.
+    <div className="w-full space-y-1.5 sm:w-40">
       <div
         role="radiogroup"
         aria-label={ariaLabel ?? t('themeSelector.label')}
-        className="flex flex-col gap-1"
+        className="grid grid-cols-2 gap-1 sm:flex sm:flex-col"
       >
         {options.map(({ id, label, coverage }) => {
           const isActive = id === selectedId;

@@ -234,7 +234,7 @@ export default function UserThemesSection() {
             </ul>
           )}
 
-          <div className="mt-4 flex items-center gap-2">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             <span className="text-sm text-muted-foreground">{t('userThemes.mode.label')}</span>
             <div
               role="radiogroup"
@@ -243,6 +243,11 @@ export default function UserThemesSection() {
             >
               {PASTE_FORMATS.map(({ value, labelKey }) => {
                 const isActive = format === value;
+                // The capsule the confirmation is about wears a ring while the
+                // question is open: the tap did register, and this is what is
+                // being asked about — without it the switch reads as dead until
+                // the answer, which is exactly how "nothing happened" feels.
+                const isPending = confirmingCss && value === 'css';
                 return (
                   <button
                     key={value}
@@ -255,7 +260,9 @@ export default function UserThemesSection() {
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                       isActive
                         ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground',
+                        : isPending
+                          ? 'bg-background text-primary shadow-sm ring-1 ring-primary'
+                          : 'text-muted-foreground hover:text-foreground',
                     )}
                   >
                     {t(labelKey)}
@@ -269,24 +276,24 @@ export default function UserThemesSection() {
             <p className="mt-1 text-xs text-muted-foreground">{t('userThemes.mode.cssNote')}</p>
           )}
           {confirmingCss && (
-            <div className="mt-2 rounded-lg border border-border bg-muted/40 p-2">
-              <p className="text-xs font-medium text-foreground">{t('userThemes.trust.title')}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">{t('userThemes.trust.body')}</p>
-              <div className="mt-2 flex items-center gap-2">
+            <div className="mt-2 rounded-lg border border-primary/40 bg-primary/5 p-3">
+              <p className="text-sm font-medium text-foreground">{t('userThemes.trust.title')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('userThemes.trust.body')}</p>
+              <div className="mt-2.5 flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     setFormat('css');
                     setConfirmingCss(false);
                   }}
-                  className={actionClass}
+                  className="cursor-pointer rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
                 >
                   {t('userThemes.trust.confirm')}
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirmingCss(false)}
-                  className={actionClass}
+                  className="cursor-pointer rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
                 >
                   {t('userThemes.trust.cancel')}
                 </button>
