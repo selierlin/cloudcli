@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
-import type { CodeFontFamilyId, FontFamilyId, FontSettingsState, Project, ProjectSession, ThemeManifest } from '@/shared/types';
+import type { CodeFontFamilyId, FontFamilyId, FontSettingsState, Project, ProjectSession, TerminalFontFamilyId, ThemeManifest } from '@/shared/types';
 
 //----------------- DEPLOYMENT MODE ------------
 
@@ -48,6 +48,16 @@ export const CODE_FONT_FAMILY_OPTIONS: Array<{ id: CodeFontFamilyId; label: stri
   { id: 'ibm-plex-mono', label: 'ibm-plex-mono' },
 ];
 
+/**
+ * The terminal's faces: the code-block list plus `'theme'`, which means "no
+ * opinion" — the base stylesheet's `--term-font-family` answers, so a theme can
+ * set the terminal face without overriding a user who has picked one (§3.1).
+ */
+export const TERMINAL_FONT_FAMILY_OPTIONS: Array<{ id: TerminalFontFamilyId; label: string }> = [
+  { id: 'theme', label: 'theme' },
+  ...CODE_FONT_FAMILY_OPTIONS,
+];
+
 /** CSS stacks matching every selectable chat font family. */
 export const FONT_FAMILY_CSS: Record<FontFamilyId, string> = {
   system: '-apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif', serif: 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif', sans: '"Heiti SC", "SimHei", "Microsoft YaHei", ui-sans-serif, sans-serif', songti: '"Songti SC", "SimSun", serif', kaiti: '"Kaiti SC", "STKaiti", "KaiTi", serif', rounded: 'ui-rounded, "Yuanti SC", "PingFang SC", sans-serif', 'jetbrains-mono': '"JetBrains Mono", "JetBrainsMono Nerd Font Mono", "JetBrainsMono Nerd Font", "JetBrainsMono NFM", "JetBrainsMono NF", ui-monospace, "SF Mono", Menlo, Consolas, monospace', monospace: 'ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace',
@@ -56,19 +66,23 @@ export const CODE_FONT_FAMILY_CSS: Record<CodeFontFamilyId, string> = {
   system: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace', 'jetbrains-mono': '"JetBrains Mono", "JetBrainsMono Nerd Font Mono", "JetBrainsMono Nerd Font", "JetBrainsMono NFM", "JetBrainsMono NF", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', 'fira-code': '"Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', 'cascadia-code': '"Cascadia Code", "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', 'source-code-pro': '"Source Code Pro", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', hack: 'Hack, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', 'ibm-plex-mono': '"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
 };
 
-const DEFAULT_FONT_SETTINGS: FontSettingsState = { uiFontSize: '14', terminalFontSize: '14', fontFamily: 'serif', codeFontSize: '13', codeFontFamily: 'system' };
+const DEFAULT_FONT_SETTINGS: FontSettingsState = { uiFontSize: '14', terminalFontSize: '14', fontFamily: 'serif', codeFontSize: '13', codeFontFamily: 'system', terminalFontFamily: 'theme' };
 
 /** Reads and validates local font choices, falling back to the transcript defaults. */
 export function readFontSettings(): FontSettingsState {
   const get = (key: keyof FontSettingsState) => localStorage.getItem(`fontSettings.${key}`);
   const fontFamily = get('fontFamily');
   const codeFontFamily = get('codeFontFamily');
+  const terminalFontFamily = get('terminalFontFamily');
   return {
     uiFontSize: get('uiFontSize') ?? DEFAULT_FONT_SETTINGS.uiFontSize,
     terminalFontSize: get('terminalFontSize') ?? DEFAULT_FONT_SETTINGS.terminalFontSize,
     fontFamily: FONT_FAMILY_OPTIONS.some(({ id }) => id === fontFamily) ? fontFamily as FontFamilyId : DEFAULT_FONT_SETTINGS.fontFamily,
     codeFontSize: get('codeFontSize') ?? DEFAULT_FONT_SETTINGS.codeFontSize,
     codeFontFamily: CODE_FONT_FAMILY_OPTIONS.some(({ id }) => id === codeFontFamily) ? codeFontFamily as CodeFontFamilyId : DEFAULT_FONT_SETTINGS.codeFontFamily,
+    // An unknown value falls back to `'theme'`: the safer of the two readings,
+    // since it leaves the theme in charge rather than pinning a face.
+    terminalFontFamily: TERMINAL_FONT_FAMILY_OPTIONS.some(({ id }) => id === terminalFontFamily) ? terminalFontFamily as TerminalFontFamilyId : DEFAULT_FONT_SETTINGS.terminalFontFamily,
   };
 }
 

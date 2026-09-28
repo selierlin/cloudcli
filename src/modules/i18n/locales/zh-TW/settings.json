@@ -202,6 +202,13 @@
         "label": "終端機字型大小",
         "description": "終端機中的字型大小"
       },
+      "terminalFontFamily": {
+        "label": "終端機字型",
+        "description": "終端機使用的字型，或跟隨主題自身的設定"
+      },
+      "terminalFontFamilyOptions": {
+        "theme": "跟隨主題"
+      },
       "fontFamily": {
         "label": "字型家族",
         "description": "聊天訊息使用的字型"

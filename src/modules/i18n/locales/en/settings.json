@@ -311,6 +311,13 @@
         "label": "Terminal Font Size",
         "description": "Font size of the terminal"
       },
+      "terminalFontFamily": {
+        "label": "Terminal Font Family",
+        "description": "Font for the terminal, or the theme's own choice"
+      },
+      "terminalFontFamilyOptions": {
+        "theme": "Follow theme"
+      },
       "fontFamily": {
         "label": "Font Family",
         "description": "Font family for chat messages"

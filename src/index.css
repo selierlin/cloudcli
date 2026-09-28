@@ -250,6 +250,16 @@
     --term-ansi-bright-cyan: var(--palette-term-bright-cyan);
     --term-ansi-bright-white: var(--palette-term-bright-white);
 
+    /* Not a colour, but the same bargain: xterm builds its glyph metrics from a
+       concrete stack, so a theme states one here and `useShellTerminal` reads it
+       back through the browser. Must stay byte-identical to
+       `TERMINAL_OPTIONS.fontFamily` (src/modules/shell/hooks/useShellTerminal.ts).
+       Each copy is anchored by a test — this declaration by the token contract's
+       baseline (tests/theme-tokens/token-contract.spec.ts), the TS literal by
+       tests/theme-tokens/terminal-tokens.spec.ts — so changing one alone is a red
+       test (see docs/research/CloudCLI终端字体动态配置方案.md §6.1). */
+    --term-font-family: Menlo, Monaco, "Courier New", monospace;
+
     /* ANSI colours are semantic in CLI output, not decorative: red means
        "error / deleted", green "success / added", yellow "warning", blue
        "info". These aliases name that mapping for theme authors — moving a hue

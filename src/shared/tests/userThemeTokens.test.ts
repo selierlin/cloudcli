@@ -185,6 +185,21 @@ test('a reference to a token outside the theme surface is dropped too', () => {
   assert.deepEqual(ignoredNames(result), ['--primary']);
 });
 
+test('the terminal font token is not a theme token, even though its name fits the family', () => {
+  // `--term-font-family` matches `/^--term-[a-z-]+$/`, so without the explicit
+  // exclusion its family rule would take a triplet-shaped value — the one shape
+  // the terminal board accepts — and compile it into `font-family: 0 0% 0%`,
+  // which the browser drops, leaving the terminal to inherit the page font.
+  // The value here is deliberately a valid triplet, not a font stack: a stack
+  // like `"Fira Code", monospace` would be dropped for shape anyway and so
+  // would not prove the exclusion is doing anything.
+  const result = compile({ '--term-font-family': '0 0% 0%', '--primary': '175 84% 32%' });
+
+  assert.ok(result.ok);
+  assert.deepEqual(ignoredNames(result), ['--term-font-family']);
+  assert.doesNotMatch(result.css, /--term-font-family/);
+});
+
 test('a value that could leave its declaration refuses the whole file', () => {
   // These are the shapes that would end the declaration, start an at-rule or a
   // comment, or reach for a URL. Pinned here is the *response*: the file is

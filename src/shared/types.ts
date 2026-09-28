@@ -1604,6 +1604,12 @@ export type CodeFontFamilyId =
   | 'hack'
   | 'ibm-plex-mono';
 
+/**
+ * The terminal's font choice: any code-block face, plus `'theme'` — the default,
+ * which means "no opinion" so the theme's `--term-font-family` decides.
+ */
+export type TerminalFontFamilyId = CodeFontFamilyId | 'theme';
+
 /** Local display preferences shared by the chat transcript, terminal and quick settings. */
 export type FontSettingsState = {
   uiFontSize: string;
@@ -1611,6 +1617,7 @@ export type FontSettingsState = {
   fontFamily: FontFamilyId;
   codeFontSize: string;
   codeFontFamily: CodeFontFamilyId;
+  terminalFontFamily: TerminalFontFamilyId;
 };
 
 // ---------------------------

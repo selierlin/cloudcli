@@ -226,11 +226,28 @@ const FAMILY_RULES: ReadonlyArray<{ pattern: RegExp; rule: ValueRule }> = [
   { pattern: /^--nav-[a-z-]+$/, rule: 'triplet-or-reference-with-optional-alpha' },
 ];
 
+/**
+ * Tokens a theme may not set through this compiler, even though a family rule
+ * below would match them.
+ *
+ * `--term-font-family` matches `/^--term-[a-z-]+$/` and would be taken as a
+ * `triplet-or-reference`, so `{"--term-font-family": "0 0% 0%"}` would pass the
+ * shape gate, compile into `font-family: 0 0% 0%`, and be dropped by the
+ * browser — leaving the terminal to silently inherit the page font, the very
+ * failure the fallback sentinel exists to prevent. This path cannot express a
+ * font stack anyway (its value shapes carry no quotes), so rather than grow one
+ * it declines the token outright (see docs/research/CloudCLI终端字体动态配置方案.md
+ * §8-P3). `.css` themes are unaffected: they are injected verbatim, not compiled
+ * here.
+ */
+const NON_THEME_TOKENS = new Set(['--term-font-family']);
+
 /** The rule for a token name, or null when a theme may not set it. */
 function ruleForToken(token: string): ValueRule | null {
   const exact = EXACT_RULES.get(token);
   if (exact) return exact;
   if (SEMANTIC_TOKENS.has(token)) return 'triplet-or-reference';
+  if (NON_THEME_TOKENS.has(token)) return null;
   for (const family of FAMILY_RULES) {
     if (family.pattern.test(token)) return family.rule;
   }

@@ -311,6 +311,13 @@
         "label": "终端字号",
         "description": "终端里的字号"
       },
+      "terminalFontFamily": {
+        "label": "终端字体",
+        "description": "终端使用的字体，或跟随主题自身的设置"
+      },
+      "terminalFontFamilyOptions": {
+        "theme": "跟随主题"
+      },
       "fontFamily": {
         "label": "字体族",
         "description": "聊天消息使用的字体"
