@@ -444,20 +444,44 @@ for (const theme of OVERLAY_THEMES) {
  * correctly and no other check here would notice — but a token added to the
  * light half and forgotten in the dark one would silently keep its light value.
  *
- * That is what this pins. It forces the light half to be scoped — an unscoped
- * block is not a "light half" at all and is reported as such — and then checks
- * the consequence: a token the light branch declares on its own must fall back to
- * the base value in the dark appearance, not keep its light override.
+ * That is what this pins, and it has to pin it *per theme*: the skip below is
+ * what a theme is measured against, so a theme that scopes no light half must be
+ * reported rather than skipped. Skipping it is exactly the shape the guard used
+ * to have — the check then covered nothing for it, and the suite stayed green
+ * while five `--editor-*` tokens leaked (measured on `cc-islands`: an unscoped
+ * light half turns `--editor-panel-border` from the dark `2px solid black` into
+ * a light `1px solid`, and four more the same way). A theme whose values do not
+ * vary by appearance declares one unscoped block and has no light half to leak;
+ * everything past that gate is required to scope one.
+ *
+ * The consequence check that follows — a token the light branch declares on its
+ * own must fall back to the base value in the dark appearance — is entailed by
+ * the selector not matching there, so on its own it cannot fire. It is kept as
+ * the second line of defence for the one shape that can still break it from
+ * outside: the same token declared by a rule `findBlocks` does not see (a plain
+ * class selector), which would shadow the fallback in the dark appearance.
  */
 test('a light-scoped overlay block does not leak into the dark appearance', async ({ page }) => {
   await openFixture(page);
 
   const guarded: string[] = [];
   const leaks: string[] = [];
+  const unscoped: string[] = [];
 
   for (const theme of OVERLAY_THEMES) {
     const blocks = findBlocks(theme.id);
-    if (!blocks.some((block) => block.selector.includes(':not(.dark)'))) continue;
+
+    // The blocks that apply in one appearance only. A theme with none keeps one
+    // set of values for both appearances: nothing to scope, nothing to leak.
+    const scoped = blocks.filter(
+      (block) => appliesIn(block.selector, 'light') !== appliesIn(block.selector, 'dark'),
+    );
+    if (scoped.length === 0) continue;
+
+    if (!scoped.some((block) => appliesIn(block.selector, 'light'))) {
+      unscoped.push(theme.id);
+      continue;
+    }
 
     const lightOnly = new Set<string>();
     const darkApplicable = new Set<string>();
@@ -487,9 +511,16 @@ test('a light-scoped overlay block does not leak into the dark appearance', asyn
   }
 
   expect(
+    unscoped,
+    'these overlay themes vary by appearance but declare no `:not(.dark)` half, so an unscoped ' +
+      'block stands in for one: it applies in the dark appearance too, where it loses to `.dark` ' +
+      'on specificity only for the tokens both halves declare — every token the light half ' +
+      'declares alone keeps its light value there',
+  ).toEqual([]);
+  expect(
     guarded,
-    'no theme declares a light-scoped block: an overlay whose values differ per appearance has to ' +
-      'scope its light half with `:not(.dark)`, or the dark-appearance leak check covers nothing',
+    'no registered overlay theme varies by its appearance any more: this check has nothing left ' +
+      'to cover and should be deleted with the last theme that scoped a light half',
   ).not.toEqual([]);
   expect(leaks, `light-scoped overrides leaked into the dark appearance:\n${leaks.join('\n')}`).toEqual([]);
 });
