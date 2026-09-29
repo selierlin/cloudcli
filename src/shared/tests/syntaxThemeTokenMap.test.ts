@@ -35,9 +35,14 @@ test('the variable count is stable', () => {
 });
 
 /**
- * The One Dark colour each shared slot stands for, as Prism spells it. The
- * distinctness check above cannot catch two names being swapped; this can, and
- * it doubles as the record of which slot the editor's tags were matched against.
+ * The colour each named slot stands for, as Prism spells it, one table per
+ * appearance. The distinctness check above cannot catch two names being swapped
+ * or a name being left on some other slot's value; these can, and they double as
+ * the record of which slot the editor's tags were matched against.
+ *
+ * Both appearances are recorded because the sheet writes them from two different
+ * Prism themes — and the light one is the side `buildSyntaxTheme` may omit a
+ * declaration for, so a slot that lost its light value would otherwise pass.
  */
 const ONE_DARK_SLOT_COLOURS: Record<SyntaxSemanticName, string> = {
   comment: 'hsl(220, 10%, 40%)',
@@ -50,13 +55,29 @@ const ONE_DARK_SLOT_COLOURS: Record<SyntaxSemanticName, string> = {
   string: 'hsl(95, 38%, 62%)',
   function: 'hsl(207, 82%, 66%)',
   url: 'hsl(187, 47%, 55%)',
+  blockForeground: 'hsl(220, 14%, 71%)',
 };
 
-test('the shared slots keep the One Dark colours they stand for', () => {
-  const block = /\.dark\{([^}]*)\}/.exec(syntaxTheme.css);
-  assert.ok(block, 'the generated sheet has no .dark block');
+const ONE_LIGHT_SLOT_COLOURS: Record<SyntaxSemanticName, string> = {
+  comment: 'hsl(230, 4%, 64%)',
+  punctuation: 'hsl(230, 8%, 24%)',
+  className: 'hsl(35, 99%, 36%)',
+  constant: 'hsl(35, 99%, 36%)',
+  number: 'hsl(35, 99%, 36%)',
+  keyword: 'hsl(301, 63%, 40%)',
+  property: 'hsl(5, 74%, 59%)',
+  string: 'hsl(119, 34%, 47%)',
+  function: 'hsl(221, 87%, 60%)',
+  url: 'hsl(198, 99%, 37%)',
+  blockForeground: 'hsl(230, 8%, 24%)',
+};
 
-  const dark = new Map(
+/** One `:root{}` or `.dark{}` block of the generated sheet, as name → declared value. */
+function declarationsIn(blockSelector: string): Map<string, string> {
+  const block = new RegExp(`${blockSelector}\\{([^}]*)\\}`).exec(syntaxTheme.css);
+  assert.ok(block, `the generated sheet has no ${blockSelector} block`);
+
+  return new Map(
     block[1]
       .split(';')
       .filter((declaration) => declaration.includes(':'))
@@ -65,10 +86,23 @@ test('the shared slots keep the One Dark colours they stand for', () => {
         return [declaration.slice(0, separator).trim(), declaration.slice(separator + 1)] as const;
       }),
   );
+}
+
+test('the named slots keep the One Dark colours they stand for', () => {
+  const dark = declarationsIn('\\.dark');
 
   for (const [name, expected] of Object.entries(ONE_DARK_SLOT_COLOURS)) {
     const variable = SYNTAX_TOKEN_MAP[name as SyntaxSemanticName];
     assert.equal(dark.get(variable), expected, `"${name}" (${variable}) moved off its One Dark colour`);
+  }
+});
+
+test('the named slots keep the One Light colours they stand for', () => {
+  const light = declarationsIn(':root');
+
+  for (const [name, expected] of Object.entries(ONE_LIGHT_SLOT_COLOURS)) {
+    const variable = SYNTAX_TOKEN_MAP[name as SyntaxSemanticName];
+    assert.equal(light.get(variable), expected, `"${name}" (${variable}) moved off its One Light colour`);
   }
 });
 
@@ -145,7 +179,7 @@ test('the selector → variable mapping is frozen', () => {
       "builtin.color": "--cc-syntax-39",
       "cdata.color": "--cc-syntax-20",
       "char.color": "--cc-syntax-38",
-      "class-name.color": "--cc-syntax-25",
+      "class-name.color": "--cc-syntax-class-name-color",
       "code[class*="language-"] *::-moz-selection.background": "--cc-syntax-8",
       "code[class*="language-"] *::-moz-selection.textShadow": "--cc-syntax-9",
       "code[class*="language-"] *::selection.background": "--cc-syntax-14",
@@ -157,8 +191,8 @@ test('the selector → variable mapping is frozen', () => {
       "code[class*="language-"]::-moz-selection.textShadow": "--cc-syntax-7",
       "code[class*="language-"]::selection.background": "--cc-syntax-12",
       "code[class*="language-"]::selection.textShadow": "--cc-syntax-13",
-      "comment.color": "--cc-syntax-18",
-      "constant.color": "--cc-syntax-27",
+      "comment.color": "--cc-syntax-comment-color",
+      "constant.color": "--cc-syntax-constant-color",
       "deleted.color": "--cc-syntax-34",
       "div.code-toolbar > .toolbar.toolbar > .toolbar-item > a.background": "--cc-syntax-86",
       "div.code-toolbar > .toolbar.toolbar > .toolbar-item > a.color": "--cc-syntax-87",
@@ -180,27 +214,27 @@ test('the selector → variable mapping is frozen', () => {
       "div.code-toolbar > .toolbar.toolbar > .toolbar-item > span:hover.color": "--cc-syntax-99",
       "doctype.color": "--cc-syntax-21",
       "entity.color": "--cc-syntax-23",
-      "function.color": "--cc-syntax-46",
+      "function.color": "--cc-syntax-function-color",
       "important.color": "--cc-syntax-35",
       "inserted.color": "--cc-syntax-40",
-      "keyword.color": "--cc-syntax-30",
-      "number.color": "--cc-syntax-28",
+      "keyword.color": "--cc-syntax-keyword-color",
+      "number.color": "--cc-syntax-number-color",
       "operator.color": "--cc-syntax-45",
       "pre[class*="language-"] *::-moz-selection.background": "--cc-syntax-10",
       "pre[class*="language-"] *::-moz-selection.textShadow": "--cc-syntax-11",
       "pre[class*="language-"] *::selection.background": "--cc-syntax-16",
       "pre[class*="language-"] *::selection.textShadow": "--cc-syntax-17",
       "pre[class*="language-"].background": "--cc-syntax-3",
-      "pre[class*="language-"].color": "--cc-syntax-4",
+      "pre[class*="language-"].color": "--cc-syntax-block-foreground",
       "pre[class*="language-"].textShadow": "--cc-syntax-5",
       "pre[id].linkable-line-numbers.linkable-line-numbers span.line-numbers-rows > span:hover:before.backgroundColor": "--cc-syntax-107",
       "prolog.color": "--cc-syntax-19",
-      "property.color": "--cc-syntax-31",
-      "punctuation.color": "--cc-syntax-22",
+      "property.color": "--cc-syntax-property-color",
+      "punctuation.color": "--cc-syntax-punctuation-color",
       "regex.color": "--cc-syntax-41",
       "selector.color": "--cc-syntax-36",
       "special-attr > .token.attr-value > .token.value.css.color": "--cc-syntax-49",
-      "string.color": "--cc-syntax-37",
+      "string.color": "--cc-syntax-string-color",
       "symbol.color": "--cc-syntax-33",
       "tag.color": "--cc-syntax-32",
       "token.cr:before.color": "--cc-syntax-78",
@@ -211,7 +245,7 @@ test('the selector → variable mapping is frozen', () => {
       "token.space:before.textShadow": "--cc-syntax-83",
       "token.tab:not(:empty):before.color": "--cc-syntax-76",
       "token.tab:not(:empty):before.textShadow": "--cc-syntax-77",
-      "url.color": "--cc-syntax-47",
+      "url.color": "--cc-syntax-url-color",
       "variable.color": "--cc-syntax-44",
     }
   `);
@@ -243,6 +277,10 @@ test('no call site hard-codes a syntax variable number', () => {
   // The generator and this file's snapshot are the two places a number may
   // appear — the snapshot *is* the mapping. Everyone else goes through
   // SYNTAX_TOKEN_MAP, which survives the renumbering described above.
+  //
+  // The eleven slots on the contract surface are published under names now, and
+  // this pattern deliberately no longer matches them: what it still guards is
+  // the *numbered* slots, the ones whose numbers a Prism bump can still move.
   const allowed = new Set([
     join('shared', 'syntaxTheme.ts'),
     join('shared', 'tests', 'syntaxThemeTokenMap.test.ts'),

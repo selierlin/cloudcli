@@ -31,6 +31,19 @@ import { BUILTIN_THEMES } from '@/shared/constants';
  *    nothing else — no substrate, terminal, editor or graph token. That is the
  *    promise the selector's badge makes to the user, so it is asserted token by
  *    token rather than eyeballed.
+ * 3. **The syntax slots are take-it-or-leave-it.** They are deliberately *not* in
+ *    `SURFACES`: a theme whose reference palette has no syntax colours to copy —
+ *    the self-made `cc-polar` is one — must not be forced to invent a board, and
+ *    a future reference that only ships chrome must still be able to call itself
+ *    `full`. That is the same argument the terminal-font round made for keeping
+ *    its token out of `SURFACES`. What follows from leaving it open is the one
+ *    rule below: a theme that names any syntax slot has to name all the ones the
+ *    base palette declares for that appearance, or the block reads half in its
+ *    palette and half in the base one.
+ *
+ *    Declaring a syntax slot is otherwise covered without a new assertion: the
+ *    per-theme test reads every token an overlay declares, syntax included, and
+ *    requires it to resolve as written.
  *
  * The overrides themselves are read out of the overlay block, so a change to a
  * theme's values flows into the expectations without a second hand-maintained
@@ -479,6 +492,51 @@ test('a light-scoped overlay block does not leak into the dark appearance', asyn
       'scope its light half with `:not(.dark)`, or the dark-appearance leak check covers nothing',
   ).not.toEqual([]);
   expect(leaks, `light-scoped overrides leaked into the dark appearance:\n${leaks.join('\n')}`).toEqual([]);
+});
+
+/**
+ * All or nothing, per appearance.
+ *
+ * A theme's two syntax halves are compiled from two different Prism themes, so
+ * they are not equally complete: `buildSyntaxTheme` omits a declaration on the
+ * light side when the light theme has no value for it. A slot the base palette
+ * itself does not declare in an appearance is therefore allowed to be missing
+ * there — the rule must not push a theme into inventing a colour no reference
+ * has. Everything else the base declares has to be present.
+ *
+ * Which names count as syntax slots comes from the page's `SYNTAX_TOKEN_MAP`
+ * rather than from a pattern here: the generator is the only thing that decides,
+ * and a second spelling of the same set would drift from it silently.
+ *
+ * No overlay names one yet — that is allowed, because this is an optional
+ * surface. The assertion starts carrying weight with the first theme that does.
+ */
+test('a theme that names any syntax slot names all of them for that appearance', async ({ page }) => {
+  await openFixture(page);
+  const slots = await page.evaluate(() => window.__THEME_TOKENS__!.syntaxTokenNames);
+
+  const incomplete: string[] = [];
+  for (const theme of OVERLAY_THEMES) {
+    for (const appearance of APPEARANCES) {
+      const declared = Object.keys(readOverlay(theme.id, appearance, {}).declared);
+      const named = declared.filter((name) => slots.includes(name));
+      if (named.length === 0) continue;
+
+      const base = await read(page, null, appearance);
+      const declaredByBase = slots.filter((slot) => (base.tokens[slot] ?? '') !== '');
+      const missing = declaredByBase.filter((slot) => !named.includes(slot));
+      if (missing.length > 0) {
+        incomplete.push(
+          `${theme.id} in ${appearance}: names ${named.length} syntax slots but omits ${missing.join(', ')}`,
+        );
+      }
+    }
+  }
+
+  expect(
+    incomplete,
+    'a theme moves syntax colours all at once or not at all; a partial board leaves the block reading half in its palette',
+  ).toEqual([]);
 });
 
 test('the accent theme is the identity when no overlay is picked', async ({ page }) => {

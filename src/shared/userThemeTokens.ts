@@ -176,6 +176,7 @@ const SEMANTIC_TOKENS = new Set([
   '--accent-foreground',
   '--card',
   '--card-foreground',
+  '--code-block-bg',
   '--destructive',
   '--destructive-foreground',
   '--muted',
@@ -205,9 +206,11 @@ const EXACT_RULES = new Map<string, ValueRule>([
  * is the stylesheet's, and it grows: `--palette-gray-*` retires with phase 2,
  * and a theme written against it must not start failing when it does. The
  * deliberate exclusions are recorded in §5.8 v4 — the short version is that
- * `--cc-syntax-*` has no stable names yet (§5.9), the geometry families
- * (`--safe-area-*`, `--mobile-*`, `--header-*`) are not a theme's business, and
- * `--tw-*` are framework internals behind `--ring`.
+ * `--cc-syntax-*` was once one of them, for want of stable names (§5.9), and is
+ * a family rule below now that the contract slots have them; the numbered slots
+ * stay excluded by the pattern itself. The geometry families (`--safe-area-*`,
+ * `--mobile-*`, `--header-*`) are still not a theme's business, and `--tw-*` are
+ * framework internals behind `--ring`.
  */
 const FAMILY_RULES: ReadonlyArray<{ pattern: RegExp; rule: ValueRule }> = [
   // L1 palette: the raw board every semantic token points at, always a triplet.
@@ -221,6 +224,15 @@ const FAMILY_RULES: ReadonlyArray<{ pattern: RegExp; rule: ValueRule }> = [
   { pattern: /^--term-[a-z-]+$/, rule: 'triplet-or-reference' },
   // Editor chrome, consumed as a complete value rather than through `hsl()`.
   { pattern: /^--editor-[a-z-]+$/, rule: 'expression' },
+  // The syntax slots, consumed the same way: the Prism style object writes the
+  // value straight into a declaration. The leading `[a-z]` is load-bearing — it
+  // is what keeps a slot named by *number* out of reach, because a number's
+  // meaning is the build's and moves with a Prism bump (§5.9). This pattern and
+  // the names in `SYNTAX_SELECTORS` are one spelling (`--cc-syntax-<kebab-case>`,
+  // ending in `-color` except for the block body's `-foreground`); a name outside
+  // it would be silently unsettable, so a test walks every name in that table
+  // through this list.
+  { pattern: /^--cc-syntax-[a-z][a-z0-9-]*$/, rule: 'expression' },
   { pattern: /^--nav-(?:glass-blur|glass-saturate)$/, rule: 'number-or-length' },
   // The rest of the frosted-navigation board, all `<triplet> / <alpha>`.
   { pattern: /^--nav-[a-z-]+$/, rule: 'triplet-or-reference-with-optional-alpha' },

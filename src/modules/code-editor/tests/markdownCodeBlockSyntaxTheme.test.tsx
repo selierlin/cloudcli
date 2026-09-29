@@ -14,7 +14,7 @@ import { resetUserPreferences, writeUserPreference } from '@/shared/userSettings
  * It now renders with the shared variable theme, which keeps the prop constant.
  *
  * These tests pin the observable half of that: every token colour is a
- * `var(--cc-syntax-N)` reference, the same in both appearances, and the injected
+ * `var(--cc-syntax-*)` reference, the same in both appearances, and the injected
  * stylesheet declares those variables. A literal colour would mean the theme
  * object was being selected again rather than resolved by the cascade.
  */
@@ -54,7 +54,7 @@ test('every token colour is a variable reference, not a literal', () => {
   assert.ok(colours.length > 0, 'expected the highlighted block to colour its tokens');
 
   for (const colour of colours) {
-    assert.match(colour, /^var\(--cc-syntax-\d+\)$/, `token colour "${colour}" is not a variable`);
+    assert.match(colour, /^var\(--cc-syntax-[a-z0-9-]+\)$/, `token colour "${colour}" is not a variable`);
   }
 });
 
@@ -64,7 +64,7 @@ test('the highlighted <pre> reads its own colour from a variable too', () => {
 
   assert.match(
     pre.getAttribute('style') ?? '',
-    /color:\s*var\(--cc-syntax-\d+\)/,
+    /color:\s*var\(--cc-syntax-[a-z0-9-]+\)/,
     'the <pre> colour must come from the shared variable theme',
   );
 });
@@ -83,7 +83,7 @@ test('the injected stylesheet declares the variables the block references', () =
 
   const css = stylesheet.textContent ?? '';
   for (const colour of colours) {
-    const variable = /var\((--cc-syntax-\d+)\)/.exec(colour)?.[1];
+    const variable = /var\((--cc-syntax-[a-z0-9-]+)\)/.exec(colour)?.[1];
     assert.ok(variable, `unexpected token colour "${colour}"`);
     assert.ok(css.includes(`${variable}:`), `${variable} is referenced but not declared`);
   }

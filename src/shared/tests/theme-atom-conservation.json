@@ -1,5 +1,5 @@
 {
-  "total": 1517,
+  "total": 1515,
   "byUsage": {
     "active bg: gray-950": 1,
     "active bg: neutral-900": 1,
@@ -104,7 +104,7 @@
     "dark bg: zinc-700": 5,
     "dark bg: zinc-800": 4,
     "dark bg: zinc-800/50": 4,
-    "dark bg: zinc-900": 3,
+    "dark bg: zinc-900": 1,
     "dark bg: zinc-900/20": 1,
     "dark border-b: gray-100": 1,
     "dark border-l: gray-100": 1,

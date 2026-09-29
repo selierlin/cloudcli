@@ -11,7 +11,7 @@ import {
 } from '@/modules/shell/utils/terminalTheme';
 import type { TerminalFontFamilyId } from '@/shared/types';
 import { EXTREME_TOKENS, SCALE_TOKEN_NAMES } from '@/shared/tests/neutralScale';
-import { ensureSyntaxStyleElement, SYNTAX_TOKEN_MAP } from '@/shared/syntaxTheme';
+import { ensureSyntaxStyleElement, SYNTAX_TOKEN_MAP, syntaxTheme } from '@/shared/syntaxTheme';
 import type { SyntaxSemanticName } from '@/shared/syntaxTheme';
 import type { ThemeManifest } from '@/shared/types';
 import { applyUserThemeStyle, getUserThemeStyleState, previewUserThemeStyle } from '@/shared/userThemeStyles';
@@ -176,7 +176,32 @@ function extractTokenNames(css: string): string[] {
   return [...names].sort();
 }
 
-const tokenNames = extractTokenNames(cssSource);
+/**
+ * Every custom property the stylesheet declares, plus the syntax slots the Prism
+ * sheet injects at runtime.
+ *
+ * The syntax variables are derived from the Prism theme objects, so they cannot
+ * live in `index.css` — a `<style>` this app injects carries them instead, and
+ * the scan above cannot see that element. Listing them by hand is what puts the
+ * slots on the baseline at all: without it, renaming them, or one of them
+ * quietly losing its value, would leave the baseline diff empty.
+ *
+ * A slot a theme omits reads back as an empty string and is recorded as one —
+ * the baseline already carries two such entries (`--reasoning-collapse-duration`
+ * and `--reasoning-fade-duration`), because "the property exists but resolves to
+ * nothing" is a state this page is supposed to show rather than hide.
+ */
+const tokenNames = [
+  ...new Set([...extractTokenNames(cssSource), ...Object.values(SYNTAX_TOKEN_MAP)]),
+].sort();
+
+/**
+ * The contract slots' token names, read from the map the app publishes rather
+ * than from a second list here: a spec asking "did this theme declare the syntax
+ * slots?" has to mean the same set the generator named, or the two drift apart
+ * without either side noticing.
+ */
+const syntaxTokenNames: string[] = Object.values(SYNTAX_TOKEN_MAP);
 
 function buildProbes(): void {
   for (const { token, property, wrap = 'hsl' } of PROBES) {
@@ -300,15 +325,163 @@ function readSyntaxToken(name: SyntaxSemanticName): string {
   }
 }
 
+/** The id on the rendered code-block probe, so a spec can select the element. */
+const CODE_BLOCK_PROBE_ID = 'cc-code-block-probe';
+
+const PRISM_PRE_SELECTOR = 'pre[class*="language-"]';
+
+/**
+ * A code block with the shape the two real consumers produce, reported as the
+ * computed colour of `<pre>` and of the `<code>` inside it.
+ *
+ * The fixture never mounts the app, so the block is assembled here — but out of
+ * the *production* style object rather than a hand-written copy:
+ * `react-syntax-highlighter` inlines the Prism sheet's `pre[…]` rule as
+ * `preProps`, and both consumers (chat's `Markdown`, code-editor's
+ * `MarkdownCodeBlock`) then replace the `code[…]` half with their own
+ * `codeTagProps`, which carry no colour. The body colour therefore reaches
+ * `<code>` by inheritance, and which element's computed colour actually moves
+ * when a theme sets the slot is a question only a real engine can be asked.
+ */
+function readCodeBlockColours(): { pre: string; code: string } {
+  document.getElementById(CODE_BLOCK_PROBE_ID)?.remove();
+
+  const pre = document.createElement('pre');
+  pre.id = CODE_BLOCK_PROBE_ID;
+  pre.className = 'language-ts';
+  pre.style.setProperty('transition', 'none');
+  for (const [property, value] of Object.entries(syntaxTheme.style[PRISM_PRE_SELECTOR] ?? {})) {
+    pre.style.setProperty(
+      property.replace(/[A-Z]/g, (character) => `-${character.toLowerCase()}`),
+      value,
+    );
+  }
+
+  const code = document.createElement('code');
+  code.className = 'language-ts';
+  code.textContent = 'const answer = 41;';
+  code.style.setProperty('transition', 'none');
+  // What a caller's own `codeTagProps` amount to: no colour of their own.
+  code.style.setProperty('background', 'transparent');
+
+  pre.appendChild(code);
+  document.body.appendChild(pre);
+
+  return { pre: getComputedStyle(pre).color, code: getComputedStyle(code).color };
+}
+
+/**
+ * The code-block *panel* — the board a fenced block sits on — read the way the
+ * consumers paint it, next to the editor page it is meant to match.
+ *
+ * The fixture never mounts the app, so the panel is assembled here — but out of
+ * the consumers' own spellings. `chat` is what the chat transcript's panel
+ * carries (`bg-code-block/50` in light, `dark:bg-code-block` in dark): the light
+ * half keeps the half-transparent shape `--muted` had, the dark half stays
+ * opaque, as the `--n-zinc-900` atom was. The editor's preview writes the token
+ * straight onto its `<pre>` in both appearances, which is what removed the old
+ * "the dark half falls through to Prism's own background" asymmetry, so that one
+ * is read as an inline background rather than through a utility class.
+ *
+ * `reference` is the editor page itself and `half` is the chat panel's light
+ * half spelled by hand, so a caller can ask both questions without restating a
+ * palette value: does the panel sit on the same board as the editor beside it,
+ * and is the light half that board at 50%? Every probe sets `transition: none`,
+ * because a value read mid-interpolation is a value no one painted.
+ */
+function readCodeBlockBoards(): {
+  reference: string;
+  chat: string;
+  editor: string;
+  half: string;
+} {
+  const probe = (): HTMLDivElement => {
+    const element = document.createElement('div');
+    element.style.setProperty('transition', 'none');
+    return element;
+  };
+
+  const reference = probe();
+  reference.style.setProperty('background', 'var(--editor-bg)');
+
+  const chat = probe();
+  chat.className = 'bg-code-block/50 dark:bg-code-block';
+
+  const editor = probe();
+  editor.style.setProperty('background', 'hsl(var(--code-block-bg))');
+
+  const half = probe();
+  half.style.setProperty('background', 'hsl(var(--code-block-bg) / 0.5)');
+
+  document.body.append(reference, chat, editor, half);
+  try {
+    return {
+      reference: getComputedStyle(reference).backgroundColor,
+      chat: getComputedStyle(chat).backgroundColor,
+      editor: getComputedStyle(editor).backgroundColor,
+      half: getComputedStyle(half).backgroundColor,
+    };
+  } finally {
+    reference.remove();
+    chat.remove();
+    editor.remove();
+    half.remove();
+  }
+}
+
 /**
  * Runs the production syntax-sheet injection again, the way a later-loaded chunk
  * would if that module ever stopped being part of the entry graph. The module
  * itself injects once, before any overlay exists, so this is the only way to ask
  * whether an overlay still wins when the base sheet arrives second.
+ *
+ * `placement: 'last'` is the negative control for that question. It writes the
+ * *same* declarations but appends them, which is where a base layer has to lose:
+ * a test that keeps reading the themed colour under it is not measuring document
+ * order at all, whatever it claims to.
  */
-function reinjectSyntaxStyleSheet(): void {
+function reinjectSyntaxStyleSheet(placement: 'first' | 'last' = 'first'): void {
   document.getElementById('cc-syntax-theme')?.remove();
-  ensureSyntaxStyleElement();
+  if (placement === 'first') {
+    ensureSyntaxStyleElement();
+    return;
+  }
+
+  const styleElement = document.createElement('style');
+  styleElement.id = 'cc-syntax-theme';
+  styleElement.textContent = syntaxTheme.css;
+  document.head.appendChild(styleElement);
+}
+
+/**
+ * Takes a declaration back out of an injected `<style>` element, returning how
+ * many rules it was in.
+ *
+ * An overlay a theme arrives in is a real element, so its rules are reachable
+ * through CSSOM — and deleting a declaration is what turns "this slot is what
+ * paints that" into something observable: what the page shows afterwards is the
+ * layer underneath, which for these tokens is the base Prism palette. The count
+ * is returned rather than a boolean so a caller can tell "removed it and the page
+ * fell back" from "removed nothing and the page happened to look right".
+ */
+function removeDeclaration(styleElementSelector: string, token: string): number {
+  const element = document.querySelector<HTMLStyleElement>(styleElementSelector);
+  const sheet = element?.sheet;
+  if (!sheet) {
+    throw new Error(`${styleElementSelector} is not a stylesheet in the document`);
+  }
+
+  let removed = 0;
+  for (const rule of Array.from(sheet.cssRules)) {
+    // 1 is CSSRule.STYLE_RULE, spelled numerically because not every engine
+    // exposes the named constant on the global.
+    if (rule.type !== 1) continue;
+    const style = (rule as CSSStyleRule).style;
+    if (!style.getPropertyValue(token)) continue;
+    style.removeProperty(token);
+    removed += 1;
+  }
+  return removed;
 }
 
 /**
@@ -579,8 +752,16 @@ declare global {
       previewUserTheme(css: string | null): UserThemePreview;
       /** What one shared syntax slot resolves to right now. */
       readSyntaxToken(name: SyntaxSemanticName): string;
+      /** The contract syntax slots' token names, so a spec keeps no list of its own. */
+      syntaxTokenNames: string[];
+      /** Renders the code-block probe and reports `<pre>`'s and `<code>`'s computed colours. */
+      readCodeBlockColours(): { pre: string; code: string };
+      /** The code-block panel's board, the editor page it follows, and its light half. */
+      readCodeBlockBoards(): { reference: string; chat: string; editor: string; half: string };
       /** Re-runs the production syntax-sheet injection, as a later-loaded chunk would. */
-      reinjectSyntaxStyleSheet(): void;
+      reinjectSyntaxStyleSheet(placement?: 'first' | 'last'): void;
+      /** Removes a declaration from an injected sheet, returning the rules it was in. */
+      removeDeclaration(styleElementSelector: string, token: string): number;
       /** The token preview's snapshot, in both appearances, taken by the production module. */
       readTokenPreviewSnapshot(): {
         groups: { id: string; entries: { name: string; light: string; dark: string; lightSwatch: string | null; darkSwatch: string | null }[] }[];
@@ -606,6 +787,10 @@ window.__THEME_TOKENS__ = {
   applyUserTheme,
   previewUserTheme,
   readSyntaxToken,
+  syntaxTokenNames,
+  readCodeBlockColours,
+  readCodeBlockBoards,
   reinjectSyntaxStyleSheet,
+  removeDeclaration,
   readTokenPreviewSnapshot,
 };
