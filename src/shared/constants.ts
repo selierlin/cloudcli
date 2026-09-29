@@ -377,6 +377,13 @@ export const BUILTIN_THEMES: ThemeManifest[] = [
     source: 'builtin',
     coverage: 'full',
   },
+  {
+    id: 'cc-onedark-vivid',
+    name: '暗夜一号·浓彩',
+    appearance: 'system',
+    source: 'builtin',
+    coverage: 'full',
+  },
 ];
 
 // ---------------------------

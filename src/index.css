@@ -2331,3 +2331,193 @@
   --cc-syntax-url-color: #56b6c2;
   --cc-syntax-block-foreground: #abb2bf;
 }
+
+/* cc-onedark-vivid — "One Dark Vivid", the same plugin's other theme.
+ *
+ * A variant of `cc-onedark` rather than a sibling, and the blocks below are
+ * deliberately a copy of its three: the plugin's four files share their core
+ * palette outright (both `.theme.json`s state `accentColor` #568AF2,
+ * `backgroundColor` #202329, `borderColor` #333841, `selectionBackground`
+ * #323844 and `selectionForeground` #d7dae0), so the substrate, editor board
+ * and graph lanes are meant to be identical. Repeating them is what risks
+ * drifting off the sibling; `theme-overlays.spec.ts` pins the copy by requiring
+ * these two themes to differ in exactly the tokens this comment names, which is
+ * what makes the repeat safe rather than merely tidy.
+ *
+ * Three axes move — and the second is why this is **not** a syntax-only
+ * variant. The plan's first pass got that wrong; the correction is recorded in
+ * `docs/research/CloudCLI内置主题语法调色板接管方案.md` §3.7.
+ *
+ * 1. **The text grey.** One Dark's `foregroundColor` goes #abb2bf → #bbbbbb, a
+ *    neutral grey where the sibling's is the cool blue-grey of its window. That
+ *    is one L1 step (`ink-100`), and the editor and terminal foregrounds that
+ *    read through it follow for free.
+ *
+ * 2. **The terminal board.** The plugin separates `normal` from `bright` with
+ *    `FONT_TYPE: 1` rather than with a colour, so its `CONSOLE_*_OUTPUT` pairs
+ *    are equal and the derivation `cc-onedark` documents is what separates them
+ *    — which is why the source's changed pairs fold to nine of the sixteen
+ *    slots here too. Read `<attributes>`, not `<colors>`: both name
+ *    `CONSOLE_*`, the ANSI board lives in the former, and the latter is where
+ *    the first pass looked when it wrongly concluded the terminal did not move.
+ *    Twelve entries change there; folding them gives red / green / magenta /
+ *    cyan in both halves and white in the normal half only, because its bright
+ *    partner reads `selectionForeground`, which the variant leaves alone.
+ *
+ * 3. **The syntax board.** Six of the eleven slots move; see the dark block.
+ *
+ * The graph lanes, the compatibility ramps and `--palette-white` do not move,
+ * and neither does any light-half value: the source has no light flavour at all
+ * (all four of its themes declare `dark: true`), the sibling's light half is
+ * invented, and inventing a *second* one would be fabrication rather than
+ * derivation — the variant's transform is per-colour hand-tuning (ΔS +5.5 to
+ * +17.2 across the five families), so there is no rule to carry across. The
+ * consequence is recorded rather than hidden: in the light appearance this
+ * theme renders as `cc-onedark` does, which is what one would expect of a theme
+ * whose own name is "dark night". */
+[data-theme="cc-onedark-vivid"] {
+  /* Substrate — light: the sibling's. Both themes are the same plugin's files,
+     and it ships one light flavour for the both of them. */
+  --palette-sand-50: 220 13% 96%;
+  --palette-sand-100: 220 13% 92%;
+  --palette-sand-200: 220 13% 87%;
+  --palette-sand-500: 219 9.8% 40%;
+  --palette-sand-800: 218.57 10.29% 26.67%;
+  --palette-sand-950: 220 12.33% 14.31%;
+
+  /* Substrate — dark: the sibling's, except the one step `foregroundColor`
+     feeds. */
+  --palette-ink-950: 220 12.33% 14.31%;
+  --palette-ink-900: 220 13.04% 18.04%;
+  --palette-ink-850: 218.57 12.07% 22.75%;
+  --palette-ink-800: 218.57 10.29% 26.67%;
+  --palette-ink-400: 219 11.76% 66.67%;
+  --palette-ink-100: 0 0% 73.33%;
+
+  /* Accent and danger: the sibling's, deviations included — `accentColor` and
+     `errorForeground` are the same across the plugin's files. */
+  --palette-brand-500: 220.34 47.41% 49.22%;
+  --palette-brand-400: 220 85.71% 64.31%;
+  --palette-danger-500: 345.19 60.63% 50.2%;
+
+  /* Terminal board — the sibling's, with the five ANSI slots the variant moves
+     and the derived `bright-*` partners that follow them. black / yellow /
+     blue, their bright partners, bright-black and bright-white are untouched. */
+  --palette-term-bg: 220 13.04% 18.04%;
+  --palette-term-fg: 0 0% 73.33%;
+  --palette-term-cursor: 220.23 100% 66.08%;
+  --palette-term-selection: 220.8 16.34% 30%;
+  --palette-term-black: 0 0% 0%;
+  --palette-term-red: 351.2 82.42% 64.31%;
+  --palette-term-green: 107.56 43.62% 63.14%;
+  --palette-term-yellow: 39.06 67.09% 69.02%;
+  --palette-term-blue: 207.04 81.61% 65.88%;
+  --palette-term-magenta: 295.75 65.8% 62.16%;
+  --palette-term-cyan: 184.29 64.17% 47.06%;
+  --palette-term-white: 0 0% 73.33%;
+  --palette-term-bright-black: 216 9.68% 30.39%;
+  --palette-term-bright-red: 351.2 82.42% 73.31%;
+  --palette-term-bright-green: 107.56 43.62% 72.14%;
+  --palette-term-bright-yellow: 39.06 67.09% 78.02%;
+  --palette-term-bright-blue: 207.04 81.61% 74.88%;
+  --palette-term-bright-magenta: 295.75 65.8% 71.16%;
+  --palette-term-bright-cyan: 184.29 64.17% 56.06%;
+  --palette-term-bright-white: 220 12.68% 86.08%;
+
+  /* Graph lanes — the sibling's; neither file feeds them. */
+  --palette-graph-1: 198.6 60% 42.4%;
+  --palette-graph-2: 24.6 60% 45.3%;
+  --palette-graph-3: 270.7 60% 60.9%;
+  --palette-graph-4: 142.1 60% 34.9%;
+  --palette-graph-5: 0 60% 57%;
+  --palette-graph-6: 45.4 60% 36.4%;
+  --palette-graph-7: 173.4 60% 34%;
+  --palette-graph-8: 330.4 60% 55.3%;
+  --palette-graph-9: 238.7 60% 64.5%;
+  --palette-graph-10: 83.7 60% 33.3%;
+}
+
+[data-theme="cc-onedark-vivid"]:not(.dark) {
+  --code-block-bg: var(--palette-sand-50);
+  --editor-bg: hsl(var(--palette-sand-50));
+  --editor-toolbar-bg: hsl(var(--palette-sand-50));
+  --editor-loading-bg: hsl(var(--palette-sand-50));
+  --editor-selection: hsl(var(--palette-sand-200));
+  --editor-selection-focused: hsl(var(--palette-brand-500) / 0.22);
+  --editor-gutter-bg: hsl(var(--palette-sand-50));
+  --editor-gutter-fg: hsl(var(--palette-sand-500));
+  --editor-gutter-separator: 1px solid hsl(var(--palette-sand-200));
+  --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.14);
+  --editor-active-line-gutter-bg: hsl(var(--palette-sand-100));
+  --editor-panel-bg: hsl(var(--palette-sand-100));
+  --editor-panel-border: 1px solid hsl(var(--palette-sand-200));
+  --editor-fold-placeholder-bg: hsl(var(--palette-sand-100));
+  --editor-fold-placeholder-fg: hsl(var(--palette-sand-500));
+  --editor-tooltip-bg: hsl(var(--palette-sand-100));
+  --editor-tooltip-border: 1px solid hsl(var(--palette-sand-200));
+  --editor-tooltip-arrow-border: hsl(var(--palette-sand-200));
+  --editor-tooltip-arrow: hsl(var(--palette-sand-100));
+  --editor-autocomplete-selected-bg: hsl(var(--palette-brand-500));
+  --editor-minimap-bg: hsl(var(--palette-sand-100));
+  --editor-toolbar-border: hsl(var(--palette-sand-200));
+  --editor-toolbar-fg: hsl(var(--palette-sand-800));
+  --editor-toolbar-hover-bg: hsl(var(--palette-sand-100));
+}
+
+[data-theme="cc-onedark-vivid"].dark {
+  --code-block-bg: var(--palette-ink-900);
+  /* `ink-900`, not `ink-950`, for `cc-onedark`'s reason: One Dark's editor page
+     is its panel colour, one step above its window. */
+  --editor-bg: hsl(var(--palette-ink-900));
+  --editor-fg: hsl(var(--palette-ink-100));
+  --editor-caret: hsl(var(--palette-brand-400));
+  --editor-cursor: hsl(var(--palette-brand-400));
+  --editor-selection: hsl(var(--palette-ink-850));
+  --editor-selection-focused: hsl(var(--palette-ink-850));
+  --editor-gutter-bg: hsl(var(--palette-ink-900));
+  --editor-gutter-fg: hsl(var(--palette-ink-400));
+  --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.06);
+  --editor-active-line-gutter-bg: hsl(var(--palette-ink-850));
+  --editor-panel-bg: hsl(var(--palette-ink-850));
+  --editor-panel-fg: hsl(var(--palette-ink-100));
+  --editor-search-match-bg: hsl(var(--palette-brand-400) / 0.35);
+  --editor-search-match-outline: 1px solid hsl(var(--palette-brand-400));
+  --editor-search-match-selected-bg: hsl(var(--palette-brand-400) / 0.18);
+  --editor-matching-bracket-bg: hsl(var(--palette-brand-400) / 0.28);
+  --editor-nonmatching-bracket-bg: hsl(var(--palette-danger-500) / 0.28);
+  --editor-fold-placeholder-fg: hsl(var(--palette-ink-400));
+  --editor-tooltip-bg: hsl(var(--palette-ink-850));
+  --editor-tooltip-arrow: hsl(var(--palette-ink-850));
+  --editor-autocomplete-selected-bg: hsl(var(--palette-ink-850));
+  --editor-autocomplete-selected-fg: hsl(var(--palette-ink-100));
+  --editor-minimap-bg: hsl(var(--palette-ink-900));
+  --editor-toolbar-bg: hsl(var(--palette-ink-850));
+  --editor-toolbar-border: hsl(var(--palette-ink-800));
+  --editor-toolbar-fg: hsl(var(--palette-ink-100));
+  --editor-toolbar-hover-bg: hsl(var(--palette-ink-800));
+  --editor-loading-bg: hsl(var(--palette-ink-900));
+
+  /* One Dark Vivid's own syntax board, slot by slot (`one_dark_vivid.xml`).
+     Five slots keep the sibling's colours: `comment`, the orange pair
+     `constant` / `number`, `function`, and `class-name` (the plugin paints
+     classes yellow, where base Prism groups them with the orange pair). Six
+     move, because the 175 attributes the variant changes all take their base
+     colour from `keyword`, `string`, `url`, `property`, or the grey that
+     `punctuation` and the block foreground share — so those are the slots that
+     carry the change, and the other five are the same colour in both themes by
+     derivation rather than by omission.
+     The light half is left alone (base Prism oneLight): the variant's reference
+     ships no light board either, and `theme-overlays.spec.ts` holds every theme
+     whose reference has one board to declaring it in that appearance only. */
+  --cc-syntax-comment-color: #5c6370;
+  --cc-syntax-punctuation-color: #bbbbbb;
+  --cc-syntax-class-name-color: #e5c07b;
+  --cc-syntax-constant-color: #d19a66;
+  --cc-syntax-number-color: #d19a66;
+  --cc-syntax-keyword-color: #d55fde;
+  --cc-syntax-property-color: #ef596f;
+  --cc-syntax-string-color: #89ca78;
+  --cc-syntax-function-color: #61afef;
+  --cc-syntax-url-color: #2bbac5;
+  --cc-syntax-block-foreground: #bbbbbb;
+}

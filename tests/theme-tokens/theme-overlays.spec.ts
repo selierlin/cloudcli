@@ -548,11 +548,11 @@ test('a theme that names any syntax slot names all of them for that appearance',
  * of them. This pins the backfill's outcome: these three themes own a board, they
  * own all of it, and owning it changes the rendered block.
  *
- * Both appearances only for `cc-catppuccin`: the other two references ship a dark
- * board and nothing else, so their light half is absent on purpose rather than
- * forgotten.
+ * Both appearances only for `cc-catppuccin`: every other reference here ships a
+ * dark board and nothing else, so their light half is absent on purpose rather
+ * than forgotten.
  */
-const SYNTAX_BOARD_THEMES = ['cc-catppuccin', 'cc-islands', 'cc-onedark'];
+const SYNTAX_BOARD_THEMES = ['cc-catppuccin', 'cc-islands', 'cc-onedark', 'cc-onedark-vivid'];
 const BOARD_IN_BOTH_APPEARANCES = ['cc-catppuccin'];
 
 test('the overlays that own a syntax board own all of it, and move it', async ({ page }) => {
@@ -597,6 +597,85 @@ test('the overlays that own a syntax board own all of it, and move it', async ({
   }
 
   expect(problems, `syntax boards:\n${problems.join('\n')}`).toEqual([]);
+});
+
+/**
+ * The variant relation.
+ *
+ * `cc-onedark-vivid` repeats `cc-onedark`'s three blocks, because the plugin's
+ * four files share their core palette and the sibling's substrate, editor board
+ * and graph lanes are supposed to come across unchanged. Nothing above can see
+ * that: the overlay contract compares a theme against the *base*, so a value
+ * that drifted off the sibling would still resolve as written and still stay
+ * inside the theme's `full` reach. This pins the copy — the two themes differ in
+ * exactly the tokens the variant is about, and in nothing else — which is what
+ * makes repeating the blocks safe rather than merely tidy.
+ *
+ * The expected set is spelled out rather than derived, because it *is* the
+ * claim. Three axes move, and the terminal is one of them (the plan's first
+ * pass wrongly read it as syntax-only; see its §3.7 correction). The light half
+ * carries no board, so there it is the grey alone.
+ */
+const VIVID_SUBSTRATE_MOVES = [
+  // `foregroundColor` #abb2bf -> #bbbbbb, the one L1 step that moves; the
+  // editor and terminal foregrounds read through it.
+  '--palette-ink-100',
+  // The terminal: the source's five moved ANSI slots plus the derived bright
+  // partners that follow them.
+  '--palette-term-fg',
+  '--palette-term-red',
+  '--palette-term-green',
+  '--palette-term-magenta',
+  '--palette-term-cyan',
+  '--palette-term-white',
+  '--palette-term-bright-red',
+  '--palette-term-bright-green',
+  '--palette-term-bright-magenta',
+  '--palette-term-bright-cyan',
+];
+
+/** The six of eleven syntax slots the variant's 175 changed attributes land on. */
+const VIVID_DARK_SYNTAX_MOVES = [
+  '--cc-syntax-punctuation-color',
+  '--cc-syntax-keyword-color',
+  '--cc-syntax-property-color',
+  '--cc-syntax-string-color',
+  '--cc-syntax-url-color',
+  '--cc-syntax-block-foreground',
+];
+
+test('the vivid variant differs from its sibling in the boards only', () => {
+  const problems: string[] = [];
+
+  for (const appearance of APPEARANCES) {
+    const sibling = readOverlay('cc-onedark', appearance, {}).declared;
+    const variant = readOverlay('cc-onedark-vivid', appearance, {}).declared;
+    const expected = new Set([
+      ...VIVID_SUBSTRATE_MOVES,
+      ...(appearance === 'dark' ? VIVID_DARK_SYNTAX_MOVES : []),
+    ]);
+
+    for (const name of new Set([...Object.keys(sibling), ...Object.keys(variant)])) {
+      const inSibling = name in sibling;
+      const inVariant = name in variant;
+      if (inSibling !== inVariant) {
+        problems.push(
+          `${appearance}: ${name} is declared by the ${inVariant ? 'variant' : 'sibling'} only`,
+        );
+        continue;
+      }
+
+      const differs = sibling[name] !== variant[name];
+      if (differs && !expected.has(name)) {
+        problems.push(`${appearance}: ${name} moved off its sibling, which the variant is not about`);
+      }
+      if (!differs && expected.has(name)) {
+        problems.push(`${appearance}: ${name} is supposed to move but reads as its sibling does`);
+      }
+    }
+  }
+
+  expect(problems, `the variant relation:\n${problems.join('\n')}`).toEqual([]);
 });
 
 test('the accent theme is the identity when no overlay is picked', async ({ page }) => {
