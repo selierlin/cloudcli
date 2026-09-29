@@ -576,15 +576,16 @@ test('a theme that names any syntax slot names all of them for that appearance',
  * The per-theme test above proves a declared value resolves as written, and the
  * all-or-nothing test proves a board is never partial — but neither notices a
  * board deleted outright, nor one that declares all eleven slots and moves none
- * of them. This pins the backfill's outcome: these three themes own a board, they
+ * of them. This pins the backfill's outcome: these four themes own a board, they
  * own all of it, and owning it changes the rendered block.
  *
- * Both appearances only for `cc-catppuccin`: every other reference here ships a
- * dark board and nothing else, so their light half is absent on purpose rather
- * than forgotten.
+ * In both appearances. The first pass left the light half of the three reference
+ * themes empty, on the reading that their references ship a dark board and
+ * nothing else; all three do have a light answer, so the light half is declared
+ * too and its absence would now be the regression. `cc-polar` stays out
+ * entirely — it is self-made, with no board to copy and none invented for it.
  */
 const SYNTAX_BOARD_THEMES = ['cc-catppuccin', 'cc-islands', 'cc-onedark', 'cc-onedark-vivid'];
-const BOARD_IN_BOTH_APPEARANCES = ['cc-catppuccin'];
 
 test('the overlays that own a syntax board own all of it, and move it', async ({ page }) => {
   await openFixture(page);
@@ -604,16 +605,6 @@ test('the overlays that own a syntax board own all of it, and move it', async ({
       if (!owns) {
         if (named.length > 0) {
           problems.push(`${theme.id} in ${appearance}: names ${named.length} syntax slots but owns no board`);
-        }
-        continue;
-      }
-
-      const expectsABoard = BOARD_IN_BOTH_APPEARANCES.includes(theme.id) || appearance === 'dark';
-      if (!expectsABoard) {
-        if (named.length > 0) {
-          problems.push(
-            `${theme.id} in ${appearance}: names a syntax board, but its reference ships none for this appearance`,
-          );
         }
         continue;
       }
@@ -645,7 +636,10 @@ test('the overlays that own a syntax board own all of it, and move it', async ({
  * The expected set is spelled out rather than derived, because it *is* the
  * claim. Three axes move, and the terminal is one of them (the plan's first
  * pass wrongly read it as syntax-only; see its §3.7 correction). The light half
- * carries no board, so there it is the grey alone.
+ * carries the sibling's board verbatim — the variant's substitution is the
+ * identity on a light board — so there it is the grey alone, and the empty
+ * syntax expected-set below is what holds that copy verbatim: any slot that
+ * drifted between the two light boards would be reported as moved.
  */
 const VIVID_SUBSTRATE_MOVES = [
   // `foregroundColor` #abb2bf -> #bbbbbb, the one L1 step that moves; the
@@ -665,7 +659,10 @@ const VIVID_SUBSTRATE_MOVES = [
   '--palette-term-bright-cyan',
 ];
 
-/** The six of eleven syntax slots the variant's 175 changed attributes land on. */
+/**
+ * The six of eleven syntax slots the variant's 175 changed attributes land on —
+ * the dark appearance's, since the light one repeats the sibling's board.
+ */
 const VIVID_DARK_SYNTAX_MOVES = [
   '--cc-syntax-punctuation-color',
   '--cc-syntax-keyword-color',
