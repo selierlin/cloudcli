@@ -2052,6 +2052,30 @@
   --editor-toolbar-border: hsl(var(--palette-sand-200));
   --editor-toolbar-fg: hsl(var(--palette-sand-800));
   --editor-toolbar-hover-bg: hsl(var(--palette-sand-100));
+
+  /* Islands Light's own syntax board, from the platform's editor scheme — the
+     one `ManyIslandsLight.theme.json` names (`editorScheme: "Light"`, i.e.
+     `themes/Light.xml`, whose internal name is "Light" and whose localised
+     display name is "IntelliJ Light"). Read attribute by attribute, the same
+     read the dark half makes: `punctuation`, `class-name` and the block body
+     take the scheme's text fallback (`DEFAULT_IDENTIFIER` /
+     `DEFAULT_CLASS_REFERENCE` are not declared in a light scheme, so they
+     resolve to `TEXT`), fields and constants share the purple, and `url` takes
+     the string-escape colour because the scheme has no separate cyan role.
+     Where the dark half's `url` lands on `keyword`'s value, this one does not:
+     the scheme states escape and keyword as different blues. Every slot
+     differs from base Prism. */
+  --cc-syntax-comment-color: #8c8c8c;
+  --cc-syntax-punctuation-color: #080808;
+  --cc-syntax-class-name-color: #080808;
+  --cc-syntax-constant-color: #871094;
+  --cc-syntax-number-color: #1750eb;
+  --cc-syntax-keyword-color: #0033b3;
+  --cc-syntax-property-color: #871094;
+  --cc-syntax-string-color: #067d17;
+  --cc-syntax-function-color: #00627a;
+  --cc-syntax-url-color: #0037a6;
+  --cc-syntax-block-foreground: #080808;
 }
 
 [data-theme="cc-islands"].dark {
@@ -2092,7 +2116,7 @@
      takes the string-escape colour because the scheme has no separate cyan
      role — which makes it land on the same value as `keyword`; recorded rather
      than papered over. Every slot differs from base Prism. The light half is
-     left alone: the reference ships no light board. */
+     the sibling scheme's; it is declared in the light block above. */
   --cc-syntax-comment-color: #7a7e85;
   --cc-syntax-punctuation-color: #bcbec4;
   --cc-syntax-class-name-color: #bcbec4;
@@ -2277,6 +2301,28 @@
   --editor-toolbar-border: hsl(var(--palette-sand-200));
   --editor-toolbar-fg: hsl(var(--palette-sand-800));
   --editor-toolbar-hover-bg: hsl(var(--palette-sand-100));
+
+  /* Atom One Light's board, slot by slot — the light flavour of the same
+     source. The IntelliJ plugin the dark half reads ships no light board (all
+     four of its themes declare `dark: true`), so the sibling that answers
+     "what does this palette look like on a light surface" is Atom's own One
+     Light, the theme the plugin's dark palette is a port of. The hue roles are
+     the dark half's, one for one: `class-name` takes the second orange,
+     `constant` and `number` the first, `property` the red, `string` the green,
+     `url` the cyan. Three slots move off base Prism oneLight, which flattens
+     `class-name`, `constant` and `number` into a single orange — the split is
+     the whole difference. */
+  --cc-syntax-comment-color: #a0a1a7;
+  --cc-syntax-punctuation-color: #383a42;
+  --cc-syntax-class-name-color: #c18401;
+  --cc-syntax-constant-color: #986801;
+  --cc-syntax-number-color: #986801;
+  --cc-syntax-keyword-color: #a626a4;
+  --cc-syntax-property-color: #e45649;
+  --cc-syntax-string-color: #50a14f;
+  --cc-syntax-function-color: #4078f2;
+  --cc-syntax-url-color: #0184bc;
+  --cc-syntax-block-foreground: #383a42;
 }
 
 [data-theme="cc-onedark"].dark {
@@ -2317,8 +2363,8 @@
      derived from this same palette — so naming them is what makes the overlay
      *own* the board rather than inherit it. `class-name` is the one that moves:
      the reference paints classes yellow, while base Prism groups classes with
-     `number` and `constant` in orange. The light half is left alone (base
-     Prism oneLight), because the reference ships no light board. */
+     `number` and `constant` in orange. The light half is Atom One Light's; it
+     is declared in the light block above. */
   --cc-syntax-comment-color: #5c6370;
   --cc-syntax-punctuation-color: #abb2bf;
   --cc-syntax-class-name-color: #e5c07b;
@@ -2366,15 +2412,15 @@
  *
  * 3. **The syntax board.** Six of the eleven slots move; see the dark block.
  *
- * The graph lanes, the compatibility ramps and `--palette-white` do not move,
- * and neither does any light-half value: the source has no light flavour at all
- * (all four of its themes declare `dark: true`), the sibling's light half is
- * invented, and inventing a *second* one would be fabrication rather than
- * derivation — the variant's transform is per-colour hand-tuning (ΔS +5.5 to
- * +17.2 across the five families), so there is no rule to carry across. The
- * consequence is recorded rather than hidden: in the light appearance this
- * theme renders as `cc-onedark` does, which is what one would expect of a theme
- * whose own name is "dark night". */
+ * The graph lanes, the compatibility ramps and `--palette-white` do not move.
+ * The light half is the sibling's, all of it: the source has no light flavour
+ * at all (all four of its themes declare `dark: true`), so the sibling's light
+ * half — Atom One Light, the theme the palette is a port of — is the stand-in,
+ * and the variant's transform is a plain string substitution over five dark
+ * hexes, none of which a light board contains. The substitution is the identity
+ * there, which is why the light blocks below repeat the sibling's rather than
+ * derive a second invention: two themes that read alike on a light surface is
+ * what the source says. */
 [data-theme="cc-onedark-vivid"] {
   /* Substrate — light: the sibling's. Both themes are the same plugin's files,
      and it ships one light flavour for the both of them. */
@@ -2462,6 +2508,30 @@
   --editor-toolbar-border: hsl(var(--palette-sand-200));
   --editor-toolbar-fg: hsl(var(--palette-sand-800));
   --editor-toolbar-hover-bg: hsl(var(--palette-sand-100));
+
+  /* The sibling's light board, value for value — Atom One Light's, which is
+     what `cc-onedark`'s light half carries and for its reasons. What makes the
+     copy a derivation rather than a shortcut is the variant's own transform:
+     the plugin ships no light flavour for either theme (all four of its files
+     declare `dark: true`), so the dark half is derived by a plain string
+     substitution over five hexes, and none of those five (#e06c75, #56b6c2,
+     #98c379, #abb2bf, #c678dd) appears anywhere in a light board — the
+     substitution is the identity there. Two themes that read alike on a light
+     surface is thus what the source says, not what the blocks happen to do.
+     Three slots still move off base Prism oneLight, which flattens
+     `class-name`, `constant` and `number` into a single orange; the split is
+     the whole difference. */
+  --cc-syntax-comment-color: #a0a1a7;
+  --cc-syntax-punctuation-color: #383a42;
+  --cc-syntax-class-name-color: #c18401;
+  --cc-syntax-constant-color: #986801;
+  --cc-syntax-number-color: #986801;
+  --cc-syntax-keyword-color: #a626a4;
+  --cc-syntax-property-color: #e45649;
+  --cc-syntax-string-color: #50a14f;
+  --cc-syntax-function-color: #4078f2;
+  --cc-syntax-url-color: #0184bc;
+  --cc-syntax-block-foreground: #383a42;
 }
 
 [data-theme="cc-onedark-vivid"].dark {
@@ -2506,9 +2576,10 @@
      `punctuation` and the block foreground share — so those are the slots that
      carry the change, and the other five are the same colour in both themes by
      derivation rather than by omission.
-     The light half is left alone (base Prism oneLight): the variant's reference
-     ships no light board either, and `theme-overlays.spec.ts` holds every theme
-     whose reference has one board to declaring it in that appearance only. */
+     The light half does not get its own reading of these attributes: it takes
+     the sibling's light board outright (see the block above), so what is
+     written here is the dark appearance only. The shared slots are the same
+     colours in both themes by derivation, as this file argues there. */
   --cc-syntax-comment-color: #5c6370;
   --cc-syntax-punctuation-color: #bbbbbb;
   --cc-syntax-class-name-color: #e5c07b;
