@@ -539,6 +539,66 @@ test('a theme that names any syntax slot names all of them for that appearance',
   ).toEqual([]);
 });
 
+/**
+ * Which built-in overlays own a syntax board, and the two things that makes true.
+ *
+ * The per-theme test above proves a declared value resolves as written, and the
+ * all-or-nothing test proves a board is never partial — but neither notices a
+ * board deleted outright, nor one that declares all eleven slots and moves none
+ * of them. This pins the backfill's outcome: these three themes own a board, they
+ * own all of it, and owning it changes the rendered block.
+ *
+ * Both appearances only for `cc-catppuccin`: the other two references ship a dark
+ * board and nothing else, so their light half is absent on purpose rather than
+ * forgotten.
+ */
+const SYNTAX_BOARD_THEMES = ['cc-catppuccin', 'cc-islands', 'cc-onedark'];
+const BOARD_IN_BOTH_APPEARANCES = ['cc-catppuccin'];
+
+test('the overlays that own a syntax board own all of it, and move it', async ({ page }) => {
+  await openFixture(page);
+  const slots = await page.evaluate(() => window.__THEME_TOKENS__!.syntaxTokenNames);
+
+  const problems: string[] = [];
+  for (const theme of OVERLAY_THEMES) {
+    const owns = SYNTAX_BOARD_THEMES.includes(theme.id);
+
+    for (const appearance of APPEARANCES) {
+      const base = await read(page, null, appearance);
+      const themed = await read(page, theme.id, appearance);
+      const overlay = readOverlay(theme.id, appearance, base.tokens);
+      const declaredByBase = slots.filter((slot) => (base.tokens[slot] ?? '') !== '');
+      const named = declaredByBase.filter((slot) => slot in overlay.declared);
+
+      if (!owns) {
+        if (named.length > 0) {
+          problems.push(`${theme.id} in ${appearance}: names ${named.length} syntax slots but owns no board`);
+        }
+        continue;
+      }
+
+      const expectsABoard = BOARD_IN_BOTH_APPEARANCES.includes(theme.id) || appearance === 'dark';
+      if (!expectsABoard) {
+        if (named.length > 0) {
+          problems.push(
+            `${theme.id} in ${appearance}: names a syntax board, but its reference ships none for this appearance`,
+          );
+        }
+        continue;
+      }
+
+      if (named.length !== declaredByBase.length) {
+        problems.push(`${theme.id} in ${appearance}: names ${named.length} of ${declaredByBase.length} syntax slots`);
+      }
+      if (!slots.some((slot) => themed.tokens[slot] !== base.tokens[slot])) {
+        problems.push(`${theme.id} in ${appearance}: declares a syntax board but moves no slot`);
+      }
+    }
+  }
+
+  expect(problems, `syntax boards:\n${problems.join('\n')}`).toEqual([]);
+});
+
 test('the accent theme is the identity when no overlay is picked', async ({ page }) => {
   await openFixture(page);
 

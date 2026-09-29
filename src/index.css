@@ -1831,6 +1831,21 @@
   --editor-toolbar-border: hsl(var(--palette-sand-200));
   --editor-toolbar-fg: hsl(var(--palette-sand-800));
   --editor-toolbar-hover-bg: hsl(var(--palette-sand-100));
+
+  /* Latte's own syntax board, by the palette's role conventions — the dark half
+     records the mapping and why this one is a convention rather than a
+     published scheme. */
+  --cc-syntax-comment-color: #9ca0b0;
+  --cc-syntax-punctuation-color: #7c7f93;
+  --cc-syntax-class-name-color: #df8e1d;
+  --cc-syntax-constant-color: #fe640b;
+  --cc-syntax-number-color: #fe640b;
+  --cc-syntax-keyword-color: #8839ef;
+  --cc-syntax-property-color: #7287fd;
+  --cc-syntax-string-color: #40a02b;
+  --cc-syntax-function-color: #1e66f5;
+  --cc-syntax-url-color: #04a5e5;
+  --cc-syntax-block-foreground: #4c4f69;
 }
 
 [data-theme="cc-catppuccin"].dark {
@@ -1863,6 +1878,22 @@
   --editor-toolbar-fg: hsl(var(--palette-ink-100));
   --editor-toolbar-hover-bg: hsl(var(--palette-ink-800));
   --editor-loading-bg: hsl(var(--palette-ink-950));
+
+  /* Mocha's own syntax board. Catppuccin publishes these roles per flavour but
+     ships no editor scheme, so the slots come from the palette's official role
+     conventions rather than a file (see the plan's fidelity note). All eleven
+     differ from base Prism. */
+  --cc-syntax-comment-color: #6c7086;
+  --cc-syntax-punctuation-color: #9399b2;
+  --cc-syntax-class-name-color: #f9e2af;
+  --cc-syntax-constant-color: #fab387;
+  --cc-syntax-number-color: #fab387;
+  --cc-syntax-keyword-color: #cba6f7;
+  --cc-syntax-property-color: #b4befe;
+  --cc-syntax-string-color: #a6e3a1;
+  --cc-syntax-function-color: #89b4fa;
+  --cc-syntax-url-color: #89dceb;
+  --cc-syntax-block-foreground: #cdd6f4;
 }
 
 /* cc-islands — coverage: full. IntelliJ IDEA's Islands Dark / Islands Light, the
@@ -2053,6 +2084,26 @@
   --editor-toolbar-fg: hsl(var(--palette-ink-100));
   --editor-toolbar-hover-bg: hsl(var(--palette-ink-800));
   --editor-loading-bg: hsl(var(--palette-ink-950));
+
+  /* Islands Dark's own syntax board, from the platform's editor scheme
+     (`themes/islands/IslandSchemeDark.xml`). Read attribute by attribute:
+     punctuation, class names and the block body all take the scheme's
+     operator/identifier grey, fields and constants share the purple, and `url`
+     takes the string-escape colour because the scheme has no separate cyan
+     role — which makes it land on the same value as `keyword`; recorded rather
+     than papered over. Every slot differs from base Prism. The light half is
+     left alone: the reference ships no light board. */
+  --cc-syntax-comment-color: #7a7e85;
+  --cc-syntax-punctuation-color: #bcbec4;
+  --cc-syntax-class-name-color: #bcbec4;
+  --cc-syntax-constant-color: #c77dbb;
+  --cc-syntax-number-color: #2aacb8;
+  --cc-syntax-keyword-color: #cf8e6d;
+  --cc-syntax-property-color: #c77dbb;
+  --cc-syntax-string-color: #6aab73;
+  --cc-syntax-function-color: #56a8f5;
+  --cc-syntax-url-color: #cf8e6d;
+  --cc-syntax-block-foreground: #bcbec4;
 }
 
 /* cc-onedark — "One Dark" as the IntelliJ plugin of that name ships it
@@ -2260,4 +2311,23 @@
   --editor-toolbar-fg: hsl(var(--palette-ink-100));
   --editor-toolbar-hover-bg: hsl(var(--palette-ink-800));
   --editor-loading-bg: hsl(var(--palette-ink-900));
+
+  /* One Dark's own syntax board, slot by slot (the plugin's `one_dark.xml`).
+     Ten of the eleven already equal the base Prism dark board — that board is
+     derived from this same palette — so naming them is what makes the overlay
+     *own* the board rather than inherit it. `class-name` is the one that moves:
+     the reference paints classes yellow, while base Prism groups classes with
+     `number` and `constant` in orange. The light half is left alone (base
+     Prism oneLight), because the reference ships no light board. */
+  --cc-syntax-comment-color: #5c6370;
+  --cc-syntax-punctuation-color: #abb2bf;
+  --cc-syntax-class-name-color: #e5c07b;
+  --cc-syntax-constant-color: #d19a66;
+  --cc-syntax-number-color: #d19a66;
+  --cc-syntax-keyword-color: #c678dd;
+  --cc-syntax-property-color: #e06c75;
+  --cc-syntax-string-color: #98c379;
+  --cc-syntax-function-color: #61afef;
+  --cc-syntax-url-color: #56b6c2;
+  --cc-syntax-block-foreground: #abb2bf;
 }
