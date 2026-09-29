@@ -134,7 +134,7 @@ test('every palette token is consumed by at least one declaration', () => {
 /**
  * Colour declarations must resolve through the palette rather than hold a
  * literal. The net covers every literal colour shape a declaration can carry —
- * HSL triplets, hex and rgb()/rgba() — with two explicit exemptions. The
+ * HSL triplets, hex and rgb()/rgba() — with three explicit exemptions. The
  * `--editor-*` board is written into `EditorView.theme()` rules that consume
  * complete CSS values, and 0-D deliberately keeps those as literal colours
  * rather than routing them through the HSL palette (§5.8 v8 states the scope
@@ -142,11 +142,17 @@ test('every palette token is consumed by at least one declaration', () => {
  * carrier for one value: the base dark editor page is Prism's One Dark
  * background (`#282c34`), which the palette has no step for, so that half is a
  * literal triplet while every overlay writes the palette entry its
- * `--editor-bg` uses. Font stacks are out of scope too: `--term-font-family`
- * holds a family list, not a colour. Size, duration and env() tokens are out of
- * scope. Reads declaration text for the same reason as above.
+ * `--editor-bg` uses. `--cc-syntax-*` is the third: a built-in overlay declares
+ * a syntax slot as the reference's own complete colour (hex), because the value
+ * goes into the Prism style object / the injected `:root` sheet verbatim — the
+ * syntax palette is not an HSL triplet family and cannot be resolved as one
+ * (see the syntax-palette plan's §3.3 / §7; the exemption is deliberate rather
+ * than a shape that happens to slip past the net). Font stacks are out of scope
+ * too: `--term-font-family` holds a family list, not a colour. Size, duration
+ * and env() tokens are out of scope. Reads declaration text for the same reason
+ * as above.
  */
-test('no colour token holds a literal value outside the palette, the editor board and the code-block panel', () => {
+test('no colour token holds a literal value outside the palette, the editor board, the code-block panel and the syntax board', () => {
   const css = readStylesheet();
   const literals: string[] = [];
 
@@ -156,6 +162,7 @@ test('no colour token holds a literal value outside the palette, the editor boar
     if (name.startsWith(PALETTE_PREFIX)) continue;
     if (name.startsWith('--editor-')) continue;
     if (name === '--code-block-bg') continue;
+    if (name.startsWith('--cc-syntax-')) continue;
     // The terminal board is no longer homogeneous (unlike every other `--term-*`
     // it holds no colour), so it is named here rather than left to the shape
     // filter below — a rewrite of this loop by family would otherwise have to
