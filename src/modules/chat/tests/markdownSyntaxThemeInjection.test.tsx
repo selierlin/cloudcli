@@ -11,7 +11,7 @@ import { ensureSyntaxStyleElement } from '@/shared/syntaxTheme';
  * `@/shared/syntaxTheme` injects when it is first imported — <Markdown> renders
  * through that module, so rendering markdown is what triggers the injection.
  *
- * Every colour in a rendered code block is a `var(--cc-syntax-N)` reference, and
+ * Every colour in a rendered code block is a `var(--cc-syntax-*)` reference, and
  * that stylesheet is the only place those custom properties are declared — it
  * cannot live in index.css because the values are derived from the Prism theme
  * objects at runtime. Nothing rendered a code block in a test before, so blanking
@@ -32,18 +32,18 @@ const CODE_MARKDOWN = 'Intro line.\n\n```ts\nconst answer = 41;\n```\n';
 
 const renderMarkdown = () => render(<Markdown>{CODE_MARKDOWN}</Markdown>);
 
-/** The `--cc-syntax-N` names the rendered highlighter actually asks the page for. */
+/** The `--cc-syntax-*` names the rendered highlighter actually asks the page for. */
 const referencedVariables = (root: HTMLElement): Set<string> => {
   const names = new Set<string>();
   for (const element of root.querySelectorAll('[style]')) {
-    for (const match of (element.getAttribute('style') ?? '').matchAll(/var\((--cc-syntax-\d+)\)/g)) {
+    for (const match of (element.getAttribute('style') ?? '').matchAll(/var\((--cc-syntax-[a-z0-9-]+)\)/g)) {
       names.add(match[1]);
     }
   }
   return names;
 };
 
-/** The `--cc-syntax-N` names one block of the injected stylesheet declares. */
+/** The `--cc-syntax-*` names one block of the injected stylesheet declares. */
 const declaredVariables = (css: string, blockSelector: string): Set<string> => {
   const block = new RegExp(`${blockSelector}\\{([^}]*)\\}`).exec(css);
   assert.ok(block, `expected a ${blockSelector} block in the injected stylesheet`);
@@ -80,7 +80,7 @@ test('the root block declares the property the highlighted <pre> reads its colou
 
   const pre = container.querySelector('pre');
   assert.ok(pre, 'expected the fenced block to render a highlighted <pre>');
-  const colourVariable = /color:\s*var\((--cc-syntax-\d+)\)/.exec(pre.getAttribute('style') ?? '');
+  const colourVariable = /color:\s*var\((--cc-syntax-[a-z0-9-]+)\)/.exec(pre.getAttribute('style') ?? '');
   assert.ok(colourVariable, 'expected the <pre> colour to be a --cc-syntax variable');
 
   assert.ok(

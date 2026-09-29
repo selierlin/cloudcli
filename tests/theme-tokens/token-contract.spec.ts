@@ -134,16 +134,19 @@ test('every palette token is consumed by at least one declaration', () => {
 /**
  * Colour declarations must resolve through the palette rather than hold a
  * literal. The net covers every literal colour shape a declaration can carry —
- * HSL triplets, hex and rgb()/rgba() — with one explicit exemption: the
+ * HSL triplets, hex and rgb()/rgba() — with two explicit exemptions. The
  * `--editor-*` board is written into `EditorView.theme()` rules that consume
  * complete CSS values, and 0-D deliberately keeps those as literal colours
  * rather than routing them through the HSL palette (§5.8 v8 states the scope
- * the test name used to overclaim). Font stacks are out of scope too:
- * `--term-font-family` holds a family list, not a colour. Size, duration and
- * env() tokens are out of scope. Reads declaration text for the same reason as
- * above.
+ * the test name used to overclaim). `--code-block-bg` is the same kind of
+ * carrier for one value: the base dark editor page is Prism's One Dark
+ * background (`#282c34`), which the palette has no step for, so that half is a
+ * literal triplet while every overlay writes the palette entry its
+ * `--editor-bg` uses. Font stacks are out of scope too: `--term-font-family`
+ * holds a family list, not a colour. Size, duration and env() tokens are out of
+ * scope. Reads declaration text for the same reason as above.
  */
-test('no colour token holds a literal value outside the palette and the editor board', () => {
+test('no colour token holds a literal value outside the palette, the editor board and the code-block panel', () => {
   const css = readStylesheet();
   const literals: string[] = [];
 
@@ -152,6 +155,7 @@ test('no colour token holds a literal value outside the palette and the editor b
     const value = rawValue.trim();
     if (name.startsWith(PALETTE_PREFIX)) continue;
     if (name.startsWith('--editor-')) continue;
+    if (name === '--code-block-bg') continue;
     // The terminal board is no longer homogeneous (unlike every other `--term-*`
     // it holds no colour), so it is named here rather than left to the shape
     // filter below — a rewrite of this loop by family would otherwise have to

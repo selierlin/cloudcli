@@ -114,9 +114,11 @@ const GLOBAL_COLOUR_TOKENS: ReadonlyArray<{
 /**
  * TextMate scope → the shared syntax slot it stands for.
  *
- * The slots are the ten semantic names `SYNTAX_TOKEN_MAP` already binds — the
- * ones the editor's highlighter and the chat renderer both consume — so this
- * table is the whole of the translation between the two ecosystems. A rule's
+ * Ten of the eleven names `SYNTAX_TOKEN_MAP` binds are scope-bearing, and those
+ * are the ones the editor's highlighter and the chat renderer both consume — so
+ * this table is the whole of the translation between the two ecosystems. The
+ * eleventh, `blockForeground`, stands for no token class and so for no scope; it
+ * takes the theme's global foreground like any slot no rule claims. A rule's
  * scope selector matches a pattern when it *is* that pattern or a dotted
  * descendant of it (`keyword.control` under `keyword`), which is TextMate's own
  * rule; when several patterns match, the longest wins, so `constant.numeric`
@@ -124,8 +126,10 @@ const GLOBAL_COLOUR_TOKENS: ReadonlyArray<{
  *
  * Rules are read in file order and the last match for a slot wins, which is how
  * TextMate resolves two rules of equal specificity. A scope no pattern claims is
- * simply not reported: this table is a deliberate ten-slot projection, not a
- * whitelist, so most of a real theme's scopes are expected to fall through.
+ * simply not reported: this table is a deliberate ten-scope projection, not a
+ * whitelist, so most of a real theme's scopes are expected to fall through. It
+ * is ten and not eleven because `blockForeground` is claimed by no scope at all;
+ * the emission loop below carries it, on the same global-foreground fallback.
  */
 const SYNTAX_SCOPE_PATTERNS: ReadonlyArray<{ pattern: string; slot: SyntaxSemanticName }> = [
   { pattern: 'comment', slot: 'comment' },

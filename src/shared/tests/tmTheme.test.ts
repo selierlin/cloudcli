@@ -141,6 +141,22 @@ test('a slot no rule mentions takes the global foreground rather than the base p
   );
 });
 
+test('the block foreground slot also takes the global foreground', () => {
+  // No scope stands for the body colour of the block, so this slot is never in
+  // the projection: it is carried by the emission loop's fallback, and that is
+  // what keeps a compiled theme's code blocks out of the base Prism palette.
+  const declarations = compileOk(tmTheme(
+    rule([['foreground', '#f8f8f2']]),
+    rule([['foreground', '#ff79c6']], 'keyword'),
+  ));
+
+  assert.equal(
+    declarations.get(SYNTAX_TOKEN_MAP.blockForeground),
+    '#f8f8f2',
+    'the block foreground should follow the theme foreground like any unclaimed slot',
+  );
+});
+
 test('the global foreground is never written into the main UI tokens', () => {
   const declarations = compileOk(tmTheme(rule([
     ['background', '#282a36'],

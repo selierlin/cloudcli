@@ -52,6 +52,11 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // The code-block panel's board. Registered as `hsl(var(--…))` rather
+        // than a complete value so the opacity modifier works: the chat
+        // transcript draws `bg-code-block/50`, the same half-transparent shape
+        // it used with `--muted`.
+        "code-block": "hsl(var(--code-block-bg))",
         // Compatibility scale (`n-` = neutral). The skeleton still carries
         // Tailwind's named neutrals (`bg-gray-100 dark:bg-gray-700`); as each
         // cluster migrates it keeps the exact step but routes it through a

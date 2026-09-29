@@ -4,7 +4,6 @@ import type { ComponentProps } from 'react';
 import { copyTextToClipboard } from '@/shared/utils';
 import { SyntaxHighlighter } from '@/shared/syntaxHighlighter';
 import { syntaxTheme } from '@/shared/syntaxTheme';
-import { useTheme } from '@/shared/context/ThemeContext';
 import MermaidDiagram from '@/modules/code-editor/markdown/MermaidDiagram';
 
 type MarkdownCodeBlockProps = {
@@ -20,7 +19,6 @@ export default function MarkdownCodeBlock({
   node: _node,
   ...props
 }: MarkdownCodeBlockProps) {
-  const { isDarkMode } = useTheme();
   const [copied, setCopied] = useState(false);
   const rawContent = Array.isArray(children) ? children.join('') : String(children ?? '');
   const looksMultiline = /[\r\n]/.test(rawContent);
@@ -72,9 +70,11 @@ export default function MarkdownCodeBlock({
           borderRadius: '0.75rem',
           fontSize: '0.875rem',
           padding: language !== 'text' ? '2rem 1rem 1rem 1rem' : '1rem',
-          ...(isDarkMode ? {} : { background: 'hsl(var(--muted))' }),
+          // Both appearances draw the same token; the dark half used to fall
+          // through to Prism's own `pre` background instead.
+          background: 'hsl(var(--code-block-bg))',
         }}
-        codeTagProps={{ style: isDarkMode ? {} : { background: 'transparent' } }}
+        codeTagProps={{ style: { background: 'transparent' } }}
       >
         {rawContent}
       </SyntaxHighlighter>

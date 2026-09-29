@@ -116,6 +116,24 @@ test('the editor chrome takes a complete value, because that is how it is consum
   assert.match(result.css, /--editor-gutter-separator: 1px solid #ddd;/);
 });
 
+test('the code-block panel takes a triplet, because that is how it is consumed', () => {
+  const result = compile({ '--code-block-bg': '220 13% 18%' });
+
+  assert.ok(result.ok);
+  assert.equal(result.ignored.length, 0);
+  assert.match(result.css, /--code-block-bg: 220 13% 18%;/);
+});
+
+test('the code-block panel refuses a hex, because the chat half resolves it through hsl()', () => {
+  // `hsl(#282c34)` is not a colour, so the declaration would be dropped by the
+  // browser and the panel would silently keep painting the board underneath.
+  const result = compile({ '--code-block-bg': '#282c34', '--primary': '175 84% 32%' });
+
+  assert.ok(result.ok);
+  assert.deepEqual(ignoredNames(result), ['--code-block-bg']);
+  assert.match(result.ignored[0].reason, /HSL triplet/);
+});
+
 test('the nav glass tokens take an optional alpha, in both spellings', () => {
   const result = compile({
     '--nav-glass-bg': 'var(--palette-ink-900) / 0.55',
@@ -146,11 +164,11 @@ test('a value that does not fit its token is dropped, and named', () => {
 });
 
 test('tokens outside the theme surface are dropped rather than compiled', () => {
-  // The syntax variables are named by number, and the numbers move with the
-  // highlighter's own generator (§5.9) — so they are excluded from the theme
-  // surface until they get stable names, and this test takes the name from the
-  // map rather than spelling one out.
-  const syntaxToken = SYNTAX_TOKEN_MAP.keyword;
+  // A *numbered* syntax slot still stands outside the surface: the numbers move
+  // with the highlighter's own generator (§5.9), so only the named slots are
+  // part of the contract. Spelled in two pieces so this file carries no literal
+  // `--cc-syntax-N` of its own.
+  const syntaxToken = `--cc-syntax-${3}`;
   const result = compile({
     [syntaxToken]: '#ff79c6',
     '--safe-area-inset-top': '0px',
@@ -177,8 +195,9 @@ test('tokens outside the theme surface are dropped rather than compiled', () => 
 
 test('a reference to a token outside the theme surface is dropped too', () => {
   // Otherwise the whitelist would leak: a theme could borrow the meaning of a
-  // token it is not allowed to set.
-  const result = compile({ '--primary': `var(${SYNTAX_TOKEN_MAP.keyword})` });
+  // token it is not allowed to set. The named syntax slots are *inside* the
+  // surface now, so the outsider here is one of the numbered ones.
+  const result = compile({ '--primary': `var(--cc-syntax-${3})` });
 
   assert.equal(result.ok, false);
   assert.equal(result.ok === false && result.reason, 'nothing-usable');
@@ -384,8 +403,15 @@ test('an expression value may only reference tokens the theme could have set', (
   // The expression shape is loose on purpose — it goes into EditorView.theme()
   // as a complete value — but looseness of shape is not looseness of contract:
   // a name the whitelist never authorized must not become a colour source.
+  // A *numbered* slot, not `SYNTAX_TOKEN_MAP.keyword`: the named slots are part
+  // of the contract now, so a reference to one points at a token the theme could
+  // have set itself. What stays out of reach is the number, whose meaning moves
+  // with the highlighter's own generator. The name is spelled in two pieces
+  // because a literal `--cc-syntax-N` in this file would trip the scan that keeps
+  // hand-written numbers out of the tree — the same rule this case leans on.
+  const numberedSlot = `--cc-syntax-${3}`;
   const rejected = compile({
-    '--editor-fg': `var(${SYNTAX_TOKEN_MAP.keyword})`,
+    '--editor-fg': `var(${numberedSlot})`,
     '--editor-bg': '#282c34',
   });
   assert.ok(rejected.ok);
@@ -405,6 +431,33 @@ test('an expression value may only reference tokens the theme could have set', (
   assert.ok(accepted.ok);
   assert.deepEqual(accepted.ignored, []);
   assert.match(accepted.css, /--editor-panel-border: 1px solid var\(--primary\);/);
+});
+
+test('every named syntax slot is one a theme may set', () => {
+  // The whitelist's family pattern and the generator's names have to be one
+  // spelling. A name falling outside the pattern would be *silently* unsettable
+  // — no assertion would fail, the theme would just never move that colour — so
+  // this walks the generator's own table instead of keeping a second list, which
+  // is also what makes the pattern and `SYNTAX_SELECTORS` stay in step.
+  const result = compile(
+    Object.fromEntries(Object.values(SYNTAX_TOKEN_MAP).map((token) => [token, '#c678dd'])),
+  );
+
+  assert.ok(result.ok);
+  assert.deepEqual(result.ignored, []);
+  for (const token of Object.values(SYNTAX_TOKEN_MAP)) {
+    assert.ok(result.css.includes(`${token}: #c678dd;`), `"${token}" did not reach the stylesheet`);
+  }
+});
+
+test('a numbered syntax slot is not a token a theme may set', () => {
+  // Spelled in two pieces for the same reason as above: this file may not carry
+  // a hand-written `--cc-syntax-N` literal either.
+  const numberedSlot = `--cc-syntax-${3}`;
+  const result = compile({ [numberedSlot]: '#c678dd', '--primary': '175 84% 32%' });
+
+  assert.ok(result.ok);
+  assert.deepEqual(ignoredNames(result), [numberedSlot]);
 });
 
 test('the §5.12 lane knobs take the numbers the fallback formula is made of', () => {

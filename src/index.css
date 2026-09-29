@@ -208,6 +208,13 @@
     --border: var(--palette-sand-200);
     --input: var(--palette-sand-200);
     --ring: var(--palette-brand-500);
+    /* The code-block panel's own background: the board the chat transcript's
+       fenced blocks and the editor's preview draw on. It follows the
+       appearance's *editor page* rather than `--muted`, so a block sits on the
+       same board as the editor beside it — every built-in overlay points it at
+       the same palette entry its `--editor-bg` uses. A triplet, because the
+       chat surface resolves it as `hsl(var(--code-block-bg) / 0.5)`. */
+    --code-block-bg: var(--palette-white);
     --radius: 0.5rem;
 
     /* Nav design tokens */
@@ -454,6 +461,10 @@
     --border: var(--palette-ink-850);
     --input: var(--palette-ink-800);
     --ring: var(--palette-brand-400);
+    /* The one literal in this family: the base dark editor page is Prism's One
+       Dark background (`#282c34`), which the palette carries no step for. The
+       overlays that do carry one reference it instead. */
+    --code-block-bg: 220 13% 18%;
 
     /* Nav design tokens — dark overrides */
     --nav-glass-bg: var(--palette-ink-900) / 0.55;
@@ -1628,6 +1639,7 @@
    is what the dark branch does too; the diff and bracket-status decorations keep
    their semantic green/red. */
 [data-theme="cc-polar"]:not(.dark) {
+  --code-block-bg: var(--palette-sand-50);
   --editor-bg: hsl(var(--palette-sand-50));
   --editor-toolbar-bg: hsl(var(--palette-sand-50));
   --editor-loading-bg: hsl(var(--palette-sand-50));
@@ -1654,6 +1666,7 @@
 }
 
 [data-theme="cc-polar"].dark {
+  --code-block-bg: var(--palette-ink-950);
   --editor-bg: hsl(var(--palette-ink-950));
   --editor-fg: hsl(var(--palette-ink-100));
   --editor-caret: hsl(var(--palette-brand-400));
@@ -1794,6 +1807,7 @@
    reason: its base values are appearance-specific literals rather than L1
    references, so a single block would leak light chrome into dark mode. */
 [data-theme="cc-catppuccin"]:not(.dark) {
+  --code-block-bg: var(--palette-sand-50);
   --editor-bg: hsl(var(--palette-sand-50));
   --editor-toolbar-bg: hsl(var(--palette-sand-50));
   --editor-loading-bg: hsl(var(--palette-sand-50));
@@ -1820,6 +1834,7 @@
 }
 
 [data-theme="cc-catppuccin"].dark {
+  --code-block-bg: var(--palette-ink-950);
   --editor-bg: hsl(var(--palette-ink-950));
   --editor-fg: hsl(var(--palette-ink-100));
   --editor-caret: hsl(var(--palette-brand-400));
@@ -1982,6 +1997,7 @@
    for the same reason: its base values are appearance-specific literals rather than
    L1 references, so a single block would leak light chrome into dark mode. */
 [data-theme="cc-islands"]:not(.dark) {
+  --code-block-bg: var(--palette-sand-50);
   --editor-bg: hsl(var(--palette-sand-50));
   --editor-toolbar-bg: hsl(var(--palette-sand-50));
   --editor-loading-bg: hsl(var(--palette-sand-50));
@@ -2008,6 +2024,7 @@
 }
 
 [data-theme="cc-islands"].dark {
+  --code-block-bg: var(--palette-ink-950);
   --editor-bg: hsl(var(--palette-ink-950));
   --editor-fg: hsl(var(--palette-ink-100));
   --editor-caret: hsl(var(--palette-brand-400));
@@ -2185,6 +2202,7 @@
    reason: its base values are appearance-specific literals rather than L1
    references, so a single block would leak light chrome into dark mode. */
 [data-theme="cc-onedark"]:not(.dark) {
+  --code-block-bg: var(--palette-sand-50);
   --editor-bg: hsl(var(--palette-sand-50));
   --editor-toolbar-bg: hsl(var(--palette-sand-50));
   --editor-loading-bg: hsl(var(--palette-sand-50));
@@ -2211,6 +2229,7 @@
 }
 
 [data-theme="cc-onedark"].dark {
+  --code-block-bg: var(--palette-ink-900);
   /* `ink-900`, not the `ink-950` the other overlays take — One Dark's editor page
      is its panel colour, one step above its window (see the note above). */
   --editor-bg: hsl(var(--palette-ink-900));

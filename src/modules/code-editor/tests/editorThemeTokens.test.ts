@@ -72,7 +72,7 @@ test('every highlight colour is a token reference', () => {
 
 test('the syntax slots the highlighter borrows exist in the Prism sheet', () => {
   const borrowed = editorHighlightStyle.specs.flatMap((spec) => {
-    const match = /^var\((--cc-syntax-\d+)\)$/.exec(spec.color ?? '');
+    const match = /^var\((--cc-syntax-[a-z0-9-]+)\)$/.exec(spec.color ?? '');
     return match ? [match[1]] : [];
   });
   // The whole point of sharing is that most of the highlighter comes from Prism.

@@ -67,7 +67,7 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
 
   if (!svg) {
     return (
-      <pre className="my-3 overflow-x-auto rounded-xl border border-border bg-muted/50 p-4 font-mono text-[0.8125rem] leading-relaxed text-muted-foreground dark:bg-n-zinc-900">
+      <pre className="my-3 overflow-x-auto rounded-xl border border-border bg-code-block/50 p-4 font-mono text-[0.8125rem] leading-relaxed text-muted-foreground dark:bg-code-block">
         {code.trim()}
       </pre>
     );

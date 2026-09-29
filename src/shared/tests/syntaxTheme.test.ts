@@ -78,7 +78,7 @@ test('no theme-dependent value is left as a literal colour', () => {
       }
       assert.match(
         value,
-        /^var\(--cc-syntax-\d+\)$/,
+        /^var\(--cc-syntax-[a-z0-9-]+\)$/,
         `${selector}.${property} differs between themes but is not a variable`,
       );
     }
@@ -97,5 +97,5 @@ test('properties shared by both themes stay literal instead of becoming variable
 
 test('theme-dependent colours are emitted as variables', () => {
   const preRule = theme.style['pre[class*="language-"]'];
-  assert.match(preRule.background, /^var\(--cc-syntax-\d+\)$/);
+  assert.match(preRule.background, /^var\(--cc-syntax-[a-z0-9-]+\)$/);
 });
