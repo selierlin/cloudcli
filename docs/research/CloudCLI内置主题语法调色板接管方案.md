@@ -1,6 +1,6 @@
 # CloudCLI 内置主题接管语法调色板方案
 
-> 状态：**B1 / B1b / B2 已实施**（2026-09-29）；B3 待做。本文是 `docs/research/CloudCLI主题与配色体系设计方案.md`（下称"主题文档"）§8.9 / §5.7"语义化改名"的一个**收窄立项**，面向多 AI 会审。
+> 状态：**B1 / B1b / B2 / B3 已实施**（2026-09-29，切片表已到 v17）。本文是 `docs/research/CloudCLI主题与配色体系设计方案.md`（下称"主题文档"）§8.9 / §5.7"语义化改名"的一个**收窄立项**，面向多 AI 会审。
 > 起因：2-P 之后用户提出再增一套 One Dark 变体（Vivid）。调查发现 **Vivid 的全部可见差异都落在语法调色板上**，而语法调色板是主题文档 §5.11 v7 明确记录的"不在任何覆盖层可达范围内"的边界。故本方案先解决那条边界，再落地新主题。
 > 编写日期：2026-09-28。文中所有行号对应当前的 `HEAD`。
 
@@ -371,7 +371,7 @@
 | 附录 A 令牌清单 | 有 `语法：--cc-syntax-0..N（由 Prism 主题编译产生）` 一行（4761） | 追加 11 个具名槽 ＋ 订正计数（136 中 11 具名 / 125 编号），并点名 **17 个刻意不升名的槽**（`code[…]` 三件套 `0`/`1`/`2` ＋ 半活的 `3` ＋ 仅暗色有值的 `5` ＋ 12 条 `::selection`），一行一槽、各写理由 |
 | 审阅批注区（Claude 的 WARNING，4818）——**不是附录 B** | `--cc-syntax-N` 不是稳定契约（编号由遍历顺序决定） | **在 11 个具名槽上该 WARNING 失效**，需改判并注明生效范围（其余 125 项仍适用）。**引用已更正**（第二轮新发现 C）：`:4818` 落在主题文档的「## 审阅批注」区（该区始于 `:4807`），而真正的「## 附录 B：解包取证索引」在 `:4781`、内容是 WorkBuddy/Codex 的解包证据、与 `--cc-syntax-N` 无关。回写时**须写"审阅批注（Claude WARNING，4818）"**，否则下一位读者按"附录 B"去找会扑空 |
 
-> 回写状态（**已落笔，2026-09-29**）：B1 实施后本表**逐条改写了主题文档**，并在主题文档侧反向标注本方案为改判来源（照终端字体那一轮的闭环体例）。实际落点与本文的差异，如实记两处：① 本表把审阅批注区的定位写成 `:4818`，那正是主题文档在**审阅时刻**的行号——B1 的段落写进去后该条**已下移**，故主题文档在原批注下追加的"B1 改判"注里**写明 `4818` 是审阅时刻的行号并指出它已下移**，不把过期行号当活引用；② 本表为 B2 / B3 预留的"逐套记录 / 片记录 ＋ 切片表一行"**尚未落**（两片未开工），切片表已按本表登记了 B1 / B1b / B2 / B3 四行与 N10 的"待排期"行。主题文档的四处落点：§5.3 v12、§5.8 v8、§5.9 表格行、§5.11 v7 的边界改判，另加附录 A 的 11 具名槽清单与审阅批注区那一注。
+> 回写状态（**已落笔，2026-09-29**）：B1 实施后本表**逐条改写了主题文档**，并在主题文档侧反向标注本方案为改判来源（照终端字体那一轮的闭环体例）。实际落点与本文的差异，如实记两处：① 本表把审阅批注区的定位写成 `:4818`，那正是主题文档在**审阅时刻**的行号——B1 的段落写进去后该条**已下移**，故主题文档在原批注下追加的"B1 改判"注里**写明 `4818` 是审阅时刻的行号并指出它已下移**，不把过期行号当活引用；② 本表为 B2 / B3 预留的"逐套记录 / 片记录 ＋ 切片表一行"**已落**（B2 见"B2 实施记录"、B3 见"B3 实施记录"，主题文档切片表升 **v17**：B2 / B3 两行改为已实施 ＋ 各加一句逐套可见变化），切片表另按本表登记了 N10 的"待排期"行。主题文档的四处落点：§5.3 v12、§5.8 v8、§5.9 表格行、§5.11 v7 的边界改判，另加附录 A 的 11 具名槽清单与审阅批注区那一注。
 
 ---
 
@@ -1243,7 +1243,91 @@ B2（回填四套既有 `full` 主题的语法板）是下一片。两个前置�
 
 **偏离 §5.2 的"每套主题一个独立提交"**：三个块共用同一个测试文件与同一处字面色豁免，且"逐套刷基线"的理由已被实测推翻（覆盖层不进基线），故合成一个提交。
 
-### 六、下一片
+### 六、下一片（B3，开工前的表述）
 
 **B3**（`cc-onedark-vivid`，显示名"暗夜一号·浓彩"）。§5.3 的 DoD 要求"**代码块 ＋ 终端**，且代码块**分两外观**说明"；浅色半二选一（发明并记账 / 明确写不动）。本片已把它的语法板路径打通（具名槽 ＋ 字面色豁免 ＋ 板主题守卫），剩下的是 Vivid 自己的三条轴（语法 / 终端 / 灰阶）。
+
+**→ B3 已实施，见下节。**
+
+---
+
+## B3 实施记录（2026-09-29）
+
+> 范围：第四套内置主题 `cc-onedark-vivid`／"暗夜一号·浓彩"（id 与显示名由用户 2026-09-29 定）。三条轴：**语法板 ＋ 终端板 ＋ 一处 L1 灰**——底料不动，这才是准确说法（§3.8 的订正）。
+> 参照物：插件 jar 内 `one_dark_vivid.xml` ＋ `one_dark_vivid.theme.json`（与 `cc-onedark` 同一 jar、同一次解包）。
+
+### 一、门槛（全绿）
+
+| 项 | 读数 | 对照 |
+|---|---|---|
+| `npm test` | 1029 / 1008 通过 / 20 失败 / 1 跳过 | 已知抖动区；**做了名字集 A/B**（19 个 `not ok` 名字逐字节相同），`server/` 树 0 行 |
+| `test:client` | 149 文件 / 1239 通过 | 与 B2 逐字相同 —— 本片只加一行注册表 ＋ `index.css` ＋ 两个 playwright spec，无 `src/` TS 逻辑变更 |
+| `test:theme-tokens` | **168 通过** | B2 基线 158 ⇒ **＋10**（＝ ＋5 用例 × 2 引擎，名字集 A/B 逐条核对，见"五"）|
+| `lint` | 153 warnings / 0 errors | 与基线相同 |
+| `typecheck` ＋ `typecheck:theme-tokens` | 0 错 | `build:client` 不校验类型，故这两条必须单跑 |
+| `build` | exit 0 | — |
+| `token-baseline.json` | **未动** | 与 B2 的实测结论一致（覆盖层声明永不进基线）|
+| `theme-atom-conservation.json` | **未动** | 本片不碰任何 utility 消费者 |
+
+### 二、参照物与三条轴（逐轴取值）
+
+**① 灰阶（一处 L1）。** `foregroundColor` #abb2bf → #bbbbbb —— One Dark 的冷蓝灰换成中性灰。它只喂 `--palette-ink-100` 一个 L1 步；`--muted-foreground` 走 `ink-400`（`BookmarkMnemonicAvailable.foreground`）**不动**。
+> **两套计数不矛盾，实测已对齐**：§3.8 写"theme json 的 ui 14 项变（13 项只是 `#abb2bf`→`#bbbbbb`）"，本节按**扁平叶键**数得"**26 条变、25 条是灰、1 条是红**"。差别只是粒度：14 是 `ui.<对象>` 的个数（`*` / ComboBox / Counter / DragAndDrop / Editor / GotItTooltip / Notification / ParameterInfo / Plugins / SearchEverywhere / SpeedSearch / Table / ToolWindow / VersionControl），其中 13 个只动灰、`ui.SpeedSearch` 同时动灰与红（`errorForeground` #e06c75 → #ef596f）。另有 `colors.foregroundColor` 与 `icons.ColorPalette.Checkbox.Foreground.Selected.Dark` 两条也在灰里。
+
+**② 终端（外观无关）。** 源 `<attributes>` 的 21 条 `CONSOLE_*_OUTPUT` 中 **12 条变**：`RED`/`RED_BRIGHT`/`ERROR`、`GREEN`/`GREEN_BRIGHT`/`USER_INPUT`、`MAGENTA`/`MAGENTA_BRIGHT`、`CYAN`/`CYAN_BRIGHT`、`WHITE`/`NORMAL`（各三折冗余：一 normal、一 bright、一义名共用一色）。black / blue（含 bright）/ yellow（含 bright）三族未动。
+**折算口径**：源用 `FONT_TYPE: 1` 而非颜色区分 normal 与 bright，故沿用 `cc-onedark` 记录的派生规则（保 H、S，L + 9）⇒ **红/绿/品红/青各动 normal ＋ bright ＝ 8 槽，白只动 normal 半 ＝ 1 槽，共 9 槽**；`--palette-term-fg` 另动一个令牌。**§3.7 那个"9～10 槽"至此定为 9** —— 白的 bright 伙伴读 `selectionForeground`（#d7dae0），而 variant 没动它。这正是本片新增的终端断言所钉住的数。
+
+**③ 语法板（只暗色半）。** 11 槽里 **6 移动、5 不动**：`punctuation` #abb2bf→#bbbbbb、`keyword` #c678dd→#d55fde、`property` #e06c75→#ef596f、`string` #98c379→#89ca78、`url` #56b6c2→#2bbac5、`block-foreground` #abb2bf→#bbbbbb；`comment`、`class-name`（黄）、`constant`、`number`（橙）、`function`（蓝）五槽与 `cc-onedark` 同值。映射沿用 B2 拍板的**甲（语义逐槽）**与同一张表：punctuation ← `OPERATION_SIGN`/`BRACES`（该 scheme 未设 ⇒ 回落全局前景 = `IDENTIFIER` = #bbbbbb）。
+
+### 三、实施期发现（4 条）
+
+1. **浅色半的取舍（§5.3 明列二选一，本片选"不动"）。** 判据是**没有可迁移的规则**：variant 的加饱和是**按色手调**（ΔS 从 ±5.5 到 +17.2 不等、ΔH −4 到 +13、ΔL −7.8 到 +2.4），所以"把暗色板的变换搬到浅色板"这件事**不存在**——那不是派生而是凭空发明，与 2-P 发明浅色外壳时手里有"保色相饱和、重解明度"这条可执行规则的情形不同。**后果如实记**：浅色外观下代码块 / 编辑器 / 底料**逐字节等于 `cc-onedark`**（终端板外观无关，两外观都动）。这也与主题名自洽——它叫"暗夜一号"。
+   > 顺带：这条约定**已有守卫表达**，不是我拍的：`theme-overlays.spec.ts` 的 `BOARD_IN_BOTH_APPEARANCES` 只放 `cc-catppuccin`，"参照物只出暗色板"的主题在明色半声明语法槽即报红（M5/M7 实测）。
+2. **复制出来的覆盖层有一条既有契约看不见的缝：它可以"只漂一点"。** `cc-onedark-vivid` 的三块是**有意复制** `cc-onedark` 的（插件四份文件共享核心色板），而**覆盖层契约只把主题与基色比**——复制时漂了一个值，它照样"按原文解析"、照样在 `full` 的触达范围内。B2 那条"拥有整块板"的守卫也看不见（它只管语法板、且不比对姊妹）。故新增一条断言：**两个主题的差异恰为记录的那一组**（`VIVID_SUBSTRATE_MOVES` ＋ 暗色半的 `VIVID_DARK_SYNTAX_MOVES`），三个方向都报错（只在一侧声明 / 不该动的动了 / 该动的没动）。**判据：凡是"复制"而非"派生"的资产，都要有一句"它该与源差在何处"的断言，否则复制品与源的关系无人守。**
+3. **§6.3 要求的"两外观各一份 ＋ 终端一份"在实施时才能精确到"哪些渲染令牌真的动了"**，故收口前用一次性探针实测了一遍（探针跑完即删）：**暗色外观动 17 个渲染令牌**（`--foreground` ＋ 四个 `--editor-*-fg` 共 5，终端 10，义名 `--term-error` / `--term-success` 2）；**浅色外观只动 12 个**（终端 10 ＋ 两个义名），因为 L1 的灰只在暗色被消费。**注意 `rendered` 里没有 `--cc-syntax-*`**——语法板走另一条注入通道（`<style id="cc-syntax-theme">`），所以"代码块那 6 槽"不在这份名单里，两份清单要合起来读。
+4. **`--palette-ink-100` / `--palette-term-fg` / `--palette-term-white` 三者在 variant 里同值（`0 0% 73.33%`）不是笔误**：源里 `foregroundColor`、`CONSOLE_NORMAL_OUTPUT`/`WHITE_OUTPUT` 本来就同值，`cc-onedark` 里三者也是同一个三元组的重复写法。本片沿用同一写法、不为"去重"引入间接。
+
+### 四、变异集（8 条，逐条实测，全部 RED）
+
+| # | 变异 | 红 | 抓它的测试 |
+|---|---|---|---|
+| M1 | 从 `SYNTAX_BOARD_THEMES` 去掉 `cc-onedark-vivid` | **2** | 板主题守卫（× 2 引擎）|
+| M2 | 删掉 variant 的 11 条语法声明 | **4** | 板主题守卫 ＋ 姊妹差（各 × 2 引擎）|
+| M3 | `--palette-term-cyan` 退回姊妹的值 | **4** | 姊妹差（`theme-overlays`）＋ 终端姊妹差（`terminal-tokens`）|
+| M4 | 动 `--palette-term-yellow`（**不在**预期移动集里）| **4** | 同上两条 |
+| M5 | 给 variant 的**明色半**加一条语法声明 | **6** | all-or-nothing ＋ 板主题守卫 ＋ 姊妹差（各 × 2 引擎）|
+| M6 | `--palette-ink-100` 退回姊妹的值 | **2** | 姊妹差 |
+| M7 | 把 `cc-onedark-vivid` 列进 `BOARD_IN_BOTH_APPEARANCES` | **2** | 板主题守卫（明色半无板）|
+| M8 | 注册表 `coverage` 改 `accent` | **2** | 逐主题触达断言（`cc-onedark-vivid (accent) …`）|
+
+M3 / M4 是**成对**的：M3 证明"该动的没动"会红，M4 证明"不该动的动了"也红——少了任一条，姊妹差断言只守一半。每条都先确认真的改了值（不与姊妹同值），全部还原后逐字节比对（见"五"）。
+
+### 五、测试资产与改动面
+
+| 资产 | 内容 |
+|---|---|
+| `src/shared/constants.ts` | 注册表 ＋1 行（`appearance: 'system'` / `source: 'builtin'` / `coverage: 'full'`）|
+| `src/index.css` | variant 三块（L1 ＋ 明色半 ＋ 暗色半），每块带来源与偏离注释；块头注释含"底板不动 ＋ 语法 ＋ 终端 ＋ 灰阶三条轴"与"为什么不去发明浅色板" |
+| `tests/theme-tokens/theme-overlays.spec.ts` | `SYNTAX_BOARD_THEMES` ＋1；＋1 测试（姊妹差，三个方向）|
+| `tests/theme-tokens/terminal-tokens.spec.ts` | ＋1 测试（终端板相对姊妹恰动 9 槽 ＋ foreground）|
+
+`test:theme-tokens` 的 **＋10 与 ＋5 用例逐条对齐**（名字集 A/B）：注册表驱动自动新增 3 条（`code-block-surface` / `contrast` / `theme-overlays` 的逐主题触达，**零改测试**）＋ 本片手写 2 条。
+
+**提交方式**：与 B1 / B1b / B2 一致——代码一个 `feat(theme):`、两文档一个 `docs(theme):`。
+
+**"真实 xterm 读画出的 ANSI 色"这句 DoD 措辞要收窄**：本仓库没有"读 xterm 画出的像素"的通道，终端的消费者守卫是**两层**——`terminal-tokens.spec.ts` 读 `readTerminalTheme()`（喂给 xterm 的那个 `ITheme` 对象本身），`src/modules/shell/tests/shellTerminalThemeRefresh.test.tsx` 读 `terminal.options.theme`（它确实被推到终端上）。本片按既有范式落在第一层，并把第二层由既有测试覆盖。**这不是能力缺口，是这套仓库的取证分工**，如实记以免下一片去找不存在的通道。
+
+### 六、§6.3 记账（按要求的形状：两外观各一份 ＋ 终端一份）
+
+1. **代码块 · 暗色半 —— 6/11 槽移动**：`punctuation` / `keyword` / `property` / `string` / `url` / `block-foreground`（值见"二、③"）。另 5 槽与 `cc-onedark` 同值（派生所致，非漏做）。
+2. **代码块 · 浅色半 —— 本片不动**：保持基色 `prism-oneLight`。参照物只出暗色板；**逐条落实在 `BOARD_IN_BOTH_APPEARANCES` 上**（明色半声明语法槽会被守卫拒绝）。后果：浅色外观下代码块 / 编辑器 / 底料与 `cc-onedark` 逐字节相同。
+3. **终端 —— 9 槽 ＋ foreground**（外观无关，故不分明暗）：`red` / `green` / `magenta` / `cyan` / `white` / `bright-red` / `bright-green` / `bright-magenta` / `bright-cyan` 与 `--term-foreground`（⇒ `--term-ansi-*` 十个 ＋ `--term-foreground`，义名 `--term-error` / `--term-success` 随红绿跟动）。折算口径见"二、②"。
+4. **灰阶 —— 一处 L1**：`--palette-ink-100`，暗色外观下连带 `--foreground` 与四个 `--editor-*-fg`（渲染名单见"三、3"）；`--muted-foreground`（`ink-400`）不动。
+5. **一处"没有发生"也要记**：本片**没有**第 5 次"照抄参照物被自家契约拦下"——variant 的语法板不在 §5.10 的配对表内，终端板也不在，参照物自身没有低于 AA 需要改的色（`contrast.spec.ts` 对 `cc-onedark-vivid` 的自动新增用例是绿的）。
+
+---
+
+## 附录 A（B3 增补）
+
+`SYNTAX_BOARD_THEMES` 由三条变四条（`cc-onedark-vivid` 加入）；`BOARD_IN_BOTH_APPEARANCES` **不变**（仅 `cc-catppuccin`）。新增两条断言与两个常量集：`VIVID_SUBSTRATE_MOVES`（11 项）＋ `VIVID_DARK_SYNTAX_MOVES`（6 项），以及 `terminal-tokens.spec.ts` 里那张期望的移动键名单（10 项）。**这两组名单就是"姊妹差恰为记录的那一组"这条断言的全部内容**，改动它们等于改动该片承诺。
 
