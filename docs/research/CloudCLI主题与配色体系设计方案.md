@@ -4736,6 +4736,28 @@ Mutation 侧：
 
 ---
 
+**B 线语法板 · 浅色半补齐（2026-09-30，即方案文档的 B4）**
+
+**触发**：用户追问"其他主题的代码块配色跟主题了吗"。核查发现 `cc-catppuccin` 是 11 槽两外观齐全，而 `cc-islands` / `cc-onedark` / `cc-onedark-vivid` **只落了暗色半**（B2 / B3 当时按方案文档 §3.7 的"三个参照物没有浅色语法板"记账）。用户要求"没有完善就查来源、按来源做兼容调整"，于是重新取证。
+
+**取证结论（推翻原判）**：三套**都有官方浅色来源**，且都不是发明——
+
+| 主题 | 浅色来源 |
+|---|---|
+| `cc-islands` | `ManyIslandsLight.theme.json` 的 `editorScheme: "Light"` ⇒ **平台通用 `themes/Light.xml`**（内部名 "Light"、显示名 "IntelliJ Light"）。原判"只有 `IslandSchemeDark.xml`"混淆了"islands 目录下没有浅色文件"与"没有浅色板" |
+| `cc-onedark` | **Atom One Light**（`one-dark-syntax` 的浅色姊妹板，这套暗色板的源头） |
+| `cc-onedark-vivid` | 直接取 sibling 的浅色板 —— 插件官方 `scripts/create-vivid-variants.js` 是纯字符串 `replaceAll` 且只作用于三份 `dark: true` 文件，它换的五个 hex 在浅色板里一个都不出现 ⇒ **变换在浅色上是恒等** |
+
+**落地**：三套各 ＋11 槽（写在各自的 `:not(.dark)` 块），`cc-polar` 仍不写（自造、无参照物）。与基色 `prism-oneLight` 的差异：`cc-islands` **11/11** 移动；`cc-onedark` / `cc-onedark-vivid` **3/11**（只 `class-name` / `constant` / `number`——基色把这三槽并成一个橙黄，One Light 官方是拆开的），其余 8 槽与基色同值，命名的意义是"**拥有**板"而不是"值变了"。对比度按既有标准"照参照物原值平移"如实记账（`cc-onedark` 浅色 8 槽低于 4.5:1，其中 5 槽在基色板上本就是同一个值，非本片引进）。
+
+**守卫**：`theme-overlays.spec.ts` 的 `BOARD_IN_BOTH_APPEARANCES` 由 1 项扩为 4 项后**连同其 `expectsABoard` 分支一起删除**——四套板主题在两个外观都有板之后，"只声明暗色半"不再是一个存在的形态，留一个恒真分支只会误导下一位读者。现在的守卫读作"拥有板 ⇒ 两外观各 11/11 且至少移动一槽"。
+
+**门槛**：`test:theme-tokens` **87 passed / 0 failed**（chromium 与 webkit 同）；两份基线**未动**；落盘值静态核对 **33/33** 与来源表逐字节相同（脚本按选择器解析，非人工）。变异 2 条均 RED：`cc-onedark-vivid` 浅色某槽偏离 sibling（姊妹差断言抓到）；删掉 `cc-islands` 浅色 11 槽（板主题守卫抓到，报文 `names 0 of 11`）——**后者正是扩表的意义：扩表之前整段删掉浅色板是不报错的**（旧守卫把浅色半整段跳过）。
+
+**与既有账的关系**：出厂与暗色外观**零变化**（只补浅色半）。2-O / N10 记的那笔"编辑器参考板里另外 30 余条语法色未接线"**状态不变**。详见 `docs/research/CloudCLI内置主题语法调色板接管方案.md` §3.7 订正表与 B4 实施记录。
+
+---
+
 ## 7. 风险与取舍
 
 | 风险 | 说明 | 缓解 |
