@@ -149,6 +149,51 @@ test('an overlay theme moves the board readTerminalTheme resolves', async ({ pag
 });
 
 /**
+ * The vivid variant's board, measured against its sibling rather than the base.
+ *
+ * `cc-onedark-vivid` is the second One Dark theme, and the correction the plan
+ * records in §3.7 is what this pins: it moves the terminal as well as the
+ * syntax board. The source states that in `<attributes>`, which is where an
+ * ANSI board lives — `<colors>` also has `CONSOLE_*` keys, but there only for
+ * the background, and reading that section alone is what produced the plan's
+ * original "the terminal does not move" claim.
+ *
+ * Twelve `<attributes>` entries change, and they are three-fold redundant (a
+ * normal entry, a bright entry and a meaning-named one share each colour), so
+ * they fold to five ANSI slots. Each moves in both halves except white, whose
+ * bright partner reads `selectionForeground` — unchanged by the variant — so it
+ * is nine slots plus the foreground token. That count is the assertion here
+ * rather than a sentence in a document.
+ */
+test('the vivid variant moves nine ANSI slots and the foreground off its sibling', async ({ page }) => {
+  await openFixture(page);
+
+  const boardWith = (themeId: string) => page.evaluate((id) => {
+    window.__THEME_TOKENS__!.readWithTheme(id, 'dark');
+    return window.__THEME_TOKENS__!.readTerminalTheme();
+  }, themeId);
+
+  const asRecord = (theme: ITheme) => theme as unknown as Record<string, unknown>;
+  const sibling = asRecord(await boardWith('cc-onedark'));
+  const variant = asRecord(await boardWith('cc-onedark-vivid'));
+
+  const moved = Object.keys(sibling).filter((key) => sibling[key] !== variant[key]).sort();
+
+  expect(moved).toEqual([
+    'brightCyan',
+    'brightGreen',
+    'brightMagenta',
+    'brightRed',
+    'cyan',
+    'foreground',
+    'green',
+    'magenta',
+    'red',
+    'white',
+  ]);
+});
+
+/**
  * The terminal's font, resolved through the same stylesheet-first channel as its
  * colours (§6.1, §6.2). Like the board above, the value is a token, but unlike
  * the board the consumer is `fontFamily` rather than a colour, so the "no value"
