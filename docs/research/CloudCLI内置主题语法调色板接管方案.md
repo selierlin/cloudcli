@@ -1,6 +1,6 @@
 # CloudCLI 内置主题接管语法调色板方案
 
-> 状态：**B1 / B1b 已实施**（2026-09-29）；B2 / B3 待做。本文是 `docs/research/CloudCLI主题与配色体系设计方案.md`（下称"主题文档"）§8.9 / §5.7"语义化改名"的一个**收窄立项**，面向多 AI 会审。
+> 状态：**B1 / B1b / B2 已实施**（2026-09-29）；B3 待做。本文是 `docs/research/CloudCLI主题与配色体系设计方案.md`（下称"主题文档"）§8.9 / §5.7"语义化改名"的一个**收窄立项**，面向多 AI 会审。
 > 起因：2-P 之后用户提出再增一套 One Dark 变体（Vivid）。调查发现 **Vivid 的全部可见差异都落在语法调色板上**，而语法调色板是主题文档 §5.11 v7 明确记录的"不在任何覆盖层可达范围内"的边界。故本方案先解决那条边界，再落地新主题。
 > 编写日期：2026-09-28。文中所有行号对应当前的 `HEAD`。
 
@@ -471,6 +471,7 @@
 
 - **声明一致性（值形状已定，审阅后）**：**不要**拿 `readSyntaxToken(槽) === 该块声明的值`——前者是**计算色**（`rgb(198, 120, 221)`）、后者是**声明文本**（`#c678dd` / `hsl(286, 60%, 67%)`），两种形状直接比**永不成立**（审阅者指出）。改为：① 声明一致性走 `readWithTheme().tokens`（比**原样声明文本**，形状天然一致）；② 需要计算色时照 `user-theme-tmtheme.spec.ts:60-65` 的 `tripletReference` 范式，**把期望值也过一遍探针**再比。两条分工写进 DoD，缺哪条都会写出"一写出来就红"的断言。
   > **①的前提是 §3.6-1 的手工追加**（N6 定案）：`extractTokenNames` 只扫 `index.css`，B1 不往那里加声明 ⇒ **不追加就读不到语法槽**，本条会静默变成"比空集"。措辞在第二轮由"自动收录"改为"手工追加"——**这里是最容易把 N6 又改回错口径的地方**。
+  > **B2 起此前提失效（2026-09-29）**：B2 把 44 条 `--cc-syntax-*` 声明写进了 `index.css` 的覆盖层块，`extractTokenNames` 因而**自动收录**这些名字（`main.ts` 里那份手工追加保留但不再是唯一来源）。"不追加就读不到"只对 B1 那一版的树成立，见 B2 实施记录"三、2"。
 - **顺序证明**：调 `reinjectSyntaxStyleSheet()` 把基色表重新插到最前，再读一次，值**不变**（照 `user-theme-tmtheme.spec.ts:98-127` 的范式）。
 - **必须有一条红色的反证**：把基色表从"最前"改成"追加"，上述断言应当红。**否则这条证明是空转**（2-E 决策 8 修掉的正是这个隐患，别让它悄悄退化）。这条反证需要 `reinjectSyntaxStyleSheet()` 出一个 **append 变体**（现签名无参）——**机制改动要写进附录 A**，否则 DoD 里最硬的这条验收实现时会卡壳。
 - **`--cc-syntax-block-foreground` 单独一条（审阅后加强）**：探针只证明"令牌能解析"，而这一项的选型断言是"**哪个元素在画代码正文**"。所以要在**真实渲染的代码块**上**同时读 `<pre>` 与 `<code>` 的计算 color**，并确认：① 两者同值（说明正文色确由继承而来）；② 它随主题移动。**反证（两段）**：把该主题块里的这一条删掉，两个元素**都应回落**到基色；若只有 `<code>` 回落而 `<pre>` 不动（或反之），说明选错了元素——那正是初稿的错误形态。
@@ -514,7 +515,7 @@
 
 ### 6.6 门槛（每片收口时逐片刷）
 
-`npm test`（含服务端树对照）、`test:client`、`test:theme-tokens`（A/B：B1 应恰增"基线条目数"、B2/B3 逐套递增）、`lint`、`typecheck` ＋ `typecheck:theme-tokens`、`build`。**三片都不动 `server/`**，因此按既有纪律可以先取"服务端树逐字节相同"这条**更硬**的对照（`git diff <上片 docs commit> HEAD -- server/` 与 `git status --short -- server/` 同时为 0）来豁免名字集 A/B；若中途有任何一片动到 `server/`，该豁免立即失效、老实做名字集 A/B。
+`npm test`（含服务端树对照）、`test:client`、`test:theme-tokens`（A/B：B1 应恰增"基线条目数"；**B2 实测推翻本条原写的"B2/B3 逐套递增"** —— `captureSnapshot` 只读光明/暗基色、**不挂任何 `data-theme`**，所以覆盖层声明**永远不会进基线**，B2 的验证只能靠 `theme-overlays.spec.ts` 的逐主题断言（见 B2 实施记录"三、1"））、`lint`、`typecheck` ＋ `typecheck:theme-tokens`、`build`。**三片都不动 `server/`**，因此按既有纪律可以先取"服务端树逐字节相同"这条**更硬**的对照（`git diff <上片 docs commit> HEAD -- server/` 与 `git status --short -- server/` 同时为 0）来豁免名字集 A/B；若中途有任何一片动到 `server/`，该豁免立即失效、老实做名字集 A/B。
 
 ---
 
@@ -1179,4 +1180,70 @@ B1b（容器底色，决策 4 取 **(a2)**）尚未开工。它的两个前置�
 ### 五、下一片
 
 B2（回填四套既有 `full` 主题的语法板）是下一片。两个前置与 §5.2 相同，且本片已各做了一半：**字面色护栏已实测**（7 种形状的命中表在主题文档的记账里）、**同宽来源矩阵已出**（并顺手发现"五个来源就是各自的 `--editor-bg`"）。
+
+---
+
+## B2 实施记录（2026-09-29）
+
+> 开工前拍板（用户："按你推荐的"）：**读法甲 ＝ 语义逐槽**。§3.7 的"按色值分组再取语义最近的 Prism 类别"与 §3.2 的"5 个没动的槽照抄参照物 ⇒ 值不变"在 **`class-name`** 上分叉：参照物给 `#e5c07b` 黄，基色给 `#d19a66` 橙。取甲的理由是**乙没法统一应用** —— islands 的 number（青）/ constant（紫）/ class-ref（灰）本来就是三个色，逼它们同族只会得到一个错值；甲是唯一能对三套一致执行的规则，且它让"回填语法板"真的有内容。
+> 范围：`cc-onedark` / `cc-catppuccin` / `cc-islands` 三套；**`cc-polar` 按 §8 决策 2 的"可选"本片不写**（§5.2 第 4 条取前者），`cc-ocean` 是 accent 主题、沿继承。
+
+### 一、门槛（全绿）
+
+| 项 | 读数 | 对照 |
+|---|---|---|
+| `npm test` | 1029 / 1008 通过 / 20 失败 / 1 跳过 | 已知抖动区（19~21）；`server/` 树 0 行 ⇒ 按纪律豁免名字集 A/B |
+| `test:client` | 149 文件 / 1239 通过 | 与 B1b 逐字相同 —— 本片只动 `index.css` 与两个 playwright spec，无 `src/` TS 变更 |
+| `test:theme-tokens` | **158 通过** | B1b 基线 156 ⇒ **＋2**（新测试 × 2 引擎）|
+| `lint` | 153 warnings / 0 errors | 与基线相同 |
+| `typecheck` ＋ `typecheck:theme-tokens` | 0 错 | `build:client` 不校验类型，故这两条必须单跑 |
+| `build` | exit 0 | — |
+| `token-baseline.json` | **未动** | 实测证实覆盖层声明永不进基线（见"三、1"）|
+| `theme-atom-conservation.json` | **未动** | 本片不碰任何 utility 消费者 |
+
+### 二、参照物与保真度
+
+| 主题 | 参照物 | 保真度 |
+|---|---|---|
+| `cc-onedark` | 插件 jar 内 `one_dark.xml`（497 条属性，**dark-only**）| 逐属性读，一个文件一套 |
+| `cc-islands` | 平台 jar 内 `themes/islands/IslandSchemeDark.xml` | 逐属性读；**该 scheme 无 `DEFAULT_CLASS_NAME`** ⇒ 取 `DEFAULT_CLASS_REFERENCE` |
+| `cc-catppuccin` | **官方色板 v1.8.0**（Mocha / Latte）| ⚠️ **不是编辑器 scheme**：Codex 的 27 套主题编译进 229MB 二进制（`strings` 搜不到、包内无 `.tmTheme`）⇒ 只能取官方**角色约定**，如实记账 |
+
+映射（甲）：comment ← `LINE_COMMENT`；punctuation ← `OPERATION_SIGN` / `BRACES`；className ← `CLASS_REFERENCE`；constant ← `CONSTANT`；number ← `NUMBER`；keyword ← `KEYWORD`；property ← `INSTANCE_FIELD`；string ← `STRING`；function ← `FUNCTION_DECLARATION`；url ← `VALID_STRING_ESCAPE`；blockForeground ← `IDENTIFIER`。
+
+**逐套的可见变化**：`cc-onedark` **只有 `class-name` 一处**（橙 → 黄，其余 10 槽与该主题基色同值，命名只是把"继承"改成"拥有"）；`cc-islands` **11 槽全变**；`cc-catppuccin` **两外观各 11 槽全变**。两套 dark-only 参照物的**浅色半明确不动**（保持基色 Prism oneLight），按 §3.7 事实 2/3 记账。
+
+### 三、实施期发现与改判（4 条，如实记账）
+
+1. **§6.6 的"B2/B3 逐套递增"不成立**（已在正文改判）。`captureSnapshot` 只读光明/暗基色、**不挂 `data-theme`** ⇒ 覆盖层声明**永不进基线**。B2 的验证因此只能落在 `theme-overlays.spec.ts` 的逐主题断言上。
+2. **§6.2 的"①前提 ＝ 手工追加"从 B2 起失效**（已在正文改判）。B2 把 44 条声明写进 `index.css` ⇒ `extractTokenNames` **自动收录**语法槽名；"不追加就读不到"只对 B1 那一版的树成立。
+3. **"删掉声明也照样绿"是本片开工自查抓到的最大缺口，且我最初把它判错了方向。** 开工时以为风险是"`cc-onedark` 的 10/11 槽与基色同值 ⇒ 覆盖层输了也读到同值"。**实测证伪**：`readOverlay` 的 `declared` 只含**存在的**声明，删掉整块后 check 1 **连检查对象都没有** —— 这与"值是否同色"毫无关系，`cc-islands` / `cc-catppuccin` 一样漏。故新加的"own all of it, and move it"才**是**唯一会红的东西（M1–M4 各 2 红，且**只有它**红）。**判据：逐主题断言里凡"只遍历已有声明"的，都挡不住"整块被删"。**
+4. **一处按甲的语义取值的必然坍缩（不是被契约拦下）**：`cc-islands` 的 `url` 取 `VALID_STRING_ESCAPE`（`#cf8e6d`）后**与 `keyword` 撞色** —— 该 scheme 没有独立的青色角色。**记账而非掩饰**。另如实记一条"没有发生"：本片**没有**第 5 次"照抄参照物被自家契约拦下" —— 语法板不在 §5.10 的配对表内，参照物自身也没有低于 AA 的语法色需要改。
+
+### 四、变异集（6 条，逐条实测）
+
+| # | 变异 | 红 | 说明 |
+|---|---|---|---|
+| M1 | 删 `cc-onedark` 的 11 条 | **2** | 新测试 × 2 引擎；per-theme / 全有或全无**都不红**（见"三、3"）|
+| M2 | 删 `cc-islands` 的 11 条 | **2** | 同上 |
+| M3 | 删 `cc-catppuccin` **明色半**的 11 条 | **2** | 同上（该主题明色半声明了、暗色半仍在 ⇒ 只有"整块"这条能发现）|
+| M4 | `cc-islands` 的 11 条全改成基色值（板子声明了但一个槽都不动）| **2** | 证明"move it"那半句有牙 |
+| M5 | 删 `--cc-syntax-` 字面色豁免 | **2** | 恰 `token-contract` 那一条 × 2 引擎 |
+| M6 | `cc-islands` 的 `comment` 由 `#7a7e85` 改 `#7a7e86` | **0（绿）** | **已知边界，见下** |
+
+**M6 是如实记账的边界**：语法板的**取值**没有被任何测试冻结。per-theme 的 check 1 只证"声明按原文解析"，删改声明会连检查对象一起消失；全有或全无只证"不缺槽"。要冻值就得把 44 个 hex 抄进测试，而本仓库对**覆盖层取值**历来不冻结（进 `token-baseline.json` 的只有**基色**）。故取值正确性由本记录的两张映射表与三份参照物的复核承担，**不由测试承担**。
+
+### 五、本片新落的测试资产与改动面
+
+| 资产 | 内容 |
+|---|---|
+| `src/index.css` | **44 条**声明（3 主题 × 11 ＋ catppuccin 的明色半另 11），每块带来源与偏离注释 |
+| `tests/theme-tokens/token-contract.spec.ts` | ＋1 处豁免（`--cc-syntax-` 前缀，**实测**过 hex 确实命中护栏，非形状巧合）；测试名与 docblock 同步改为"…the editor board, the code-block panel and the syntax board" |
+| `tests/theme-tokens/theme-overlays.spec.ts` | ＋1 测试 × 2 引擎：三个板主题**拥有**板、拥有**整块**板、且**至少移动一个槽**；反向断言"非板主题一个槽都不许命名"与"参照物没有明色板的主题不许在明色半声明" |
+
+**偏离 §5.2 的"每套主题一个独立提交"**：三个块共用同一个测试文件与同一处字面色豁免，且"逐套刷基线"的理由已被实测推翻（覆盖层不进基线），故合成一个提交。
+
+### 六、下一片
+
+**B3**（`cc-onedark-vivid`，显示名"暗夜一号·浓彩"）。§5.3 的 DoD 要求"**代码块 ＋ 终端**，且代码块**分两外观**说明"；浅色半二选一（发明并记账 / 明确写不动）。本片已把它的语法板路径打通（具名槽 ＋ 字面色豁免 ＋ 板主题守卫），剩下的是 Vivid 自己的三条轴（语法 / 终端 / 灰阶）。
 
