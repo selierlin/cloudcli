@@ -127,10 +127,16 @@ description: 为 CloudCLI 创作或修改主题。两条通道：内置配色主
 | 板 | 终端 / 编辑器 / Git 图 | `--term-*`、`--editor-*`、`--graph-lane-*` |
 | 兼容层 | 见下 | `--n-gray-*` / `--n-white` / `--n-black` |
 
-**`--n-gray-*` 别漏**：`src/index.css` 里 `--n-gray-*` 定义上方的注释明说这是给主题覆写的
-别名层（`bg-n-gray-700` 编译成 `hsl(var(--n-gray-700))`），它管着 **343 处表面**
-（代码块底、次级按钮、悬停态、弹窗、Tooltip）。不染就是「外壳是主题色、内脏是冷灰」。
-`--n-white` / `--n-black` **故意别动**——它们同时当底色和文字色用（`text-n-white` 有 200 处）。
+**兼容层（`--n-*`）要按族整染**：`src/index.css` 里 `--n-*` 定义上方的注释明说这是给主题覆写的
+别名层（`bg-n-gray-700` 编译成 `hsl(var(--n-gray-700))`），四个中性族合计 **1380 处**
+（`gray` 1223 / `zinc` 66 / `slate` 51 / `neutral` 40；代码块底、次级按钮、悬停态、弹窗、
+Tooltip）。不染就是「外壳是主题色、内脏是冷灰」。
+契约（`tests/theme-tokens/theme-overlays.spec.ts` 的 `SURFACES.compat`）现在这样划：
+`coverage: full` **可以**染这四族，但**必须整族十一档一起染**——只染其中几档既动了 `compat`
+又算不上完整，会落回「档位之间」那种半冷半暖的接缝；`coverage: accent` **一档都不能动**，
+它承诺只做强调色家族。
+`--n-white` / `--n-black` **两种覆盖度都别动**：它们多是纯白 / 纯黑的填充与标签（257 处，
+`text-n-white` 143 · `bg-n-white` 51 · `bg-n-black` 36），染纯白或纯黑是这里风险最大的动作。
 
 **这三块会被 JS 侧重新读取**：`resolvedThemeId` 随用户主题变化（`ThemeContext.tsx`），所以
 `--term-*` / `--editor-*` / `--graph-lane-*` 也跟着主题走，不是只能改外壳。
