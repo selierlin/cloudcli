@@ -384,6 +384,34 @@ export const BUILTIN_THEMES: ThemeManifest[] = [
     source: 'builtin',
     coverage: 'full',
   },
+  {
+    id: 'cc-dracula',
+    name: '德古拉',
+    appearance: 'system',
+    source: 'builtin',
+    coverage: 'full',
+  },
+  {
+    id: 'cc-gruvbox',
+    name: '复古盒',
+    appearance: 'system',
+    source: 'builtin',
+    coverage: 'full',
+  },
+  {
+    id: 'cc-kanagawa',
+    name: '神奈川',
+    appearance: 'system',
+    source: 'builtin',
+    coverage: 'full',
+  },
+  {
+    id: 'cc-tokyo-night',
+    name: '东京夜',
+    appearance: 'system',
+    source: 'builtin',
+    coverage: 'full',
+  },
 ];
 
 // ---------------------------

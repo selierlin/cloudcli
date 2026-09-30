@@ -64,7 +64,48 @@ const baseline: Record<
   readFileSync(join(REPO_ROOT, 'tests/theme-tokens/token-baseline.json'), 'utf8'),
 );
 
-const declarations = readDeclarations(CSS);
+const declarations = readDeclarations(stripOverlayBlocks(CSS));
+
+/**
+ * The stylesheet with every `[data-theme="…"]` overlay block removed.
+ *
+ * This suite describes the *base* palette — the values Tailwind's neutrals must
+ * still hold. An overlay is entitled to restate those same palette names with
+ * its own values (that is what `coverage: 'full'` buys it), and
+ * `readDeclarations` keeps the last declaration of each name, so reading the
+ * whole file would end up comparing the bottom-most overlay's
+ * `--palette-gray-700` against Tailwind's.
+ *
+ * Overlay rules are flat today, but the walk tracks brace depth anyway: a
+ * nested rule added later would otherwise cut the strip short and silently
+ * reinstate the collision.
+ */
+function stripOverlayBlocks(css: string): string {
+  let out = '';
+  let cursor = 0;
+
+  for (;;) {
+    const at = css.indexOf('[data-theme=', cursor);
+    if (at === -1) break;
+    const open = css.indexOf('{', at);
+    if (open === -1) break;
+
+    let depth = 0;
+    let end = open;
+    for (; end < css.length; end += 1) {
+      if (css[end] === '{') depth += 1;
+      else if (css[end] === '}') {
+        depth -= 1;
+        if (depth === 0) break;
+      }
+    }
+
+    out += css.slice(cursor, at);
+    cursor = end + 1;
+  }
+
+  return out + css.slice(cursor);
+}
 
 /**
  * Every tokenised class the migration can write, across the three declaration
