@@ -49,6 +49,20 @@ type ContrastPair = {
  * neither clause's by name, but both overlay themes were authored against it
  * (`cc-ocean`'s comment records moving its light step off a 3.5:1 value, and
  * `cc-polar`'s records choosing one that clears 4.6:1), so it is in scope.
+ *
+ * The second half is the **compatibility ramp** (`--n-*`), and it exists because
+ * of what `theme-overlays.spec.ts` no longer freezes: `gray` moved out of
+ * `SURFACES.fixed` so a `full` theme can retint the ~1.2k Tailwind utility sites
+ * that ride on it (the four references promoted alongside that change re-lay the
+ * ramp at the base's own lightnesses). Removing the freeze removed the guard
+ * too, so these pairs are its replacement — and unlike the first six they are
+ * not a text × surface matrix either: each one is read off a real drawing point
+ * (`TextContent`'s fenced-code panel, the JSON block, the secondary buttons and
+ * their dark halves). The ramp is appearance-agnostic — declared once in `:root`,
+ * never mirrored in `.dark` — so each of these pairs resolves to the same two
+ * triplets in both appearances; `BASE_PAIR_COLORS` still carries both keys
+ * because it is keyed by appearance, and the guard below would fail on a copy
+ * that drifted rather than reported the same number twice by luck.
  */
 export const CONTRAST_PAIRS: readonly ContrastPair[] = [
   { ink: '--foreground', surface: '--background', min: 4.5 },
@@ -57,6 +71,19 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
   { ink: '--muted-foreground', surface: '--card', min: 4.5 },
   { ink: '--primary-foreground', surface: '--primary', min: 4.5 },
   { ink: '--ring', surface: '--background', min: 3 },
+  // The chat's fenced-code panel, light half (`TextContent.tsx:39`).
+  { ink: '--n-gray-700', surface: '--n-gray-50', min: 4.5 },
+  // A filled secondary button, light half (`VersionUpgradeModal.tsx:250`).
+  { ink: '--n-gray-700', surface: '--n-gray-100', min: 4.5 },
+  // The JSON block's ink on its own light board (`TextContent.tsx:31`).
+  { ink: '--n-gray-100', surface: '--n-gray-900', min: 4.5 },
+  // The same button in the dark. Its dark board is the `gray-700` step in some
+  // modules and the `gray-800` one in others, so both are pairs.
+  { ink: '--n-gray-300', surface: '--n-gray-700', min: 4.5 },
+  // The JSON block's dark board, same ink as its light half.
+  { ink: '--n-gray-100', surface: '--n-gray-950', min: 4.5 },
+  // The other dark board the button uses (`McpServerFormModal.tsx:244`).
+  { ink: '--n-gray-300', surface: '--n-gray-800', min: 4.5 },
 ];
 
 /** The appearance a pair is judged in. */
@@ -82,6 +109,20 @@ export const BASE_PAIR_COLORS: Record<Appearance, Record<string, string>> = {
     '--primary': '221.2 83.2% 53.3%',
     '--primary-foreground': '210 40% 98%',
     '--ring': '221.2 83.2% 53.3%',
+    // The compatibility ramp — identical in both appearances on purpose. It is
+    // declared once in `:root` and never mirrored in `.dark`, so every pair that
+    // names it resolves to one triplet whatever the appearance. The two blocks
+    // therefore repeat these seven lines, and this comment is what says the
+    // repetition is the ramp's shape rather than a copy-paste that will drift:
+    // `--n-gray-*` is the base's `--palette-gray-*`, and `contrast.spec.ts` is
+    // what keeps both blocks equal to the stylesheet.
+    '--n-gray-50': '210 20% 98%',
+    '--n-gray-100': '220 14.3% 95.9%',
+    '--n-gray-300': '216 12.2% 83.9%',
+    '--n-gray-700': '216.9 19.1% 26.7%',
+    '--n-gray-800': '215 27.9% 16.9%',
+    '--n-gray-900': '220.9 39.3% 11%',
+    '--n-gray-950': '224 71.4% 4.1%',
   },
   dark: {
     '--foreground': '40 8% 93%',
@@ -91,6 +132,14 @@ export const BASE_PAIR_COLORS: Record<Appearance, Record<string, string>> = {
     '--primary': '217.2 91.2% 59.8%',
     '--primary-foreground': '0 0% 8%',
     '--ring': '217.2 91.2% 59.8%',
+    // The same seven ramp values, for the reason above.
+    '--n-gray-50': '210 20% 98%',
+    '--n-gray-100': '220 14.3% 95.9%',
+    '--n-gray-300': '216 12.2% 83.9%',
+    '--n-gray-700': '216.9 19.1% 26.7%',
+    '--n-gray-800': '215 27.9% 16.9%',
+    '--n-gray-900': '220.9 39.3% 11%',
+    '--n-gray-950': '224 71.4% 4.1%',
   },
 };
 

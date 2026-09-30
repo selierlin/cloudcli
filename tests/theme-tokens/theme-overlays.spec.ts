@@ -108,16 +108,59 @@ const SURFACES: Record<string, string[]> = {
    */
   cardSurface: ['--card', '--popover'],
   /**
+   * The Tailwind compatibility skeleton — all four neutral families
+   * (`gray` / `zinc` / `slate` / `neutral`), 1380 utility sites:
+   *   `gray` 1223, `zinc` 66, `slate` 51, `neutral` 40.
+   *   Counted by scanning `src` for `n-<family>-<step>`, with the test tree and
+   *   this module's own probe file excluded by name. The probe file is left out
+   *   because it *names* these tokens as pairs; counting those would move the
+   *   figure every time a pair is added.
+   *
+   * Out of reach for `accent` — retinting any of it would change far more than
+   * that badge advertises — but *inside* the reach of a theme that already
+   * claims the surfaces, because these sites are the app's own chrome and
+   * leaving them cold is the seam the ramp's step values are not meant to
+   * force. The four themes this slice promotes are exactly that case: their L1
+   * re-lays the `gray` ramp at the base's own lightnesses, so their chrome
+   * belongs to them.
+   *
+   * All four families are listed, not the two `gray` steps that happened to be
+   * probed, and not `gray` alone: the old guard left `zinc` / `slate` /
+   * `neutral` on *no* list at all, so an `accent` theme could retint 157 sites
+   * and still call itself `accent`. A family a `full` theme retints is expected
+   * to be retinted **all eleven steps** — a partial retint leaves the same
+   * seam, one step over.
+   */
+  compat: [
+    '--n-gray-50', '--n-gray-100', '--n-gray-200', '--n-gray-300', '--n-gray-400',
+    '--n-gray-500', '--n-gray-600', '--n-gray-700', '--n-gray-800', '--n-gray-900',
+    '--n-gray-950',
+    '--n-zinc-50', '--n-zinc-100', '--n-zinc-200', '--n-zinc-300', '--n-zinc-400',
+    '--n-zinc-500', '--n-zinc-600', '--n-zinc-700', '--n-zinc-800', '--n-zinc-900',
+    '--n-zinc-950',
+    '--n-slate-50', '--n-slate-100', '--n-slate-200', '--n-slate-300', '--n-slate-400',
+    '--n-slate-500', '--n-slate-600', '--n-slate-700', '--n-slate-800', '--n-slate-900',
+    '--n-slate-950',
+    '--n-neutral-50', '--n-neutral-100', '--n-neutral-200', '--n-neutral-300', '--n-neutral-400',
+    '--n-neutral-500', '--n-neutral-600', '--n-neutral-700', '--n-neutral-800', '--n-neutral-900',
+    '--n-neutral-950',
+  ],
+  /**
    * Tokens no overlay is allowed to move, whatever its coverage.
    *
-   * `--n-white` / `--n-black` are the white outline and black shadow of the
-   * always-dark terminal selection chrome, which is appearance-agnostic on
-   * purpose. The `--n-gray-*` pair stands for the whole Tailwind compatibility
-   * skeleton (~1.5k utility sites): retinting it would change far more than a
-   * theme advertises, and it is already cool enough to sit under a cool
-   * substrate.
+   * `--n-white` / `--n-black` are mostly plain white / black fills and labels
+   * (257 sites), with only a handful of `hsl(var(--n-black) / 0.1)` shape uses
+   * behind them. Retinting pure white or black is the highest-risk move there
+   * is for contrast, and the sites they carry outnumber what any one theme
+   * advertises — so they stay frozen. (An earlier note called them
+   * "appearance-agnostic terminal chrome"; that reading covered 4 of the 257
+   * sites and is why the reason above is written out now.)
+   *
+   * The `zinc` / `slate` / `neutral` ramps are **no longer** frozen — they moved
+   * into `compat` above. They were never in this list before either, which is
+   * exactly how an `accent` theme could retint them; `compat` closes that.
    */
-  fixed: ['--n-white', '--n-black', '--n-gray-100', '--n-gray-700'],
+  fixed: ['--n-white', '--n-black'],
 };
 
 const ACCENT_SURFACES = ['--primary', '--ring', '--nav-tab-glow', '--nav-input-focus-ring'];
@@ -135,6 +178,7 @@ const MUST_NOT_MOVE: Record<string, string[]> = {
     ...SURFACES.terminal,
     ...SURFACES.editor,
     ...SURFACES.graph,
+    ...SURFACES.compat,
     ...SURFACES.fixed,
   ],
   full: [...SURFACES.fixed],
@@ -576,16 +620,21 @@ test('a theme that names any syntax slot names all of them for that appearance',
  * The per-theme test above proves a declared value resolves as written, and the
  * all-or-nothing test proves a board is never partial — but neither notices a
  * board deleted outright, nor one that declares all eleven slots and moves none
- * of them. This pins the backfill's outcome: these four themes own a board, they
- * own all of it, and owning it changes the rendered block.
+ * of them. This pins the backfill's outcome: these themes own a board, they own
+ * all of it, and owning it changes the rendered block.
  *
  * In both appearances. The first pass left the light half of the three reference
  * themes empty, on the reading that their references ship a dark board and
  * nothing else; all three do have a light answer, so the light half is declared
  * too and its absence would now be the regression. `cc-polar` stays out
  * entirely — it is self-made, with no board to copy and none invented for it.
+ * The four references promoted after it (`cc-dracula` … `cc-tokyo-night`) each
+ * ship a light and a dark board and are listed straight away.
  */
-const SYNTAX_BOARD_THEMES = ['cc-catppuccin', 'cc-islands', 'cc-onedark', 'cc-onedark-vivid'];
+const SYNTAX_BOARD_THEMES = [
+  'cc-catppuccin', 'cc-islands', 'cc-onedark', 'cc-onedark-vivid',
+  'cc-dracula', 'cc-gruvbox', 'cc-kanagawa', 'cc-tokyo-night',
+];
 
 test('the overlays that own a syntax board own all of it, and move it', async ({ page }) => {
   await openFixture(page);

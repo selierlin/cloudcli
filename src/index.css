@@ -2592,3 +2592,764 @@
   --cc-syntax-url-color: #2bbac5;
   --cc-syntax-block-foreground: #bbbbbb;
 }
+
+/* cc-dracula — coverage: full. Dracula's two published appearances: the dark
+   theme itself and Alucard, its light counterpart. One design in two
+   appearances is what `appearance: 'system'` means here.
+
+   Promoted from `~/.cloudcli/themes/dracula.css`, where it was a `.css` user
+   theme. The values did not change; the selector did (`:root` /
+   `:root:not(.dark)` / `.dark` became the three overlay blocks below), and so
+   did its reach: a user theme moves L1 alone, which leaves the editor page in
+   the base's chrome, and `full` promises the editor too. Every editor slot
+   below is the base's own recipe with this theme's steps substituted — see the
+   note above the light block.
+
+   Two shape constraints came over from that file, because breaking either
+   reports nothing:
+
+     · `--code-block-bg` is the *arguments* of a colour, not a colour: the chat
+       panel asks for `hsl(var(--code-block-bg) / .5)` in light and
+       `hsl(var(--code-block-bg))` in dark. A bare triplet or a `var()` reference
+       either works; writing `hsl()` nests a call inside a call, the declaration
+       drops at computed-value time, and the board disappears from both the
+       transcript and the editor preview.
+     · The eleven `--cc-syntax-*` slots are **complete colours** —
+       react-syntax-highlighter inlines them into a style attribute — so they are
+       hex, the shape the base's own board uses.
+
+   Colour provenance: dracula-theme/README.md (the official Dracula and Alucard
+   boards) and dracula/alacritty's ANSI-16 for the terminal lanes. */
+[data-theme="cc-dracula"] {
+  /* Dark appearance, substrate: page → card → secondary → input. */
+  --palette-ink-950: 231.43 14.89% 18.43%;
+  --palette-ink-900: 232.5 14.55% 21.57%;
+  --palette-ink-850: 230.53 14.07% 26.47%;
+  --palette-ink-800: 231.82 13.92% 30.98%;
+
+  /* Dark appearance, ink: secondary text → text. */
+  --palette-ink-400: 230 33.33% 71.68%;
+  --palette-ink-100: 60 30% 96.08%;
+
+  /* Light appearance, substrate: page → secondary → border. */
+  --palette-sand-50: 48 100% 96.08%;
+  --palette-sand-100: 46.15 54.17% 90.59%;
+  --palette-sand-200: 46.45 38.27% 84.12%;
+
+  /* Light appearance, ink: secondary text → text. */
+  --palette-sand-500: 49.09 18.03% 35.88%;
+  --palette-sand-800: 43.33 18.37% 19.22%;
+  --palette-sand-950: 0 0% 12.16%;
+
+  /* Accent: primary in light → primary in dark. */
+  --palette-brand-500: 252.28 54.04% 53.92%;
+  --palette-brand-400: 264.71 89.47% 77.65%;
+
+  /* Danger. */
+  --palette-danger-500: 5.96 65.71% 48.04%;
+  --palette-danger-800: 0 56.86% 40%;
+
+  /* The `gray` compatibility ramp, re-laid on Dracula's blue-violet hue at the
+     base's own eleven lightnesses. This is the family the overlay contract used
+     to freeze and now lets a `full` theme claim, and the ~1.2k `--n-gray-*`
+     utility sites (code-block boards, secondary buttons, hovers, popovers,
+     tooltips) are what it retints — without it the shell is themed and the
+     viscera stay cold grey. The whole ramp, not a few steps: a partial retint
+     leaves the same seam one step over, which is why `compat` lists all eleven
+     and `theme-overlays.spec.ts` now bans `accent` themes from any of them.
+     `zinc` / `slate` / `neutral` are left alone, exactly as on the base. */
+  --palette-gray-50: 231 20% 98%;
+  --palette-gray-100: 231 14.3% 95.9%;
+  --palette-gray-200: 231 13% 91%;
+  --palette-gray-300: 231 12.2% 83.9%;
+  --palette-gray-400: 231 10.6% 65.99%;
+  --palette-gray-500: 231 8.9% 47.24%;
+  --palette-gray-600: 231 13.8% 36.06%;
+  --palette-gray-700: 231 19.1% 28.63%;
+  --palette-gray-800: 231 27.9% 19.04%;
+  --palette-gray-900: 231 39.3% 12.31%;
+  --palette-gray-950: 231 71.4% 4.89%;
+
+  /* Terminal board — the alacritty ANSI-16. The board is appearance-agnostic by
+     construction (declared once here, never mirrored in `.dark`), so the theme
+     gives it one flavour and keeps it in both appearances. */
+  --palette-term-bg: 231.43 14.89% 18.43%;
+  --palette-term-fg: 60 30% 96.08%;
+  --palette-term-cursor: 60 30% 96.08%;
+  --palette-term-selection: 231.82 13.92% 30.98%;
+  --palette-term-black: 234.55 14.29% 15.1%;
+  --palette-term-red: 0 100% 66.67%;
+  --palette-term-green: 135.18 94.44% 64.71%;
+  --palette-term-yellow: 64.91 91.67% 76.47%;
+  --palette-term-blue: 264.71 89.47% 77.65%;
+  --palette-term-magenta: 325.52 100% 73.73%;
+  --palette-term-cyan: 190.53 96.61% 76.86%;
+  --palette-term-white: 60 30% 96.08%;
+  --palette-term-bright-black: 225.45 26.61% 51.37%;
+  --palette-term-bright-red: 0 100% 71.57%;
+  --palette-term-bright-green: 137.2 100% 70.59%;
+  --palette-term-bright-yellow: 60 100% 82.35%;
+  --palette-term-bright-blue: 270.36 100% 83.73%;
+  --palette-term-bright-magenta: 317.61 100% 78.63%;
+  --palette-term-bright-cyan: 180 100% 82.16%;
+  --palette-term-bright-white: 0 0% 100%;
+
+  /* Graph lanes. The base's ten hues in the base's order, so a lane still reads
+     as itself; saturation is levelled at 55% and lightness is the point that
+     maximises the *worse* of the two substrates, which puts every lane at
+     3.69:1 or better on both. The graph suite pins the base board, not this one
+     — a theme's lanes are the theme's decision. */
+  --palette-graph-1: 198.6 55% 45%;
+  --palette-graph-2: 24.6 55% 48%;
+  --palette-graph-3: 270.7 55% 62.1%;
+  --palette-graph-4: 142.1 55% 37.4%;
+  --palette-graph-5: 0 55% 59.4%;
+  --palette-graph-6: 45.4 55% 38.9%;
+  --palette-graph-7: 173.4 55% 36.6%;
+  --palette-graph-8: 330.4 55% 57.8%;
+  --palette-graph-9: 238.7 55% 65.3%;
+  --palette-graph-10: 83.7 55% 35.9%;
+}
+
+/* The editor, light half — Dracula's Alucard board underneath. The slots and the
+   L1 step each one takes are the base's recipe, the same twenty-three slots and
+   the same steps the five earlier `full` themes use; nothing here is a new
+   decision. `--editor-fg` is deliberately absent: the base resolves it through
+   `var(--palette-sand-950)`, which the block above already moved.
+   `--editor-bg` equals `--code-block-bg` on purpose — `code-block-surface.spec.ts`
+   pins that, and it is the invariant the user-theme file recorded as *deviating*
+   (its board was `sand-50` while the editor page stayed pure white). Claiming
+   the editor is what restores it. */
+[data-theme="cc-dracula"]:not(.dark) {
+  --code-block-bg: var(--palette-sand-50);
+  --editor-bg: hsl(var(--palette-sand-50));
+  --editor-toolbar-bg: hsl(var(--palette-sand-50));
+  --editor-loading-bg: hsl(var(--palette-sand-50));
+  --editor-selection: hsl(var(--palette-sand-200));
+  --editor-selection-focused: hsl(var(--palette-brand-500) / 0.22);
+  --editor-gutter-bg: hsl(var(--palette-sand-50));
+  --editor-gutter-fg: hsl(var(--palette-sand-500));
+  --editor-gutter-separator: 1px solid hsl(var(--palette-sand-200));
+  --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.14);
+  --editor-active-line-gutter-bg: hsl(var(--palette-sand-100));
+  --editor-panel-bg: hsl(var(--palette-sand-100));
+  --editor-panel-border: 1px solid hsl(var(--palette-sand-200));
+  --editor-fold-placeholder-bg: hsl(var(--palette-sand-100));
+  --editor-fold-placeholder-fg: hsl(var(--palette-sand-500));
+  --editor-tooltip-bg: hsl(var(--palette-sand-100));
+  --editor-tooltip-border: 1px solid hsl(var(--palette-sand-200));
+  --editor-tooltip-arrow-border: hsl(var(--palette-sand-200));
+  --editor-tooltip-arrow: hsl(var(--palette-sand-100));
+  --editor-autocomplete-selected-bg: hsl(var(--palette-brand-500));
+  --editor-minimap-bg: hsl(var(--palette-sand-100));
+  --editor-toolbar-border: hsl(var(--palette-sand-200));
+  --editor-toolbar-fg: hsl(var(--palette-sand-800));
+  --editor-toolbar-hover-bg: hsl(var(--palette-sand-100));
+
+  /* Alucard's board. `punctuation` and `block-foreground` take the editor
+     foreground, and `property` does too — Dracula paints object properties as
+     the foreground, so three slots share one value. */
+  --cc-syntax-comment-color: #6c664b;
+  --cc-syntax-punctuation-color: #1f1f1f;
+  --cc-syntax-class-name-color: #036a96;
+  --cc-syntax-constant-color: #644ac9;
+  --cc-syntax-number-color: #644ac9;
+  --cc-syntax-keyword-color: #a3144d;
+  --cc-syntax-property-color: #1f1f1f;
+  --cc-syntax-string-color: #846e15;
+  --cc-syntax-function-color: #14710a;
+  --cc-syntax-url-color: #036a96;
+  --cc-syntax-block-foreground: #1f1f1f;
+}
+
+/* The editor, dark half — the same recipe with the theme's ink steps, and
+   `--editor-bg` = `--code-block-bg` = `ink-950`, Dracula's own board. */
+[data-theme="cc-dracula"].dark {
+  --code-block-bg: var(--palette-ink-950);
+  --editor-bg: hsl(var(--palette-ink-950));
+  --editor-fg: hsl(var(--palette-ink-100));
+  --editor-caret: hsl(var(--palette-brand-400));
+  --editor-cursor: hsl(var(--palette-brand-400));
+  --editor-selection: hsl(var(--palette-ink-850));
+  --editor-selection-focused: hsl(var(--palette-ink-850));
+  --editor-gutter-bg: hsl(var(--palette-ink-950));
+  --editor-gutter-fg: hsl(var(--palette-ink-400));
+  --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.06);
+  --editor-active-line-gutter-bg: hsl(var(--palette-ink-900));
+  --editor-panel-bg: hsl(var(--palette-ink-900));
+  --editor-panel-fg: hsl(var(--palette-ink-100));
+  --editor-search-match-bg: hsl(var(--palette-brand-400) / 0.35);
+  --editor-search-match-outline: 1px solid hsl(var(--palette-brand-400));
+  --editor-search-match-selected-bg: hsl(var(--palette-brand-400) / 0.18);
+  --editor-matching-bracket-bg: hsl(var(--palette-brand-400) / 0.28);
+  --editor-nonmatching-bracket-bg: hsl(var(--palette-danger-500) / 0.28);
+  --editor-fold-placeholder-fg: hsl(var(--palette-ink-400));
+  --editor-tooltip-bg: hsl(var(--palette-ink-850));
+  --editor-tooltip-arrow: hsl(var(--palette-ink-850));
+  --editor-autocomplete-selected-bg: hsl(var(--palette-ink-850));
+  --editor-autocomplete-selected-fg: hsl(var(--palette-ink-100));
+  --editor-minimap-bg: hsl(var(--palette-ink-950));
+  --editor-toolbar-bg: hsl(var(--palette-ink-850));
+  --editor-toolbar-border: hsl(var(--palette-ink-800));
+  --editor-toolbar-fg: hsl(var(--palette-ink-100));
+  --editor-toolbar-hover-bg: hsl(var(--palette-ink-800));
+  --editor-loading-bg: hsl(var(--palette-ink-950));
+
+  /* Dracula's board. Two slots follow the published colours rather than the One
+     Dark intuition: `class-name` is cyan (Dracula's `entity.name.class` /
+     `entity.name.type` are CYAN, not yellow) and `url` is cyan too (links and
+     types share it), which is why those two agree — Dracula spends one colour
+     twice. */
+  --cc-syntax-comment-color: #6272a4;
+  --cc-syntax-punctuation-color: #f8f8f2;
+  --cc-syntax-class-name-color: #8be9fd;
+  --cc-syntax-constant-color: #bd93f9;
+  --cc-syntax-number-color: #bd93f9;
+  --cc-syntax-keyword-color: #ff79c6;
+  --cc-syntax-property-color: #f8f8f2;
+  --cc-syntax-string-color: #f1fa8c;
+  --cc-syntax-function-color: #50fa7b;
+  --cc-syntax-url-color: #8be9fd;
+  --cc-syntax-block-foreground: #f8f8f2;
+}
+
+/* cc-gruvbox — coverage: full. Gruvbox's two appearances: its own dark board
+   and the `faded_*` light one. Same story as `cc-dracula` above — promoted from
+   a `.css` user theme, values unchanged, selector rewritten, editor claimed
+   (see that block's note for the editor rationale and the two shape
+   constraints).
+
+   Colour provenance: morhetz/gruvbox colors/gruvbox.vim:89-132. */
+[data-theme="cc-gruvbox"] {
+  /* Dark appearance, substrate: page → card → secondary → input. */
+  --palette-ink-950: 0 0% 15.69%;
+  --palette-ink-900: 20 3.09% 19.02%;
+  --palette-ink-850: 20 5.26% 22.35%;
+  --palette-ink-800: 21.82 7.38% 29.22%;
+
+  /* Dark appearance, ink: secondary text → text. */
+  --palette-ink-400: 35 17.14% 61.82%;
+  --palette-ink-100: 43.16 58.76% 80.98%;
+
+  /* Light appearance, substrate: page → secondary → border. */
+  --palette-sand-50: 48.46 86.67% 88.24%;
+  --palette-sand-100: 43.16 58.76% 80.98%;
+  --palette-sand-200: 40.38 38.24% 73.33%;
+
+  /* Light appearance, ink: secondary text → text. */
+  --palette-sand-500: 26.67 9.68% 36.47%;
+  --palette-sand-800: 20 5.26% 22.35%;
+  --palette-sand-950: 0 0% 15.69%;
+
+  /* Accent: primary in light → primary in dark. */
+  --palette-brand-500: 19.19 96.63% 34.9%;
+  --palette-brand-400: 26.99 99.13% 54.71%;
+
+  /* Danger. */
+  --palette-danger-500: 357.71 100% 30.78%;
+  --palette-danger-800: 0 48.97% 52.35%;
+
+  /* The `gray` ramp on Gruvbox's warm hue — see `cc-dracula`'s block for what
+     this family is and why it is re-laid whole. */
+  --palette-gray-50: 35 20% 98%;
+  --palette-gray-100: 35 14.3% 95.9%;
+  --palette-gray-200: 35 13% 91%;
+  --palette-gray-300: 35 12.2% 83.9%;
+  --palette-gray-400: 35 10.6% 62.64%;
+  --palette-gray-500: 35 8.9% 43.54%;
+  --palette-gray-600: 35 13.8% 31.75%;
+  --palette-gray-700: 35 19.1% 23.98%;
+  --palette-gray-800: 35 27.9% 14.66%;
+  --palette-gray-900: 35 39.3% 8.48%;
+  --palette-gray-950: 35 71.4% 2.33%;
+
+  /* Terminal board — appearance-agnostic, one flavour for both. */
+  --palette-term-bg: 0 0% 15.69%;
+  --palette-term-fg: 43.16 58.76% 80.98%;
+  --palette-term-cursor: 43.16 58.76% 80.98%;
+  --palette-term-selection: 21.82 7.38% 29.22%;
+  --palette-term-black: 0 0% 15.69%;
+  --palette-term-red: 2.4 75.11% 45.69%;
+  --palette-term-green: 59.52 70.79% 34.9%;
+  --palette-term-yellow: 39.56 73.39% 48.63%;
+  --palette-term-blue: 182.69 32.68% 40.2%;
+  --palette-term-magenta: 332.66 33.62% 53.92%;
+  --palette-term-cyan: 122.26 21.29% 51.18%;
+  --palette-term-white: 35 17.14% 58.82%;
+  --palette-term-bright-black: 30 12.1% 51.37%;
+  --palette-term-bright-red: 6.33 96.14% 59.41%;
+  --palette-term-bright-green: 61.21 66.22% 44.12%;
+  --palette-term-bright-yellow: 41.97 95.31% 58.24%;
+  --palette-term-bright-blue: 157.06 15.89% 58.04%;
+  --palette-term-bright-magenta: 343.64 46.67% 67.65%;
+  --palette-term-bright-cyan: 104.12 35.05% 61.96%;
+  --palette-term-bright-white: 43.16 58.76% 80.98%;
+
+  /* Graph lanes — the base's ten hues, S levelled at 55%, L maximising the
+     worse substrate; every lane clears 3.59:1 on both. */
+  --palette-graph-1: 198.6 55% 43.4%;
+  --palette-graph-2: 24.6 55% 46.2%;
+  --palette-graph-3: 270.7 55% 60.5%;
+  --palette-graph-4: 142.1 55% 36.1%;
+  --palette-graph-5: 0 55% 57.4%;
+  --palette-graph-6: 45.4 55% 37.5%;
+  --palette-graph-7: 173.4 55% 35.3%;
+  --palette-graph-8: 330.4 55% 55.9%;
+  --palette-graph-9: 238.7 55% 64%;
+  --palette-graph-10: 83.7 55% 34.7%;
+}
+
+/* The editor, light half — the `faded_*` board. Recipe as `cc-dracula`'s. */
+[data-theme="cc-gruvbox"]:not(.dark) {
+  --code-block-bg: var(--palette-sand-50);
+  --editor-bg: hsl(var(--palette-sand-50));
+  --editor-toolbar-bg: hsl(var(--palette-sand-50));
+  --editor-loading-bg: hsl(var(--palette-sand-50));
+  --editor-selection: hsl(var(--palette-sand-200));
+  --editor-selection-focused: hsl(var(--palette-brand-500) / 0.22);
+  --editor-gutter-bg: hsl(var(--palette-sand-50));
+  --editor-gutter-fg: hsl(var(--palette-sand-500));
+  --editor-gutter-separator: 1px solid hsl(var(--palette-sand-200));
+  --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.14);
+  --editor-active-line-gutter-bg: hsl(var(--palette-sand-100));
+  --editor-panel-bg: hsl(var(--palette-sand-100));
+  --editor-panel-border: 1px solid hsl(var(--palette-sand-200));
+  --editor-fold-placeholder-bg: hsl(var(--palette-sand-100));
+  --editor-fold-placeholder-fg: hsl(var(--palette-sand-500));
+  --editor-tooltip-bg: hsl(var(--palette-sand-100));
+  --editor-tooltip-border: 1px solid hsl(var(--palette-sand-200));
+  --editor-tooltip-arrow-border: hsl(var(--palette-sand-200));
+  --editor-tooltip-arrow: hsl(var(--palette-sand-100));
+  --editor-autocomplete-selected-bg: hsl(var(--palette-brand-500));
+  --editor-minimap-bg: hsl(var(--palette-sand-100));
+  --editor-toolbar-border: hsl(var(--palette-sand-200));
+  --editor-toolbar-fg: hsl(var(--palette-sand-800));
+  --editor-toolbar-hover-bg: hsl(var(--palette-sand-100));
+
+  /* The `faded_*` board. `punctuation` and `block-foreground` take the Normal
+     foreground (Gruvbox links `Operator` to `Normal`); `property` falls back to
+     `Identifier`, as Gruvbox has no property group. `number` / `constant` share
+     purple and `function` / `string` share green — the reference does that, it
+     is not a dropped slot. */
+  --cc-syntax-comment-color: #928374;
+  --cc-syntax-punctuation-color: #3c3836;
+  --cc-syntax-class-name-color: #b57614;
+  --cc-syntax-constant-color: #8f3f71;
+  --cc-syntax-number-color: #8f3f71;
+  --cc-syntax-keyword-color: #9d0006;
+  --cc-syntax-property-color: #076678;
+  --cc-syntax-string-color: #79740e;
+  --cc-syntax-function-color: #79740e;
+  --cc-syntax-url-color: #427b58;
+  --cc-syntax-block-foreground: #3c3836;
+}
+
+/* The editor, dark half — the `bright_*` board, `--editor-bg` = `ink-950`. */
+[data-theme="cc-gruvbox"].dark {
+  --code-block-bg: var(--palette-ink-950);
+  --editor-bg: hsl(var(--palette-ink-950));
+  --editor-fg: hsl(var(--palette-ink-100));
+  --editor-caret: hsl(var(--palette-brand-400));
+  --editor-cursor: hsl(var(--palette-brand-400));
+  --editor-selection: hsl(var(--palette-ink-850));
+  --editor-selection-focused: hsl(var(--palette-ink-850));
+  --editor-gutter-bg: hsl(var(--palette-ink-950));
+  --editor-gutter-fg: hsl(var(--palette-ink-400));
+  --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.06);
+  --editor-active-line-gutter-bg: hsl(var(--palette-ink-900));
+  --editor-panel-bg: hsl(var(--palette-ink-900));
+  --editor-panel-fg: hsl(var(--palette-ink-100));
+  --editor-search-match-bg: hsl(var(--palette-brand-400) / 0.35);
+  --editor-search-match-outline: 1px solid hsl(var(--palette-brand-400));
+  --editor-search-match-selected-bg: hsl(var(--palette-brand-400) / 0.18);
+  --editor-matching-bracket-bg: hsl(var(--palette-brand-400) / 0.28);
+  --editor-nonmatching-bracket-bg: hsl(var(--palette-danger-500) / 0.28);
+  --editor-fold-placeholder-fg: hsl(var(--palette-ink-400));
+  --editor-tooltip-bg: hsl(var(--palette-ink-850));
+  --editor-tooltip-arrow: hsl(var(--palette-ink-850));
+  --editor-autocomplete-selected-bg: hsl(var(--palette-ink-850));
+  --editor-autocomplete-selected-fg: hsl(var(--palette-ink-100));
+  --editor-minimap-bg: hsl(var(--palette-ink-950));
+  --editor-toolbar-bg: hsl(var(--palette-ink-850));
+  --editor-toolbar-border: hsl(var(--palette-ink-800));
+  --editor-toolbar-fg: hsl(var(--palette-ink-100));
+  --editor-toolbar-hover-bg: hsl(var(--palette-ink-800));
+  --editor-loading-bg: hsl(var(--palette-ink-950));
+
+  /* The `bright_*` board. `comment` is the same hex in both appearances —
+     Gruvbox's `gray_245` and `gray_244` happen to be equal. */
+  --cc-syntax-comment-color: #928374;
+  --cc-syntax-punctuation-color: #ebdbb2;
+  --cc-syntax-class-name-color: #fabd2f;
+  --cc-syntax-constant-color: #d3869b;
+  --cc-syntax-number-color: #d3869b;
+  --cc-syntax-keyword-color: #fb4934;
+  --cc-syntax-property-color: #83a598;
+  --cc-syntax-string-color: #b8bb26;
+  --cc-syntax-function-color: #b8bb26;
+  --cc-syntax-url-color: #8ec07c;
+  --cc-syntax-block-foreground: #ebdbb2;
+}
+
+/* cc-kanagawa — coverage: full. Kanagawa's two appearances: the `wave` dark
+   board and `lotus` light. Same story as `cc-dracula` above — promoted from a
+   `.css` user theme, values unchanged, selector rewritten, editor claimed (see
+   that block's note for the editor rationale and the two shape constraints).
+
+   Colour provenance: rebelot/kanagawa.nvim lua/kanagawa/{colors,themes}.lua
+   (wave + lotus). */
+[data-theme="cc-kanagawa"] {
+  /* Dark appearance, substrate: page → card → secondary → input. */
+  --palette-ink-950: 240 12.68% 13.92%;
+  --palette-ink-900: 240 13.4% 19.02%;
+  --palette-ink-850: 240 12.9% 24.31%;
+  --palette-ink-800: 240 14.29% 28.82%;
+
+  /* Dark appearance, ink: secondary text → text. */
+  --palette-ink-400: 50 7.14% 61.09%;
+  --palette-ink-100: 51.18 32.69% 79.61%;
+
+  /* Light appearance, substrate: page → secondary → border. */
+  --palette-sand-50: 53.33 67.5% 84.31%;
+  --palette-sand-100: 49.86 59.66% 76.67%;
+  --palette-sand-200: 50.94 35.57% 70.78%;
+
+  /* Light appearance, ink: secondary text → text. */
+  --palette-sand-500: 48.75 7.62% 39.68%;
+  --palette-sand-800: 240 8.7% 35.08%;
+  --palette-sand-950: 240 23.43% 34.31%;
+
+  /* Accent: primary in light → primary in dark. */
+  --palette-brand-500: 218.46 33.62% 45.49%;
+  --palette-brand-400: 220 53.57% 67.06%;
+
+  /* Danger. */
+  --palette-danger-500: 351.62 55.28% 51.76%;
+  --palette-danger-800: 351.86 50.43% 45.88%;
+
+  /* The `gray` ramp on Kanagawa's indigo hue — see `cc-dracula`'s block for what
+     this family is and why it is re-laid whole. */
+  --palette-gray-50: 235 20% 98%;
+  --palette-gray-100: 235 14.3% 95.9%;
+  --palette-gray-200: 235 13% 91%;
+  --palette-gray-300: 235 12.2% 83.9%;
+  --palette-gray-400: 235 10.6% 66.31%;
+  --palette-gray-500: 235 8.9% 47.66%;
+  --palette-gray-600: 235 13.8% 36.58%;
+  --palette-gray-700: 235 19.1% 29.22%;
+  --palette-gray-800: 235 27.9% 19.64%;
+  --palette-gray-900: 235 39.3% 12.89%;
+  --palette-gray-950: 235 71.4% 5.47%;
+
+  /* Terminal board — appearance-agnostic, one flavour for both. */
+  --palette-term-bg: 240 12.68% 13.92%;
+  --palette-term-fg: 51.18 32.69% 79.61%;
+  --palette-term-cursor: 51.18 32.69% 79.61%;
+  --palette-term-selection: 215.38 36.45% 20.98%;
+  --palette-term-black: 240 12.68% 13.92%;
+  --palette-term-red: 358.63 52.19% 50.78%;
+  --palette-term-green: 86.58 36.74% 57.84%;
+  --palette-term-yellow: 38.57 66.22% 70.98%;
+  --palette-term-blue: 220 53.57% 67.06%;
+  --palette-term-magenta: 263.16 28.64% 60.98%;
+  --palette-term-cyan: 168.26 20.91% 56.86%;
+  --palette-term-white: 51.18 32.69% 79.61%;
+  --palette-term-bright-black: 240 12.95% 37.84%;
+  --palette-term-bright-red: 0 80.99% 52.55%;
+  --palette-term-bright-green: 102.86 16.54% 49.8%;
+  --palette-term-bright-yellow: 30.31 100% 61.57%;
+  --palette-term-bright-blue: 197.6 41.44% 64.51%;
+  --palette-term-bright-magenta: 248.57 22.95% 76.08%;
+  --palette-term-bright-cyan: 181.2 37.31% 73.73%;
+  --palette-term-bright-white: 0 0% 100%;
+
+  /* Graph lanes — the base's ten hues, S levelled at 55%, L maximising the
+     worse substrate; every lane clears 3.67:1 on both. */
+  --palette-graph-1: 198.6 55% 41.4%;
+  --palette-graph-2: 24.6 55% 44.2%;
+  --palette-graph-3: 270.7 55% 58.7%;
+  --palette-graph-4: 142.1 55% 34.6%;
+  --palette-graph-5: 0 55% 55.1%;
+  --palette-graph-6: 45.4 55% 35.9%;
+  --palette-graph-7: 173.4 55% 33.7%;
+  --palette-graph-8: 330.4 55% 53.4%;
+  --palette-graph-9: 238.7 55% 62.4%;
+  --palette-graph-10: 83.7 55% 33.1%;
+}
+
+/* The editor, light half — the `lotus` board. Recipe as `cc-dracula`'s. */
+[data-theme="cc-kanagawa"]:not(.dark) {
+  --code-block-bg: var(--palette-sand-50);
+  --editor-bg: hsl(var(--palette-sand-50));
+  --editor-toolbar-bg: hsl(var(--palette-sand-50));
+  --editor-loading-bg: hsl(var(--palette-sand-50));
+  --editor-selection: hsl(var(--palette-sand-200));
+  --editor-selection-focused: hsl(var(--palette-brand-500) / 0.22);
+  --editor-gutter-bg: hsl(var(--palette-sand-50));
+  --editor-gutter-fg: hsl(var(--palette-sand-500));
+  --editor-gutter-separator: 1px solid hsl(var(--palette-sand-200));
+  --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.14);
+  --editor-active-line-gutter-bg: hsl(var(--palette-sand-100));
+  --editor-panel-bg: hsl(var(--palette-sand-100));
+  --editor-panel-border: 1px solid hsl(var(--palette-sand-200));
+  --editor-fold-placeholder-bg: hsl(var(--palette-sand-100));
+  --editor-fold-placeholder-fg: hsl(var(--palette-sand-500));
+  --editor-tooltip-bg: hsl(var(--palette-sand-100));
+  --editor-tooltip-border: 1px solid hsl(var(--palette-sand-200));
+  --editor-tooltip-arrow-border: hsl(var(--palette-sand-200));
+  --editor-tooltip-arrow: hsl(var(--palette-sand-100));
+  --editor-autocomplete-selected-bg: hsl(var(--palette-brand-500));
+  --editor-minimap-bg: hsl(var(--palette-sand-100));
+  --editor-toolbar-border: hsl(var(--palette-sand-200));
+  --editor-toolbar-fg: hsl(var(--palette-sand-800));
+  --editor-toolbar-hover-bg: hsl(var(--palette-sand-100));
+
+  /* The `lotus` board. `punctuation` and `block-foreground` take the Normal
+     foreground (`lotusInk1`); `property` takes `syn.identifier` (`lotusYellow`).
+
+     The one slot whose value is *derived* rather than published: `property`'s
+     official `#77713f` reads 4.15:1 on the `lotus` substrate, under AA, so it is
+     darkened two L points to `#706b3b` (4.54:1) — hue and saturation untouched.
+     That edit was made when this was a user theme and is carried over as is. */
+  --cc-syntax-comment-color: #8a8980;
+  --cc-syntax-punctuation-color: #545464;
+  --cc-syntax-class-name-color: #597b75;
+  --cc-syntax-constant-color: #cc6d00;
+  --cc-syntax-number-color: #b35b79;
+  --cc-syntax-keyword-color: #624c83;
+  --cc-syntax-property-color: #706b3b;
+  --cc-syntax-string-color: #6f894e;
+  --cc-syntax-function-color: #4d699b;
+  --cc-syntax-url-color: #836f4a;
+  --cc-syntax-block-foreground: #545464;
+}
+
+/* The editor, dark half — the `wave` board, `--editor-bg` = `ink-950`. */
+[data-theme="cc-kanagawa"].dark {
+  --code-block-bg: var(--palette-ink-950);
+  --editor-bg: hsl(var(--palette-ink-950));
+  --editor-fg: hsl(var(--palette-ink-100));
+  --editor-caret: hsl(var(--palette-brand-400));
+  --editor-cursor: hsl(var(--palette-brand-400));
+  --editor-selection: hsl(var(--palette-ink-850));
+  --editor-selection-focused: hsl(var(--palette-ink-850));
+  --editor-gutter-bg: hsl(var(--palette-ink-950));
+  --editor-gutter-fg: hsl(var(--palette-ink-400));
+  --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.06);
+  --editor-active-line-gutter-bg: hsl(var(--palette-ink-900));
+  --editor-panel-bg: hsl(var(--palette-ink-900));
+  --editor-panel-fg: hsl(var(--palette-ink-100));
+  --editor-search-match-bg: hsl(var(--palette-brand-400) / 0.35);
+  --editor-search-match-outline: 1px solid hsl(var(--palette-brand-400));
+  --editor-search-match-selected-bg: hsl(var(--palette-brand-400) / 0.18);
+  --editor-matching-bracket-bg: hsl(var(--palette-brand-400) / 0.28);
+  --editor-nonmatching-bracket-bg: hsl(var(--palette-danger-500) / 0.28);
+  --editor-fold-placeholder-fg: hsl(var(--palette-ink-400));
+  --editor-tooltip-bg: hsl(var(--palette-ink-850));
+  --editor-tooltip-arrow: hsl(var(--palette-ink-850));
+  --editor-autocomplete-selected-bg: hsl(var(--palette-ink-850));
+  --editor-autocomplete-selected-fg: hsl(var(--palette-ink-100));
+  --editor-minimap-bg: hsl(var(--palette-ink-950));
+  --editor-toolbar-bg: hsl(var(--palette-ink-850));
+  --editor-toolbar-border: hsl(var(--palette-ink-800));
+  --editor-toolbar-fg: hsl(var(--palette-ink-100));
+  --editor-toolbar-hover-bg: hsl(var(--palette-ink-800));
+  --editor-loading-bg: hsl(var(--palette-ink-950));
+
+  /* The `wave` board. One slot follows the reference rather than the intuition:
+     `url` takes `syn.operator`, not the link colour — Kanagawa's link
+     (`syn.special1`) reads only 2.70:1 on the `lotus` substrate, too low for a
+     slot that also carries operators, so both boards take `syn.operator`
+     (`#c0a36e` dark / `#836f4a` light). */
+  --cc-syntax-comment-color: #727169;
+  --cc-syntax-punctuation-color: #dcd7ba;
+  --cc-syntax-class-name-color: #68ad99;
+  --cc-syntax-constant-color: #ffa066;
+  --cc-syntax-number-color: #d27e99;
+  --cc-syntax-keyword-color: #957fb8;
+  --cc-syntax-property-color: #e6c384;
+  --cc-syntax-string-color: #98bb6c;
+  --cc-syntax-function-color: #7e9cd8;
+  --cc-syntax-url-color: #c0a36e;
+  --cc-syntax-block-foreground: #dcd7ba;
+}
+
+/* cc-tokyo-night — coverage: full. Tokyo Night's `night` board (dark) and the
+   light board its own HSLuv inversion produces. Same story as `cc-dracula`
+   above — promoted from a `.css` user theme, values unchanged, selector
+   rewritten, editor claimed (see that block's note for the editor rationale and
+   the two shape constraints).
+
+   Colour provenance: folke/tokyonight.nvim colors/{storm,night}.lua; the light
+   board is the official HSLuv inversion, computed, not sampled. */
+[data-theme="cc-tokyo-night"] {
+  /* Dark appearance, substrate: page → card → secondary → input. */
+  --palette-ink-950: 235 18.75% 12.55%;
+  --palette-ink-900: 229.09 26.19% 16.47%;
+  --palette-ink-850: 228 23.36% 20.98%;
+  --palette-ink-800: 228.95 24.36% 30.59%;
+
+  /* Dark appearance, ink: secondary text → text. */
+  --palette-ink-400: 229.83 25.32% 64.31%;
+  --palette-ink-100: 228.68 72.6% 85.69%;
+
+  /* Light appearance, substrate: page → secondary → border. */
+  --palette-sand-50: 230 11.11% 89.41%;
+  --palette-sand-100: 224.21 25.33% 85.29%;
+  --palette-sand-200: 224 31.91% 81.57%;
+
+  /* Light appearance, ink: secondary text → text. */
+  --palette-sand-500: 231 33.61% 48.83%;
+  --palette-sand-800: 223.01 54.59% 40.59%;
+  --palette-sand-950: 221.91 55.28% 40.74%;
+
+  /* Accent: primary in light → primary in dark. */
+  --palette-brand-500: 214.74 75.4% 49.41%;
+  --palette-brand-400: 220.8 88.65% 72.35%;
+
+  /* Danger. */
+  --palette-danger-500: 347.21 61.26% 43.53%;
+  --palette-danger-800: 347.83 54.33% 50.2%;
+
+  /* The `gray` ramp on Tokyo Night's blue hue — see `cc-dracula`'s block for
+     what this family is and why it is re-laid whole. */
+  --palette-gray-50: 230 20% 98%;
+  --palette-gray-100: 230 14.3% 95.9%;
+  --palette-gray-200: 230 13% 91%;
+  --palette-gray-300: 230 12.2% 83.9%;
+  --palette-gray-400: 230 10.6% 65.91%;
+  --palette-gray-500: 230 8.9% 47.13%;
+  --palette-gray-600: 230 13.8% 35.93%;
+  --palette-gray-700: 230 19.1% 28.49%;
+  --palette-gray-800: 230 27.9% 18.89%;
+  --palette-gray-900: 230 39.3% 12.17%;
+  --palette-gray-950: 230 71.4% 4.76%;
+
+  /* Terminal board — appearance-agnostic, one flavour for both. */
+  --palette-term-bg: 235 18.75% 12.55%;
+  --palette-term-fg: 228.68 72.6% 85.69%;
+  --palette-term-cursor: 228.68 72.6% 85.69%;
+  --palette-term-selection: 224.68 37.01% 24.9%;
+  --palette-term-black: 229.23 23.08% 33.14%;
+  --palette-term-red: 348.84 88.97% 71.57%;
+  --palette-term-green: 88.8 50.51% 61.18%;
+  --palette-term-yellow: 35.5 65.93% 64.31%;
+  --palette-term-blue: 220.8 88.65% 72.35%;
+  --palette-term-magenta: 261.29 85.32% 78.63%;
+  --palette-term-cyan: 202.15 100% 74.51%;
+  --palette-term-white: 229.33 35.43% 75.1%;
+  --palette-term-bright-black: 228.57 20% 41.18%;
+  --palette-term-bright-red: 349.83 100% 76.86%;
+  --palette-term-bright-green: 85 71.56% 57.25%;
+  --palette-term-bright-yellow: 38.18 94.62% 63.53%;
+  --palette-term-bright-blue: 221.58 100% 77.65%;
+  --palette-term-bright-magenta: 260.93 100% 83.14%;
+  --palette-term-bright-cyan: 204.4 100% 82.16%;
+  --palette-term-bright-white: 228.68 72.6% 85.69%;
+
+  /* Graph lanes — the base's ten hues, S levelled at 55%, L maximising the
+     worse substrate; every lane clears 3.62:1 on both. */
+  --palette-graph-1: 198.6 55% 39.9%;
+  --palette-graph-2: 24.6 55% 42.5%;
+  --palette-graph-3: 270.7 55% 57.2%;
+  --palette-graph-4: 142.1 55% 33.3%;
+  --palette-graph-5: 0 55% 53.1%;
+  --palette-graph-6: 45.4 55% 34.6%;
+  --palette-graph-7: 173.4 55% 32.6%;
+  --palette-graph-8: 330.4 55% 51.3%;
+  --palette-graph-9: 238.7 55% 61.1%;
+  --palette-graph-10: 83.7 55% 31.9%;
+}
+
+/* The editor, light half — the inverted light board. Recipe as `cc-dracula`'s. */
+[data-theme="cc-tokyo-night"]:not(.dark) {
+  --code-block-bg: var(--palette-sand-50);
+  --editor-bg: hsl(var(--palette-sand-50));
+  --editor-toolbar-bg: hsl(var(--palette-sand-50));
+  --editor-loading-bg: hsl(var(--palette-sand-50));
+  --editor-selection: hsl(var(--palette-sand-200));
+  --editor-selection-focused: hsl(var(--palette-brand-500) / 0.22);
+  --editor-gutter-bg: hsl(var(--palette-sand-50));
+  --editor-gutter-fg: hsl(var(--palette-sand-500));
+  --editor-gutter-separator: 1px solid hsl(var(--palette-sand-200));
+  --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.14);
+  --editor-active-line-gutter-bg: hsl(var(--palette-sand-100));
+  --editor-panel-bg: hsl(var(--palette-sand-100));
+  --editor-panel-border: 1px solid hsl(var(--palette-sand-200));
+  --editor-fold-placeholder-bg: hsl(var(--palette-sand-100));
+  --editor-fold-placeholder-fg: hsl(var(--palette-sand-500));
+  --editor-tooltip-bg: hsl(var(--palette-sand-100));
+  --editor-tooltip-border: 1px solid hsl(var(--palette-sand-200));
+  --editor-tooltip-arrow-border: hsl(var(--palette-sand-200));
+  --editor-tooltip-arrow: hsl(var(--palette-sand-100));
+  --editor-autocomplete-selected-bg: hsl(var(--palette-brand-500));
+  --editor-minimap-bg: hsl(var(--palette-sand-100));
+  --editor-toolbar-border: hsl(var(--palette-sand-200));
+  --editor-toolbar-fg: hsl(var(--palette-sand-800));
+  --editor-toolbar-hover-bg: hsl(var(--palette-sand-100));
+
+  /* The inverted light board. `punctuation` and `block-foreground` take
+     `editor.foreground`; `property` has a colour of its own
+     (`variable.other.property`). `number` and `constant` share the orange, as
+     the reference does. */
+  --cc-syntax-comment-color: #888b94;
+  --cc-syntax-punctuation-color: #343b59;
+  --cc-syntax-class-name-color: #006c86;
+  --cc-syntax-constant-color: #965027;
+  --cc-syntax-number-color: #965027;
+  --cc-syntax-keyword-color: #65359d;
+  --cc-syntax-property-color: #0f4b6e;
+  --cc-syntax-string-color: #385f0d;
+  --cc-syntax-function-color: #2959aa;
+  --cc-syntax-url-color: #006c86;
+  --cc-syntax-block-foreground: #343b59;
+}
+
+/* The editor, dark half — the `night` board, `--editor-bg` = `ink-950`. */
+[data-theme="cc-tokyo-night"].dark {
+  --code-block-bg: var(--palette-ink-950);
+  --editor-bg: hsl(var(--palette-ink-950));
+  --editor-fg: hsl(var(--palette-ink-100));
+  --editor-caret: hsl(var(--palette-brand-400));
+  --editor-cursor: hsl(var(--palette-brand-400));
+  --editor-selection: hsl(var(--palette-ink-850));
+  --editor-selection-focused: hsl(var(--palette-ink-850));
+  --editor-gutter-bg: hsl(var(--palette-ink-950));
+  --editor-gutter-fg: hsl(var(--palette-ink-400));
+  --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.06);
+  --editor-active-line-gutter-bg: hsl(var(--palette-ink-900));
+  --editor-panel-bg: hsl(var(--palette-ink-900));
+  --editor-panel-fg: hsl(var(--palette-ink-100));
+  --editor-search-match-bg: hsl(var(--palette-brand-400) / 0.35);
+  --editor-search-match-outline: 1px solid hsl(var(--palette-brand-400));
+  --editor-search-match-selected-bg: hsl(var(--palette-brand-400) / 0.18);
+  --editor-matching-bracket-bg: hsl(var(--palette-brand-400) / 0.28);
+  --editor-nonmatching-bracket-bg: hsl(var(--palette-danger-500) / 0.28);
+  --editor-fold-placeholder-fg: hsl(var(--palette-ink-400));
+  --editor-tooltip-bg: hsl(var(--palette-ink-850));
+  --editor-tooltip-arrow: hsl(var(--palette-ink-850));
+  --editor-autocomplete-selected-bg: hsl(var(--palette-ink-850));
+  --editor-autocomplete-selected-fg: hsl(var(--palette-ink-100));
+  --editor-minimap-bg: hsl(var(--palette-ink-950));
+  --editor-toolbar-bg: hsl(var(--palette-ink-850));
+  --editor-toolbar-border: hsl(var(--palette-ink-800));
+  --editor-toolbar-fg: hsl(var(--palette-ink-100));
+  --editor-toolbar-hover-bg: hsl(var(--palette-ink-800));
+  --editor-loading-bg: hsl(var(--palette-ink-950));
+
+  /* The `night` board. `url` takes the operator / escape colour `#89ddff`
+     rather than the cyan `#7dcfff`, which `property`
+     (`variable.other.property`) already holds — the same choice the light board
+     makes, so the eleven slots stay as distinct as the reference allows. */
+  --cc-syntax-comment-color: #51597d;
+  --cc-syntax-punctuation-color: #a9b1d6;
+  --cc-syntax-class-name-color: #0db9d7;
+  --cc-syntax-constant-color: #ff9e64;
+  --cc-syntax-number-color: #ff9e64;
+  --cc-syntax-keyword-color: #bb9af7;
+  --cc-syntax-property-color: #7dcfff;
+  --cc-syntax-string-color: #9ece6a;
+  --cc-syntax-function-color: #7aa2f7;
+  --cc-syntax-url-color: #89ddff;
+  --cc-syntax-block-foreground: #a9b1d6;
+}
