@@ -161,7 +161,6 @@ function ChatInterface({
     hasMoreMessages,
     totalMessages,
     isUserScrolledUp,
-    setIsUserScrolledUp,
     tokenBudget,
     setTokenBudget,
     visibleMessageCount,
@@ -175,7 +174,8 @@ function ChatInterface({
     showLoadAllOverlay,
     createDiff,
     scrollContainerRef,
-    scrollToBottom,
+    programmaticScrollTopRef,
+    scrollToLatest,
     scrollToBottomAndReset,
     followTranscriptLayout,
     handleScroll,
@@ -296,9 +296,8 @@ function ChatInterface({
     onSessionEstablished: handleSessionEstablished,
     onFileOpen,
     onShowSettings,
-    scrollToBottom,
+    scrollToLatest,
     addMessage,
-    setIsUserScrolledUp,
     setPendingPermissionRequests,
     resolvePermissionModeForProvider,
   });
@@ -474,6 +473,7 @@ function ChatInterface({
           <TranscriptSessionContext.Provider value={transcriptSessionValue}>
             <ChatMessagesPane
               scrollContainerRef={scrollContainerRef}
+              programmaticScrollTopRef={programmaticScrollTopRef}
               // Not redundant with the `scroll` listener. A first page is 20 rows,
               // tool results fold into their calls, and the "load earlier" link is
               // hidden while more pages exist — so a short transcript is often not

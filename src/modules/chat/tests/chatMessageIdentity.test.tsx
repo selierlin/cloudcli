@@ -88,6 +88,7 @@ const paneProps = (
   visibleMessages: ReturnType<typeof normalizedToChatMessages>,
 ): ComponentProps<typeof ChatMessagesPane> => ({
   scrollContainerRef: createRef<HTMLDivElement>(),
+  programmaticScrollTopRef: { current: null },
   onWheel: vi.fn(),
   onTouchMove: vi.fn(),
   isLoadingSessionMessages: false,

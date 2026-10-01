@@ -340,6 +340,17 @@ export function useChatSessionState({
    * asked to stop following; a fall between samples does.
    */
   const lastScrollTopSampleRef = useRef<number | null>(null);
+  /**
+   * `scrollTop` as our own code last left the viewport. `handleScroll` reads a
+   * fall between samples as the reader pulling away, but the follow is not the
+   * only writer: `useBottomEdgeResizeCompensation` moves `scrollTop` *up* by the
+   * amount the pane grows (the keyboard dropping, the composer shrinking), and
+   * that is the same direction a pull takes. The write's own event is dispatched
+   * after whatever content landed in between, so the sample can carry a gap past
+   * the latch threshold while the position is exactly the one we wrote. A fall
+   * that lands where we put the viewport is therefore ours, not the reader's.
+   */
+  const programmaticScrollTopRef = useRef<number | null>(null);
   /** Deadline until which a reader gesture counts as upward intent. */
   const upwardIntentUntilRef = useRef(0);
   /** `clientY` where the current touch drag began, or null between drags. */
@@ -590,6 +601,9 @@ export function useChatSessionState({
     const container = scrollContainerRef.current;
     if (!container) return;
     container.scrollTop = container.scrollHeight;
+    // Read back instead of trusting the request: the browser clamps the write to
+    // the scrollable range, and the sample has to match what it actually holds.
+    programmaticScrollTopRef.current = container.scrollTop;
   }, []);
 
   const followTranscriptLayout = useCallback((durationMs = 0) => {
@@ -753,6 +767,32 @@ export function useChatSessionState({
     }
   }, [allMessagesLoaded, scrollToBottom]);
 
+  /**
+   * Takes the viewport back to the tail because the reader asked for it in the
+   * only way that cannot be ambiguous — they sent a message.
+   *
+   * Two things separate this from a bare `scrollToBottom()`. First, the intent
+   * outranks a pull: a send clears the ownership latch *and* the gesture
+   * stand-down window, so a message typed right after scrolling up still lands
+   * on the tail rather than waiting out `SCROLL_UP_INTENT_WINDOW_MS`.
+   *
+   * Second, it does not settle for one write. The write that reaches the bottom
+   * is measured against the geometry of that instant, and a long transcript
+   * answers with placeholders and unmeasured rows; the lazy rows, markdown and
+   * images then settle to real heights and nothing corrects the position, so the
+   * view ends up short of — or nowhere near — the message just sent. This is the
+   * same race the session-open scroll lost, and it is answered the same way:
+   * hand the position to `followTranscriptLayout`, which re-pins the bottom every
+   * frame until the geometry holds still, and still stands down the moment the
+   * reader takes the viewport back.
+   */
+  const scrollToLatest = useCallback(() => {
+    setIsUserScrolledUp(false);
+    upwardIntentUntilRef.current = 0;
+    scrollToBottom();
+    followTranscriptLayout();
+  }, [followTranscriptLayout, scrollToBottom, setIsUserScrolledUp]);
+
   const isNearBottom = useCallback(() => {
     const container = scrollContainerRef.current;
     if (!container) return false;
@@ -893,9 +933,19 @@ export function useChatSessionState({
     // single sample of growth latch the transcript out of following for the rest
     // of the answer. Only a fall since the previous sample, or a gesture that is
     // pulling the transcript down, counts.
+    //
+    // A fall is the reader's only if it did not land where our own writer put
+    // the viewport (see `programmaticScrollTopRef`): the pane-height
+    // compensation moves it up when the pane grows, and a fast answer can push
+    // the gap past the threshold before that write's own event is dispatched.
+    const landedOnOurOwnWrite = (
+      programmaticScrollTopRef.current !== null
+      && Math.abs(container.scrollTop - programmaticScrollTopRef.current) <= SCROLL_UP_EPSILON_PX
+    );
     const movedUp = (
       previousTop !== null
       && container.scrollTop < previousTop - SCROLL_UP_EPSILON_PX
+      && !landedOnOurOwnWrite
     );
     const readerOwnsViewport = movedUp || Date.now() < upwardIntentUntilRef.current;
     if (isUserScrolledUpRef.current) {
@@ -1028,6 +1078,7 @@ export function useChatSessionState({
     cancelAnchorSettle();
     wasNearTopRef.current = false;
     lastScrollTopSampleRef.current = null;
+    programmaticScrollTopRef.current = null;
     upwardIntentUntilRef.current = 0;
     touchOriginYRef.current = null;
     setIsUserScrolledUp(false);
@@ -1661,7 +1712,8 @@ export function useChatSessionState({
     showLoadAllOverlay,
     createDiff,
     scrollContainerRef,
-    scrollToBottom,
+    programmaticScrollTopRef,
+    scrollToLatest,
     scrollToBottomAndReset,
     followTranscriptLayout,
     handleScroll,

@@ -62,10 +62,11 @@ function createContainer(scrollHeight: number, clientHeight: number) {
   const element = document.createElement('div');
   const writes: number[] = [];
   let currentScrollHeight = scrollHeight;
+  let currentClientHeight = clientHeight;
   let scrollTop = scrollHeight - clientHeight;
 
   Object.defineProperty(element, 'scrollHeight', { get: () => currentScrollHeight });
-  Object.defineProperty(element, 'clientHeight', { get: () => clientHeight });
+  Object.defineProperty(element, 'clientHeight', { get: () => currentClientHeight });
   Object.defineProperty(element, 'scrollTop', {
     get: () => scrollTop,
     set: (next: number) => {
@@ -80,6 +81,10 @@ function createContainer(scrollHeight: number, clientHeight: number) {
     scrollHeight,
     setScrollHeight: (next: number) => {
       currentScrollHeight = next;
+    },
+    /** Moves the pane's bottom edge, as the keyboard and composer do. */
+    setClientHeight: (next: number) => {
+      currentClientHeight = next;
     },
   };
 }
@@ -276,6 +281,74 @@ describe('deferred scroll-to-bottom', () => {
       container.writes,
       [],
       `a scroll armed before the user scrolled up must not fire afterwards; got ${JSON.stringify(container.writes)}`,
+    );
+  });
+
+  it('takes the viewport back to the tail when the reader sends a message', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
+    ]);
+    const store = createStore(messages);
+    const { result, rerender } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    // The container's own wheel/touch listeners are attached by an effect that
+    // bails while the ref is still empty, so one more commit is what arms them.
+    act(() => {
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: false });
+    });
+    act(() => {
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: true });
+    });
+
+    // The reader pulls up a moment before sending. That arms the stand-down
+    // window the follow honours, so a send that did not override it would leave
+    // the transcript exactly where the reader left it.
+    act(() => {
+      const wheel = new Event('wheel');
+      Object.defineProperty(wheel, 'deltaY', { value: -120 });
+      container.element.dispatchEvent(wheel);
+      result.current.setIsUserScrolledUp(true);
+      // Retire the initial settle loop while the reader owns the viewport — its
+      // tick stops on the latch — so it cannot later stand in for the follow
+      // and mask the send's own behaviour.
+      runAnimationFrame();
+    });
+    assert.equal(result.current.isUserScrolledUp, true);
+    container.writes.length = 0;
+
+    // Sending is the one moment the intent to return to the tail cannot be
+    // ambiguous, so it has to outrank both.
+    act(() => {
+      result.current.scrollToLatest();
+    });
+    assert.equal(result.current.isUserScrolledUp, false, 'a send clears the reader latch');
+    assert.equal(container.writes.at(-1), 5000, 'a send writes the tail immediately');
+
+    // A long transcript answers that single write with geometry that keeps
+    // moving as lazy rows, markdown and images settle. The follow loop owns the
+    // position from here, so each later frame re-pins the new bottom rather
+    // than stranding the view short of the message just sent.
+    const writesAfterSend = container.writes.length;
+    act(() => {
+      container.setScrollHeight(5400);
+      runAnimationFrame();
+    });
+    assert.equal(container.writes.at(-1), 5400, 'the follow loop keeps pinning as the transcript grows');
+
+    act(() => {
+      container.setScrollHeight(6000);
+      runAnimationFrame();
+    });
+    assert.equal(container.writes.at(-1), 6000);
+    assert.ok(
+      container.writes.length > writesAfterSend + 1,
+      'the follow loop stayed armed past the first frame',
     );
   });
 
@@ -1235,6 +1308,94 @@ describe('scroll ownership while the answer is streaming', () => {
       container.writes,
       [],
       'a latched transcript must not be pulled back down',
+    );
+  });
+
+  it('does not read the pane-height compensation as the reader taking over', async () => {
+    // The pane compensates its scrollTop when its bottom edge moves, and the
+    // observer is the only thing that runs that compensation.
+    const observerCallbacks: Array<() => void> = [];
+    class ResizeObserverStub {
+      constructor(callback: () => void) {
+        observerCallbacks.push(callback);
+      }
+
+      observe() {
+        // The real observer reports the current size once on observe; the
+        // hook ignores that zero-delta report, so the stub may too.
+      }
+
+      disconnect() {}
+    }
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+
+    const { container, result } = await renderAtBottom();
+
+    const { useBottomEdgeResizeCompensation } = await import(
+      '@/modules/chat/hooks/useBottomEdgeResizeCompensation'
+    );
+    renderHook(() => useBottomEdgeResizeCompensation(
+      result.current.scrollContainerRef,
+      result.current.programmaticScrollTopRef,
+    ));
+
+    // The answer grows below the stationary viewport...
+    container.setScrollHeight(6000);
+    // ...and the pane gets taller as the keyboard drops, which moves the
+    // viewport *up* by the same amount — the direction a pull takes.
+    container.setClientHeight(700);
+    act(() => {
+      observerCallbacks.forEach((callback) => callback());
+    });
+    assert.equal(
+      container.writes.at(-1),
+      5000,
+      'the compensation moved the viewport up and left it there',
+    );
+
+    // Its own `scroll` event reaches the handler with the growth in the gap.
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+    assert.equal(
+      result.current.isUserScrolledUp,
+      false,
+      'a fall that lands where our own writer put the viewport is not a pull',
+    );
+
+    act(() => {
+      container.setScrollHeight(6600);
+      result.current.followTranscriptLayout();
+    });
+    assert.equal(
+      container.writes.at(-1),
+      6600,
+      'the next flush must still be followed',
+    );
+  });
+
+  it('does not read the follow`s own shrink write as the reader taking over', async () => {
+    const { container, result } = await renderAtBottom();
+
+    // An automatic reasoning collapse takes height out of the transcript, so the
+    // follow's own write to the new bottom is *lower* than the position it is
+    // compared against — a fall that came from us, not from the reader.
+    container.setScrollHeight(4600);
+    act(() => {
+      result.current.followTranscriptLayout(350);
+    });
+    assert.equal(container.writes.at(-1), 4600, 'the collapse moved the viewport up');
+
+    // The answer then grows again before the browser dispatches that write's own
+    // event, which is what puts the gap past the latch threshold.
+    container.setScrollHeight(6000);
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+    assert.equal(
+      result.current.isUserScrolledUp,
+      false,
+      'a fall that lands where our own writer put the viewport is not a pull',
     );
   });
 });
