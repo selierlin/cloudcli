@@ -27,7 +27,7 @@
 
 | 资产 | 位置 | 评价 |
 |---|---|---|
-| 语义令牌 + 明暗两套值 | `src/index.css:45-239`（`:root` / `.dark`） | shadcn 风格 HSL 三元组，结构正确；0-A 后全部颜色类令牌已引用 palette 层，0-C 又为终端补了 `--palette-term-*` / `--term-*`（终端板只在 `:root` 声明，明暗共用同一深色板） |
+| 语义令牌 + 明暗两套值 | `src/index.css:45-239`（`:root` / `.dark`） | shadcn 风格 HSL 三元组，结构正确；0-A 后全部颜色类令牌已引用 palette 层，0-C 又为终端补了 `--palette-term-*` / `--term-*`（终端板只在 `:root` 声明，明暗共用同一深色板）**（2026-10-01 订正：此句已被 **2-S** 作废——基座板现随外观分两半（`:root` 浅 / `.dark` 深），**2-R** 又为 8 套 `full` 主题补了浅色半。表内其余事实不受影响。）** |
 | 主题上下文 | `src/shared/context/ThemeContext.tsx` | light/dark/system、`<html class="dark">`、meta theme-color、跨设备持久化 |
 | 主题切换 UI | `src/shared/ui/ThemeModeSelector.tsx`（挂在外观设置页） | 三选一胶囊，可扩展为多主题选择器 |
 | 语法高亮已令牌化 | `src/shared/syntaxTheme.ts` + `Markdown.tsx:182` | **亮点**：把 Prism 的 oneLight/oneDark 编译成 `--cc-syntax-N`，主题切换只是变量翻转，tokenization 不重跑。0-B 片后由 chat 与编辑器两条 markdown 路径**共用同一单例** |
@@ -556,7 +556,7 @@ export type ThemeManifest = {
 | 编辑器 diff 样式 ✅ | ~~`src/modules/code-editor/utils/editorStyles.ts:13-79`（**13 处** `isDarkMode ? A : B`）~~ | **0-D 已完成**：改为 `--editor-diff-add/del-*` 等令牌，函数退化为常量（`EDITOR_STYLES` / `EDITOR_LOADING_STYLES`），`isDarkMode` 参数消失 |
 | 第二处语法高亮 ✅ | `src/modules/code-editor/markdown/MarkdownCodeBlock.tsx:69` | **0-B 已统一**：改走 `src/shared/syntaxTheme.ts` 的 `syntaxTheme.style`，直连 Prism 主题的分支已删除 |
 | Git 图 lane 色 ✅ | ~~`src/modules/git-panel/utils/commitGraph.ts:20-29`（10 lane）＋ `git-panel/history/CommitHistoryItem.tsx`（`'#0ea5e9'` fallback）~~ | **0-F1 已完成**：抽为 L1 `--palette-graph-1..10` ＋ L2 `--graph-lane-1..10`（**只在 `:root` 声明**——这 10 色本就是"明暗都看得清"的一套，同 term board 的性质，不做 `.dark` 镜像）；`laneColor` 返回 `hsl(var(--graph-lane-N))`，`RefBadge` 的 HEAD 底色新增 `laneTint` 给 `hsl(var(--graph-lane-N) / calc(34 / 255))`（原为 `${hex}22`，`0x22`＝34/255）。**§5.12 的参数化回退已由 2-J 落地**（见该节 v3） |
-| 终端选区菜单 ✅ | ~~`src/modules/shell/utils/mobileTerminalSelection.ts:179-228`（**7 处**）~~ | **0-F2 已完成**：7 处字面色值改走令牌（`--palette-brand-400` / `--n-white` / `--n-black` / `--n-gray-800` / `--n-gray-50`）。这块 chrome 贴在终端上、终端板明暗恒深，所以用**外观无关**的令牌而非语义令牌（写 `--card` / `--foreground` 会让它随浅色外观翻白，是可见改变）。**只动色值，事件处理一行未改**（长按 / 拖拽 / 惯性滚动），故行为面无回归；配色面由新增的 `tests/theme-tokens/mobile-terminal-selection.spec.ts` 常驻断言覆盖（真正装上 `installMobileTerminalSelection` 读回 computed 值） |
+| 终端选区菜单 ✅ | ~~`src/modules/shell/utils/mobileTerminalSelection.ts:179-228`（**7 处**）~~ | **0-F2 已完成**：7 处字面色值改走令牌（`--palette-brand-400` / `--n-white` / `--n-black` / `--n-gray-800` / `--n-gray-50`）。这块 chrome 贴在终端上、终端板明暗恒深，所以用**外观无关**的令牌而非语义令牌（写 `--card` / `--foreground` 会让它随浅色外观翻白，是可见改变）。**只动色值，事件处理一行未改**（长按 / 拖拽 / 惯性滚动），故行为面无回归；配色面由新增的 `tests/theme-tokens/mobile-terminal-selection.spec.ts` 常驻断言覆盖（真正装上 `installMobileTerminalSelection` 读回 computed 值）**（2026-10-01 订正（2-T）：前提被 **2-S** 推翻——板已随外观分两半，故本片把这块 chrome 改回**语义**令牌：手柄描边与菜单字色 `--foreground`、菜单底 `--muted`、描边 `--foreground/0.12`；`--palette-brand-400`（品牌填充，外观无关）与 `--n-black`（阴影）保持不动。常驻断言随之从"两外观恒同"改为"按外观分别 pin 值 ＋ 方向正确 ＋ 品牌填充两者仍相等"。见 2-T 记录。）** |
 | 滚动条 / 表单件 / placeholder ✅ | `src/index.css`（滚动条 / checkbox / radio / textarea / placeholder 的暗色补偿，0-C 时代记 66 处） | **先加 `color-scheme`（§5.6），再重审这批补偿**。**第一步已做**：1-B 把 `color-scheme` 写上了 `<html>`。**重审已完成且改判**（见 §6 的 1-B2 记录）：① 锚点累计偏移 +223，实得 **69 处色值声明**；② **"这些补偿是在手写模拟 `color-scheme`"的前提不成立**——实测真正失效的只有 2 行 `color-scheme: dark`，同段的 `background-color` / `border-color` 与 placeholder 的 `gray-600` 都是刻意的外观选择，**不能成批删除，只能令牌化**；③ 68/69 处与既有令牌像素级等值。**已实施（1-B2a/b/c）**：删 2 行失效 `color-scheme`、textarea 改为继承 `<html>`、68 处按**方案 A**（复用既有令牌保形间接）改走令牌——中性档走 `--n-*`，两处 blue 走外观无关的 L1 `--palette-brand-500` / `-400`（`.dark` 块内写 L2 `--primary` / `--ring` 会解析成 dark 值），`.dark` 内的 `rgb(20 20 20)` / `rgb(31 31 31)` 走 L2 `--background` / `--card`，仅 `rgb(237 235 230)` 无等值令牌保留字面。**最终没有新建 `--scrollbar-*` / `--control-*` / `--placeholder` 三组**：那三组的原意（"承接删不掉的部分"）随结论 ② 一并作废，新建只会多出约 20 个令牌并让未来的语义化改名多做一遍（改名轮未立项，见 §5.7"语义化改名（显式未做）"）
 | agent 品牌色 / Logo | `AgentSelectorSection.tsx`、`*Logo.tsx` | **保持硬编码**，在 `index.css` 顶部集中声明豁免清单并注明"品牌标识，不随主题变化" |
 
@@ -958,7 +958,7 @@ grep 只能证明"没有字面硬编码"，证明不了"每套主题的令牌全
 
 | 文件 | 变化 |
 |---|---|
-| `src/index.css` | L1 新增 20 个 `--palette-term-*`（`:80-105`）；L2 新增 22 个 `--term-*`（6 基础 + 8 正常 + 8 bright，`:142-168`）与 4 个语义别名（`:170-177`）。**只在 `:root` 声明**——终端明暗共用同一深色板（§8.3 已决） |
+| `src/index.css` | L1 新增 20 个 `--palette-term-*`（`:80-105`）；L2 新增 22 个 `--term-*`（6 基础 + 8 正常 + 8 bright，`:142-168`）与 4 个语义别名（`:170-177`）。**只在 `:root` 声明**——终端明暗共用同一深色板（§8.3 已决）**（2026-10-01 订正：这是 0-C 当时的状态；**2-S** 已把基座的 20 槽拆成 `:root` 浅 / `.dark` 深两半。）** |
 | `src/modules/shell/utils/terminalTheme.ts`（新增） | `TERMINAL_THEME_TOKENS`（token→xterm 键）+ `readTerminalTheme()`：探针元素写 `hsl(var(--token))`，用 `getComputedStyle` 把令牌解析成 xterm 需要的具体颜色 |
 | `src/modules/shell/hooks/useShellTerminal.ts` | 删除 38 处 hex 与 `extendedAnsi`；构造 Terminal 时 `theme: readTerminalTheme()`；新增"切换明暗时重读令牌重设 theme"的 effect |
 | `tests/theme-tokens/main.ts` | PROBES 增加全部终端令牌（含 4 个别名），并暴露 `readTerminalTheme` 供浏览器内直调 |
@@ -3494,7 +3494,7 @@ Mutation 侧：
 
 *映射*：手柄底 `#3b82f6` → `hsl(var(--palette-brand-400))`；白描边 `#fff` → `hsl(var(--n-white))`；手柄阴影 `rgba(0,0,0,.3)` → `hsl(var(--n-black) / 0.3)`；菜单底 `#1f2937` → `hsl(var(--n-gray-800))`；菜单描边 `rgba(255,255,255,.12)` → `hsl(var(--n-white) / 0.12)`；菜单阴影 `rgba(0,0,0,.4)` → `hsl(var(--n-black) / 0.4)`；按钮字 `#f9fafb` → `hsl(var(--n-gray-50))`。
 
-*为什么用外观无关的令牌*：这块 chrome 贴在终端上，而终端板在明暗两种外观下**恒为深色**（0-C 已决、§8.3），所以它的配色本就与外观无关；写 `--card` / `--foreground` 这类语义令牌会让它在浅色外观下翻成浅色——那是可见改变，不是令牌化。
+*为什么用外观无关的令牌*：这块 chrome 贴在终端上，而终端板在明暗两种外观下**恒为深色**（0-C 已决、§8.3），所以它的配色本就与外观无关；写 `--card` / `--foreground` 这类语义令牌会让它在浅色外观下翻成浅色——那是可见改变，不是令牌化。**（2026-10-01 订正（2-T）：这个"恒为深色"被 **2-S** 推翻，故 2-T 反过来做了当时被否的那件事——手柄描边 / 菜单字色改 `--foreground`、菜单底改 `--muted`；`--palette-brand-400` 与 `--n-black` 仍不动。见上表 0-F2 行与 2-T 记录。）**
 
 *证据与方法（探针转常驻）*：这次不是"替换引理"，而是**真装真读**——给 fixture 加 `readMobileSelectionChrome()`，用桩 terminal 真正调用 `installMobileTerminalSelection`，读回手柄 / 菜单 / 按钮的 computed 背景、边框、阴影、字色。**改前先跑一遍**记录 7 个值（确认期望来自字面代码，且两引擎序列化一致），改后再跑，7 个值逐位相同、明暗两态相同；随后把该探针转成常驻断言（两项 × 双引擎）。
 
@@ -3765,7 +3765,7 @@ Mutation 侧：
 **关键决策**：
 
 1. **`accent` 主题覆盖 L1 而非 L2**（与 §5.1 原字面相反，已回写 §5.1 v9）。`cc-ocean` 只声明 `--palette-brand-500` / `--palette-brand-400` 两个值，`--primary` / `--ring` / `--nav-tab-glow` / `--nav-input-focus-ring` 四个强调面在两个外观下同时移动。收益有三：写法最短、不必写 `.dark` 分支（基底 `:root` / `.dark` 已各自挑好 brand 档位）、且不触犯契约测试"no colour token holds a literal value outside the palette"。
-2. **L1-only 覆盖层不需要 `.dark` 分支**，因为 L1 只在 `:root` 声明一次、不在 `.dark` 镜像；两态差异由基底引用哪个档位承担。**需要 `.dark` 分支的只有"基底值是外观专属字面量"的令牌**——全仓仅编辑器 chrome 一处，这正是 `cc-polar` 拆两半的原因。
+2. **L1-only 覆盖层不需要 `.dark` 分支**，因为 L1 **几乎全部**只在 `:root` 声明一次、不在 `.dark` 镜像（唯一例外是终端板，见下）；两态差异由基底引用哪个档位承担。**需要 `.dark` 分支的只有两种形状**——① "基底值是外观专属字面量"的令牌，全仓仅编辑器 chrome 一处（这正是 `cc-polar` 拆两半的**第二种**原因，见下 ③）；② 终端板：它的 L1 **本身**就分两半，故声明在 `:not(.dark)` 里的浅色半是 `[data-theme]` 覆盖层必须自己带上的第三块。**（2026-10-01 订正：②由 **2-R**（8 套 `full` 主题补浅色半）与 **2-S**（基座板拆两半）引入；本句原写作"全仓仅编辑器 chrome 一处"，2-S 后不再成立。）**
 3. **`appearance` 的两个角色落定**（已回写 §5.3 v9）：`light` / `dark` 是外观默认（基底别名，不进选择器），`system` 是覆盖层主题（选择器提供的那一类）。"没有覆盖层"由 `themeId === null` 表达。**这顺带消解了 1-D 记录的模型问题**（§5.6 v8 边界一）：`cc-light` / `cc-dark` 既不是可选覆盖层，"显式选默认别名再切胶囊"这个场景不会发生。
 4. **浅色半用 `:not(.dark)` 限定**（已回写 §5.3 v9）。裸 `[data-theme]` 在暗色下也命中、只输给 `.dark` 块——两半都重复的令牌照样正确，但**只在浅色半声明、忘在暗色半补**的令牌会静默泄漏浅色值。`:not(.dark)` 让这种遗漏构造上不可能。**这条是被变异测试逼出来的**（见下，最初版本全绿）。
 5. **§5.2 的 cascade 硬约束改判性质**（已回写 §5.2 v9）：实测处理后样式表**没有 `@layer`**（fixture `layers: []`、产物 0 at-rule），覆盖层今天靠文档顺序取胜。那条约束从"取胜机制"降为"真 layer 管线下的健壮性约定"，故改由**结构断言**（`layerDepthAt` 数 `@layer` 包围层数 = 0）强制，不指望值断言能证明。
@@ -3847,7 +3847,7 @@ Mutation 侧：
 
 **关键决策**：
 
-1. **两个依赖都留**。`resolvedThemeId` 在明暗翻转时也会变（`cc-light` ↔ `cc-dark`），单靠它似乎就够；但 `--term-*` 今天是**外观无关**的（`terminal-tokens.spec.ts` 有"明暗两态色板相同"的断言），若将来某个主题让 `--term-*` 随外观分叉，`resolvedThemeId` 对"有覆盖层时"这一点**不再变化**（同一个 id 贯穿两态），只留它就会漏。保留 `isDarkMode` 是把这个假设置于依赖之外。**代价是二者会同时变化时多走一次 effect**——无害（同一帧内幂等重读，`readTerminalTheme` 本来就是"再读一次"的语义）。
+1. **两个依赖都留**。`resolvedThemeId` 在明暗翻转时也会变（`cc-light` ↔ `cc-dark`），单靠它似乎就够；但 `--term-*` 今天是**外观无关**的（`terminal-tokens.spec.ts` 有"明暗两态色板相同"的断言），若将来某个主题让 `--term-*` 随外观分叉，`resolvedThemeId` 对"有覆盖层时"这一点**不再变化**（同一个 id 贯穿两态），只留它就会漏。保留 `isDarkMode` 是把这个假设置于依赖之外。**代价是二者会同时变化时多走一次 effect**——无害（同一帧内幂等重读，`readTerminalTheme` 本来就是"再读一次"的语义）。**（2026-10-01 订正：这个"若将来"已成事实——**2-R** 给 8 套 `full` 主题补了浅色半、**2-S** 让基座板随外观分两半，`--term-*` 如今确实随 `.dark` 分叉，`terminal-tokens.spec.ts` 那条"明暗同板"断言也在 2-S 换成了"随外观翻转且方向正确"。于是"保留 `isDarkMode`"从预防变成**当下必需**；**2-T** 又补上它成立的前提——写 `.dark` 的那个 effect 必须是 layout effect，否则后代（终端）读到的是翻转前的板，见 2-T 记录。）**
 2. **不引入"主题版本号"这类更粗的信号**。曾考虑在 `ThemeContext` 暴露一个每次变更自增的 revision，让消费者只依赖它；但那要新增一个无第二个消费者的状态字段，而当前两个依赖已覆盖全部变化源（外观 ＋ 覆盖层 id）。**等真有第三个变化源再抽**（同 1-D"不提前引入无消费者的状态字段"的判据）。
 3. **测试用桩终端而非真 xterm**。抄 `shellErrorFrame.test.ts` 的做法：给 `terminalRef` 一个 `{ options: {} }` 桩，让"构造终端"的 effect 提前 return（既省掉 canvas，也顺带验证该 effect 的守卫），再把 `readTerminalTheme` 桩成**每次调用返回不同哨兵**——这样才能把"effect 真的重跑"和"重读到了同样的值"区分开。
 4. **契约面补一条"前提成立"的断言**。刷新只有在覆盖层真的会移动色板时才有意义，故 `terminal-tokens.spec.ts` 新增一例：`readWithTheme('cc-polar')` 之后再 `readTerminalTheme()`，断言 `background` 与 `red` **确实变了**，并断言"不切换主题时连续两次读取**相同**"（排除 per-call 噪声，反空转）。
@@ -3964,7 +3964,7 @@ Mutation 侧：
 
 **验收**：往 `~/.cloudcli/themes/` 放一个文件，刷新后主题出现在选择器中并可生效（改文件后刷新能看到变化，即 `?v=` 生效）；非法文件被拒绝且不影响启动；删除文件后回落默认；**"合法但有害"的 CSS 可用 §5.6 的恢复通道退出**（通道由 2-D 落地，`?theme=default` 丢的是"选择"而非主题、且在 boot 最先跑；**可写原始 CSS 的那一半**——放一个写坏布局的 `.css` 文件——自 2-B / 2-C 起就成立，故此条**文件线已可完整跑通**；剩下的"粘贴原始 CSS 也能这么退出"已由 2-F1 落地——粘贴原始 CSS 的入口与信任确认已可用，`?theme=default` 对粘贴主题同样有效）；跨设备同步到未安装主题的设备时给出显式提示而非静默回落（**前半"回落可观测"已由 1-D 提供**：生效 id 与所选 id 分离 ＋ `console.warn`；剩余的选择器提示 UI 随 1-F 落地）；**粘贴的主题经同一校验器进偏好镜像、可跨设备取用、可删且删除时连带清掉指向它的选择**（已由 2-D 落地）。
 
-**切片表（v21：阶段 2 的 2-A…2-S 已实施；语法板接管线 B1 / B1b / B2 / B3 全部已实施；另案的 N10 护栏缺口**已收口**）**
+**切片表（v22：阶段 2 的 2-A…2-T 已实施；语法板接管线 B1 / B1b / B2 / B3 全部已实施；另案的 N10 护栏缺口**已收口**）**
 
 | 片 | 范围 | 状态 |
 |---|---|---|
@@ -3987,6 +3987,7 @@ Mutation 侧：
 | 2-Q | 四套用户主题升为内置（`dracula` / `gruvbox` / `kanagawa` / `tokyo-night`）：新增 4 块 `src/index.css` 覆盖层 ＋ 4 条注册表项，并为此放松一处契约——四族中性兼容 ramp 自 `fixed` 移入新组 `compat`（`full` **可整族十一档一起染**、`accent` **一档不许动**），`fixed` 收窄到 `--n-white` / `--n-black`；对价是补五对 ＋ 一对可选对比度探针。**本线唯一一次"放松守卫"** | ✅ 已实施（2026-09-30），见下方记录 |
 | 2-R | **浅色终端板补齐**：9 套 `full` 主题里原只有 `cc-tokyo-night` 两半齐备，其余 8 套的终端板**只有一块**（声明在各自**无外观限定**的 L1 块里 ⇒ 浅暗同值）⇒ 为这 8 套各追加一条 20 槽浅色板（写在各自 `:not(.dark)` 块首），并补一条"浅色半声明即须完整"的守卫。四套**按参照物**取（Latte / gruvbox xresources light / lotus / Alucard）、四套**自造**（保色相饱和、重解明度、对比度封顶）。**默认板（`:root`）未动**——§8.3"浅色终端是主题的覆盖能力"本片首次被使用；同时作废 B 方案文档 §3.7 的"不存在'浅色终端来源'"。用户驱动的新增量 | ✅ 已实施（2026-10-01），见下方记录 |
 | 2-S | **基座浅色终端板**：§8.3 前半句"终端默认保持恒深色"**翻案**——`src/index.css` 基座的 20 槽 `--palette-term-*` 改为浅色板、原深色板逐字搬进 `.dark`，于是**未选中主题时浅色外观的终端也是浅的**（此前终端是全 app 唯一不随外观翻的表面）。取值按 2-R 同一自造规则，**中性判据**由"名字白名单"推广为"名字白名单 或 深色值无彩度"（对九套已有板可证明为空操作）。`cc-ocean`（accent）一行不改即自动继承——它只声明两行 brand，本就不动基材，故"海洋的浅色板"与"基座的浅色板"是同一张图 | ✅ 已实施（2026-10-01），见下方记录 |
+| 2-T | **终端外壳随外观**：2-S 把终端画布翻浅后，终端区的**外壳**（`Shell` 根容器与 prompt 条、`ShellHeader`、`ShellMinimalView`、`ShellConnectionOverlay`、`TerminalShortcutsPanel`、移动端选区 chrome）仍是外观无关的 `--n-gray-*` 深色 ⇒ 浅色外观下画布四周（含画布内 `p-2`）露出深灰边。本片把外壳 chrome 改成"浅色类 ＋ `dark:` 深色类"（**深色外观逐字不变**），两个根容器改用 `--term-background`（板自己的令牌 ⇒ 零接缝），移动端选区 chrome 由 0-F2 的**外观无关**令牌改回**语义**令牌（`--foreground` / `--muted`；品牌填充与黑阴影不动）。**并修一处时序缺陷**：写 `.dark` 的 effect 由 `useEffect` 改 `useLayoutEffect`——否则终端（后代）在自己 passive effect 里读到的是**翻转前**的板，深色冷启动画浅色板且不自愈。**有意视觉变更**：浅色外观下的终端外壳由深变浅（用户拍板"外壳要跟随"） | ✅ 已实施（2026-10-01），见下方记录 |
 | B1 | **语法板接管（机制）**：契约面 11 个槽升语义名 ＋ 基线读取面追加 `SYNTAX_TOKEN_MAP` ＋ 白名单授权这 11 个具名槽 ＋ 契约断言（《CloudCLI 内置主题语法调色板接管方案》§5.1）。**基础层零变化、四套主题代码块不变**（还没人声明） | ✅ 已实施（2026-09-29），见该方案"B1 实施记录" |
 | B1b | **代码块容器底色**：新增 `--code-block-bg`（决策 4 取 **(a2)**：独立 triplet 令牌、四路同值、**不进 `SURFACES`**）。两个前置按 §5.1b 先做完——**实测字面色护栏的 7 种形状**、**出同宽来源矩阵**（并发现"五个来源就是各自的 `--editor-bg`"）。**本片是有意的视觉变更**：3 处形态变化 ＋ 1 处方案未列的消费者（mermaid 源码回落）| ✅ 已实施（2026-09-29），见该方案"B1b 实施记录" |
 | B2 | **回填既有 `full` 主题的语法板**：`cc-onedark` / `cc-catppuccin` / `cc-islands`（`cc-polar` 按决策 2 的"可选"**不写**，作为"可选面"的活例子）；映射取**甲 ＝ 语义逐槽**（`class-name` 跟参照物给黄，不跟基色给橙）。**有意的视觉变更**：`cc-islands` 11 槽全变、`cc-catppuccin` 两外观各 11 槽全变、`cc-onedark` 只 `class-name` 一处；两套 dark-only 参照物的**浅色半明确不动**。**⚠️ 与 2-E 行里的"选项 B2"同名不同物**——那是 `.tmTheme` 格式（已交付），这是语法板回填 | ✅ 已实施（2026-09-29），见该方案"B2 实施记录" |
@@ -4625,7 +4626,7 @@ Mutation 侧：
 
 **一处"参照物的顶层在这个令牌模型里不可移动"**：Islands Light 的编辑器页是它的**顶层**（`layer-2-bg` = 纯白），而纯白正是 `--palette-white`——被 `--n-white`（终端选区的白描边）共用，属 `theme-overlays.spec.ts` 的 `fixed` 组，任何主题都不得动。于是浅色半边照 `cc-polar` / `cc-catppuccin` 的先例走：**card 保持纯白坐在染色基材上**（这恰好就是 Islands Light 的观感），编辑器页则取基材色——而 `MUST_MOVE.full` 明列 `--editor-bg` 必须动，这条硬约束与"编辑器页=白"在 Islands 这里不可能同时成立，取前者。
 
-**终端板：Islands 的既有值取一半、色阶补一半**。Islands 的编辑器 scheme（`themes/islands/IslandSchemeDark.xml`）只给了 `CONSOLE_BACKGROUND_KEY` `#191A1C`、`CONSOLE_NORMAL_OUTPUT` `#BCBEC4`、`CARET_COLOR` `#CED0D6` 三个——**没有 ANSI-16**；新版 IDE 的终端 ANSI 色由主题色阶派生，不在任何资源文件里。故 board 的 bg / fg / cursor 取其既有值（bg 恰好等于暗色 `layer-0`，面板因此不显得是外来面），十六个槽位从色阶读：`-90` 档作工作半轴（彼此相差不到 0.08、在 console 背景上都在 5.3:1 附近），`-100` 档作 `bright-*` 半轴，槽位语义照旧（红=错误/删除、绿=成功/新增、蓝=信息）。board 与基色一样**声明一次、两态都用暗版**。
+**终端板：Islands 的既有值取一半、色阶补一半**。Islands 的编辑器 scheme（`themes/islands/IslandSchemeDark.xml`）只给了 `CONSOLE_BACKGROUND_KEY` `#191A1C`、`CONSOLE_NORMAL_OUTPUT` `#BCBEC4`、`CARET_COLOR` `#CED0D6` 三个——**没有 ANSI-16**；新版 IDE 的终端 ANSI 色由主题色阶派生，不在任何资源文件里。故 board 的 bg / fg / cursor 取其既有值（bg 恰好等于暗色 `layer-0`，面板因此不显得是外来面），十六个槽位从色阶读：`-90` 档作工作半轴（彼此相差不到 0.08、在 console 背景上都在 5.3:1 附近），`-100` 档作 `bright-*` 半轴，槽位语义照旧（红=错误/删除、绿=成功/新增、蓝=信息）。board 与基色一样**声明一次、两态都用暗版**。**（2026-10-01 订正：被 **2-R** 作废——`cc-islands` 现另有一条 `:not(.dark)` 浅色板；本句是 2-O 时的状态。）**
 
 **graph lane** 沿用 2-N 记录下来的那条方法（也在本片被再次验证有效）：十色相与顺序照旧，饱和度统一 60%，明度取"两底较差者最大"的那一点——每条在 `#E9EAEE` 与 `#191A1C` 上都不低于 **3.79:1**（比 2-N 的 3.76 略宽）。Islands 只发布七个色相、不是十条 lane，所以这里"留色相、只动温度与档位"是必要的，不是偷懒。
 
@@ -4693,7 +4694,7 @@ Mutation 侧：
 
 **暗色编辑器：一处与 2-O 相反却同源的事实**。cloudcli **出厂的暗色编辑器本来就是 One Dark 的板** —— `.dark` 里写着 `--editor-bg: #282c34`、`--editor-fg: #abb2bf`、`--editor-caret: #528bff`、`--editor-panel-bg: #21252b`。所以本主题暗色编辑器块的**渲染值大半与出厂相同**，真正移动的是"字面值改为引用主题自己的 L1"（`ink-900` / `ink-100` / `ink-850`），编辑器由此跟随基材而非站在旁边。`--editor-bg` 因此读 `ink-900`（One Dark 的编辑器页**就是**它的面板色、比窗口高一档），而其余覆盖层取 `ink-950` —— 这是本片与三套姊妹主题唯一的结构性差异。
 
-**终端板**：`one_dark.xml` 发布了完整 ANSI 板（`CONSOLE_RED_OUTPUT` 等）＋ `CARET_COLOR` `#528bff`；`CONSOLE_BACKGROUND_KEY` 在源里是**空的**，IDE 因此用编辑器页画控制台，`#282c34` 才是 One Dark 终端真实的底色。普通八槽取原值，**八个 `bright-*` 是派生的** —— One Dark 用 `FONT_TYPE: 1`（粗体）而不是色值区分它们，而本板是十六个独立值；每个保持色相与饱和、明度 +9 点，量级取自基色自己的 normal→bright 步长（+8.4 ~ +13.2）。board 声明一次、两态都用暗版（用户拍板沿用 2-O 先例）。
+**终端板**：`one_dark.xml` 发布了完整 ANSI 板（`CONSOLE_RED_OUTPUT` 等）＋ `CARET_COLOR` `#528bff`；`CONSOLE_BACKGROUND_KEY` 在源里是**空的**，IDE 因此用编辑器页画控制台，`#282c34` 才是 One Dark 终端真实的底色。普通八槽取原值，**八个 `bright-*` 是派生的** —— One Dark 用 `FONT_TYPE: 1`（粗体）而不是色值区分它们，而本板是十六个独立值；每个保持色相与饱和、明度 +9 点，量级取自基色自己的 normal→bright 步长（+8.4 ~ +13.2）。board 声明一次、两态都用暗版（用户拍板沿用 2-O 先例）。**（2026-10-01 订正：同 2-O 那处——被 **2-R** 作废，`cc-onedark` 现另有一条 `:not(.dark)` 浅色板；本句是 2-P 时的状态。）**
 
 **graph lane** 沿用 2-N / 2-O 的方法：十色相与顺序照旧，饱和度统一 60%（在 One Dark 语法色的量级内），明度取"两底较差者最大"—— 每条在 `#F3F4F6` 与 `#202329` 上都不低于 **3.76:1**。
 
@@ -4924,7 +4925,60 @@ M4 / M5 的报文值得记一笔：四族进 `compat` 之后，`accent` **仍由
 1. **基座浅色板成了所有 `full` 主题浅色半的参照物**。逐主题契约判"有没有移动某槽"，是拿**主题 vs 基座在同一外观下**比。此前基座浅色半就是那块深色板，门槛几乎白送；现在变成"必须不同于基座那张浅色板"。实测九套主题的浅色板与基座浅色板**撞值 0 槽**（与旧参照也 0 槽）⇒ 今天不红。但这是一条新的隐式耦合：**以后改基座浅色板可能连带让某套主题的契约红。**
 2. **主题的深色半与 `.dark` 是权重平局（各 (0,1,0)），靠文档顺序取胜**。主题的**浅色**半靠**权重**赢基座（(0,2,0) > (0,1,0)，稳，与顺序无关）；而深色半写在**无外观限定**的 `[data-theme="x"] {}` 块里，与 `.dark` 平局 ⇒ 靠顺序（`:root` 46 行、`.dark` 450 行，主题块自 1551 行起）。本片让 `.dark` **第一次**声明终端令牌，于是这 20 个令牌加入了"靠顺序取胜"的集合。**不是新形态**（`--background` 早已如此），但是新增的承重顺序依赖，属守卫注释里点名的那类脆弱性。
 
-**与既有账的关系**：`cc-ocean` 一行未改，`accent` 的契约与选择器上「强调色」徽标向用户做的承诺**均未动**；`MUST_NOT_MOVE.accent` **未放宽**（本线"放松守卫"仍只有 2-Q 那一次）。`--palette-white` 未动。**待拍板清单仍为空**，本片未开出新的待拍板项。
+**与既有账的关系**：`cc-ocean` 一行未改，`accent` 的契约与选择器上「强调色」徽标向用户做的承诺**均未动**；`MUST_NOT_MOVE.accent` **未放宽**（本线"放松守卫"仍只有 2-Q 那一次）。`--palette-white` 未动。**待拍板清单仍为空**，本片未开出新的待拍板项。**（2026-10-01 追补（2-T）：本片的板翻浅之后，包着画布的外壳也必须跟随，否则浅色外观下露出深灰边——见 2-T 记录；写 `.dark` 的 effect 是否早于终端重读这一时序前提，也由 2-T 一并钉住。本片自身无需改动。）**
+
+---
+
+#### 2-T 实施记录（2026-10-01）
+
+**范围**：终端区**外壳**随外观翻转。来源是 2-S 落地后核查浅色终端观感时发现的一处割裂——画布已随外观翻浅，而包着它的 chrome（终端面板容器、prompt 条、`ShellHeader` 的状态条与按钮、`ShellMinimalView`、`ShellConnectionOverlay` 遮罩、`TerminalShortcutsPanel` 面板、移动端选区菜单）还是外观无关的 `--n-gray-*` 深色，于是浅色外观下终端四周（含画布内 `p-2` 留出的那一圈）露出深灰。用户回"外壳要跟随"即拍板。
+
+**这是 0-F2 的前提被 2-S 推翻，不是 0-F2 的翻案**：0-F2 记录明写"这块 chrome 贴在终端上、终端板明暗恒深，所以用外观无关的令牌而非语义令牌"。那句在 0-F2 时点是对的；2-S 让板随外观分叉之后，"恒深假设下的中性刻度"就不再是终端 chrome 的正解——同一片 chrome 在两个外观下**本就该是两个样子**。故本片把移动端选区的描边 / 菜单底 / 菜单字改回语义令牌（`--foreground` / `--muted`），而 `--palette-brand-400`（品牌填充，外观无关）与 `--n-black`（阴影）保持不动。
+
+**取值方式：`浅色类` ＋ `dark:深色类`**，深色类**逐字抄自原值** ⇒ 深色外观零变化、浅色外观新增。唯一不成"配对"的是**两个根容器**（`Shell` 与 `ShellMinimalView` 的 `bg-n-gray-900`）：它们改挂 `bg-[hsl(var(--term-background))]`——画布坐在 `p-2` 里，任何**非板色**都会沿画布四周留一圈边，板色则无论主题怎么移动板都不露缝（理由写在代码注释里）。
+
+**时序修复（本片的前置，不是附带）**：`ThemeContext` 把外观写进 `<html>`（`data-theme` / `color-scheme` / `.dark`）的 effect 原本是 `useEffect`。React 在**同一 commit 内先跑完所有 layout effect 再跑所有 passive effect**，而**后代**的 passive effect 又先于祖先——终端（后代，`useShellTerminal`）恰恰是在 passive effect 里重读 `--term-*`（xterm 画 canvas、吃不到级联，只能重读具体色值）。于是它读到的是 `.dark` **尚未落地**时那张板：**深色冷启动画出浅色终端**，翻转时也晚一帧、且没有任何东西会再读一次。改成 `useLayoutEffect` 后，写类一定早于任何后代重读。**这不是"更稳一点"，是正确性**——2-S 之前板两态同值，读早了读不出差别，缺陷一直藏着。
+
+**登记项**：
+
+- `src/shared/context/ThemeContext.tsx`：`useEffect` → `useLayoutEffect`，并写明顺序为何承重。
+- `src/modules/shell/`：`Shell.tsx`（根容器 ＋ prompt 条 ＋ Esc 按钮）、`ShellHeader.tsx`（头部条 ＋ 状态文字 ＋ 三个按钮 ＋ 四处 `focus:ring-offset`）、`ShellMinimalView.tsx`（根容器）、`ShellConnectionOverlay.tsx`（三分支）、`TerminalShortcutsPanel.tsx`（`KEY_BTN` / `ICON_BTN` / 面板条）、`utils/mobileTerminalSelection.ts`（选区 chrome 四色）。`hooks/useShellTerminal.ts` **只改注释**——那条"若将来 `--term-*` 随外观分叉"的预言改写成事实，并点明它只在写类是 layout effect 时成立。
+- `tests/theme-tokens/mobile-terminal-selection.spec.ts`：由"chrome 不随外观变化"改为**按外观分别 pin 值**（两引擎）＋ 一条**方向性**断言（浅色菜单底更亮、浅色字更暗）＋ 一条反向守卫（品牌填充两外观**相等**）。
+- `src/modules/shell/tests/shellTerminalThemeRefresh.test.tsx`：mock 记录"读取发生时 `.dark` 是否在 `<html>` 上"，新增一条用例钉住三段顺序（浅色冷启动 `.dark` 缺席 → 转深色时 `.dark` 已在 → 再翻回来 `.dark` 已摘）。
+- `src/shared/tests/theme-atom-conservation.json`：刷新（方法与 delta 见下）。
+- `src/index.css` 与 `tests/theme-tokens/theme-overlays.spec.ts`：同步 4 处被 2-S 作废的叙述（"L1 只声明一次"→"几乎全部、终端板除外"；删掉 graph lane 那句"like the terminal board"；`cc-polar` 头注里"`--n-white`/`--n-black` 是恒深终端 chrome"的旧理由改为与守卫一致的理由（纯白 / 纯黑填充与标签，257 处）；`cc-islands` 的"As in the base the board is declared once"→"Like the base, the theme splits the board"）。
+- 设计文档：正文 **10 处**仍停在旧口径、且与 2-T 自己写下的口径**直接冲突**的句子就地加订正补记（现状表行、0-C 记录、0-F2 记录 ×2、§5.x 的"L1 只在 `:root` 声明一次"、1-G 的"`--term-*` 今天外观无关"、2-O / 2-P 记录的"board 声明一次、两态都用暗版"、附录 A 的 `term` 行与语法板段）。**清它们是因为冲突，不是范围外顺手。**
+
+**证据**（全部本片实测）：
+
+| 手段 | 结果 |
+|---|---|
+| `npm run test:theme-tokens`（chromium ＋ webkit） | **200 passed / 0 failed**（与 2-S 终读数同位；移动端那支是 2 个用例的**重写**、不是新增，故总数不变） |
+| `npx vitest run src/modules/shell src/shared` | 466 passed / 1 failed（唯一红是守恒律，见下） |
+| `npm run test:client` | 153 文件 / 1271 用例：1269 passed / **2 failed**——① 守恒律（其余在途片）；② `appearanceTerminalFont.test.tsx:98`（终端**字体**片的在途改动）。**两条都不是本片** |
+| `npm run lint` | **0 error**（164 warnings）；本片文件 **0 警告**——`TerminalShortcutsPanel.tsx` 的面板条一度触发 `tailwind(classnames-order)`，实测该规则在本串期望的次序是"任意**属性** → `dark:` → 任意**变体**"，按此排好后归零 |
+| `npm run typecheck` / `typecheck:theme-tokens` / `build` | exit 0 / exit 0 / exit 0（client `✓ built in 20.27s`） |
+
+**守恒律的对账方法（本片最费事的一步，单独记）**：`theme-atom-conservation.json` 是**全仓**中性色普查，而工作区同时有 8 条在途片，直接重生成会把它们的漂移一并吸进本片提交。故不用"重生成再挑 hunk"，而是**造一棵只含本片的 src**：`git archive HEAD src` 铺两棵 scratch 树，一棵原样作基线、一棵覆盖本片的 5 个 TSX 文件（**并删掉 `ShellHeader.tsx` 里那句属于 bash 片的按钮块**——同文件内的他片改动、且带中性类名，否则会算进本片），再让扫描器以 `process.cwd()` 指向 scratch 树各跑一次（临时 spec 放在 `src/tests/`——扫描器本就跳过 `tests` 目录）。
+
+- **自检**：scratch 基线树扫出的 1515 与 HEAD 基线**逐桶全等** ⇒ 通道可信。
+- **本片 delta**：1515 → **1546**（净 **+31** 原子 / 55 桶），**每一个桶都能指到一条编辑**：删的都是深色字面量（`bg-n-gray-700` / `-800/95` / `-900/95` / `-950/90`、`border-n-gray-600/80`、`text-n-gray-100..300`、`focus:ring-offset-n-gray-800` …），加的是对应的浅色类与 `dark:` 侧，两个根容器各减 1（改挂板令牌后不再计原子）。
+- **残留**：装好基线后测试仍报 **16 桶**，逐桶等于"本片之外的差"（bash 片 9 桶 ＋ chat / 侧栏等 7 桶）⇒ **本片零残留漂移**。
+
+**反向验证（1 条变异，jsdom 单测）**：
+
+| 变异 | 结果 |
+|---|---|
+| M1 把 `ThemeContext` 的 `useLayoutEffect` 改回 `useEffect` | **RED**：`AssertionError: the dark board must be read with .dark already on <html>`（1 failed / 8 skipped）。证明那条新用例真的承重，不是装饰 |
+
+**四处如实边界**：
+
+1. **"深色外观逐字不变"只到"本片改的字符串"为止**：所有 `dark:` 侧都逐字抄自原值，但**次序**有两处被迫调整（`TerminalShortcutsPanel` 面板条为过 `classnames-order`，把 `dark:` 排在两个任意属性与那个任意变体之间；`KEY_BTN` / `ICON_BTN` 的 `active:` 三项次序）。Tailwind 类序不影响这些类的特异性（改的是不同属性），故不是视觉变更——但它**不是逐字节相同**。
+2. **浅色外壳的观感没有真机截图核验**：本片靠"语义令牌在别处已定"这一间接理由承担协调性；`ShellConnectionOverlay` 的浅色遮罩（`bg-n-gray-50/90`）也只有类名正确性保证，没有实测像素。
+3. **0-F2 的常驻断言被本片改写**：那条"两外观恒同"自 0-F2 起就是它的验收面，本片换成"按外观分别 pin ＋ 方向正确 ＋ 品牌填充相等"。方向断言是**必须**的——只写"两态不同"的话，两半调换会静默（与 2-S 记的 M2 同族）。
+4. **基线值会随他片再动**：本片刻的 `total` ＝ 1546（HEAD ＋ 本片 delta）。工作区余下 16 桶属其他在途片，它们各自提交时要再刷一次。
+
+**与既有账的关系**：`accent` 的契约与 2-Q 的 `compat` 放松**均未动**（本线"放松守卫"仍只有 2-Q 那一次）；`--palette-white` / `--n-white` / `--n-black` 未动；`cc-ocean` 一行未改。**待拍板清单仍为空**——除"外壳跟随"（用户拍板）外，本片未开出新的契约分叉。切片表升 **v22**。
 
 ---
 
@@ -4975,7 +5029,7 @@ M4 / M5 的报文值得记一笔：四族进 `compat` 之后，`accent` **仍由
 
 1. **用户主题格式**：→ **已决**：三格式并行（A 令牌 JSON 默认 / B 原始 CSS 高级 / B2 `.tmTheme` 生态），见 §5.5。默认维持 A，理由见该节 v2 说明。
 2. **用户主题存放位置**：→ **已决**：采用 `~/.cloudcli/themes/`，Docker 仅文档标注、不做代码适配。**实施约束**：路径解析必须复用 server 现有的 `path.join(os.homedir(), '.cloudcli', …)` 模式，新增一个与 assets 平行的目录常量，严禁主题模块另写第二套拼接。依据：`docker/` 下仅 `claude-code` / `codex` 构建环境 + `shared` + README，无应用 Dockerfile、无 compose，Docker 非分发形态；而 `~/.cloudcli` 已是既有持久化约定（`server/shared/image-attachments.ts:22`、`server/load-env.ts:43`、`server/index.ts:323`）。若 README 补 Docker 说明，须同时覆盖 themes 与 assets 两个挂载点。
-3. **阶段 0 的终端配色**：→ **已决**：**终端默认保持恒深色**（把 `--term-*` 的 light 值就设为现用深色板），浅色终端作为主题覆盖能力实现，不内置翻转。**（2026-10-01 两笔补记：先由 2-R 把后半句用起来——为 8 套 `full` 主题补了浅色终端板，当时前半句不变。随后 2-S 把前半句也翻了案**——默认板改为随外观分两半（`:root` 浅、`.dark` 深），未选中主题时浅色外观的终端也是浅的；理由是该"恒深"让终端成了全 app 唯一不随外观翻的表面，而这条裁定定于阶段 0、当时不存在任何浅色板可谈。代价与记账（设置里无终端配色开关 ⇒ 想要浅色页配深终端的人只剩自写 `.css` 主题一条路）见切片表 v21 与 2-S 记录。**）**
+3. **阶段 0 的终端配色**：→ **已决**：**终端默认保持恒深色**（把 `--term-*` 的 light 值就设为现用深色板），浅色终端作为主题覆盖能力实现，不内置翻转。**（2026-10-01 两笔补记：先由 2-R 把后半句用起来——为 8 套 `full` 主题补了浅色终端板，当时前半句不变。随后 2-S 把前半句也翻了案**——默认板改为随外观分两半（`:root` 浅、`.dark` 深），未选中主题时浅色外观的终端也是浅的；理由是该"恒深"让终端成了全 app 唯一不随外观翻的表面，而这条裁定定于阶段 0、当时不存在任何浅色板可谈。代价与记账（设置里无终端配色开关 ⇒ 想要浅色页配深终端的人只剩自写 `.css` 主题一条路）见切片表 v22 与 2-S 记录。**2-T 又补上外壳那一半**——画布翻浅之后，包着它的 chrome（面板容器 / 头 / 遮罩 / 快捷键面板 / 选区菜单）也必须跟随，否则浅色外观下画布四周（含 `p-2` 那一圈）露出深灰；同时由 2-T 修掉"写 `.dark` 的 effect 早于终端重读"的时序缺陷。见 2-T 记录。**）**
 4. **第二层选择器**：→ **已决**：把"默认明 / 默认暗"建模为两套内置主题，保留 light/dark/system 三选一胶囊，使"主题"与"明暗"正交，避免双层选择器的心智负担。
 5. **品牌色边界**：→ **已决**：agent 品牌色与各 harness Logo 保留硬编码，走 §8.7 的机器可校验豁免清单声明。
 6. **远程主题源扩展点**：→ **已决**：只留扩展点（`ThemeManifest.source` 已是可扩展字符串枚举，未来加 `'remote'` 值成本近零），不实现。
@@ -4997,7 +5051,7 @@ M4 / M5 的报文值得记一笔：四族进 `compat` 之后，`accent` **仍由
 | 中性墨 `ink` | `--palette-ink-100/-400/-800/-850/-900/-950` | 深色界面基底 |
 | 品牌 `brand` | `--palette-brand-400/-500` | 主色（light 取 500，dark 取 400） |
 | 危险 `danger` | `--palette-danger-500/-800` | 破坏性操作（light 取 500，dark 取 800） |
-| 终端 `term` | `--palette-term-bg/-fg/-cursor/-selection` + `--palette-term-{black..white}` + `--palette-term-bright-{black..white}` | 0-C 新增。终端板（VSCode Dark+）自成一族，因为它的 hue 与界面族不同；**只在 `:root` 声明**，明暗共用（§8.3 已决） |
+| 终端 `term` | `--palette-term-bg/-fg/-cursor/-selection` + `--palette-term-{black..white}` + `--palette-term-bright-{black..white}` | 0-C 新增。终端板（VSCode Dark+）自成一族，因为它的 hue 与界面族不同；**只在 `:root` 声明**，明暗共用（§8.3 已决）**（2026-10-01 订正：**2-S** 已翻案——这 20 槽是 **L1 里唯一按外观拆两半**的一族（`:root` 浅 / `.dark` 深），§8.3 的补记与 2-S 记录为准。）** |
 | 兼容档位族 `gray` / `zinc` / `slate` / `neutral` | 每族 `--palette-<族>-50/-100/-200/…/-900/-950`（各 11 档） | `gray` 于 0-E1 新增、其余三族于 0-E1b 新增。**Tailwind 默认中性档位的原值**（逐档 1 位小数三元组，四族 44 档往返**全部无损**），为的是把 ~1.5k 处 `bg-gray-100 dark:bg-gray-700` 类字面档位换成令牌引用而**不动像素**（§5.7 v4 / §6 之 0-E 记录）。它**不是策展色族**（与 `sand` / `ink` 无关），是**过渡层**：阶段 2 把消费者改成语义名后本族退场。**只在 `:root` 声明**（档位值与外观无关）。四族并列而不归并的理由见 0-E1b 记录（归并等于 122 处改色 + 给等值护栏开例外）；`stone` 不建（0 处消费者） |
 
 **格式 = HSL 三元组，与 L2 同格式**（`44 22% 96%`，非 hex）。这是实施时定下的关键选择：Tailwind 用 `hsl(var(--border))` 消费令牌，只要 L1 与 L2 同为三元组，`--background: var(--palette-sand-50)` 就等价于原字面值——**Tailwind 配置与 `index.css` 中 16 处 `hsl(var(--x))` 全部无需改动**。若 L1 用 hex，才需要按 §5.1 的说明调整消费方式。带 alpha 的导航令牌写成 `var(--palette-x) / 0.7`（var 嵌套合法，解析结果与原字面值一致）。
@@ -5013,7 +5067,7 @@ M4 / M5 的报文值得记一笔：四族进 `compat` 之后，`accent` **仍由
 - **125 个编号槽继续编号、继续不授权**（实测范围 `--cc-syntax-0` ～ `--cc-syntax-135`，**编号不连续**——具名槽**照样消耗号**，例如第 `4` 号就是具名的 `--cc-syntax-block-foreground`）。编号＝"在差异序列里的位置"，不是"还剩几个没命名"；正因如此，升名**不重排**其余槽——黄金快照 diff 恰 11 行、其余 125 项逐字节未动。
 - **刻意不升名的是 17 个槽，一行一槽各写理由**：`0`/`1`/`2`（`code[class*="language-"]` 的 `.background` / `.color` / `.textShadow`——`codeTagProps` 被 chat 与编辑器**两个消费者显式覆盖** ⇒ 永不上身，升名只会造出"改了没反应"的假契约）；`3`（`pre[…].background`——**半活**：仅编辑器暗色回落它，编辑器浅色与 chat 的两种外观都另写，不足以作契约；面板底色是另一件事，另有令牌 `--code-block-bg`（**B1b 已落地**），见语法板方案 §5.1b）；`5`（`pre[…].textShadow`——**仅暗色有值**，浅色 Prism 主题根本不写它，升名会要求一个没有来源的基色值，且无消费者）；`6`–`17`（**12 条 `::selection`**，横跨 `code[…]` / `pre[…]` 及其后代——这套库**从不把 style 对象序列化成 CSS**，它按**类名**查色（`createStyleObject`）、其余经 `preProps` / `codeTagProps` 内联，**选择器键没有任何通到页面的路**，升名也造不出这条路；`index.css` 里 `::selection` 亦 0 处）。完整理由与实施期取证见《CloudCLI 内置主题语法调色板接管方案》§3.2。
 
-内置主题的语法板（**B2 / B3 已落地，2026-09-29**）：四套 `full` 主题各自把 11 个具名槽声明进覆盖层块，值取**参照物**并逐套记账——`cc-onedark` ← 插件 jar 的 `one_dark.xml`（**只暗色半**；11 槽里 10 槽与该主题基色同值，唯一可见变化是 `class-name` 由橙 `#d19a66` 变黄 `#e5c07b`，即 IDE 里的样子）；`cc-islands` ← 平台 jar 的 `IslandSchemeDark.xml`（**只暗色半**；11 槽全变；该 scheme 无独立青色 ⇒ `url` 取 `VALID_STRING_ESCAPE` 后**与 `keyword` 撞色**，如实记账）；`cc-catppuccin` ← **官方色板 v1.8.0 的角色约定**（Mocha / Latte，**两外观都声明**、各 11 槽全变；⚠️ 它**不是编辑器 scheme**——Codex 把 27 套主题编译进二进制、包内无 `.tmTheme`，只能取官方角色约定）；`cc-onedark-vivid`（B3）← 同一插件的 `one_dark_vivid.xml`（**只暗色半**；**6 槽移动、5 槽与 `cc-onedark` 同值**——参照物改动的 175 条属性，其基色全部落在 `keyword` / `string` / `url` / `property` / 灰（`punctuation` 与代码块正文共用）这五个家族上）。三套 dark-only 参照物的**浅色半明确不动**（保持基色 Prism oneLight）；`cc-onedark-vivid` 因底料与 `cc-onedark` 逐项相同，**浅色外观下的代码块 / 编辑器 / 底料逐字节等于 `cc-onedark`**，这是**有意的、不是漏做**（参照物的加饱和是按色手调、ΔS +5.5~+17.2 不等，没有可迁移到浅色板的规则；终端板声明在**外观无关**的 L1 块里，故它两个外观都动）。`cc-polar` 按方案决策 2 的"可选"**不写**、`cc-ocean` 是 accent 主题沿继承。**取值不被任何测试冻结**（覆盖层取值历来不进 `token-baseline.json`），正确性由方案实施记录的映射表与参照物复核承担；测试守的是"板主题**拥有整块板**且**至少移动一个槽**"（B2）与"`cc-onedark-vivid` 与其姊妹的差异**恰为记录的那一组**"（B3）。B3 另动**终端板**与一处 L1（`--palette-ink-100`）：源 `<attributes>` 的 12 条 `CONSOLE_*_OUTPUT` 三倍冗余、折 **9 槽 ＋ foreground**，其"9"由 `terminal-tokens.spec.ts` 的姊妹差断言钉住，逐条见该方案"B3 实施记录"。
+内置主题的语法板（**B2 / B3 已落地，2026-09-29**）：四套 `full` 主题各自把 11 个具名槽声明进覆盖层块，值取**参照物**并逐套记账——`cc-onedark` ← 插件 jar 的 `one_dark.xml`（**只暗色半**；11 槽里 10 槽与该主题基色同值，唯一可见变化是 `class-name` 由橙 `#d19a66` 变黄 `#e5c07b`，即 IDE 里的样子）；`cc-islands` ← 平台 jar 的 `IslandSchemeDark.xml`（**只暗色半**；11 槽全变；该 scheme 无独立青色 ⇒ `url` 取 `VALID_STRING_ESCAPE` 后**与 `keyword` 撞色**，如实记账）；`cc-catppuccin` ← **官方色板 v1.8.0 的角色约定**（Mocha / Latte，**两外观都声明**、各 11 槽全变；⚠️ 它**不是编辑器 scheme**——Codex 把 27 套主题编译进二进制、包内无 `.tmTheme`，只能取官方角色约定）；`cc-onedark-vivid`（B3）← 同一插件的 `one_dark_vivid.xml`（**只暗色半**；**6 槽移动、5 槽与 `cc-onedark` 同值**——参照物改动的 175 条属性，其基色全部落在 `keyword` / `string` / `url` / `property` / 灰（`punctuation` 与代码块正文共用）这五个家族上）。三套 dark-only 参照物的**浅色半明确不动**（保持基色 Prism oneLight）；`cc-onedark-vivid` 因底料与 `cc-onedark` 逐项相同，**浅色外观下的代码块 / 编辑器 / 底料逐字节等于 `cc-onedark`**，这是**有意的、不是漏做**（参照物的加饱和是按色手调、ΔS +5.5~+17.2 不等，没有可迁移到浅色板的规则；终端板在 B3 时确实**只声明一次**、两块外观同值，**2-R** 之后 `cc-onedark-vivid` 另有一条 `:not(.dark)` 浅色板，于是两个外观各有其值——这与语法板浅色半"保持基色 Prism oneLight"不冲突：前者是终端板、后者是语法板，两者各有自己的浅色半约定）。`cc-polar` 按方案决策 2 的"可选"**不写**、`cc-ocean` 是 accent 主题沿继承。**取值不被任何测试冻结**（覆盖层取值历来不进 `token-baseline.json`），正确性由方案实施记录的映射表与参照物复核承担；测试守的是"板主题**拥有整块板**且**至少移动一个槽**"（B2）与"`cc-onedark-vivid` 与其姊妹的差异**恰为记录的那一组**"（B3）。B3 另动**终端板**与一处 L1（`--palette-ink-100`）：源 `<attributes>` 的 12 条 `CONSOLE_*_OUTPUT` 三倍冗余、折 **9 槽 ＋ foreground**，其"9"由 `terminal-tokens.spec.ts` 的姊妹差断言钉住，逐条见该方案"B3 实施记录"。
 
 **L2 semantic（新增，阶段 0 引入）**
 
