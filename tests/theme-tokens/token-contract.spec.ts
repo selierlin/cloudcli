@@ -183,14 +183,24 @@ test('no colour token holds a literal value outside the palette, the editor boar
 
 
 /**
- * The touch-device hover-suppression blocks reference utility classes *as
- * selector text*, which no atom scanner sees (the selector-level consumer gap
- * 0-F recorded). The stage-0 rename retired the literal gray atoms and left
- * these selectors dead for the whole user-theme line until the review caught
- * it — this guard is what makes a future rename turn red instead of silently
- * detaching the rules again (§5.8 v8).
+ * Touch-device hover handling is now two-part:
+ *  1. Every `hover:` utility is generated inside `@media (hover: hover) and
+ *     (pointer: fine)` (tailwind `future.hoverOnlyWhenSupported`), so a tap on
+ *     a touch device can neither apply nor stick a hover style. This replaced
+ *     the blunt global neutralizer
+ *     (`button:hover { background-color: transparent !important }`), which
+ *     also wiped the BASE background of self-tinted buttons on tap — the
+ *     user-message sticky header (bg-n-white/*) visibly went transparent on
+ *     touch.
+ *  2. The remaining `@media (hover: none)` block neutralizes group-hover
+ *     leftovers by utility classes *as selector text*, which no atom scanner
+ *     sees (the selector-level consumer gap 0-F recorded). The stage-0 rename
+ *     retired the literal gray atoms and left these selectors dead for the
+ *     whole user-theme line until the review caught it — this guard is what
+ *     makes a future rename turn red instead of silently detaching the rules
+ *     again (§5.8 v8).
  */
-test('the touch-hover suppression blocks reference the compatibility scale, not retired atoms', () => {
+test('touch-hover is variant-gated, and the leftover neutralizers reference the compatibility scale, not retired atoms', () => {
   const css = readStylesheet();
 
   const retired = css.match(
@@ -199,10 +209,22 @@ test('the touch-hover suppression blocks reference the compatibility scale, not 
   const listed = retired ? retired.join('\n') : '';
   expect(retired, `retired literal atoms still referenced as selectors:\n${listed}`).toBeNull();
 
-  // Anti-embers: the guards must still name the live classes, or the blocks
-  // could go quietly empty while this test stays green.
+  // The variant-level fix must stay on, or a future config cleanup would
+  // silently resurrect sticky touch hovers.
+  const config = readFileSync(
+    fileURLToPath(new URL('../../tailwind.config.js', import.meta.url)),
+    'utf8',
+  );
+  expect(config).toMatch(/hoverOnlyWhenSupported:\s*true/);
+
+  // Anti-embers: the remaining touch block must still name the live classes,
+  // or the block could go quietly empty while this test stays green.
   expect(css).toMatch(/\.hover\\:bg-n-gray-50:hover/);
   expect(css).toMatch(/\.hover\\:bg-n-gray-100:hover/);
   expect(css).toMatch(/\.dark\\:hover\\:bg-n-gray-700:hover/);
-  expect(css).toMatch(/\.hover\\:text-n-gray-900:hover/);
+
+  // The deleted blunt neutralizer must not come back: it wiped the base
+  // background of self-tinted buttons (e.g. the sticky header's bg-n-white/*)
+  // on touch tap, rendering them transparent.
+  expect(css).not.toMatch(/button:hover[^}]*background-color:\s*transparent\s*!important/);
 });

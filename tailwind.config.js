@@ -1,6 +1,14 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: ["class"],
+  /* hover: 变体只在真悬停设备（@media hover:hover）生成——触屏点按不会再触发
+     并粘住任何 hover 样式。index.css 触屏媒体查询里那条全局 hover 抹底规则
+     （button:hover { background-color: transparent !important }）随之失效，已删；
+     它曾把自着色按钮（底色写在自己身上的 button，如用户吸顶条 bg-n-white/95）
+     在点按瞬间的基态底色一并抹掉，表现为点按时整条变透明。 */
+  future: {
+    hoverOnlyWhenSupported: true,
+  },
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
