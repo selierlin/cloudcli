@@ -2,6 +2,10 @@ import { useMemo } from 'react';
 import type { Components } from 'react-markdown';
 import ReactMarkdown from 'react-markdown';
 import rehypeKatex from 'rehype-katex';
+// Same CJK emphasis fix as the chat transcript renderer: `**…"**的` does not
+// close under CommonMark's flanking rules and renders as literal asterisks.
+// The `parseOnly` entry keeps the serializer out of the client bundle.
+import remarkCjkFriendly from 'remark-cjk-friendly/parseOnly';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 
@@ -42,7 +46,7 @@ const markdownPreviewComponents: Components = {
 
 /** Used by the prd-editor module, and by CodeEditorSurface inside code-editor, to render markdown source as formatted preview output. */
 export default function MarkdownPreview({ content }: MarkdownPreviewProps) {
-  const remarkPlugins = useMemo(() => [remarkGfm, [remarkMath, { singleDollarTextMath: false }]] as any, []);
+  const remarkPlugins = useMemo(() => [remarkGfm, remarkCjkFriendly, [remarkMath, { singleDollarTextMath: false }]] as any, []);
   const rehypePlugins = useMemo(() => [rehypeKatex], []);
 
   return (
