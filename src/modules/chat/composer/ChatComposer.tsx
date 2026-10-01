@@ -64,6 +64,7 @@ type ChatComposerProps = {
   onSelectEffort: (effort: string) => void;
   model: string;
   availableModelOptions: ProviderModelOption[];
+  modelCatalogNotice?: string;
   onSelectModel: (model: string) => void;
   modelsLoading: boolean;
   tokenBudget: Record<string, unknown> | null;
@@ -144,6 +145,7 @@ export default function ChatComposer({
   onSelectEffort,
   model,
   availableModelOptions,
+  modelCatalogNotice,
   onSelectModel,
   modelsLoading,
   tokenBudget,
@@ -498,6 +500,7 @@ export default function ChatComposer({
               onSelectEffort={onSelectEffort}
               model={model}
               modelOptions={availableModelOptions}
+              modelNotice={modelCatalogNotice}
               onSelectModel={onSelectModel}
               modelsLoading={modelsLoading}
             />

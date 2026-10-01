@@ -3,11 +3,33 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { closeConnection, initializeDatabase } from '@/modules/database/index.js';
 
 import {
   CodexProviderModels,
   CODEX_PREDEFINED_MODELS,
 } from '@/modules/providers/list/codex/codex-models.provider.js';
+
+async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promise<void> {
+  const previousDatabasePath = process.env.DATABASE_PATH;
+  const tempDirectory = await mkdtemp(path.join(os.tmpdir(), 'codex-models-db-'));
+  const databasePath = path.join(tempDirectory, 'auth.db');
+
+  closeConnection();
+  process.env.DATABASE_PATH = databasePath;
+  await initializeDatabase();
+
+  try {
+    await runTest();
+  } finally {
+    closeConnection();
+    if (previousDatabasePath === undefined) {
+      delete process.env.DATABASE_PATH;
+    } else {
+      process.env.DATABASE_PATH = previousDatabasePath;
+    }
+  }
+}
 
 const writeTempCodexConfig = async (
   configBody: string,
@@ -21,7 +43,7 @@ const writeTempCodexConfig = async (
   return path.join(homeDir, 'config.toml');
 };
 
-test('Codex falls back to the curated catalog when no config file exists', async () => {
+test('Codex falls back to the curated catalog when no config file exists', async () => withIsolatedDatabase(async () => {
   const configPath = path.join(await mkdtemp(path.join(os.tmpdir(), 'codex-models-empty-')), 'config.toml');
   const adapter = new CodexProviderModels(configPath);
 
@@ -30,10 +52,11 @@ test('Codex falls back to the curated catalog when no config file exists', async
     (await adapter.getCurrentActiveModel()).model,
     CODEX_PREDEFINED_MODELS.DEFAULT,
   );
-});
+}));
 
-test('Codex surfaces the CC Switch catalog models with the configured model first', async () => {
+test('Codex surfaces the CC Switch catalog models with the configured model first', async () => withIsolatedDatabase(async () => {
   const catalog = JSON.stringify({
+    notice: 'Advanced points / million tokens; parentheses are input to output.',
     models: [
       {
         slug: 'deepseek-v4-flash',
@@ -77,6 +100,7 @@ test('Codex surfaces the CC Switch catalog models with the configured model firs
   );
   assert.equal(models.OPTIONS[0]?.effort?.default, 'high');
   assert.equal(models.DEFAULT, 'deepseek-v4-flash');
+  assert.equal(models.notice, 'Advanced points / million tokens; parentheses are input to output.');
 
   // The second catalog entry follows, then the curated GPT models (deduped).
   assert.equal(models.OPTIONS[1]?.value, 'deepseek-v4-pro');
@@ -87,9 +111,9 @@ test('Codex surfaces the CC Switch catalog models with the configured model firs
   );
 
   assert.equal((await adapter.getCurrentActiveModel()).model, 'deepseek-v4-flash');
-});
+}));
 
-test('Codex keeps the curated label when the configured model is a predefined one', async () => {
+test('Codex keeps the curated label when the configured model is a predefined one', async () => withIsolatedDatabase(async () => {
   const configPath = await writeTempCodexConfig('model = "gpt-5.6-sol"\n');
   const adapter = new CodexProviderModels(configPath);
 
@@ -103,9 +127,9 @@ test('Codex keeps the curated label when the configured model is a predefined on
     models.OPTIONS.filter((option) => option.value === 'gpt-5.6-sol').length,
     1,
   );
-});
+}));
 
-test('Codex does not hoist a curated configured model above the curated order', async () => {
+test('Codex does not hoist a curated configured model above the curated order', async () => withIsolatedDatabase(async () => {
   const configPath = await writeTempCodexConfig('model = "gpt-5.5"\n');
   const adapter = new CodexProviderModels(configPath);
 
@@ -119,9 +143,9 @@ test('Codex does not hoist a curated configured model above the curated order', 
   assert.equal(models.OPTIONS[0]?.value, 'gpt-6-astra');
   assert.equal(models.DEFAULT, 'gpt-5.5');
   assert.equal((await adapter.getCurrentActiveModel()).model, 'gpt-5.5');
-});
+}));
 
-test('Codex renders a curated model in place when the catalog JSON also lists it', async () => {
+test('Codex renders a curated model in place when the catalog JSON also lists it', async () => withIsolatedDatabase(async () => {
   const catalog = JSON.stringify({
     models: [
       {
@@ -158,9 +182,9 @@ test('Codex renders a curated model in place when the catalog JSON also lists it
     1,
   );
   assert.equal(models.DEFAULT, 'gpt-5.6-sol');
-});
+}));
 
-test('Codex mirrors model_reasoning_effort onto a curated configured model', async () => {
+test('Codex mirrors model_reasoning_effort onto a curated configured model', async () => withIsolatedDatabase(async () => {
   const configPath = await writeTempCodexConfig(
     ['model = "gpt-5.6-sol"', 'model_reasoning_effort = "xhigh"'].join('\n'),
   );
@@ -170,9 +194,9 @@ test('Codex mirrors model_reasoning_effort onto a curated configured model', asy
 
   const sol = models.OPTIONS.find((option) => option.value === 'gpt-5.6-sol');
   assert.equal(sol?.effort?.default, 'xhigh');
-});
+}));
 
-test('Codex still lists a configured model that is missing from the catalog JSON', async () => {
+test('Codex still lists a configured model that is missing from the catalog JSON', async () => withIsolatedDatabase(async () => {
   const configPath = await writeTempCodexConfig(
     [
       'model_provider = "custom"',
@@ -189,9 +213,9 @@ test('Codex still lists a configured model that is missing from the catalog JSON
   assert.equal(models.OPTIONS[0]?.description, 'Configured in ~/.codex/config.toml');
   assert.equal(models.DEFAULT, 'deepseek-v4-flash');
   assert.ok(models.OPTIONS.some((option) => option.value === 'gpt-5.6-sol'));
-});
+}));
 
-test('Codex keeps the curated default when the config sets no model', async () => {
+test('Codex keeps the curated default when the config sets no model', async () => withIsolatedDatabase(async () => {
   const configPath = await writeTempCodexConfig('model_provider = "custom"\n');
   const adapter = new CodexProviderModels(configPath);
 
@@ -199,9 +223,9 @@ test('Codex keeps the curated default when the config sets no model', async () =
 
   assert.deepEqual(models, CODEX_PREDEFINED_MODELS);
   assert.equal((await adapter.getCurrentActiveModel()).model, CODEX_PREDEFINED_MODELS.DEFAULT);
-});
+}));
 
-test('Codex ignores malformed catalog JSON without breaking the model list', async () => {
+test('Codex ignores malformed catalog JSON without breaking the model list', async () => withIsolatedDatabase(async () => {
   const configPath = await writeTempCodexConfig(
     [
       'model = "deepseek-v4-flash"',
@@ -215,4 +239,4 @@ test('Codex ignores malformed catalog JSON without breaking the model list', asy
 
   assert.equal(models.OPTIONS[0]?.value, 'deepseek-v4-flash');
   assert.equal(models.DEFAULT, 'deepseek-v4-flash');
-});
+}));

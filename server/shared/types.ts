@@ -123,6 +123,8 @@ export type ProviderModelOption = {
 export type ProviderModelsDefinition = {
   OPTIONS: ProviderModelOption[];
   DEFAULT: string;
+  /** Optional provider-specific note displayed alongside the model list. */
+  notice?: string;
 };
 
 /**
