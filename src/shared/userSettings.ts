@@ -1,6 +1,8 @@
 import { api } from '@/shared/api';
 import { CODE_EDITOR_STORAGE_KEYS } from '@/shared/constants';
-import type { PastedUserTheme, QuickReply } from '@/shared/types';
+import type { FontSettingsState, PastedUserTheme, QuickReply } from '@/shared/types';
+import { readLegacyProviderModelSettings } from '@/shared/providerModelSettings';
+import type { ProviderModelSettings } from '@/shared/providerModelSettings';
 
 /**
  * The one reader and writer for the settings that used to live in browser
@@ -62,6 +64,8 @@ export type UserPreferences = {
   /** The composer's saved snippets; only `@/shared/quickReplies` reads or writes them. */
   quickReplies: QuickReply[];
   selectedProvider: string;
+  fontSettings: FontSettingsState;
+  providerModelSettings: ProviderModelSettings;
 };
 
 export type UserPreferenceKey = keyof UserPreferences;
@@ -125,6 +129,10 @@ const LEGACY_STORAGE_KEYS: Record<UserPreferenceKey, string> = {
   // rendered from i18n instead of being frozen into the user's own list.
   quickReplies: '',
   selectedProvider: 'selected-provider',
+  // Migrated from the six legacy `fontSettings.*` keys.
+  fontSettings: '',
+  // Migrated from provider-specific `*-model` and `*-effort` keys.
+  providerModelSettings: '',
 };
 
 const PREFERENCE_KEYS = Object.keys(LEGACY_STORAGE_KEYS) as UserPreferenceKey[];
@@ -332,6 +340,19 @@ function readLegacyPreference(key: UserPreferenceKey): unknown {
  * They were stored as four separate strings, so unlike every other legacy
  * value there is nothing to `JSON.parse` — hence the dedicated reader.
  */
+function readLegacyFontSettings(): unknown {
+  try {
+    const settings: Record<string, string> = {};
+    for (const key of ['uiFontSize', 'terminalFontSize', 'fontFamily', 'codeFontSize', 'codeFontFamily', 'terminalFontFamily']) {
+      const value = localStorage.getItem(`fontSettings.${key}`);
+      if (value !== null) settings[key] = value;
+    }
+    return Object.keys(settings).length > 0 ? settings : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function readLegacyCodeEditorSettings(): unknown {
   try {
     const wordWrap = localStorage.getItem(CODE_EDITOR_STORAGE_KEYS.wordWrap);
@@ -387,7 +408,11 @@ export async function hydrateUserPreferences(): Promise<void> {
 
     const legacyValue = key === 'codeEditorSettings'
       ? readLegacyCodeEditorSettings()
-      : readLegacyPreference(key);
+      : key === 'fontSettings'
+        ? readLegacyFontSettings()
+        : key === 'providerModelSettings'
+          ? readLegacyProviderModelSettings()
+          : readLegacyPreference(key);
 
     if (legacyValue !== undefined) {
       migrated[key] = legacyValue;

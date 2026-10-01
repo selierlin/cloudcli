@@ -6,6 +6,7 @@ import { beforeEach, test, vi } from 'vitest';
 
 import AppearanceSettingsTab from '@/modules/settings/tabs/AppearanceSettingsTab';
 import { ThemeProvider } from '@/shared/context/ThemeContext';
+import { readFontSettings } from '@/shared/fontSettings';
 import { resetUserPreferences } from '@/shared/userSettings';
 
 /**
@@ -95,6 +96,9 @@ test('picking a face stores it where the terminal reads settings from', () => {
 
   fireEvent.change(select, { target: { value: 'fira-code' } });
 
-  assert.equal(localStorage.getItem('fontSettings.terminalFontFamily'), 'fira-code');
+  // The store is the server-backed user preference (synced across devices),
+  // not a bare localStorage key: `readFontSettings` is the same reader the
+  // terminal's font stack resolution goes through.
+  assert.equal(readFontSettings().terminalFontFamily, 'fira-code');
   assert.equal(terminalFontSelect(container).value, 'fira-code');
 });

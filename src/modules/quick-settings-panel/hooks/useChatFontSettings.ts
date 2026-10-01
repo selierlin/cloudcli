@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 
-import { FONT_SETTINGS_CHANGED_EVENT, readFontSettings, writeFontSettings } from '@/shared/utils';
+import { FONT_SETTINGS_CHANGED_EVENT } from '@/shared/utils';
+import { readFontSettings, writeFontSettings } from '@/shared/fontSettings';
+import { USER_PREFERENCES_CHANGED_EVENT } from '@/shared/userSettings';
 import type { CodeFontFamilyId, FontFamilyId, FontSettingsState, TerminalFontFamilyId } from '@/shared/types';
 
 /**
@@ -18,7 +20,11 @@ export function useChatFontSettings() {
   useEffect(() => {
     const sync = () => setState(readFontSettings());
     window.addEventListener(FONT_SETTINGS_CHANGED_EVENT, sync);
-    return () => window.removeEventListener(FONT_SETTINGS_CHANGED_EVENT, sync);
+    window.addEventListener(USER_PREFERENCES_CHANGED_EVENT, sync);
+    return () => {
+      window.removeEventListener(FONT_SETTINGS_CHANGED_EVENT, sync);
+      window.removeEventListener(USER_PREFERENCES_CHANGED_EVENT, sync);
+    };
   }, []);
 
   const setUiFontSize = (value: string) => {

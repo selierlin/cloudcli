@@ -263,3 +263,77 @@ test('a pinned value does not leak past a sign-out', async () => {
   const mirror = JSON.parse(localStorage.getItem('user-preferences') ?? '{}') as Record<string, unknown>;
   assert.equal(mirror.themeId, 'paste-1', 'the next user did not ask for the previous one\'s reset');
 });
+
+
+test('hydrate migrates legacy fonts and provider model choices into user preferences', async () => {
+  localStorage.setItem('fontSettings.uiFontSize', '18');
+  localStorage.setItem('fontSettings.fontFamily', 'system');
+  localStorage.setItem('fontSettings.terminalFontFamily', 'fira-code');
+  localStorage.setItem('claude-model', 'sonnet');
+  localStorage.setItem('claude-effort', 'high');
+  localStorage.setItem('codex-model', 'gpt-5.4');
+
+  const store = await loadStore();
+  await store.hydrateUserPreferences();
+
+  assert.deepEqual(store.readUserPreference('fontSettings', null), {
+    uiFontSize: '18',
+    fontFamily: 'system',
+    terminalFontFamily: 'fira-code',
+  });
+  assert.deepEqual(store.readUserPreference('providerModelSettings', null), {
+    claude: { model: 'sonnet', effort: 'high' },
+    codex: { model: 'gpt-5.4' },
+  });
+
+  await vi.advanceTimersByTimeAsync(500);
+  assert.deepEqual(saved, [{
+    fontSettings: {
+      uiFontSize: '18',
+      fontFamily: 'system',
+      terminalFontFamily: 'fira-code',
+    },
+    providerModelSettings: {
+      claude: { model: 'sonnet', effort: 'high' },
+      codex: { model: 'gpt-5.4' },
+    },
+  }]);
+});
+
+test('server font and model preferences take precedence over legacy browser values', async () => {
+  localStorage.setItem('fontSettings.uiFontSize', '18');
+  localStorage.setItem('claude-model', 'sonnet');
+  serverPreferences = {
+    fontSettings: { uiFontSize: '16' },
+    providerModelSettings: { claude: { model: 'opus' } },
+  };
+
+  const store = await loadStore();
+  await store.hydrateUserPreferences();
+
+  assert.deepEqual(store.readUserPreference('fontSettings', null), { uiFontSize: '16' });
+  assert.deepEqual(store.readUserPreference('providerModelSettings', null), {
+    claude: { model: 'opus' },
+  });
+  assert.deepEqual(saved, []);
+});
+
+test('font readers use the server-backed preference and writers update it', async () => {
+  const store = await loadStore();
+  const fontSettings = await import('@/shared/fontSettings');
+  const chosen = {
+    uiFontSize: '18',
+    terminalFontSize: '15',
+    fontFamily: 'system' as const,
+    codeFontSize: '14',
+    codeFontFamily: 'fira-code' as const,
+    terminalFontFamily: 'fira-code' as const,
+  };
+
+  fontSettings.writeFontSettings(chosen);
+  assert.deepEqual(fontSettings.readFontSettings(), chosen);
+  assert.deepEqual(store.readUserPreference('fontSettings', null), chosen);
+
+  await vi.advanceTimersByTimeAsync(500);
+  assert.deepEqual(saved, [{ fontSettings: chosen }]);
+});
