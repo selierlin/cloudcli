@@ -1,6 +1,9 @@
 import React, { memo, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
+// The `parseOnly` entry, not the default one: rendering never serializes an mdast
+// back to Markdown, so this keeps the serializer out of the client bundle.
+import remarkCjkFriendly from 'remark-cjk-friendly/parseOnly';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -267,7 +270,15 @@ function MarkdownBodyRenderer({ children, breaks = false }: Omit<MarkdownProps, 
   const hasMath = useMemo(() => MATH_DELIMITER.test(content), [content]);
   const remarkPlugins = useMemo(
     () => {
-      const plugins: unknown[] = [remarkGfm];
+      // CommonMark's emphasis flanking rules assume space-separated words, so a
+      // bold run that ends in punctuation and is followed by a CJK character
+      // never closes: in `**…"**的` the closing `**` is preceded by punctuation
+      // but followed by `的`, which is neither whitespace nor punctuation, so it
+      // is not right-flanking and the asterisks render literally. Chinese text
+      // hits this constantly because it puts punctuation inside the emphasis and
+      // no space after it. remarkCjkFriendly relaxes the rule only where a CJK
+      // character or CJK punctuation is adjacent, leaving other text untouched.
+      const plugins: unknown[] = [remarkGfm, remarkCjkFriendly];
       if (hasMath) {
         plugins.push([remarkMath, { singleDollarTextMath: false }]);
       }
