@@ -19,6 +19,13 @@ export type UserThemeFormat = 'css' | 'json' | 'tmTheme';
 /** How far a theme says it reaches; mirrors `ThemeManifest['coverage']`. */
 export type UserThemeCoverage = 'accent' | 'full';
 
+/**
+ * The localized display names the folder's shared `index.json` may give a
+ * theme. Either language is optional; the picker labels the option with `zh`
+ * when present and shows `en` as its second line when it differs.
+ */
+export type UserThemeDisplayName = { zh?: string; en?: string };
+
 /** One theme file the server offers. */
 export type UserThemeEntry = {
   /** `user-<lowercased filename base>`, the value written to `<html data-theme>`. */
@@ -37,6 +44,12 @@ export type UserThemeEntry = {
   coverage?: UserThemeCoverage;
   /** Last-modified time in ms; the cache-busting `?v=` and the "did it change" check. */
   modifiedAt: number;
+  /** Localized names from the folder's `index.json`; absent when it says nothing. */
+  displayName?: UserThemeDisplayName;
+  /** Who made the theme, as `index.json` says; free text, shown verbatim. */
+  author?: string;
+  /** Where the theme comes from; shown as a link when it is an http(s) URL. */
+  inspiredBy?: string;
 };
 
 /**
@@ -109,6 +122,23 @@ function readEntry(value: unknown): UserThemeEntry | null {
   };
   if (COVERAGES.has(value.coverage as UserThemeCoverage)) {
     entry.coverage = value.coverage as UserThemeCoverage;
+  }
+  // The metadata fields are read like `coverage` is: leniently, because they
+  // only decide what the picker labels and where it points. A wrong shape
+  // means no label rather than a lost theme.
+  if (isRecord(value.displayName)) {
+    const displayName: UserThemeDisplayName = {};
+    if (typeof value.displayName.zh === 'string' && value.displayName.zh) {
+      displayName.zh = value.displayName.zh;
+    }
+    if (typeof value.displayName.en === 'string' && value.displayName.en) {
+      displayName.en = value.displayName.en;
+    }
+    if (displayName.zh || displayName.en) entry.displayName = displayName;
+  }
+  if (typeof value.author === 'string' && value.author) entry.author = value.author;
+  if (typeof value.inspiredBy === 'string' && value.inspiredBy) {
+    entry.inspiredBy = value.inspiredBy;
   }
   return entry;
 }

@@ -373,3 +373,114 @@ test('a symlink inside the themes folder is followed; one that leaves it is not'
   assert.equal(served.status, 'invalid', 'the serving route holds the same line');
   assert.equal((await readThemeFile(themesDir, 'alias.css')).status, 'found');
 });
+
+test('index.json labels the themes and is itself never listed', async () => {
+  const themesDir = await scratchThemesDir();
+  await writeTheme(themesDir, 'tui.css', '[data-theme="user-tui"] { --primary: 1 2% 3%; }');
+  await writeTheme(themesDir, 'plain.css', '[data-theme="user-plain"] { --primary: 1 2% 3%; }');
+  await writeTheme(
+    themesDir,
+    'index.json',
+    JSON.stringify({
+      // The key is matched case-insensitively against the filename base.
+      TUI: {
+        name: { zh: '字符终端', en: 'TUI' },
+        author: 'selier',
+        inspiredBy: 'https://github.com/refact0r/system24',
+      },
+      'no-such-theme': { name: { zh: '幽灵' } },
+    }),
+  );
+
+  let entries: Awaited<ReturnType<typeof scanThemeFiles>> = [];
+  const warnings = await warningsFrom(async () => {
+    entries = await scanThemeFiles(themesDir);
+  });
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+
+  assert.deepEqual(entries.map((entry) => entry.id), ['user-plain', 'user-tui'],
+    'the metadata file is not a theme and never reaches the listing');
+  const labeled = byId.get('user-tui');
+  assert.deepEqual(labeled?.displayName, { zh: '字符终端', en: 'TUI' });
+  assert.equal(labeled?.author, 'selier');
+  assert.equal(labeled?.inspiredBy, 'https://github.com/refact0r/system24');
+  // `name` stays the file-derived one: the resolver's manifest does not wear
+  // the localized label.
+  assert.equal(labeled?.name, 'tui');
+  // A key with no matching theme is simply nothing — themes come and go.
+  assert.equal(byId.get('user-no-such-theme'), undefined);
+  assert.equal(warnings.some((warning) => warning.includes('no-such-theme')), false,
+    'an entry for an absent theme is not a problem to report');
+  // Without metadata, every optional field is absent rather than fabricated.
+  assert.equal(byId.get('user-plain')?.displayName, undefined);
+  assert.equal(byId.get('user-plain')?.author, undefined);
+  assert.equal(byId.get('user-plain')?.inspiredBy, undefined);
+});
+
+test('a broken index.json costs the labels, not the listing', async () => {
+  const themesDir = await scratchThemesDir();
+  await writeTheme(themesDir, 'tui.css', '[data-theme="user-tui"] { --primary: 1 2% 3%; }');
+  await writeTheme(themesDir, 'index.json', '{ "tui": unterminated');
+
+  const brokenDir = await scratchThemesDir();
+  await writeTheme(brokenDir, 'tui.css', '[data-theme="user-tui"] { --primary: 1 2% 3%; }');
+  await writeTheme(brokenDir, 'index.json', '["an", "array"]');
+
+  let entries: Awaited<ReturnType<typeof scanThemeFiles>> = [];
+  const warnings = await warningsFrom(async () => {
+    entries = await scanThemeFiles(themesDir);
+  });
+  const arrayEntries = await scanThemeFiles(brokenDir);
+
+  assert.deepEqual(entries.map((entry) => entry.id), ['user-tui'],
+    'the theme survives its metadata file');
+  assert.equal(entries[0].displayName, undefined);
+  assert.ok(
+    warnings.some((warning) => warning.includes('index.json') && warning.includes('not readable JSON')),
+    `the reason is said out loud (saw: ${warnings.join(' | ')})`,
+  );
+  assert.deepEqual(arrayEntries.map((entry) => entry.id), ['user-tui'],
+    'a non-object root is the same broken-metadata state');
+});
+
+test('index.json drops malformed and oversized values without sinking the entry', async () => {
+  const themesDir = await scratchThemesDir();
+  await writeTheme(themesDir, 'tui.css', '[data-theme="user-tui"] { --primary: 1 2% 3%; }');
+  await writeTheme(themesDir, 'odd.css', '[data-theme="user-odd"] { --primary: 1 2% 3%; }');
+  await writeTheme(
+    themesDir,
+    'index.json',
+    JSON.stringify({
+      tui: {
+        name: { zh: '好名字', en: 'x'.repeat(81) },
+        author: 'x'.repeat(81),
+        inspiredBy: 'x'.repeat(301),
+      },
+      odd: 'not an object',
+    }),
+  );
+
+  let entries: Awaited<ReturnType<typeof scanThemeFiles>> = [];
+  const warnings = await warningsFrom(async () => {
+    entries = await scanThemeFiles(themesDir);
+  });
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+
+  const labeled = byId.get('user-tui');
+  assert.deepEqual(labeled?.displayName, { zh: '好名字' },
+    'an over-long language is dropped, the one that fits stays');
+  assert.equal(labeled?.author, undefined, 'an over-long author is dropped');
+  assert.equal(labeled?.inspiredBy, undefined, 'an over-long inspiredBy is dropped');
+  assert.equal(byId.get('user-odd')?.displayName, undefined);
+  assert.ok(
+    warnings.some((warning) => warning.includes('odd') && warning.includes('not an object')),
+    `a malformed entry is named (saw: ${warnings.join(' | ')})`,
+  );
+});
+
+test('index.json is refused by the serving route like any non-theme', async () => {
+  const themesDir = await scratchThemesDir();
+  await writeTheme(themesDir, 'index.json', '{ "tui": {} }');
+
+  assert.equal((await readThemeFile(themesDir, 'index.json')).status, 'invalid');
+});

@@ -27,7 +27,9 @@ export type ThemeFileFormat = 'css' | 'json' | 'tmTheme';
  * One theme file offered to the client. A `.json` file's own `name` and
  * `coverage` are read out of it, and a `.tmTheme`'s top-level `name` and the
  * `coverage` claim inside its `cloudcli` key likewise; everything else is
- * derived from the filename.
+ * derived from the filename. The optional metadata fields come from the
+ * folder's shared `index.json` (see `THEME_METADATA_FILE_NAME`), never from a
+ * theme file itself.
  */
 export type ThemeFileEntry = {
   /**
@@ -57,7 +59,32 @@ export type ThemeFileEntry = {
   coverage?: 'accent' | 'full';
   /** Last-modified time in ms; the client uses it as the cache-busting `?v=`. */
   modifiedAt: number;
-};
+  /**
+   * The localized display names the folder's `index.json` gives this theme,
+   * when it does. `name` above stays the file's own declared (or filename)
+   * name; this is the picker's localized override and never lands in the
+   * resolver's manifest.
+   */
+  displayName?: ThemeDisplayName;
+  /** Who made the theme, as `index.json` says. Free text, shown verbatim. */
+  author?: string;
+  /** Where the theme comes from, as `index.json` says. Shown as a link when it is an http(s) URL. */
+  inspiredBy?: string;
+}
+
+/**
+ * The display names a theme may carry in the folder's `index.json`. Either
+ * language is optional; the client labels the option with `zh` when present,
+ * and shows `en` as the option's second line when it differs.
+ */
+export type ThemeDisplayName = { zh?: string; en?: string };
+
+/** What one entry of the folder's `index.json` may say about a theme. */
+export type ThemeFileMetadata = {
+  displayName?: ThemeDisplayName;
+  author?: string;
+  inspiredBy?: string;
+};;
 
 /** §5.8 size cap, enforced both when listing and when serving. */
 const MAX_THEME_FILE_BYTES = 256 * 1024;
@@ -82,6 +109,23 @@ const COVERAGES = new Set(['accent', 'full']);
  * label, not an unbounded string off disk.
  */
 const MAX_DECLARED_NAME_LENGTH = 80;
+
+/**
+ * The folder's shared metadata file: one JSON object keyed by filename base
+ * (case-insensitively) holding each theme's display names and provenance. It
+ * is a reserved name — skipped by the listing, refused by the serving route —
+ * because it describes themes rather than being one.
+ */
+export const THEME_METADATA_FILE_NAME = 'index.json';
+
+/** The theme cap keeps a theme file bounded; the metadata file is not a theme, but the same instinct applies at a smaller scale. */
+const MAX_METADATA_FILE_BYTES = 64 * 1024;
+
+/** Longest `author` string read out of `index.json`; the same logic as the name cap. */
+const MAX_AUTHOR_LENGTH = 80;
+
+/** Longest `inspiredBy` string; long enough for any URL worth showing, short enough to lay out. */
+const MAX_INSPIRED_BY_LENGTH = 300;
 
 /** What a theme file says about itself, beyond what its filename already tells us. */
 type DeclaredMetadata = { name?: string; coverage?: 'accent' | 'full' };
@@ -217,6 +261,95 @@ const EXTENSION_TO_FORMAT: Record<string, ThemeFileFormat> = {
   '.json': 'json',
   '.tmtheme': 'tmTheme',
 };
+
+/**
+ * Reads one localized display name out of an `index.json` entry. Either
+ * language is optional; a value that is not a string within the name cap is
+ * dropped, and an object with neither language left is no name at all.
+ */
+function readDisplayName(value: unknown): ThemeDisplayName | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  const displayName: ThemeDisplayName = {};
+  for (const lang of ['zh', 'en'] as const) {
+    const name = typeof record[lang] === 'string' ? record[lang].trim() : '';
+    if (name && name.length <= MAX_DECLARED_NAME_LENGTH) displayName[lang] = name;
+  }
+  return displayName.zh || displayName.en ? displayName : undefined;
+}
+
+/**
+ * Reads one entry of `index.json`. A malformed entry is warned about and
+ * skipped rather than sinking the file: one misspelled theme key should not
+ * cost the others their labels.
+ */
+function readMetadataEntry(fileName: string, key: string, value: unknown): ThemeFileMetadata | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    console.warn(`[Themes] ${fileName}: the entry for "${key}" is not an object; skipping it`);
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  const metadata: ThemeFileMetadata = {};
+
+  const displayName = readDisplayName(record.name);
+  if (displayName) metadata.displayName = displayName;
+
+  const author = typeof record.author === 'string' ? record.author.trim() : '';
+  if (author && author.length <= MAX_AUTHOR_LENGTH) metadata.author = author;
+
+  const inspiredBy = typeof record.inspiredBy === 'string' ? record.inspiredBy.trim() : '';
+  if (inspiredBy) {
+    if (inspiredBy.length <= MAX_INSPIRED_BY_LENGTH) {
+      metadata.inspiredBy = inspiredBy;
+    } else {
+      console.warn(`[Themes] ${fileName}: "inspiredBy" for "${key}" is past the length cap; dropping it`);
+    }
+  }
+
+  return metadata.author || metadata.inspiredBy || metadata.displayName
+    ? metadata
+    : undefined;
+}
+
+/**
+ * Reads the folder's `index.json`, if it is there and parseable, into metadata
+ * keyed by lowercased filename base. Everything that can be wrong — a missing
+ * file, unreadable JSON, a non-object root — degrades to an empty map with a
+ * warning, because a broken metadata file must not cost the themes their
+ * listing; it only ever changes what the picker labels them.
+ */
+async function readThemeMetadata(themesDir: string): Promise<Map<string, ThemeFileMetadata>> {
+  const metadata = new Map<string, ThemeFileMetadata>();
+  const fileName = THEME_METADATA_FILE_NAME;
+  let body: string;
+  try {
+    body = await fs.readFile(path.join(themesDir, fileName), 'utf8');
+  } catch {
+    return metadata;
+  }
+  if (Buffer.byteLength(body, 'utf8') > MAX_METADATA_FILE_BYTES) {
+    console.warn(`[Themes] ${fileName} is larger than ${MAX_METADATA_FILE_BYTES} bytes; ignoring it`);
+    return metadata;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    console.warn(`[Themes] ${fileName} is not readable JSON; the themes lose their labels`);
+    return metadata;
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    console.warn(`[Themes] ${fileName} is not a JSON object; the themes lose their labels`);
+    return metadata;
+  }
+
+  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+    const entry = readMetadataEntry(fileName, key, value);
+    if (entry) metadata.set(key.toLowerCase(), entry);
+  }
+  return metadata;
+}
 
 /** Content type per format; `.tmTheme` is a plist, which `mime-types` does not know. */
 const FORMAT_TO_CONTENT_TYPE: Record<ThemeFileFormat, string> = {
@@ -393,9 +526,17 @@ export async function scanThemeFiles(themesDir: string): Promise<ThemeFileEntry[
     return [];
   }
 
+  // The metadata file is read once per scan; a theme file's entry picks up
+  // whatever this map holds under its base. A missing or broken file is an
+  // empty map, which is the plain no-metadata state.
+  const metadata = await readThemeMetadata(themesDir);
+
   const entries: ThemeFileEntry[] = [];
   const takenIds = new Set<string>();
   for (const name of [...names].sort(compareThemeFileNames)) {
+    // The shared metadata file describes themes, so it is not one; listing it
+    // would put a phantom `user-index` entry in the picker.
+    if (name === THEME_METADATA_FILE_NAME) continue;
     const entry = await inspectThemeFile(themesDir, name);
     if (!entry) continue;
     if (takenIds.has(entry.id)) {
@@ -403,6 +544,12 @@ export async function scanThemeFiles(themesDir: string): Promise<ThemeFileEntry[
       continue;
     }
     takenIds.add(entry.id);
+    const declared = metadata.get(entry.id.slice(USER_THEME_ID_PREFIX.length));
+    if (declared) {
+      if (declared.displayName) entry.displayName = declared.displayName;
+      if (declared.author) entry.author = declared.author;
+      if (declared.inspiredBy) entry.inspiredBy = declared.inspiredBy;
+    }
     entries.push(entry);
   }
   return entries;
@@ -415,6 +562,10 @@ export async function scanThemeFiles(themesDir: string): Promise<ThemeFileEntry[
  * 404, `found` → the raw bytes with their content type.
  */
 export async function readThemeFile(themesDir: string, fileName: string) {
+  // The metadata file is reserved: the listing never offers it, so nothing in
+  // the client asks to serve it, and a direct request gets the same answer as
+  // any other name that is not a theme.
+  if (fileName === THEME_METADATA_FILE_NAME) return { status: 'invalid' as const };
   const filePath = resolveThemeFilePath(themesDir, fileName);
   const format = themeFileFormat(fileName);
   if (!filePath || !format) return { status: 'invalid' as const };

@@ -2054,6 +2054,14 @@ export type ThemeManifest = {
   /** Display name for the theme selector. */
   name: string;
   /**
+   * Latin-script companion to `name` (`Dracula` for `德古拉`), shown as the
+   * option's second line: these community themes are known by their English
+   * names in every editor, so the selector reports both. A user theme carries
+   * no companion — its file declares one name only — which is why this is
+   * optional and spread conditionally wherever a manifest is assembled.
+   */
+  nameEn?: string;
+  /**
    * Which appearance this manifest defines. The light/dark/system capsule stays the *only*
    * appearance control (it alone writes `<html class="dark">` and `color-scheme`), so the field
    * names the role a theme plays rather than a switch it flips:
@@ -2084,6 +2092,11 @@ export type ThemeManifest = {
   author?: string;
   /** Optional description, shown for user themes. */
   description?: string;
+  /**
+   * Optional provenance, from the themes folder's `index.json`: where the theme
+   * comes from. Shown as a link when it is an http(s) URL, as plain text otherwise.
+   */
+  inspiredBy?: string;
   /**
    * Optional reach: `accent` recolours only the semantic palette, `full` also
    * covers terminal, editor, syntax and graph tokens. The selector shows it as

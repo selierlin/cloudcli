@@ -22,6 +22,12 @@ type ThemeOption = {
    * with it the same way.
    */
   label: string;
+  /**
+   * The Latin-script name shown as the option's second line when the registry
+   * carries one. A user theme's file declares a single name, so its options
+   * show no second line — which is why this is optional.
+   */
+  nameEn?: string;
   /** How far the theme reaches, shown as a badge; absent themes claim nothing. */
   coverage?: 'accent' | 'full';
 };
@@ -47,13 +53,17 @@ function ThemeSelector({ ariaLabel }: ThemeSelectorProps) {
     ...BUILTIN_OVERLAY_THEMES.map((theme) => ({
       id: theme.id,
       label: theme.name,
+      nameEn: theme.nameEn,
       coverage: theme.coverage,
     })),
     // A file-derived theme carries the reach its file declared, and no badge
     // when it declared none (§5.8 v4) — the file is the only thing that can say.
+    // A folder `index.json` may localize the name, which becomes the second
+    // line here exactly as a builtin's `nameEn` does.
     ...userThemes.map((theme) => ({
       id: theme.id,
       label: theme.name,
+      nameEn: theme.nameEn,
       coverage: theme.coverage,
     })),
   ];
@@ -66,16 +76,17 @@ function ThemeSelector({ ariaLabel }: ThemeSelectorProps) {
   const selectedId = options.some((option) => option.id === themeId) ? themeId : null;
 
   return (
-    // Two compact columns on a phone (the row stacks there, so the list owns
-    // the full width); the single narrow column the settings row reserves on
-    // the desktop layout from `sm:` up.
-    <div className="w-full space-y-1.5 sm:w-40">
+    // The list is the row's content rather than a side control, so it owns the
+    // full row width on every layout: two compact columns on a phone, three
+    // from `sm:` up. The registry keeps growing, and the single narrow column
+    // it used to reserve is what made the list read as an endless stripe.
+    <div className="w-full space-y-1.5">
       <div
         role="radiogroup"
         aria-label={ariaLabel ?? t('themeSelector.label')}
-        className="grid grid-cols-2 gap-1 sm:flex sm:flex-col"
+        className="grid grid-cols-2 gap-1 sm:grid-cols-3"
       >
-        {options.map(({ id, label, coverage }) => {
+        {options.map(({ id, label, nameEn, coverage }) => {
           const isActive = id === selectedId;
           return (
             <button
@@ -92,7 +103,12 @@ function ThemeSelector({ ariaLabel }: ThemeSelectorProps) {
                   : 'border-border text-muted-foreground hover:text-foreground',
               )}
             >
-              <span className="truncate">{label}</span>
+              <div className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate">{label}</span>
+                {nameEn && (
+                  <span className="truncate text-xs text-muted-foreground">{nameEn}</span>
+                )}
+              </div>
               {coverage && (
                 <span className="flex-shrink-0 rounded-full border px-1.5 py-px text-[10px] font-medium leading-4">
                   {t(`themeSelector.coverage.${coverage}`)}

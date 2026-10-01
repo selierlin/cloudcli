@@ -55,6 +55,20 @@ import ThemeCssEditor from '@/modules/settings/ThemeCssEditor';
 /** The badge label for a declared reach; the same keys the picker uses. */
 const coverageKey = (coverage: 'accent' | 'full'): string => `themeSelector.coverage.${coverage}`;
 
+/**
+ * The host an `inspiredBy` URL points at, when it is one an anchor may have.
+ * Anything else — a relative scheme, a non-URL — is shown as plain text instead
+ * of becoming an `href`.
+ */
+function inspiredByHost(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.host : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The two formats the paste box can write, in the order they are offered. */
 const PASTE_FORMATS: ReadonlyArray<{ value: PastedThemeFormat; labelKey: string }> = [
   { value: 'json', labelKey: 'userThemes.mode.json' },
@@ -173,24 +187,50 @@ export default function UserThemesSection() {
             <p className="mt-2 text-sm text-muted-foreground">{t('userThemes.files.empty')}</p>
           ) : (
             <ul className="mt-2">
-              {fileThemes.map((theme) => (
-                <li key={theme.id} className={rowClass}>
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="truncate text-sm text-foreground">{theme.name}</span>
-                    {theme.coverage && (
-                      <span className={badgeClass}>{t(coverageKey(theme.coverage))}</span>
-                    )}
-                  </span>
-                  <button
-                    type="button"
-                    aria-pressed={themeId === theme.id}
-                    onClick={() => setThemeId(theme.id)}
-                    className={actionClass}
-                  >
-                    {t(themeId === theme.id ? 'userThemes.inUse' : 'userThemes.use')}
-                  </button>
-                </li>
-              ))}
+              {fileThemes.map((theme) => {
+                const host = theme.inspiredBy ? inspiredByHost(theme.inspiredBy) : null;
+                return (
+                  <li key={theme.id} className={rowClass}>
+                    <span className="flex min-w-0 flex-col">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate text-sm text-foreground">{theme.name}</span>
+                        {theme.coverage && (
+                          <span className={badgeClass}>{t(coverageKey(theme.coverage))}</span>
+                        )}
+                      </span>
+                      {(theme.author || theme.inspiredBy) && (
+                        // The provenance line is deliberately label-free ("作者 ·
+                        // 来源" would need i18n for what a separator says): the
+                        // author is a name, the link text is the host itself.
+                        <span className="truncate text-xs text-muted-foreground">
+                          {theme.author}
+                          {theme.author && theme.inspiredBy ? ' · ' : ''}
+                          {host ? (
+                            <a
+                              href={theme.inspiredBy}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="hover:text-foreground hover:underline"
+                            >
+                              {host}
+                            </a>
+                          ) : (
+                            theme.inspiredBy
+                          )}
+                        </span>
+                      )}
+                    </span>
+                    <button
+                      type="button"
+                      aria-pressed={themeId === theme.id}
+                      onClick={() => setThemeId(theme.id)}
+                      className={actionClass}
+                    >
+                      {t(themeId === theme.id ? 'userThemes.inUse' : 'userThemes.use')}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
           {appliedFileWarnings && <ContrastReport warnings={appliedFileWarnings} />}

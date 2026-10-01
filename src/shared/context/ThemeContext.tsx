@@ -209,8 +209,25 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 
   const userThemes = useMemo(() => {
     const offered = [
-      ...userThemeState.entries.map((entry) =>
-        userThemeManifest(entry.id, entry.name, 'user', entry.coverage)),
+      // The localized names from the folder's `index.json` ride on the manifest
+      // the way the builtin registry's own `name`/`nameEn` pair does: `zh` is
+      // the label, `en` the second line when it differs. Without them the
+      // manifest wears the file-derived name, exactly as before.
+      ...userThemeState.entries.map((entry) => {
+        const displayName = entry.displayName;
+        const manifest = userThemeManifest(
+          entry.id,
+          displayName?.zh ?? displayName?.en ?? entry.name,
+          'user',
+          entry.coverage,
+        );
+        if (displayName?.zh && displayName.en && displayName.zh !== displayName.en) {
+          manifest.nameEn = displayName.en;
+        }
+        if (entry.author) manifest.author = entry.author;
+        if (entry.inspiredBy) manifest.inspiredBy = entry.inspiredBy;
+        return manifest;
+      }),
       ...pastedThemes.map((theme) =>
         userThemeManifest(theme.id, theme.name, 'user-paste', theme.coverage)),
     ];

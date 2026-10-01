@@ -170,8 +170,36 @@ test('a badge is drawn for the reach a file declares, and only then', async () =
   assert.deepEqual(badge('Plain'), [], 'a theme that says nothing about its reach claims nothing');
 });
 
-test('a theme whose stylesheet failed stays on offer and is explained', async () => {
-  listing = listed([entry]);
+test('index.json names label the option the way a builtin nameEn does', async () => {
+  listing = listed([
+    { ...entry, displayName: { zh: '极光', en: 'Borealis' } },
+    { ...entry, id: 'user-en-only', name: 'en-only', fileName: 'en-only.css', displayName: { en: 'Aurora' } },
+    // zh === en would draw the same word twice; one line is the honest render.
+    { ...entry, id: 'user-same', name: 'same', fileName: 'same.css', displayName: { zh: '同名', en: '同名' } },
+  ]);
+  const { container } = await renderPicker(null);
+  await settle();
+
+  const both = optionButton(container, '极光');
+  const lines = [...both.querySelectorAll('span')].map((span) => span.textContent);
+  assert.deepEqual(lines, ['极光', 'Borealis'], 'zh is the label and en the second line');
+
+  const enOnly = optionButton(container, 'Aurora');
+  assert.equal(
+    enOnly.querySelectorAll('span').length,
+    1,
+    'a theme with only an en name labels itself with it and draws no second line',
+  );
+
+  const same = optionButton(container, '同名');
+  assert.equal(
+    same.querySelectorAll('span').length,
+    1,
+    'identical names are one line, not the same word twice',
+  );
+});
+
+test('a theme whose stylesheet failed stays on offer and is explained', async () => {  listing = listed([entry]);
   file = async () => new Response('nope', { status: 404 });
   const { container } = await renderPicker('user-borealis');
   await settle();

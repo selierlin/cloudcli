@@ -123,8 +123,7 @@ test('entries that could not have come from the themes folder are dropped', asyn
   );
 });
 
-test('a declared reach is carried, and one this build does not know costs only the badge', async () => {
-  signIn();
+test('a declared reach is carried, and one this build does not know costs only the badge', async () => {  signIn();
   listing = listingOf([
     entry({ id: 'user-accent', coverage: 'accent' }),
     entry({ id: 'user-full', coverage: 'full' }),
@@ -217,4 +216,36 @@ test('only the server prefix marks an id as one the listing has to confirm', asy
   assert.equal(store.isUserThemeId('user-borealis'), true);
   assert.equal(store.isUserThemeId('cc-ocean'), false);
   assert.equal(store.isUserThemeId(''), false);
+});
+
+test('index.json metadata rides along when shaped right and drops when it is not', async () => {
+  signIn();
+  listing = listingOf([
+    entry({
+      id: 'user-tui',
+      name: 'tui',
+      fileName: 'tui.css',
+      displayName: { zh: '字符终端', en: 'TUI' },
+      author: 'selier',
+      inspiredBy: 'https://github.com/refact0r/system24',
+    }),
+    // Wrong shapes: these only decide labels and links, so the entry survives
+    // with the metadata gone — the same trade `coverage` makes.
+    entry({ id: 'user-odd', displayName: '终端机', author: 42, inspiredBy: ['x'] }),
+    entry({ id: 'user-empty', displayName: {}, author: '', inspiredBy: '' }),
+  ]);
+  const store = await loadStore();
+
+  await store.refreshUserThemes();
+
+  const [tui, odd, empty] = store.getUserThemesState().entries;
+  assert.deepEqual(tui.displayName, { zh: '字符终端', en: 'TUI' });
+  assert.equal(tui.author, 'selier');
+  assert.equal(tui.inspiredBy, 'https://github.com/refact0r/system24');
+  assert.equal(odd.displayName, undefined, 'a name that is not an object is no name');
+  assert.equal(odd.author, undefined);
+  assert.equal(odd.inspiredBy, undefined);
+  assert.equal(empty.displayName, undefined, 'an object with neither language is no name');
+  assert.equal(empty.author, undefined);
+  assert.equal(empty.inspiredBy, undefined);
 });
