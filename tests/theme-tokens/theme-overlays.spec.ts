@@ -671,6 +671,66 @@ test('the overlays that own a syntax board own all of it, and move it', async ({
 });
 
 /**
+ * The terminal board's light half, when a theme declares one.
+ *
+ * No list of which themes split their board is needed, the way the syntax guard
+ * needs one: the base declares the board once, so a theme that says nothing
+ * still gets a board — the same one in both appearances — and a theme that
+ * splits it does so by naming the slots in its `:not(.dark)` block. That
+ * declaration is the shape the per-theme test above is blind to. A slot the
+ * light block omits does not go missing: it falls back to the theme's own
+ * unscoped value, which still resolves as written and still counts as moved off
+ * the base. So a half-declared light half reads as a deliberately dark terminal
+ * on a light page and nothing reports it — that is what this measures.
+ *
+ * The second half — that the split moves something — closes the mirror case, a
+ * light block repeating the dark values verbatim. It is measured between the two
+ * appearances rather than against the base, because a theme may honestly land
+ * one slot on its dark value while moving the rest; what must not happen is that
+ * none of them move.
+ *
+ * What this still does not cover, named so it is not mistaken for covered: a
+ * theme that keeps one board for both appearances is allowed (that is the base's
+ * own shape and `cc-ocean`'s), so deleting a theme's light half outright is
+ * silent here — the assert is conditional on the theme having declared one.
+ */
+test('a theme that splits its terminal board declares the light half in full', async ({ page }) => {
+  await openFixture(page);
+  const base = await read(page, null, 'light');
+  const slots = Object.keys(base.tokens).filter((name) => name.startsWith('--palette-term-'));
+
+  const problems: string[] = [];
+  for (const theme of OVERLAY_THEMES) {
+    // Only what the light-scoped blocks declare, not the merged overlay: a slot
+    // the light half omits is still declared by the theme's unscoped block, so
+    // the merged set cannot tell "the light half named it" from "the dark half
+    // did" — and reading it that way is how the leak this pins goes unnoticed.
+    const lightOnly: Record<string, string> = {};
+    for (const block of findBlocks(theme.id)) {
+      if (block.selector.includes(':not(.dark)')) Object.assign(lightOnly, block.declared);
+    }
+
+    const named = slots.filter((slot) => slot in lightOnly);
+    if (named.length === 0) continue;
+
+    if (named.length !== slots.length) {
+      const missing = slots.filter((slot) => !(slot in lightOnly));
+      problems.push(
+        `${theme.id}: the light half names ${named.length} of ${slots.length} terminal slots, ` +
+          `so the rest read the dark board (missing ${missing.join(', ')})`,
+      );
+    }
+
+    const dark = readOverlay(theme.id, 'dark', {}).declared;
+    if (!slots.some((slot) => slot in dark && dark[slot] !== lightOnly[slot])) {
+      problems.push(`${theme.id}: the light half repeats the dark board, so the split moves nothing`);
+    }
+  }
+
+  expect(problems, `split terminal boards:\n${problems.join('\n')}`).toEqual([]);
+});
+
+/**
  * The variant relation.
  *
  * `cc-onedark-vivid` repeats `cc-onedark`'s three blocks, because the plugin's
