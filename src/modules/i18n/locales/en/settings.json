@@ -212,7 +212,7 @@
     "description": "The two sources beyond the colour themes above: files in the themes folder, and theme content you paste in (token JSON or raw CSS)",
     "files": {
       "title": "From the themes folder",
-      "hint": "Read by the server from ~/.cloudcli/themes/; add or remove them in that folder — only what is there is listed here.",
+      "hint": "Read by the server from ~/.cloudcli/themes/; add or remove them in that folder — only what is there is listed here. Display names and provenance can be declared in an index.json in the same folder.",
       "empty": "No theme files yet. Drop a .css, .json or .tmTheme in there and reload."
     },
     "pastes": {

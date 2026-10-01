@@ -57,13 +57,13 @@ export default function AppearanceSettingsTab({
             <ThemeModeSelector ariaLabel={t('themeMode.label')} />
           </SettingsRow>
 
-          {/* The selector is a two-column grid that owns the full row width on a
-              phone, so this row stacks there and returns to the side-by-side
-              settings-row layout from `sm:` up. */}
+          {/* The selector's grid owns the full row width on every layout, so this
+              row stacks on all sizes rather than reserving a side column like
+              the rows with compact controls do. */}
           <SettingsRow
             label={t('themeSelector.label')}
             description={t('themeSelector.description')}
-            className="flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+            className="flex-col items-stretch gap-2"
           >
             <ThemeSelector ariaLabel={t('themeSelector.label')} />
           </SettingsRow>

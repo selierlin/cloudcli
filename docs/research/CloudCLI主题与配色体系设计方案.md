@@ -680,6 +680,16 @@ rg -o -e 'dark:(bg|text|border|ring|stroke|fill|from|to|via|decoration|placehold
 >
 > **沿革链**：v4 排除 → 2-C 在代码注释里记下"到期条件"（改名轮立项）→ B1 以**收窄立项**兑现（§5.7 的 5 条里第 4/5 条），实现见 `src/shared/userThemeTokens.ts` 的 `FAMILY_RULES` 与 `src/shared/tests/userThemeTokens.test.ts`。
 
+> **v9（2026-10-01 已实施）——目录元数据文件 `index.json`：主题的显示名与出处有了公共声明处。**
+>
+> `~/.cloudcli/themes/index.json` 是**保留文件名**：一个 JSON 对象、键为主题文件名 base（大小写不敏感）、值是该主题的元数据 `{ name: { zh?, en? }, author?, inspiredBy? }`。动机：`.css` 文件无处声明 `name`（v4 的"知道什么说什么"只给了 `.json` / `.tmTheme`），且出处（作者 / 来源）三种格式都没有地方放；用户为此否掉了逐主题 sidecar 方案（"一个主题一个元数据有点多余"），取**全目录一份公共文件**。要点：
+>
+> - **保留名的排除是显式的，不借 dotfile 规则的便。**点文件本就被文件名模式拒绝，但让承重文件搭"意外被拒"的便车，等于把契约押在一个别人将来可能放宽的规则上——故 `scanThemeFiles` 按名跳过、`readThemeFile` 按名拒绝（与其它非主题名同答 400），两处都有测试钉住。
+> - **信任模型与 v4 同族：转述作者的话，且降级永远向"没有标签"落。**文件读不出 / 根不是对象 / 单条不是对象 / 超长（name 80、author 80、inspiredBy 300，文件本体 64KB）——一律告警并丢**该字段或该条**，主题照常列出；坏元数据的代价是"标签没了"，永远不是"主题没了"。
+> - **`name` 字段不回写条目。**条目的 `name` 保持"文件声明的名字或文件名"（resolver 与回落提示消费它），本地化名走新字段 `displayName`：客户端把它映射进 `ThemeManifest` 的 `name`（zh 缺失落 en，再落原 name）与 `nameEn`（zh/en 齐且不同才画第二行——同名画两行是撒谎），与内置注册表的展示位完全同构。
+> - **`inspiredBy` 只有 http(s) 才成为 `<a href>`**，链接文字是 host 本身；其余（含自由文本）按原文展示——作者行刻意做成"作者 · host"的无标签格式，一行 i18n 都不用加；`userThemes.files.hint` 两端各补一句说明本文件的存在（保留文件名漏写静默，必须进提示语）。
+> - **生效时点 = 下次加载。**清单本就"每会话一读"，元数据改动与"运行中新增文件"同口径，不为它加缓存键。
+
 ### 5.9 与既有能力的关系
 
 | 既有能力 | 关系 |

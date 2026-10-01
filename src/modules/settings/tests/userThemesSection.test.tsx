@@ -213,6 +213,42 @@ test('a theme file is listed but cannot be deleted from this page', async () => 
   assert.ok(container.textContent?.includes('userThemes.files.hint'));
 });
 
+test('a file theme\u2019s provenance line names the author and links only an http(s) inspiredBy', async () => {
+  const { container } = await renderSection([
+    {
+      ...fileEntry,
+      displayName: { zh: '极光' },
+      author: 'selier',
+      inspiredBy: 'https://github.com/refact0r/system24',
+    },
+    // A scheme an anchor must not have: shown as text, never as an href.
+    {
+      ...fileEntry,
+      id: 'user-plain',
+      name: 'Plain',
+      fileName: 'plain.css',
+      inspiredBy: 'javascript:alert(1)',
+    },
+  ]);
+
+  const labeled = rowFor(container, '极光');
+  assert.ok(
+    labeled.textContent?.includes('selier'),
+    'the author is shown as plain text beside the name',
+  );
+  const link = labeled.querySelector('a');
+  assert.ok(link, 'an http(s) inspiredBy is a link');
+  assert.equal(link.getAttribute('href'), 'https://github.com/refact0r/system24');
+  assert.equal(link.textContent, 'github.com', 'the link text is the host itself');
+
+  const plain = rowFor(container, 'Plain');
+  assert.equal(plain.querySelector('a'), null, 'a non-http(s) inspiredBy never becomes an href');
+  assert.ok(
+    plain.textContent?.includes('javascript:alert(1)'),
+    'free text is shown verbatim rather than quietly dropped',
+  );
+});
+
 test('a pasted theme can be deleted, and deleting it removes the row', async () => {
   const { container } = await renderSection([], [pasteEntry]);
 

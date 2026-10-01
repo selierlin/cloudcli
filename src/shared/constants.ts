@@ -331,6 +331,7 @@ export const BUILTIN_THEMES: ThemeManifest[] = [
   {
     id: 'cc-light',
     name: '默认（浅色）',
+    nameEn: 'Light',
     appearance: 'light',
     source: 'builtin',
     coverage: 'full',
@@ -338,6 +339,7 @@ export const BUILTIN_THEMES: ThemeManifest[] = [
   {
     id: 'cc-dark',
     name: '默认（深色）',
+    nameEn: 'Dark',
     appearance: 'dark',
     source: 'builtin',
     coverage: 'full',
@@ -345,6 +347,7 @@ export const BUILTIN_THEMES: ThemeManifest[] = [
   {
     id: 'cc-ocean',
     name: '海洋',
+    nameEn: 'Ocean',
     appearance: 'system',
     source: 'builtin',
     coverage: 'accent',
@@ -352,6 +355,7 @@ export const BUILTIN_THEMES: ThemeManifest[] = [
   {
     id: 'cc-polar',
     name: '极地',
+    nameEn: 'Polar',
     appearance: 'system',
     source: 'builtin',
     coverage: 'full',
@@ -359,6 +363,7 @@ export const BUILTIN_THEMES: ThemeManifest[] = [
   {
     id: 'cc-catppuccin',
     name: '卡布奇诺',
+    nameEn: 'Catppuccin',
     appearance: 'system',
     source: 'builtin',
     coverage: 'full',
@@ -366,6 +371,7 @@ export const BUILTIN_THEMES: ThemeManifest[] = [
   {
     id: 'cc-islands',
     name: '岛屿',
+    nameEn: 'Islands',
     appearance: 'system',
     source: 'builtin',
     coverage: 'full',
@@ -373,6 +379,7 @@ export const BUILTIN_THEMES: ThemeManifest[] = [
   {
     id: 'cc-onedark',
     name: '暗夜一号',
+    nameEn: 'One Dark',
     appearance: 'system',
     source: 'builtin',
     coverage: 'full',
@@ -380,6 +387,7 @@ export const BUILTIN_THEMES: ThemeManifest[] = [
   {
     id: 'cc-onedark-vivid',
     name: '暗夜一号·浓彩',
+    nameEn: 'One Dark Vivid',
     appearance: 'system',
     source: 'builtin',
     coverage: 'full',
@@ -387,6 +395,7 @@ export const BUILTIN_THEMES: ThemeManifest[] = [
   {
     id: 'cc-dracula',
     name: '德古拉',
+    nameEn: 'Dracula',
     appearance: 'system',
     source: 'builtin',
     coverage: 'full',
@@ -394,6 +403,7 @@ export const BUILTIN_THEMES: ThemeManifest[] = [
   {
     id: 'cc-gruvbox',
     name: '复古盒',
+    nameEn: 'Gruvbox',
     appearance: 'system',
     source: 'builtin',
     coverage: 'full',
@@ -401,6 +411,7 @@ export const BUILTIN_THEMES: ThemeManifest[] = [
   {
     id: 'cc-kanagawa',
     name: '神奈川',
+    nameEn: 'Kanagawa',
     appearance: 'system',
     source: 'builtin',
     coverage: 'full',
@@ -408,6 +419,7 @@ export const BUILTIN_THEMES: ThemeManifest[] = [
   {
     id: 'cc-tokyo-night',
     name: '东京夜',
+    nameEn: 'Tokyo Night',
     appearance: 'system',
     source: 'builtin',
     coverage: 'full',

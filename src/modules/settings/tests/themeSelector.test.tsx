@@ -115,6 +115,13 @@ test('the selector offers the default plus every overlay theme, badged by its de
       option.textContent?.includes(`themeSelector.coverage.${theme.coverage}`),
       `${theme.id} must show the "${theme.coverage}" badge its registry entry declares`,
     );
+    // The English name rides as the option's second line: these themes are
+    // known by it in every editor, so the pick has to answer to both names.
+    assert.ok(theme.nameEn, `${theme.id} ships an English name`);
+    assert.ok(
+      option.textContent?.includes(theme.nameEn),
+      `${theme.id} must show its English name under the Chinese one`,
+    );
   }
 
   // The badge is not decorative: it is the promise the contract suite asserts token
