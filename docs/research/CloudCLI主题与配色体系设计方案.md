@@ -3987,7 +3987,7 @@ Mutation 侧：
 | 2-Q | 四套用户主题升为内置（`dracula` / `gruvbox` / `kanagawa` / `tokyo-night`）：新增 4 块 `src/index.css` 覆盖层 ＋ 4 条注册表项，并为此放松一处契约——四族中性兼容 ramp 自 `fixed` 移入新组 `compat`（`full` **可整族十一档一起染**、`accent` **一档不许动**），`fixed` 收窄到 `--n-white` / `--n-black`；对价是补五对 ＋ 一对可选对比度探针。**本线唯一一次"放松守卫"** | ✅ 已实施（2026-09-30），见下方记录 |
 | 2-R | **浅色终端板补齐**：9 套 `full` 主题里原只有 `cc-tokyo-night` 两半齐备，其余 8 套的终端板**只有一块**（声明在各自**无外观限定**的 L1 块里 ⇒ 浅暗同值）⇒ 为这 8 套各追加一条 20 槽浅色板（写在各自 `:not(.dark)` 块首），并补一条"浅色半声明即须完整"的守卫。四套**按参照物**取（Latte / gruvbox xresources light / lotus / Alucard）、四套**自造**（保色相饱和、重解明度、对比度封顶）。**默认板（`:root`）未动**——§8.3"浅色终端是主题的覆盖能力"本片首次被使用；同时作废 B 方案文档 §3.7 的"不存在'浅色终端来源'"。用户驱动的新增量 | ✅ 已实施（2026-10-01），见下方记录 |
 | 2-S | **基座浅色终端板**：§8.3 前半句"终端默认保持恒深色"**翻案**——`src/index.css` 基座的 20 槽 `--palette-term-*` 改为浅色板、原深色板逐字搬进 `.dark`，于是**未选中主题时浅色外观的终端也是浅的**（此前终端是全 app 唯一不随外观翻的表面）。取值按 2-R 同一自造规则，**中性判据**由"名字白名单"推广为"名字白名单 或 深色值无彩度"（对九套已有板可证明为空操作）。`cc-ocean`（accent）一行不改即自动继承——它只声明两行 brand，本就不动基材，故"海洋的浅色板"与"基座的浅色板"是同一张图 | ✅ 已实施（2026-10-01），见下方记录 |
-| 2-T | **终端外壳随外观**：2-S 把终端画布翻浅后，终端区的**外壳**（`Shell` 根容器与 prompt 条、`ShellHeader`、`ShellMinimalView`、`ShellConnectionOverlay`、`TerminalShortcutsPanel`、移动端选区 chrome）仍是外观无关的 `--n-gray-*` 深色 ⇒ 浅色外观下画布四周（含画布内 `p-2`）露出深灰边。本片把外壳 chrome 改成"浅色类 ＋ `dark:` 深色类"（**深色外观逐字不变**），两个根容器改用 `--term-background`（板自己的令牌 ⇒ 零接缝），移动端选区 chrome 由 0-F2 的**外观无关**令牌改回**语义**令牌（`--foreground` / `--muted`；品牌填充与黑阴影不动）。**并修一处时序缺陷**：写 `.dark` 的 effect 由 `useEffect` 改 `useLayoutEffect`——否则终端（后代）在自己 passive effect 里读到的是**翻转前**的板，深色冷启动画浅色板且不自愈。**有意视觉变更**：浅色外观下的终端外壳由深变浅（用户拍板"外壳要跟随"） | ✅ 已实施（2026-10-01），见下方记录 |
+| 2-T | **终端外壳随外观**：2-S 把终端画布翻浅后，终端区的**外壳**（`Shell` 根容器与 prompt 条、`ShellHeader`、`ShellMinimalView`、`ShellConnectionOverlay`、`TerminalShortcutsPanel`、移动端选区 chrome）仍是外观无关的 `--n-gray-*` 深色 ⇒ 浅色外观下画布四周（含画布内 `p-2`）露出深灰边。本片把外壳 chrome 改成"浅色类 ＋ `dark:` 深色类"（**深色外观逐字不变**），两个根容器改用 `--term-background`（板自己的令牌 ⇒ 零接缝），移动端选区 chrome 由 0-F2 的**外观无关**令牌改回**语义**令牌（`--foreground` / `--muted`；品牌填充与黑阴影不动）。**并修一处时序缺陷**：写 `.dark` 的 effect 由 `useEffect` 改 `useLayoutEffect`——否则终端（后代）在自己 passive effect 里读到的是**翻转前**的板，深色冷启动画浅色板且不自愈。**有意视觉变更**：浅色外观下的终端外壳由深变浅（用户拍板"外壳要跟随"） | ✅ 已实施（`59253f14`），见下方记录 |
 | B1 | **语法板接管（机制）**：契约面 11 个槽升语义名 ＋ 基线读取面追加 `SYNTAX_TOKEN_MAP` ＋ 白名单授权这 11 个具名槽 ＋ 契约断言（《CloudCLI 内置主题语法调色板接管方案》§5.1）。**基础层零变化、四套主题代码块不变**（还没人声明） | ✅ 已实施（2026-09-29），见该方案"B1 实施记录" |
 | B1b | **代码块容器底色**：新增 `--code-block-bg`（决策 4 取 **(a2)**：独立 triplet 令牌、四路同值、**不进 `SURFACES`**）。两个前置按 §5.1b 先做完——**实测字面色护栏的 7 种形状**、**出同宽来源矩阵**（并发现"五个来源就是各自的 `--editor-bg`"）。**本片是有意的视觉变更**：3 处形态变化 ＋ 1 处方案未列的消费者（mermaid 源码回落）| ✅ 已实施（2026-09-29），见该方案"B1b 实施记录" |
 | B2 | **回填既有 `full` 主题的语法板**：`cc-onedark` / `cc-catppuccin` / `cc-islands`（`cc-polar` 按决策 2 的"可选"**不写**，作为"可选面"的活例子）；映射取**甲 ＝ 语义逐槽**（`class-name` 跟参照物给黄，不跟基色给橙）。**有意的视觉变更**：`cc-islands` 11 槽全变、`cc-catppuccin` 两外观各 11 槽全变、`cc-onedark` 只 `class-name` 一处；两套 dark-only 参照物的**浅色半明确不动**。**⚠️ 与 2-E 行里的"选项 B2"同名不同物**——那是 `.tmTheme` 格式（已交付），这是语法板回填 | ✅ 已实施（2026-09-29），见该方案"B2 实施记录" |
@@ -4929,7 +4929,7 @@ M4 / M5 的报文值得记一笔：四族进 `compat` 之后，`accent` **仍由
 
 ---
 
-#### 2-T 实施记录（2026-10-01）
+#### 2-T 实施记录（2026-10-01，`59253f14`／登记 `144232f9`）
 
 **范围**：终端区**外壳**随外观翻转。来源是 2-S 落地后核查浅色终端观感时发现的一处割裂——画布已随外观翻浅，而包着它的 chrome（终端面板容器、prompt 条、`ShellHeader` 的状态条与按钮、`ShellMinimalView`、`ShellConnectionOverlay` 遮罩、`TerminalShortcutsPanel` 面板、移动端选区菜单）还是外观无关的 `--n-gray-*` 深色，于是浅色外观下终端四周（含画布内 `p-2` 留出的那一圈）露出深灰。用户回"外壳要跟随"即拍板。
 
@@ -4958,6 +4958,9 @@ M4 / M5 的报文值得记一笔：四族进 `compat` 之后，`accent` **仍由
 | `npm run test:client` | 153 文件 / 1271 用例：1269 passed / **2 failed**——① 守恒律（其余在途片）；② `appearanceTerminalFont.test.tsx:98`（终端**字体**片的在途改动）。**两条都不是本片** |
 | `npm run lint` | **0 error**（164 warnings）；本片文件 **0 警告**——`TerminalShortcutsPanel.tsx` 的面板条一度触发 `tailwind(classnames-order)`，实测该规则在本串期望的次序是"任意**属性** → `dark:` → 任意**变体**"，按此排好后归零 |
 | `npm run typecheck` / `typecheck:theme-tokens` / `build` | exit 0 / exit 0 / exit 0（client `✓ built in 20.27s`） |
+| **提交树的独立核验**（`git worktree` 于 `59253f14`，只软链 `node_modules`） | 守恒律 **2 passed**、`test:client` **149 文件 / 1240 用例全绿**、`test:theme-tokens` **200 passed / 0 failed**、`shell ＋ shared` **452 passed**、`lint` 0 error（153 warnings ＝ HEAD 同值 ⇒ 本片文件零警告）、`typecheck` exit 0 —— **提交树逐项全绿** |
+
+**hunk 分离的做法（本节可复用）**：本片与他片在同一批文件里交错（`Shell.tsx` / `ShellHeader.tsx` 混 bash 片、`index.css` 混十条片、`theme-overlays.spec.ts` 混 nav-input-bg 片、`mobileTerminalSelection.ts` / `shellTerminalThemeRefresh.test.tsx` 混 IME 与字体片）。不用 `git add -p`，而是**按 hunk 合成索引内容**：解析 `git diff -U0` 的 hunk，只把本片的那些应用回 `HEAD` 版本，`git hash-object -w` ＋ `git update-index --cacheinfo` 落进索引。**两条对账证明它没混**：① 逐文件断言"含本片串、不含他片串"；② `git checkout-index -a` 把索引导出成真树，跑普查得 **1546**，与暂存基线**逐桶全等**；提交后再于 worktree 里跑全套（上表末行）。
 
 **守恒律的对账方法（本片最费事的一步，单独记）**：`theme-atom-conservation.json` 是**全仓**中性色普查，而工作区同时有 8 条在途片，直接重生成会把它们的漂移一并吸进本片提交。故不用"重生成再挑 hunk"，而是**造一棵只含本片的 src**：`git archive HEAD src` 铺两棵 scratch 树，一棵原样作基线、一棵覆盖本片的 5 个 TSX 文件（**并删掉 `ShellHeader.tsx` 里那句属于 bash 片的按钮块**——同文件内的他片改动、且带中性类名，否则会算进本片），再让扫描器以 `process.cwd()` 指向 scratch 树各跑一次（临时 spec 放在 `src/tests/`——扫描器本就跳过 `tests` 目录）。
 
