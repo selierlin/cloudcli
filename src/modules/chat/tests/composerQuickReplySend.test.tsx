@@ -63,9 +63,8 @@ const renderComposer = (selectedSession: ProjectSession | null) => renderHook(
     sendMessage: (message) => {
       sentMessages.push(message as { content?: string });
     },
-    scrollToBottom: () => undefined,
+    scrollToLatest: () => undefined,
     addMessage: () => undefined,
-    setIsUserScrolledUp: () => undefined,
     setPendingPermissionRequests: () => undefined,
   }),
   { initialProps: { session: selectedSession } },

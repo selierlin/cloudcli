@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Fragment, memo, useCallback, useLayoutEffect, useMemo, useReducer, useRef } from 'react';
-import type { Dispatch, RefObject, SetStateAction } from 'react';
+import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 
 import type { BackgroundTaskSummary,
   ChatMessage,
@@ -129,6 +129,9 @@ function executionDisclosureReducer(
 
 type ChatMessagesPaneProps = {
   scrollContainerRef: RefObject<HTMLDivElement>;
+  /** Receives every `scrollTop` the pane-height compensation writes, so the
+   *  chat-owned ownership rule does not read them as the reader pulling away. */
+  programmaticScrollTopRef: MutableRefObject<number | null>;
   onWheel: () => void;
   onTouchMove: () => void;
   isLoadingSessionMessages: boolean;
@@ -197,6 +200,7 @@ type ChatMessagesPaneProps = {
  */
 function ChatMessagesPane({
   scrollContainerRef,
+  programmaticScrollTopRef,
   onWheel,
   onTouchMove,
   isLoadingSessionMessages,
@@ -252,7 +256,7 @@ function ChatMessagesPane({
   // Keyboard/composer/window resizes move the container's bottom edge; this
   // keeps the transcript rows glued to it so the content beside the input
   // follows the input instead of being clipped behind it.
-  useBottomEdgeResizeCompensation(scrollContainerRef);
+  useBottomEdgeResizeCompensation(scrollContainerRef, programmaticScrollTopRef);
   // Retains user ownership and visible duration across lazy row unmounts.
   const [disclosureRegistry, dispatchDisclosure] = useReducer(disclosureRegistryReducer, {
     sessionId,

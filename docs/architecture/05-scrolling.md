@@ -6,9 +6,11 @@ fighting the user. Paging and row mounting are covered in
 
 ## In one paragraph
 
-The transcript is one scrolling `div`, and five separate pieces of code write its
+The transcript is one scrolling `div`, and six separate pieces of code write its
 `scrollTop`. There is no scroll controller and no state machine: the writers are
-coordinated by a handful of refs that each one checks before acting. The shared truth is
+coordinated by a handful of refs that each one checks before acting — every one of them
+except the pane-height compensation, which cannot stand down and reports its write instead
+(see *Deferred scrolls re-check intent*). The shared truth is
 `isUserScrolledUp` — `false` means "the user is parked at the bottom, keep them there",
 `true` means "the user is reading, do not move them" — and it is recomputed only from
 `scroll`, `wheel` and `touchmove`, never from a height change, and only from evidence that
@@ -38,7 +40,10 @@ settle loop is separate but now obeys the same synchronous user-intent ref.
    `scrollTop` fell by more than `SCROLL_UP_EPSILON_PX`, or a gesture is pulling the
    transcript down — while the viewport is 50 px or more from the bottom. Content that grows
    *below* the fold does not move `scrollTop`, emits no event, and therefore leaves the flag
-   stale.
+   stale. A fall only counts when it did not land on the value the last programmatic writer
+   left behind (`programmaticScrollTopRef`): two of our own writers move the viewport **up** —
+   the pane-height compensation, and the follow itself when content collapses — so a fall that
+   goes exactly where we put it is not the reader's.
 5. **A deferred scroll must re-read intent at fire time.** The public setter writes
    `isUserScrolledUpRef` synchronously before updating React state, so a queued frame or
    timer can ask whether the user has scrolled away since it was armed. Adding deferred
@@ -64,10 +69,11 @@ settle loop is separate but now obeys the same synchronous user-intent ref.
 | `src/modules/chat/hooks/useChatSessionState.ts` | Owns the scroll position, the single streaming follow frame, `isNearBottom`, `handleScroll`, every claim ref and the search jump. |
 | `src/modules/chat/transcript/ChatMessagesPane.tsx` | Renders the one scrolling element, binds the ref and the wheel/touch handlers it is handed, mounts the newest `INITIAL_MOUNTED_TAIL_ROWS` rows eagerly. |
 | `src/modules/chat/ChatInterface.tsx` | Wires the hook to the pane, passes `handleScroll` as `onWheel`/`onTouchMove`, renders the jump-to-bottom button. |
-| `src/modules/chat/hooks/useChatComposerState.ts` | `handleSubmit` clears `isUserScrolledUp` and scrolls to the bottom at +100 ms. |
+| `src/modules/chat/hooks/useChatComposerState.ts` | `handleSubmit` calls `scrollToLatest`, which returns the viewport to the tail and hands it to the follow loop. |
 | `src/modules/chat/transcript/LoadAllMessagesOverlay.tsx` | The "load all" pill that appears when the user reaches the top. |
 | `src/modules/chat/transcript/LazyMessageRow.tsx` | Swaps a row's content for a placeholder of the same measured height, keeping an addressable wrapper. |
 | `src/modules/chat/hooks/useLazyRowObserver.ts` | One `IntersectionObserver` per pane, rooted at the scroll container, `LAZY_ROW_VIEWPORT_MARGIN_PX = 1200`. |
+| `src/modules/chat/hooks/useBottomEdgeResizeCompensation.ts` | Writes `scrollTop` from a pre-paint `ResizeObserver` on every pane-height change, so the rows beside the input stay beside it. It is the one writer that moves the viewport **up** on its own, so it reports each write through `programmaticScrollTopRef`. |
 | `src/modules/chat/utils/searchTargetLocator.ts` | `findSearchTargetIndex` resolves a sidebar hit against loaded data; `resolveSearchWindowSize` sizes the render window. |
 | `src/modules/chat/utils/messageKeys.ts` | `getIntrinsicMessageKey` — stable render keys, so a prepend does not remount the rows below it. |
 | `src/index.css` | `.chat-messages-pane` / `.chat-message` containment, mobile `touch-action`, document-level overscroll containment, `.search-highlight-flash`. |
@@ -87,15 +93,20 @@ flowchart TD
   W3["Tab reactivation restore"] --> PANE
   W4["Initial settle rAF loop"] --> PANE
   W5["Search jump scrollIntoView"] --> PANE
+  W6["Pane-height compensation (ResizeObserver)"] --> PANE
   PANE -->|"scroll, wheel, touchmove"| HS["handleScroll"]
   HS --> FLAG["isUserScrolledUp and isUserScrolledUpRef"]
   FLAG --> W1
   FLAG --> W3
 ```
 
-All five are in `useChatSessionState.ts`. A repo-wide grep for `scrollTop =`, `scrollTop +=`,
-`scrollIntoView` and `scrollTo(` finds no other transcript writer — the remaining hits are
-the composer's textarea highlight overlay, the command menu and the workspace tab strip.
+Five of the six are in `useChatSessionState.ts` (`W1`–`W5`). The sixth is the pane-height
+compensation in `useBottomEdgeResizeCompensation.ts`, and a repo-wide grep for `scrollTop =`,
+`scrollTop +=`, `scrollTop -=`, `scrollIntoView` and `scrollTo(` is what finds it — note the
+`-=`: that write is the only transcript write the `=` and `+=` patterns miss, which is how it
+stayed off this list while it was already moving the viewport.
+Everything else the grep turns up is unrelated: the composer's textarea highlight overlay, the
+command menu and the workspace tab strip.
 
 ## The single scroll container
 
@@ -143,17 +154,19 @@ a React effect.
 
 **RULE: the 50 px gap does not on its own take ownership away from the follow.**
 
-A gap says nothing about *who* moved the viewport. A follow write only ever moves `scrollTop`
-down to the new bottom, and an answer that grows below a stationary viewport does not move
+A gap says nothing about *who* moved the viewport. A follow write moves `scrollTop` to the new
+bottom — downward, except when content collapsed and the new bottom is above the old one — and
+an answer that grows below a stationary viewport does not move
 `scrollTop` at all — while the browser dispatches the write's own `scroll` event
 asynchronously, so by the time `handleScroll` reads the geometry the gap already includes
 everything that arrived in between. Testing the gap alone therefore let one sample of growth
 read as "the reader scrolled up": the transcript followed, then stopped mid-answer, and the
 only way back was the jump-to-bottom button. Ownership is taken only on
 
-- a **fall** in `scrollTop` of more than `SCROLL_UP_EPSILON_PX = 2` since the previous sample.
-  A real drag and the momentum that follows it both make `scrollTop` fall; a follow write and
-  a height change both cannot; or
+- a **fall** in `scrollTop` of more than `SCROLL_UP_EPSILON_PX = 2` since the previous sample
+  that did not land on the value our own writers last left — two of them move the viewport up
+  as well (the pane-height compensation, and the follow after content collapses), and those
+  falls are ours. A real drag and the momentum that follows it both make `scrollTop` fall; or
 - a gesture that is **pulling the transcript down**, within `SCROLL_UP_INTENT_WINDOW_MS = 800`
   of it happening — a `wheel` with `deltaY < 0`, or a finger that has travelled more than
   `TOUCH_UP_INTENT_MIN_TRAVEL_PX = 10` downwards since `touchstart`. A fast stream can outrun
@@ -284,14 +297,17 @@ sequenceDiagram
 ## Deferred scrolls re-check intent
 
 **RULE: a deferred scroll must re-read `isUserScrolledUpRef` before it moves
-anything.**
+anything. Two writers may skip that, for opposite reasons: the send, whose intent
+is fresh by definition, and the pane-height compensation, which cannot stand down
+at all and reports its write through `programmaticScrollTopRef` instead.**
 
 | Where | Delay | Re-checks? |
 | --- | --- | --- |
 | Streaming follow effect (`useChatSessionState.ts`) | next animation frame | yes — session, loading/restore/search claims, `isUserScrolledUpRef` and the reader's active pull are all rechecked |
 | Initial settle loop (same file) | up to 60 animation frames | yes — user detachment stops the loop immediately |
 | External-update refresh (same file, the `externalMessageUpdate` effect) | 200 ms | yes — same guard, and only armed when `isNearBottom()` held before the refetch |
-| Composer send (`useChatComposerState.ts` → `handleSubmit`) | 100 ms | **no** — it sets the flag false itself, then calls `scrollToBottom()` unconditionally |
+| Composer send (`useChatComposerState.ts` → `handleSubmit`) | none — it writes synchronously, then the follow loop owns the position | **no, by design** — a send clears the latch *and* the gesture stand-down before it writes, because it is the freshest intent there is; the follow loop it hands off to re-checks every frame |
+| Pane-height compensation (`useBottomEdgeResizeCompensation.ts`) | pre-paint `ResizeObserver` callback | **no, by construction** — keeping the gap fixed against a moving bottom edge is its whole job, so it cannot decline to write; it reports the position instead, and `handleScroll` reads a fall that lands there as ours |
 
 The first two used to fire unconditionally. Commit `a1a42774` describes the failure:
 scrolling up inside the delay was silently undone, and because a programmatic scroll itself
@@ -307,12 +323,45 @@ are stubbed and `scrollTop` writes are recorded):
   a row, flips the flag, runs the queued frame, asserts **zero** writes.
 - *"still sticks to the bottom when the user has not scrolled away"* — same setup without
   the flip, asserts a write of `scrollHeight`.
+- *"takes the viewport back to the tail when the reader sends a message"* — arms the
+  gesture stand-down and the latch, retires the initial settle loop so it cannot stand in
+  for the follow, calls `scrollToLatest`, and asserts the tail is written at once and still
+  re-pinned on later frames while the transcript keeps growing.
 
 The test owns a deterministic rAF queue, so the follow frame and initial-settle loop are
 both checked against the same user-intent transition.
 
 The composer send is deliberately unguarded — the user pressed Enter, so the intent is
-fresh. The cost is that scrolling up within 100 ms of sending is undone.
+fresh. It goes further than the other writers: `scrollToLatest` clears the ownership latch
+*and* the gesture stand-down window, so a message typed moments after scrolling up is not
+left waiting out `SCROLL_UP_INTENT_WINDOW_MS`. The trade is the same as before, only
+narrower — scrolling up after sending is undone, but the follow it hands off to stands down
+on the first frame that sees the reader's own input again.
+
+The pane-height compensation is the opposite case: it cannot stand down at all. Its job is to
+hold the gap the reader is looking at — at the bottom or mid-transcript — fixed while the
+bottom edge moves, so a version that declined to write when `isUserScrolledUpRef` was set would
+let the rows beside the input slide away. What it must not do is *look* like a reader. Growing
+the pane writes `scrollTop` up, the same direction a pull takes, and the write's own `scroll`
+event is dispatched after whatever content landed in the meantime, so the sample it produces
+can carry a gap past the latch threshold while the position is exactly the one we chose. The
+ownership rule therefore counts a fall as the reader's only when it did not land on the value
+our own writers last left (`programmaticScrollTopRef`). Both the compensation and
+`scrollToBottom` report into it, because the follow needs the same treatment for the same
+reason: an automatic reasoning collapse takes height out of the transcript, so the follow's own
+write to the new bottom is a fall too. On a phone the compensation fires on every frame of the
+keyboard's 250 ms travel, which is why this is where a long answer stops being followed —
+`transcriptScrollOwnership.test.tsx` → *"does not read the pane-height compensation as the
+reader taking over"* drives the real hook against the same container, and *"does not read the
+follow's own shrink write as the reader taking over"* pins the collapse.
+
+It also does not settle for one write. A single `scrollTop = scrollHeight` is measured
+against the geometry of that instant, and a long transcript answers with placeholder and
+unmeasured rows; the lazy rows, markdown and images then settle to real heights and nothing
+corrects the position, so the view ends up short of — or nowhere near — the message just
+sent. That is the race the session-open scroll lost (see *"Opening a session"*), and the
+answer is the same: hand the position to `followTranscriptLayout`, which re-pins the bottom
+every frame until the geometry holds still.
 
 ## Reaching the top: the pager, the lock and the overlay
 
@@ -587,15 +636,19 @@ a scroll event.
 - **A programmatic scroll emits a `scroll` event.** Every `scrollTop` write feeds back
   through `handleScroll` and rewrites the flag. That is why the deferred writers guard
   themselves — an unguarded write both moves the user *and* erases the evidence that they
-  had scrolled away.
+  had scrolled away. The pane-height compensation cannot guard itself (see *Deferred scrolls
+  re-check intent*), so it reports where it wrote instead.
 - **A `scroll` event cannot say who moved the viewport, and it arrives late.** The browser
   dispatches it asynchronously, so the geometry it reports may already include content that
   landed after the write which caused it. A follow write is therefore indistinguishable from
   growth by position alone, and reading the gap as ownership latches the follow off for the
-  rest of the answer. `transcriptScrollOwnership.test.tsx` → *"keeps following when the answer
-  grows after the follow write"* drives a real `scroll` event into the production handler for
-  exactly that ordering, and the *"still hands ownership to a gesture the growing answer
-  outruns"* case pins the other direction.
+  rest of the answer. Position alone cannot say who wrote it either, so a fall only takes
+  ownership when it did not land on the value our own writers last left
+  (`programmaticScrollTopRef`) — otherwise the compensation's up-write, or the follow's own
+  shrink after a collapse, reads as a pull. `transcriptScrollOwnership.test.tsx` →
+  *"keeps following when the answer grows after the follow write"* drives a real `scroll` event
+  into the production handler for exactly that ordering, and the *"still hands ownership to a
+  gesture the growing answer outruns"* case pins the other direction.
 - **The follow has to lose a race on purpose, and that is not a bug.** A wheel notch or a drag
   is applied to `scrollTop` before the `scroll` event is dispatched, and the dispatch happens
   after the commit that runs the follow. So the follow is guaranteed to see the reader's new
@@ -652,13 +705,14 @@ a scroll event.
 | The ownership rule in `handleScroll`, `SCROLL_UP_EPSILON_PX`, `SCROLL_UP_INTENT_WINDOW_MS` or `TOUCH_UP_INTENT_MIN_TRAVEL_PX` | `transcriptScrollOwnership.test.tsx` → *"scroll ownership while the answer is streaming"* pins all three directions: the gap alone latches the follow off mid-answer, dropping the gesture window breaks a reader drag that a fast stream outruns, and dropping the stand-down in `followTranscriptLayout` lets a wheel notch be overwritten before it can be measured. |
 | The `< 100` top zone or the `> 20` lock release | `topLoadLockRef` must still need an explicit move away from the top, or paging runs away. |
 | `chatMessages` shape or identity | Streaming follow intentionally keys on array identity so same-row growth is visible; restore/reactivation still protects session and claim ownership. |
-| Anything that adds a deferred scroll | It must re-read `isUserScrolledUpRef` and session/claim refs at fire time, or `transcriptScrollOwnership.test.tsx` should fail. |
+| Anything that adds a deferred scroll | It must re-read `isUserScrolledUpRef` and session/claim refs at fire time, or `transcriptScrollOwnership.test.tsx` should fail. A writer that cannot stand down — the pane-height compensation — must report its write through `programmaticScrollTopRef` instead. |
 | `getIntrinsicMessageKey` or the key map in `ChatMessagesPane` | The prepend restore needs the anchor element to survive; unstable keys remount rows and drop it to the height-delta fallback. |
 | `LazyMessageRow` placeholder height, the `.chat-message` class placement, or the 1200 px observer margin | Prepend anchor scan, search-jump row lookup, and `lazyMessageRow.test.tsx`. |
 | `SEARCH_SCROLL_RETRIES`, the retry delay, or `findRenderedMessageElement` | The cross-session cancellation test and `searchTargetLocator.test.ts`; `allowNearest` must stay on the final attempt only. |
 | `.chat-message` containment or `content-visibility` | The export override in `buildTranscriptHtml.tsx` mirrors these declarations. |
 | Session load or pagination in `useChatSessionState.ts` | `pendingScrollRestoreRef`, `pendingInitialScrollRef`, `searchScrollActiveRef`, `topLoadLockRef` and `wasNearTopRef` are all handled by the session-change effect — see [the message store](./04-message-store-and-lazy-loading.md). |
-| Composer send or the activity indicator | `handleSubmit` forces `isUserScrolledUp` false and scrolls unconditionally at +100 ms; the indicator changes the pane's padding without a scroll event. |
-| Tool card expand/collapse | Nothing scrolls today — see [tool views](./06-tool-view.md). Adding a `scrollIntoView` there adds a sixth writer with no claim ref. |
+| Composer send or the activity indicator | `handleSubmit` calls `scrollToLatest`, which forces `isUserScrolledUp` false, clears the gesture stand-down and hands the position to the follow loop; the indicator changes the pane's padding without a scroll event. |
+| `useBottomEdgeResizeCompensation`, or any writer that moves `scrollTop` **up** without the reader | Report the write through `programmaticScrollTopRef`, or the ownership rule reads the fall as a pull and latches the follow off mid-answer. `transcriptScrollOwnership.test.tsx` → *"does not read the pane-height compensation as the reader taking over"* (drives the real compensation hook) and *"does not read the follow's own shrink write as the reader taking over"* (auto-collapse). |
+| Tool card expand/collapse | Nothing scrolls today — see [tool views](./06-tool-view.md). Adding a `scrollIntoView` there adds a seventh writer with no claim ref. |
 
 Related: [the realtime stream](./02-realtime-stream.md) for how rows arrive.

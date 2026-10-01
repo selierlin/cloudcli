@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { RefObject } from 'react';
+import type { MutableRefObject, RefObject } from 'react';
 
 import { useBottomEdgeResizeCompensation } from '@/modules/chat/hooks/useBottomEdgeResizeCompensation';
 
@@ -77,7 +77,11 @@ function createContainer(scrollHeight: number, initialClientHeight: number) {
 
 function renderWithContainer(element: HTMLDivElement | null) {
   const scrollContainerRef: RefObject<HTMLDivElement> = { current: element };
-  return renderHook(() => useBottomEdgeResizeCompensation(scrollContainerRef));
+  const programmaticScrollTopRef: MutableRefObject<number | null> = { current: null };
+  return {
+    ...renderHook(() => useBottomEdgeResizeCompensation(scrollContainerRef, programmaticScrollTopRef)),
+    programmaticScrollTopRef,
+  };
 }
 
 beforeEach(() => {
@@ -165,6 +169,25 @@ describe('useBottomEdgeResizeCompensation', () => {
     fireContainerResize();
 
     expect(container.writes).toEqual([1100, 1300]);
+  });
+
+  it('records each write, so the ownership rule can tell it from a pull', () => {
+    const container = createContainer(3000, 800);
+    container.setScrollTop(1000);
+    const { programmaticScrollTopRef } = renderWithContainer(container.element);
+
+    // Growing the pane (the keyboard dropping, the composer shrinking) moves the
+    // viewport up — the same direction a reader's pull moves it. Recording the
+    // write is what keeps `handleScroll` from reading it as one.
+    container.setClientHeight(1000);
+    fireContainerResize();
+    expect(container.currentScrollTop()).toBe(800);
+    expect(programmaticScrollTopRef.current).toBe(800);
+
+    container.setClientHeight(500);
+    fireContainerResize();
+    expect(container.currentScrollTop()).toBe(1300);
+    expect(programmaticScrollTopRef.current).toBe(1300);
   });
 
   it('stops compensating once unmounted', () => {

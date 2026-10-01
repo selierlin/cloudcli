@@ -76,6 +76,9 @@ function nextPaint(): Promise<void> {
 function TranscriptLayoutFixture() {
   const sessionStore = useSessionStore();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  // The pane requires the ledger the production ownership rule reads; this
+  // fixture keeps its own simplified follow and never consults it.
+  const programmaticScrollTopRef = useRef<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sequenceRef = useRef(0);
   const followFrameRef = useRef<number | null>(null);
@@ -332,6 +335,7 @@ const longLine = "${'e'.repeat(300)}";
     >
       <ChatMessagesPane
         scrollContainerRef={scrollContainerRef}
+        programmaticScrollTopRef={programmaticScrollTopRef}
         onWheel={() => setIsUserScrolledUp(true)}
         onTouchMove={() => setIsUserScrolledUp(true)}
         isLoadingSessionMessages={false}
