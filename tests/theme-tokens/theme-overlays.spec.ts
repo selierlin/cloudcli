@@ -165,6 +165,17 @@ const SURFACES: Record<string, string[]> = {
 
 const ACCENT_SURFACES = ['--primary', '--ring', '--nav-tab-glow', '--nav-input-focus-ring'];
 
+/**
+ * Substrate tokens whose dark half cannot move under any overlay *by
+ * construction*. `--nav-input-bg`'s dark value is a pure-black-alpha well
+ * (`--palette-black / 0.25`, the same nature as `--nav-float-shadow`): it
+ * darkens whatever substrate a theme lays by compositing, so its declared
+ * value stays fixed while the rendered well still belongs to the theme. Only
+ * its light half references a retintable ramp token, so the must-move
+ * guarantee is light-only.
+ */
+const LIGHT_ONLY_SUBSTRATE = ['--nav-input-bg'];
+
 /** Which surface families each coverage class promises to move. */
 const MUST_MOVE: Record<string, string[]> = {
   accent: ACCENT_SURFACES,
@@ -457,7 +468,9 @@ for (const theme of OVERLAY_THEMES) {
       const mustMove = [
         ...MUST_MOVE[theme.coverage ?? 'full'],
         ...(cardMoves ? SURFACES.cardSurface : []),
-      ].filter((name) => !moved.has(name));
+      ]
+        .filter((name) => !(appearance === 'dark' && LIGHT_ONLY_SUBSTRATE.includes(name)))
+        .filter((name) => !moved.has(name));
       const mustNotMove = [
         ...MUST_NOT_MOVE[theme.coverage ?? 'full'],
         ...(cardMoves ? [] : SURFACES.cardSurface),

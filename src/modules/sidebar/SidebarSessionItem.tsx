@@ -73,8 +73,8 @@ function SidebarSessionItem({
   const showAttentionIndicator = needsAttention && !isSelected;
   // Background work takes the recent-activity dot's place: the session is
   // still doing something, which says more than that it was touched lately.
-  const showBackgroundIndicator = !showAttentionIndicator && hasBackgroundWork;
-  const showRecentIndicator = !showAttentionIndicator && !showBackgroundIndicator && !isProcessing && sessionView.isActive;
+  const showBackgroundIndicator = !showAttentionIndicator && !isSelected && hasBackgroundWork;
+  const showRecentIndicator = !showAttentionIndicator && !showBackgroundIndicator && !isProcessing && !isSelected && sessionView.isActive;
   const indicatorLabel = showAttentionIndicator
     ? t('tooltips.attentionRequiredIndicator', { defaultValue: 'Session needs attention' })
     : showBackgroundIndicator
@@ -157,7 +157,9 @@ function SidebarSessionItem({
         <div
           className={cn(
             'p-2 mx-3 my-0.5 rounded-md bg-card border active:scale-[0.98] transition-all duration-150 relative',
-            isSelected ? 'bg-primary/5 border-primary/20' : '',
+            isSelected
+              ? 'border-primary/40 shadow-[inset_3px_0_0_0_hsl(var(--primary))]'
+              : '',
             !isSelected && isProcessing
               ? 'border-border/60 bg-muted/20'
               : !isSelected && sessionView.isActive
@@ -185,13 +187,8 @@ function SidebarSessionItem({
                 {isBatchSelected && <Check className="h-3 w-3" />}
               </span>
             )}
-            <div
-              className={cn(
-                'w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0',
-                isSelected && 'bg-primary/10',
-              )}
-            >
-              <LLMProviderLogo provider={session.__provider} className="h-4 w-4" />
+            <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0">
+              <LLMProviderLogo provider={session.__provider} className="h-5 w-5" />
             </div>
 
             <div className="min-w-0 flex-1">
@@ -397,12 +394,14 @@ function SidebarSessionItem({
           className={cn(
             buttonVariants({ variant: 'ghost' }),
             'h-auto w-full justify-start rounded-md border bg-card p-2 pr-11 text-left font-normal transition-all duration-150',
-            isSelected ? 'border-primary/20 bg-primary/5' : 'border-border/30',
+            isSelected
+              ? 'border-primary/40 shadow-[inset_3px_0_0_0_hsl(var(--primary))]'
+              : 'border-border/30',
             !isSelected && isProcessing
               ? 'border-border/60 bg-muted/20 hover:bg-muted/25'
               : !isSelected && sessionView.isActive
                 ? 'border-green-500/30 bg-green-50/5 hover:bg-green-50/10 dark:bg-green-900/5 dark:hover:bg-green-900/10'
-                : 'hover:bg-accent/50',
+                : 'hover:bg-accent',
             isManaging && isProcessing && 'cursor-not-allowed opacity-60',
           )}
           // Left-click keeps in-app navigation; Ctrl/Cmd/middle-click and the
@@ -440,13 +439,8 @@ function SidebarSessionItem({
                 {isBatchSelected && <Check className="h-3 w-3" />}
               </span>
             )}
-            <div
-              className={cn(
-                'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md',
-                isSelected && 'bg-primary/10',
-              )}
-            >
-              <LLMProviderLogo provider={session.__provider} className="h-4 w-4" />
+            <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md">
+              <LLMProviderLogo provider={session.__provider} className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">

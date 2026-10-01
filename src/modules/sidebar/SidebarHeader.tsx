@@ -186,7 +186,7 @@ export default function SidebarHeader({
                 placeholder={searchPlaceholder}
                 value={searchFilter}
                 onChange={(event) => onSearchFilterChange(event.target.value)}
-                className="nav-search-input h-9 rounded-xl border-0 pl-9 pr-14 text-sm transition-all duration-200 placeholder:text-muted-foreground/40 focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="nav-search-input h-9 rounded-xl border border-border/60 pl-9 pr-14 text-sm transition-all duration-200 placeholder:text-muted-foreground/40 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-primary/35"
               />
               {searchFilter ? (
                 <button
@@ -255,7 +255,7 @@ export default function SidebarHeader({
                 placeholder={searchPlaceholder}
                 value={searchFilter}
                 onChange={(event) => onSearchFilterChange(event.target.value)}
-                className="nav-search-input h-10 rounded-xl border-0 pl-10 pr-9 text-sm transition-all duration-200 placeholder:text-muted-foreground/40 focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="nav-search-input h-10 rounded-xl border border-border/60 pl-10 pr-9 text-sm transition-all duration-200 placeholder:text-muted-foreground/40 focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-primary/35"
               />
               {searchFilter && (
                 <button
