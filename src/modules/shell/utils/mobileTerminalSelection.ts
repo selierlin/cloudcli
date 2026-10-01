@@ -176,11 +176,14 @@ class ShellMobileSelectionCore implements MobileTerminalSelectionManager {
     handle.style.width = `${HANDLE_SIZE_PX}px`;
     handle.style.height = `${HANDLE_SIZE_PX}px`;
     handle.style.borderRadius = '50%';
-    // The chrome sits on the terminal, which keeps its dark board in both
-    // appearances, so it reads the appearance-agnostic neutrals rather than the
-    // semantic tokens (a theme still recolours it by overriding those).
+    // The chrome sits on the terminal board, and the board follows the
+    // appearance (the light appearance paints a light terminal), so the colours
+    // have to flip with it. `--foreground` is what contrasts with the board in
+    // either appearance — the white ring this used to carry was drawn for a
+    // board that was always dark and would vanish on a light one. The brand fill
+    // and the black shadow are appearance-independent and stay as they were.
     handle.style.background = 'hsl(var(--palette-brand-400))';
-    handle.style.border = '2px solid hsl(var(--n-white))';
+    handle.style.border = '2px solid hsl(var(--foreground))';
     handle.style.boxShadow = '0 2px 8px hsl(var(--n-black) / 0.3)';
     handle.style.display = 'none';
     handle.style.pointerEvents = 'auto';
@@ -197,8 +200,12 @@ class ShellMobileSelectionCore implements MobileTerminalSelectionManager {
     menu.style.alignItems = 'stretch';
     menu.style.padding = '4px';
     menu.style.gap = '2px';
-    menu.style.background = 'hsl(var(--n-gray-800))';
-    menu.style.border = '1px solid hsl(var(--n-white) / 0.12)';
+    // A menu is a surface, so it reads the subtle-surface token: in the dark
+    // appearance `--muted` resolves to the step the old `--n-gray-800` literal
+    // already painted, and in the light one it is the matching light surface.
+    // The hairline is the text colour at low alpha for the reason the ring is.
+    menu.style.background = 'hsl(var(--muted))';
+    menu.style.border = '1px solid hsl(var(--foreground) / 0.12)';
     menu.style.borderRadius = '10px';
     menu.style.boxShadow = '0 6px 20px hsl(var(--n-black) / 0.4)';
     menu.style.pointerEvents = 'auto';
@@ -228,7 +235,7 @@ class ShellMobileSelectionCore implements MobileTerminalSelectionManager {
     button.style.margin = '0';
     button.style.padding = '8px 14px';
     button.style.background = 'transparent';
-    button.style.color = 'hsl(var(--n-gray-50))';
+    button.style.color = 'hsl(var(--foreground))';
     button.style.fontSize = '14px';
     button.style.fontFamily = 'inherit';
     button.style.lineHeight = '1';

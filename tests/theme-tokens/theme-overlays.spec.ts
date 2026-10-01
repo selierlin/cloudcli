@@ -674,9 +674,9 @@ test('the overlays that own a syntax board own all of it, and move it', async ({
  * The terminal board's light half, when a theme declares one.
  *
  * No list of which themes split their board is needed, the way the syntax guard
- * needs one: the base declares the board once, so a theme that says nothing
- * still gets a board — the same one in both appearances — and a theme that
- * splits it does so by naming the slots in its `:not(.dark)` block. That
+ * needs one: the base splits its own board, so a theme that says nothing still
+ * gets a board (the base's, one value per appearance), and a theme that splits
+ * it does so by naming the slots in its `:not(.dark)` block. That
  * declaration is the shape the per-theme test above is blind to. A slot the
  * light block omits does not go missing: it falls back to the theme's own
  * unscoped value, which still resolves as written and still counts as moved off
@@ -690,9 +690,10 @@ test('the overlays that own a syntax board own all of it, and move it', async ({
  * none of them move.
  *
  * What this still does not cover, named so it is not mistaken for covered: a
- * theme that keeps one board for both appearances is allowed (that is the base's
- * own shape and `cc-ocean`'s), so deleting a theme's light half outright is
- * silent here — the assert is conditional on the theme having declared one.
+ * theme may declare its board once, unscoped, and let that one value stand for
+ * both appearances. Such a theme declares no light half, so this assert skips
+ * it and deleting a light half outright is silent here — the assert is
+ * conditional on the theme having declared one.
  */
 test('a theme that splits its terminal board declares the light half in full', async ({ page }) => {
   await openFixture(page);

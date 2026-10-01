@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from 'react';
 import type { ReactNode } from 'react';
 
 import { BUILTIN_THEMES } from '@/shared/constants';
@@ -359,7 +367,16 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   // separate. Persisting from here would also fire on mount — before the stored
   // theme had been fetched — writing this device's system default over the
   // theme the user actually chose on another one.
-  useEffect(() => {
+  //
+  // A *layout* effect on purpose, and the ordering is load-bearing. React runs
+  // every layout effect before any passive one, and a descendant's passive
+  // effect before its ancestor's — so a consumer that reads the resolved
+  // palette in a passive effect (the terminal does exactly that: xterm needs
+  // concrete colours, so `useShellTerminal` re-reads the `--term-*` board and
+  // cannot be served by the cascade) would otherwise read it before `.dark`
+  // landed on `<html>`. That is the *previous* appearance's board, on every
+  // flip and on a cold start, and nothing re-reads it until the next flip.
+  useLayoutEffect(() => {
     // The overlay selector. The appearance defaults declare no overlay of their
     // own, so this is inert until a theme carrying one is picked or loaded; it is
     // still written because it is the contract the overlay rules and the

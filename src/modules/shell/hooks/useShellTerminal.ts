@@ -439,9 +439,15 @@ export function useShellTerminal({
   // xterm paints into a canvas and needs concrete colours, so a stylesheet change
   // never reaches an open terminal on its own. Re-read the --term-* tokens whenever
   // the applied theme changes: that is what lets a theme restyle a terminal that is
-  // already running. `resolvedThemeId` is the overlays' half of that and changes on
-  // an appearance flip too, but both deps are listed so an appearance-dependent
-  // --term-* would stay covered if one is ever introduced.
+  // already running. Both deps are listed because both axes move the board — an
+  // overlay through its id, the appearance through `.dark` (the base board is split
+  // in two, so `--term-*` is appearance-dependent and `resolvedThemeId` tracks it).
+  //
+  // `.dark` is written by `ThemeProvider`, which is an *ancestor*, and React runs a
+  // descendant's passive effect before it — so this read is only correct because
+  // that writer is a layout effect, flushed before any passive one. With a plain
+  // effect the terminal read the appearance being switched away from, on every
+  // flip and on a cold start, and never re-read until the next one.
   useEffect(() => {
     const terminal = terminalRef.current;
     if (!terminal) {

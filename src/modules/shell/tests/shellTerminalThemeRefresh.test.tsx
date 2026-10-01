@@ -31,10 +31,16 @@ import { resetUserPreferences, writeUserPreference } from '@/shared/userSettings
  * choice, so the test can name the face it expects to land in `options`.
  */
 
-const reads = vi.hoisted(() => ({ count: 0 }));
+const reads = vi.hoisted(() => ({ count: 0, darkAtRead: [] as boolean[] }));
 
 vi.mock('@/modules/shell/utils/terminalTheme', () => ({
-  readTerminalTheme: () => ({ background: `read-${(reads.count += 1)}` }),
+  readTerminalTheme: () => {
+    // The board is resolved from the cascade, so this records which appearance
+    // the document was in when the read happened. `.dark` is `ThemeProvider`'s
+    // writer, not the fixture's, so this is the ordering — see the test below.
+    reads.darkAtRead.push(document.documentElement.classList.contains('dark'));
+    return { background: `read-${(reads.count += 1)}` };
+  },
   resolveTerminalFontFamily: (choice: string) => `stub-font-${choice}`,
   FALLBACK_TERMINAL_FONT_FAMILY: 'stub-fallback-stack',
 }));
@@ -106,6 +112,7 @@ function renderTerminal() {
 
 beforeEach(() => {
   reads.count = 0;
+  reads.darkAtRead = [];
   localStorage.clear();
   resetUserPreferences();
   document.documentElement.classList.remove('dark');
@@ -148,6 +155,43 @@ test('an open terminal re-reads the board on an appearance flip', () => {
   });
 
   assert.equal(terminal.options.theme?.background, 'read-2');
+});
+
+/**
+ * The three above only prove the effect *re-ran*; they say nothing about which
+ * board it read, because the stub hands back a counter. The board comes from
+ * the cascade, which means the read is only correct if the document is already
+ * in the appearance being switched to.
+ *
+ * That is not free: `.dark` is written by `ThemeProvider`, and React runs a
+ * descendant's passive effect before its ancestor's, so the terminal — a
+ * descendant — reads before the class lands unless the writer runs in an
+ * earlier phase. jsdom resolves no cascade, so this pins the ordering rather
+ * than a colour: what the stub records is whether `.dark` was on `<html>`.
+ */
+test('the board is read after the appearance class has been applied', () => {
+  const { view } = renderTerminal();
+  assert.deepEqual(reads.darkAtRead, [false], 'the light board is read with .dark absent');
+
+  act(() => {
+    view.result.current.toggleDarkMode();
+  });
+
+  assert.deepEqual(
+    reads.darkAtRead,
+    [false, true],
+    'the dark board must be read with .dark already on <html>',
+  );
+
+  act(() => {
+    view.result.current.toggleDarkMode();
+  });
+
+  assert.deepEqual(
+    reads.darkAtRead,
+    [false, true, false],
+    'and back again: .dark must be gone before the light board is read',
+  );
 });
 
 /**

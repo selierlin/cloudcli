@@ -3,27 +3,52 @@ import type { Page } from '@playwright/test';
 
 /**
  * The mobile long-press selection chrome (handle + context menu) is inline CSS
- * that `mobileTerminalSelection.ts` writes onto elements it creates. Its colours
- * used to be literals; they now resolve through tokens, so a theme recolours the
- * chrome along with everything else. This suite pins them back to what the
- * literals painted, in both appearances and on both engines.
+ * that `mobileTerminalSelection.ts` writes onto elements it creates. It sits on
+ * the terminal board, and the board follows the appearance, so the chrome has to
+ * as well: the ring, the menu surface, its hairline and its label resolve
+ * through tokens the appearance flips, while the brand fill and the two black
+ * shadows stay put. This suite pins what the browser paints, per appearance, on
+ * both engines.
  */
 
 /**
- * What the literals resolved to before tokenization, in the browser's own
- * serialisation (`#3b82f6` -> `rgb(59, 130, 246)`). Kept as the resolved colour
- * on purpose: a failure should read as "the menu changed colour", not as "two
- * spellings of the same colour differ".
+ * The resolved colour in the browser's own serialisation (`#3b82f6` ->
+ * `rgb(59, 130, 246)`), kept resolved on purpose: a failure should read as "the
+ * menu changed colour", not as "two spellings of the same colour differ".
+ *
+ * The dark column is close to what the old appearance-agnostic literals painted
+ * — the drift is the tint Tailwind's blue-grey `gray-800` carried, which the ink
+ * ramp does not — and the light column is new, because the old chrome only ever
+ * had one palette.
  */
-const EXPECTED: Record<string, string> = {
-  handleBackground: 'rgb(59, 130, 246)', // #3b82f6
-  handleBorder: '2px solid rgb(255, 255, 255)', // 2px solid #fff
-  handleBoxShadow: 'rgba(0, 0, 0, 0.3) 0px 2px 8px 0px', // 0 2px 8px rgba(0,0,0,0.3)
-  menuBackground: 'rgb(31, 41, 55)', // #1f2937
-  menuBorder: '1px solid rgba(255, 255, 255, 0.12)', // 1px solid rgba(255,255,255,0.12)
-  menuBoxShadow: 'rgba(0, 0, 0, 0.4) 0px 6px 20px 0px', // 0 6px 20px rgba(0,0,0,0.4)
-  buttonColor: 'rgb(249, 250, 251)', // #f9fafb
+const EXPECTED: Record<'light' | 'dark', Record<string, string>> = {
+  light: {
+    handleBackground: 'rgb(59, 130, 246)', // --palette-brand-400
+    handleBorder: '2px solid rgb(13, 11, 8)', // --foreground (sand-950)
+    handleBoxShadow: 'rgba(0, 0, 0, 0.3) 0px 2px 8px 0px',
+    menuBackground: 'rgb(235, 234, 229)', // --muted (sand-100)
+    menuBorder: '1px solid rgba(13, 11, 8, 0.12)', // --foreground / 0.12
+    menuBoxShadow: 'rgba(0, 0, 0, 0.4) 0px 6px 20px 0px',
+    buttonColor: 'rgb(13, 11, 8)', // --foreground
+  },
+  dark: {
+    handleBackground: 'rgb(59, 130, 246)',
+    handleBorder: '2px solid rgb(239, 238, 236)', // --foreground (ink-100)
+    handleBoxShadow: 'rgba(0, 0, 0, 0.3) 0px 2px 8px 0px',
+    menuBackground: 'rgb(43, 43, 43)', // --muted (ink-850)
+    menuBorder: '1px solid rgba(239, 238, 236, 0.12)',
+    menuBoxShadow: 'rgba(0, 0, 0, 0.4) 0px 6px 20px 0px',
+    buttonColor: 'rgb(239, 238, 236)',
+  },
 };
+
+const APPEARANCES = ['light', 'dark'] as const;
+
+/** The luminance of a `rgb(...)` string, so a flip can be asserted in one direction. */
+function luma(rgb: string): number {
+  const [r, g, b] = (rgb.match(/\d+/g) ?? []).slice(0, 3).map(Number);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
 
 async function openFixture(page: Page): Promise<void> {
   await page.goto('/');
@@ -40,25 +65,40 @@ async function readChrome(
   }, appearance);
 }
 
-test('the selection chrome paints what its literals did', async ({ page }) => {
+test('the selection chrome paints the tokens the appearance resolves', async ({ page }) => {
   await openFixture(page);
 
-  const chrome = await readChrome(page, 'light');
-
-  const drifts = Object.entries(EXPECTED)
-    .filter(([property, expected]) => chrome[property] !== expected)
-    .map(
-      ([property, expected]) =>
-        `${property}: expected ${expected}, got ${String(chrome[property])}`,
-    );
+  const drifts: string[] = [];
+  for (const appearance of APPEARANCES) {
+    const chrome = await readChrome(page, appearance);
+    for (const [property, expected] of Object.entries(EXPECTED[appearance])) {
+      if (chrome[property] !== expected) {
+        drifts.push(
+          `${appearance}.${property}: expected ${expected}, got ${String(chrome[property])}`,
+        );
+      }
+    }
+  }
 
   expect(drifts, `selection chrome drifted:\n${drifts.join('\n')}`).toEqual([]);
 });
 
-test('the selection chrome does not vary by appearance', async ({ page }) => {
+test('the selection chrome follows the appearance, and the brand fill does not', async ({ page }) => {
   await openFixture(page);
 
-  // The chrome sits on the terminal, which keeps its dark board in both
-  // appearances — a light terminal is a theme's decision, not this phase's.
-  expect(await readChrome(page, 'dark')).toEqual(await readChrome(page, 'light'));
+  const light = await readChrome(page, 'light');
+  const dark = await readChrome(page, 'dark');
+
+  // The direction is asserted, not just "they differ": swapping the two halves
+  // would leave a bare inequality green. The surface lightens with the page and
+  // the label darkens, which is the same inversion the rest of the app makes.
+  expect(luma(light.menuBackground)).toBeGreaterThan(luma(dark.menuBackground));
+  expect(luma(light.buttonColor)).toBeLessThan(luma(dark.buttonColor));
+  expect(light.handleBorder).not.toEqual(dark.handleBorder);
+  expect(light.menuBorder).not.toEqual(dark.menuBorder);
+
+  // The fill is the brand colour, which describes the owner rather than the
+  // board, so it stays put — the guard that keeps "follows the appearance" from
+  // quietly becoming "everything moves".
+  expect(light.handleBackground).toEqual(dark.handleBackground);
 });

@@ -11,7 +11,10 @@ export default function ShellMinimalView({
   onContainerMouseDown,
 }: ShellMinimalViewProps) {
   return (
-    <div className="relative h-full w-full bg-n-gray-900">
+    // The board again, the same surface Shell's full view paints: minimal mode
+    // drops the header and overlays but the canvas still fills this box exactly,
+    // so the colour only ever shows if the terminal letterboxes.
+    <div className="relative h-full w-full bg-[hsl(var(--term-background))]">
       <div
         ref={terminalContainerRef}
         tabIndex={0}
