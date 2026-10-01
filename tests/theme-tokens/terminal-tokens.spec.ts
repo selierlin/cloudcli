@@ -247,7 +247,7 @@ test('the vivid variant moves nine ANSI slots and the foreground off its sibling
  * pinned is the family list after quoting is normalised (§6.1) — see
  * `normalizeFontStack`.
  */
-const ORIGINAL_FONT_STACK = 'Menlo, Monaco, "Courier New", monospace';
+const ORIGINAL_FONT_STACK = 'Menlo, Monaco, "Courier New", "CloudCLI Nerd Symbols", monospace';
 
 /**
  * The family list with quoting removed.

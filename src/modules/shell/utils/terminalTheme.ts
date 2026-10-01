@@ -90,7 +90,7 @@ export function readTerminalTheme(): ITheme {
  * the token contract's baseline (`tests/theme-tokens/token-contract.spec.ts`),
  * this literal by `tests/theme-tokens/terminal-tokens.spec.ts`.
  */
-export const FALLBACK_TERMINAL_FONT_FAMILY = 'Menlo, Monaco, "Courier New", monospace';
+export const FALLBACK_TERMINAL_FONT_FAMILY = 'Menlo, Monaco, "Courier New", "CloudCLI Nerd Symbols", monospace';
 
 /**
  * The stack a theme declares for the terminal, or null when it declares none.

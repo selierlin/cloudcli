@@ -277,7 +277,7 @@
        baseline (tests/theme-tokens/token-contract.spec.ts), the TS literal by
        tests/theme-tokens/terminal-tokens.spec.ts — so changing one alone is a red
        test (see docs/research/CloudCLI终端字体动态配置方案.md §6.1). */
-    --term-font-family: Menlo, Monaco, "Courier New", monospace;
+    --term-font-family: Menlo, Monaco, "Courier New", "CloudCLI Nerd Symbols", monospace;
 
     /* ANSI colours are semantic in CLI output, not decorative: red means
        "error / deleted", green "success / added", yellow "warning", blue
