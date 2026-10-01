@@ -34,14 +34,14 @@ const PROJECT = { projectId: 'project-1', name: 'project-1', displayName: 'proje
 // Touched a minute ago, so the green "recently active" dot would apply.
 const SESSION = { id: 's1', summary: 'session one', lastActivity: '2026-08-21T09:59:00.000Z', __provider: 'claude' } as unknown as SessionWithProvider;
 
-const renderRow = (state: { isProcessing: boolean; hasBackgroundWork: boolean }) => render(
+const renderRow = (state: { isProcessing: boolean; hasBackgroundWork: boolean; needsAttention?: boolean; selected?: boolean }) => render(
   React.createElement(SidebarSessionItem, {
     project: PROJECT,
     session: SESSION,
-    selectedSession: null,
+    selectedSession: state.selected ? SESSION : null,
     isManaging: false,
     isBatchSelected: false,
-    needsAttention: false,
+    needsAttention: state.needsAttention ?? false,
     currentTime: NOW,
     isEditing: false,
     renameDraft: '',
@@ -85,4 +85,17 @@ test('a response in flight still spins and shows no dot', () => {
   assert.equal(container.querySelector('[role="status"]'), null);
   assert.equal(container.querySelectorAll('.animate-spin').length, 1);
   assert.equal(recordedOptionsProps[0].isProcessing, true);
+});
+
+test('a selected row shows no dot at all — the inset bar owns the left edge', () => {
+  const { container } = renderRow({
+    isProcessing: false,
+    hasBackgroundWork: true,
+    needsAttention: true,
+    selected: true,
+  });
+
+  // assert.equal(<jsdom node>, null) would try to describe the node on failure
+  // and kill the vitest worker — assert.ok keeps the failure a plain red.
+  assert.ok(container.querySelector('[role="status"]') === null, 'a selected row must not render a status dot');
 });

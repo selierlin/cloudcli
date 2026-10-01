@@ -61,11 +61,11 @@ export default function SidebarModeTabs({
         aria-label={tab.showLabel ? undefined : tab.label}
         title={tab.showLabel ? undefined : tab.label}
         className={cn(
-          'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-normal transition-all',
+          'flex min-w-0 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1.5 text-xs font-normal transition-all',
           tab.mode === 'archived' && 'px-2.5',
           canGrow && tab.showLabel && 'flex-1',
           isActive
-            ? 'bg-background text-foreground shadow-sm'
+            ? 'bg-card border-border/50 text-foreground shadow-sm dark:bg-accent dark:border-foreground/[0.08] dark:shadow-none'
             : 'text-muted-foreground hover:text-foreground',
           isActive && tab.mode === 'running' && 'ring-1 ring-emerald-500/15',
         )}

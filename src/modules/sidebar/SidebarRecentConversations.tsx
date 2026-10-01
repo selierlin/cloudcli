@@ -182,13 +182,8 @@ function RecentConversationRow({
           {isBatchSelected && <Check className="h-3 w-3" />}
         </span>
       )}
-      <span
-        className={cn(
-          'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md',
-          isSelected && 'bg-primary/10',
-        )}
-      >
-        <LLMProviderLogo provider={conversation.provider} className="h-4 w-4" />
+      <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md">
+        <LLMProviderLogo provider={conversation.provider} className="h-5 w-5" />
       </span>
 
       <span className="min-w-0 flex-1">
@@ -244,8 +239,10 @@ function RecentConversationRow({
       <div className="md:hidden">
         <div
           className={cn(
-            'flex items-center gap-2 rounded-lg px-2 py-2',
-            isSelected ? 'bg-primary/10' : 'bg-card border border-border/30',
+            'ml-2.5 flex items-center gap-2 rounded-lg px-2 py-2',
+            isSelected
+              ? 'bg-primary/10 shadow-[inset_3px_0_0_0_hsl(var(--primary))]'
+              : 'bg-card border border-border/30',
           )}
         >
           <div className="flex min-w-0 flex-1 cursor-pointer items-center gap-2" onClick={selectConversation}>
@@ -419,9 +416,9 @@ function RecentConversationRow({
           onClick={handleClick}
           data-testid="recent-conversation-row"
           className={cn(
-            'group flex min-w-0 items-center gap-2 rounded-lg px-2 py-2 pr-10 text-left transition-colors',
+            'group ml-2.5 flex min-w-0 items-center gap-2 rounded-lg px-2 py-2 pr-10 text-left transition-colors',
             isSelected
-              ? 'bg-primary/10 text-foreground'
+              ? 'bg-primary/10 text-foreground shadow-[inset_3px_0_0_0_hsl(var(--primary))]'
               : 'text-foreground hover:bg-accent/60',
             isManaging && isProcessing && 'cursor-not-allowed opacity-60',
           )}

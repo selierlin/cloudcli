@@ -238,7 +238,7 @@
     --nav-float-shadow: var(--palette-black) / 0.06;
     --nav-float-ring: var(--palette-sand-200) / 0.5;
     --nav-divider-color: var(--palette-sand-200) / 0.5;
-    --nav-input-bg: var(--palette-sand-100) / 0.5;
+    --nav-input-bg: var(--palette-sand-100);
     --nav-input-focus-ring: var(--palette-brand-500) / 0.22;
 
     /* Terminal (xterm) — the one surface CSS cannot style directly, because
@@ -512,7 +512,7 @@
     --nav-float-shadow: var(--palette-black) / 0.35;
     --nav-float-ring: var(--palette-ink-850) / 0.3;
     --nav-divider-color: var(--palette-ink-850) / 0.5;
-    --nav-input-bg: var(--palette-ink-850) / 0.5;
+    --nav-input-bg: var(--palette-black) / 0.25;
     --nav-input-focus-ring: var(--palette-brand-400) / 0.25;
 
     /* Code editor — the values `@codemirror/theme-one-dark` shipped. The
@@ -750,14 +750,14 @@
     background: linear-gradient(90deg, transparent, hsl(var(--nav-divider-color)) 20%, hsl(var(--nav-divider-color)) 80%, transparent);
   }
 
-  /* Nav search input surface — uses theme tokens */
+  /* Nav search input surface — uses theme tokens. The border comes from the
+     markup (border-border/60) so the field reads as a recessed well; focus
+     speaks through the ring and a tinted border, not a background swap. */
   .nav-search-input {
     background: hsl(var(--nav-input-bg));
-    border: none;
   }
 
   .nav-search-input:focus-within {
-    background: hsl(var(--background));
     box-shadow: 0 0 0 2px hsl(var(--nav-input-focus-ring));
   }
   
