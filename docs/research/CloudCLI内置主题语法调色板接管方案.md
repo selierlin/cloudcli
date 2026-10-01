@@ -343,6 +343,8 @@
 >
 > 故事实 1 与其余两条并列时读作："终端面**与语法面一样**是外观相关的（只要主题选择拆分它）"。B 线当时"Vivid 的终端改动不需要明暗拆分"的做法**不受影响**（它确实没拆），受影响的只是那句"因此不存在来源问题"。逐槽取值、守卫与门槛见《CloudCLI 主题与配色体系设计方案》切片表 v20 的 2-R 记录。
 
+> > **追补（2026-10-01，基座浅色终端板片 2-S）：事实 1 的主句也作废。** 上一段说受影响"只是那句'因此不存在来源问题'"——**不够**。2-S 之后连**基座**都拆了：`:root` 是浅色半、`.dark` 收原深色半（逐字未动），而基座此前正是唯一还"只声明一次"的地方，也就正是它撑住了"终端面是外观无关的"这半句。事实 1 现在应整体读作：**终端面是外观相关的——主题可以拆（8 套已拆），基座自己也已拆**；"只声明一次"从始至终是**选择**，没有任何一层把它当过不变量。**推论**：本方案里凡是拿"终端恒深 / 终端只声明一次"当**前提**的推理（含 §6.3 终端那一份记账的"无需拆分"），都要改按"两半各有来源"重读。取值、代价与门槛见切片表 v21 的 2-S 记录。
+
 > **订正（审阅期间由本方案作者自查发现，非审阅者指出）："Vivid 不动终端"是错的。**
 > 我此前判"终端 16 槽 0 变化"依据的是 `one_dark.xml` 的 **`<colors>`** 段（那里确实只有 `CONSOLE_BACKGROUND_KEY` 一条，`CONSOLE_*` 变 0 项）。**但终端的 ANSI 槽不在 `<colors>`，而在 `<attributes>`**——那里有 **21 条 `CONSOLE_*_OUTPUT`**，Vivid **改了其中 12 条**：
 >
@@ -667,7 +669,7 @@
 | **`.tmTheme` 加键的自动连锁**（新发现 A） | `src/shared/tmTheme.ts:433-434`（`Object.keys(SYNTAX_TOKEN_MAP)` ＋ `?? foreground` 回退）、`:402-404`（回退的理由注释）、`:117`/`:127`（"ten" 措辞）；行为被 `src/shared/tests/tmTheme.test.ts:130-142` 固化 |
 | **`.tmTheme` 的缓存指纹会随映射变化** | `src/shared/userThemeStyles.ts:86`（`COMPILED_OUTPUT_FINGERPRINT = JSON.stringify(SYNTAX_TOKEN_MAP)`）、`:463-466`（注释预告的场景）、`:476`（校验点） |
 | **参照物没有浅色语法板**（新发现 B） | `/tmp/od` ＋ `one-dark-theme-6.2.5.jar` 全清单比对（本次调查）：只有 `one_dark{,_vivid}.theme.json`（均 `dark: true`）与 `one_dark{,_vivid}.xml`；Islands 侧只有 `IslandSchemeDark.xml` |
-| **终端面是外观无关的** | `src/index.css`：`--palette-term-*` 20 条／套，主题块内只声明一次（实测 `cc-onedark`/`cc-islands`/`cc-catppuccin`/`cc-polar` 各 20，`cc-ocean` 无）；基座 `:169-188` ＋ `--term-*` 别名 `:230-...`。**〔2026-10-01 订正〕**"只声明一次"是各主题当时的**选择**而非不变量：9 套 `full` 主题现已有 8 套把它拆进 `:not(.dark)` 两半（`cc-tokyo-night` 更早已拆），故本行**不可再当作"终端面外观无关"的依据**，只可读作"当时没人拆"。见 §3.7 的 2026-10-01 订正 |
+| **终端面是外观无关的** | `src/index.css`：`--palette-term-*` 20 条／套，主题块内只声明一次（实测 `cc-onedark`/`cc-islands`/`cc-catppuccin`/`cc-polar` 各 20，`cc-ocean` 无）；基座 `:169-188` ＋ `--term-*` 别名 `:230-...`。**〔2026-10-01 订正〕**"只声明一次"是各主题当时的**选择**而非不变量：9 套 `full` 主题现已有 8 套把它拆进 `:not(.dark)` 两半（`cc-tokyo-night` 更早已拆），故本行**不可再当作"终端面外观无关"的依据**，只可读作"当时没人拆"。**〔2026-10-01 追补（2-S）〕**基座也拆了（`:root` 浅色半 ＋ `.dark` 深色半），故本行连"基座 `:169-188` 只声明一次"这一句也已过期——`--palette-term-*` 现为基座 40 条（20 ＋ 20）＋ 每套主题 40 条。见 §3.7 的两条 2026-10-01 订正 |
 | **主题文档 `:4818` 的归属**（新发现 C） | 主题文档 `:4807`（「## 审阅批注」区起）、`:4818`（Claude 那条 `--cc-syntax-N` 的 WARNING）、`:4781`（**真正的**「## 附录 B：解包取证索引」） |
 | **4 个硬编码 `/--cc-syntax-\d+/` 的测试文件**（N8） | `src/shared/tests/syntaxTheme.test.ts:81`（`:100` 是不升名的槽 3，**放宽后仍绿**）；`src/modules/code-editor/tests/markdownCodeBlockSyntaxTheme.test.tsx:57/:67/:86`；`src/modules/chat/tests/markdownSyntaxThemeInjection.test.tsx:39/:83`（`:71` 先红）；`src/modules/code-editor/tests/editorThemeTokens.test.ts:75`（同文件 `:66` 已是宽正则） |
 | **字面色护栏的正则形状**（N7） | `tests/theme-tokens/token-contract.spec.ts:37`（`HSL_TRIPLET` 只认空格三元组）、`:146-171`（扫描）、`:154`（`--editor-` 豁免） |
@@ -1061,7 +1063,7 @@
    → **裁定：保留**（OpenCode 倾向保留，Claude 未反对）。**加强的理由（两位都没说到的）**：今天 `.tmTheme` 用户的 `<pre>` color 是**基色表**的槽 4（oneDark `#abb2bf` / oneLight `#383a42`）——**与用户自己的主题无关**，这正是该模块注释 `:402-404` 说的"leaving the base value there would mix two palettes in one file"。所以保留不是"顺带接受一个副作用"，而是**修好一个本来就错的取值**。
    → 配套四件事**全部采纳**：`tmTheme.ts:117/:127` 的 "ten"→"eleven"；补一条锁定第 11 槽回退的用例；附录 A 补 `tmTheme.ts` 与 `tmTheme.test.ts` 两行；**单向记账四处**（§5.1 生产代码表、§5.1 验收口径、§6.1、§6.3）。
    → **被否的备选**（把循环收窄到 `SYNTAX_SCOPE_PATTERNS` 的槽集）：要写代码，且唯一效果是**保住一个错值**。
-2. **新发现 B · §3.7 来源表只覆盖暗色半 —— 属实，且比原批注更重。** 复现：One Dark Theme 插件 jar **全清单**只有 `one_dark.theme.json` / `one_dark_vivid.theme.json` ＋ `one_dark.xml` / `one_dark_vivid.xml`，**没有任何浅色板**；Islands 只有 `IslandSchemeDark.xml`。⇒ **三个参照物（One Dark、Vivid、Islands）都没有浅色语法板**，只有 catppuccin 是双套。另一条实测剔除了一个担心：**终端板走 L1 的 20 条 `--palette-term-*`、当时每套主题只声明一次** ⇒ 当时没有"浅色终端来源"要处理。 **〔2026-10-01 订正〕该结论只在"主题选择不拆板"时成立**：8 套 `full` 主题此后已把板拆进 `:not(.dark)` 两半，浅色半同样需要来源，且三套有官方浅色 ANSI、一套按官方色板角色表读、四套自造——详见 §3.7 的 2026-10-01 订正。
+2. **新发现 B · §3.7 来源表只覆盖暗色半 —— 属实，且比原批注更重。** 复现：One Dark Theme 插件 jar **全清单**只有 `one_dark.theme.json` / `one_dark_vivid.theme.json` ＋ `one_dark.xml` / `one_dark_vivid.xml`，**没有任何浅色板**；Islands 只有 `IslandSchemeDark.xml`。⇒ **三个参照物（One Dark、Vivid、Islands）都没有浅色语法板**，只有 catppuccin 是双套。另一条实测剔除了一个担心：**终端板走 L1 的 20 条 `--palette-term-*`、当时每套主题只声明一次** ⇒ 当时没有"浅色终端来源"要处理。 **〔2026-10-01 订正〕该结论只在"主题选择不拆板"时成立**：8 套 `full` 主题此后已把板拆进 `:not(.dark)` 两半，浅色半同样需要来源，且三套有官方浅色 ANSI、一套按官方色板角色表读、四套自造。**〔2026-10-01 追补（2-S）〕**连基座也拆了（`:root` 浅色半 ＋ `.dark` 深色半），于是"终端板当时只声明一次"这条实测不再有任何一层还成立；本条"担心被剔除"的结论**整体作废**，应读作"当时确实没人拆"。详见 §3.7 的两条 2026-10-01 订正。
    → 采纳 Claude 的"同宽"要求（主题 × 外观 × 面），并**补一条两位都没提的巧合**：基色浅色半本身就是 Prism 的 `oneLight`，而它是 One Dark 那个项目的浅色姊妹板 ⇒ 对 `cc-onedark`，"浅色语法半不动"是**语义自洽**的；对 `cc-onedark-vivid` 则意味着**只在暗色半可辨**，故 §3.8 的比较表与 §6.3 的记账都按外观拆开。
 3. **新发现 C · §4 表里"附录 B 取证索引（4818）"标签错位 —— 属实。** 复现：主题文档 `:4818` 是「## 审阅批注」区（起于 `:4807`）里 Claude 的 WARNING；真正的「## 附录 B：解包取证索引」在 `:4781`，内容是 WorkBuddy/Codex 解包证据。
    → 已按 Claude 的要求并进**变更清单**（不只是留在审阅区备注）：§4 表该行的对象改写为"审阅批注（Claude WARNING，4818）"。
