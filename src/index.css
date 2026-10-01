@@ -1791,7 +1791,13 @@
 
    `--palette-white` is deliberately not overridden either: the light card stays
    pure white on the tinted substrate, the way the base's card sits on warm
-   sand. */
+   sand.
+
+   Colour provenance: catppuccin/catppuccin's official palette.json (Latte and
+   Mocha), as ported by the Codex TUI's bundled `catppuccin-latte` /
+   `catppuccin-mocha` (Codex itself ships a syntax theme only — see the first
+   paragraph). The shell's sixteen values match the official palette exactly;
+   the two deliberate deviations are recorded above. */
 [data-theme="cc-catppuccin"] {
   /* Substrate — light: Latte. base / mantle / surface0 / subtext1 / text.
      `sand-950` repeats `text`: Latte publishes one deep ink, and the base only
@@ -2041,7 +2047,13 @@
 
    `--palette-white`, the `gray` / `zinc` / `slate` / `neutral` compatibility ramps
    and `--n-white` / `--n-black` are left alone for the reasons the base records and
-   `theme-overlays.spec.ts` enforces. */
+   `theme-overlays.spec.ts` enforces.
+
+   Colour provenance: JetBrains IntelliJ Platform's bundled Islands Dark and
+   Islands Light — `themes/islands/ManyIslandsDark.theme.json` and
+   `ManyIslandsLight.theme.json`, inside `intellij.platform.ide.impl.jar`
+   (the files are named `ManyIslands*`; match on the `name` field, not the
+   file name). */
 [data-theme="cc-islands"] {
   /* Substrate — light: frame / inset / border / muted text / secondary text. */
   --palette-sand-50: 228 12.82% 92.35%;
@@ -2339,7 +2351,12 @@
 
    `--palette-white`, the `gray` / `zinc` / `slate` / `neutral` compatibility
    ramps and `--n-white` / `--n-black` are left alone for the reasons the base
-   records and `theme-overlays.spec.ts` enforces. */
+   records and `theme-overlays.spec.ts` enforces.
+
+   Colour provenance: the `One Dark` IntelliJ plugin by Mark Skelton —
+   `one-dark-theme-6.2.5.jar`, themeProvider `One Dark` (`one_dark.xml` plus
+   its `ui` map; the self-contained provider, not the Islands-parented one —
+   see the first paragraph). */
 [data-theme="cc-onedark"] {
   /* Substrate — light: invented (see above). Text steps are the source's own
      greys, read against a light substrate. */
@@ -2583,7 +2600,11 @@
  * hexes, none of which a light board contains. The substitution is the identity
  * there, which is why the light blocks below repeat the sibling's rather than
  * derive a second invention: two themes that read alike on a light surface is
- * what the source says. */
+ * what the source says.
+ *
+ * Colour provenance: the same plugin's `One Dark Vivid` themeProvider
+ * (`one_dark_vivid.xml` inside `one-dark-theme-6.2.5.jar`); the light half is
+ * the sibling's, per the paragraph above. */
 [data-theme="cc-onedark-vivid"] {
   /* Substrate — light: the sibling's. Both themes are the same plugin's files,
      and it ships one light flavour for the both of them. */
@@ -2827,7 +2848,11 @@
   --palette-ink-100: 60 30% 96.08%;
 
   /* Light appearance, substrate: page → secondary → border. */
-  --palette-sand-50: 48 100% 96.08%;
+  /* sand-50 is a deliberate desaturation of Alucard's Background
+     (48 100% → 48 58%): the official value reads as fluorescent against the
+     frozen white chrome (cards, session items, sticky bars) that no theme may
+     retint, so the paper yields instead. Lightness untouched. */
+  --palette-sand-50: 48 58% 96.08%;
   --palette-sand-100: 46.15 54.17% 90.59%;
   --palette-sand-200: 46.45 38.27% 84.12%;
 
@@ -2947,11 +2972,19 @@
   --palette-term-bright-cyan: 197.96 96.08% 30%;
   --palette-term-bright-white: 0 0% 12.16%;
 
-  --code-block-bg: var(--palette-sand-50);
-  --editor-bg: hsl(var(--palette-sand-50));
+  /* The editor/boards sit one sand step *deeper* than the page. The base's
+     light direction is the reverse (editor page pure white, the one L1 step
+     no theme may move), so on this warm parchment the boards can only float
+     by going darker: sand-50 page, sand-100 board. */
+  --code-block-bg: var(--palette-sand-100);
+  --editor-bg: hsl(var(--palette-sand-100));
   --editor-toolbar-bg: hsl(var(--palette-sand-50));
   --editor-loading-bg: hsl(var(--palette-sand-50));
-  --editor-selection: hsl(var(--palette-sand-200));
+  /* Alucard's own Selection — the one slot the source publishes a value for
+     and the promoted file did not take. The official board pairs its warm
+     parchment with a *cool* purple-grey selection (240°, not the substrate's
+     48°); re-tinting it onto sand-200 stacked warm on warm and read muddy. */
+  --editor-selection: hsl(240 18% 84%);
   --editor-selection-focused: hsl(var(--palette-brand-500) / 0.22);
   --editor-gutter-bg: hsl(var(--palette-sand-50));
   --editor-gutter-fg: hsl(var(--palette-sand-500));
@@ -3045,7 +3078,18 @@
    (see that block's note for the editor rationale and the two shape
    constraints).
 
-   Colour provenance: morhetz/gruvbox colors/gruvbox.vim:89-132. */
+   Colour provenance: morhetz/gruvbox colors/gruvbox.vim:89-132.
+
+   Deliberate deviation from the reference: the three light *surface* steps
+   keep gruvbox's hue and lightness but drop saturation to the base's own
+   substrate levels (22/15/14%). Both morhetz's light board and
+   gruvbox-material's light `bg0` are `#fbf1c7` (S≈87%) — the reference never
+   toned it down — and in a full-UI context that saturation reads as a lemon
+   paper: vim paints one canvas, this UI spreads the substrate across page,
+   panels and borders. The lightness ladder and the warm hue are what read as
+   "gruvbox"; the lemon saturation is what the base never had. Text steps
+   (sand-500/800/950) are untouched: their low lightness hides the saturation,
+   and sand-500 is contrast-pinned. */
 [data-theme="cc-gruvbox"] {
   /* Dark appearance, substrate: page → card → secondary → input. */
   --palette-ink-950: 0 0% 15.69%;
@@ -3058,9 +3102,9 @@
   --palette-ink-100: 43.16 58.76% 80.98%;
 
   /* Light appearance, substrate: page → secondary → border. */
-  --palette-sand-50: 48.46 86.67% 88.24%;
-  --palette-sand-100: 43.16 58.76% 80.98%;
-  --palette-sand-200: 40.38 38.24% 73.33%;
+  --palette-sand-50: 48.46 22% 88.24%;
+  --palette-sand-100: 43.16 15% 80.98%;
+  --palette-sand-200: 40.38 14% 73.33%;
 
   /* Light appearance, ink: secondary text → text. */
   --palette-sand-500: 26.67 9.68% 36.47%;
@@ -3250,11 +3294,12 @@
 
 /* cc-kanagawa — coverage: full. Kanagawa's two appearances: the `wave` dark
    board and `lotus` light. Same story as `cc-dracula` above — promoted from a
-   `.css` user theme, values unchanged, selector rewritten, editor claimed (see
-   that block's note for the editor rationale and the two shape constraints).
+   `.css` user theme, selector rewritten, editor claimed (see that block's note
+   for the editor rationale and the two shape constraints).
 
    Colour provenance: rebelot/kanagawa.nvim lua/kanagawa/{colors,themes}.lua
-   (wave + lotus). */
+   (wave + lotus). One deliberate deviation: the light substrate's saturation
+   is damped — see the note above the `sand` steps below. */
 [data-theme="cc-kanagawa"] {
   /* Dark appearance, substrate: page → card → secondary → input. */
   --palette-ink-950: 240 12.68% 13.92%;
@@ -3266,13 +3311,23 @@
   --palette-ink-400: 50 7.14% 61.09%;
   --palette-ink-100: 51.18 32.69% 79.61%;
 
-  /* Light appearance, substrate: page → secondary → border. */
-  --palette-sand-50: 53.33 67.5% 84.31%;
-  --palette-sand-100: 49.86 59.66% 76.67%;
-  --palette-sand-200: 50.94 35.57% 70.78%;
+  /* Light appearance, substrate: page → secondary → border. The saturation of
+     all three steps is deliberately *not* Kanagawa's: lotus paints its
+     washi-yellow `lotusWhite3` (S 67.5%) on one editor window, while the L2
+     here spreads `sand-100/200` across muted, secondary, accent, border, input
+     and the nav chrome, so the same saturation reads as a far larger area of
+     yellow. Hue and lightness are the source's own; only S is damped
+     (67.5/59.7/35.6 → 25/28/32). Damping darkens the substrate, which pushed
+     `--muted-foreground` on it from a marginal 4.53:1 down to 4.04:1, under
+     the AA floor — so `sand-500`, the secondary-text step, is darkened two
+     lightness points in the same spirit as the `property` syntax slot's
+     darkening below: hue and saturation untouched. */
+  --palette-sand-50: 53.33 25% 84.31%;
+  --palette-sand-100: 49.86 28% 76.67%;
+  --palette-sand-200: 50.94 32% 70.78%;
 
   /* Light appearance, ink: secondary text → text. */
-  --palette-sand-500: 48.75 7.62% 39.68%;
+  --palette-sand-500: 48.75 7.62% 36%;
   --palette-sand-800: 240 8.7% 35.08%;
   --palette-sand-950: 240 23.43% 34.31%;
 
@@ -3466,12 +3521,20 @@
    rewritten, editor claimed (see that block's note for the editor rationale and
    the two shape constraints).
 
-   Colour provenance: folke/tokyonight.nvim colors/{storm,night}.lua; the light
-   board is the official HSLuv inversion, computed, not sampled. */
+   Colour provenance: folke/tokyonight.nvim colors/night.lua (night is the storm
+   palette with three background overrides; every substrate here takes night's
+   own values — `ink-900` is night's `bg_dark #16161e`, which sits *below* the
+   page `ink-950`, the reference's real elevation: floats are darker than the
+   editor). The light board is the official HSLuv inversion, computed, not
+   sampled. The terminal board follows the same split — the `night` board in
+   the dark appearance and the official day board (the generated
+   `extras/kitty/tokyonight_day.conf` values) in the light one, the theme's own
+   decision that the base declines to make ("a light terminal is a theme's
+   decision", the base's terminal note). */
 [data-theme="cc-tokyo-night"] {
   /* Dark appearance, substrate: page → card → secondary → input. */
   --palette-ink-950: 235 18.75% 12.55%;
-  --palette-ink-900: 229.09 26.19% 16.47%;
+  --palette-ink-900: 240 3.94% 10.2%;
   --palette-ink-850: 228 23.36% 20.98%;
   --palette-ink-800: 228.95 24.36% 30.59%;
 
@@ -3511,27 +3574,9 @@
   --palette-gray-900: 230 39.3% 12.17%;
   --palette-gray-950: 230 71.4% 4.76%;
 
-  /* Terminal board — appearance-agnostic, one flavour for both. */
-  --palette-term-bg: 235 18.75% 12.55%;
-  --palette-term-fg: 228.68 72.6% 85.69%;
-  --palette-term-cursor: 228.68 72.6% 85.69%;
-  --palette-term-selection: 224.68 37.01% 24.9%;
-  --palette-term-black: 229.23 23.08% 33.14%;
-  --palette-term-red: 348.84 88.97% 71.57%;
-  --palette-term-green: 88.8 50.51% 61.18%;
-  --palette-term-yellow: 35.5 65.93% 64.31%;
-  --palette-term-blue: 220.8 88.65% 72.35%;
-  --palette-term-magenta: 261.29 85.32% 78.63%;
-  --palette-term-cyan: 202.15 100% 74.51%;
-  --palette-term-white: 229.33 35.43% 75.1%;
-  --palette-term-bright-black: 228.57 20% 41.18%;
-  --palette-term-bright-red: 349.83 100% 76.86%;
-  --palette-term-bright-green: 85 71.56% 57.25%;
-  --palette-term-bright-yellow: 38.18 94.62% 63.53%;
-  --palette-term-bright-blue: 221.58 100% 77.65%;
-  --palette-term-bright-magenta: 260.93 100% 83.14%;
-  --palette-term-bright-cyan: 204.4 100% 82.16%;
-  --palette-term-bright-white: 228.68 72.6% 85.69%;
+  /* The terminal board is not declared here: it is the one family this theme
+     varies by appearance — the `night` board in the `.dark` block, the
+     official day board in the `:not(.dark)` one. See the light block. */
 
   /* Graph lanes — the base's ten hues, S levelled at 55%, L maximising the
      worse substrate; every lane clears 3.62:1 on both. */
@@ -3573,6 +3618,36 @@
   --editor-toolbar-border: hsl(var(--palette-sand-200));
   --editor-toolbar-fg: hsl(var(--palette-sand-800));
   --editor-toolbar-hover-bg: hsl(var(--palette-sand-100));
+
+  /* Terminal board, light half — the official day board, the generated values
+     from the upstream `extras/kitty/tokyonight_day.conf` (the HSLuv inversion
+     the day style is built from). The base keeps its terminal dark in both
+     appearances on purpose ("a light terminal is a theme's decision"), and
+     this is that decision, same as the editor split above. The base's
+     `--term-cursor-accent` / `--term-selection-fg` resolve through `term-bg`
+     and `term-bright-white`, which are day's own `cursor_text_color`
+     (#e1e2e7) and `selection_foreground` (#3760bf) — no extra declarations
+     needed. */
+  --palette-term-bg: 230 11.11% 89.41%;
+  --palette-term-fg: 221.91 55.28% 48.24%;
+  --palette-term-cursor: 221.91 55.28% 48.24%;
+  --palette-term-selection: 226.36 44% 80.39%;
+  --palette-term-black: 228 3.45% 71.57%;
+  --palette-term-red: 342.56 91.03% 56.27%;
+  --palette-term-green: 89 34.48% 34.12%;
+  --palette-term-yellow: 35.38 38.61% 39.61%;
+  --palette-term-blue: 214.65 80.95% 54.71%;
+  --palette-term-magenta: 265.99 84.86% 63.73%;
+  --palette-term-cyan: 195.1 100% 29.61%;
+  --palette-term-white: 227.09 33.33% 53.53%;
+  --palette-term-bright-black: 231.67 23.68% 70.2%;
+  --palette-term-bright-red: 345.33 100% 63.92%;
+  --palette-term-bright-green: 85.36 57.4% 33.14%;
+  --palette-term-bright-yellow: 38.18 59.61% 39.8%;
+  --palette-term-bright-blue: 214.75 100% 60.39%;
+  --palette-term-bright-magenta: 265 100% 69.41%;
+  --palette-term-bright-cyan: 195 100% 32.94%;
+  --palette-term-bright-white: 221.91 55.28% 48.24%;
 
   /* The inverted light board. `punctuation` and `block-foreground` take
      `editor.foreground`; `property` has a colour of its own
@@ -3622,6 +3697,34 @@
   --editor-toolbar-fg: hsl(var(--palette-ink-100));
   --editor-toolbar-hover-bg: hsl(var(--palette-ink-800));
   --editor-loading-bg: hsl(var(--palette-ink-950));
+
+  /* Terminal board, dark half — the `night` board the unscoped block carried
+     before the light half took the day board. The two black slots are this
+     board's own selection, not the official ANSI: the official `color0` is
+     `blend(bg, 0.8, #000)` → #15161e, all but invisible against the page
+     #1a1b26, so `black` takes the official bright black (terminal_black
+     #414868) and `bright-black` steps to dark3 #545c7e — a colour the
+     reference only ever uses for dim text, never ANSI. */
+  --palette-term-bg: 235 18.75% 12.55%;
+  --palette-term-fg: 228.68 72.6% 85.69%;
+  --palette-term-cursor: 228.68 72.6% 85.69%;
+  --palette-term-selection: 224.68 37.01% 24.9%;
+  --palette-term-black: 229.23 23.08% 33.14%;
+  --palette-term-red: 348.84 88.97% 71.57%;
+  --palette-term-green: 88.8 50.51% 61.18%;
+  --palette-term-yellow: 35.5 65.93% 64.31%;
+  --palette-term-blue: 220.8 88.65% 72.35%;
+  --palette-term-magenta: 261.29 85.32% 78.63%;
+  --palette-term-cyan: 202.15 100% 74.51%;
+  --palette-term-white: 229.33 35.43% 75.1%;
+  --palette-term-bright-black: 228.57 20% 41.18%;
+  --palette-term-bright-red: 349.83 100% 76.86%;
+  --palette-term-bright-green: 85 71.56% 57.25%;
+  --palette-term-bright-yellow: 38.18 94.62% 63.53%;
+  --palette-term-bright-blue: 221.58 100% 77.65%;
+  --palette-term-bright-magenta: 260.93 100% 83.14%;
+  --palette-term-bright-cyan: 204.4 100% 82.16%;
+  --palette-term-bright-white: 228.68 72.6% 85.69%;
 
   /* The `night` board. `url` takes the operator / escape colour `#89ddff`
      rather than the cyan `#7dcfff`, which `property`
