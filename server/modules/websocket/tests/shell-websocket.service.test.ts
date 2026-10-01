@@ -6,7 +6,7 @@ import test from 'node:test';
 
 import { WebSocket } from 'ws';
 
-import { handleShellConnection } from '@/modules/websocket/services/shell-websocket.service.js';
+import { handleShellConnection, resolveUserShell } from '@/modules/websocket/services/shell-websocket.service.js';
 
 function createFakeSocket() {
   const socket = new EventEmitter() as EventEmitter & {
@@ -224,4 +224,179 @@ test('a missing project directory is reported as an error frame and starts no pt
     socket.frames.map((frame) => JSON.parse(frame) as Record<string, unknown>),
     [{ type: 'error', message: 'Invalid project path' }]
   );
+});
+
+test('a dsh session opens the user preferred shell instead of mis-resuming claude', () => {
+  const spawnedCommands: string[] = [];
+  const dependencies = {
+    resolveProviderSessionId: () => 'dsh-native-session-id',
+    spawnPty: (_shell: string, args: string | string[]) => {
+      spawnedCommands.push(Array.isArray(args) ? args[args.length - 1] : args);
+      return createFakePty() as never;
+    },
+  };
+
+  const socket = createFakeSocket();
+  handleShellConnection(socket as never, dependencies);
+  socket.emit(
+    'message',
+    JSON.stringify({
+      type: 'init',
+      projectPath: process.cwd(),
+      sessionId: `dsh-escape-${Date.now()}`,
+      hasSession: true,
+      provider: 'dsh',
+    })
+  );
+
+  assert.equal(spawnedCommands.length, 1);
+  assert.equal(spawnedCommands[0], resolveUserShell(process.env));
+});
+
+test('a commandless plain shell runs the user preferred shell', () => {
+  const spawnedCommands: string[] = [];
+  const dependencies = {
+    resolveProviderSessionId: () => null,
+    spawnPty: (_shell: string, args: string | string[]) => {
+      spawnedCommands.push(Array.isArray(args) ? args[args.length - 1] : args);
+      return createFakePty() as never;
+    },
+  };
+
+  const socket = createFakeSocket();
+  handleShellConnection(socket as never, dependencies);
+  socket.emit(
+    'message',
+    JSON.stringify({
+      type: 'init',
+      projectPath: process.cwd(),
+      sessionId: `commandless-plain-${Date.now()}`,
+      hasSession: false,
+      provider: 'plain-shell',
+      isPlainShell: true,
+    })
+  );
+
+  assert.equal(spawnedCommands.length, 1);
+  assert.equal(spawnedCommands[0], resolveUserShell(process.env));
+});
+
+test('claude terminals carry the session model and the active settings file', () => {
+  const spawnedCommands: string[] = [];
+  const dependencies = {
+    resolveProviderSessionId: () => null,
+    resolveSessionModel: (sessionId: string) =>
+      sessionId.startsWith('configured') ? 'claude-sonnet-4-5' : null,
+    resolveActiveSettingsFile: (provider: string) =>
+      provider === 'claude' ? '/home/user/relay configs/settings-glm.json' : null,
+    spawnPty: (_shell: string, args: string | string[]) => {
+      spawnedCommands.push(Array.isArray(args) ? args[args.length - 1] : args);
+      return createFakePty() as never;
+    },
+  };
+
+  const configuredSocket = createFakeSocket();
+  handleShellConnection(configuredSocket as never, dependencies);
+  configuredSocket.emit(
+    'message',
+    JSON.stringify({
+      type: 'init',
+      projectPath: process.cwd(),
+      sessionId: `configured-${Date.now()}`,
+      hasSession: false,
+      provider: 'claude',
+    })
+  );
+
+  const unconfiguredSocket = createFakeSocket();
+  handleShellConnection(unconfiguredSocket as never, dependencies);
+  unconfiguredSocket.emit(
+    'message',
+    JSON.stringify({
+      type: 'init',
+      projectPath: process.cwd(),
+      sessionId: `unconfigured-${Date.now()}`,
+      hasSession: false,
+      provider: 'claude',
+    })
+  );
+
+  assert.equal(spawnedCommands.length, 2);
+  assert.match(spawnedCommands[0], /--model "claude-sonnet-4-5"/);
+  assert.match(spawnedCommands[0], /--settings "\/home\/user\/relay configs\/settings-glm\.json"/);
+  // The settings source is provider-scoped and applies to every run; only the
+  // model needs a session to read a composer preference from.
+  assert.equal(
+    spawnedCommands[1],
+    'claude --settings "/home/user/relay configs/settings-glm.json"'
+  );
+});
+
+test('unsafe settings file paths are dropped instead of reaching the shell', () => {
+  const spawnedCommands: string[] = [];
+  const dependencies = {
+    resolveProviderSessionId: () => null,
+    resolveActiveSettingsFile: () => '/tmp/settings$(rm -rf).json',
+    spawnPty: (_shell: string, args: string | string[]) => {
+      spawnedCommands.push(Array.isArray(args) ? args[args.length - 1] : args);
+      return createFakePty() as never;
+    },
+  };
+
+  const socket = createFakeSocket();
+  handleShellConnection(socket as never, dependencies);
+  socket.emit(
+    'message',
+    JSON.stringify({
+      type: 'init',
+      projectPath: process.cwd(),
+      sessionId: `unsafe-settings-${Date.now()}`,
+      hasSession: false,
+      provider: 'claude',
+    })
+  );
+
+  assert.equal(spawnedCommands.length, 1);
+  assert.equal(spawnedCommands[0], 'claude');
+});
+
+test('resolveUserShell prefers SHELL over the passwd entry and bash', () => {
+  assert.equal(resolveUserShell({ SHELL: '/bin/zsh' }), '/bin/zsh');
+  assert.equal(resolveUserShell({ SHELL: '  /opt/homebrew/bin/fish  ' }), '/opt/homebrew/bin/fish');
+
+  // With no SHELL the answer comes from the passwd entry or, failing that,
+  // the bash default — whatever it is, the PTY needs a real shell name.
+  const fallback = resolveUserShell({});
+  assert.equal(typeof fallback, 'string');
+  assert.ok(fallback.length > 0);
+  assert.ok(!fallback.includes('\0'));
+});
+
+test('the pty launches inside the user preferred shell, not a hardcoded bash', () => {
+  const spawnedShells: string[] = [];
+  const dependencies = {
+    resolveProviderSessionId: () => null,
+    spawnPty: (shell: string) => {
+      spawnedShells.push(shell);
+      return createFakePty() as never;
+    },
+  };
+
+  const socket = createFakeSocket();
+  handleShellConnection(socket as never, dependencies);
+  socket.emit(
+    'message',
+    JSON.stringify({
+      type: 'init',
+      projectPath: process.cwd(),
+      sessionId: `preferred-shell-${Date.now()}`,
+      hasSession: false,
+      provider: 'plain-shell',
+      isPlainShell: true,
+      initialCommand: 'test-command',
+    })
+  );
+
+  assert.equal(spawnedShells.length, 1);
+  assert.equal(spawnedShells[0], resolveUserShell(process.env));
 });

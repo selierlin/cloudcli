@@ -37,6 +37,25 @@ const PTY_SESSION_TIMEOUT = 30 * 60 * 1000;
 const SHELL_URL_PARSE_BUFFER_LIMIT = 32768;
 const TRAILING_URL_PUNCTUATION_REGEX = /[)\]}>.,;:!?]+$/;
 
+/**
+ * Resolves the POSIX shell a PTY should run inside: the account's preferred
+ * login shell from `SHELL`, falling back to the passwd entry and finally
+ * `bash`. Exported for the tests that pin the fallback chain. Every POSIX
+ * shell accepts `-c "<command>"`, so the argument shape does not change with
+ * the resolved shell.
+ */
+export function resolveUserShell(env: NodeJS.ProcessEnv): string {
+  let preferred = env.SHELL?.trim() || '';
+  if (!preferred) {
+    try {
+      preferred = os.userInfo().shell?.trim() || '';
+    } catch {
+      // uid resolution can fail in restricted environments; fall through to bash.
+    }
+  }
+  return preferred || 'bash';
+}
+
 function normalizeDetectedUrl(url: string): string | null {
   const cleanedUrl = url.trim().replace(TRAILING_URL_PUNCTUATION_REGEX, '');
   if (!cleanedUrl) {
@@ -103,6 +122,20 @@ type ShellWebSocketDependencies = {
     provider: string,
   ) => string | null | undefined;
   spawnPty?: typeof pty.spawn;
+  /**
+   * Resolves the app-recorded composer model of a session (the same value the
+   * chat runtime passes as the SDK model), or null when the session has none.
+   * Consumed by the shell service to mirror the chat-side model selection on
+   * resumed claude terminals; optional so tests can omit it.
+   */
+  resolveSessionModel?: (sessionId: string) => string | null;
+  /**
+   * Resolves a provider's active settings source file (the `claude --settings`
+   * equivalent maintained by the provider settings-source service), or null.
+   * Consumed by the shell service so terminal claude runs against the same
+   * relay/auth config as chat runs; optional so tests can omit it.
+   */
+  resolveActiveSettingsFile?: (provider: string) => string | null;
 };
 
 /**
@@ -141,6 +174,11 @@ function parseShellMessage(rawMessage: RawData): ShellIncomingMessage | null {
 
 const SAFE_SESSION_ID_PATTERN = /^[a-zA-Z0-9_.\-:]+$/;
 
+// Values interpolated into the shell command inside double quotes. Reject the
+// characters that are live inside double quotes in bash ($ ` ! and the quote
+// itself) or in PowerShell subexpressions $( ), plus command separators.
+const SHELL_UNSAFE_VALUE_PATTERN = /["`$;&|<>()\r\n]/;
+
 function resolveResumeSessionId(
   message: ShellIncomingMessage,
   dependencies: ShellWebSocketDependencies
@@ -170,6 +208,45 @@ function resolveResumeSessionId(
 }
 
 /**
+ * Builds the `--model` / `--settings` flags that mirror the chat-side claude
+ * configuration on a terminal launch. The model comes from the session's
+ * recorded composer preference (absent for fresh terminals without a session),
+ * and the settings file from the provider settings-source selection that every
+ * chat run loads. Both are user-maintained values interpolated into a shell
+ * command, so an unsafe value skips its flag (with a warning) instead of
+ * reaching the shell.
+ */
+function buildClaudeConfigFlags(
+  message: ShellIncomingMessage,
+  dependencies: ShellWebSocketDependencies
+): string {
+  let flags = '';
+
+  const sessionId = readString(message.sessionId);
+  if (sessionId) {
+    const model = dependencies.resolveSessionModel?.(sessionId) ?? null;
+    if (model) {
+      if (SHELL_UNSAFE_VALUE_PATTERN.test(model)) {
+        console.warn('Shell launch skipped the --model flag: unsafe model value');
+      } else {
+        flags += ` --model "${model}"`;
+      }
+    }
+  }
+
+  const settingsFile = dependencies.resolveActiveSettingsFile?.('claude') ?? null;
+  if (settingsFile) {
+    if (SHELL_UNSAFE_VALUE_PATTERN.test(settingsFile)) {
+      console.warn('Shell launch skipped the --settings flag: unsafe settings file path');
+    } else {
+      flags += ` --settings "${settingsFile}"`;
+    }
+  }
+
+  return flags;
+}
+
+/**
  * Resolves provider command line for plain shell and agent-backed shell modes.
  */
 function buildShellCommand(
@@ -186,7 +263,9 @@ function buildShellCommand(
     provider === 'plain-shell';
 
   if (isPlainShell) {
-    return initialCommand;
+    // A plain shell without an explicit command runs the user's preferred
+    // shell (see resolveUserShell) instead of a hardcoded bash.
+    return initialCommand || resolveUserShell(process.env);
   }
 
   if (provider === 'cursor') {
@@ -251,18 +330,29 @@ function buildShellCommand(
     return initialCommand || zcodeBin;
   }
 
+  if (provider === 'dsh') {
+    // DSH ships no interactive TUI profile (shipped profiles: acp, web,
+    // headless, sdk), so a session cannot be taken over in a terminal. Fall
+    // back to the user's preferred shell instead of the claude default branch
+    // below, which would mis-resume the DSH session id against
+    // `claude --resume` and then open an unrelated new claude session.
+    return initialCommand || resolveUserShell(process.env);
+  }
+
   // Launching with the flag is what unlocks "bypass permissions" in the CLI's
   // shift+tab permission-mode cycle; it cannot be enabled from inside a
   // session started without it.
   const bypassFlag = readBoolean(message.bypassPermissions)
     ? ' --dangerously-skip-permissions'
     : '';
-  const command = initialCommand || `claude${bypassFlag}`;
+  const claudeConfigFlags = buildClaudeConfigFlags(message, dependencies);
+  const claudeArgs = `${bypassFlag}${claudeConfigFlags}`;
+  const command = initialCommand || `claude${claudeArgs}`;
   if (resumeSessionId) {
     if (os.platform() === 'win32') {
-      return `claude --resume "${resumeSessionId}"${bypassFlag}; if ($LASTEXITCODE -ne 0) { claude${bypassFlag} }`;
+      return `claude --resume "${resumeSessionId}"${claudeArgs}; if ($LASTEXITCODE -ne 0) { claude${claudeArgs} }`;
     }
-    return `claude --resume "${resumeSessionId}"${bypassFlag} || claude${bypassFlag}`;
+    return `claude --resume "${resumeSessionId}"${claudeArgs} || claude${claudeArgs}`;
   }
   return command;
 }
@@ -366,10 +456,14 @@ export function handleShellConnection(
             initialCommand.includes('cursor-agent login') ||
             initialCommand.includes('auth login'));
 
-        const commandSuffix =
-          isPlainShell && initialCommand
-            ? `_cmd_${Buffer.from(initialCommand).toString('base64').slice(0, 16)}`
-            : '';
+        // The suffix fingerprints the command this plain PTY will actually
+        // run (buildShellCommand may substitute the user's preferred shell
+        // when no command was given), so differently-flavoured plain shells
+        // never share a retained PTY.
+        const shellCommand = buildShellCommand(data, dependencies);
+        const commandSuffix = isPlainShell
+          ? `_cmd_${Buffer.from(shellCommand).toString('base64').slice(0, 16)}`
+          : '';
         ptySessionKey = `${projectPath}_${sessionId ?? 'default'}${commandSuffix}`;
 
         if (isLoginCommand || forceRestart) {
@@ -431,9 +525,8 @@ export function handleShellConnection(
           return;
         }
 
-        const shellCommand = buildShellCommand(data, dependencies);
         const resumeSessionId = resolveResumeSessionId(data, dependencies);
-        const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
+        const shell = os.platform() === 'win32' ? 'powershell.exe' : resolveUserShell(process.env);
         const shellArgs =
           os.platform() === 'win32' ? ['-Command', shellCommand] : ['-c', shellCommand];
         const termCols = readNumber(data.cols, 80);

@@ -54,11 +54,22 @@ export default function Shell({
   const [bypassPermissions, setBypassPermissions] = useState(
     () => getClaudeSettings().skipPermissions,
   );
+  // Session-backed shells normally never see a bare bash: the workspace opens
+  // this tab bound to the selected session, and when the CLI exits the tab is
+  // dead until a manual restart. The toggle force-launches the existing
+  // plain-shell channel (`provider: 'plain-shell'`, command `bash`) instead,
+  // giving the tab an escape hatch; switching back re-runs the session resume.
+  const [bashMode, setBashMode] = useState(false);
   const [cliPromptOptions, setCliPromptOptions] = useState<CliPromptOption[] | null>(null);
   const promptCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const restartAfterInitRef = useRef(false);
   const onOutputRef = useRef<(() => void) | null>(null);
+
+  const effectiveIsPlainShell = isPlainShell || bashMode;
+  // Bash mode detaches the session but sends no command: the backend runs the
+  // user's preferred shell (resolveUserShell) for a commandless plain shell.
+  const effectiveInitialCommand = initialCommand;
 
   const {
     terminalContainerRef,
@@ -72,8 +83,8 @@ export default function Shell({
   } = useShellRuntime({
     selectedProject,
     selectedSession,
-    initialCommand,
-    isPlainShell,
+    initialCommand: effectiveInitialCommand,
+    isPlainShell: effectiveIsPlainShell,
     bypassPermissions,
     minimal,
     autoConnect,
@@ -224,9 +235,17 @@ export default function Shell({
     }, SHELL_RESTART_DELAY_MS);
   }, []);
 
-  const shellProvider = isPlainShell
+  const shellProvider = effectiveIsPlainShell
     ? 'plain-shell'
     : selectedSession?.__provider || readSelectedProvider();
+
+  const handleToggleBashMode = useCallback(() => {
+    setBashMode((enabled) => !enabled);
+    // The flag only applies at launch, so a running process must be restarted.
+    if (isConnected) {
+      handleRestartShell();
+    }
+  }, [handleRestartShell, isConnected]);
 
   const handleToggleBypassPermissions = useCallback(() => {
     setBypassPermissions((enabled) => !enabled);
@@ -286,18 +305,23 @@ export default function Shell({
     );
   }
 
-  const readyDescription = isPlainShell
+  // DSH ships no interactive TUI profile, so the backend opens a plain shell
+  // for its sessions instead of resuming them — the overlay must not claim a
+  // resume that never happens.
+  const isDshSession = !effectiveIsPlainShell && shellProvider === 'dsh';
+
+  const readyDescription = effectiveIsPlainShell || isDshSession
     ? t('shell.runCommand', {
-        command: initialCommand || t('shell.defaultCommand'),
+        command: effectiveInitialCommand || t('shell.defaultCommand'),
         projectName: selectedProject.displayName,
       })
     : selectedSession
       ? t('shell.resumeSession', { displayName: sessionDisplayNameLong })
       : t('shell.startSession');
 
-  const connectingDescription = isPlainShell
+  const connectingDescription = effectiveIsPlainShell || isDshSession
     ? t('shell.runCommand', {
-        command: initialCommand || t('shell.defaultCommand'),
+        command: effectiveInitialCommand || t('shell.defaultCommand'),
         projectName: selectedProject.displayName,
       })
     : t('shell.startCli', { projectName: selectedProject.displayName });
@@ -334,6 +358,11 @@ export default function Shell({
         bypassTitle={t(
           bypassPermissions ? 'shell.actions.bypassOnTitle' : 'shell.actions.bypassOffTitle',
         )}
+        showBashToggle={!isPlainShell}
+        bashModeEnabled={bashMode}
+        onToggleBashMode={handleToggleBashMode}
+        bashModeLabel={t('shell.actions.bashMode')}
+        bashModeTitle={t('shell.actions.bashModeTitle')}
       />
 
       <div className="relative flex-1 overflow-hidden p-2">
