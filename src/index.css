@@ -160,32 +160,38 @@
     --palette-neutral-900: 0 0% 9%;
     --palette-neutral-950: 0 0% 3.9%;
 
-    /* Terminal board — the VSCode Dark+ chrome and ANSI-16 ramp the terminal
-       shipped with, converted to the same triplet form so it can be recoloured
-       like any other family. The board stays dark in both appearances on
-       purpose (a light terminal is a theme's decision, not a default), which is
-       why it is declared once here rather than mirrored in `.dark`. The
-       round-trip back to the original hex is pinned by tests/theme-tokens. */
-    --palette-term-bg: 0 0% 11.8%;
-    --palette-term-fg: 0 0% 83.1%;
-    --palette-term-cursor: 0 0% 100%;
-    --palette-term-selection: 210 51.9% 31%;
-    --palette-term-black: 0 0% 0%;
-    --palette-term-red: 0 61.4% 49.8%;
-    --palette-term-green: 157 87.1% 39.4%;
-    --palette-term-yellow: 60 86.9% 48%;
-    --palette-term-blue: 211.5 69.5% 46.3%;
-    --palette-term-magenta: 300 49.8% 49.2%;
-    --palette-term-cyan: 191.8 84.7% 43.5%;
-    --palette-term-white: 0 0% 89.8%;
-    --palette-term-bright-black: 0 0% 40%;
-    --palette-term-bright-red: 0 85.5% 62.2%;
-    --palette-term-bright-green: 155.9 71.3% 47.8%;
-    --palette-term-bright-yellow: 60 89.9% 61.2%;
-    --palette-term-bright-blue: 211.5 80.6% 57.5%;
-    --palette-term-bright-magenta: 300 55.4% 63.9%;
-    --palette-term-bright-cyan: 191.8 71.2% 51%;
-    --palette-term-bright-white: 0 0% 100%;
+    /* Terminal board, light half — what the terminal paints in the light
+       appearance. VSCode Dark+ is the origin of the *ramp*, not of these
+       values: every slot keeps the dark half's hue and saturation, and its
+       lightness is re-solved so the slot sits on the light page with the
+       contrast it had on the dark one — capped at 4.5:1 (6:1 for the bright
+       pair, 12:1 for the neutrals) so a hue never has to go olive to reach a
+       ratio. Two consequences worth knowing: `white` / `bright-white` / the
+       cursor land on ink, as every light ANSI port maps them, so "bright" reads
+       as *darker* here — that is the inversion a light board wants; and the
+       neutrals that VSCode Dark+ made the same colour come out the same colour
+       again (its cursor, `white` and `bright-white` are all pure white), so the
+       repeats below are inherited, not invented. The dark half is in `.dark`. */
+    --palette-term-bg: 44 22% 96%;
+    --palette-term-fg: 0 0% 20.98%;
+    --palette-term-cursor: 0 0% 19.41%;
+    --palette-term-selection: 44 14% 87%;
+    --palette-term-black: 44 15% 91%;
+    --palette-term-red: 0 61.4% 50%;
+    --palette-term-green: 157 87.1% 27.14%;
+    --palette-term-yellow: 60 86.9% 24.65%;
+    --palette-term-blue: 211.5 69.5% 50%;
+    --palette-term-magenta: 300 49.8% 50%;
+    --palette-term-cyan: 191.8 84.7% 31.99%;
+    --palette-term-white: 0 0% 19.41%;
+    --palette-term-bright-black: 0 0% 50%;
+    --palette-term-bright-red: 0 85.5% 46.83%;
+    --palette-term-bright-green: 155.9 71.3% 24.61%;
+    --palette-term-bright-yellow: 60 89.9% 20.13%;
+    --palette-term-bright-blue: 211.5 80.6% 43.32%;
+    --palette-term-bright-magenta: 300 55.4% 40.76%;
+    --palette-term-bright-cyan: 191.8 71.2% 28.07%;
+    --palette-term-bright-white: 0 0% 19.41%;
 
     /* L2 semantic — the theme contract surface. Every colour resolves through
        L1 so a theme only has to recolour the palette it wants to change. */
@@ -442,6 +448,31 @@
   }
 
   .dark {
+    /* Terminal board, dark half — VSCode Dark+ verbatim, and the half the hex
+       round-trip in tests/theme-tokens pins (the light half in `:root` is
+       derived, so it has no original hex to compare against). It sits here
+       rather than in `:root` so the board can differ by appearance;
+       `useShellTerminal` reads whichever half the document resolves. */
+    --palette-term-bg: 0 0% 11.8%;
+    --palette-term-fg: 0 0% 83.1%;
+    --palette-term-cursor: 0 0% 100%;
+    --palette-term-selection: 210 51.9% 31%;
+    --palette-term-black: 0 0% 0%;
+    --palette-term-red: 0 61.4% 49.8%;
+    --palette-term-green: 157 87.1% 39.4%;
+    --palette-term-yellow: 60 86.9% 48%;
+    --palette-term-blue: 211.5 69.5% 46.3%;
+    --palette-term-magenta: 300 49.8% 49.2%;
+    --palette-term-cyan: 191.8 84.7% 43.5%;
+    --palette-term-white: 0 0% 89.8%;
+    --palette-term-bright-black: 0 0% 40%;
+    --palette-term-bright-red: 0 85.5% 62.2%;
+    --palette-term-bright-green: 155.9 71.3% 47.8%;
+    --palette-term-bright-yellow: 60 89.9% 61.2%;
+    --palette-term-bright-blue: 211.5 80.6% 57.5%;
+    --palette-term-bright-magenta: 300 55.4% 63.9%;
+    --palette-term-bright-cyan: 191.8 71.2% 51%;
+    --palette-term-bright-white: 0 0% 100%;
     --background: var(--palette-ink-950);
     --foreground: var(--palette-ink-100);
     --card: var(--palette-ink-900);

@@ -53,6 +53,16 @@ function hexToRgb(hex: string): string {
   return `rgb(${channels.join(', ')})`;
 }
 
+/**
+ * Brightness of an `rgb(r, g, b)` string, ungamma-corrected on purpose: this is
+ * only ever asked which of two colours is lighter, so the ordering is all that
+ * has to survive, and raw channels order the same way WCAG luminance would.
+ */
+function luma(value: unknown): number {
+  const [r, g, b] = String(value).match(/\d+/g)!.map(Number);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
 async function openFixture(page: Page): Promise<void> {
   await page.goto('/');
   await page.waitForFunction(() => Boolean(window.__THEME_TOKENS__));
@@ -96,12 +106,39 @@ test('the semantic aliases resolve to their ANSI counterpart', async ({ page }) 
   expect(mismatches, `semantic aliases drifted:\n${mismatches.join('\n')}`).toEqual([]);
 });
 
-test('the terminal board is the same in light and dark', async ({ page }) => {
+/**
+ * The base board follows the appearance.
+ *
+ * It used to be declared once in `:root` and paint the same dark board whatever
+ * the document's appearance — the terminal was the one surface that did not
+ * flip, on the ruling that "a light terminal is a theme's decision, not a
+ * default". That ruling is reversed: the board has a light half in `:root` and
+ * the shipped dark half in `.dark`, so the light appearance gets a light
+ * terminal without picking a theme.
+ *
+ * What is pinned is that shape, not the numbers. The dark half's values are
+ * pinned in hex by the round-trip above; the light half is *derived* (each slot
+ * keeps its hue and saturation and has its lightness re-solved onto the light
+ * page), so it has no original board to be compared against and a hex table
+ * here would only be a second copy of the stylesheet that rots on the next
+ * adjustment. Two things can still go wrong and both are caught: the light half
+ * could be a copy of the dark one — which is what "the flip is real" rejects —
+ * and the two halves could be swapped, which "the right way round" rejects.
+ */
+test('the base board follows the appearance', async ({ page }) => {
   await openFixture(page);
 
-  // The board stays dark in both appearances during this phase: a light
-  // terminal is a theme's decision, so the two maps must be identical.
-  expect(await readTerminalTheme(page, 'light')).toEqual(await readTerminalTheme(page, 'dark'));
+  const light = await readTerminalTheme(page, 'light');
+  const dark = await readTerminalTheme(page, 'dark');
+
+  expect(light).not.toEqual(dark);
+
+  // The right way round: each half is dark-on-light or light-on-dark to match
+  // its own page, and the light one is the lighter one. A swapped pair differs
+  // just as much, so the difference above cannot stand in for this.
+  expect(luma(light.background)).toBeGreaterThan(luma(light.foreground));
+  expect(luma(dark.background)).toBeLessThan(luma(dark.foreground));
+  expect(luma(light.background)).toBeGreaterThan(luma(dark.background));
 });
 
 /**
