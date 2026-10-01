@@ -397,7 +397,9 @@
       "connectTitle": "连接到 Shell",
       "bypass": "绕过",
       "bypassOnTitle": "权限绕过已开启 — 点击关闭（将重启 CLI）",
-      "bypassOffTitle": "权限绕过已关闭 — 点击开启（将重启 CLI）"
+      "bypassOffTitle": "权限绕过已关闭 — 点击开启（将重启 CLI）",
+      "bashMode": "Shell",
+      "bashModeTitle": "切换到普通系统 shell（使用系统默认 shell）— 不挂会话（将重启终端）"
     },
     "loading": "正在加载终端...",
     "connecting": "正在连接到 Shell...",

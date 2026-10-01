@@ -13,6 +13,11 @@ export { sessionsService } from './services/sessions.service.js';
 export { initializeSessionsWatcher } from './services/sessions-watcher.service.js';
 export { closeSessionsWatcher } from './services/sessions-watcher.service.js';
 
+// providerSettingsSourceService: used by server/index.ts to hand the shell
+// service the active claude settings file (the `claude --settings` equivalent)
+// so terminal launches match the chat-side relay/auth configuration.
+export { providerSettingsSourceService } from './services/provider-settings-source.service.js';
+
 // getWorkbuddyCommand: used by the websocket shell service to spawn the
 // WorkBuddy CLI at its resolved absolute path (not reliant on the PTY's PATH).
 export { getWorkbuddyCommand } from './list/workbuddy/workbuddy-auth.provider.js';

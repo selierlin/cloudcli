@@ -1,4 +1,4 @@
-import { RotateCcw, Shield, ShieldOff, X } from 'lucide-react';
+import { RotateCcw, Shield, ShieldOff, SquareTerminal, X } from 'lucide-react';
 
 type ShellHeaderProps = {
   isConnected: boolean;
@@ -21,6 +21,11 @@ type ShellHeaderProps = {
   onToggleBypass: () => void;
   bypassLabel: string;
   bypassTitle: string;
+  showBashToggle: boolean;
+  bashModeEnabled: boolean;
+  onToggleBashMode: () => void;
+  bashModeLabel: string;
+  bashModeTitle: string;
 };
 
 /** Rendered by Shell above the terminal to show connection status and the restart/disconnect actions. */
@@ -45,6 +50,11 @@ export default function ShellHeader({
   onToggleBypass,
   bypassLabel,
   bypassTitle,
+  showBashToggle,
+  bashModeEnabled,
+  onToggleBashMode,
+  bashModeLabel,
+  bashModeTitle,
 }: ShellHeaderProps) {
   return (
     <div className="flex-shrink-0 border-b border-n-gray-200 bg-n-gray-100 px-4 py-2 dark:border-n-gray-700 dark:bg-n-gray-800">
@@ -82,6 +92,23 @@ export default function ShellHeader({
                 <Shield className="h-3.5 w-3.5" aria-hidden="true" />
               )}
               <span>{bypassLabel}</span>
+            </button>
+          )}
+
+          {showBashToggle && (
+            <button
+              type="button"
+              onClick={onToggleBashMode}
+              aria-pressed={bashModeEnabled}
+              className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-n-gray-100 dark:focus:ring-offset-n-gray-800 max-md:px-2 ${
+                bashModeEnabled
+                  ? 'border-blue-500/70 bg-blue-600/80 text-n-white hover:bg-blue-700 focus:ring-blue-400/70'
+                  : 'border-n-gray-300/80 bg-n-gray-200/70 text-n-gray-700 hover:border-blue-400/70 hover:bg-blue-600/60 hover:text-n-white focus:ring-blue-400/70 dark:border-n-gray-600/80 dark:bg-n-gray-700/70 dark:text-n-gray-100'
+              }`}
+              title={bashModeTitle}
+            >
+              <SquareTerminal className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="max-md:hidden">{bashModeLabel}</span>
             </button>
           )}
 

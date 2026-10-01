@@ -10,6 +10,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import cors from 'cors';
 
 import { AppError, findApplicationRoot, getModuleDirectory, IS_PLATFORM, terminalTextStyles } from '@/shared/utils.js';
+import type { LLMProvider } from '@/shared/types.js';
 import {
     closeSessionsWatcher,
     initializeSessionsWatcher,
@@ -41,6 +42,9 @@ import {
     stopAllPlugins,
 } from './modules/plugins/index.js';
 import providerRoutes from './modules/providers/provider.routes.js';
+// The shell service resolves the claude settings source per launch so terminal
+// runs match the chat-side relay/auth configuration.
+import { providerSettingsSourceService } from '@/modules/providers/index.js';
 import { voiceRoutes } from './modules/voice/index.js';
 import {
     closeScheduledMessageDispatcher,
@@ -133,6 +137,12 @@ const wss = createWebSocketServer(server, {
             }
 
             return null;
+        },
+        resolveSessionModel: (sessionId) => {
+            return sessionsDb.getSessionById(sessionId)?.model ?? null;
+        },
+        resolveActiveSettingsFile: (provider) => {
+            return providerSettingsSourceService.resolveActiveSettingsFile(provider as LLMProvider);
         },
     },
     getPluginPort,
