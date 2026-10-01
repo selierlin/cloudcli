@@ -44,11 +44,17 @@
 
 @layer base {
   :root {
-    /* L1 palette — raw colour board, appearance-agnostic. Organised by hue
-       family and lightness step (higher step = darker); semantic tokens below
-       only reference this layer, so overriding a family recolours every UI
-       surface that uses it. This is not the only theming entry point: an
-       incremental theme may override the semantic tokens directly. */
+    /* L1 palette — the raw colour board. Organised by hue family and lightness
+       step (higher step = darker); semantic tokens below only reference this
+       layer, so overriding a family recolours every UI surface that uses it.
+       This is not the only theming entry point: an incremental theme may
+       override the semantic tokens directly.
+
+       Nearly all of it is declared here once and never mirrored in `.dark`: the
+       appearance is expressed by the L2 aliases pointing at different steps, not
+       by a second copy of a family. The terminal board is the one exception —
+       its L1 is split across `:root` and `.dark` because the board itself is
+       what differs there (see the block below). */
     --palette-white: 0 0% 100%;
     --palette-black: 0 0% 0%;
 
@@ -83,10 +89,10 @@
     /* Git commit-graph lanes — the ten hues the History view cycles through,
        carried over verbatim from the array that used to live in
        `commitGraph.ts`. They were picked to stay legible on both light and dark
-       backgrounds, so like the terminal board they are declared once here and
-       do not vary by appearance (`graph` step N is lane N; the JS maps
-       `lane % 10` onto 1..10). Step 5 coincides with `--palette-danger-500`;
-       they stay separate tokens so a theme can move one without the other. */
+       backgrounds, so they are declared once here and do not vary by appearance
+       (`graph` step N is lane N; the JS maps `lane % 10` onto 1..10). Step 5
+       coincides with `--palette-danger-500`; they stay separate tokens so a
+       theme can move one without the other. */
     --palette-graph-1: 198.6 88.7% 48.4%; /* sky-500 */
     --palette-graph-2: 24.6 95% 53.1%; /* orange-500 */
     --palette-graph-3: 270.7 91% 65.1%; /* purple-500 */
@@ -1563,12 +1569,16 @@
    token holds a literal value outside the palette" rule true, which inlining an
    L2 triplet would break by bypassing the palette instead of re-colouring it.
 
-   Because L1 is declared once in `:root` and never mirrored in `.dark`, an
-   L1-only overlay needs no `.dark` branch: the base rules already pick the step
-   each appearance wants (`--primary: var(--palette-brand-500)` in `:root`,
-   `var(--palette-brand-400)` in `.dark`). A `.dark` branch is only needed for
-   tokens whose value is an appearance-specific literal rather than an L1
-   reference — the editor chrome, which `cc-polar` overrides that way.
+   Nearly all of L1 is declared once in `:root` and never mirrored in `.dark`,
+   so an L1-only overlay needs no `.dark` branch: the base rules already pick the
+   step each appearance wants (`--primary: var(--palette-brand-500)` in `:root`,
+   `var(--palette-brand-400)` in `.dark`). Two shapes break that:
+
+   - the terminal board, whose L1 *is* split across the two appearances, so a
+     theme that moves it declares a light half under `:not(.dark)` — `cc-polar`
+     below is the worked example;
+   - tokens whose value is an appearance-specific literal rather than an L1
+     reference — the editor chrome, which `cc-polar` overrides that way.
    --------------------------------------------------------------------------- */
 
 /* cc-ocean — coverage: accent. A teal accent over the stock substrate. The
@@ -1580,18 +1590,20 @@
 }
 
 /* cc-polar — coverage: full. A cool substrate with a frost-blue accent, plus a
-   terminal board and graph lanes retuned to the same family. Everything here is
-   L1, so it is expressed once and both appearances pick their own step.
+   terminal board and graph lanes retuned to the same family. Nearly everything
+   here is L1, so it is expressed once and both appearances pick their own step;
+   the terminal board is the exception and gets the `:not(.dark)` half below.
 
    `--palette-white` is deliberately *not* overridden: the light card surface
    stays pure white on the tinted substrate, exactly as the base does with its
    warm sand. (The dark appearance's card is `--palette-ink-900` instead, so it
-   does follow the theme.) That also keeps `--n-white` / `--n-black` — the white
-   outline and black shadow of the always-dark terminal selection chrome — out
-   of the theme's reach. The `gray` / `zinc` / `slate` / `neutral` compatibility
-   ramps are left alone for the same kind of reason: they back ~1.5k utility
-   sites whose light/dark step choice, not their hue, carries the design, and
-   they are already cool enough to sit under this substrate. */
+   does follow the theme.) That also leaves `--n-white` / `--n-black` where they
+   are: mostly plain white / black fills and labels, and retinting pure white or
+   black is the highest-risk contrast move there is — the contract freezes both
+   for every overlay anyway. The `gray` / `zinc` / `slate` / `neutral`
+   compatibility ramps are left alone for the same kind of reason: they back
+   ~1.5k utility sites whose light/dark step choice, not their hue, carries the
+   design, and they are already cool enough to sit under this substrate. */
 [data-theme="cc-polar"] {
   /* Substrate: the warm sand of light mode and the neutral ink of dark mode,
      both moved onto the same cool blue-grey axis. */
@@ -2077,9 +2089,9 @@
      those ramps, keeping every slot's meaning (red is error/deleted, green
      success/added, blue info). The `-90` steps are the working half: within 0.08 of
      each other at ~5.3:1 on the console background; the `-100` steps are the
-     `bright-*` half. As in the base the board is declared once — but this theme
-     splits it: the light half is in the `:not(.dark)` block below, derived the
-     same way the dark half was (the ramps' hue and saturation kept, lightness
+     `bright-*` half. Like the base, the theme splits the board: this block is
+     the dark half, and the light half is in the `:not(.dark)` block below,
+     derived the same way (the ramps' hue and saturation kept, lightness
      re-solved onto the light page). */
   --palette-term-bg: 220 5.66% 10.39%;
   --palette-term-fg: 225 6.35% 75.29%;

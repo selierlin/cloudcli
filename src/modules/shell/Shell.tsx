@@ -305,8 +305,12 @@ export default function Shell({
   const overlayMode = !isInitialized ? 'loading' : isConnecting ? 'connecting' : !isConnected ? 'connect' : null;
   const overlayDescription = overlayMode === 'connecting' ? connectingDescription : readyDescription;
 
+  // The panel paints the terminal board rather than the app background: the
+  // canvas sits inside `p-2`, so any other colour would show as a frame around
+  // a surface the theme is free to move. `--term-background` is the board's own
+  // token, which is why the panel follows the appearance without a `dark:` pair.
   return (
-    <div className="flex h-full w-full flex-col bg-n-gray-900">
+    <div className="flex h-full w-full flex-col bg-[hsl(var(--term-background))]">
       <ShellHeader
         isConnected={isConnected}
         isInitialized={isInitialized}
@@ -355,7 +359,7 @@ export default function Shell({
 
         {cliPromptOptions && isConnected && (
           <div
-            className="absolute inset-x-0 bottom-0 z-10 border-t border-n-gray-700/80 bg-n-gray-800/95 px-3 py-2 backdrop-blur-sm md:hidden"
+            className="absolute inset-x-0 bottom-0 z-10 border-t border-n-gray-200/80 bg-n-gray-100/95 px-3 py-2 backdrop-blur-sm dark:border-n-gray-700/80 dark:bg-n-gray-800/95 md:hidden"
             onMouseDown={(e) => e.preventDefault()}
           >
             <div className="flex flex-wrap items-center gap-2">
@@ -379,7 +383,7 @@ export default function Shell({
                   sendInput('\x1b');
                   setCliPromptOptions(null);
                 }}
-                className="rounded bg-n-gray-700 px-3 py-1.5 text-xs font-medium text-n-gray-200 transition-colors hover:bg-n-gray-600"
+                className="rounded bg-n-gray-200 px-3 py-1.5 text-xs font-medium text-n-gray-700 transition-colors hover:bg-n-gray-300 dark:bg-n-gray-700 dark:text-n-gray-200 dark:hover:bg-n-gray-600"
               >
                 Esc
               </button>
