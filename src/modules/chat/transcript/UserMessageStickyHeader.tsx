@@ -140,7 +140,7 @@ export default function UserMessageStickyHeader({
       // returns to the panel top for the arriving message.
       data-user-sticky-header
       data-pinned={isBridging ? undefined : 'true'}
-      className={`mb-2 flex w-full items-center gap-2 rounded-lg border border-n-gray-200 bg-n-white/95 px-3 py-2 text-left shadow-sm backdrop-blur-sm transition-colors hover:bg-n-gray-100 dark:border-n-gray-700 dark:bg-n-gray-800/95 dark:hover:bg-n-gray-800 ${pinClass} ${bridgedClass}`}
+      className={`mb-2 flex w-full items-center gap-2 rounded-lg border border-n-gray-200 bg-n-white/60 px-3 py-2 text-left shadow-sm backdrop-blur-md transition-colors hover:bg-n-gray-100 dark:border-n-gray-700 dark:bg-n-gray-800/60 dark:hover:bg-n-gray-800 ${pinClass} ${bridgedClass}`}
     >
       <CornerDownLeft aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-n-gray-400 dark:text-n-gray-500" />
       <span className="min-w-0 flex-1 truncate text-xs font-medium text-n-gray-700 dark:text-n-gray-200">

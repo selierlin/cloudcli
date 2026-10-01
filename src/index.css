@@ -1162,24 +1162,16 @@
       opacity: 1 !important;
     }
     
-    /* Only disable hover states for interactive elements, not containers.
-       Do NOT reset `transform` here: on touch devices the sticky :hover
-       state would strip layout transforms such as -translate-y-1/2 used
-       to center absolutely-positioned buttons (e.g. the sidebar search
-       clear button), making them visibly jump out of alignment. */
-    button:hover,
-    [role="button"]:hover,
-    .cursor-pointer:hover,
-    a:hover,
-    .hover\:bg-n-gray-50:hover,
-    .hover\:bg-n-gray-100:hover,
-    .hover\:text-n-gray-900:hover,
-    .hover\:opacity-100:hover {
-      background-color: inherit !important;
-      color: inherit !important;
-      opacity: inherit !important;
-    }
-    
+    /* Hover states on touch devices are now handled at the Tailwind level
+       (future.hoverOnlyWhenSupported): `hover:` utilities are only generated
+       inside `@media (hover: hover)`, so a tap can no longer apply and stick
+       any hover style. The previous blunt neutralizer here (a global
+       button:hover rule forcing the base background to transparent, with
+       !important) also wiped the BASE background of self-tinted buttons —
+       e.g. the user-message sticky header (bg-n-white/95) visibly went
+       transparent on touch — and has been removed. See token-contract.spec.ts
+       "touch-hover is variant-gated" for the guard. */
+
     /* Force buttons to be immediately clickable */
     button, [role="button"], .cursor-pointer {
       cursor: pointer !important;

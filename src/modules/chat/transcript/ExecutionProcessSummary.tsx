@@ -208,7 +208,7 @@ export default function ExecutionProcessSummary({
         ref={buttonRef}
         type="button"
         style={bandOffsetTop != null ? { top: `${bandOffsetTop}px` } : undefined}
-        className={`group flex min-h-7 w-full items-center gap-1.5 rounded-md px-1.5 text-left text-xs font-medium text-n-gray-500 transition-colors hover:bg-n-gray-100 hover:text-n-gray-700 dark:text-n-gray-400 dark:hover:bg-n-gray-800 dark:hover:text-n-gray-200 ${!collapsed && isSticky ? 'sticky -top-3 sm:-top-4 z-10 bg-background/95 backdrop-blur-sm' : ''}`}
+        className={`group flex min-h-7 w-full items-center gap-1.5 rounded-md px-1.5 text-left text-xs font-medium text-n-gray-500 transition-colors hover:bg-n-gray-100 hover:text-n-gray-700 dark:text-n-gray-400 dark:hover:bg-n-gray-800 dark:hover:text-n-gray-200 ${!collapsed && isSticky ? 'sticky -top-3 sm:-top-4 z-10 bg-n-white/60 shadow-[0_1px_0_0_rgba(0,0,0,0.06)] backdrop-blur-md dark:bg-n-gray-800/60 dark:shadow-[0_1px_0_0_rgba(255,255,255,0.06)]' : ''}`}
         aria-expanded={!collapsed}
         onClick={onToggle}
       >
