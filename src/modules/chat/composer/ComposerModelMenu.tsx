@@ -34,6 +34,7 @@ type ComposerModelMenuProps = {
   model: string;
   /** Model catalog for the active provider; empty hides the section. */
   modelOptions: ProviderModelOption[];
+  modelNotice?: string;
   onSelectModel: (model: string) => void;
   modelsLoading: boolean;
 };
@@ -48,6 +49,7 @@ function ComposerModelMenu({
   onSelectEffort,
   model,
   modelOptions,
+  modelNotice,
   onSelectModel,
   modelsLoading,
 }: ComposerModelMenuProps) {
@@ -168,6 +170,11 @@ function ComposerModelMenu({
                     <ComposerMenuHeading>
                       {t('composer.model', { defaultValue: 'Model' })}
                     </ComposerMenuHeading>
+                  )}
+                  {modelNotice && (
+                    <p className="px-2.5 pb-1.5 text-xs leading-4 text-muted-foreground">
+                      {modelNotice}
+                    </p>
                   )}
                   {modelOptions.length === 0 && modelsLoading && (
                     <p className="px-2.5 py-1.5 text-sm text-muted-foreground">

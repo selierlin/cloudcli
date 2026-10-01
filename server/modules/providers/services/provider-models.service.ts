@@ -50,11 +50,11 @@ const mergeProviderModels = (
   custom: CustomProviderModelRecord[],
 ): ProviderModelsDefinition => {
   return {
+    ...predefined,
     OPTIONS: [
       ...predefined.OPTIONS.map((option) => ({ ...option, isCustom: false })),
       ...custom.map(toCustomProviderModelOption),
     ],
-    DEFAULT: predefined.DEFAULT,
   };
 };
 

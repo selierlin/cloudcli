@@ -560,6 +560,7 @@ function ChatInterface({
           onSelectEffort={handleSelectComposerEffort}
           model={currentProviderModel}
           availableModelOptions={currentProviderModelOptions}
+          modelCatalogNotice={providerModelCatalog[provider]?.notice}
           onSelectModel={handleSelectComposerModel}
           modelsLoading={providerModelsLoading}
           tokenBudget={tokenBudget}

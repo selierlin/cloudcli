@@ -11,9 +11,10 @@ import type {
 } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 
-const createModels = (value: string): ProviderModelsDefinition => ({
+const createModels = (value: string, notice?: string): ProviderModelsDefinition => ({
   OPTIONS: [{ value, label: value }],
   DEFAULT: value,
+  ...(notice ? { notice } : {}),
 });
 
 const createCurrentActiveModel = (model: string): ProviderCurrentActiveModel => ({ model });
@@ -104,6 +105,7 @@ const createTestService = (options: {
   sessions?: ReturnType<typeof createSessionStore>;
   activeModel?: (provider: LLMProvider, sessionId?: string) => string;
   onCatalogRead?: (provider: LLMProvider) => void;
+  notice?: string;
 } = {}) => {
   const catalog = options.catalog ?? createCatalogStore();
   const sessions = options.sessions ?? createSessionStore();
@@ -114,7 +116,7 @@ const createTestService = (options: {
       models: {
         getSupportedModels: async () => {
           options.onCatalogRead?.(provider);
-          return createModels(`${provider}-default`);
+          return createModels(`${provider}-default`, options.notice);
         },
         getCurrentActiveModel: async (sessionId) => createCurrentActiveModel(
           options.activeModel?.(provider, sessionId) ?? `${provider}-default`,
@@ -140,6 +142,14 @@ test('provider catalogs merge source-controlled defaults with custom persistence
     isCustom: false,
   });
   assert.deepEqual(catalog.rows.get('codex'), undefined);
+});
+
+test('provider catalog notice survives merging custom model rows', async () => {
+  const { service } = createTestService({ notice: 'Advanced points / million tokens.' });
+
+  const models = await service.getProviderModels('codex');
+
+  assert.equal(models.notice, 'Advanced points / million tokens.');
 });
 
 test('custom models can be created, edited, and deleted', async () => {

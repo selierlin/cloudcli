@@ -189,16 +189,25 @@ const toCatalogModelOption = (entry: unknown): ProviderModelOption | null => {
   };
 };
 
-const readCodexCatalogModels = async (catalogPath: string): Promise<ProviderModelOption[]> => {
+type CodexModelCatalog = {
+  options: ProviderModelOption[];
+  notice?: string;
+};
+
+const readCodexCatalogModels = async (catalogPath: string): Promise<CodexModelCatalog> => {
   try {
     const raw = await readFile(catalogPath, 'utf8');
     const parsed = readObjectRecord(JSON.parse(raw) as unknown);
     const entries = Array.isArray(parsed?.models) ? parsed.models : [];
-    return entries
-      .map(toCatalogModelOption)
-      .filter((option): option is ProviderModelOption => option !== null);
+    const notice = readOptionalString(parsed?.notice);
+    return {
+      options: entries
+        .map(toCatalogModelOption)
+        .filter((option): option is ProviderModelOption => option !== null),
+      ...(notice ? { notice } : {}),
+    };
   } catch {
-    return [];
+    return { options: [] };
   }
 };
 
@@ -253,6 +262,7 @@ export class CodexProviderModels implements IProviderModels {
     // Catalog JSON entries that are not duplicates of a curated model, ordered
     // like the catalog file and deduped by slug.
     const configOptions: ProviderModelOption[] = [];
+    let catalogNotice: string | undefined;
     const addedValues = new Set<string>();
     const pushUnique = (option: ProviderModelOption): void => {
       if (addedValues.has(option.value)) {
@@ -263,7 +273,9 @@ export class CodexProviderModels implements IProviderModels {
     };
 
     if (config.modelCatalogPath) {
-      for (const option of await readCodexCatalogModels(config.modelCatalogPath)) {
+      const catalog = await readCodexCatalogModels(config.modelCatalogPath);
+      catalogNotice = catalog.notice;
+      for (const option of catalog.options) {
         pushUnique(predefinedByValue.get(option.value) ?? option);
       }
     }
@@ -317,6 +329,7 @@ export class CodexProviderModels implements IProviderModels {
     return {
       OPTIONS: options,
       DEFAULT: config.model ?? CODEX_PREDEFINED_MODELS.DEFAULT,
+      ...(catalogNotice ? { notice: catalogNotice } : {}),
     };
   }
 
