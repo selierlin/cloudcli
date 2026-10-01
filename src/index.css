@@ -1582,10 +1582,11 @@
   --palette-brand-500: 213 32% 47%;
   --palette-brand-400: 210 34% 63%;
 
-  /* Terminal board. The ANSI hues keep their meanings (red is error/deleted,
-     green is success/added) and only the family's temperature moves; the
-     background and the selection fill follow the substrate so the panel does
-     not read as a foreign surface. */
+  /* Terminal board, dark half. The ANSI hues keep their meanings (red is
+     error/deleted, green is success/added) and only the family's temperature
+     moves; the background and the selection fill follow the substrate so the
+     panel does not read as a foreign surface. The light half is in the
+     `:not(.dark)` block below. */
   --palette-term-bg: 220 16% 22%;
   --palette-term-fg: 218 24% 88%;
   --palette-term-cursor: 193 44% 67%;
@@ -1639,6 +1640,36 @@
    is what the dark branch does too; the diff and bracket-status decorations keep
    their semantic green/red. */
 [data-theme="cc-polar"]:not(.dark) {
+  /* Terminal board, light half. `cc-polar` is self-made, so there is no
+     reference light board to copy: the slots keep the dark half's hue and
+     saturation and have their lightness re-solved for this page, each holding
+     the contrast ratio it has against the dark substrate (capped at 4.5:1 for
+     the normal half and 6:1 for `bright-*`, so a hue is never pushed to olive
+     to reach a ratio). The two ends follow the substrate ladder instead —
+     `black` is `sand-100`, `bright-black` a mid grey — which is the shape
+     Gruvbox's own light board uses. The selection fill stays `sand-200` with
+     `--term-selection-fg` (which reads `bright-white`) on top of it. */
+  --palette-term-bg: 213 26% 96%;
+  --palette-term-fg: 218 24% 27.99%;
+  --palette-term-cursor: 193 44% 37.82%;
+  --palette-term-selection: 214 18% 87%;
+  --palette-term-black: 213 22% 92%;
+  --palette-term-red: 354 42% 50%;
+  --palette-term-green: 92 28% 36.92%;
+  --palette-term-yellow: 40 60% 34.8%;
+  --palette-term-blue: 213 32% 46.79%;
+  --palette-term-magenta: 311 25% 47.84%;
+  --palette-term-cyan: 193 44% 37.82%;
+  --palette-term-white: 218 27% 25.57%;
+  --palette-term-bright-black: 220 17% 50%;
+  --palette-term-bright-red: 354 45% 50%;
+  --palette-term-bright-green: 92 32% 29.86%;
+  --palette-term-bright-yellow: 40 65% 28.4%;
+  --palette-term-bright-blue: 213 38% 43.01%;
+  --palette-term-bright-magenta: 311 28% 40.03%;
+  --palette-term-bright-cyan: 179 26% 31.28%;
+  --palette-term-bright-white: 219 27% 24.24%;
+
   --code-block-bg: var(--palette-sand-50);
   --editor-bg: hsl(var(--palette-sand-50));
   --editor-toolbar-bg: hsl(var(--palette-sand-50));
@@ -2015,8 +2046,10 @@
      those ramps, keeping every slot's meaning (red is error/deleted, green
      success/added, blue info). The `-90` steps are the working half: within 0.08 of
      each other at ~5.3:1 on the console background; the `-100` steps are the
-     `bright-*` half. As in the base the board is declared once and stays dark in
-     both appearances. */
+     `bright-*` half. As in the base the board is declared once — but this theme
+     splits it: the light half is in the `:not(.dark)` block below, derived the
+     same way the dark half was (the ramps' hue and saturation kept, lightness
+     re-solved onto the light page). */
   --palette-term-bg: 220 5.66% 10.39%;
   --palette-term-fg: 225 6.35% 75.29%;
   --palette-term-cursor: 225 8.89% 82.35%;
@@ -2059,6 +2092,34 @@
    for the same reason: its base values are appearance-specific literals rather than
    L1 references, so a single block would leak light chrome into dark mode. */
 [data-theme="cc-islands"]:not(.dark) {
+  /* Terminal board, light half. Islands ships no ANSI-16 for either flavour, so
+     this is derived the way the dark half was: each slot keeps the hue and
+     saturation it reads off the light ramps and has its lightness re-solved so
+     it holds the contrast the dark half has against the dark layer-0 (capped
+     at 4.5:1 for the normal half, 6:1 for `bright-*`). The two ends follow the
+     substrate ladder — `black` is `sand-100`, `bright-black` a mid grey —
+     the shape Gruvbox's own light board uses. */
+  --palette-term-bg: 228 12.82% 92.35%;
+  --palette-term-fg: 225 6.35% 23.69%;
+  --palette-term-cursor: 225 8.89% 43.3%;
+  --palette-term-selection: 225 9.52% 83.53%;
+  --palette-term-black: 222.86 11.48% 88.04%;
+  --palette-term-red: 355.75 70.17% 47.13%;
+  --palette-term-green: 142.78 33.62% 34.48%;
+  --palette-term-yellow: 37.37 82.16% 31.16%;
+  --palette-term-blue: 220.12 93.26% 50%;
+  --palette-term-magenta: 253.97 78.38% 50%;
+  --palette-term-cyan: 174 34.78% 33.61%;
+  --palette-term-white: 225 9.52% 17.99%;
+  --palette-term-bright-black: 222 6.17% 50%;
+  --palette-term-bright-red: 356.97 85.61% 37.08%;
+  --palette-term-bright-green: 139.7 29.78% 29.16%;
+  --palette-term-bright-yellow: 36.08 65.29% 27.64%;
+  --palette-term-bright-blue: 219.57 98.6% 41.96%;
+  --palette-term-bright-magenta: 252.24 84.48% 50%;
+  --palette-term-bright-cyan: 172.94 29.57% 28.6%;
+  --palette-term-bright-white: 210 14.29% 16.67%;
+
   --code-block-bg: var(--palette-sand-50);
   --editor-bg: hsl(var(--palette-sand-50));
   --editor-toolbar-bg: hsl(var(--palette-sand-50));
@@ -2175,7 +2236,9 @@
    `Popup` are assigned to. Both share the editor scheme `one_dark.xml`.
 
    **The dark half is the source's own values**: `backgroundColor` #202329 →
-   `ink-950`, `panelColor` #282c34 → `ink-900`, `borderColor` #333841 →
+   `ink-950`, `panelColor` #282c34 → `ink-900` (the key name the 6.2.5 jar
+   this was read from uses; the plugin's master publishes the same value as
+   `Editor.background` / `Popup.background`), `borderColor` #333841 →
    `ink-850`, `hoverBackground` #3d424b → `ink-800`, `foregroundColor` #abb2bf →
    `ink-100`, `accentColor` #568AF2 → `brand-400`. The dark button label needs
    no deviation: `--primary-foreground` resolves through `ink-950`, and #202329
@@ -2224,11 +2287,15 @@
    (`CONSOLE_RED_OUTPUT` and friends) plus `CARET_COLOR` #528bff. Its
    `CONSOLE_BACKGROUND_KEY` is empty, so the IDE paints the console with the
    editor's own page, and #282c34 is what One Dark's terminal actually shows.
-   The eight normal slots are the source's values verbatim; the eight `bright-*`
-   ones are derived, because One Dark separates them with `FONT_TYPE: 1` (bold)
-   rather than with a colour and this board is sixteen independent values. Each
-   keeps its hue and saturation and steps nine points of lightness — the
-   magnitude the base's own normal→bright steps use (+8.4 to +13.2).
+   The eight normal slots are the source's values verbatim. One Dark separates
+   normal from bright with `FONT_TYPE: 1` (bold) rather than with a colour, and
+   this board is sixteen independent values, so six `bright-*` slots (red,
+   green, yellow, blue, magenta, cyan) are derived: each keeps its hue and
+   saturation and steps nine points of lightness — the magnitude the base's own
+   normal→bright steps use (+8.4 to +13.2). The two ends are the source's own
+   values under other names: `bright-black` is `CONSOLE_DARKGRAY_OUTPUT`
+   #464c55 verbatim, and `bright-white` is `selectionForeground` #d7dae0, the
+   scheme defining no `CONSOLE_BRIGHT_WHITE_OUTPUT` at all.
 
    **Graph lanes**: the same ten hues in the same order, saturation levelled at
    60% (within the range of One Dark's syntax colours), lightness the point that
@@ -2267,9 +2334,11 @@
      fill stays the base's. */
   --palette-danger-500: 345.19 60.63% 50.2%;
 
-  /* Terminal board — `one_dark.xml`'s ANSI-16 verbatim in the normal half, the
-     `bright-*` half derived (see above). `CONSOLE_BACKGROUND_KEY` is empty in
-     the source, so the board takes the page the IDE actually paints it with. */
+  /* Terminal board, dark half — `one_dark.xml`'s ANSI-16 verbatim in the normal
+     half, the `bright-*` half derived except its two ends (see above).
+     `CONSOLE_BACKGROUND_KEY` is empty in the source, so the board takes the
+     page the IDE actually paints it with. The light half is in the `:not(.dark)`
+     block below, derived from this one (see the note there). */
   --palette-term-bg: 220 13.04% 18.04%;
   --palette-term-fg: 219 13.51% 70.98%;
   --palette-term-cursor: 220.23 100% 66.08%;
@@ -2308,6 +2377,34 @@
    reason: its base values are appearance-specific literals rather than L1
    references, so a single block would leak light chrome into dark mode. */
 [data-theme="cc-onedark"]:not(.dark) {
+  /* Terminal board, light half. One Dark ships a dark scheme only, so this is
+     derived from the dark half: hue and saturation kept, lightness re-solved so
+     every slot holds the contrast it has against `#282c34` (capped at 4.5:1 for
+     the normal half, 6:1 for `bright-*`). That direction is also what puts
+     `bright-*` *below* its normal slot here — on a light page the more
+     prominent end is the darker one. `black` / `bright-black` take the
+     substrate ladder instead (`sand-100` and a mid grey). */
+  --palette-term-bg: 220 13% 96%;
+  --palette-term-fg: 219 13.51% 35.76%;
+  --palette-term-cursor: 220.23 100% 50%;
+  --palette-term-selection: 220 13% 87%;
+  --palette-term-black: 220 13% 92%;
+  --palette-term-red: 355.34 65.17% 50%;
+  --palette-term-green: 94.86 38.14% 34.78%;
+  --palette-term-yellow: 39.06 67.09% 34.08%;
+  --palette-term-blue: 207.04 81.61% 41.56%;
+  --palette-term-magenta: 286.34 59.76% 50%;
+  --palette-term-cyan: 186.67 46.96% 35.12%;
+  --palette-term-white: 219 13.51% 35.76%;
+  --palette-term-bright-black: 216 9.68% 50%;
+  --palette-term-bright-red: 355.34 65.17% 42.14%;
+  --palette-term-bright-green: 94.86 38.14% 28.81%;
+  --palette-term-bright-yellow: 39.06 67.09% 28.28%;
+  --palette-term-bright-blue: 207.04 81.61% 34.66%;
+  --palette-term-bright-magenta: 286.34 59.76% 42.83%;
+  --palette-term-bright-cyan: 186.67 46.96% 29.16%;
+  --palette-term-bright-white: 220 12.68% 24.77%;
+
   --code-block-bg: var(--palette-sand-50);
   --editor-bg: hsl(var(--palette-sand-50));
   --editor-toolbar-bg: hsl(var(--palette-sand-50));
@@ -2477,9 +2574,10 @@
   --palette-brand-400: 220 85.71% 64.31%;
   --palette-danger-500: 345.19 60.63% 50.2%;
 
-  /* Terminal board — the sibling's, with the five ANSI slots the variant moves
-     and the derived `bright-*` partners that follow them. black / yellow /
-     blue, their bright partners, bright-black and bright-white are untouched. */
+  /* Terminal board, dark half — the sibling's, with the five ANSI slots the
+     variant moves and the derived `bright-*` partners that follow them. black /
+     yellow / blue, their bright partners, bright-black and bright-white are
+     untouched. The light half is in the `:not(.dark)` block below. */
   --palette-term-bg: 220 13.04% 18.04%;
   --palette-term-fg: 0 0% 73.33%;
   --palette-term-cursor: 220.23 100% 66.08%;
@@ -2515,6 +2613,37 @@
 }
 
 [data-theme="cc-onedark-vivid"]:not(.dark) {
+  /* Terminal board, light half — derived from this theme's own dark half by the
+     rule the sibling's light half states (hue and saturation kept, lightness
+     re-solved against the light page). Deriving from each theme's own board
+     rather than copying the sibling's is what keeps the variant relation true
+     on this side too: the nine ANSI slots the variant moves in the dark
+     appearance (red / green / magenta / cyan and their bright partners, plus
+     `white`) come out different here, as does the foreground, and the ten it
+     does not move (bg, cursor, selection, black, yellow, blue, their bright
+     partners, bright-black and bright-white) come out identical — which is
+     what `theme-overlays.spec.ts` asserts. */
+  --palette-term-bg: 220 13% 96%;
+  --palette-term-fg: 0 0% 31.57%;
+  --palette-term-cursor: 220.23 100% 50%;
+  --palette-term-selection: 220 13% 87%;
+  --palette-term-black: 220 13% 92%;
+  --palette-term-red: 351.2 82.42% 49.34%;
+  --palette-term-green: 107.56 43.62% 34.27%;
+  --palette-term-yellow: 39.06 67.09% 34.08%;
+  --palette-term-blue: 207.04 81.61% 41.56%;
+  --palette-term-magenta: 295.75 65.8% 47.74%;
+  --palette-term-cyan: 184.29 64.17% 31.25%;
+  --palette-term-white: 0 0% 31.57%;
+  --palette-term-bright-black: 216 9.68% 50%;
+  --palette-term-bright-red: 351.2 82.42% 41.38%;
+  --palette-term-bright-green: 107.56 43.62% 28.53%;
+  --palette-term-bright-yellow: 39.06 67.09% 28.28%;
+  --palette-term-bright-blue: 207.04 81.61% 34.66%;
+  --palette-term-bright-magenta: 295.75 65.8% 40.09%;
+  --palette-term-bright-cyan: 184.29 64.17% 25.93%;
+  --palette-term-bright-white: 220 12.68% 24.77%;
+
   --code-block-bg: var(--palette-sand-50);
   --editor-bg: hsl(var(--palette-sand-50));
   --editor-toolbar-bg: hsl(var(--palette-sand-50));
