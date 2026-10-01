@@ -1755,14 +1755,13 @@
      fill is left alone). */
   --palette-danger-500: 347.08 86.67% 44.12%;
 
-  /* Terminal board — Mocha's ANSI-16. The board is appearance-agnostic by
-     construction (it is declared once in `:root` and never mirrored in `.dark`),
-     so a theme gives it one flavour and it keeps it in both appearances. Slots
-     keep their meanings: red is error/deleted, green success/added, blue info.
-     Catppuccin publishes fourteen colours for sixteen slots, so the `bright-*`
-     half reuses the same accents; only the two ends step apart — `bright-black`
-     up to surface2 and `bright-white` up to `text` — which is what stops the
-     board reading as eight repeated pairs. */
+  /* Terminal board, dark half — Mocha's ANSI-16. Slots keep their meanings:
+     red is error/deleted, green success/added, blue info. Catppuccin publishes
+     fourteen colours for sixteen slots, so the `bright-*` half reuses the same
+     accents; only the two ends step apart — `bright-black` up to surface2 and
+     `bright-white` up to `text` — which is what stops the board reading as
+     eight repeated pairs. The light half is in the `:not(.dark)` block below
+     and applies the same role table to Latte. */
   --palette-term-bg: 240 21.05% 14.9%;
   --palette-term-fg: 226.15 63.93% 88.04%;
   --palette-term-cursor: 9.6 55.56% 91.18%;
@@ -1807,6 +1806,38 @@
    reason: its base values are appearance-specific literals rather than L1
    references, so a single block would leak light chrome into dark mode. */
 [data-theme="cc-catppuccin"]:not(.dark) {
+  /* Terminal board, light half — Latte, read through the same role table the
+     dark half uses: bg←base, fg←text, cursor←rosewater, selection←surface2,
+     black←surface1, red←red, green←green, yellow←yellow, blue←blue,
+     magenta←mauve, cyan←teal, white←subtext1, bright-red←maroon,
+     bright-white←text, and the rest of `bright-*` reusing their normal slot.
+     That table is this theme's own reading of the palette rather than a copy
+     of catppuccin/alacritty, which differs on `magenta` (pink there),
+     `bright-red` (red), `bright-white` (subtext0) and `selection` (rosewater);
+     the dark half has carried those four choices since it was written, so
+     applying the same table here is what keeps the two appearances off one
+     board instead of two. */
+  --palette-term-bg: 220 23.08% 94.9%;
+  --palette-term-fg: 233.79 16.02% 35.49%;
+  --palette-term-cursor: 10.8 58.82% 66.67%;
+  --palette-term-selection: 226.67 12.16% 70.98%;
+  --palette-term-black: 225 13.56% 76.86%;
+  --palette-term-red: 347.08 86.67% 44.12%;
+  --palette-term-green: 109.23 57.64% 39.8%;
+  --palette-term-yellow: 34.95 76.98% 49.41%;
+  --palette-term-blue: 219.91 91.49% 53.92%;
+  --palette-term-magenta: 266.04 85.05% 58.04%;
+  --palette-term-cyan: 183.23 73.86% 34.51%;
+  --palette-term-white: 233.33 12.8% 41.37%;
+  --palette-term-bright-black: 226.67 12.16% 70.98%;
+  --palette-term-bright-red: 354.78 76.3% 58.63%;
+  --palette-term-bright-green: 109.23 57.64% 39.8%;
+  --palette-term-bright-yellow: 34.95 76.98% 49.41%;
+  --palette-term-bright-blue: 219.91 91.49% 53.92%;
+  --palette-term-bright-magenta: 266.04 85.05% 58.04%;
+  --palette-term-bright-cyan: 183.23 73.86% 34.51%;
+  --palette-term-bright-white: 233.79 16.02% 35.49%;
+
   --code-block-bg: var(--palette-sand-50);
   --editor-bg: hsl(var(--palette-sand-50));
   --editor-toolbar-bg: hsl(var(--palette-sand-50));
@@ -2670,9 +2701,8 @@
   --palette-gray-900: 231 39.3% 12.31%;
   --palette-gray-950: 231 71.4% 4.89%;
 
-  /* Terminal board — the alacritty ANSI-16. The board is appearance-agnostic by
-     construction (declared once here, never mirrored in `.dark`), so the theme
-     gives it one flavour and keeps it in both appearances. */
+  /* Terminal board, dark half — the alacritty ANSI-16. The light half is in the
+     `:not(.dark)` block below, built from Alucard's own palette. */
   --palette-term-bg: 231.43 14.89% 18.43%;
   --palette-term-fg: 60 30% 96.08%;
   --palette-term-cursor: 60 30% 96.08%;
@@ -2721,6 +2751,38 @@
    (its board was `sand-50` while the editor page stayed pure white). Claiming
    the editor is what restores it. */
 [data-theme="cc-dracula"]:not(.dark) {
+  /* Terminal board, light half — Alucard, the palette the theme's own README
+     publishes. Alucard has no terminal port of its own (dracula/alacritty ships
+     `dracula.toml` and nothing else), so this is read through the same role
+     table the dark half's ANSI-16 uses: red←Red, green←Green, yellow←Yellow,
+     blue←Purple (Dracula's blue slot has always been the purple), magenta←Pink,
+     cyan←Cyan, white←Foreground, selection←Selection, bg←Background with the
+     page's own damping applied. Two consequences, both deliberate: Alucard
+     publishes no `bright-*` ramp, so those slots reuse their normal partner
+     rather than invent one; and its only two neutrals are Foreground #1f1f1f
+     and Current Line #6c664b, so the four neutral slots land on those two
+     (`black` is the mid grey, the rest the deep one). */
+  --palette-term-bg: 48 58% 96.08%;
+  --palette-term-fg: 0 0% 12.16%;
+  --palette-term-cursor: 0 0% 12.16%;
+  --palette-term-selection: 240 18.52% 84.12%;
+  --palette-term-black: 49.09 18.03% 35.88%;
+  --palette-term-red: 5.96 65.71% 48.04%;
+  --palette-term-green: 114.17 83.74% 24.12%;
+  --palette-term-yellow: 48.11 72.55% 30%;
+  --palette-term-blue: 252.28 54.04% 53.92%;
+  --palette-term-magenta: 336.08 78.14% 35.88%;
+  --palette-term-cyan: 197.96 96.08% 30%;
+  --palette-term-white: 0 0% 12.16%;
+  --palette-term-bright-black: 0 0% 12.16%;
+  --palette-term-bright-red: 5.96 65.71% 48.04%;
+  --palette-term-bright-green: 114.17 83.74% 24.12%;
+  --palette-term-bright-yellow: 48.11 72.55% 30%;
+  --palette-term-bright-blue: 252.28 54.04% 53.92%;
+  --palette-term-bright-magenta: 336.08 78.14% 35.88%;
+  --palette-term-bright-cyan: 197.96 96.08% 30%;
+  --palette-term-bright-white: 0 0% 12.16%;
+
   --code-block-bg: var(--palette-sand-50);
   --editor-bg: hsl(var(--palette-sand-50));
   --editor-toolbar-bg: hsl(var(--palette-sand-50));
@@ -2863,7 +2925,8 @@
   --palette-gray-900: 35 39.3% 8.48%;
   --palette-gray-950: 35 71.4% 2.33%;
 
-  /* Terminal board — appearance-agnostic, one flavour for both. */
+  /* Terminal board, dark half — the xresources dark board `colors/gruvbox.vim`
+     feeds. The light half is in the `:not(.dark)` block below. */
   --palette-term-bg: 0 0% 15.69%;
   --palette-term-fg: 43.16 58.76% 80.98%;
   --palette-term-cursor: 43.16 58.76% 80.98%;
@@ -2901,6 +2964,36 @@
 
 /* The editor, light half — the `faded_*` board. Recipe as `cc-dracula`'s. */
 [data-theme="cc-gruvbox"]:not(.dark) {
+  /* Terminal board, light half — gruvbox's own light board, the one
+     `gruvbox-contrib`'s xresources port publishes. The normal half is the
+     `neutral_*` ramp (the same values the dark board uses for its normal half,
+     which is Gruvbox's own convention) and the `bright-*` half is the
+     `faded_*` ramp — so here the brighter end is the *darker* one, the reverse
+     of the dark board and the direction a light page needs. Two slots are not
+     in the port: `--term-selection` takes `sand-200` (the same fill the editor
+     uses) and `--term-bg` the damped page, so the panel stays part of the
+     parchment rather than recovering the reference's lemon saturation. */
+  --palette-term-bg: 48.46 22% 88.24%;
+  --palette-term-fg: 20 5.26% 22.35%;
+  --palette-term-cursor: 20 5.26% 22.35%;
+  --palette-term-selection: 40.38 14% 73.33%;
+  --palette-term-black: 51 93.75% 87.45%;
+  --palette-term-red: 2.4 75.11% 45.69%;
+  --palette-term-green: 59.52 70.79% 34.9%;
+  --palette-term-yellow: 39.56 73.39% 48.63%;
+  --palette-term-blue: 182.69 32.68% 40.2%;
+  --palette-term-magenta: 332.66 33.62% 53.92%;
+  --palette-term-cyan: 122.26 21.29% 51.18%;
+  --palette-term-white: 27.5 10.71% 43.92%;
+  --palette-term-bright-black: 30 12.1% 51.37%;
+  --palette-term-bright-red: 357.71 100% 30.78%;
+  --palette-term-bright-green: 57.2 79.26% 26.47%;
+  --palette-term-bright-yellow: 36.52 80.1% 39.41%;
+  --palette-term-bright-blue: 189.56 88.98% 24.9%;
+  --palette-term-bright-magenta: 322.5 38.83% 40.39%;
+  --palette-term-bright-cyan: 143.16 30.16% 37.06%;
+  --palette-term-bright-white: 20 5.26% 22.35%;
+
   --code-block-bg: var(--palette-sand-50);
   --editor-bg: hsl(var(--palette-sand-50));
   --editor-toolbar-bg: hsl(var(--palette-sand-50));
@@ -3041,7 +3134,8 @@
   --palette-gray-900: 235 39.3% 12.89%;
   --palette-gray-950: 235 71.4% 5.47%;
 
-  /* Terminal board — appearance-agnostic, one flavour for both. */
+  /* Terminal board, dark half — the `wave` board. The light half is in the
+     `:not(.dark)` block below. */
   --palette-term-bg: 240 12.68% 13.92%;
   --palette-term-fg: 51.18 32.69% 79.61%;
   --palette-term-cursor: 51.18 32.69% 79.61%;
@@ -3079,6 +3173,34 @@
 
 /* The editor, light half — the `lotus` board. Recipe as `cc-dracula`'s. */
 [data-theme="cc-kanagawa"]:not(.dark) {
+  /* Terminal board, light half — the `lotus` board, from the port
+     `kanagawa.nvim` publishes in `extras/alacritty/kanagawa_lotus.toml`.
+     Kanagawa's dark half here is a role reading of `colors.lua` rather than a
+     port, so the two halves are not built the same way; this one is taken
+     verbatim from lotus. `--term-bg` is the exception: it takes the damped
+     page rather than lotus' own `#f2ecbc`, so the panel does not recover the
+     saturation the rest of the UI gave up. */
+  --palette-term-bg: 53.33 25% 84.31%;
+  --palette-term-fg: 240 8.7% 36.08%;
+  --palette-term-cursor: 240 8.7% 36.08%;
+  --palette-term-selection: 225 8% 80.39%;
+  --palette-term-black: 240 12.68% 13.92%;
+  --palette-term-red: 351.62 55.28% 51.76%;
+  --palette-term-green: 86.44 27.44% 42.16%;
+  --palette-term-yellow: 53.57 30.77% 35.69%;
+  --palette-term-blue: 218.46 33.62% 45.49%;
+  --palette-term-magenta: 339.55 36.67% 52.94%;
+  --palette-term-cyan: 169.41 16.04% 41.57%;
+  --palette-term-white: 240 8.7% 36.08%;
+  --palette-term-bright-black: 54 4.1% 52.16%;
+  --palette-term-bright-red: 358.33 64.29% 56.08%;
+  --palette-term-bright-green: 102 20.83% 47.06%;
+  --palette-term-bright-yellow: 38.95 27.8% 40.2%;
+  --palette-term-bright-blue: 209.66 41.01% 57.45%;
+  --palette-term-bright-magenta: 264 26.57% 40.59%;
+  --palette-term-bright-cyan: 163.08 17.18% 44.51%;
+  --palette-term-bright-white: 240 23.43% 34.31%;
+
   --code-block-bg: var(--palette-sand-50);
   --editor-bg: hsl(var(--palette-sand-50));
   --editor-toolbar-bg: hsl(var(--palette-sand-50));
