@@ -8,11 +8,8 @@ import { beforeEach, test, vi } from 'vitest';
 
 import { useShellTerminal } from '@/modules/shell/hooks/useShellTerminal';
 import { ThemeProvider, useTheme } from '@/shared/context/ThemeContext';
-import {
-  FONT_SETTINGS_CHANGED_EVENT,
-  readFontSettings,
-  writeFontSettings,
-} from '@/shared/utils';
+import { FONT_SETTINGS_CHANGED_EVENT } from '@/shared/utils';
+import { readFontSettings, writeFontSettings } from '@/shared/fontSettings';
 import { resetUserPreferences, writeUserPreference } from '@/shared/userSettings';
 
 /**

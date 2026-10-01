@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { beforeEach, test } from 'vitest';
 
-import { readFontSettings } from '@/shared/utils';
+import { readFontSettings } from '@/shared/fontSettings';
 
 /**
  * The terminal's face is stored alongside the other font choices, so it inherits

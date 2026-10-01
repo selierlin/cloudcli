@@ -100,6 +100,8 @@
           "src/shared/voiceConfig.ts",
           "src/shared/codeEditorSettings.ts",
           "src/shared/userSettings.ts",
+          "src/shared/fontSettings.ts",
+          "src/shared/providerModelSettings.ts",
           "src/shared/userThemes.ts",
           "src/shared/userThemeContrast.ts",
           "src/shared/userThemePastes.ts",
