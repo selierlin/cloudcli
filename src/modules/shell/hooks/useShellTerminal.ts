@@ -12,10 +12,12 @@ import type { MobileTerminalSelectionManager, Project } from '@/shared/types';
 import {
   copyTextToClipboard,
   FONT_SETTINGS_CHANGED_EVENT,
-  readFontSettings,
 } from '@/shared/utils';
+import { readFontSettings } from '@/shared/fontSettings';
 import { TERMINAL_INIT_DELAY_MS } from '@/shared/constants';
+import { installMobileImeInputFallback } from '@/modules/shell/utils/mobileImeInputFallback';
 import { installMobileTerminalSelection } from '@/modules/shell/utils/mobileTerminalSelection';
+import { ensureNerdSymbolsFont } from '@/modules/shell/utils/nerdSymbolsFont';
 import { sendSocketMessage } from '@/modules/shell/utils/socket';
 import { ensureXtermFocusStyles } from '@/modules/shell/utils/terminalStyles';
 import { readTerminalTheme, resolveTerminalFontFamily, FALLBACK_TERMINAL_FONT_FAMILY } from '@/modules/shell/utils/terminalTheme';
@@ -78,6 +80,10 @@ async function fitAfterFontReady(
   fitAddonRef: MutableRefObject<FitAddon | null>,
   wsRef: MutableRefObject<WebSocket | null>,
 ): Promise<void> {
+  // The bundled icon face must be registered before the wait below reads the
+  // stack: `FontFaceSet.load` only considers faces already added, so a late
+  // registration would leave this wait measuring tofu from the system fallback.
+  await ensureNerdSymbolsFont();
   await waitForTerminalFont(
     terminal.options.fontFamily ?? FALLBACK_TERMINAL_FONT_FAMILY,
     Number(terminal.options.fontSize),
@@ -262,6 +268,14 @@ export function useShellTerminal({
     }
 
     nextTerminal.open(terminalContainer);
+    // Registered after `open`, so it lands on xterm's textarea following
+    // xterm's own capture-phase input listener (see the fallback's doc).
+    const imeFallback = installMobileImeInputFallback(nextTerminal, (data) => {
+      sendSocketMessage(wsRef.current, {
+        type: 'input',
+        data,
+      });
+    });
     mobileSelectionRef.current = installMobileTerminalSelection(
       nextTerminal,
       terminalContainer,
@@ -399,6 +413,7 @@ export function useShellTerminal({
     resizeObserver.observe(terminalContainer);
 
     return () => {
+      imeFallback?.dispose();
       terminalContainer.removeEventListener('copy', handleTerminalCopy);
       resizeObserver.disconnect();
       if (resizeTimeoutRef.current !== null) {

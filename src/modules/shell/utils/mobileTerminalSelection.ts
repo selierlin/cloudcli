@@ -64,7 +64,12 @@ export type MobileTerminalSelectionOptions = {
   onFontSizeChange?: (fontSize: number) => void;
 };
 
-function isTouchSelectionEnvironment(): boolean {
+/**
+ * Shared touch-environment probe for the shell module's mobile-only behaviors
+ * (selection gestures, IME input fallback): a device reports touch either via
+ * real touch points, the legacy ontouchstart marker, or a coarse pointer.
+ */
+export function isTouchSelectionEnvironment(): boolean {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') {
     return false;
   }
