@@ -1374,7 +1374,11 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       const tokenBudgetData = extractTokenBudget(message)
         || (assistantBudgetSent ? null : extractCumulativeTokenBudget(message));
       if (tokenBudgetData) {
-        if (message.type === 'assistant') {
+        // Only suppress the turn's cumulative `result` bill when an assistant
+        // message actually carried a non-zero budget. The SDK reports a
+        // zero-valued usage on some assistant frames; treating those as
+        // "budget sent" left the real totals on the trailing `result` unread.
+        if (message.type === 'assistant' && (tokenBudgetData.inputTokens > 0 || tokenBudgetData.outputTokens > 0)) {
           assistantBudgetSent = true;
         }
         deltaBatcher.send(createNormalizedMessage({ kind: 'status', text: 'token_budget', tokenBudget: tokenBudgetData, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
