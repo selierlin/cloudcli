@@ -1,36 +1,8 @@
-import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { BUILTIN_THEMES } from '@/shared/constants';
 import { useTheme } from '@/shared/context/ThemeContext';
-import { refreshUserThemes } from '@/shared/userThemes';
+import { useThemeOptions } from '@/shared/hooks/useThemeOptions';
 import { cn } from '@/shared/utils';
-
-/**
- * The themes this selector offers apart from the ones from the server: the
- * appearance defaults are the base palette itself and are switched with the
- * light/dark/system capsule, so they are deliberately absent here.
- */
-const BUILTIN_OVERLAY_THEMES = BUILTIN_THEMES.filter((theme) => theme.appearance === 'system');
-
-type ThemeOption = {
-  /** The overlay id to write, or null for the appearance default. */
-  id: string | null;
-  /**
-   * The name shown for the option. A theme carries its own, which is why it is
-   * read off the manifest rather than translated: a user theme brings its name
-   * with it the same way.
-   */
-  label: string;
-  /**
-   * The Latin-script name shown as the option's second line when the registry
-   * carries one. A user theme's file declares a single name, so its options
-   * show no second line — which is why this is optional.
-   */
-  nameEn?: string;
-  /** How far the theme reaches, shown as a badge; absent themes claim nothing. */
-  coverage?: 'accent' | 'full';
-};
 
 type ThemeSelectorProps = {
   ariaLabel?: string;
@@ -39,41 +11,8 @@ type ThemeSelectorProps = {
 /** Used by the settings module to pick the overlay theme painted under the current appearance. */
 function ThemeSelector({ ariaLabel }: ThemeSelectorProps) {
   const { t } = useTranslation('settings');
-  const { themeId, setThemeId, userThemes, themeFallback } = useTheme();
-
-  // The listing is read here as well as on start-up: the start-up attempt can
-  // land before the client has a session, and this screen is the one that has
-  // to show what the host's themes folder holds.
-  useEffect(() => {
-    void refreshUserThemes();
-  }, []);
-
-  const options: ThemeOption[] = [
-    { id: null, label: t('themeSelector.default') },
-    ...BUILTIN_OVERLAY_THEMES.map((theme) => ({
-      id: theme.id,
-      label: theme.name,
-      nameEn: theme.nameEn,
-      coverage: theme.coverage,
-    })),
-    // A file-derived theme carries the reach its file declared, and no badge
-    // when it declared none (§5.8 v4) — the file is the only thing that can say.
-    // A folder `index.json` may localize the name, which becomes the second
-    // line here exactly as a builtin's `nameEn` does.
-    ...userThemes.map((theme) => ({
-      id: theme.id,
-      label: theme.name,
-      nameEn: theme.nameEn,
-      coverage: theme.coverage,
-    })),
-  ];
-
-  // The option to mark as chosen. A default-alias id (`cc-light` / `cc-dark`) is
-  // reachable through `setThemeId` but carries no overlay of its own, and a user
-  // theme whose file is still being fetched is not in force yet either, so in
-  // both cases no option of its own is marked rather than every option being
-  // left unselected.
-  const selectedId = options.some((option) => option.id === themeId) ? themeId : null;
+  const { themeFallback } = useTheme();
+  const { options, selectedId, setThemeId } = useThemeOptions();
 
   return (
     // The list is the row's content rather than a side control, so it owns the
