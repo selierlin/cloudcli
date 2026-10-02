@@ -1,12 +1,28 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { Dispatch, KeyboardEvent, RefObject, SetStateAction } from 'react';
 
 import { api } from '@/shared/api';
-import { safeLocalStorage } from '@/modules/chat/utils/chatStorage';
+import {
+  readUserPreference,
+  subscribeToUserPreferences,
+  writeUserPreference,
+} from '@/shared/userSettings';
 import type { LLMProvider, Project, SlashCommand } from '@/shared/types';
 
 const COMMAND_QUERY_DEBOUNCE_MS = 150;
 
+/**
+ * Stable fallback for the `commandUsage` preference, used both as a read
+ * default and as the `getSnapshot` result when nothing has been recorded yet.
+ *
+ * It has to be a module-level constant rather than a `{}` literal: `getSnapshot`
+ * returning a fresh object on every call reads as an endless change and
+ * re-renders forever.
+ */
+const EMPTY_COMMAND_USAGE: Record<string, number> = {};
+
+const readCommandUsage = (): Record<string, number> =>
+  readUserPreference('commandUsage', EMPTY_COMMAND_USAGE);
 
 type UseSlashCommandsOptions = {
   selectedProject: Project | null;
@@ -32,26 +48,6 @@ type ProviderSkillsResponse = {
   data?: {
     skills?: ProviderSkill[];
   };
-};
-
-const getCommandHistoryKey = (projectName: string) => `command_history_${projectName}`;
-
-const readCommandHistory = (projectName: string): Record<string, number> => {
-  const history = safeLocalStorage.getItem(getCommandHistoryKey(projectName));
-  if (!history) {
-    return {};
-  }
-
-  try {
-    return JSON.parse(history);
-  } catch (error) {
-    console.error('Error parsing command history:', error);
-    return {};
-  }
-};
-
-const saveCommandHistory = (projectName: string, history: Record<string, number>) => {
-  safeLocalStorage.setItem(getCommandHistoryKey(projectName), JSON.stringify(history));
 };
 
 const isPromiseLike = (value: unknown): value is Promise<unknown> =>
@@ -158,6 +154,13 @@ export function useSlashCommands({
 
   const commandQueryTimerRef = useRef<number | null>(null);
 
+  // The subscription is what makes the "frequent" list catch up after hydrate
+  // finishes: the preference is read from an in-memory mirror at first paint,
+  // and the server's copy only lands once the session is up. Reading through
+  // the external store also re-renders on every recorded pick, so the menu
+  // reflects a new count immediately. See §3.3 of the sync plan.
+  const commandUsage = useSyncExternalStore(subscribeToUserPreferences, readCommandUsage);
+
   const clearCommandQueryTimer = useCallback(() => {
     if (commandQueryTimerRef.current !== null) {
       window.clearTimeout(commandQueryTimerRef.current);
@@ -210,7 +213,12 @@ export function useSlashCommands({
           })),
         ];
 
-        const parsedHistory = readCommandHistory(selectedProject.projectId);
+        // Read the mirror directly instead of the subscribed `commandUsage`
+        // above: this effect must not re-run on a count change, or every pick
+        // would re-fetch the command and skill lists. The cost is that the
+        // within-group order of the non-frequent namespaces can lag a hydrate
+        // until the project is switched.
+        const parsedHistory = readCommandUsage();
         const sortedCommands = [...allCommands].sort((commandA, commandB) => {
           const commandAUsage = parsedHistory[commandA.name] || 0;
           const commandBUsage = parsedHistory[commandB.name] || 0;
@@ -244,22 +252,25 @@ export function useSlashCommands({
     setFilteredCommands(filterSlashCommands(slashCommands, commandQuery));
   }, [commandQuery, slashCommands]);
 
+  // Derived from `slashCommands`, which is this project's own scanned command
+  // and skill list — so a name recorded in some other project, or a project-
+  // level skill that does not exist here, can never surface in this menu. That
+  // filtering is a contract, not an accident: keep the source list, never list
+  // the global usage map on its own.
   const frequentCommands = useMemo(() => {
     if (!selectedProject || slashCommands.length === 0) {
       return [];
     }
 
-    const parsedHistory = readCommandHistory(selectedProject.projectId);
-
     return slashCommands
       .map((command) => ({
         ...command,
-        usageCount: parsedHistory[command.name] || 0,
+        usageCount: commandUsage[command.name] || 0,
       }))
       .filter((command) => command.usageCount > 0)
       .sort((commandA, commandB) => commandB.usageCount - commandA.usageCount)
       .slice(0, 5);
-  }, [selectedProject, slashCommands]);
+  }, [selectedProject, slashCommands, commandUsage]);
 
   const trackCommandUsage = useCallback(
     (command: SlashCommand) => {
@@ -267,9 +278,14 @@ export function useSlashCommands({
         return;
       }
 
-      const parsedHistory = readCommandHistory(selectedProject.projectId);
-      parsedHistory[command.name] = (parsedHistory[command.name] || 0) + 1;
-      saveCommandHistory(selectedProject.projectId, parsedHistory);
+      // Copy before changing. `readUserPreference` hands back the very object
+      // the store holds, and `writeUserPreference` short-circuits when the new
+      // value stringifies equal to the old one — so mutating that object in
+      // place would make this write a silent no-op: the count would look right
+      // in memory but never reach the mirror, the server or the subscribers.
+      const next = { ...readCommandUsage() };
+      next[command.name] = (next[command.name] ?? 0) + 1;
+      writeUserPreference('commandUsage', next);
     },
     [selectedProject],
   );

@@ -103,9 +103,9 @@ commandUsage: Record<string, number>   // { "/review": 7, "/dsh:foo": 2 }
 1. `UserPreferences` 加 `commandUsage: Record<string, number>`（`:22-69`）。
 2. `LEGACY_STORAGE_KEYS` 加 `commandUsage: ''`（`:94-136`）。
 
-> **第 2 条不是可选项。** `PREFERENCE_KEYS = Object.keys(LEGACY_STORAGE_KEYS)`（`:138`），而 `hydrateUserPreferences` 靠 `PREFERENCE_KEYS` 决定遍历哪些键（`:404`）。漏了这个条目，`commandUsage` **永远不会被 hydrate**，同步彻底失效。
+> **第 2 条是必填项，但理由与初稿写的不一样（实施期更正）。** 初稿写"漏了这个条目，`hydrateUserPreferences` 就不会遍历它、`commandUsage` 永远不会被 hydrate，同步彻底失效" —— **实测不成立**。`hydrateUserPreferences` 收尾是整体采纳服务端副本（`:439` 的 `preferences = { ...serverPreferences, ...migrated }`），`PREFERENCE_KEYS` 只喂**迁移循环**（`:423`），而 `commandUsage` 的 legacy 键是空串、本就不迁移。把该键从 `PREFERENCE_KEYS` 里剔除（变异）后，本方案的同步用例全部照旧全绿。
 >
-> 空串哨兵同时意味着"没有单一 legacy 来源" —— 与 `quickReplies: ''`（`:130`）同一写法。
+> 真正强制它存在的是**类型**：`LEGACY_STORAGE_KEYS` 声明为 `Record<UserPreferenceKey, string>`（`:94`），少一个键就编译不过。所以"必填"由编译器保证，不由运行期语义保证。空串哨兵的含义仍是"没有单一 legacy 来源" —— 与 `quickReplies: ''`（`:130`）同一写法。
 
 ### 3.3 消费侧改造（`src/modules/chat/hooks/useSlashCommands.ts`）
 
@@ -243,7 +243,8 @@ merge-max 能挽回的只是"极端时序下的 1 次计数"，代价却是往�
 1. **展示过滤（承重）**：喂一份含"当前项目没有的技能名"的 `commandUsage` → 断言 `frequentCommands` **不含**它。
    - 顺手加一条"排序后 `slashCommands` 长度不变"的断言（`sort` 只重排、不引入新元素），一句话成本，把排序点（`:213-218`）也一并钉住。
    - 变异测试：把 `frequentCommands` 的数据源改成"直接从全局历史列前 5" → 本条必须**红**。这是证明"那条隐式契约真的被钉住"的唯一方式。
-2. **点选后计数落盘**：**必须打真实 store**（真的走 `writeUserPreference`，再推进防抖计时器断言 PATCH 载荷），并断言 `readUserPreference` 读回的值。
+2. **点选后计数落盘**：**必须打真实 store**（真的走 `writeUserPreference`），并断言三件事——`readUserPreference` 读回的值、localStorage 镜像、以及跨过防抖后的 PATCH 载荷。
+   - **必须是"同一命令连点两次"**，只点一次测不出这个坑（见「实施期更正」第 2 条）：判等早退只在**该键已存在**时才可能触发，首次写入时 `preferences[key]` 还是 `undefined`，原地改也照样写得进去。承重的断言是镜像与 PATCH 载荷那两条 —— `readUserPreference` 那条在被测代码原地改时**仍会通过**（内存里那个对象确实被改成了新值），正是这个坑"看起来正常"的表现。
    - **不得 mock `writeUserPreference`** —— §3.3 第 3 条那个"改本体 → 判等早退"的坑，mock 掉就测不出来，而那正是它唯一能被暴露的地方。
 3. hydrate 完成后常用列表刷新（覆盖 §3.3 那个坑）。
 4. **固化"点选实时重排"的预期**（§5）：点选后 `frequentCommands` 立即反映新计数 —— 写成断言，否则将来有人按"点选不该动菜单"的旧印象把它当回归"修"掉。
@@ -356,3 +357,8 @@ merge-max 能挽回的只是"极端时序下的 1 次计数"，代价却是往�
 ### 作者自查（审阅未点出）
 
 1. **§3.3 原有的"fallback 不能进依赖"与 Pi-2 的建议合流后，约束更强了。** 初稿把它写成"revision 计数器的理由"（属于性能权衡）；改用 `useSyncExternalStore` 后，它变成 `getSnapshot` 必须返回稳定引用 —— **同一个约束，但这次是硬性的**：违反的症状是无限重渲染，不是性能退化。两条已合并成一段。
+
+### 实施期更正（审阅未点出）
+
+1. **§3.2 对"`LEGACY_STORAGE_KEYS` 条目为什么必填"的说明是错的。** 更正与依据见 §3.2 注。一句话：`PREFERENCE_KEYS` 只影响迁移循环，而 `commandUsage` 不迁移；条目必填是**类型**（`Record<UserPreferenceKey, string>`）强制的。变异验证：从 `PREFERENCE_KEYS` 剔除该键后，同步用例仍全绿。
+2. **§7.1 测试 2 的夹具原本表达不出它要测的那个坑。** 初稿写"点选一次、断言落盘"。但 `writeUserPreference` 的判等早退只在**该键已存在**时才可能触发 —— 键未设置时 `readUserPreference` 返回的是 `EMPTY_COMMAND_USAGE` 常量而非 `preferences[key]`，原地改也照样写得进去。变异验证：把写入改成原地改（不拷贝），"点选一次"那版**照样全绿**。改成**连点两次**后，原地改版本精确报红（镜像停在 1、PATCH 载荷停在 1）。
