@@ -63,6 +63,19 @@ export type UserPreferences = {
   uiPreferences: unknown;
   /** The composer's saved snippets; only `@/shared/quickReplies` reads or writes them. */
   quickReplies: QuickReply[];
+  /**
+   * How many times the user has picked each slash command or skill, keyed by
+   * `SlashCommand.name`. It lives here, synced, rather than in localStorage so
+   * the count follows the account across devices; only
+   * `@/modules/chat/hooks/useSlashCommands` reads or writes it.
+   *
+   * The key is the command name because that name is derived from the skill
+   * file itself (frontmatter / directory name) and is therefore the same on
+   * every device — unlike the per-device `projectId` it used to be filed under.
+   * Whether a name surfaces in a given project's menu is decided by that
+   * project's own scanned command list, never by what is recorded here.
+   */
+  commandUsage: Record<string, number>;
   selectedProvider: string;
   fontSettings: FontSettingsState;
   providerModelSettings: ProviderModelSettings;
@@ -128,6 +141,12 @@ const LEGACY_STORAGE_KEYS: Record<UserPreferenceKey, string> = {
   // what leaves the preference unset so the shipped snippets keep being
   // rendered from i18n instead of being frozen into the user's own list.
   quickReplies: '',
+  // Command usage never had a browser-local home: it was stored per project
+  // under `command_history_<projectId>`, a shape this single key cannot imply,
+  // so no migration is attempted (the old keys stay behind, unused). An empty
+  // legacy key is what leaves it unset so the server's copy — or an empty map —
+  // is what this device starts from.
+  commandUsage: '',
   selectedProvider: 'selected-provider',
   // Migrated from the six legacy `fontSettings.*` keys.
   fontSettings: '',
