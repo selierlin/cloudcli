@@ -3,6 +3,10 @@ import os from 'node:os';
 import path from 'node:path';
 
 import type { IProviderModels } from '@/shared/interfaces.js';
+import {
+  applySharedModelDescriptions,
+  resolveChannelLabel,
+} from '@/shared/model-descriptions.js';
 import type {
   ProviderCurrentActiveModel,
   ProviderModelOption,
@@ -21,17 +25,14 @@ export const DSH_PREDEFINED_MODELS: ProviderModelsDefinition = {
     {
       value: 'deepseek-v4-flash',
       label: 'DeepSeek V4 Flash',
-      description: 'Fast and affordable DeepSeek coding model.',
     },
     {
       value: 'deepseek-v4-pro',
       label: 'DeepSeek V4 Pro',
-      description: 'Frontier DeepSeek model for complex coding and research.',
     },
     {
       value: 'deepseek-v4-flash-vision-exp',
       label: 'DeepSeek V4 Flash Vision',
-      description: 'Experimental DeepSeek model with image input.',
     },
   ],
   DEFAULT: 'deepseek-v4-pro',
@@ -191,7 +192,7 @@ export function loadDshSettingsModels(): ProviderModelsDefinition | null {
         options.push({
           value: modelValue(providerId, modelId),
           label: modelId,
-          group: providerId,
+          group: resolveChannelLabel(providerId),
         });
       }
     }
@@ -213,7 +214,11 @@ export function loadDshSettingsModels(): ProviderModelsDefinition | null {
 /** Provider registry model adapter for DSH models from settings.yaml and the curated fallback. */
 export class DshProviderModels implements IProviderModels {
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
-    const catalog = loadDshSettingsModels() ?? DSH_PREDEFINED_MODELS;
+    const baseCatalog = loadDshSettingsModels() ?? DSH_PREDEFINED_MODELS;
+    const catalog = {
+      ...baseCatalog,
+      OPTIONS: applySharedModelDescriptions(baseCatalog.OPTIONS),
+    };
 
     // `DSH_MODEL` overrides the picker default, keeping the env escape hatch
     // aligned with what the harness runs when the settings document is absent.
@@ -232,7 +237,7 @@ export class DshProviderModels implements IProviderModels {
             {
               value: configuredModel,
               label: configuredModel,
-              ...(configuredChannel ? { group: configuredChannel } : {}),
+              ...(configuredChannel ? { group: resolveChannelLabel(configuredChannel) } : {}),
             },
             ...catalog.OPTIONS,
           ],

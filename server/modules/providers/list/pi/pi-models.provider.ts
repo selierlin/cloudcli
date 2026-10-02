@@ -3,6 +3,10 @@ import os from 'node:os';
 import path from 'node:path';
 
 import type { IProviderModels } from '@/shared/interfaces.js';
+import {
+  applySharedModelDescriptions,
+  resolveChannelLabel,
+} from '@/shared/model-descriptions.js';
 import type {
   ProviderCurrentActiveModel,
   ProviderModelOption,
@@ -22,12 +26,10 @@ export const PI_PREDEFINED_MODELS: ProviderModelsDefinition = {
     {
       value: 'deepseek/deepseek-v4-flash',
       label: 'DeepSeek V4 Flash',
-      description: 'Fast and affordable DeepSeek coding model.',
     },
     {
       value: 'deepseek/deepseek-v4-pro',
       label: 'DeepSeek V4 Pro',
-      description: 'Frontier DeepSeek model for complex coding and research.',
     },
   ],
   DEFAULT: 'deepseek/deepseek-v4-pro',
@@ -130,7 +132,7 @@ const collectProviderModels = (
     options.set(value, {
       value,
       label,
-      group: providerId,
+      group: resolveChannelLabel(providerId),
       ...(entry.reasoning === true ? { effort: REASONING_EFFORT } : {}),
     });
   }
@@ -186,7 +188,7 @@ export function loadPiModels(): ProviderModelsDefinition | null {
     }
   }
 
-  const ordered = [...options.values()];
+  const ordered = applySharedModelDescriptions([...options.values()]);
   return {
     OPTIONS: ordered,
     DEFAULT: defaultValue || ordered[0].value,
@@ -196,7 +198,11 @@ export function loadPiModels(): ProviderModelsDefinition | null {
 /** Provider registry model adapter for Pi models from agent state and the curated fallback. */
 export class PiProviderModels implements IProviderModels {
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
-    const catalog = loadPiModels() ?? PI_PREDEFINED_MODELS;
+    const baseCatalog = loadPiModels() ?? PI_PREDEFINED_MODELS;
+    const catalog = {
+      ...baseCatalog,
+      OPTIONS: applySharedModelDescriptions(baseCatalog.OPTIONS),
+    };
 
     // `PI_MODEL` overrides the picker default, keeping the env escape hatch
     // aligned with what the CLI runs when no model is configured.
@@ -213,7 +219,7 @@ export class PiProviderModels implements IProviderModels {
             {
               value: configuredModel,
               label: configuredModel,
-              ...(configuredChannel ? { group: configuredChannel } : {}),
+              ...(configuredChannel ? { group: resolveChannelLabel(configuredChannel) } : {}),
             },
             ...catalog.OPTIONS,
           ],

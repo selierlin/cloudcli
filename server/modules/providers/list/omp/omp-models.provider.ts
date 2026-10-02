@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 
+import { resolveChannelLabel } from '@/shared/model-descriptions.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import type {
   ProviderCurrentActiveModel,
@@ -217,7 +218,7 @@ function toOmpModelsDefinition(entries: OmpModelEntry[]): ProviderModelsDefiniti
     options.push({
       value,
       label: name,
-      ...(provider ? { group: provider } : {}),
+      ...(provider ? { group: resolveChannelLabel(provider) } : {}),
       ...(effort ? { effort } : {}),
     });
   }
@@ -230,8 +231,12 @@ function toOmpModelsDefinition(entries: OmpModelEntry[]): ProviderModelsDefiniti
   // order ahead of everything else; vendors not listed keep their catalog
   // position relative to one another (`Array#sort` is stable).
   options.sort((a, b) => {
-    const priorityA = a.group !== undefined ? OMP_PROVIDER_PRIORITY.get(a.group) : undefined;
-    const priorityB = b.group !== undefined ? OMP_PROVIDER_PRIORITY.get(b.group) : undefined;
+    const priorityA = a.group !== undefined
+      ? OMP_PROVIDER_PRIORITY.get(a.value.split('/')[0])
+      : undefined;
+    const priorityB = b.group !== undefined
+      ? OMP_PROVIDER_PRIORITY.get(b.value.split('/')[0])
+      : undefined;
     if (priorityA !== undefined || priorityB !== undefined) {
       return (priorityA ?? Number.MAX_SAFE_INTEGER) - (priorityB ?? Number.MAX_SAFE_INTEGER);
     }
@@ -263,7 +268,7 @@ export class OmpProviderModels implements IProviderModels {
             {
               value: configuredModel,
               label: configuredModel,
-              ...(configuredChannel ? { group: configuredChannel } : {}),
+              ...(configuredChannel ? { group: resolveChannelLabel(configuredChannel) } : {}),
             },
             ...catalog.OPTIONS,
           ],

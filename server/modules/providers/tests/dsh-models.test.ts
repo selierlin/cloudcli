@@ -62,22 +62,42 @@ test('loads the provider catalog and default from $DSH_HOME/settings.yaml', asyn
 
     const models = await adapter.getSupportedModels();
 
-    assert.deepEqual(models, {
-      OPTIONS: [
-        { value: 'zhihui/gpt-5.6-terra', label: 'gpt-5.6-terra', group: 'zhihui' },
-        { value: 'zhihui/gpt-5.6-luna', label: 'gpt-5.6-luna', group: 'zhihui' },
-        { value: 'zhihui/gpt-5.6-sol', label: 'gpt-5.6-sol', group: 'zhihui' },
-      ],
-      DEFAULT: 'zhihui/gpt-5.6-terra',
-    });
+    assert.deepEqual(models.OPTIONS, [
+      {
+        value: 'zhihui/gpt-5.6-terra',
+        label: 'gpt-5.6-terra',
+        group: 'zhihui',
+        description: 'Balanced agentic coding model for everyday work.',
+      },
+      {
+        value: 'zhihui/gpt-5.6-luna',
+        label: 'gpt-5.6-luna',
+        group: 'zhihui',
+        description: 'Fast and affordable agentic coding model.',
+      },
+      {
+        value: 'zhihui/gpt-5.6-sol',
+        label: 'gpt-5.6-sol',
+        group: 'zhihui',
+        description: 'Latest frontier agentic coding model.',
+      },
+    ]);
+    assert.equal(models.DEFAULT, 'zhihui/gpt-5.6-terra');
   });
 });
+
+
 
 test('falls back to the curated catalog when settings.yaml is missing', async () => {
   await withDshHome(null, async () => {
     const adapter = new DshProviderModels();
 
-    assert.deepEqual(await adapter.getSupportedModels(), DSH_PREDEFINED_MODELS);
+    const models = await adapter.getSupportedModels();
+    assert.deepEqual(
+      models.OPTIONS.map(({ value, label }) => ({ value, label })),
+      DSH_PREDEFINED_MODELS.OPTIONS.map(({ value, label }) => ({ value, label })),
+    );
+    assert.equal(models.DEFAULT, DSH_PREDEFINED_MODELS.DEFAULT);
   });
 });
 
@@ -85,7 +105,12 @@ test('falls back to the curated catalog when settings.yaml declares no provider 
   await withDshHome('ui-onboarding:\n  welcomeNoticeVersion: 2026-08-13.1\n', async () => {
     const adapter = new DshProviderModels();
 
-    assert.deepEqual(await adapter.getSupportedModels(), DSH_PREDEFINED_MODELS);
+    const models = await adapter.getSupportedModels();
+    assert.deepEqual(
+      models.OPTIONS.map(({ value, label }) => ({ value, label })),
+      DSH_PREDEFINED_MODELS.OPTIONS.map(({ value, label }) => ({ value, label })),
+    );
+    assert.equal(models.DEFAULT, DSH_PREDEFINED_MODELS.DEFAULT);
   });
 });
 
@@ -93,7 +118,12 @@ test('falls back to the curated catalog when settings.yaml is malformed', async 
   await withDshHome('llm-pi-ai: [unclosed', async () => {
     const adapter = new DshProviderModels();
 
-    assert.deepEqual(await adapter.getSupportedModels(), DSH_PREDEFINED_MODELS);
+    const models = await adapter.getSupportedModels();
+    assert.deepEqual(
+      models.OPTIONS.map(({ value, label }) => ({ value, label })),
+      DSH_PREDEFINED_MODELS.OPTIONS.map(({ value, label }) => ({ value, label })),
+    );
+    assert.equal(models.DEFAULT, DSH_PREDEFINED_MODELS.DEFAULT);
   });
 });
 
@@ -143,9 +173,24 @@ agent-default-model:
     const models = await new DshProviderModels().getSupportedModels();
 
     assert.deepEqual(models.OPTIONS, [
-      { value: 'zhihui/gpt-5.6-terra', label: 'gpt-5.6-terra', group: 'zhihui' },
-      { value: 'zhihui/gpt-5.6-luna', label: 'gpt-5.6-luna', group: 'zhihui' },
-      { value: 'second/custom-x', label: 'custom-x', group: 'second' },
+      {
+        value: 'zhihui/gpt-5.6-terra',
+        label: 'gpt-5.6-terra',
+        group: 'zhihui',
+        description: 'Balanced agentic coding model for everyday work.',
+      },
+      {
+        value: 'zhihui/gpt-5.6-luna',
+        label: 'gpt-5.6-luna',
+        group: 'zhihui',
+        description: 'Fast and affordable agentic coding model.',
+      },
+      {
+        value: 'second/custom-x',
+        label: 'custom-x',
+        group: 'second',
+        description: 'second',
+      },
     ]);
     assert.equal(models.DEFAULT, 'second/custom-x');
   });
@@ -174,8 +219,8 @@ agent-default-model:
     assert.deepEqual(
       glm.map((option) => [option.value, option.group]),
       [
-        ['volcano-ark/glm-5.3', 'volcano-ark'],
-        ['workbuddy/glm-5.3', 'workbuddy'],
+        ['volcano-ark/glm-5.3', 'Volcano Ark'],
+        ['workbuddy/glm-5.3', 'WorkBuddy'],
       ],
     );
   });
@@ -198,7 +243,12 @@ agent-default-model:
     const models = await new DshProviderModels().getSupportedModels();
 
     assert.deepEqual(models.OPTIONS, [
-      { value: 'zhihui/gpt-5.6-terra', label: 'gpt-5.6-terra', group: 'zhihui' },
+      {
+        value: 'zhihui/gpt-5.6-terra',
+        label: 'gpt-5.6-terra',
+        group: 'zhihui',
+        description: 'Balanced agentic coding model for everyday work.',
+      },
     ]);
     assert.equal(models.DEFAULT, 'zhihui/gpt-5.6-terra');
   });

@@ -21,10 +21,18 @@ test('WorkBuddy returns the curated model list, independent of any engine cache'
 
   const models = await adapter.getSupportedModels();
 
-  assert.deepEqual(models, WORKBUDDY_PREDEFINED_MODELS);
-  // Exactly the fifteen surfaced models, no full routing catalog leakage.
-  assert.equal(models.OPTIONS.length, 15);
+  assert.deepEqual(
+    models.OPTIONS.map(({ value, label, effort }) => ({ value, label, effort })),
+    WORKBUDDY_PREDEFINED_MODELS.OPTIONS.map(({ value, label, effort }) => ({ value, label, effort })),
+  );
+  // Exactly the seventeen surfaced models, no full routing catalog leakage.
+  assert.equal(models.OPTIONS.length, 17);
   assert.equal(models.DEFAULT, 'auto');
+  // Credit subtitles come from the shared channel-qualified map.
+  assert.equal(
+    models.OPTIONS.find((option) => option.value === 'glm-5.3')?.description,
+    '积分倍率 0.79x',
+  );
 });
 
 test('WorkBuddy never surfaces non-WorkBuddy models (Claude, Hunyuan, Codewise, image)', async () => {

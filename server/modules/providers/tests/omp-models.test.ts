@@ -57,7 +57,7 @@ test('maps the CLI catalog into picker options, channels and effort levels', asy
   ]);
   // The provider tag groups same-named models across channels.
   assert.equal(models.OPTIONS[0].group, 'ark');
-  assert.equal(models.OPTIONS[1].group, 'deepseek');
+  assert.equal(models.OPTIONS[1].group, 'DeepSeek');
   assert.equal(models.OPTIONS[0].label, 'DeepSeek V4 Flash');
   // Only reasoning models expose the per-model thinking levels OMP reports.
   assert.deepEqual(models.OPTIONS[0].effort?.values.map((entry) => entry.value), [
@@ -79,10 +79,10 @@ test('sorts the configured priority vendor ahead of OMP\'s catalog order', async
   // catalog order.
   assert.deepEqual(
     models.OPTIONS.map((option) => `${option.group}/${option.value.split('/')[1]}`),
-    ['workbuddy/auto', 'ark/auto'],
+    ['WorkBuddy/auto', 'ark/auto'],
   );
-  assert.equal(models.OPTIONS[0].group, 'workbuddy');
-  assert.equal(models.DEFAULT, 'workbuddy/auto');
+  assert.equal(models.OPTIONS[0].group, 'WorkBuddy');
+  assert.equal(models.DEFAULT, 'workbuddy/auto'); // value, not group
 });
 
 test('falls back to the curated mirror when the catalog cannot be read', async () => {
@@ -147,7 +147,7 @@ test('OMP_MODEL injects a channel-tagged option when absent from the catalog', a
   const models = await new OmpProviderModels().getSupportedModels();
   assert.equal(models.DEFAULT, 'openrouter/qwen3-coder');
   assert.equal(models.OPTIONS[0].value, 'openrouter/qwen3-coder');
-  assert.equal(models.OPTIONS[0].group, 'openrouter');
+  assert.equal(models.OPTIONS[0].group, 'OpenRouter');
 });
 
 test('agent dir prefers OMP_PROFILE, then PI_CODING_AGENT_DIR, then the default', () => {

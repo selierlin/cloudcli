@@ -3,8 +3,8 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { closeConnection, initializeDatabase } from '@/modules/database/index.js';
 
+import { appConfigDb, closeConnection, initializeDatabase } from '@/modules/database/index.js';
 import {
   CodexProviderModels,
   CODEX_PREDEFINED_MODELS,
@@ -47,7 +47,12 @@ test('Codex falls back to the curated catalog when no config file exists', async
   const configPath = path.join(await mkdtemp(path.join(os.tmpdir(), 'codex-models-empty-')), 'config.toml');
   const adapter = new CodexProviderModels(configPath);
 
-  assert.deepEqual(await adapter.getSupportedModels(), CODEX_PREDEFINED_MODELS);
+  const models = await adapter.getSupportedModels();
+  assert.deepEqual(
+    models.OPTIONS.map(({ value, label, effort }) => ({ value, label, effort })),
+    CODEX_PREDEFINED_MODELS.OPTIONS.map(({ value, label, effort }) => ({ value, label, effort })),
+  );
+  assert.equal(models.DEFAULT, CODEX_PREDEFINED_MODELS.DEFAULT);
   assert.equal(
     (await adapter.getCurrentActiveModel()).model,
     CODEX_PREDEFINED_MODELS.DEFAULT,
@@ -221,7 +226,11 @@ test('Codex keeps the curated default when the config sets no model', async () =
 
   const models = await adapter.getSupportedModels();
 
-  assert.deepEqual(models, CODEX_PREDEFINED_MODELS);
+  assert.deepEqual(
+    models.OPTIONS.map(({ value, label, effort }) => ({ value, label, effort })),
+    CODEX_PREDEFINED_MODELS.OPTIONS.map(({ value, label, effort }) => ({ value, label, effort })),
+  );
+  assert.equal(models.DEFAULT, CODEX_PREDEFINED_MODELS.DEFAULT);
   assert.equal((await adapter.getCurrentActiveModel()).model, CODEX_PREDEFINED_MODELS.DEFAULT);
 }));
 
@@ -239,4 +248,19 @@ test('Codex ignores malformed catalog JSON without breaking the model list', asy
 
   assert.equal(models.OPTIONS[0]?.value, 'deepseek-v4-flash');
   assert.equal(models.DEFAULT, 'deepseek-v4-flash');
+}));
+
+test('tags the catalog with the channel named by the active config profile', async () => withIsolatedDatabase(async () => {
+  const configPath = await writeTempCodexConfig('model_provider = "custom"\n');
+  appConfigDb.set('codex.settings.activeFile', '/x/config-ark.toml');
+
+  const models = await new CodexProviderModels(configPath).getSupportedModels();
+
+  assert.ok(models.OPTIONS.length > 0);
+  assert.ok(models.OPTIONS.every((option) => option.group === 'ark'));
+  // Subtitles still come from the shared maps alongside the channel tag.
+  assert.equal(
+    models.OPTIONS.find((option) => option.value === 'gpt-5.6-sol')?.description,
+    'Latest frontier agentic coding model.',
+  );
 }));
