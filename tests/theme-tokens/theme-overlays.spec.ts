@@ -100,11 +100,19 @@ const SURFACES: Record<string, string[]> = {
   ],
   graph: ['--graph-lane-1', '--graph-lane-5', '--graph-lane-10'],
   /**
-   * The card surface is the one that comes from a different family per
-   * appearance: pure `--palette-white` in light, `--palette-ink-900` in dark.
-   * Only the dark half is inside any theme's reach — the light card stays pure
-   * white on the tinted substrate, the way the base's card sits on warm sand —
-   * so a full theme moves these in the dark appearance only.
+   * The card surface is the one that comes from a different L1 family per
+   * appearance: `--palette-sand-25` in light, `--palette-ink-900` in dark. Both
+   * halves are inside a full theme's reach — the theme redeclares
+   * `--palette-sand-25` to give the light card a tint of its own paper, the way
+   * the base's card sits on warm sand. An `accent` theme reaches neither half.
+   *
+   * `--palette-sand-25`'s base value is pure white, so the base card resolves
+   * exactly as it did when it read `--palette-white`; the move that this opens
+   * is per-theme, not a change of the base appearance.
+   *
+   * `--palette-white` itself stays frozen (and is asserted to, via `fixed`): the
+   * light card no longer reads it, so retinting it would move `--n-white` and
+   * the `--editor-*` surfaces without touching any card.
    */
   cardSurface: ['--card', '--popover'],
   /**
@@ -156,11 +164,25 @@ const SURFACES: Record<string, string[]> = {
    * "appearance-agnostic terminal chrome"; that reading covered 4 of the 257
    * sites and is why the reason above is written out now.)
    *
+   * `--palette-white` joins them now that the light card reads
+   * `--palette-sand-25` instead. Its base value is pure white, the same literal
+   * as the new card step's, so `derivedMoves`' substring match lists it as
+   * *allowed* whenever a theme redeclares `--palette-sand-25` — `beyondReach`
+   * therefore cannot see it move. Measured, it would still red *indirectly*
+   * today: `--n-white` resolves through this token, so a retint moves a frozen
+   * name too and `mustNotMove` catches that. But that red is an implicit
+   * dependency on `--n-white`'s current implementation, not a stated guarantee
+   * — re-point `--n-white` at another step and the retint goes silent. Pinning
+   * `--palette-white` here makes the freeze direct and named, so "the light card
+   * is the only layer this opens" stays a checked contract rather than a fact
+   * about today's stylesheet. (It also carries `--n-white`, `--code-block-bg`
+   * and the `--editor-*` surfaces, none of which a theme may retint.)
+   *
    * The `zinc` / `slate` / `neutral` ramps are **no longer** frozen — they moved
    * into `compat` above. They were never in this list before either, which is
    * exactly how an `accent` theme could retint them; `compat` closes that.
    */
-  fixed: ['--n-white', '--n-black'],
+  fixed: ['--palette-white', '--n-white', '--n-black'],
 };
 
 const ACCENT_SURFACES = ['--primary', '--ring', '--nav-tab-glow', '--nav-input-focus-ring'];
@@ -462,9 +484,10 @@ for (const theme of OVERLAY_THEMES) {
         `${theme.id} overlay is shadowed in ${appearance}:\n${unresolved.join('\n')}`,
       ).toEqual([]);
 
-      // The card surface only enters a theme's reach in the dark appearance —
-      // its light half comes from `--palette-white`, which no theme overrides.
-      const cardMoves = theme.coverage === 'full' && appearance === 'dark';
+      // A full theme reaches both halves of the card surface: its light half
+      // reads `--palette-sand-25`, which a full theme redeclares per theme, and
+      // its dark half reads `--palette-ink-900`. An accent theme reaches neither.
+      const cardMoves = theme.coverage === 'full';
       const mustMove = [
         ...MUST_MOVE[theme.coverage ?? 'full'],
         ...(cardMoves ? SURFACES.cardSurface : []),

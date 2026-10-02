@@ -59,6 +59,12 @@
     --palette-black: 0 0% 0%;
 
     /* Warm sand — substrate of the light appearance. */
+    /* The card "paper" step, one notch lighter than `sand-50`. The base pins it
+       to pure white, so `--card` resolves exactly as it did when it read
+       `--palette-white`; a `full` overlay redeclares it to lay its own paper.
+       Kept inside the `sand` family so a theme that re-lays the light substrate
+       already has the step in hand. */
+    --palette-sand-25: 0 0% 100%;
     --palette-sand-50: 44 22% 96%;
     --palette-sand-100: 44 15% 91%;
     --palette-sand-200: 44 14% 87%;
@@ -203,9 +209,9 @@
        L1 so a theme only has to recolour the palette it wants to change. */
     --background: var(--palette-sand-50);
     --foreground: var(--palette-sand-950);
-    --card: var(--palette-white);
+    --card: var(--palette-sand-25);
     --card-foreground: var(--palette-sand-950);
-    --popover: var(--palette-white);
+    --popover: var(--palette-sand-25);
     --popover-foreground: var(--palette-sand-950);
     --primary: var(--palette-brand-500);
     --primary-foreground: var(--palette-frost-50);
@@ -1586,19 +1592,22 @@
    here is L1, so it is expressed once and both appearances pick their own step;
    the terminal board is the exception and gets the `:not(.dark)` half below.
 
-   `--palette-white` is deliberately *not* overridden: the light card surface
-   stays pure white on the tinted substrate, exactly as the base does with its
-   warm sand. (The dark appearance's card is `--palette-ink-900` instead, so it
-   does follow the theme.) That also leaves `--n-white` / `--n-black` where they
-   are: mostly plain white / black fills and labels, and retinting pure white or
-   black is the highest-risk contrast move there is — the contract freezes both
-   for every overlay anyway. The `gray` / `zinc` / `slate` / `neutral`
-   compatibility ramps are left alone for the same kind of reason: they back
-   ~1.5k utility sites whose light/dark step choice, not their hue, carries the
-   design, and they are already cool enough to sit under this substrate. */
+   `--palette-white` is deliberately *not* overridden: it backs `--n-white` /
+   `--n-black` and the `--editor-*` surfaces, and retinting pure white or black
+   is the highest-risk contrast move there is — the contract freezes it for
+   every overlay anyway. The light card takes `--palette-sand-25` instead, so it
+   carries the theme's own tint; the dark card reads `--palette-ink-900` and
+   already did. That keeps `--n-white` / `--n-black` where they are: mostly
+   plain white / black fills and labels. The `gray` / `zinc` / `slate` /
+   `neutral` compatibility ramps are left alone for the same kind of reason:
+   they back ~1.5k utility sites whose light/dark step choice, not their hue,
+   carries the design, and they are already cool enough to sit under this
+   substrate. */
 [data-theme="cc-polar"] {
   /* Substrate: the warm sand of light mode and the neutral ink of dark mode,
      both moved onto the same cool blue-grey axis. */
+  /* Card paper: the substrate's hue at half its saturation, one step lighter. */
+  --palette-sand-25: 213 13% 98%;
   --palette-sand-50: 213 26% 96%;
   --palette-sand-100: 213 22% 92%;
   --palette-sand-200: 214 18% 87%;
@@ -1789,9 +1798,10 @@
      half does take Latte's red (5.2:1 under the frost label, against the base's
      3.6:1).
 
-   `--palette-white` is deliberately not overridden either: the light card stays
-   pure white on the tinted substrate, the way the base's card sits on warm
-   sand.
+   `--palette-white` is deliberately not overridden either: it backs `--n-white`
+   and the `--editor-*` surfaces, which no theme retints. The light card reads
+   `--palette-sand-25`, so it sits on the tinted substrate as a step of Latte's
+   own paper rather than that frozen white.
 
    Colour provenance: catppuccin/catppuccin's official palette.json (Latte and
    Mocha), as ported by the Codex TUI's bundled `catppuccin-latte` /
@@ -1802,6 +1812,8 @@
   /* Substrate — light: Latte. base / mantle / surface0 / subtext1 / text.
      `sand-950` repeats `text`: Latte publishes one deep ink, and the base only
      tells `--foreground` from `--secondary-foreground` by depth. */
+  /* Card paper: the substrate's hue at half its saturation, one step lighter. */
+  --palette-sand-25: 220 11.54% 98%;
   --palette-sand-50: 220 23.08% 94.9%;
   --palette-sand-100: 220 21.95% 91.96%;
   --palette-sand-200: 222.86 15.91% 82.75%;
@@ -2016,7 +2028,7 @@
    Mapped onto the L1 families the base already publishes, step for step:
 
      --background       ← layer-0-bg      dark gray-10  = #191A1C / light gray-150 = #E9EAEE
-     --card / --popover ← layer-1-bg      dark gray-30  = #26282C / light white (see below)
+     --card / --popover ← layer-1-bg      dark gray-30  = #26282C / light white, painted as sand-25 (see below)
      --muted / --secondary / --accent / --border
                         ← layer-2-bg      dark gray-40  = #33353B / light gray-140 = #DDDFE4
      --input            ← control-border  dark gray-50  = #40434A / light gray-130 = #D1D3D9
@@ -2039,11 +2051,12 @@
      IntelliJ's white-on-accent at UI size: red-80 under `ink-100` reads 3.03:1,
      where red-60 reads 5.50:1.
 
-   Islands Light's editor page is its top layer, which in this token model is pure
-   white — and white is the one L1 step no theme may move, because `--palette-white`
-   also backs `--n-white`. The light card therefore stays pure white on the tinted
-   substrate, the treatment `cc-polar` and `cc-catppuccin` give it too, and the
-   editor's own page takes the substrate as it does in both of those.
+   Islands Light's top layer is pure white, which in this token model is the one
+   L1 step no theme may move, because `--palette-white` also backs `--n-white`.
+   Neither the card nor the editor page can take it: the light card reads
+   `--palette-sand-25`, a half-saturation step of Islands' own light substrate
+   (the treatment `cc-polar` and `cc-catppuccin` give it too), and the editor's
+   own page takes the substrate as it does in both of those.
 
    `--palette-white`, the `gray` / `zinc` / `slate` / `neutral` compatibility ramps
    and `--n-white` / `--n-black` are left alone for the reasons the base records and
@@ -2056,6 +2069,8 @@
    file name). */
 [data-theme="cc-islands"] {
   /* Substrate — light: frame / inset / border / muted text / secondary text. */
+  /* Card paper: the substrate's hue at half its saturation, one step lighter. */
+  --palette-sand-25: 228 6.41% 96.35%;
   --palette-sand-50: 228 12.82% 92.35%;
   --palette-sand-100: 222.86 11.48% 88.04%;
   --palette-sand-200: 225 9.52% 83.53%;
@@ -2360,6 +2375,8 @@
 [data-theme="cc-onedark"] {
   /* Substrate — light: invented (see above). Text steps are the source's own
      greys, read against a light substrate. */
+  /* Card paper: the substrate's hue at half its saturation, one step lighter. */
+  --palette-sand-25: 220 6.5% 98%;
   --palette-sand-50: 220 13% 96%;
   --palette-sand-100: 220 13% 92%;
   --palette-sand-200: 220 13% 87%;
@@ -2608,6 +2625,8 @@
 [data-theme="cc-onedark-vivid"] {
   /* Substrate — light: the sibling's. Both themes are the same plugin's files,
      and it ships one light flavour for the both of them. */
+  /* Card paper: the substrate's hue at half its saturation, one step lighter. */
+  --palette-sand-25: 220 6.5% 98%;
   --palette-sand-50: 220 13% 96%;
   --palette-sand-100: 220 13% 92%;
   --palette-sand-200: 220 13% 87%;
@@ -2850,8 +2869,10 @@
   /* Light appearance, substrate: page → secondary → border. */
   /* sand-50 is a deliberate desaturation of Alucard's Background
      (48 100% → 48 58%): the official value reads as fluorescent against the
-     frozen white chrome (cards, session items, sticky bars) that no theme may
-     retint, so the paper yields instead. Lightness untouched. */
+     near-white card chrome (`--palette-sand-25`, below) the app paints its
+     panels on, so the paper yields instead. Lightness untouched. */
+  /* Card paper: the substrate's hue at half its saturation, one step lighter. */
+  --palette-sand-25: 48 29% 98%;
   --palette-sand-50: 48 58% 96.08%;
   --palette-sand-100: 46.15 54.17% 90.59%;
   --palette-sand-200: 46.45 38.27% 84.12%;
@@ -3089,7 +3110,9 @@
    panels and borders. The lightness ladder and the warm hue are what read as
    "gruvbox"; the lemon saturation is what the base never had. Text steps
    (sand-500/800/950) are untouched: their low lightness hides the saturation,
-   and sand-500 is contrast-pinned. */
+   and sand-500 is contrast-pinned. The card paper `sand-25` halves the already
+   damped `sand-50` saturation once more (11%): it reads as a near-white with a
+   whisper of the hue, which is what the panels should sit on. */
 [data-theme="cc-gruvbox"] {
   /* Dark appearance, substrate: page → card → secondary → input. */
   --palette-ink-950: 0 0% 15.69%;
@@ -3102,6 +3125,8 @@
   --palette-ink-100: 43.16 58.76% 80.98%;
 
   /* Light appearance, substrate: page → secondary → border. */
+  /* Card paper: the substrate's hue at half its saturation, one step lighter. */
+  --palette-sand-25: 48.46 11% 92.24%;
   --palette-sand-50: 48.46 22% 88.24%;
   --palette-sand-100: 43.16 15% 80.98%;
   --palette-sand-200: 40.38 14% 73.33%;
@@ -3322,6 +3347,8 @@
      the AA floor — so `sand-500`, the secondary-text step, is darkened two
      lightness points in the same spirit as the `property` syntax slot's
      darkening below: hue and saturation untouched. */
+  /* Card paper: the substrate's hue at half its saturation, one step lighter. */
+  --palette-sand-25: 53.33 12.5% 88.31%;
   --palette-sand-50: 53.33 25% 84.31%;
   --palette-sand-100: 49.86 28% 76.67%;
   --palette-sand-200: 50.94 32% 70.78%;
@@ -3543,6 +3570,8 @@
   --palette-ink-100: 228.68 72.6% 85.69%;
 
   /* Light appearance, substrate: page → secondary → border. */
+  /* Card paper: the substrate's hue at half its saturation, one step lighter. */
+  --palette-sand-25: 230 5.55% 93.41%;
   --palette-sand-50: 230 11.11% 89.41%;
   --palette-sand-100: 224.21 25.33% 85.29%;
   --palette-sand-200: 224 31.91% 81.57%;
