@@ -492,7 +492,18 @@
   },
   "misc": {
     "compacted": "上下文已压缩",
-    "compactionSummary": "完整摘要"
+    "compactionSummary": "完整摘要",
+    "showTokenUsage": "查看 Token 用量",
+    "fallbackCommands": {
+      "cost": "查看当前会话的 Token 用量。"
+    },
+    "modalMeta": {
+      "costEyebrow": "会话遥测",
+      "costTitle": "Token 用量",
+      "costSubtitle": "本次会话的输入、输出和总 Token 数量。"
+    },
+    "tokensUsed_other": "已使用 {{count}} 个 Token",
+    "tokensLabel_other": "Token"
   },
   "quickReplies": {
     "button": "快捷回复",
@@ -554,7 +565,7 @@
     "result": "结果",
     "script": "脚本",
     "usage": "{{toolUses}} 次工具调用 · {{elapsed}}",
-    "agentTokens": "{{tokens}} tokens",
+    "agentTokens": "{{tokens}} Token",
     "agentToolCalls": "{{count}} 次工具调用",
     "agentTimelineLoading": "正在读取该子代理的步骤…",
     "agentTimelineUnavailable": "步骤不可用：{{reason}}",
