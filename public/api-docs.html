@@ -110,6 +110,39 @@
             height: 16px;
         }
 
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .lang-toggle {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 0.875rem;
+            background: transparent;
+            color: var(--gray-700);
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+
+        .lang-toggle:hover {
+            background: var(--gray-50);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .lang-toggle svg {
+            width: 14px;
+            height: 14px;
+            margin-right: 0.25rem;
+        }
+
         .main-layout {
             display: flex;
         }
@@ -421,12 +454,20 @@
                     <div class="subtitle">API Documentation</div>
                 </div>
             </div>
-            <a href="/" class="back-link">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-                </svg>
-                Back to App
-            </a>
+            <div class="header-actions">
+                <button class="lang-toggle" id="lang-toggle" type="button" aria-label="Switch language">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2c0 4.418-2.239 8-5 8M5 9c0 2.5 2.5 4 5 4m4 8l4-8 4 8m-6-2h4"/>
+                    </svg>
+                    <span id="lang-toggle-label">中文</span>
+                </button>
+                <a href="/" class="back-link">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                    </svg>
+                    Back to App
+                </a>
+            </div>
         </div>
     </header>
 
@@ -456,6 +497,10 @@
                         <p>All API requests require authentication using an API key in the <code>X-API-Key</code> header.</p>
 
                         <p>Generate API keys in Settings → API & Tokens.</p>
+
+                        <div class="note">
+                            <strong>Query-parameter fallback:</strong> For clients that cannot set headers (notably <code>EventSource</code> for SSE), the same key may be passed as <code>?apiKey=ck_…</code> in the URL. <code>X-API-Key</code> takes precedence when both are present.
+                        </div>
                     </section>
 
                     <section id="credentials">
@@ -488,7 +533,7 @@
                                 <span class="endpoint-path"><span class="api-url">http://localhost:3001</span>/api/agent</span>
                             </div>
 
-                            <p>Trigger an AI agent (Claude, Cursor, Codex, or OpenCode) to work on a project.</p>
+                            <p>Trigger an AI agent to work on a project. Supported providers: <code>claude</code>, <code>cursor</code>, <code>codex</code>, <code>opencode</code>, <code>dsh</code>, <code>workbuddy</code>, <code>pi</code>, <code>zcode</code>, <code>omp</code>.</p>
 
                             <h4>Request Body Parameters</h4>
                             <table>
@@ -523,7 +568,7 @@
                                         <td><code>provider</code></td>
                                         <td>string</td>
                                         <td><span class="badge badge-optional">Optional</span></td>
-                                        <td><code>claude</code>, <code>cursor</code>, <code>codex</code>, <code>opencode</code>, <code>dsh</code>, <code>workbuddy</code>, <code>pi</code>, or <code>zcode</code> (default: <code>claude</code>)</td>
+                                        <td><code>claude</code>, <code>cursor</code>, <code>codex</code>, <code>opencode</code>, <code>dsh</code>, <code>workbuddy</code>, <code>pi</code>, <code>zcode</code>, or <code>omp</code> (default: <code>claude</code>)</td>
                                     </tr>
                                     <tr>
                                         <td><code>stream</code></td>
@@ -543,7 +588,7 @@
                                         <td><code>effort</code></td>
                                         <td>string</td>
                                         <td><span class="badge badge-optional">Optional</span></td>
-                                        <td>Reasoning effort for Claude, Codex, OpenCode, and WorkBuddy models that expose effort metadata. Use <code>default</code> or omit it to let the provider decide.</td>
+                                        <td>Reasoning effort for providers/models that expose effort metadata. Claude supports <code>low</code>, <code>medium</code>, <code>high</code>, <code>xhigh</code>, <code>max</code> (which levels are accepted depends on the model). Codex and OpenCode support <code>low</code>, <code>medium</code>, <code>high</code>, <code>xhigh</code>. Use <code>default</code> or omit it to let the provider decide.</td>
                                     </tr>
                                     <tr>
                                         <td><code>cleanup</code></td>
@@ -575,6 +620,12 @@
                                         <td><span class="badge badge-optional">Optional</span></td>
                                         <td>Create a pull request after successful completion (default: <code>false</code>). PR title and description auto-generated from commit messages. Works with <code>githubUrl</code> or <code>projectPath</code> (if it has a GitHub remote).</td>
                                     </tr>
+                                    <tr>
+                                        <td><code>sessionId</code></td>
+                                        <td>string</td>
+                                        <td><span class="badge badge-optional">Optional</span></td>
+                                        <td>Continue an existing session. Pass either the app <code>sessionId</code> (returned by a previous run) or the provider-native id (<code>providerSessionId</code>); the route indexes both. When set, the run attaches to that session instead of starting a new one — the session row determines the provider, so <code>provider</code> must match (or be omitted). Returns <code>404</code> if the id is unknown, <code>400</code> if you name a different provider, <code>409</code> if a run is already in progress on that session.</td>
+                                    </tr>
                                 </tbody>
                             </table>
 
@@ -584,6 +635,10 @@
                                 <strong>Scenario 2:</strong> Only <code>projectPath</code> → Uses existing project at specified path<br>
                                 <strong>Scenario 3:</strong> Both provided → Clones <code>githubUrl</code> to <code>projectPath</code><br><br>
                                 <strong>Validation:</strong> If <code>projectPath</code> exists and contains a git repository, the remote URL is compared with <code>githubUrl</code>. If URLs match, the existing repo is reused. If URLs differ, an error is returned.
+                            </div>
+
+                            <div class="note">
+                                <strong>Boolean fields:</strong> <code>stream</code>, <code>cleanup</code>, <code>createBranch</code>, and <code>createPR</code> also accept the string <code>"true"</code> / <code>"false"</code> (handy for <code>curl -d</code> payloads where booleans arrive as strings). Any other string value is treated as <code>false</code>.
                             </div>
 
                             <h4>Response (Streaming)</h4>
@@ -657,34 +712,34 @@ print(response.json())</code></pre>
 
                     <div class="example-block">
                         <h4>Streaming Response</h4>
-<pre><code class="language-javascript">data: {"type":"status","message":"Repository cloned"}
-data: {"type":"thinking","content":"Analyzing..."}
-data: {"type":"tool_use","tool":"read_file"}
-data: {"type":"content","content":"Done!"}
+<pre><code class="language-javascript">data: {"type":"status","message":"Repository cloned","projectPath":"/path"}
+data: {"type":"session-id","sessionId":"21fe1c25-..."}
+data: {"kind":"text","streamChannel":"text","content":"Analyzing...","sessionId":"...","seq":12,"role":"assistant"}
+data: {"kind":"tool_use","name":"read_file","sessionId":"...","seq":13}
+data: {"kind":"complete","sessionId":"...","seq":44}
+data: {"type":"github-branch","branch":{"name":"feature/x","url":"https://github.com/owner/repo/tree/feature/x"}}
+data: {"type":"github-pr","pullRequest":{"number":42,"url":"https://github.com/owner/repo/pull/42"}}
 data: {"type":"done"}</code></pre>
+                        <p style="font-size:0.8125rem;color:#7d8590;margin-top:0.5rem">Provider events carry <code>kind</code> (<code>text</code>, <code>tool_use</code>, <code>complete</code>, …) plus <code>sessionId</code> + <code>seq</code>; route-protocol events carry <code>type</code> (<code>status</code>, <code>session-id</code>, <code>github-branch</code>, <code>github-pr</code>, <code>github-error</code>, <code>done</code>). A <code>{"type":"status","aborted":true}</code> is sent instead of branch/PR when a tab aborts the run.</p>
                     </div>
 
                     <div class="example-block">
                         <h4>Non-Streaming Response</h4>
 <pre><code class="language-json">{
   "success": true,
-  "sessionId": "abc123",
+  "sessionId": "21fe1c25-1ad9-464e-bee2-734fbeddcaf1",
+  "providerSessionId": "356a6abe-2ed0-4988-8f48-b50a3c7293d4",
   "messages": [
     {
-      "type": "assistant",
-      "message": {
-        "role": "assistant",
-        "content": [
-          {
-            "type": "text",
-            "text": "I've completed the task..."
-          }
-        ],
-        "usage": {
-          "input_tokens": 150,
-          "output_tokens": 50
-        }
-      }
+      "kind": "text",
+      "streamChannel": "text",
+      "content": "I've completed the task...",
+      "sessionId": "21fe1c25-...",
+      "provider": "claude",
+      "id": "stream_delta_311de260-...",
+      "timestamp": "2026-10-02T00:59:44.155Z",
+      "seq": 44,
+      "role": "assistant"
     }
   ],
   "tokens": {
@@ -704,6 +759,7 @@ data: {"type":"done"}</code></pre>
     "url": "https://github.com/user/repo/pull/42"
   }
 }</code></pre>
+                        <p style="font-size:0.8125rem;color:#7d8590;margin-top:0.5rem"><code>sessionId</code> is the app session id (pass it back as <code>sessionId</code> to continue); <code>providerSessionId</code> is the provider-native id for tooling that drives the CLI directly. <code>branch</code> / <code>pullRequest</code> are present only when <code>createBranch</code> / <code>createPR</code> were requested; either is replaced by <code>{ "error": "..." }</code> on partial failure. When a tab aborts the run, <code>success</code> is <code>false</code> with <code>"aborted": true</code>, and no branch/PR follows.</p>
                     </div>
 
                     <div class="example-block">
@@ -826,6 +882,166 @@ data: {"type":"done"}</code></pre>
     </div>
 
     <script>
+        // ===== i18n =====
+        const I18N_TEXT = {
+            'API Documentation': 'API 文档',
+            'Back to App': '返回应用',
+            'Getting Started': '入门',
+            'Authentication': '认证',
+            'GitHub Credentials': 'GitHub 凭证',
+            'API Reference': 'API 参考',
+            'Agent': 'Agent',
+            'Examples': '示例',
+            'Usage Patterns': '用法模式',
+            'Generate API keys in Settings → API & Tokens.': '在「设置 → API & Tokens」中生成 API key。',
+            'Authentication Header': '认证 Header',
+            'Request Body Parameters': '请求体参数',
+            'Parameter': '参数',
+            'Type': '类型',
+            'Required': '必填',
+            'Description': '说明',
+            'Optional': '可选',
+            'Conditional': '条件必填',
+            'Task for the AI agent': 'agent 的任务',
+            'GitHub token for private repos': '私有仓库的 GitHub token',
+            'Response (Streaming)': '响应（流式）',
+            'Response (Non-Streaming)': '响应（非流式）',
+            'Error Response': '错误响应',
+            'Basic Request': '基础请求',
+            'Streaming Response': '流式响应',
+            'Non-Streaming Response': '非流式响应',
+            'Clone and Process Repository': '克隆并处理仓库',
+            'Clone to Specific Path': '克隆到指定路径',
+            'CI/CD Integration': 'CI/CD 集成',
+            'Create Branch and Pull Request': '创建分支与 Pull Request',
+            'Use Existing Project': '使用已有项目',
+            'Clone to Custom Path': '克隆到自定义路径',
+            'CI/CD (GitHub Actions)': 'CI/CD（GitHub Actions）',
+            'Create Branch and PR': '创建分支与 PR',
+            'Custom Branch Name': '自定义分支名',
+            'Branch & PR Response': '分支与 PR 响应',
+            'For private repositories, store a GitHub token in settings or pass it with each request.': '对于私有仓库，在设置里存储 GitHub token，或在每次请求时传入。',
+            'Clone a repository to an auto-generated temporary path and process it.': '克隆仓库到自动生成的临时路径并处理。',
+            'Work with an existing project at a specific path.': '使用指定路径下的已有项目。',
+            'Clone a repository to a custom location for later reuse.': '克隆仓库到自定义位置以便后续复用。',
+            'Integrate with GitHub Actions or other CI/CD pipelines.': '与 GitHub Actions 或其他 CI/CD 流水线集成。',
+            'Automatically create a new branch and pull request after the agent completes its work. Branch names are auto-generated from the message, and PR title/description are auto-generated from commit messages.': 'agent 完成后自动创建新分支和 pull request。分支名根据 message 自动生成，PR 标题和描述根据 commit 信息自动生成。',
+        };
+
+        const I18N_STARTSWITH = [
+            ['Provider events carry', 'Provider 事件用 <code>kind</code>（<code>text</code>、<code>tool_use</code>、<code>complete</code>、…）加 <code>sessionId</code> + <code>seq</code>；路由协议事件用 <code>type</code>（<code>status</code>、<code>session-id</code>、<code>github-branch</code>、<code>github-pr</code>、<code>github-error</code>、<code>done</code>）。当某个 tab 中断了运行时，会发 <code>{"type":"status","aborted":true}</code> 而不是分支/PR。'],
+            ['sessionId is the app session id', '<code>sessionId</code> 是 app 会话 id（传回 <code>sessionId</code> 字段即可续接）；<code>providerSessionId</code> 是 provider 原生 id，供直接驱动 CLI 的工具使用。<code>branch</code> / <code>pullRequest</code> 仅在请求了 <code>createBranch</code> / <code>createPR</code> 时出现；部分失败时会被 <code>{ "error": "..." }</code> 替换。当某个 tab 中断运行时，<code>success</code> 为 <code>false</code> 且带 <code>"aborted": true</code>，不返回分支/PR。'],
+            ['Path Handling Behavior', '<strong>路径处理行为：</strong><br><br><strong>场景 1：</strong>只传 <code>githubUrl</code> → 克隆到自动生成的临时路径<br><strong>场景 2：</strong>只传 <code>projectPath</code> → 使用指定路径下的已有项目<br><strong>场景 3：</strong>两者都传 → 把 <code>githubUrl</code> 克隆到 <code>projectPath</code><br><br><strong>校验：</strong>如果 <code>projectPath</code> 已存在且是一个 git 仓库，会用 <code>githubUrl</code> 比对 remote URL。URL 相同则复用已有仓库；不同则返回错误。'],
+            ['Boolean fields', '<strong>布尔字段：</strong><code>stream</code>、<code>cleanup</code>、<code>createBranch</code> 和 <code>createPR</code> 也接受字符串 <code>"true"</code> / <code>"false"</code>（方便 <code>curl -d</code> 这种布尔值以字符串形式传过来的场景）。任何其他字符串值都视为 <code>false</code>。'],
+        ];
+
+        const I18N_HTML = {
+            '.intro p': '通过编程方式触发 AI agent 处理项目。克隆 GitHub 仓库或使用已有项目路径。适用于 CI/CD 流水线、自动代码评审和批量处理。',
+            '#authentication > p:first-of-type': '所有 API 请求需要使用 <code>X-API-Key</code> header 中的 API key 进行认证。',
+            '#authentication .note': '<strong>查询参数兜底：</strong>对于无法设置 header 的客户端（特别是 SSE 用的 <code>EventSource</code>），同一个 key 也可以作为 <code>?apiKey=ck_…</code> 放在 URL 里。两者同时存在时，<code>X-API-Key</code> 优先。',
+            '#credentials .note': '<strong>注意：</strong>请求中传入的 GitHub token 会覆盖已存储的 token。',
+            'section#agent > .endpoint > p:first-of-type': '触发 AI agent 处理项目。支持的 provider：<code>claude</code>、<code>cursor</code>、<code>codex</code>、<code>opencode</code>、<code>dsh</code>、<code>workbuddy</code>、<code>pi</code>、<code>zcode</code>、<code>omp</code>。',
+            'tbody tr:nth-child(1) td:nth-child(4)': '要克隆的 GitHub 仓库 URL。如果路径已存在且为同一仓库，则复用；如果路径已存在但仓库不同，返回错误。',
+            'tbody tr:nth-child(2) td:nth-child(4)': '已有项目的路径，或克隆的目标路径。仅传 <code>githubUrl</code> 时自动生成路径；单独使用时必须指向已存在的项目目录。',
+            'tbody tr:nth-child(4) td:nth-child(4)': '<code>claude</code>、<code>cursor</code>、<code>codex</code>、<code>opencode</code>、<code>dsh</code>、<code>workbuddy</code>、<code>pi</code>、<code>zcode</code> 或 <code>omp</code>（默认：<code>claude</code>）。',
+            'tbody tr:nth-child(5) td:nth-child(4)': '启用流式（默认：<code>true</code>）。',
+            'tbody tr:nth-child(7) td:nth-child(4)': '支持推理强度元数据的 provider/model 的 reasoning effort。Claude 支持 <code>low</code>、<code>medium</code>、<code>high</code>、<code>xhigh</code>、<code>max</code>（具体接受哪些档位取决于 model）。Codex 和 OpenCode 支持 <code>low</code>、<code>medium</code>、<code>high</code>、<code>xhigh</code>。传 <code>default</code> 或省略以由 provider 决定。',
+            'tbody tr:nth-child(8) td:nth-child(4)': '完成后自动清理（默认：<code>true</code>）。仅在通过 <code>githubUrl</code> 克隆时生效。通过 <code>projectPath</code> 指定的已有项目永不清理。',
+            'tbody tr:nth-child(10) td:nth-child(4)': '自定义分支名。如果提供，<code>createBranch</code> 自动启用。分支名按 Git 命名规则校验。与 <code>githubUrl</code> 或带 GitHub remote 的 <code>projectPath</code> 一起使用。',
+            'tbody tr:nth-child(11) td:nth-child(4)': '成功完成后创建新分支（默认：<code>false</code>）。如果提供了 <code>branchName</code> 则自动设为 <code>true</code>。与 <code>githubUrl</code> 或带 GitHub remote 的 <code>projectPath</code> 一起使用。',
+            'tbody tr:nth-child(12) td:nth-child(4)': '成功完成后创建 pull request（默认：<code>false</code>）。PR 标题和描述根据 commit 信息自动生成。与 <code>githubUrl</code> 或带 GitHub remote 的 <code>projectPath</code> 一起使用。',
+            'tbody tr:nth-child(13) td:nth-child(4)': '续接已有会话。传入 app <code>sessionId</code>（前一次运行返回的）或 provider 原生 id（<code>providerSessionId</code>）；路由对两者都建了索引。设置后，本次运行会挂到那个会话上而不是新开一个——会话行决定了 provider，所以 <code>provider</code> 必须匹配（或省略）。id 未知返回 <code>404</code>，provider 不符返回 <code>400</code>，该会话已有运行中任务返回 <code>409</code>。',
+            'section#agent p:nth-of-type(2)': 'Server-sent events (SSE) 格式，实时更新。Content-Type: <code>text/event-stream</code>',
+            'section#agent p:nth-of-type(3)': 'JSON 对象，含会话详情、仅 assistant 的消息（已过滤）和 token 用量汇总。Content-Type: <code>application/json</code>',
+            'section#agent p:nth-of-type(4)': '返回错误详情及对应的 HTTP 状态码。',
+        };
+
+        // .back-link 含 SVG 子元素，只替换最后一个文本节点
+        const I18N_LASTTEXT = {
+            '.back-link': '返回应用',
+        };
+
+        function applyI18n(lang) {
+            if (lang !== 'zh') return;
+
+            // 1. textContent 精确匹配（纯文本元素，无子元素）
+            const textSel = 'h1, h2, h3, h4, p, a, th, td, span, button, .sidebar-title, .badge';
+            document.querySelectorAll(textSel).forEach(el => {
+                if (el.children.length > 0) return;
+                const text = el.textContent.trim();
+                if (I18N_TEXT[text]) {
+                    el.textContent = I18N_TEXT[text];
+                }
+            });
+
+            // 2. startsWith 匹配（长文本 p 和 .note，可能含 code 子元素，用 innerHTML）
+            document.querySelectorAll('p, .note').forEach(el => {
+                const text = el.textContent.trim();
+                for (const [prefix, html] of I18N_STARTSWITH) {
+                    if (text.startsWith(prefix)) {
+                        el.innerHTML = html;
+                        break;
+                    }
+                }
+            });
+
+            // 3. selector + innerHTML
+            Object.entries(I18N_HTML).forEach(([selector, html]) => {
+                document.querySelectorAll(selector).forEach(el => {
+                    el.innerHTML = html;
+                });
+            });
+
+            // 4. lastText（保留 SVG 等子元素，只替换最后一个文本节点）
+            Object.entries(I18N_LASTTEXT).forEach(([selector, text]) => {
+                document.querySelectorAll(selector).forEach(el => {
+                    for (let i = el.childNodes.length - 1; i >= 0; i--) {
+                        const node = el.childNodes[i];
+                        if (node.nodeType === Node.TEXT_NODE) {
+                            node.textContent = text;
+                            break;
+                        }
+                    }
+                });
+            });
+
+            // 5. 语言按钮标签（中文模式下显示 "English" 提示切回）
+            const label = document.getElementById('lang-toggle-label');
+            if (label) label.textContent = 'English';
+        }
+
+        const I18N_STORAGE_KEY = 'api-docs-lang';
+        function detectLang() {
+            const stored = localStorage.getItem(I18N_STORAGE_KEY);
+            if (stored === 'en' || stored === 'zh') return stored;
+            const browser = navigator.language || (navigator.languages && navigator.languages[0]) || 'en';
+            return browser.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+        }
+
+        let currentLang = detectLang();
+        const toggleBtn = document.getElementById('lang-toggle');
+        const toggleLabel = document.getElementById('lang-toggle-label');
+
+        if (toggleLabel) toggleLabel.textContent = currentLang === 'zh' ? 'English' : '中文';
+
+        if (currentLang === 'zh') {
+            applyI18n('zh');
+        }
+
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+                const newLang = currentLang === 'en' ? 'zh' : 'en';
+                localStorage.setItem(I18N_STORAGE_KEY, newLang);
+                if (newLang === 'zh') {
+                    applyI18n('zh');
+                    currentLang = 'zh';
+                    if (toggleLabel) toggleLabel.textContent = 'English';
+                } else {
+                    location.reload();
+                }
+            });
+        }
+
         // Dynamic URL replacement
         const apiUrl = window.location.origin;
         document.querySelectorAll('.api-url').forEach(el => {
