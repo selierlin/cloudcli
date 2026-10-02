@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { sessionsDb } from '@/modules/database/index.js';
 import { providerSettingsSourceService } from '@/modules/providers/services/provider-settings-source.service.js';
 import { readClaudeSettingsEnv } from '@/shared/claude-settings.js';
+import { resolveChannelFromProfileFile } from '@/shared/model-descriptions.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import type {
   ProviderCurrentActiveModel,
@@ -198,13 +199,13 @@ const CLAUDE_MAPPED_OPTION_ALIASES: Record<string, ClaudeModelAlias> = {
   haiku: 'haiku',
 };
 
-/** Short display names used when a mapped option's label is rewritten. */
-const CLAUDE_MAPPED_OPTION_LABELS: Record<string, string> = {
+/** Claude tier a mapped option stands for, kept in its rewritten description. */
+const CLAUDE_MAPPED_OPTION_TIERS: Record<string, string> = {
   default: 'Default',
   opus: 'Opus',
-  'opus[1m]': 'Opus (1M context)',
+  'opus[1m]': 'Opus',
   sonnet: 'Sonnet',
-  'sonnet[1m]': 'Sonnet (1M context)',
+  'sonnet[1m]': 'Sonnet',
   haiku: 'Haiku',
   opusplan: 'Opus Plan',
 };
@@ -257,7 +258,10 @@ const resolveClaudeModelMappings = async (): Promise<ClaudeModelMappings> => {
 
 /**
  * Rewrites the predefined catalog's display strings for aliases that the host
- * configuration maps to a concrete model, e.g. `Sonnet → doubao-seed-2.1-turbo`.
+ * configuration maps to a concrete model: the row is labelled with the model
+ * itself (`doubao-seed-2.1-turbo`) and its description becomes just the Claude
+ * tier it stands for (`Sonnet`), so a login-free setup shows what it actually
+ * runs and still tells the tiers apart.
  *
  * Only `label` and `description` change. `value` keeps the alias because the
  * Claude runtime resolves aliases through the same environment variables, and
@@ -272,16 +276,19 @@ export const applyClaudeModelMappings = (
 ): ProviderModelsDefinition => {
   const annotate = (
     option: ProviderModelOption,
-    label: string,
+    tier: string,
     mappedModels: string[],
-    envKeys: string[],
-  ): ProviderModelOption => ({
-    ...option,
-    label: `${label} → ${mappedModels.join(' / ')}`,
-    description: option.description
-      ? `${option.description} Mapped via ${envKeys.join(' + ')}.`
-      : `Mapped via ${envKeys.join(' + ')}.`,
-  });
+    oneMillion = false,
+  ): ProviderModelOption => {
+    const model = mappedModels.join(' / ');
+    return {
+      ...option,
+      // The 1M variants share their alias's model, so keep the marker or the
+      // two rows would read as the same entry.
+      label: oneMillion ? `${model} (1M context)` : model,
+      description: tier,
+    };
+  };
 
   return {
     OPTIONS: definition.OPTIONS.map((option) => {
@@ -291,13 +298,9 @@ export const applyClaudeModelMappings = (
         const mappedModels = [mappings.opus, mappings.sonnet].filter(
           (model): model is string => Boolean(model),
         );
-        const envKeys = [
-          mappings.opus ? CLAUDE_MODEL_ENV_KEYS.opus : null,
-          mappings.sonnet ? CLAUDE_MODEL_ENV_KEYS.sonnet : null,
-        ].filter((key): key is string => Boolean(key));
 
         if (mappedModels.length > 0) {
-          return annotate(option, CLAUDE_MAPPED_OPTION_LABELS.opusplan, mappedModels, envKeys);
+          return annotate(option, CLAUDE_MAPPED_OPTION_TIERS.opusplan, mappedModels);
         }
 
         return option;
@@ -311,9 +314,9 @@ export const applyClaudeModelMappings = (
 
       return annotate(
         option,
-        CLAUDE_MAPPED_OPTION_LABELS[option.value] ?? option.label,
+        CLAUDE_MAPPED_OPTION_TIERS[option.value] ?? option.label,
         [mappedModel],
-        [CLAUDE_MODEL_ENV_KEYS[alias]],
+        option.value.endsWith('[1m]'),
       );
     }),
     DEFAULT: definition.DEFAULT,
@@ -438,7 +441,22 @@ export class ClaudeProviderModels implements IProviderModels {
     // ANTHROPIC_DEFAULT_*_MODEL). Querying the SDK instead would start a real
     // Claude Code session and leave a stray jsonl session file behind, so the
     // predefined set is never replaced, only relabelled.
-    return applyClaudeModelMappings(CLAUDE_PREDEFINED_MODELS, await resolveClaudeModelMappings());
+    const definition = applyClaudeModelMappings(
+      CLAUDE_PREDEFINED_MODELS,
+      await resolveClaudeModelMappings(),
+    );
+    // Claude configures one vendor at a time; the active settings profile's
+    // name is the vendor signal (`settings-wuan-glm.json` -> group `wuan`).
+    const channel = resolveChannelFromProfileFile(
+      providerSettingsSourceService.resolveActiveSettingsFile('claude'),
+    );
+    if (!channel) {
+      return definition;
+    }
+    return {
+      ...definition,
+      OPTIONS: definition.OPTIONS.map((option) => ({ ...option, group: channel })),
+    };
   }
 
   async getCurrentActiveModel(sessionId?: string): Promise<ProviderCurrentActiveModel> {

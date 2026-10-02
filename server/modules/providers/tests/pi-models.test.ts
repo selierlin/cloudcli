@@ -72,10 +72,27 @@ test('loads the built-in catalog from models-store.json', async () => {
     const sonnet = catalog?.OPTIONS.find((option) => option.value === 'anthropic/claude-sonnet-4-5');
     assert.ok(sonnet?.effort?.values.some((entry) => entry.value === 'high'));
     // Every option carries its channel so the client can group the picker.
-    assert.equal(sonnet?.group, 'anthropic');
+    assert.equal(sonnet?.group, 'Anthropic');
     const haiku = catalog?.OPTIONS.find((option) => option.value === 'anthropic/claude-haiku-4-5');
     assert.equal(haiku?.effort, undefined);
-    assert.equal(haiku?.group, 'anthropic');
+    assert.equal(haiku?.group, 'Anthropic');
+  });
+});
+
+
+test('uses curated subtitle metadata for known models missing a local description', async () => {
+  await withPiAgentDir({
+    'models-store.json': JSON.stringify({
+      deepseek: { models: [{ id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro' }] },
+    }),
+  }, async () => {
+    const catalog = loadPiModels();
+    const model = catalog?.OPTIONS.find((option) => option.value === 'deepseek/deepseek-v4-pro');
+
+    assert.equal(
+      model?.description,
+      'Frontier DeepSeek model for complex coding and research.',
+    );
   });
 });
 
@@ -91,7 +108,7 @@ test('tags same-named models with their own channel', async () => {
     const catalog = loadPiModels();
     assert.ok(catalog);
     const byValue = new Map(catalog?.OPTIONS.map((option) => [option.value, option]));
-    assert.equal(byValue.get('deepseek/deepseek-v4-flash')?.group, 'deepseek');
+    assert.equal(byValue.get('deepseek/deepseek-v4-flash')?.group, 'DeepSeek');
     assert.equal(byValue.get('ark/deepseek-v4-flash')?.group, 'ark');
   });
 });
@@ -160,7 +177,7 @@ test('PI_MODEL injects a channel-tagged option when absent from the catalog', as
     const models = await new PiProviderModels().getSupportedModels();
     assert.equal(models.DEFAULT, 'openrouter/qwen3-coder');
     assert.equal(models.OPTIONS[0].value, 'openrouter/qwen3-coder');
-    assert.equal(models.OPTIONS[0].group, 'openrouter');
+    assert.equal(models.OPTIONS[0].group, 'OpenRouter');
   });
 });
 

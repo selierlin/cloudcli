@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
+import { appConfigDb, closeConnection, initializeDatabase } from '@/modules/database/index.js';
 import {
+  ClaudeProviderModels,
   CLAUDE_PREDEFINED_MODELS,
   applyClaudeModelMappings,
   extractClaudeEventModel,
@@ -103,7 +108,7 @@ test('leaves the catalog untouched when no alias is mapped', () => {
   assert.deepEqual(annotated, CLAUDE_PREDEFINED_MODELS);
 });
 
-test('rewrites the label of an alias and its [1m] variant without touching value or effort', () => {
+test('relabels a mapped alias with the concrete model and its tier only', () => {
   const annotated = applyClaudeModelMappings(
     CLAUDE_PREDEFINED_MODELS,
     { sonnet: 'doubao-seed-2.1-turbo' },
@@ -111,23 +116,26 @@ test('rewrites the label of an alias and its [1m] variant without touching value
 
   const sonnet = annotated.OPTIONS.find((option) => option.value === 'sonnet');
   assert.ok(sonnet);
-  assert.equal(sonnet.label, 'Sonnet → doubao-seed-2.1-turbo');
-  assert.match(sonnet.description ?? '', /Mapped via ANTHROPIC_DEFAULT_SONNET_MODEL\.$/);
+  assert.equal(sonnet.label, 'doubao-seed-2.1-turbo');
+  assert.equal(sonnet.description, 'Sonnet');
   assert.equal(sonnet.value, findOption('sonnet').value);
   assert.deepEqual(sonnet.effort, findOption('sonnet').effort);
 
+  // The 1M variant shares the alias's model, so it keeps the marker.
   const sonnet1m = annotated.OPTIONS.find((option) => option.value === 'sonnet[1m]');
   assert.ok(sonnet1m);
-  assert.equal(sonnet1m.label, 'Sonnet (1M context) → doubao-seed-2.1-turbo');
+  assert.equal(sonnet1m.label, 'doubao-seed-2.1-turbo (1M context)');
+  assert.equal(sonnet1m.description, 'Sonnet');
 
   // Unmapped aliases keep their predefined display strings.
   const haiku = annotated.OPTIONS.find((option) => option.value === 'haiku');
   assert.ok(haiku);
   assert.equal(haiku.label, findOption('haiku').label);
+  assert.equal(haiku.description, findOption('haiku').description);
   assert.equal(annotated.DEFAULT, CLAUDE_PREDEFINED_MODELS.DEFAULT);
 });
 
-test('annotates the default option when ANTHROPIC_MODEL is mapped', () => {
+test('relabels the default option when ANTHROPIC_MODEL is mapped', () => {
   const annotated = applyClaudeModelMappings(
     CLAUDE_PREDEFINED_MODELS,
     { default: 'doubao-seed-evolving' },
@@ -135,8 +143,8 @@ test('annotates the default option when ANTHROPIC_MODEL is mapped', () => {
 
   const fallback = annotated.OPTIONS.find((option) => option.value === 'default');
   assert.ok(fallback);
-  assert.equal(fallback.label, 'Default → doubao-seed-evolving');
-  assert.match(fallback.description ?? '', /Mapped via ANTHROPIC_MODEL\.$/);
+  assert.equal(fallback.label, 'doubao-seed-evolving');
+  assert.equal(fallback.description, 'Default');
 });
 
 test('opusplan lists both mapped targets, and only the mapped one when partial', () => {
@@ -146,8 +154,8 @@ test('opusplan lists both mapped targets, and only the mapped one when partial',
   );
   const opusPlanBoth = both.OPTIONS.find((option) => option.value === 'opusplan');
   assert.ok(opusPlanBoth);
-  assert.equal(opusPlanBoth.label, 'Opus Plan → doubao-seed-evolving / doubao-seed-2.1-turbo');
-  assert.match(opusPlanBoth.description ?? '', /ANTHROPIC_DEFAULT_OPUS_MODEL \+ ANTHROPIC_DEFAULT_SONNET_MODEL/);
+  assert.equal(opusPlanBoth.label, 'doubao-seed-evolving / doubao-seed-2.1-turbo');
+  assert.equal(opusPlanBoth.description, 'Opus Plan');
 
   const sonnetOnly = applyClaudeModelMappings(
     CLAUDE_PREDEFINED_MODELS,
@@ -155,9 +163,8 @@ test('opusplan lists both mapped targets, and only the mapped one when partial',
   );
   const opusPlanSonnet = sonnetOnly.OPTIONS.find((option) => option.value === 'opusplan');
   assert.ok(opusPlanSonnet);
-  assert.equal(opusPlanSonnet.label, 'Opus Plan → doubao-seed-2.1-turbo');
-  assert.match(opusPlanSonnet.description ?? '', /ANTHROPIC_DEFAULT_SONNET_MODEL\.$/);
-  assert.doesNotMatch(opusPlanSonnet.description ?? '', /ANTHROPIC_DEFAULT_OPUS_MODEL/);
+  assert.equal(opusPlanSonnet.label, 'doubao-seed-2.1-turbo');
+  assert.equal(opusPlanSonnet.description, 'Opus Plan');
 });
 
 test('the predefined catalog itself stays immutable', () => {
@@ -206,4 +213,28 @@ test('pickClaudeModelMappings ignores blank, non-string, and unmapped values', (
 
   assert.deepEqual(mappings, { haiku: 'doubao-seed-2.0-lite' });
   assert.deepEqual(pickClaudeModelMappings({}), {});
+});
+
+test('tags the catalog with the channel named by the active settings profile', async () => {
+  // Isolated database: the suite must never touch the host's app config.
+  const previousDatabasePath = process.env.DATABASE_PATH;
+  const tempDirectory = await mkdtemp(path.join(os.tmpdir(), 'claude-models-db-'));
+  closeConnection();
+  process.env.DATABASE_PATH = path.join(tempDirectory, 'auth.db');
+  await initializeDatabase();
+  appConfigDb.set('claude.settings.activeFile', '/x/settings-wuan-glm.json');
+
+  try {
+    const models = await new ClaudeProviderModels().getSupportedModels();
+    assert.ok(models.OPTIONS.length > 0);
+    assert.ok(models.OPTIONS.every((option) => option.group === 'wuan'));
+  } finally {
+    closeConnection();
+    if (previousDatabasePath === undefined) {
+      delete process.env.DATABASE_PATH;
+    } else {
+      process.env.DATABASE_PATH = previousDatabasePath;
+    }
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
 });

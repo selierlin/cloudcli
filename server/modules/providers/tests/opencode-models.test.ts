@@ -68,7 +68,24 @@ test('OpenCode exposes only the curated predefined catalog', async () => {
   await withOpenCodeHome(async () => {}, async (adapter) => {
     // Nothing readable about this install, so the picker keeps every option
     // rather than coming up empty.
-    assert.deepEqual(await adapter.getSupportedModels(), OPENCODE_PREDEFINED_MODELS);
+    const models = await adapter.getSupportedModels();
+    assert.deepEqual(
+      models.OPTIONS.map(({ value, label }) => ({ value, label })),
+      OPENCODE_PREDEFINED_MODELS.OPTIONS.map(({ value, label }) => ({ value, label })),
+    );
+    // Subtitles come from the shared maps; channels render as group headings.
+    assert.equal(
+      models.OPTIONS.find((option) => option.value === 'opencode/gpt-5.6-sol')?.description,
+      'Latest frontier agentic coding model.',
+    );
+    assert.equal(
+      models.OPTIONS.find((option) => option.value === 'opencode/big-pickle')?.description,
+      'OpenCode Zen · Free',
+    );
+    assert.equal(
+      models.OPTIONS.find((option) => option.value === 'opencode-go/grok-4.6')?.description,
+      'OpenCode Go',
+    );
     assert.equal(
       (await adapter.getCurrentActiveModel()).model,
       OPENCODE_PREDEFINED_MODELS.DEFAULT,
@@ -105,7 +122,8 @@ test('OpenCode exposes only the curated predefined catalog', async () => {
     (option) => option.value.startsWith('opencode-go/'),
   );
   assert.equal(opencodeGoOptions.length, 27);
-  assert.ok(opencodeGoOptions.every((option) => option.description === 'OpenCode Go'));
+  // Static rows carry no per-model subtitle data; the shared maps supply it.
+  assert.ok(opencodeGoOptions.every((option) => option.description === undefined));
   const glmFlash = opencodeGoOptions.find(
     (option) => option.value === 'opencode-go/glm-5.3-flash',
   );
@@ -221,7 +239,13 @@ test('OpenCode offers the models a configured provider declares', async () => {
             },
             models: {
               auto: { name: 'Auto (recommended)' },
-              'hy4-preview': { name: 'Hy4 preview', reasoning: true },
+              // Config descriptions are ignored: the shared map is the single
+              // subtitle source, and its channel-qualified entry wins.
+              'hy4-preview': {
+                name: 'Hy4 preview',
+                reasoning: true,
+                description: '积分倍率 0.29x（夜间折扣）',
+              },
               'kimi-k2.7': {},
             },
           },
@@ -240,12 +264,15 @@ test('OpenCode offers the models a configured provider declares', async () => {
       assert.equal((await adapter.getCurrentActiveModel()).model, 'workbuddy/auto');
 
       assert.equal(catalog.OPTIONS[0].label, 'Auto (recommended)');
-      assert.equal(catalog.OPTIONS[0].description, 'WorkBuddy');
+      // Subtitles come from the shared channel-qualified map, not the config.
+      assert.equal(catalog.OPTIONS[0].description, '自动匹配最优模型，积分倍率随之浮动');
       // One heading per configured provider keeps same-named models from
       // different gateways apart.
-      assert.equal(catalog.OPTIONS[0].group, 'workbuddy');
+      assert.equal(catalog.OPTIONS[0].group, 'WorkBuddy');
+      assert.equal(catalog.OPTIONS[1].description, '积分倍率 0.29x（夜间折扣）');
       // A model without a declared name falls back to the id the CLI routes by.
       assert.equal(catalog.OPTIONS[2].label, 'kimi-k2.7');
+      assert.equal(catalog.OPTIONS[2].description, '积分倍率 0.57x');
     },
   );
 
@@ -285,8 +312,10 @@ test('OpenCode offers the models a configured provider declares', async () => {
       );
 
       assert.equal(curated.length, 1);
+      // Shared subtitle wins over nothing declared here; the channel label is
+      // the final fallback and the heading shows it too.
       assert.equal(curated[0].description, 'Anthropic');
-      assert.equal(curated[0].group, undefined);
+      assert.equal(curated[0].group, 'Anthropic');
     },
   );
 });

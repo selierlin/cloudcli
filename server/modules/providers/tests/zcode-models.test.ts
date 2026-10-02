@@ -68,7 +68,7 @@ test('ZCode models list every configured channel and default to model.main', asy
     OPTIONS: [
       { value: 'ark/deepseek-v4-flash', label: 'DeepSeek V4 Flash', group: 'ark' },
       { value: 'ark/glm-5.3', label: 'GLM-5.3', group: 'ark' },
-      { value: 'deepseek/deepseek-v4-flash', label: 'DeepSeek V4 Flash', group: 'deepseek' },
+      { value: 'deepseek/deepseek-v4-flash', label: 'DeepSeek V4 Flash', group: 'DeepSeek' },
     ],
     DEFAULT: 'ark/glm-5.3',
   });

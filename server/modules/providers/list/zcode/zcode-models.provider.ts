@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { resolveChannelLabel } from '@/shared/model-descriptions.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import type {
   AnyRecord,
@@ -151,7 +152,7 @@ export function loadZcodeModels(): ProviderModelsDefinition | null {
       options.push({
         value: zcodeModelValue(providerId, modelId),
         label: name ?? modelId,
-        group: providerId,
+        group: resolveChannelLabel(providerId),
       });
     }
   }

@@ -6,6 +6,10 @@ import TOML from '@iarna/toml';
 import { providerSettingsSourceService } from '@/modules/providers/services/provider-settings-source.service.js';
 import { DEFAULT_CODEX_CONFIG_PATH, resolveCodexConfigOverrides } from '@/shared/codex-config.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
+import {
+  applySharedModelDescriptions,
+  resolveChannelFromProfileFile,
+} from '@/shared/model-descriptions.js';
 import type {
   ProviderCurrentActiveModel,
   ProviderModelOption,
@@ -23,7 +27,6 @@ export const CODEX_PREDEFINED_MODELS: ProviderModelsDefinition = {
     {
       value: 'gpt-6-astra',
       label: 'GPT-6 Astra',
-      description: 'Most capable frontier agentic coding model.',
       effort: {
         default: 'medium',
         values: [
@@ -39,7 +42,6 @@ export const CODEX_PREDEFINED_MODELS: ProviderModelsDefinition = {
     {
       value: 'gpt-5.6-sol',
       label: 'GPT-5.6 Sol',
-      description: 'Latest frontier agentic coding model.',
       effort: {
         default: 'low',
         values: [
@@ -55,7 +57,6 @@ export const CODEX_PREDEFINED_MODELS: ProviderModelsDefinition = {
     {
       value: 'gpt-5.6-terra',
       label: 'GPT-5.6 Terra',
-      description: 'Balanced agentic coding model for everyday work.',
       effort: {
         default: 'medium',
         values: [
@@ -71,7 +72,6 @@ export const CODEX_PREDEFINED_MODELS: ProviderModelsDefinition = {
     {
       value: 'gpt-5.6-luna',
       label: 'GPT-5.6 Luna',
-      description: 'Fast and affordable agentic coding model.',
       effort: {
         default: 'medium',
         values: [
@@ -86,7 +86,6 @@ export const CODEX_PREDEFINED_MODELS: ProviderModelsDefinition = {
     {
       value: 'gpt-5.5',
       label: 'GPT-5.5',
-      description: 'Frontier model for complex coding, research, and real-world work.',
       effort: {
         default: 'medium',
         values: [{ value: 'low' }, { value: 'medium' }, { value: 'high' }, { value: 'xhigh' }],
@@ -95,7 +94,6 @@ export const CODEX_PREDEFINED_MODELS: ProviderModelsDefinition = {
     {
       value: 'gpt-5.4-mini',
       label: 'GPT-5.4 Mini',
-      description: 'Small, fast, and cost-efficient model for simpler coding tasks.',
       effort: {
         default: 'medium',
         values: [{ value: 'low' }, { value: 'medium' }, { value: 'high' }, { value: 'xhigh' }],
@@ -326,8 +324,15 @@ export class CodexProviderModels implements IProviderModels {
       }
     }
 
+    // Like Claude, Codex runs one vendor at a time; the active config profile
+    // (`config-ark.toml`) names it.
+    const channel = resolveChannelFromProfileFile(
+      providerSettingsSourceService.resolveActiveSettingsFile('codex'),
+    );
     return {
-      OPTIONS: options,
+      OPTIONS: applySharedModelDescriptions(options).map((option) =>
+        channel ? { ...option, group: channel } : option,
+      ),
       DEFAULT: config.model ?? CODEX_PREDEFINED_MODELS.DEFAULT,
       ...(catalogNotice ? { notice: catalogNotice } : {}),
     };
