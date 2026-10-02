@@ -289,3 +289,98 @@ test('Agent route forwards the requested model to ZCode', async () => {
   assert.deepEqual(zcodeCalls.map((call) => call.model), ['deepseek-v4-flash']);
   assert.equal(zcodeCalls[0].permissionMode, 'bypassPermissions');
 });
+
+test('Non-streaming response joins the reply out of stream_delta frames, skipping thinking', async () => {
+  await withAgentServer(createDependencies({
+    fileSystem: {
+      access: async () => undefined,
+    } as unknown as AgentDependencies['fileSystem'],
+    models: {
+      getProviderModels: async () => ({ OPTIONS: [], DEFAULT: 'default-model' }),
+    } as unknown as AgentDependencies['models'],
+    queryClaude: (async (
+      _prompt: string,
+      _options: unknown,
+      writer: { send(data: unknown): void },
+    ) => {
+      const frame = (extra: Record<string, unknown>) => writer.send({
+        id: 'row-1',
+        sessionId: 'app-session-1',
+        timestamp: '2026-10-02T00:00:00.000Z',
+        provider: 'claude',
+        ...extra,
+      });
+      frame({ kind: 'stream_delta', streamChannel: 'thinking', content: 'reasoning trace' });
+      frame({ kind: 'stream_delta', streamChannel: 'text', content: 'Hello' });
+      frame({ kind: 'stream_delta', streamChannel: 'text', content: ', world' });
+      frame({ kind: 'stream_end' });
+      frame({ kind: 'complete', exitCode: 0 });
+    }) as unknown as AgentDependencies['queryClaude'],
+  }), async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/agent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        projectPath: '/home/test/project',
+        message: 'Run',
+        stream: false,
+      }),
+    });
+    const body = await response.json() as { messages: Array<{ kind: string; role: string; content: string }> };
+
+    assert.equal(response.status, 200);
+    assert.equal(body.messages.length, 1);
+    assert.equal(body.messages[0].kind, 'text');
+    assert.equal(body.messages[0].role, 'assistant');
+    // The thinking channel must not be concatenated into the reply.
+    assert.equal(body.messages[0].content, 'Hello, world');
+  });
+});
+
+test('Non-streaming response finalizes one reply per stream_end and keeps full text rows', async () => {
+  await withAgentServer(createDependencies({
+    fileSystem: {
+      access: async () => undefined,
+    } as unknown as AgentDependencies['fileSystem'],
+    models: {
+      getProviderModels: async () => ({ OPTIONS: [], DEFAULT: 'default-model' }),
+    } as unknown as AgentDependencies['models'],
+    queryClaude: (async (
+      _prompt: string,
+      _options: unknown,
+      writer: { send(data: unknown): void },
+    ) => {
+      const frame = (extra: Record<string, unknown>) => writer.send({
+        id: 'row-1',
+        sessionId: 'app-session-1',
+        timestamp: '2026-10-02T00:00:00.000Z',
+        provider: 'claude',
+        ...extra,
+      });
+      // First reply, streamed.
+      frame({ kind: 'stream_delta', content: 'first' });
+      frame({ kind: 'stream_end' });
+      // Second reply, streamed, ended.
+      frame({ kind: 'stream_delta', content: 'second' });
+      frame({ kind: 'stream_end' });
+      // Third reply: an unstreamed full row, as Pi/WorkBuddy emit for
+      // channels they did not stream.
+      frame({ kind: 'text', role: 'assistant', content: 'third' });
+      frame({ kind: 'complete', exitCode: 0 });
+    }) as unknown as AgentDependencies['queryClaude'],
+  }), async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/agent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        projectPath: '/home/test/project',
+        message: 'Run',
+        stream: false,
+      }),
+    });
+    const body = await response.json() as { messages: Array<{ content: string }> };
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(body.messages.map((message) => message.content), ['first', 'second', 'third']);
+  });
+});

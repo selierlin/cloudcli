@@ -572,13 +572,53 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
     }
 
     /**
-     * The assistant's replies, as the normalized `text` events the run
-     * produced. (Earlier versions filtered a `claude-response` shape no
-     * runtime has emitted since the providers were unified, so this was
-     * always empty.)
+     * The assistant's replies, from the shapes the runtimes actually emit.
+     *
+     * Streaming runtimes (Claude, Cursor, OpenCode, …) publish the reply as
+     * `stream_delta` frames terminated by one `stream_end` per assistant
+     * message — the full snapshot's text blocks are deduplicated away — so the
+     * text channel's deltas are joined here, each `stream_end` finalizing one
+     * reply. Runtimes that send unstreamed blocks as full rows (Pi, WorkBuddy
+     * for channels they did not stream) still hit the `kind: 'text'` branch.
+     * The `thinking` channel is not part of the reply text and is skipped.
+     * (Earlier versions filtered a `claude-response` shape no runtime has
+     * emitted since the providers were unified, and then a `text`-only shape
+     * the streaming runtimes never produce either — both were always empty.)
      */
     getAssistantMessages() {
-      return this.messages.filter((msg) => msg && msg.kind === 'text' && msg.role === 'assistant');
+      const replies = [];
+      let pending = null;
+      const finalizePending = () => {
+        if (pending && pending.text) {
+          // Keeps the first delta's id/timestamp/session/provider identity,
+          // like the delta batcher does for its flushed frames.
+          replies.push({ ...pending.base, kind: 'text', role: 'assistant', content: pending.text });
+        }
+        pending = null;
+      };
+      for (const msg of this.messages) {
+        if (!msg || typeof msg.kind !== 'string') {
+          // The route's own protocol events (`{ type: 'status', ... }`).
+          continue;
+        }
+        if (msg.kind === 'text' && msg.role === 'assistant') {
+          replies.push(msg);
+          continue;
+        }
+        if (msg.kind === 'stream_delta' && (msg.streamChannel ?? 'text') === 'text') {
+          if (!pending) {
+            pending = { base: msg, text: '' };
+          }
+          pending.text += msg.content || '';
+          continue;
+        }
+        if (msg.kind === 'stream_end') {
+          finalizePending();
+        }
+      }
+      // A run that ended without a `stream_end` still leaves its reply here.
+      finalizePending();
+      return replies;
     }
 
     /**
