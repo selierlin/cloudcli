@@ -1,6 +1,7 @@
 import {
   Braces,
   CaseSensitive,
+  Palette,
   SunMoon,
   Type,
 } from 'lucide-react';
@@ -8,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 
 import { ThemeModeSelector } from '@/shared/ui';
 import { SETTING_ROW_CLASS } from '@/shared/constants';
+import { useThemeOptions } from '@/shared/hooks/useThemeOptions';
 import {
   CODE_FONT_FAMILY_OPTIONS,
   CODE_FONT_SIZE_OPTIONS,
@@ -53,6 +55,10 @@ export default function QuickSettingsContent({
     setCodeFontSize,
     setCodeFontFamily,
   } = useChatFontSettings();
+  // The drawer only offers a compact switcher; the badge-and-hint picker stays
+  // in the settings dialog, which is why the shared options come through a
+  // plain select here.
+  const { options, selectedId, setThemeId } = useThemeOptions();
 
   return (
     <div className="flex-1 space-y-6 overflow-y-auto overflow-x-hidden bg-background p-4">
@@ -63,6 +69,23 @@ export default function QuickSettingsContent({
             {t('quickSettings.theme')}
           </span>
           <ThemeModeSelector />
+        </div>
+        <div className={SETTING_ROW_CLASS}>
+          <span className="flex items-center gap-2 text-sm text-foreground">
+            <Palette className="h-4 w-4 text-muted-foreground" />
+            {t('themeSelector.label')}
+          </span>
+          <select
+            value={selectedId ?? ''}
+            onChange={(event) => setThemeId(event.target.value === '' ? null : event.target.value)}
+            className={FONT_SELECT_CLASS}
+          >
+            {options.map((option) => (
+              <option key={option.id ?? 'default'} value={option.id ?? ''}>
+                {option.nameEn ? `${option.label} · ${option.nameEn}` : option.label}
+              </option>
+            ))}
+          </select>
         </div>
         <div className={SETTING_ROW_CLASS}>
           <span className="flex items-center gap-2 text-sm text-foreground"><Type className="h-4 w-4 text-muted-foreground" />{t('appearanceSettings.fontSettings.uiFontSize.label')}</span>
