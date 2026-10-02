@@ -16,11 +16,14 @@ export function ComposerMenuSurface({
   anchor,
   menuRef,
   ariaLabel,
+  maxHeight,
   children,
 }: {
   anchor: ComposerMenuAnchor;
   menuRef: Ref<HTMLDivElement>;
   ariaLabel: string;
+  /** Optional cap overriding the anchor's viewport-derived height; for menus whose catalogs must not cover the transcript. */
+  maxHeight?: number;
   children: ReactNode;
 }) {
   // The pinned edge decides which side the box is measured from, so the menu
@@ -42,7 +45,7 @@ export function ComposerMenuSurface({
       style={{
         ...pinnedEdges,
         bottom: anchor.bottom,
-        maxHeight: anchor.maxHeight,
+        maxHeight: maxHeight ?? anchor.maxHeight,
         maxWidth: anchor.maxWidth,
       }}
     >

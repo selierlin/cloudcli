@@ -180,6 +180,8 @@
     "loadingModels": "Loading models…",
     "modelMenu": "Select model and reasoning effort",
     "otherModels": "Other",
+    "modelSearchPlaceholder": "Search models…",
+    "noModelsMatch": "No matching models",
     "permissionHeading": "How should {{provider}} actions be approved?",
     "editing": {
       "title": "Replacing an earlier message",

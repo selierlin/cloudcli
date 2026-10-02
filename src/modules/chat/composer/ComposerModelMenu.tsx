@@ -1,7 +1,7 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Search } from 'lucide-react';
 
 import type { ProviderModelOption } from '@/shared/types';
 import { DEFAULT_EFFORT_VALUE } from '@/shared/constants';
@@ -16,6 +16,13 @@ import {
 } from '@/modules/chat/composer/ComposerMenuPrimitives';
 
 type EffortOption = NonNullable<ProviderModelOption['effort']>['values'][number];
+
+/** Desktop width the model menu asks its anchor for; wide enough for a label plus its description line. */
+const MODEL_MENU_WIDTH = 400;
+/** Upper bound on the menu's height even when the viewport offers more, so a large catalog never covers the conversation. */
+const MODEL_MENU_MAX_HEIGHT = 480;
+/** Catalog size from which the model section gains a filter input. */
+const MODEL_SEARCH_MIN_OPTIONS = 15;
 
 /**
  * Composer-side label for a model option. Pi exposes several channels whose ids
@@ -56,8 +63,14 @@ function ComposerModelMenu({
   const { t } = useTranslation('chat');
   const [isOpen, setIsOpen] = useState(false);
   const [isModelSectionOpen, setIsModelSectionOpen] = useState(false);
+  // Filters a large catalog down to matching models; cleared whenever the menu opens or the model section collapses.
+  const [modelQuery, setModelQuery] = useState('');
   const close = useCallback(() => setIsOpen(false), []);
-  const { triggerRef, menuRef, anchor, updateAnchor } = useComposerMenuAnchor(isOpen, close);
+  const { triggerRef, menuRef, anchor, updateAnchor } = useComposerMenuAnchor(
+    isOpen,
+    close,
+    MODEL_MENU_WIDTH,
+  );
 
   // The model list starts collapsed every time the menu opens, the way Codex
   // shows reasoning first and keeps the longer model list one click away.
@@ -88,6 +101,28 @@ function ComposerModelMenu({
 
   const { isExpanded, toggle, reset } = useModelGroupCollapse(modelGroups, model);
 
+  // Sections a query matches must show their results even when collapsed, so
+  // filtering forces every remaining section open without touching the
+  // collapse state the user left behind.
+  const searchEnabled = modelOptions.length >= MODEL_SEARCH_MIN_OPTIONS;
+  const normalizedQuery = modelQuery.trim().toLowerCase();
+  const isFiltering = normalizedQuery.length > 0;
+  const filteredGroups = useMemo(() => {
+    if (!isFiltering) {
+      return modelGroups;
+    }
+    return modelGroups
+      .map((group) => ({
+        ...group,
+        options: group.options.filter((option) =>
+          `${option.label || option.value} ${option.value} ${option.description ?? ''}`
+            .toLowerCase()
+            .includes(normalizedQuery),
+        ),
+      }))
+      .filter((group) => group.options.length > 0);
+  }, [isFiltering, modelGroups, normalizedQuery]);
+
   const hasEffortSection = resolvedEffortOptions.length > 0;
   const hasModelSection = modelOptions.length > 0 || modelsLoading;
   if (!hasEffortSection && !hasModelSection) {
@@ -106,6 +141,7 @@ function ComposerModelMenu({
         type="button"
         onClick={() => {
           updateAnchor();
+          setModelQuery('');
           setIsOpen((current) => !current);
         }}
         className="flex h-8 max-w-20 shrink-0 items-center gap-1 rounded-lg border border-border/60 bg-muted/40 px-2 text-xs font-medium text-foreground transition-colors hover:bg-muted sm:max-w-56"
@@ -121,7 +157,12 @@ function ComposerModelMenu({
       </button>
 
       {isOpen && anchor && createPortal(
-        <ComposerMenuSurface anchor={anchor} menuRef={menuRef} ariaLabel={ariaLabel}>
+        <ComposerMenuSurface
+          anchor={anchor}
+          menuRef={menuRef}
+          ariaLabel={ariaLabel}
+          maxHeight={Math.min(anchor.maxHeight, MODEL_MENU_MAX_HEIGHT)}
+        >
           {hasEffortSection && (
             <>
               <ComposerMenuHeading>
@@ -153,6 +194,9 @@ function ComposerModelMenu({
                 onSelect={() => {
                   if (!isModelSectionOpen) {
                     reset();
+                  } else {
+                    // Collapsing the section discards its filter, so re-expanding shows the full list.
+                    setModelQuery('');
                   }
                   setIsModelSectionOpen((current) => !current);
                 }}
@@ -176,20 +220,43 @@ function ComposerModelMenu({
                       {modelNotice}
                     </p>
                   )}
+                  {searchEnabled && (
+                    <div className="px-1.5 pb-1">
+                      <label className="flex items-center gap-1.5 rounded-lg border border-border/60 bg-muted/40 px-2 py-1.5">
+                        <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                        <input
+                          type="text"
+                          value={modelQuery}
+                          onChange={(event) => setModelQuery(event.target.value)}
+                          placeholder={t('composer.modelSearchPlaceholder', {
+                            defaultValue: 'Search models…',
+                          })}
+                          className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                        />
+                        {/* No autoFocus: on phones it would pop the IME keyboard as soon as the section opens. */}
+                      </label>
+                    </div>
+                  )}
                   {modelOptions.length === 0 && modelsLoading && (
                     <p className="px-2.5 py-1.5 text-sm text-muted-foreground">
                       {t('composer.loadingModels', { defaultValue: 'Loading models…' })}
                     </p>
                   )}
-                  {modelGroups.map((group) => {
+                  {isFiltering && filteredGroups.length === 0 && (
+                    <p className="px-2.5 py-2 text-xs text-muted-foreground">
+                      {t('composer.noModelsMatch', { defaultValue: 'No matching models' })}
+                    </p>
+                  )}
+                  {filteredGroups.map((group) => {
                     const groupLabel =
                       group.key ?? t('composer.otherModels', { defaultValue: 'Other' });
-                    const expanded = !hasChannelGroups || isExpanded(group.key);
+                    const expanded = !hasChannelGroups || isFiltering || isExpanded(group.key);
 
                     const items = group.options.map((option) => (
                       <ComposerMenuItem
                         key={option.value}
                         label={option.label || option.value}
+                        description={option.description}
                         isSelected={option.value === model}
                         onSelect={() => {
                           onSelectModel(option.value);
@@ -202,23 +269,39 @@ function ComposerModelMenu({
                       return <Fragment key={group.key ?? '__ungrouped'}>{items}</Fragment>;
                     }
 
+                    const headerContent = (
+                      <>
+                        {!isFiltering &&
+                          (expanded ? (
+                            <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                          ) : (
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                          ))}
+                        <span className="min-w-0 flex-1 truncate text-left">{groupLabel}</span>
+                        <span className="shrink-0 text-xs font-normal text-muted-foreground/70">
+                          {group.options.length}
+                        </span>
+                      </>
+                    );
+
                     return (
                       <Fragment key={group.key ?? '__ungrouped'}>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onClick={() => toggle(group.key)}
-                          aria-expanded={expanded}
-                          className="flex w-full items-center gap-1.5 px-2.5 pb-1 pt-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
-                        >
-                          {expanded
-                            ? <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                            : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
-                          <span className="min-w-0 flex-1 truncate text-left">{groupLabel}</span>
-                          <span className="shrink-0 text-[10px] font-normal text-muted-foreground/70">
-                            {group.options.length}
-                          </span>
-                        </button>
+                        {isFiltering ? (
+                          // A forced-open section has nothing to toggle, so the header drops its button semantics while filtering.
+                          <div className="flex w-full items-center gap-1.5 rounded-md bg-muted/50 px-2.5 py-1 text-sm font-semibold text-foreground">
+                            {headerContent}
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => toggle(group.key)}
+                            aria-expanded={expanded}
+                            className="flex w-full items-center gap-1.5 rounded-md bg-muted/50 px-2.5 py-1 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+                          >
+                            {headerContent}
+                          </button>
+                        )}
                         {expanded && items}
                       </Fragment>
                     );

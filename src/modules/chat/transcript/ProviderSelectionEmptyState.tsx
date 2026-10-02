@@ -387,7 +387,7 @@ export default function ProviderSelectionEmptyState({
                       <>
                         {activeProviderGroup.models.length === 0 && providerModelsLoading ? (
                           <CommandGroup>
-                            <CommandItem disabled className="ml-4 border-l border-border/40 pl-4 text-muted-foreground">
+                            <CommandItem disabled className="rounded-lg px-2.5 py-1.5 text-muted-foreground">
                               {t("providerSelection.loadingModels", { defaultValue: "Loading models…" })}
                             </CommandItem>
                           </CommandGroup>
@@ -406,7 +406,7 @@ export default function ProviderSelectionEmptyState({
                                 key={`${activeProviderGroup.id}-${model.value}`}
                                 value={`${group.key ?? ''} ${activeProviderGroup.name} ${model.label} ${model.description || ''}`}
                                 onSelect={() => handleModelSelect(activeProviderGroup.id, model.value)}
-                                className="ml-4 border-l border-border/40 pl-4"
+                                className="rounded-lg px-2.5 py-1.5"
                               >
                                 <div className="min-w-0 flex-1">
                                   <div className="flex min-w-0 items-center gap-2">
@@ -417,14 +417,18 @@ export default function ProviderSelectionEmptyState({
                                       </Badge>
                                     )}
                                   </div>
-                                  {model.label !== model.value && (
+                                  {model.description ? (
+                                    <div className="mt-0.5 truncate text-xs leading-4 text-muted-foreground">
+                                      {model.description}
+                                    </div>
+                                  ) : model.label !== model.value ? (
                                     <div className="truncate font-mono text-[10px] text-muted-foreground">
                                       {model.value}
                                     </div>
-                                  )}
+                                  ) : null}
                                 </div>
                                 {isSelected && (
-                                  <Check className="ml-auto h-4 w-4 shrink-0 text-primary" />
+                                  <Check className="ml-auto h-3.5 w-3.5 shrink-0 text-foreground" />
                                 )}
                               </CommandItem>
                             );
@@ -437,6 +441,8 @@ export default function ProviderSelectionEmptyState({
                               <CommandGroup
                                 key={group.key ?? '__ungrouped'}
                                 heading={hasChannelGroups ? groupLabel : undefined}
+                                // Match ComposerMenuHeading's metrics so a flat group reads like the composer model menu.
+                                className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-1.5 [&_[cmdk-group-heading]]:text-[11px]"
                               >
                                 {items}
                               </CommandGroup>
@@ -449,13 +455,13 @@ export default function ProviderSelectionEmptyState({
                                 type="button"
                                 onClick={() => toggle(group.key)}
                                 aria-expanded={expanded}
-                                className="flex w-full items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+                                className="flex w-full items-center gap-1.5 rounded-md bg-muted/50 px-2.5 py-1 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
                               >
                                 {expanded
                                   ? <ChevronDown className="h-3.5 w-3.5 shrink-0" />
                                   : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
                                 <span className="min-w-0 flex-1 truncate text-left">{groupLabel}</span>
-                                <span className="shrink-0 text-[10px] font-normal text-muted-foreground/70">
+                                <span className="shrink-0 text-xs font-normal text-muted-foreground/70">
                                   {group.options.length}
                                 </span>
                               </button>
