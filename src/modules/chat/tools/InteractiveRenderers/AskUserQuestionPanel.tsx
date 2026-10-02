@@ -161,7 +161,7 @@ export const AskUserQuestionPanel: React.FC<PermissionPanelProps> = ({
         mounted ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'
       }`}
     >
-      <div className="relative overflow-hidden rounded-2xl border border-n-gray-200/80 bg-n-white shadow-lg dark:border-n-gray-700/50 dark:bg-n-gray-800/90 dark:shadow-2xl">
+      <div className="relative overflow-hidden rounded-2xl border border-n-gray-200/80 bg-card shadow-lg dark:border-n-gray-700/50 dark:bg-n-gray-800/90 dark:shadow-2xl">
         {/* Accent line */}
         <div className="absolute left-0 right-0 top-0 h-[2px] bg-gradient-to-r from-blue-500 via-cyan-400 to-teal-400" />
 

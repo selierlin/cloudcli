@@ -150,7 +150,7 @@ export default function TaskDetailModal({
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-n-black/50 md:p-4">
       <div
         className={cn(
-          'w-full md:max-w-4xl h-full md:h-[90vh] bg-n-white dark:bg-n-gray-900 border border-n-gray-200 dark:border-n-gray-700 md:rounded-lg shadow-xl flex flex-col',
+          'w-full md:max-w-4xl h-full md:h-[90vh] bg-card dark:bg-n-gray-900 border border-n-gray-200 dark:border-n-gray-700 md:rounded-lg shadow-xl flex flex-col',
           className,
         )}
       >
@@ -227,7 +227,7 @@ export default function TaskDetailModal({
                 onChange={(event) => {
                   void handleStatusSelect(event.target.value);
                 }}
-                className="w-full rounded-md border border-n-gray-300 bg-n-white px-3 py-2 text-n-gray-900 dark:border-n-gray-600 dark:bg-n-gray-800 dark:text-n-white"
+                className="w-full rounded-md border border-n-gray-300 bg-card px-3 py-2 text-n-gray-900 dark:border-n-gray-600 dark:bg-n-gray-800 dark:text-n-white"
               >
                 {STATUS_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -272,7 +272,7 @@ export default function TaskDetailModal({
                 rows={4}
                 value={editableTask.description ?? ''}
                 onChange={(event) => setEditableTask({ ...editableTask, description: event.target.value })}
-                className="w-full rounded-md border border-n-gray-300 bg-n-white px-3 py-2 dark:border-n-gray-600 dark:bg-n-gray-800"
+                className="w-full rounded-md border border-n-gray-300 bg-card px-3 py-2 dark:border-n-gray-600 dark:bg-n-gray-800"
               />
             ) : (
               <p className="whitespace-pre-wrap text-n-gray-700 dark:text-n-gray-300">{task.description || 'No description provided'}</p>

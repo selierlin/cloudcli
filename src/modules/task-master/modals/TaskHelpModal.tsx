@@ -51,7 +51,7 @@ export default function TaskHelpModal({ isOpen, onClose, onCreatePrd }: TaskHelp
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-n-black/50 p-4 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-lg border border-n-gray-200 bg-n-white shadow-xl dark:border-n-gray-700 dark:bg-n-gray-900">
+      <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-lg border border-n-gray-200 bg-card shadow-xl dark:border-n-gray-700 dark:bg-n-gray-900">
         <div className="flex items-center justify-between border-b border-n-gray-200 p-6 dark:border-n-gray-700">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/50">

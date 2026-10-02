@@ -34,7 +34,7 @@ export default function TaskMasterSetupModal({ isOpen, project, onClose, onAfter
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-n-black/50 p-4 pt-16 backdrop-blur-sm">
-      <div className="flex h-[600px] w-full max-w-4xl flex-col rounded-lg border border-n-gray-200 bg-n-white shadow-xl dark:border-n-gray-700 dark:bg-n-gray-900">
+      <div className="flex h-[600px] w-full max-w-4xl flex-col rounded-lg border border-n-gray-200 bg-card shadow-xl dark:border-n-gray-700 dark:bg-n-gray-900">
         <div className="flex items-center justify-between border-b border-n-gray-200 p-4 dark:border-n-gray-700">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/50">
@@ -91,7 +91,7 @@ export default function TaskMasterSetupModal({ isOpen, project, onClose, onAfter
                 'px-4 py-2 text-sm font-medium rounded-md transition-colors',
                 isTaskMasterComplete
                   ? 'bg-green-600 hover:bg-green-700 text-n-white'
-                  : 'text-n-gray-700 dark:text-n-gray-300 bg-n-white dark:bg-n-gray-700 border border-n-gray-300 dark:border-n-gray-600 hover:bg-n-gray-50 dark:hover:bg-n-gray-600',
+                  : 'text-n-gray-700 dark:text-n-gray-300 bg-card dark:bg-n-gray-700 border border-n-gray-300 dark:border-n-gray-600 hover:bg-n-gray-50 dark:hover:bg-n-gray-600',
               )}
             >
               {isTaskMasterComplete ? t('setupModal.closeContinueButton') : t('setupModal.closeButton')}

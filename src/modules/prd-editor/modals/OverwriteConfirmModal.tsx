@@ -24,7 +24,7 @@ export default function OverwriteConfirmModal({
     <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
       <div className="fixed inset-0 bg-n-black/50" onClick={onCancel} />
 
-      <div className="relative w-full max-w-md rounded-lg border border-n-gray-200 bg-n-white shadow-xl dark:border-n-gray-700 dark:bg-n-gray-800">
+      <div className="relative w-full max-w-md rounded-lg border border-n-gray-200 bg-card shadow-xl dark:border-n-gray-700 dark:bg-n-gray-800">
         <div className="p-6">
           <div className="mb-4 flex items-center">
             <div className="mr-3 rounded-full bg-yellow-100 p-2 dark:bg-yellow-900">
@@ -41,7 +41,7 @@ export default function OverwriteConfirmModal({
             <button
               onClick={onCancel}
               disabled={saving}
-              className="rounded-md border border-n-gray-300 bg-n-white px-4 py-2 text-sm text-n-gray-700 transition-colors hover:bg-n-gray-50 dark:border-n-gray-600 dark:bg-n-gray-700 dark:text-n-gray-300 dark:hover:bg-n-gray-600"
+              className="rounded-md border border-n-gray-300 bg-card px-4 py-2 text-sm text-n-gray-700 transition-colors hover:bg-n-gray-50 dark:border-n-gray-600 dark:bg-n-gray-700 dark:text-n-gray-300 dark:hover:bg-n-gray-600"
             >
               Cancel
             </button>

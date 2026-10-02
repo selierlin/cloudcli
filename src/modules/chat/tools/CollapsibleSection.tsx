@@ -39,7 +39,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
     <Collapsible defaultOpen={open || isExporting} className={cn('group/section', className)}>
       {/* When there's a clickable title (Edit/Write), only the chevron toggles collapse */}
       {onTitleClick ? (
-        <div className="flex cursor-default select-none items-center gap-1.5 py-0.5 text-xs group-data-[state=open]/section:sticky group-data-[state=open]/section:top-0 group-data-[state=open]/section:z-10 group-data-[state=open]/section:-mx-1 group-data-[state=open]/section:bg-n-white/60 group-data-[state=open]/section:backdrop-blur-md group-data-[state=open]/section:shadow-[0_1px_0_0_rgba(0,0,0,0.06)] group-data-[state=open]/section:dark:bg-n-gray-800/60 group-data-[state=open]/section:dark:shadow-[0_1px_0_0_rgba(255,255,255,0.06)] group-data-[state=open]/section:px-1">
+        <div className="flex cursor-default select-none items-center gap-1.5 py-0.5 text-xs group-data-[state=open]/section:sticky group-data-[state=open]/section:top-0 group-data-[state=open]/section:z-10 group-data-[state=open]/section:-mx-1 group-data-[state=open]/section:bg-card/50 group-data-[state=open]/section:backdrop-blur-[20px] group-data-[state=open]/section:backdrop-saturate-150 group-data-[state=open]/section:shadow-[0_1px_0_0_rgba(0,0,0,0.06)] group-data-[state=open]/section:dark:bg-n-gray-800/50 group-data-[state=open]/section:dark:shadow-[0_1px_0_0_rgba(255,255,255,0.06)] group-data-[state=open]/section:px-1">
           <CollapsibleTrigger className="flex flex-shrink-0 items-center p-0.5 text-muted-foreground hover:text-foreground">
             <svg
               className="h-3 w-3 transition-transform duration-150 group-data-[state=open]/section:rotate-90"
@@ -66,7 +66,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
           {action && <span className="ml-1 flex-shrink-0">{action}</span>}
         </div>
       ) : (
-        <CollapsibleTrigger className="flex w-full select-none items-center gap-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground group-data-[state=open]/section:sticky group-data-[state=open]/section:top-0 group-data-[state=open]/section:z-10 group-data-[state=open]/section:-mx-1 group-data-[state=open]/section:bg-n-white/60 group-data-[state=open]/section:backdrop-blur-md group-data-[state=open]/section:shadow-[0_1px_0_0_rgba(0,0,0,0.06)] group-data-[state=open]/section:dark:bg-n-gray-800/60 group-data-[state=open]/section:dark:shadow-[0_1px_0_0_rgba(255,255,255,0.06)] group-data-[state=open]/section:px-1">
+        <CollapsibleTrigger className="flex w-full select-none items-center gap-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground group-data-[state=open]/section:sticky group-data-[state=open]/section:top-0 group-data-[state=open]/section:z-10 group-data-[state=open]/section:-mx-1 group-data-[state=open]/section:bg-card/50 group-data-[state=open]/section:backdrop-blur-[20px] group-data-[state=open]/section:backdrop-saturate-150 group-data-[state=open]/section:shadow-[0_1px_0_0_rgba(0,0,0,0.06)] group-data-[state=open]/section:dark:bg-n-gray-800/50 group-data-[state=open]/section:dark:shadow-[0_1px_0_0_rgba(255,255,255,0.06)] group-data-[state=open]/section:px-1">
           <svg
             className="h-3 w-3 flex-shrink-0 transition-transform duration-150 group-data-[state=open]/section:rotate-90"
             fill="none"

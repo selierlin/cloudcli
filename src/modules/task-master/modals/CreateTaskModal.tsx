@@ -13,7 +13,7 @@ export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProp
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-n-black/50 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-lg border border-n-gray-200 bg-n-white shadow-xl dark:border-n-gray-700 dark:bg-n-gray-800">
+      <div className="w-full max-w-md rounded-lg border border-n-gray-200 bg-card shadow-xl dark:border-n-gray-700 dark:bg-n-gray-800">
         <div className="flex items-center justify-between border-b border-n-gray-200 p-6 dark:border-n-gray-700">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/50">
@@ -40,7 +40,7 @@ export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProp
                 <p className="mb-3 text-sm text-blue-800 dark:text-blue-200">
                   Ask for a task in chat with context and requirements. TaskMaster can generate implementation-ready tasks.
                 </p>
-                <div className="rounded border border-blue-200 bg-n-white p-3 dark:border-blue-700 dark:bg-n-gray-800">
+                <div className="rounded border border-blue-200 bg-card p-3 dark:border-blue-700 dark:bg-n-gray-800">
                   <p className="mb-1 text-xs font-medium text-n-gray-600 dark:text-n-gray-400">Example:</p>
                   <p className="font-mono text-sm text-n-gray-900 dark:text-n-white">
                     Please add a task for profile image uploads and include best-practice research.
@@ -63,7 +63,7 @@ export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProp
 
           <button
             onClick={onClose}
-            className="w-full rounded-lg border border-n-gray-300 bg-n-white px-4 py-2 text-sm font-medium text-n-gray-700 hover:bg-n-gray-50 dark:border-n-gray-600 dark:bg-n-gray-700 dark:text-n-gray-300 dark:hover:bg-n-gray-600"
+            className="w-full rounded-lg border border-n-gray-300 bg-card px-4 py-2 text-sm font-medium text-n-gray-700 hover:bg-n-gray-50 dark:border-n-gray-600 dark:bg-n-gray-700 dark:text-n-gray-300 dark:hover:bg-n-gray-600"
           >
             Got it
           </button>

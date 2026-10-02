@@ -60,7 +60,7 @@ export default function ImageViewer({ file, onClose }: ImageViewerProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-n-black/50">
-      <div className="mx-4 max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-lg bg-n-white shadow-xl dark:bg-n-gray-800">
+      <div className="mx-4 max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-lg bg-card shadow-xl dark:bg-n-gray-800">
         <div className="flex items-center justify-between border-b p-4">
           <h3 className="text-lg font-semibold text-n-gray-900 dark:text-n-white">{file.name}</h3>
           <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">

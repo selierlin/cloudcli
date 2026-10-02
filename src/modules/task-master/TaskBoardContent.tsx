@@ -42,7 +42,7 @@ function KanbanColumns({
           <div className={cn('px-4 py-3 rounded-t-xl border-b', column.headerColor)}>
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">{column.title}</h3>
-              <span className="rounded-full bg-n-white/60 px-2 py-1 text-xs font-medium dark:bg-n-black/20">
+              <span className="rounded-full bg-card/60 px-2 py-1 text-xs font-medium dark:bg-n-black/20">
                 {column.tasks.length}
               </span>
             </div>

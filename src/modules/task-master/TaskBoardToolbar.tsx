@@ -100,7 +100,7 @@ export default function TaskBoardToolbar({
             value={searchTerm}
             onChange={(event) => onSearchTermChange(event.target.value)}
             placeholder={t('search.placeholder')}
-            className="w-full rounded-lg border border-n-gray-300 bg-n-white py-2 pl-10 pr-4 text-n-gray-900 dark:border-n-gray-600 dark:bg-n-gray-800 dark:text-n-white"
+            className="w-full rounded-lg border border-n-gray-300 bg-card py-2 pl-10 pr-4 text-n-gray-900 dark:border-n-gray-600 dark:bg-n-gray-800 dark:text-n-white"
           />
         </div>
 
@@ -111,7 +111,7 @@ export default function TaskBoardToolbar({
               className={cn(
                 'p-2 rounded-md',
                 viewMode === 'kanban'
-                  ? 'bg-n-white dark:bg-n-gray-700 text-n-gray-900 dark:text-n-white shadow-sm'
+                  ? 'bg-card dark:bg-n-gray-700 text-n-gray-900 dark:text-n-white shadow-sm'
                   : 'text-n-gray-500 dark:text-n-gray-400 hover:text-n-gray-700 dark:hover:text-n-gray-300',
               )}
               title={t('views.kanban')}
@@ -124,7 +124,7 @@ export default function TaskBoardToolbar({
               className={cn(
                 'p-2 rounded-md',
                 viewMode === 'list'
-                  ? 'bg-n-white dark:bg-n-gray-700 text-n-gray-900 dark:text-n-white shadow-sm'
+                  ? 'bg-card dark:bg-n-gray-700 text-n-gray-900 dark:text-n-white shadow-sm'
                   : 'text-n-gray-500 dark:text-n-gray-400 hover:text-n-gray-700 dark:hover:text-n-gray-300',
               )}
               title={t('views.list')}
@@ -137,7 +137,7 @@ export default function TaskBoardToolbar({
               className={cn(
                 'p-2 rounded-md',
                 viewMode === 'grid'
-                  ? 'bg-n-white dark:bg-n-gray-700 text-n-gray-900 dark:text-n-white shadow-sm'
+                  ? 'bg-card dark:bg-n-gray-700 text-n-gray-900 dark:text-n-white shadow-sm'
                   : 'text-n-gray-500 dark:text-n-gray-400 hover:text-n-gray-700 dark:hover:text-n-gray-300',
               )}
               title={t('views.grid')}
@@ -152,7 +152,7 @@ export default function TaskBoardToolbar({
               'flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors',
               showFilters
                 ? 'bg-blue-50 dark:bg-blue-900 border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300'
-                : 'bg-n-white dark:bg-n-gray-800 border-n-gray-300 dark:border-n-gray-600 text-n-gray-700 dark:text-n-gray-300 hover:bg-n-gray-50 dark:hover:bg-n-gray-700',
+                : 'bg-card dark:bg-n-gray-800 border-n-gray-300 dark:border-n-gray-600 text-n-gray-700 dark:text-n-gray-300 hover:bg-n-gray-50 dark:hover:bg-n-gray-700',
             )}
           >
             <Filter className="h-4 w-4" />
@@ -187,7 +187,7 @@ export default function TaskBoardToolbar({
                     </button>
 
                     {isPrdDropdownOpen && (
-                      <div className="absolute right-0 top-full z-30 mt-2 w-56 rounded-lg border border-n-gray-200 bg-n-white shadow-xl dark:border-n-gray-700 dark:bg-n-gray-800">
+                      <div className="absolute right-0 top-full z-30 mt-2 w-56 rounded-lg border border-n-gray-200 bg-popover shadow-xl dark:border-n-gray-700 dark:bg-n-gray-800">
                         <div className="p-2">
                           <button
                             onClick={() => {

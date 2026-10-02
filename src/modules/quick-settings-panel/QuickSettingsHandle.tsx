@@ -63,7 +63,7 @@ export default function QuickSettingsHandle({
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
       onLostPointerCapture={onLostPointerCapture}
-      className={`fixed ${placementClass} z-50 ${transitionClass} border bg-n-white dark:bg-n-gray-800 ${borderClass} rounded-l-md p-2 shadow-lg transition-colors hover:bg-n-gray-100 dark:hover:bg-n-gray-700 ${cursorClass} touch-none`}
+      className={`fixed ${placementClass} z-50 ${transitionClass} border bg-card dark:bg-n-gray-800 ${borderClass} rounded-l-md p-2 shadow-lg transition-colors hover:bg-n-gray-100 dark:hover:bg-n-gray-700 ${cursorClass} touch-none`}
       style={{
         ...style,
         touchAction: 'none',
