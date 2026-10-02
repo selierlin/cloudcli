@@ -139,7 +139,7 @@ export function VersionUpgradeModal({
             />
 
             {/* Modal */}
-            <div className="relative mx-4 max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-lg border border-n-gray-200 bg-n-white p-6 shadow-xl dark:border-n-gray-700 dark:bg-n-gray-800">
+            <div className="relative mx-4 max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-lg border border-n-gray-200 bg-card p-6 shadow-xl dark:border-n-gray-700 dark:bg-n-gray-800">
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">

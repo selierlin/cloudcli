@@ -2,7 +2,7 @@
 export default function PrdEditorLoadingState() {
   return (
     <div className="fixed inset-0 z-[200] md:flex md:items-center md:justify-center md:bg-n-black/50">
-      <div className="flex h-full w-full items-center justify-center bg-n-white p-8 dark:bg-n-gray-900 md:h-auto md:w-auto md:rounded-lg">
+      <div className="flex h-full w-full items-center justify-center bg-card p-8 dark:bg-n-gray-900 md:h-auto md:w-auto md:rounded-lg">
         <div className="flex items-center gap-3">
           <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-blue-600" />
           <span className="text-n-gray-900 dark:text-n-white">Loading PRD...</span>

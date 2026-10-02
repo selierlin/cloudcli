@@ -73,7 +73,7 @@ export default function TaskEmptyState({
           </div>
 
           <div className="mb-4 space-y-3">
-            <div className="rounded-lg border border-blue-100 bg-n-white p-3 dark:border-blue-800/50 dark:bg-n-gray-800/60">
+            <div className="rounded-lg border border-blue-100 bg-card p-3 dark:border-blue-800/50 dark:bg-n-gray-800/60">
               <h4 className="mb-1 font-medium text-n-gray-900 dark:text-n-white">1. {t('gettingStarted.steps.createPRD.title')}</h4>
               <p className="mb-3 text-sm text-n-gray-600 dark:text-n-gray-400">{t('gettingStarted.steps.createPRD.description')}</p>
 
@@ -104,17 +104,17 @@ export default function TaskEmptyState({
               )}
             </div>
 
-            <div className="rounded-lg border border-blue-100 bg-n-white p-3 dark:border-blue-800/50 dark:bg-n-gray-800/60">
+            <div className="rounded-lg border border-blue-100 bg-card p-3 dark:border-blue-800/50 dark:bg-n-gray-800/60">
               <h4 className="mb-1 font-medium text-n-gray-900 dark:text-n-white">2. {t('gettingStarted.steps.generateTasks.title')}</h4>
               <p className="text-sm text-n-gray-600 dark:text-n-gray-400">{t('gettingStarted.steps.generateTasks.description')}</p>
             </div>
 
-            <div className="rounded-lg border border-blue-100 bg-n-white p-3 dark:border-blue-800/50 dark:bg-n-gray-800/60">
+            <div className="rounded-lg border border-blue-100 bg-card p-3 dark:border-blue-800/50 dark:bg-n-gray-800/60">
               <h4 className="mb-1 font-medium text-n-gray-900 dark:text-n-white">3. {t('gettingStarted.steps.analyzeTasks.title')}</h4>
               <p className="text-sm text-n-gray-600 dark:text-n-gray-400">{t('gettingStarted.steps.analyzeTasks.description')}</p>
             </div>
 
-            <div className="rounded-lg border border-blue-100 bg-n-white p-3 dark:border-blue-800/50 dark:bg-n-gray-800/60">
+            <div className="rounded-lg border border-blue-100 bg-card p-3 dark:border-blue-800/50 dark:bg-n-gray-800/60">
               <h4 className="mb-1 font-medium text-n-gray-900 dark:text-n-white">4. {t('gettingStarted.steps.startBuilding.title')}</h4>
               <p className="text-sm text-n-gray-600 dark:text-n-gray-400">{t('gettingStarted.steps.startBuilding.description')}</p>
             </div>

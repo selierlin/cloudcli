@@ -96,7 +96,7 @@ export default function WorkspacePathField({
           />
 
           {showPathDropdown && pathSuggestions.length > 0 && (
-            <div className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-n-gray-200 bg-n-white shadow-lg dark:border-n-gray-700 dark:bg-n-gray-800">
+            <div className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-n-gray-200 bg-popover shadow-lg dark:border-n-gray-700 dark:bg-n-gray-800">
               {pathSuggestions.map((suggestion) => (
                 <button
                   key={suggestion.path}

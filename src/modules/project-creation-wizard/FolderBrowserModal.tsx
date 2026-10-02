@@ -111,7 +111,7 @@ export default function FolderBrowserModal({
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-n-black/50 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg border border-n-gray-200 bg-n-white shadow-xl dark:border-n-gray-700 dark:bg-n-gray-800">
+      <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg border border-n-gray-200 bg-card shadow-xl dark:border-n-gray-700 dark:bg-n-gray-800">
         <div className="flex items-center justify-between border-b border-n-gray-200 p-4 dark:border-n-gray-700">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/50">
