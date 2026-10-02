@@ -173,6 +173,8 @@
     "loadingModels": "正在加载模型…",
     "modelMenu": "选择模型和思考强度",
     "otherModels": "其他",
+    "modelSearchPlaceholder": "搜索模型…",
+    "noModelsMatch": "没有匹配的模型",
     "permissionHeading": "{{provider}} 的操作应如何获得批准？",
     "editing": {
       "title": "正在替换先前的消息",
