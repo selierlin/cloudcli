@@ -403,9 +403,10 @@ async function queryCodex(
       // Progress events used to be dropped, so a long shell command or a
       // growing plan showed nothing until it finished. They are forwarded now;
       // every item carries a stable id, so the client replaces the row it
-      // already has rather than stacking a new one per tick. Text items are
-      // still skipped mid-flight because assistant prose arrives through the
-      // separate streaming path.
+      // already has rather than stacking a new one per tick. Text and
+      // reasoning items are still skipped mid-flight: the exec JSONL channel
+      // has no delta events, so prose arrives only once per item, complete,
+      // on `item.completed` — the client paces its reveal from there.
       if (
         (event.type === 'item.started' || event.type === 'item.updated')
         && !PROGRESSIVE_CODEX_ITEM_TYPES.has(event.item?.type)
