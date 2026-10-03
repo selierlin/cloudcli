@@ -22,6 +22,8 @@ import { useChatComposerState } from '@/modules/chat/hooks/useChatComposerState'
 import { useSessionStore } from '@/modules/chat/hooks/useSessionStore';
 import { createStreamingBufferRegistry } from '@/modules/chat/utils/streamingBufferRegistry';
 import type { StreamingBufferRegistry } from '@/modules/chat/utils/streamingBufferRegistry';
+import { createRevealPacer } from '@/modules/chat/utils/revealPacer';
+import type { RevealPacer } from '@/modules/chat/utils/revealPacer';
 import { getChatProviderLabel } from '@/modules/chat/utils/chatProviderLabel';
 import {
   useProcessingSessions,
@@ -112,6 +114,11 @@ function ChatInterface({
   // a single registry backs every render.
   const [streamBuffers] = useState<StreamingBufferRegistry>(() =>
     createStreamingBufferRegistry(publishStreamingBatch, isStreamingSessionVisible));
+  // Session-keyed reveal pacer for whole-segment providers (Codex / DSH):
+  // same publish channel and visibility as the registry, so their prose plays
+  // through identical streaming rows and shares the teardown paths.
+  const [revealPacer] = useState<RevealPacer>(() =>
+    createRevealPacer(publishStreamingBatch, isStreamingSessionVisible));
   // When each session's `chat.subscribe` was last sent; idle acks older than
   // a later local request are discarded as stale.
   const statusCheckSentAtRef = useRef(new Map<string, number>());
@@ -211,11 +218,13 @@ function ChatInterface({
     // hidden, then publish the newly visible session before its first paint.
     if (previousSessionId && previousSessionId !== visibleStreamingSessionId) {
       streamBuffers.flushNow(previousSessionId);
+      revealPacer.flushNow(previousSessionId);
     }
     if (visibleStreamingSessionId) {
       streamBuffers.flushNow(visibleStreamingSessionId);
+      revealPacer.flushNow(visibleStreamingSessionId);
     }
-  }, [streamBuffers, visibleStreamingSessionId]);
+  }, [streamBuffers, revealPacer, visibleStreamingSessionId]);
 
   // Brand-new conversation: the composer allocated a stable session id via
   // the session gateway before the first send. Record it locally and put it
@@ -329,6 +338,7 @@ function ChatInterface({
     pendingPermissionRequests,
     setPendingPermissionRequests,
     streamBuffers,
+    revealPacer,
     lastSeqRef,
     statusCheckSentAtRef,
     onSessionProcessing,
@@ -365,7 +375,8 @@ function ChatInterface({
   // `stream_end` / `complete`.
   useEffect(() => () => {
     streamBuffers.dropAll();
-  }, [streamBuffers]);
+    revealPacer.dropAll();
+  }, [streamBuffers, revealPacer]);
 
   /**
    * Branches the conversation into a new session that ends at this message,

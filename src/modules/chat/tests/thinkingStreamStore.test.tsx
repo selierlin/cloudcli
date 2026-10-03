@@ -218,6 +218,36 @@ describe('thinking stream channel', () => {
     );
   });
 
+  it('settles stream_delta rows that live outside the well-known streaming ids', async () => {
+    const { result } = await loadedStore();
+
+    act(() => {
+      // A row published outside the two fixed streaming ids must not survive
+      // finalize as a live streaming row — the defensive net in
+      // `finalizeStreaming` settles it through the same text/thinking path.
+      result.current.appendRealtime('session-1', {
+        id: 'orphan-stream-row',
+        kind: 'stream_delta',
+        streamChannel: 'text',
+        provider: 'codex',
+        sessionId: 'session-1',
+        timestamp: '2026-01-01T00:00:12.000Z',
+        content: '孤儿流式行',
+      } as NormalizedMessage);
+      result.current.finalizeStreaming('session-1');
+    });
+
+    const settled = result.current
+      .getMessages('session-1')
+      .filter((message) => message.id === 'orphan-stream-row');
+    assert.equal(settled.length, 0, 'the streaming row must be settled away');
+    const tail = result.current.getMessages('session-1').slice(-1);
+    assert.deepEqual(
+      tail.map((message) => [message.kind, message.role, message.content]),
+      [['text', 'assistant', '孤儿流式行']],
+    );
+  });
+
   it('keeps thinking traces on opposite sides of a tool boundary separate', async () => {
     const { result } = await loadedStore();
 

@@ -5,6 +5,7 @@ import { test } from 'vitest';
 
 import { useChatRealtimeHandlers } from '@/modules/chat/hooks/useChatRealtimeHandlers';
 import { createStreamingBufferRegistry } from '@/modules/chat/utils/streamingBufferRegistry';
+import { createRevealPacer } from '@/modules/chat/utils/revealPacer';
 import type { BackgroundTaskSummary, NormalizedMessage, ProjectSession, ServerEvent, SessionActivity } from '@/shared/types';
 import type { SessionStore } from '@/modules/chat/hooks/useSessionStore';
 
@@ -41,6 +42,7 @@ const renderHandlers = () => {
     pendingPermissionRequests: [],
     setPendingPermissionRequests: () => {},
     streamBuffers: createStreamingBufferRegistry(() => {}),
+    revealPacer: createRevealPacer(() => {}),
     lastSeqRef: { current: new Map() },
     statusCheckSentAtRef: { current: new Map() },
     onSessionIdle: (sessionId) => {
