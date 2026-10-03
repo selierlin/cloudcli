@@ -47,7 +47,9 @@ type AcpPermissionOutcome =
 type AcpPermissionResponder = (outcome: AcpPermissionOutcome) => void;
 
 type AcpClientHandlers = {
-  onMessageChunk(sessionId: string, text: string): void;
+  onMessageChunk(sessionId: string, text: string, messageId?: string): void;
+  /** Reasoning traces stream on their own channel; absent means the child never sends one. */
+  onThoughtChunk(sessionId: string, text: string, messageId?: string): void;
   onToolCall(sessionId: string, toolCall: AcpToolCallUpdate): void;
   onRequestPermission(
     sessionId: string,
@@ -122,15 +124,32 @@ class AcpClient {
       const params = message.params as AnyRecord | undefined;
       const update = params?.update as AnyRecord | undefined;
       const sessionId = typeof params?.sessionId === 'string' ? params.sessionId : null;
-      if (sessionId && update?.sessionUpdate === 'agent_message_chunk') {
-        const content = update.content as AnyRecord | undefined;
-        const text = content?.type === 'text' && typeof content.text === 'string'
-          ? content.text
-          : '';
-        if (text) {
-          this.handlers.onMessageChunk(sessionId, text);
-        }
+    if (sessionId && update?.sessionUpdate === 'agent_message_chunk') {
+      const content = update.content as AnyRecord | undefined;
+      const text = content?.type === 'text' && typeof content.text === 'string'
+        ? content.text
+        : '';
+      if (text) {
+        this.handlers.onMessageChunk(
+          sessionId,
+          text,
+          typeof update.messageId === 'string' && update.messageId ? update.messageId : undefined,
+        );
       }
+    }
+    if (sessionId && update?.sessionUpdate === 'agent_thought_chunk') {
+      const content = update.content as AnyRecord | undefined;
+      const text = content?.type === 'text' && typeof content.text === 'string'
+        ? content.text
+        : '';
+      if (text) {
+        this.handlers.onThoughtChunk(
+          sessionId,
+          text,
+          typeof update.messageId === 'string' && update.messageId ? update.messageId : undefined,
+        );
+      }
+    }
       if (
         sessionId
         && update?.sessionUpdate === 'tool_call'
@@ -327,6 +346,13 @@ type ActiveRun = {
   normalize: (raw: unknown, sessionId: string | null) => NormalizedMessage[];
   permissionMode: 'default' | 'auto';
   toolCalls: Map<string, AcpToolCallUpdate>;
+  /**
+   * Accumulated chunk text per `kind:messageId`. ACP chunks for one message
+   * share its `messageId`; text and reasoning of the same message MUST
+   * accumulate under different keys so they never fold into each other.
+   * Cleared with the run.
+   */
+  chunkBuffers: Map<string, string>;
 };
 
 type PendingDshPermission = {
@@ -347,6 +373,29 @@ let acpServer: AcpServerState | null = null;
 let acpServerPromise: Promise<AcpServerState> | null = null;
 /** ACP session id → in-flight run, for routing updates and permission requests to the right writer. */
 const activeRuns = new Map<string, ActiveRun>();
+
+/**
+ * Folds one ACP chunk into its message's accumulated text and returns the
+ * snapshot. Chunks of one message share its `messageId`, so the emitted
+ * content is the message's full text so far — the stable id lets the client
+ * upsert one growing row instead of stacking blocks. Text and reasoning of
+ * the same message accumulate under different keys so they never fold into
+ * each other.
+ */
+function accumulateChunk(
+  run: ActiveRun,
+  kind: 'text' | 'thinking',
+  messageId: string | undefined,
+  text: string,
+): string {
+  if (!messageId) {
+    return text;
+  }
+  const key = `${kind}:${messageId}`;
+  const accumulated = `${run.chunkBuffers.get(key) ?? ''}${text}`;
+  run.chunkBuffers.set(key, accumulated);
+  return accumulated;
+}
 /** CloudCLI request id → an ACP permission request awaiting a user decision. */
 const pendingPermissions = new Map<string, PendingDshPermission>();
 
@@ -617,12 +666,27 @@ async function ensureAcpServer(): Promise<AcpServerState> {
   });
 
   const client = new AcpClient(child, {
-    onMessageChunk: (acpSessionId, text) => {
+    onMessageChunk: (acpSessionId, text, messageId) => {
       const run = activeRuns.get(acpSessionId);
       if (!run) {
         return;
       }
-      for (const message of run.normalize({ type: 'agent_message_chunk', content: text }, run.appSessionId)) {
+      for (const message of run.normalize(
+        { type: 'agent_message_chunk', content: accumulateChunk(run, 'text', messageId, text) },
+        run.appSessionId,
+      )) {
+        run.writer.send(message);
+      }
+    },
+    onThoughtChunk: (acpSessionId, text, messageId) => {
+      const run = activeRuns.get(acpSessionId);
+      if (!run) {
+        return;
+      }
+      for (const message of run.normalize(
+        { type: 'agent_thought_chunk', content: accumulateChunk(run, 'thinking', messageId, text) },
+        run.appSessionId,
+      )) {
         run.writer.send(message);
       }
     },
@@ -754,6 +818,7 @@ export const dshRuntime: IProviderRuntime = {
       normalize: (raw, sessionId) => context.normalizeMessage(raw, sessionId),
       permissionMode: options.permissionMode === 'auto' ? 'auto' : 'default',
       toolCalls: new Map(),
+      chunkBuffers: new Map(),
     });
 
     try {

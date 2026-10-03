@@ -230,7 +230,27 @@ function decodeSessionLog(text: string, appSessionId: string): NormalizedMessage
         }));
       }
     } else if (event.type === 'assistant/message') {
-      const content = extractText((data.message as AnyRecord | null)?.content);
+      const message = (data.message as AnyRecord | null);
+      const blocks = Array.isArray(message?.content) ? message.content : [];
+      // Reasoning blocks precede the reply in the content array; the live
+      // path surfaces them as thinking rows, so history must too — otherwise
+      // the post-turn reconcile would drop what was just streamed.
+      const reasoningText = blocks
+        .map((block) => {
+          const record = block as AnyRecord | null;
+          return record?.type === 'reasoning' && typeof record.text === 'string' ? record.text : '';
+        })
+        .join('');
+      if (reasoningText) {
+        messages.push(createNormalizedMessage({
+          kind: 'thinking',
+          content: reasoningText,
+          sessionId: appSessionId,
+          provider: 'dsh',
+          ...(timestamp ? { timestamp } : {}),
+        }));
+      }
+      const content = extractText(blocks);
       if (content) {
         messages.push(createNormalizedMessage({
           kind: 'text',
@@ -258,20 +278,49 @@ const EMPTY_HISTORY: FetchHistoryResult = {
  * Provider registry session adapter for DSH.
  *
  * `normalizeMessage` translates the ACP live-stream payloads emitted by the DSH
- * runtime (currently `agent_message_chunk`) into app messages.
+ * runtime (`agent_message_chunk` / `agent_thought_chunk`) into app messages.
  * `fetchHistory` decodes the harness's JSONL session log (located through the
  * app session row's `provider_session_id` and project path).
  */
 export class DshSessionsProvider implements IProviderSessions {
   normalizeMessage(raw: unknown, sessionId: string | null): NormalizedMessage[] {
-    const record = raw as { type?: unknown; content?: unknown } | null;
-    if (record?.type === 'agent_message_chunk' && typeof record.content === 'string' && record.content) {
+    const record = raw as {
+      type?: unknown;
+      content?: unknown;
+      messageId?: unknown;
+    } | null;
+    if (
+      record?.type === 'agent_message_chunk'
+      && typeof record.content === 'string'
+      && record.content
+    ) {
+      // The runtime accumulates chunks per `messageId`, so the content is the
+      // message's full text so far and the stable id collapses the blocks of
+      // one message into a single upserted row.
+      const messageId = typeof record.messageId === 'string' ? record.messageId : undefined;
       return [createNormalizedMessage({
         kind: 'text',
         role: 'assistant',
         content: record.content,
         sessionId,
         provider: 'dsh',
+        ...(messageId ? { id: messageId } : {}),
+      })];
+    }
+    if (
+      record?.type === 'agent_thought_chunk'
+      && typeof record.content === 'string'
+      && record.content
+    ) {
+      // Reasoning rides the same messageId as its message's text; the suffix
+      // keeps the thinking row's upsert key from colliding with the reply's.
+      const messageId = typeof record.messageId === 'string' ? record.messageId : undefined;
+      return [createNormalizedMessage({
+        kind: 'thinking',
+        content: record.content,
+        sessionId,
+        provider: 'dsh',
+        ...(messageId ? { id: `${messageId}#thinking` } : {}),
       })];
     }
     return [];

@@ -106,6 +106,80 @@ const assistantMessage = (text: string, seq: number, time: number) => ({
   },
 });
 
+test('normalizeMessage pins the message chunk to its ACP messageId', () => {
+  const provider = new DshSessionsProvider();
+  const [message] = provider.normalizeMessage(
+    { type: 'agent_message_chunk', content: '第一块', messageId: 'msg-7' },
+    'app-1',
+  );
+
+  assert.equal(message.kind, 'text');
+  assert.equal(message.role, 'assistant');
+  assert.equal(message.id, 'msg-7', 'blocks of one message must upsert into one row');
+  assert.equal(message.provider, 'dsh');
+
+  const [fallback] = provider.normalizeMessage(
+    { type: 'agent_message_chunk', content: '无 id' },
+    'app-1',
+  );
+  assert.ok(fallback.id && fallback.id !== 'msg-7', 'absent messageId keeps the generated id');
+});
+
+test('normalizeMessage maps thought chunks to thinking rows keyed apart from the reply', () => {
+  const provider = new DshSessionsProvider();
+  const [thought] = provider.normalizeMessage(
+    { type: 'agent_thought_chunk', content: '推理中', messageId: 'msg-7' },
+    'app-1',
+  );
+
+  assert.equal(thought.kind, 'thinking');
+  assert.equal(thought.id, 'msg-7#thinking', 'thinking must not collide with the reply row');
+  assert.equal(thought.role, undefined);
+
+  const [reply] = provider.normalizeMessage(
+    { type: 'agent_message_chunk', content: '正文', messageId: 'msg-7' },
+    'app-1',
+  );
+  assert.notEqual(reply.id, thought.id, 'same message, disjoint upsert keys');
+});
+
+test('fetchHistory surfaces reasoning blocks as thinking rows ahead of the reply', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    await writeSessionLog(sessionsRoot, cwd, 'acp-reasoning', [
+      userMessage('问题', 1, 1),
+      {
+        type: 'assistant/message',
+        seq: 2,
+        time: 2,
+        data: {
+          message: {
+            role: 'assistant',
+            content: [
+              { type: 'reasoning', text: '先想一想' },
+              { type: 'text', text: '答案' },
+            ],
+            id: 'assistant-2',
+          },
+        },
+      },
+    ]);
+    await sessionsDb.createAppSession('app-reasoning', 'dsh', cwd, 'Reasoning session');
+    sessionsDb.assignProviderSessionId('app-reasoning', 'acp-reasoning');
+
+    const provider = new DshSessionsProvider();
+    const history = await provider.fetchHistory('app-reasoning');
+    const kinds = history.messages.map((message) => [message.kind, message.content]);
+    assert.deepEqual(kinds.filter(([kind]) => kind === 'thinking'), [['thinking', '先想一想']]);
+    const reply = history.messages.find((message) => message.kind === 'text' && message.role === 'assistant');
+    assert.equal(reply?.content, '答案');
+    assert.ok(
+      history.messages.findIndex((message) => message.kind === 'thinking')
+        < history.messages.findIndex((message) => message.kind === 'text' && message.role === 'assistant'),
+      'the trace must precede the reply, matching the live order',
+    );
+  });
+});
+
 test('projectKey mirrors the DSH JSONL directory encoding', () => {
   assert.equal(
     projectKey('/Users/selier/Projects/open_projects/cloudcli'),
