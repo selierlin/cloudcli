@@ -5,8 +5,12 @@ import type {
 } from '@/shared/types';
 
 const REVEAL_TICK_MS = 32;
-const REVEAL_MAX_DURATION_MS = 300;
-const SHORT_SEGMENT_CHARS = 80;
+// Calibrated on a real machine 2026-10-03: the initial 300ms cap made the
+// reveal visually indistinguishable from an instant dump (any segment flowed
+// in ≤0.3s), so the cap moved to 1.2s and the instant-publish threshold to
+// 200 chars — a Chinese paragraph is rarely shorter than that.
+const REVEAL_MAX_DURATION_MS = 1200;
+const SHORT_SEGMENT_CHARS = 200;
 const BACKGROUND_PUBLISH_INTERVAL_MS = 200;
 
 const CHANNEL_ORDER: StreamChannel[] = ['thinking', 'text'];

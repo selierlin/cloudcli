@@ -7,10 +7,10 @@ import type { LLMProvider, StreamingChannelUpdate } from '@/shared/types';
 
 /**
  * Whole-segment providers (Codex / DSH) have no token deltas: their prose
- * arrives as complete segments. The pacer spreads each segment over ~300ms of
+ * arrives as complete segments. The pacer spreads each segment over ~1.2s of
  * 32ms ticks through the same streaming-row channel the registry uses, and
  * converges synchronously on terminal/seal events. These tests pin the pacing
- * contract from the streaming plan §11.6: grace window, tick cadence, 300ms
+ * contract from the streaming plan §11.6: grace window, tick cadence, 1.2s
  * cap, append-only snapshots (no invented characters, no rewind), serial
  * same-channel segments, hidden-session 5Hz coalescing, and the flush/drop
  * lifecycle the handler's seal trio relies on.
@@ -76,7 +76,7 @@ test('holds the first reveal tick for 32ms so an in-grace terminal converges wit
   assert.equal(publishCalls.length, 1, 'converged content must not replay');
 });
 
-test('reveals a long segment on 32ms ticks and finishes within the 300ms cap', () => {
+test('reveals a long segment on 32ms ticks and finishes within the 1.2s cap', () => {
   const pacer = create();
   const full = '字'.repeat(900);
 
@@ -86,17 +86,17 @@ test('reveals a long segment on 32ms ticks and finishes within the 300ms cap', (
   const first = lastText();
   assert.ok(first.length > 0 && first.length < full.length);
 
-  for (let ms = 64; ms <= 352; ms += 32) {
+  for (let ms = 64; ms <= 1248; ms += 32) {
     vi.advanceTimersByTime(32);
     if (lastText() === full) {
-      assert.ok(ms <= 352, `reveal must finish within the cap, took ${ms}ms`);
+      assert.ok(ms <= 1248, `reveal must finish within the cap, took ${ms}ms`);
       break;
     }
   }
   assert.equal(lastText(), full, 'the segment must be fully revealed');
 
   const snapshots = publishCalls.map(call => call.updates[0].text);
-  assert.ok(snapshots.length <= 12, `pacing must not publish per character (${snapshots.length})`);
+  assert.ok(snapshots.length <= 40, `pacing must not publish per character (${snapshots.length})`);
   for (const snapshot of snapshots) {
     assert.ok(full.startsWith(snapshot), 'every snapshot is a prefix of the real text');
   }
@@ -137,7 +137,7 @@ test('queues a distinct segment until the current one finishes revealing', () =>
   const first = lastText();
   assert.ok(first.startsWith('A') && !first.includes('B'), 'B must not start before A finishes');
 
-  vi.advanceTimersByTime(2000);
+  vi.advanceTimersByTime(3000);
   const final = lastText();
   assert.equal(final, a + b, 'the queued segment accumulates append-only after A');
   for (const call of publishCalls) {
