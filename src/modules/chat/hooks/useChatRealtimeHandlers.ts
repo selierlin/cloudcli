@@ -6,6 +6,8 @@ import { showCompletionTitleIndicator } from '@/modules/chat/utils/pageTitleNoti
 import { playChatCompletionSound, playNotificationSound, triggerNotificationHaptic } from '@/shared/utils';
 import type { SessionStore } from '@/modules/chat/hooks/useSessionStore';
 import type { StreamingBufferRegistry } from '@/modules/chat/utils/streamingBufferRegistry';
+import type { RevealPacer } from '@/modules/chat/utils/revealPacer';
+import { WHOLE_SEGMENT_PROVIDERS } from '@/modules/chat/utils/revealPacer';
 import { normalizedToChatMessages } from '@/modules/chat/hooks/useChatMessages';
 import { collectRunningBackgroundTasks } from '@/modules/chat/utils/backgroundTasks';
 
@@ -37,6 +39,13 @@ type UseChatRealtimeHandlersArgs = {
    * session no longer writes into the viewed session's placeholder.
    */
   streamBuffers: StreamingBufferRegistry;
+  /**
+   * Session-keyed reveal pacer for whole-segment providers (Codex / DSH).
+   * Their prose arrives as complete messages, so it routes through the pacer
+   * and plays over the same streaming rows as real deltas, converging on the
+   * terminal/seal branches below.
+   */
+  revealPacer: RevealPacer;
   /**
    * Highest live `seq` observed per session. Essential for reconnect catch-up:
    * `chat.subscribe` sends this value as `lastSeq` so the server replays only
@@ -79,6 +88,7 @@ export function useChatRealtimeHandlers({
   pendingPermissionRequests,
   setPendingPermissionRequests,
   streamBuffers,
+  revealPacer,
   lastSeqRef,
   statusCheckSentAtRef,
   onSessionProcessing,
@@ -116,6 +126,19 @@ export function useChatRealtimeHandlers({
       onSessionBackground?.(sid, collectRunningBackgroundTasks(normalizedToChatMessages(sessionStore.getMessages(sid))));
     };
 
+    // Terminal/seal teardown shared by both streaming paths: converge the
+    // pacer and the registry in one synchronous stack, finalize the streaming
+    // rows once, then drop both. The same-stack ordering is what keeps a
+    // `complete`'s follow-up `requestLatestMessages` from ever seeing
+    // half-revealed rows next to their persisted counterparts.
+    const sealStreaming = (sealSid: string) => {
+      revealPacer.flushNow(sealSid);
+      streamBuffers.flushNow(sealSid);
+      sessionStore.finalizeStreaming(sealSid);
+      revealPacer.drop(sealSid);
+      streamBuffers.drop(sealSid);
+    };
+
     const handleEvent = (msg: ServerEvent) => {
       if (!msg.kind) {
         return;
@@ -143,6 +166,10 @@ export function useChatRealtimeHandlers({
           // in, so a second tab does not end up showing the question twice.
           if (sid && typeof msg.anchorId === 'string') {
             sessionStore.truncateAt(sid, msg.anchorId);
+            // A mid-reveal segment belongs to the replaced turn: dropping the
+            // pacer keeps its pending ticks from resurrecting a half row the
+            // edit just cleared.
+            revealPacer.drop(sid);
           }
           return;
         }
@@ -230,19 +257,36 @@ export function useChatRealtimeHandlers({
 
       if (msg.kind === 'stream_end') {
         if (!sid) return;
-        streamBuffers.flushNow(sid);
-        sessionStore.finalizeStreaming(sid);
-        streamBuffers.drop(sid);
+        sealStreaming(sid);
+        return;
+      }
+
+      // Whole-segment prose from providers without token deltas: their
+      // messages are complete on arrival, so they route through the reveal
+      // pacer instead of `appendRealtime` and play over the same streaming
+      // rows the registry publishes. Everything else (user echoes, tool
+      // cards, errors) keeps its instant path.
+      if (
+        sid
+        && (msg.kind === 'text' || msg.kind === 'thinking')
+        && (msg as { role?: unknown }).role !== 'user'
+        && WHOLE_SEGMENT_PROVIDERS.has(msg.provider as LLMProvider)
+      ) {
+        revealPacer.append(
+          sid,
+          typeof msg.content === 'string' ? msg.content : '',
+          msg.provider as LLMProvider,
+          msg.kind === 'thinking' ? 'thinking' : 'text',
+          typeof msg.id === 'string' && msg.id ? msg.id : undefined,
+        );
         return;
       }
 
       // A tool starts a new agent step. Seal any prose or reasoning that led
       // to it so deltas emitted after the tool result render as a fresh block
       // instead of continuing the pre-tool placeholder.
-      if (msg.kind === 'tool_use' && sid && streamBuffers.has(sid)) {
-        streamBuffers.flushNow(sid);
-        sessionStore.finalizeStreaming(sid);
-        streamBuffers.drop(sid);
+      if (msg.kind === 'tool_use' && sid && (streamBuffers.has(sid) || revealPacer.has(sid))) {
+        sealStreaming(sid);
       }
 
       // --- All other messages: route to store ---
@@ -260,14 +304,13 @@ export function useChatRealtimeHandlers({
       // --- UI side effects for specific kinds ---
       switch (msg.kind) {
         case 'complete': {
-          // Flush and finalize only when this session still holds a buffer.
+          // Flush and finalize only when this session still holds a stream.
           // Cursor never emits `stream_end`, so this is its only teardown path;
-          // Claude/OpenCode already dropped theirs on `stream_end`, leaving
-          // `has` false so nothing is finalized twice.
-          if (sid && streamBuffers.has(sid)) {
-            streamBuffers.flushNow(sid);
-            sessionStore.finalizeStreaming(sid);
-            streamBuffers.drop(sid);
+          // Claude/OpenCode already dropped theirs on `stream_end`, and
+          // whole-segment providers converge here. `has` false on both objects
+          // means nothing is finalized twice.
+          if (sid && (streamBuffers.has(sid) || revealPacer.has(sid))) {
+            sealStreaming(sid);
           }
 
           // `complete` is the unified terminal event — every provider run ends
@@ -417,6 +460,7 @@ export function useChatRealtimeHandlers({
     pendingPermissionRequests,
     setPendingPermissionRequests,
     streamBuffers,
+    revealPacer,
     lastSeqRef,
     statusCheckSentAtRef,
     onSessionProcessing,

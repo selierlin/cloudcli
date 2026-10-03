@@ -224,3 +224,37 @@ test('a dropped session starts its next cycle from empty text', () => {
     [{ channel: 'text', text: 'second' }],
   ]);
 });
+
+test('a stream_end reaching a frozen page converges in one stack with no residual replay (§6.1 15)', () => {
+  const registry = create();
+
+  // The page is fully backgrounded: neither frames nor timers run while the
+  // terminal event arrives. The teardown (flush → finalize → drop) then runs
+  // in one synchronous stack the moment JavaScript executes again.
+  registry.append('s1', '后台积压的正文', 'claude');
+  registry.append('s1', '，还在增长', 'claude');
+  registry.flushNow('s1');
+  registry.drop('s1');
+
+  assert.deepEqual(flushCalls, [{
+    sessionId: 's1',
+    updates: [{ channel: 'text', text: '后台积压的正文，还在增长' }],
+    provider: 'claude',
+  }], 'the frozen page gets exactly one complete publish on convergence');
+
+  // No residual buffer means the deferred rAF/watchdog cannot batch-replay
+  // the accumulated state after the page returns to the foreground.
+  vi.advanceTimersByTime(1000);
+  assert.equal(frameCallbacks.size, 0, 'convergence cancels the deferred frame');
+  assert.equal(flushCalls.length, 1);
+});
+
+test('the watchdog publishes a frozen page once it resumes, before any teardown', () => {
+  const registry = create();
+
+  registry.append('s1', '冻结期间到达', 'claude');
+  vi.advanceTimersByTime(100);
+
+  assert.deepEqual(flushCalls[0].updates, [{ channel: 'text', text: '冻结期间到达' }]);
+  assert.equal(frameCallbacks.size, 0, 'the watchdog cancels the pending frame');
+});

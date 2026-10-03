@@ -1200,6 +1200,26 @@ export function useSessionStore() {
       };
     }
 
+    // Defensive net: a stream_delta row outside the well-known ids (a future
+    // publisher, or a row that survived an id change) settles through the
+    // same path instead of surviving as a live streaming row.
+    for (let i = 0; i < next.length; i++) {
+      const stream = next[i];
+      if (stream.kind !== 'stream_delta') continue;
+      if (!changed) {
+        next = [...next];
+        changed = true;
+      }
+      const finalKind: 'text' | 'thinking' = stream.streamChannel === 'thinking' ? 'thinking' : 'text';
+      next[i] = {
+        ...stream,
+        id: `${finalKind}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        kind: finalKind,
+        streamChannel: undefined,
+        role: finalKind === 'text' ? 'assistant' : undefined,
+      };
+    }
+
     if (changed) {
       slot.realtimeMessages = next;
       recomputeMergedIfNeeded(slot);

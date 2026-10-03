@@ -40,6 +40,13 @@ const renderHandlers = () => {
       dropAll: () => {},
       has: () => false,
     },
+    revealPacer: {
+      append: () => {},
+      flushNow: () => {},
+      drop: () => {},
+      dropAll: () => {},
+      has: () => false,
+    },
     lastSeqRef: { current: new Map() },
     statusCheckSentAtRef: { current: new Map() },
     requestLatestMessages: async () => {},

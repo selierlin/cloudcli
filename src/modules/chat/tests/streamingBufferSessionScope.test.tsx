@@ -5,6 +5,7 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { useChatRealtimeHandlers } from '@/modules/chat/hooks/useChatRealtimeHandlers';
 import { createStreamingBufferRegistry } from '@/modules/chat/utils/streamingBufferRegistry';
+import { createRevealPacer } from '@/modules/chat/utils/revealPacer';
 import type { SessionStore } from '@/modules/chat/hooks/useSessionStore';
 import type {
   LLMProvider,
@@ -52,6 +53,7 @@ const renderHandlers = () => {
     },
     sessionId => sessionId === 'viewed',
   );
+  const revealPacer = createRevealPacer(() => {}, sessionId => sessionId === 'viewed');
 
   renderHook(() => useChatRealtimeHandlers({
     isActive: true,
@@ -66,6 +68,7 @@ const renderHandlers = () => {
     pendingPermissionRequests: [],
     setPendingPermissionRequests: () => {},
     streamBuffers,
+    revealPacer,
     lastSeqRef: { current: new Map() },
     statusCheckSentAtRef: { current: new Map() },
     requestLatestMessages: async () => {},
