@@ -31,8 +31,8 @@ export const MODEL_DESCRIPTIONS: Record<string, string> = {
  * harness config happens to declare.
  *
  * These carry facts that are only true on one gateway (WorkBuddy credit
- * multipliers, for instance) yet should not be redefined in every harness that
- * can reach that gateway. Adapters that route bare model ids pass their channel
+ * multipliers and Wuan's token prices, for instance) yet should not be
+ * redefined in every harness that can reach that gateway. Adapters that route bare model ids pass their channel
  * to {@link applySharedModelDescriptions}; adapters whose values already carry a
  * channel prefix get the lookup for free.
  */
@@ -104,51 +104,56 @@ export const CHANNEL_MODEL_DESCRIPTIONS: Record<string, string> = {
   'workbuddy/kimi-k3-1': '积分倍率 1.62x',
   'workbuddy/minimax-m3': '积分倍率 0.25x',
   'workbuddy/space-bunny': '积分倍率 0.03x（限时折扣）',
-  'wuan/best': '',
-  'wuan/default': '',
-  'wuan/fable': '',
-  'wuan/haiku': '',
-  'wuan/high': '',
-  'wuan/low': '',
-  'wuan/max': '',
-  'wuan/medium': '',
-  'wuan/opus': '',
-  'wuan/opus[1m]': '',
-  'wuan/opusplan': '',
-  'wuan/sonnet': '',
-  'wuan/sonnet[1m]': '',
-  'wuan/xhigh': '',
-  'wuanai/claude-fable-5-1': '',
-  'wuanai/claude-haiku-4.5': '',
-  'wuanai/claude-opus-4-6': '',
-  'wuanai/claude-opus-5': '',
-  'wuanai/claude-opus-5-5': '',
-  'wuanai/claude-sonnet-4.5': '',
-  'wuanai/claude-sonnet-5': '',
-  'wuanai/deepseek-v4.1-flash': '',
-  'wuanai/deepseek-v4.1-flash-fast': '',
-  'wuanai/gemini-3.1-flash-lite': '',
-  'wuanai/gemini-3.1-pro-preview': '',
-  'wuanai/gemini-3.5-flash': '',
-  'wuanai/gemini-3.5-flash-lite': '',
-  'wuanai/gemini-3.6-flash': '',
-  'wuanai/gemini-3.7-flash': '',
-  'wuanai/gemini-3.8-flash': '',
-  'wuanai/gemma-4-31b-it': '',
-  'wuanai/glm-5.3': '',
-  'wuanai/glm-5.3-flash': '',
-  'wuanai/gpt-5.6-luna': '',
-  'wuanai/gpt-5.6-sol': '',
-  'wuanai/gpt-5.6-terra': '',
-  'wuanai/gpt-6-astra': '',
-  'wuanai/gpt-6-luna': '',
-  'wuanai/gpt-6-sol': '',
+  // Wuan (`wuanai`) channel, keyed by the id the harness configs already use
+  // (`wuanai`). Price subtitles come from the vendor's published list per
+  // million tokens: `<billing unit>/百万 · 输入 · 输出`.
+  // Snapshot of the Wuan price table, 2026-10-04 — re-read it when repricing.
+  'wuanai/best': '',
+  'wuanai/claude-fable-5-1': '高级点数/百万 · 输入 3000 · 输出 15000',
+  'wuanai/claude-haiku-4.5': '高级点数/百万 · 输入 100 · 输出 500',
+  'wuanai/claude-opus-4-6': '高级点数/百万 · 输入 500 · 输出 2500',
+  'wuanai/claude-opus-5': '高级点数/百万 · 输入 500 · 输出 2500',
+  'wuanai/claude-opus-5-5': '高级点数/百万 · 输入 800 · 输出 4000',
+  'wuanai/claude-sonnet-4.5': '高级点数/百万 · 输入 300 · 输出 1500',
+  'wuanai/claude-sonnet-5': '高级点数/百万 · 输入 200 · 输出 1000',
+  'wuanai/deepseek-v4.1-flash': '积分/百万 · 输入 200 · 输出 800',
+  'wuanai/deepseek-v4.1-flash-fast': '高级点数/百万 · 输入 200 · 输出 800',
+  'wuanai/default': '',
+  'wuanai/fable': '',
+  'wuanai/gemini-3.1-flash-lite': '高级点数/百万 · 输入 25 · 输出 150',
+  'wuanai/gemini-3.1-pro-preview': '高级点数/百万 · 输入 200 · 输出 1200',
+  'wuanai/gemini-3.5-flash': '高级点数/百万 · 输入 150 · 输出 900',
+  'wuanai/gemini-3.5-flash-lite': '高级点数/百万 · 输入 30 · 输出 250',
+  'wuanai/gemini-3.6-flash': '高级点数/百万 · 输入 75 · 输出 375',
+  'wuanai/gemini-3.7-flash': '高级点数/百万 · 输入 75 · 输出 375',
+  'wuanai/gemini-3.8-flash': '高级点数/百万 · 输入 75 · 输出 375',
+  'wuanai/gemma-4-31b-it': '积分/百万 · 输入 9 · 输出 34',
+  'wuanai/glm-5.3': '积分/百万 · 输入 140 · 输出 440',
+  'wuanai/glm-5.3-flash': '积分/百万 · 输入 15 · 输出 50',
+  'wuanai/gpt-5.6-luna': '高级点数/百万 · 输入 20 · 输出 120',
+  'wuanai/gpt-5.6-sol': '高级点数/百万 · 输入 400 · 输出 2000',
+  'wuanai/gpt-5.6-terra': '高级点数/百万 · 输入 200 · 输出 1200',
+  'wuanai/gpt-6-astra': '高级点数/百万 · 输入 1000 · 输出 5000',
+  'wuanai/gpt-6-luna': '高级点数/百万 · 输入 10 · 输出 50',
+  'wuanai/gpt-6-sol': '高级点数/百万 · 输入 200 · 输出 1000',
+  // Image model; not in the dialogue price table, so the channel label stands in.
   'wuanai/gpt-image-2': '',
-  'wuanai/gpt-oss-120b': '',
-  'wuanai/kimi-k3': '',
-  'wuanai/muse-glimmer-30b': '',
-  'wuanai/muse-spark-1.3-contributor': '',
-  'wuanai/nemotron-3.5-lightning-30b-a3b': '',
+  'wuanai/gpt-oss-120b': '积分/百万 · 输入 15 · 输出 60',
+  'wuanai/haiku': '',
+  'wuanai/high': '',
+  'wuanai/kimi-k3': '积分/百万 · 输入 300 · 输出 1500',
+  'wuanai/low': '',
+  'wuanai/max': '',
+  'wuanai/medium': '',
+  'wuanai/muse-glimmer-30b': '积分/百万 · 输入 35 · 输出 150',
+  'wuanai/muse-spark-1.3-contributor': '积分/百万 · 输入 10 · 输出 20',
+  'wuanai/nemotron-3.5-lightning-30b-a3b': '积分/百万 · 输入 8 · 输出 20',
+  'wuanai/opus': '',
+  'wuanai/opus[1m]': '',
+  'wuanai/opusplan': '',
+  'wuanai/sonnet': '',
+  'wuanai/sonnet[1m]': '',
+  'wuanai/xhigh': '',
   'zai/zai/glm-5.1': '',
 };
 
@@ -193,6 +198,7 @@ export function applySharedModelDescriptions(
  */
 export const MODEL_CHANNELS: Record<string, string> = {
   anthropic: 'Anthropic',
+  bigmodel: 'BigModel',
   deepseek: 'DeepSeek',
   openai: 'OpenAI',
   openrouter: 'OpenRouter',
@@ -213,12 +219,12 @@ export function resolveChannelLabel(channelId: string): string {
 
 /**
  * Derives a channel tag from a single-channel provider's active profile file
- * name, e.g. `settings-wuan-glm.json` -> `wuan` and `config-ark.toml` ->
+ * name, e.g. `settings-wuanai-glm.json` -> `wuanai` and `config-ark.toml` ->
  * `ark`. Convention: `<base>-<channel>[-<variant>].<ext>`. The channel is the
  * remainder after the `settings`/`config` base, resolved by the longest
  * matching known channel id ({@link MODEL_CHANNELS} keys): `config-volcano-ark.toml`
  * yields `Volcano Ark`, not a dash-cut `volcano`. Unknown remainders fall back
- * to their first dash segment (`wuan-glm` -> `wuan`). Plain `settings.json` /
+ * to their first dash segment (`acme-glm` -> `acme`). Plain `settings.json` /
  * `config.toml` carry no channel and yield null.
  *
  * Claude and Codex configure exactly one vendor at a time through these

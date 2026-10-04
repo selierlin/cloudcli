@@ -44,7 +44,7 @@ test('prefers channel-qualified descriptions for a scoped catalog', () => {
 });
 
 test('derives channel tags from single-channel profile file names', () => {
-  assert.equal(resolveChannelFromProfileFile('settings-wuan-glm.json'), 'wuan');
+  assert.equal(resolveChannelFromProfileFile('settings-wuanai-glm.json'), 'wuanai');
   assert.equal(resolveChannelFromProfileFile('config-ark.toml'), 'ark');
   assert.equal(resolveChannelFromProfileFile('/any/dir/config-volcano-ark.toml'), 'Volcano Ark');
   // Plain base names carry no channel signal.

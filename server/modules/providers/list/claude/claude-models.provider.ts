@@ -446,7 +446,7 @@ export class ClaudeProviderModels implements IProviderModels {
       await resolveClaudeModelMappings(),
     );
     // Claude configures one vendor at a time; the active settings profile's
-    // name is the vendor signal (`settings-wuan-glm.json` -> group `wuan`).
+    // name is the vendor signal (`settings-wuanai-glm.json` -> group `wuanai`).
     const channel = resolveChannelFromProfileFile(
       providerSettingsSourceService.resolveActiveSettingsFile('claude'),
     );

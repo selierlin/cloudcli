@@ -222,12 +222,12 @@ test('tags the catalog with the channel named by the active settings profile', a
   closeConnection();
   process.env.DATABASE_PATH = path.join(tempDirectory, 'auth.db');
   await initializeDatabase();
-  appConfigDb.set('claude.settings.activeFile', '/x/settings-wuan-glm.json');
+  appConfigDb.set('claude.settings.activeFile', '/x/settings-wuanai-glm.json');
 
   try {
     const models = await new ClaudeProviderModels().getSupportedModels();
     assert.ok(models.OPTIONS.length > 0);
-    assert.ok(models.OPTIONS.every((option) => option.group === 'wuan'));
+    assert.ok(models.OPTIONS.every((option) => option.group === 'wuanai'));
   } finally {
     closeConnection();
     if (previousDatabasePath === undefined) {

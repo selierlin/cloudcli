@@ -2,7 +2,10 @@ import { execFile } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 
-import { resolveChannelLabel } from '@/shared/model-descriptions.js';
+import {
+  applySharedModelDescriptions,
+  resolveChannelLabel,
+} from '@/shared/model-descriptions.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import type {
   ProviderCurrentActiveModel,
@@ -250,7 +253,13 @@ function toOmpModelsDefinition(entries: OmpModelEntry[]): ProviderModelsDefiniti
 export class OmpProviderModels implements IProviderModels {
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
     const entries = await loadOmpModels();
-    const catalog = (entries ? toOmpModelsDefinition(entries) : null) ?? OMP_PREDEFINED_MODELS;
+    const base = (entries ? toOmpModelsDefinition(entries) : null) ?? OMP_PREDEFINED_MODELS;
+    // Subtitles come from the shared catalog, resolved through each option's
+    // `<provider>/<model>` value, so OMP matches the other harnesses.
+    const catalog: ProviderModelsDefinition = {
+      ...base,
+      OPTIONS: applySharedModelDescriptions(base.OPTIONS),
+    };
 
     // `OMP_MODEL` overrides the picker default, keeping the env escape hatch
     // aligned with what the CLI runs when no model is selected in the app.
