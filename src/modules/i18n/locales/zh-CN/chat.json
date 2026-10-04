@@ -455,7 +455,9 @@
   },
   "message": {
     "editAndResend": "编辑并重新发送",
-    "forkFromHere": "从此处派生"
+    "forkFromHere": "从此处派生",
+    "forkFailed": "无法派生该会话，请重试。",
+    "forkWorkspaceRewind": "从此处派生会回退该消息之后被改动的工作区文件。请改从更靠后的消息或会话末尾派生。"
   },
   "export": {
     "trigger": "导出对话",
