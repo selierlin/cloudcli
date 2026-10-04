@@ -17,7 +17,7 @@ import {
 } from '@/shared/utils.js';
 
 import { resolveZcodeCommand } from './zcode-auth.provider.js';
-import { resolveZcodeModelEnv } from './zcode-models.provider.js';
+import { resolveZcodeModelEnv, type ZcodeModelOverride } from './zcode-models.provider.js';
 import { findZcodeSessionForRun } from './zcode-sessions.provider.js';
 
 /**
@@ -218,14 +218,14 @@ export const zcodeRuntime: IProviderRuntime = {
       args.push('--attach', resolvedPath);
     }
 
-    // Headless ZCode has no model flag, so a chosen model is applied through
-    // the per-process `ZCODE_MODEL`/`ZCODE_BASE_URL`/`ZCODE_API_KEY` channel.
-    // Nothing in the user's config is read for the model or written back.
+    // Headless ZCode has no model flag, so a chosen model is applied by pointing
+    // the CLI at a generated provider-config copy (see `resolveZcodeModelEnv`).
+    // The user's real document is never read for the model nor written back.
     const requestedModel = readOptionalString(options.model);
-    let modelEnv: Record<string, string> | null = null;
+    let modelOverride: ZcodeModelOverride | null = null;
     if (requestedModel) {
       try {
-        modelEnv = resolveZcodeModelEnv(requestedModel);
+        modelOverride = resolveZcodeModelEnv(requestedModel);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         writer.send(createNormalizedMessage({
@@ -241,6 +241,8 @@ export const zcodeRuntime: IProviderRuntime = {
 
     return new Promise<void>((resolveRun) => {
       if (activeProcesses.has(appSessionId)) {
+        // This run never spawns, so its generated config must be cleaned up here.
+        modelOverride?.cleanup();
         writer.send(createNormalizedMessage({
           kind: 'error',
           provider: 'zcode',
@@ -260,7 +262,9 @@ export const zcodeRuntime: IProviderRuntime = {
         // `--prompt` never reads stdin; leaving it open can only make the CLI
         // wait for input it will not consume.
         stdio: ['ignore', 'pipe', 'pipe'],
-        env: modelEnv ? { ...process.env, ...modelEnv } : { ...process.env },
+        // `resolution.env` carries the bundled CLI's provider-config hint; the
+        // model override is layered on top so an explicit selection wins.
+        env: { ...process.env, ...resolution.env, ...(modelOverride?.env ?? {}) },
       });
       activeProcesses.set(appSessionId, child);
 
@@ -324,6 +328,9 @@ export const zcodeRuntime: IProviderRuntime = {
         if (forceKillTimer) {
           clearTimeout(forceKillTimer);
         }
+        // The run is over, so the generated provider-config copy is no longer
+        // needed; remove it before resolving the caller.
+        modelOverride?.cleanup();
         resolveRun();
         const complete = createCompleteMessage({
           provider: 'zcode',
@@ -465,8 +472,8 @@ export const zcodeRuntime: IProviderRuntime = {
         }
 
         // A run whose requested model did not take effect would silently answer
-        // on the config's default, so surface the mismatch in the logs.
-        if (modelEnv && !modelMismatchLogged && reportsLoadedModel(event)) {
+        // on the document's default, so surface the mismatch in the logs.
+        if (modelOverride && !modelMismatchLogged && reportsLoadedModel(event)) {
           modelMismatchLogged = true;
           const reported = readOptionalString(readObjectRecord(event.payload)?.model);
           if (reported && reported !== requestedModel) {

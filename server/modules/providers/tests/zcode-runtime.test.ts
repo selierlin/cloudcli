@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test, { afterEach, beforeEach } from 'node:test';
 
-import { resetZcodeCommandForTests } from '@/modules/providers/list/zcode/zcode-auth.provider.js';
+import { resetZcodeCommandForTests, setZcodeBundledCliPathsForTests } from '@/modules/providers/list/zcode/zcode-auth.provider.js';
 import { setZcodeHomeDirForTests } from '@/modules/providers/list/zcode/zcode-models.provider.js';
 import { resetZcodeRuntimeForTests, zcodeRuntime } from '@/modules/providers/list/zcode/zcode-runtime.provider.js';
 import { ZcodeSessionsProvider } from '@/modules/providers/list/zcode/zcode-sessions.provider.js';
@@ -48,13 +48,14 @@ beforeEach(() => {
   delete process.env.MOCK_MODE;
   delete process.env.MOCK_DENIALS;
   delete process.env.ZCODE_COMMAND;
+  delete process.env.ZCODE_BUILTIN_PROVIDER_CONFIG_FILE;
   delete process.env.ZCODE_MOCK_ARGS_FILE;
   delete process.env.ZCODE_MOCK_ENV_FILE;
   delete process.env.ZCODE_RUN_TIMEOUT_MS;
   delete process.env.ZCODE_MAX_DENIALS;
   resetZcodeCommandForTests();
-  // Model selection rewrites `<home>/cli/config.json`; never let a test reach
-  // the developer's real `~/.zcode` store.
+  // Model selection reads `<home>/v2/provider_config.json` and the credential
+  // store; never let a test reach the developer's real `~/.zcode`.
   setZcodeHomeDirForTests(null);
 });
 
@@ -65,6 +66,7 @@ afterEach(async () => {
   delete process.env.MOCK_MODE;
   delete process.env.MOCK_DENIALS;
   delete process.env.ZCODE_COMMAND;
+  delete process.env.ZCODE_BUILTIN_PROVIDER_CONFIG_FILE;
   delete process.env.ZCODE_MOCK_ARGS_FILE;
   delete process.env.ZCODE_MOCK_ENV_FILE;
   delete process.env.ZCODE_RUN_TIMEOUT_MS;
@@ -73,37 +75,38 @@ afterEach(async () => {
 });
 
 /**
- * Creates a throwaway ZCode home holding a config with two selectable models
- * and points the provider at it.
+ * Creates a throwaway ZCode home holding a personal provider document with one
+ * provider and the given models, and points the provider at it.
  */
-const makeZcodeHome = async (mainModel = 'ark/glm-5.3'): Promise<string> => {
+const makeZcodeHome = async (modelIds = ['glm-5.3', 'glm-5.3-flash']): Promise<string> => {
   const home = await makeTempDir('zcode-home-');
-  await mkdir(path.join(home, 'cli'), { recursive: true });
+  await mkdir(path.join(home, 'v2'), { recursive: true });
   await writeFile(
-    path.join(home, 'cli', 'config.json'),
+    path.join(home, 'v2', 'provider_config.json'),
     JSON.stringify({
-      provider: {
-        ark: {
-          options: { baseURL: 'https://ark.example/api', apiKey: 'ark-secret' },
-          models: {
-            'glm-5.3': { name: 'GLM 5.3' },
-            'glm-5.3-flash': { name: 'GLM 5.3 Flash' },
-          },
+      schemaVersion: 1,
+      config: {
+        providerOrder: ['ark'],
+        providerConfigRules: {
+          providerRules: [
+            {
+              providerId: 'ark',
+              enabled: true,
+              config: {
+                visibility: 'visible',
+                access: { type: 'api-key', apiKey: 'ark-secret' },
+                api: { type: 'anthropic-messages', baseUrl: 'https://ark.example/api' },
+                personalModelIds: modelIds,
+              },
+            },
+          ],
         },
       },
-      model: { main: mainModel },
     }),
     'utf8',
   );
   setZcodeHomeDirForTests(home);
   return home;
-};
-
-const readMainModel = async (home: string): Promise<string | undefined> => {
-  const config = JSON.parse(await readFile(path.join(home, 'cli', 'config.json'), 'utf8')) as {
-    model?: { main?: string };
-  };
-  return config.model?.main;
 };
 
 function makeContext(providerSessionIds: Map<string, string | null> = new Map()): ProviderRuntimeContext {
@@ -128,6 +131,11 @@ function makeWriter(captured: Captured[]): ProviderRuntimeWriter {
 }
 
 const kindsOf = (captured: Captured[]): string[] => captured.map((entry) => entry.kind);
+
+const streamedText = (captured: Captured[]): string => captured
+  .filter((entry) => entry.kind === 'stream_delta' && entry.streamChannel === 'text')
+  .map((entry) => entry.content)
+  .join('');
 
 test('a new session announces its id, streams thinking and text, and completes', async () => {
   const captured: Captured[] = [];
@@ -154,6 +162,22 @@ test('a new session announces its id, streams thinking and text, and completes',
 
   const complete = captured.find((entry) => entry.kind === 'complete');
   assert.equal(complete?.exitCode, 0);
+});
+
+test('preserves the spaces between English words across streamed deltas', async () => {
+  const captured: Captured[] = [];
+  useMockCli();
+  process.env.MOCK_MODE = 'space-deltas';
+
+  await zcodeRuntime.run('Say hi', { sessionId: 'app-1', projectPath: process.cwd() }, makeWriter(captured), makeContext());
+
+  // The terminal `turn.completed` response is not re-emitted once text streamed,
+  // so this is exactly the text a whitespace-dropping normalizer would corrupt.
+  const text = captured
+    .filter((entry) => entry.kind === 'stream_delta' && entry.streamChannel === 'text')
+    .map((entry) => entry.content)
+    .join('');
+  assert.equal(text, 'Hello world, this is a test.');
 });
 
 test('resume passes --resume, maps acceptEdits to edit, and does not re-announce', async () => {
@@ -362,11 +386,12 @@ test('passes --attach for attachments inside the working directory', async () =>
   assert.ok(args.includes(attachment));
 });
 
-test('a requested non-default model rides the ZCODE_MODEL env channel and leaves the config alone', async () => {
+test('a requested non-default model rides a generated provider-config copy and leaves the document alone', async () => {
   const captured: Captured[] = [];
-  const home = await makeZcodeHome('ark/glm-5.3');
+  const home = await makeZcodeHome();
   const envFile = path.join(await makeTempDir('zcode-env-'), 'env.json');
-  const configBefore = await readFile(path.join(home, 'cli', 'config.json'), 'utf8');
+  const configPath = path.join(home, 'v2', 'provider_config.json');
+  const configBefore = await readFile(configPath, 'utf8');
   useMockCli();
   process.env.MOCK_MODE = 'success';
   process.env.ZCODE_MOCK_ENV_FILE = envFile;
@@ -378,19 +403,24 @@ test('a requested non-default model rides the ZCODE_MODEL env channel and leaves
     makeContext(),
   );
 
-  assert.deepEqual(JSON.parse(await readFile(envFile, 'utf8')), {
-    ZCODE_MODEL: 'ark/glm-5.3-flash',
-    ZCODE_BASE_URL: 'https://ark.example/api',
-    ZCODE_API_KEY: 'ark-secret',
-  });
+  const dumped = JSON.parse(await readFile(envFile, 'utf8')) as {
+    ZCODE_PERSONAL_PROVIDER_CONFIG_FILE?: string;
+  };
+  const generatedPath = dumped.ZCODE_PERSONAL_PROVIDER_CONFIG_FILE;
+  assert.ok(generatedPath, 'the run must point the CLI at a generated copy');
+  // The copy is removed once the run finishes.
+  assert.equal(existsSync(generatedPath), false);
+  // The CLI resolved the selected model from the copy (the mock mirrors
+  // 0.16.9's default-model resolution).
+  assert.ok(streamedText(captured).includes('MODEL:ark/glm-5.3-flash'), streamedText(captured));
   assert.equal(captured.find((entry) => entry.kind === 'complete')?.exitCode, 0);
-  // The whole point of the env channel: no global config mutation.
-  assert.equal(await readFile(path.join(home, 'cli', 'config.json'), 'utf8'), configBefore);
+  // The whole point of the copy channel: no mutation of the user's document.
+  assert.equal(await readFile(configPath, 'utf8'), configBefore);
 });
 
-test('the default model is left to the config instead of the env channel', async () => {
+test('the default model is left to the document instead of a generated copy', async () => {
   const captured: Captured[] = [];
-  const home = await makeZcodeHome('ark/glm-5.3');
+  await makeZcodeHome();
   const envFile = path.join(await makeTempDir('zcode-env-'), 'env.json');
   useMockCli();
   process.env.MOCK_MODE = 'success';
@@ -403,15 +433,56 @@ test('the default model is left to the config instead of the env channel', async
     makeContext(),
   );
 
-  // An empty dump means the CLI ran without the override environment.
+  // An empty dump means the CLI ran without a generated copy.
   assert.deepEqual(JSON.parse(await readFile(envFile, 'utf8')), {});
   assert.equal(captured.find((entry) => entry.kind === 'complete')?.exitCode, 0);
-  assert.equal(await readMainModel(home), 'ark/glm-5.3');
 });
 
-test('a model whose channel cannot be resolved fails the run before spawning', async () => {
+test('a bundled run receives the built-in provider config hint', async () => {
   const captured: Captured[] = [];
-  const home = await makeZcodeHome('ark/glm-5.3');
+  const resourcesDir = await makeTempDir('zcode-bundle-');
+  const bundle = path.join(resourcesDir, 'glm', 'zcode.mjs');
+  const builtinConfig = path.join(resourcesDir, 'config', 'provider', 'zcode-builtin.json');
+  await mkdir(path.dirname(bundle), { recursive: true });
+  await mkdir(path.dirname(builtinConfig), { recursive: true });
+  await writeFile(bundle, await readFile(MOCK_CLI, 'utf8'), 'utf8');
+  await writeFile(builtinConfig, '{}', 'utf8');
+  // `setZcodeBundledCliPathsForTests` already clears the cached resolution; a
+  // follow-up `resetZcodeCommandForTests()` would restore the real bundle list.
+  setZcodeBundledCliPathsForTests([bundle]);
+
+  // Force the resolver past `which zcode` (empty dir first) while keeping the
+  // `node` the runtime spawns reachable.
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${await makeTempDir('zcode-bundle-path-')}:${path.dirname(process.execPath)}:/usr/bin:/bin`;
+  const envFile = path.join(await makeTempDir('zcode-env-'), 'env.json');
+  process.env.MOCK_MODE = 'success';
+  process.env.ZCODE_MOCK_ENV_FILE = envFile;
+
+  try {
+    await zcodeRuntime.run(
+      'Bundled run',
+      { sessionId: 'app-1', projectPath: process.cwd() },
+      makeWriter(captured),
+      makeContext(),
+    );
+  } finally {
+    if (originalPath === undefined) {
+      delete process.env.PATH;
+    } else {
+      process.env.PATH = originalPath;
+    }
+  }
+
+  assert.deepEqual(JSON.parse(await readFile(envFile, 'utf8')), {
+    ZCODE_BUILTIN_PROVIDER_CONFIG_FILE: builtinConfig,
+  });
+  assert.equal(captured.find((entry) => entry.kind === 'complete')?.exitCode, 0);
+});
+
+test('a model whose provider cannot be resolved fails the run before spawning', async () => {
+  const captured: Captured[] = [];
+  await makeZcodeHome();
   const argsFile = path.join(await makeTempDir('zcode-args-'), 'args.json');
   useMockCli();
   process.env.MOCK_MODE = 'success';
@@ -424,9 +495,8 @@ test('a model whose channel cannot be resolved fails the run before spawning', a
     makeContext(),
   );
 
-  assert.match(String(captured.find((entry) => entry.kind === 'error')?.content), /no provider "nope"/);
+  assert.match(String(captured.find((entry) => entry.kind === 'error')?.content), /no api-key provider "nope"/);
   assert.equal(captured.find((entry) => entry.kind === 'complete')?.exitCode, 1);
   // The run never started, so the CLI was never spawned.
   assert.equal(existsSync(argsFile), false);
-  assert.equal(await readMainModel(home), 'ark/glm-5.3');
 });
