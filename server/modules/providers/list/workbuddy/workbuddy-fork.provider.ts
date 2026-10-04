@@ -23,12 +23,19 @@ import { AppError } from '@/shared/utils.js';
 export class WorkbuddyForkProvider implements IProviderFork {
   async forkSession(input: {
     providerSessionId: string;
-    jsonlPath: string;
+    jsonlPath: string | null;
     projectPath: string;
     upToAnchorId?: string;
     title?: string;
   }): Promise<{ providerSessionId: string; jsonlPath: string }> {
-    const { jsonlPath, upToAnchorId } = input;
+    const { upToAnchorId } = input;
+    const jsonlPath = input.jsonlPath;
+    if (!jsonlPath) {
+      throw new AppError('The WorkBuddy transcript path is missing.', {
+        code: 'FORK_SOURCE_NOT_READY',
+        statusCode: 409,
+      });
+    }
 
     const rows = await this.readRows(jsonlPath);
     const keepCount = this.resolveKeepCount(rows, upToAnchorId);

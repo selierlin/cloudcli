@@ -1,4 +1,5 @@
 import { OmpProviderAuth } from '@/modules/providers/list/omp/omp-auth.provider.js';
+import { OmpForkProvider } from '@/modules/providers/list/omp/omp-fork.provider.js';
 import { OmpMcpProvider } from '@/modules/providers/list/omp/omp-mcp.provider.js';
 import { OmpProviderModels } from '@/modules/providers/list/omp/omp-models.provider.js';
 import { ompRuntime } from '@/modules/providers/list/omp/omp-runtime.provider.js';
@@ -8,6 +9,7 @@ import { OmpSkillsProvider } from '@/modules/providers/list/omp/omp-skills.provi
 import { AbstractProvider } from '@/modules/providers/shared/base/abstract.provider.js';
 import type {
   IProviderAuth,
+  IProviderFork,
   IProviderModels,
   IProviderRuntime,
   IProviderSessionSynchronizer,
@@ -20,8 +22,8 @@ import type {
  * same one-shot JSON CLI contract but with its own flag names, model catalog,
  * auth surface, and agent directory.
  *
- * Forking is deliberately absent: OMP ships no `--fork`, and its transcript
- * format is the only thing this adapter reuses from Pi.
+ * OMP ships no `--fork`, so branching is materialised by copying the
+ * transcript prefix into a new session file — see {@link OmpForkProvider}.
  */
 export class OmpProvider extends AbstractProvider {
   readonly runtime: IProviderRuntime = ompRuntime;
@@ -31,6 +33,7 @@ export class OmpProvider extends AbstractProvider {
   readonly skills: IProviderSkills = new OmpSkillsProvider();
   readonly sessions: IProviderSessions = new OmpSessionsProvider();
   readonly sessionSynchronizer: IProviderSessionSynchronizer = new OmpSessionSynchronizer();
+  readonly fork: IProviderFork = new OmpForkProvider();
 
   constructor() {
     super('omp');

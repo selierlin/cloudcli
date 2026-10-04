@@ -102,7 +102,10 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsTokenUsage: true,
     supportsEffort: true,
     supportsMessageEditing: false,
-    supportsSessionForking: false,
+    // Forking rides OpenCode's own HTTP API, driven through a throwaway
+    // `opencode serve`: it remaps message ids itself, so the copy is a native
+    // session the CLI resumes like any other. See OpenCodeForkProvider.
+    supportsSessionForking: true,
   },
   workbuddy: {
     provider: 'workbuddy',
@@ -181,9 +184,14 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsTokenUsage: true,
     // No reasoning-effort entry point in the headless CLI.
     supportsEffort: false,
-    // No resume-at-a-row or transcript fork in the one-shot `--prompt` path.
+    // No resume-at-a-row in the one-shot `--prompt` path.
     supportsMessageEditing: false,
-    supportsSessionForking: false,
+    // The CLI's bundled `app-server` protocol has `session/fork`, which copies a
+    // conversation up to a message. When the dropped turns carry their own
+    // workspace checkpoints that copy also rewinds files to the fork point, so
+    // forking is gated on a pre-check that refuses such a branch — see
+    // ZcodeForkProvider.
+    supportsSessionForking: true,
   },
   omp: {
     provider: 'omp',
@@ -205,8 +213,11 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     // `thinking` array in `omp models --json`.
     supportsEffort: true,
     supportsMessageEditing: false,
-    // OMP ships no `--fork` and no resume-at-a-row.
-    supportsSessionForking: false,
+    // OMP ships no `--fork`, but a session is a self-contained JSONL file the
+    // CLI loads by id: the fork copies the transcript prefix into a new file
+    // under a fresh id, which the next `--session` run picks up. See
+    // OmpForkProvider.
+    supportsSessionForking: true,
   },
 };
 

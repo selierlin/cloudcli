@@ -361,9 +361,11 @@ export const sessionsService = {
       });
     }
 
-    // A session that has never run has no transcript to copy, so there is
-    // nothing a fork of it could resume from.
-    if (!source.provider_session_id || !source.jsonl_path) {
+    // A session that has never run has no provider session to copy, so there
+    // is nothing a fork of it could resume from. Whether the fork also needs a
+    // transcript artifact is the provider's call: a file-backed provider
+    // rejects a missing path, a store-backed one (OpenCode) has no file at all.
+    if (!source.provider_session_id) {
       throw new AppError('This session has not produced a transcript yet.', {
         code: 'FORK_SOURCE_NOT_READY',
         statusCode: 409,
