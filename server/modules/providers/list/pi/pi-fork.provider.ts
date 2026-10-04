@@ -18,7 +18,7 @@ type PiForkHeader = {
 export class PiForkProvider implements IProviderFork {
   async forkSession(input: {
     providerSessionId: string;
-    jsonlPath: string;
+    jsonlPath: string | null;
     projectPath: string;
     upToAnchorId?: string;
     title?: string;
@@ -32,6 +32,12 @@ export class PiForkProvider implements IProviderFork {
     if (!await supportsPiFork()) {
       throw new AppError('The installed Pi CLI does not support session forking.', {
         code: 'FORK_NOT_SUPPORTED',
+        statusCode: 409,
+      });
+    }
+    if (!input.jsonlPath) {
+      throw new AppError('The Pi transcript path is missing.', {
+        code: 'FORK_SOURCE_NOT_READY',
         statusCode: 409,
       });
     }

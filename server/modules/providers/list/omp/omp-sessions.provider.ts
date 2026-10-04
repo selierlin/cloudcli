@@ -141,6 +141,29 @@ const readNonEmptyString = (...values: unknown[]): string | undefined => {
 };
 
 /**
+ * Normalizes one OMP AgentMessage into app messages, oldest-first, and stamps
+ * every row with the entry id that owns it.
+ *
+ * The stamp is the fork anchor: OMP's fork cut is per entry, so a "fork from
+ * here" on any row of an entry keeps the active branch up to and including that
+ * entry. See {@link buildOmpAgentMessages} for the row mapping itself.
+ */
+export function normalizeOmpAgentMessage(
+  message: OmpAgentMessage,
+  entryId: string | undefined,
+  sessionId: string | null,
+  timestamp?: string,
+): NormalizedMessage[] {
+  const messages = buildOmpAgentMessages(message, entryId, sessionId, timestamp);
+  if (entryId) {
+    for (const normalized of messages) {
+      normalized.forkAnchorId = entryId;
+    }
+  }
+  return messages;
+}
+
+/**
  * Normalizes one OMP AgentMessage (history entry or live `message_end`) into
  * app messages, oldest-first. Content blocks map one-to-one (thinking/text/tool
  * call), image blocks become inline data URLs (OMP stores base64 in the
@@ -151,7 +174,7 @@ const readNonEmptyString = (...values: unknown[]): string | undefined => {
  * `omp-<entryId>` with a `-<blockIndex>` discriminator when one entry produces
  * multiple rows.
  */
-export function normalizeOmpAgentMessage(
+function buildOmpAgentMessages(
   message: OmpAgentMessage,
   entryId: string | undefined,
   sessionId: string | null,

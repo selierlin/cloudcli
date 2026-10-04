@@ -1,6 +1,6 @@
 # WorkBuddy、OpenCode、Pi 对话编辑与 Fork 实施方案
 
-> **状态**：待审阅；本文只定义实施方案，不包含业务代码改动。
+> **状态**：待审阅；本文只定义实施方案，不包含业务代码改动。（**例外**：§4 的 OpenCode 消息级 Fork 已于 2026-10-04 实施，正文已回写实测事实。）
 >
 > **日期**：2026-09-14
 >
@@ -19,7 +19,7 @@ CloudCLI 已有三种不同但相关的用户能力：
 | Provider | 本次要补齐的能力 | 不在本次范围内 |
 | --- | --- | --- |
 | WorkBuddy / CodeBuddy | 编辑历史用户消息 | 已上线的聊天内 Fork、侧边栏 Fork 不重做 |
-| OpenCode | 仅保留后续接入说明 | 本期不实现 Fork、编辑、本地 API client 或共享契约改造 |
+| OpenCode | 消息级 Fork（聊天内 + 侧边栏） | 消息编辑、常驻本地 server 不在本次范围（见 §4） |
 | Pi | 第一阶段仅侧边栏完整会话 Fork | 指定消息 Fork、编辑历史消息，待原生 RPC/SDK 验证后另立方案 |
 
 ### 1.1 关键决策
@@ -39,7 +39,7 @@ CloudCLI 已有三种不同但相关的用户能力：
 - `IProviderSessions.rewindSession()`：当 provider 不支持原地续跑时，创建前缀副本并把**原 CloudCLI session row**重定向到副本。
 - 后端能力矩阵的 `supportsMessageEditing` 与 `supportsSessionForking` 是前端唯一的显示开关；不在 React 中判断 provider id。
 
-OpenCode 若未来接入，因其没有会话级 JSONL artifact，届时再设计 provider-owned fork source 校验与可空 artifact 契约；本期不为尚未接入的 provider 修改共享接口或数据库签名。
+OpenCode 若未来接入，因其没有会话级 JSONL artifact，届时再设计 provider-owned fork source 校验与可空 artifact 契约；本期不为尚未接入的 provider 修改共享接口或数据库签名。（**2026-10-04 已按此完成**：`IProviderFork.forkSession` 的 `jsonlPath` 放宽为 `string | null`，源就绪校验下放给 provider 自证，见 §4。）
 
 需要保持的现有链路：
 
@@ -88,19 +88,32 @@ OpenCode 若未来接入，因其没有会话级 JSONL artifact，届时再设�
 - WebSocket：编辑中间用户消息后，原 session 的 `jsonl_path` 已指向新文件、新文件行的 session id 均为新 id、旧文件已标记 superseded；刷新页面后不再展示被舍弃的尾部。
 - 回归：WorkBuddy 聊天内 Fork 和侧边栏 Fork 仍创建独立 app session，不影响原会话。
 
-## 4. OpenCode：后续接入预留（本期不实现）
+## 4. OpenCode：消息级 Fork 已实施（2026-10-04）
 
-OpenCode SDK 已公开“从特定消息 Fork”的 Session API，但 CloudCLI 当前只运行 `opencode run --session` 并直接读取 `opencode.db`。本期不新增 API client、不启动本地 server、不修改 `IProviderFork`、数据库签名或能力矩阵。
+原先这里的“后续接入预留（本期不实现）”已落地。实测确认 OpenCode 具备消息级 Fork，且不必改共享契约的语义——只需把“源是否就绪”下放给 provider 自证。
 
-未来开始接入前，按以下顺序补充：
+### 4.1 实测的底座事实（opencode 1.18.34）
 
-1. 固定并记录 OpenCode 版本和安装来源；验证本地 server 的启动、endpoint 发现、认证、并发和关闭策略。
-2. 在临时 workspace 验证指定 user/assistant message Fork、完整 Fork、子会话续跑、原会话不变，以及 Fork 是否包含选中 message。
-3. 通过后，在 `server/modules/providers/list/opencode/` 新建 `OpenCodeSessionClient` 与 `opencode-fork.provider.ts`；前者只管理本地 API 调用，后者实现 `IProviderFork`。
-4. 为 `opencode-sessions.provider.ts` 的普通文本设置锚点，并按去重后的 `message_id` 解析编辑前的保留点。
-5. 最后才抽象 provider-owned fork source 校验和可空 artifact 契约；OpenCode 的 `jsonl_path` 必须保持 `null`，不得把共享 `opencode.db` 当作可删除的单会话 transcript。
+- **本地 server**：`opencode serve`，默认 `--port 0`（OS 分配）、`--hostname 127.0.0.1`，未设 `OPENCODE_SERVER_PASSWORD` 即无鉴权；冷启动到就绪约 0.6s。
+- **唯一消息级入口**：`POST /session/{id}/fork`，body `{messageID}`（省略即整段）。CLI 只有 `session list/delete`，没有 fork 子命令；`run --fork` 只能整份且会真的续跑，故不采用。
+- **切点不含锚点**：在消息 N 处 fork，子会话只保留 N 之前的内容。而本方案契约（Claude/Codex/WorkBuddy）是**含锚点**，因此 provider 内部把锚点映射为其**后继消息**；锚点是最后一条时传空 body（整段），按含锚点读仍是完整前缀。
+- **产物是独立顶层会话**：`parent_id` 为 NULL、消息 id 全部重映射、标题 `New session - … (fork #N)`；源会话逐字节不变；fork 不调模型、零成本。
+- OpenCode 的 fork 不写 `parent_id`，所以同步器（`parent_id IS NULL` 过滤）会正常把它索引成一条侧边栏会话。
 
-若上游只能依赖不稳定的内部 CLI 启动方式，则不实现，继续保持 OpenCode 无编辑/Fork 能力。
+### 4.2 交付内容
+
+- `opencode-session-client.ts`：**按需临时**拉起 `opencode serve`（`--port 0`，从日志行 `listening on http://…` 读回端口），探测就绪后发起 fork，随后 SIGTERM/SIGKILL 收尾。无常驻守护、无固定端口。
+- `opencode-fork.provider.ts`：实现 `IProviderFork`；`resolveOpenCodeForkCut()` 做上述含锚点映射；返回 `jsonlPath: null`。
+- `opencode.provider.ts` 挂 `readonly fork`；`opencode-sessions.provider.ts` 给普通文本消息盖 `forkAnchorId`（= 行自身的 `message_id`，而非展示用的复合 id）。
+- 能力矩阵 `opencode.supportsSessionForking = true`（`supportsMessageEditing` 保持 false）。侧边栏整会话 Fork 与聊天内 Fork 共用同一个 `IProviderFork` + 能力位，因此两者同时点亮。
+
+### 4.3 共享契约的改动（原第 5 条）
+
+`IProviderFork.forkSession` 的 `jsonlPath` 改为 `string | null`；`forkSessionById` 只再要求 `provider_session_id`，“是否需要 transcript artifact”下放给各 provider 自证（Claude/WorkBuddy/Pi 在自身文件内校验并抛 `FORK_SOURCE_NOT_READY`）。OpenCode 的 `jsonl_path` **保持 `null`**，共享 `opencode.db` 不当可删除的单会话 transcript。
+
+### 4.4 仍未做
+
+- **消息编辑**（`supportsMessageEditing`）：需要 `resolveEditAnchor`；OpenCode 的 `revert/unrevert` 是另一条语义（回退当前会话而非派生副本），不在本次范围。
 
 ## 5. Pi：第一阶段只实现完整会话 Fork
 
@@ -140,14 +153,76 @@ Pi 0.85.1 已公开 RPC `fork` / `clone` 及 SDK 的 SessionManager fork 能力�
 - 真实 smoke：完整会话 Fork 后在子会话发送 follow-up，验证模型能看到源会话的末尾上下文；原会话继续发送时不出现子会话内容。
 - UI：运行中会话不显示侧边栏 Fork；已完成会话显示且点击后导航至新会话。未落盘会话的隐藏需先为侧边栏 payload 增加 `hasTranscript`（或等价字段）后才可作为验收项，本变更不将它写成既有行为。
 
+### 5.6 OMP：消息级 Fork 已实施（2026-10-04）
+
+OMP（oh-my-pi）是 Pi 的硬分叉、共用同一套会话 JSONL 格式，故并入本节记录；不新增顶级章节，以免打乱 §6–§8 的既有引用。
+
+### 5.6.1 实测的底座事实（omp 18.4.12）
+
+- **转录布局与 Pi 同形**：`<sessions>/--<realpath 编码 cwd>--/<ISO 时间戳>_<uuid>.jsonl`（`PI_CODING_AGENT_SESSION_DIR` 时平铺）。
+- **首行是 255 字节定宽 title 槽**：`{"type":"title","v":1,"title":"","updatedAt":…,"pad":"<空格>"}`，恰 255 字节 + `\n`；OMP 会**原地改写**这一行。第 2 行才是 `{"type":"session","version":3,"id","timestamp","cwd"}`。
+- **条目是单父 `parentId` 链**，`message` 条目的 `id` 是 8 位十六进制、天然可作锚点；`model_change` / `thinking_level_change` / `custom` 等非消息条目也在链上。
+- OMP **没有 headless `--fork`**；但会话文件自足，`--session <id>` 会按 `_<id>.jsonl` 后缀在 cwd 桶内找到并续写——这满足 §1.1「由 provider 正式、可验证的持久化格式生成」。
+
+### 5.6.2 交付内容
+
+- `omp-fork.provider.ts`：`selectOmpForkBranch()` 从文件尾沿 `parentId` 走出**活动分支**并做含锚点截断（被放弃的兄弟分支不进子会话）；`buildOmpForkTranscript()` **逐字节原样保留 title 槽**（重新序列化会缩短定宽行、破坏原地改写）、仅重写 session header 的 `id`、其余条目按原字节输出；新文件写在**源文件同目录**（不重新推导 cwd 编码，避免第二处真源）。
+- `omp.provider.ts` 挂 `readonly fork`；`omp-sessions.provider.ts` 给每个 entry 产出的行盖 `forkAnchorId = entryId`（原始条目 id，非展示用的 `omp-<id>` 复合 id）。
+- 能力矩阵 `omp.supportsSessionForking = true`（`supportsMessageEditing` 保持 `false`）。
+
+### 5.6.3 真机验收
+
+- 从 **user 锚点** fork：子文件恰含锚点及其之前的活动分支；`omp --session <child-id>` 续跑成功，新 user 行的 `parentId` 等于锚点条目 id（线性续写）；源文件逐字节不变。
+- 切在**工具调用轮**的助手条目（`stopReason=toolUse`）会留下一个未应答的 toolCall；实测 OMP **不报错也不悬挂**，而是重跑该工具后继续给出回答。前端 Fork 按钮只出现在 user 文本行与 assistant 文本行（`MessageComponent` 排除 thinking / tool_use 行），故实际切点绝大多数落在完整条目上。
+
+### 5.6.4 仍未做
+
+- **消息编辑**（`supportsMessageEditing`）：需要 `resolveEditAnchor` / rewind 语义，未做。
+- compaction / branch_summary 行不盖 `forkAnchorId`：其渲染分支没有 Fork 按钮，盖章是死数据。
+
+### 5.7 ZCode：消息级 Fork 已实施（2026-10-04）
+
+#### 5.7.1 实测的底座事实（ZCode 0.16.9 内置 bundle）
+
+- **唯一入口是内置 app-server**：`node <ZCode.app>/Resources/glm/zcode.cjs app-server --stdio`（`ZCODE_BUILTIN_PROVIDER_CONFIG_FILE` 由既有 `resolveZcodeCommand()` 注入）。协议是 **NDJSON**（一行一帧，无 `Content-Length`、无 `jsonrpc` 字段），信封形如 `{id, method, params}`；启动后会先发若干 `startup/storageState` 通知。
+- **必须先 `session/resume`**：直接 `session/fork` 会返回 `-32004 Session is not active: <id>`；resume 后 fork 才成立。resume 期间 app-server 会**反向请求** `session/requestRuntimePreferences`（`scope` 为 `runtime-materialization` / `user-execution`，15s 超时），客户端必须应答，否则退到默认值。
+- **fork 入参只有三个字段**：`{sessionId, target, expectedRevision?}`（schema `mGt`）。`target:{kind:'message',messageId}` 即我们用的路径；应答为 `{forkedSessionId, parentSessionId?, targetMessageId?, targetCheckpointId?, response, snapshot}`。
+- **切点天然含锚点**：`target:{kind:'message'}` 走 `lRo`，保留锚点及之前；实测锚点=第 N 条 → `copied N messages`。与 Claude/Codex/WorkBuddy 契约一致，**不需要** OpenCode 那种后继映射。
+- **⚠️ 破坏性副作用（本片的核心风险）**：`session/fork` 会走 `forkWorkspaceAtMessage` → 对被丢弃轮次中**带自身 workspace 检查点**的，调用 `restoreWorkspaceCheckpointFiles` **真写盘**把工作区回退到 fork 点（丢弃轮次改过的文件被改回去）。这在无改动的会话上是零写盘（委托 `oRo` 纯会话 fork），但一旦命中共用工作区就会被悄悄改写。
+- 检查点记录在 `~/.zcode/cli/db/db.sqlite` 的 `session_entry`，`type='runtime/workspace_checkpoint'`，`data.payload` 带 `messageId` / `targetMessageId` / `toolMessageId` / `turnId`，行自带 `time_created`。
+- 没有关闭检查点恢复的开关：`editUserQuery` 的 `workspaceMode: preserve|rewind` 在 fork 上没有对应物；非破坏变体 `sRo`/`iRo` 只在 v4 gateway（桌面端 `forkAssistant`），不在 app-server 方法表内。
+
+#### 5.7.2 交付内容
+
+- `zcode-app-server-client.ts`：**按需临时**拉起 `app-server --stdio`，NDJSON 读写；对 `session/requestRuntimePreferences` 回 `{nativeSearchEnhancementsEnabled:false, memoryEnabled:false, askUserQuestionAutoResolutionEnabled:true}`（严格 schema，含带默认值的字段），未知反向请求回 `-32601`；`forkSession()` 先 `session/resume` 再 `session/fork`，随后 SIGTERM/SIGKILL 收尾。
+- `zcode-fork.provider.ts`：实现 `IProviderFork`；`planZcodeFork()` 决定切点并做守卫；返回 `jsonlPath: null`（共享 DB，无单会话 artifact）。
+- **工作区回退守卫**（本次拍板走 A）：fork 前读 zcode DB，**只要锚点之后存在 workspace 检查点就拒绝**（`FORK_WOULD_REWIND_WORKSPACE`）。判据是时间戳：`session_entry.time_created > 锚点 message.time_created`。被丢弃轮次的检查点必然写在该轮消息之后、也就必然晚于它被丢弃时所在的锚点，故比较时间戳能穷尽回退情形；锚点是末条时无丢弃轮次，天然不触发。守卫从保守方向判（宁可多拦），且**先于**任何进程拉起，不会先毁后报。
+- 另加**第二路信号**：fork 应答里的 `restored N files` 从句由 `reportsWorkspaceRestore()` 识别；守卫正确时它不可达，命中只记 `console.warn`（回归不得静默）。
+- `zcode.provider.ts` 挂 `readonly fork`；`zcode-sessions.provider.ts` 历史行盖 `forkAnchorId = row.message_id`（provider 原生消息 id，不是展示用的 `<message>_<part>` 复合 id）。
+- 能力矩阵 `zcode.supportsSessionForking = true`（`supportsMessageEditing` 保持 false）。
+- **拒绝的可见化（前端）**：消息级 fork 失败不再静默。失败分支改为 `alert` 出文案——`FORK_WOULD_REWIND_WORKSPACE` 走专用文案（`message.forkWorkspaceRewind`：提示改从更靠后的消息或会话末尾派生），其余错误码走通用文案（`message.forkFailed`）。错误码→文案键的映射抽为 `src/modules/chat/utils/forkFailureMessage.ts` 并单测（钉死 wire code 字面量）。同时修正原写法读 `payload?.message`（服务端错误体是 `{success:false, error:{code,message}}`，该字段恒为 `undefined`，导致连泛化文案都取不到）——改为读 `payload.error.code` 决定文案。
+
+#### 5.7.3 真机验收（ZCode 0.16.9）
+
+- 冒烟：临时工作区新建会话（无文件改动）→ resume + fork → 应答为 `"...copied N messages."`（**无 `restored` 从句**），工作区不变。
+- 走**本实现**（非探针脚本）的端到端：① 对带检查点的真实会话在锚点较早处 fork → 守卫拒绝 `FORK_WOULD_REWIND_WORKSPACE`（未拉起任何进程）；② 对无检查点会话在末条 fork → 成功返回新 `sess_…`，约 0.9s。
+- 探针会话与 rollout 已清理，源会话与仓库工作区未受影响。
+
+#### 5.7.4 仍未做
+
+- **消息编辑**（`supportsMessageEditing`）：需要 `resolveEditAnchor`，未做。
+- **守卫的更细判定**：当前按时间戳保守判定；`runtime/workspace_checkpoint` 的 `payload.turnId` 可给出更细的轮次归属，若将来误拦过多可据此收紧，本期不引入。
+- **拒绝提示的浏览器实测**：错误码→文案映射有单测覆盖，但"点按钮看到 alert"这一整链没有渲染级/真机测试（`ChatInterface` 依赖大量 context，仓库无其渲染级测试先例）；侧边栏整会话 Fork 的 `alert` 同样只有通用文案、无错误码分派（整会话 Fork 恒以末条为锚点，故 zcode 守卫在那里永不触发）。
+
 ## 6. 实施顺序与提交边界
 
-为便于回滚和审阅，按三个独立变更交付：
+为便于回滚和审阅，按独立变更交付：
 
 1. **WorkBuddy 编辑**：后端 sessions/fork helper、能力矩阵、单测与 WebSocket 回归。
 2. **Pi 完整会话 Fork**：先完成 §5.2 实测记录；通过后再新增 provider fork facet、能力矩阵和测试。
-
-OpenCode 不进入本期交付；未来的验证失败也不阻塞 WorkBuddy/Pi 的独立交付。
+3. **OpenCode 消息级 Fork**（2026-10-04 已完成）：见 §4；与 WorkBuddy/Pi 相互独立，任一验证失败不阻塞其它两条。
+4. **OMP 消息级 Fork**（2026-10-04 已完成）：见 §5.6；纯文件复制路线，不依赖任何常驻通道或新增依赖。
+5. **ZCode 消息级 Fork**（2026-10-04 已完成）：见 §5.7；走内置 `app-server` 通道，并带工作区回退守卫（拒绝会回退共享工作区的分支）。
 
 ## 7. 非目标与回退策略
 

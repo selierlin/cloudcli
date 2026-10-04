@@ -92,12 +92,17 @@ export interface IProviderFork {
    */
   forkSession(input: {
     providerSessionId: string;
-    jsonlPath: string;
+    /**
+     * The source transcript file, or `null` for a provider whose sessions live
+     * in a shared store instead of per-session files (OpenCode). A provider
+     * that reads this owns validating it and rejects a `null` it cannot use.
+     */
+    jsonlPath: string | null;
     /** The session's working directory — how providers scope a session lookup. */
     projectPath: string;
     upToAnchorId?: string;
     title?: string;
-  }): Promise<{ providerSessionId: string; jsonlPath: string }>;
+  }): Promise<{ providerSessionId: string; jsonlPath: string | null }>;
 }
 
 // ---------------------------

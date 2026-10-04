@@ -244,7 +244,11 @@ export const sessionsDb = {
     projectPath: string;
     customName: string | null;
     providerSessionId: string;
-    jsonlPath: string;
+    /**
+     * `null` for a provider whose sessions share one store rather than owning a
+     * transcript file (OpenCode) — the same convention `createSession` uses.
+     */
+    jsonlPath: string | null;
     forkedFromSessionId: string;
     nameSource: SessionNameSource;
     model: string | null;

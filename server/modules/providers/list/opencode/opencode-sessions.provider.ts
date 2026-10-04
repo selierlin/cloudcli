@@ -459,7 +459,7 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
           || parsedImages.attachments.length > 0
           || parsedFiles.attachments.length > 0
         ) {
-          normalized.push(createNormalizedMessage({
+          const textMessage = createNormalizedMessage({
             id: baseId,
             sessionId,
             timestamp,
@@ -469,7 +469,12 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
             content: parsedFiles.text,
             images: parsedImages.attachments.length > 0 ? parsedImages.attachments : undefined,
             files: parsedFiles.attachments.length > 0 ? parsedFiles.attachments : undefined,
-          }));
+          });
+          // The fork anchor is the row's own message id — stable across reads,
+          // unlike the composite display id — so "fork from here" addresses a
+          // message the same way Claude and Codex do.
+          textMessage.forkAnchorId = row.message_id;
+          normalized.push(textMessage);
         }
         continue;
       }
