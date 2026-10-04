@@ -25,10 +25,16 @@ const AUTH_STATUS_TTL_MS = 30_000;
 
 type ZcodeCommandSource = 'override' | 'path' | 'bundled' | 'missing';
 
-/** A resolved ZCode launcher: the executable plus any leading arguments it needs. */
+/** A resolved ZCode launcher: the executable plus the arguments and env it needs. */
 export type ZcodeCommandResolution = {
   command: string | null;
   baseArgs: string[];
+  /**
+   * Extra environment for the child process. Non-empty only for the bundled
+   * CLI, which needs a path hint the desktop app normally injects (see
+   * {@link resolveBundledCliEnv}).
+   */
+  env: Record<string, string>;
   source: ZcodeCommandSource;
 };
 
@@ -58,6 +64,40 @@ function quoteShellArg(value: string): string {
 }
 
 /**
+ * Extra environment the desktop app injects into every CLI child so the CLI can
+ * locate its built-in provider config.
+ *
+ * Without the hint the CLI derives that path from `process.argv[1]` with a
+ * fallback that assumes a deeper bundle layout than the app ships: the entry
+ * point is `<Resources>/glm/zcode.cjs` while the config lives at
+ * `<Resources>/config/provider/zcode-builtin.json`, so a bare
+ * `node <bundle>` invocation exits 1 with "无法定位 CLI ZCode Built-in Provider
+ * Config". Reproducing the app's own resolution keeps both the headless run and
+ * the terminal TUI working.
+ *
+ * Only the bundled file is injected: the CLI already defaults the personal
+ * overlay to `<data dir>/.zcode/v2/provider_config.json` (honoring
+ * `ZCODE_DATA_BASE_DIR`), and pointing it at the wrong root here would clobber
+ * that. Returns `{}` when the expected file is absent (a different bundle
+ * layout, e.g. a future release) or when the operator already set the variable,
+ * which takes precedence just as it does in the app.
+ */
+function resolveBundledCliEnv(bundledCliPath: string): Record<string, string> {
+  if (process.env.ZCODE_BUILTIN_PROVIDER_CONFIG_FILE?.trim()) {
+    return {};
+  }
+  const bundledConfig = path.join(
+    path.dirname(path.dirname(bundledCliPath)),
+    'config',
+    'provider',
+    'zcode-builtin.json',
+  );
+  return fs.existsSync(bundledConfig)
+    ? { ZCODE_BUILTIN_PROVIDER_CONFIG_FILE: bundledConfig }
+    : {};
+}
+
+/**
  * Resolves how to launch ZCode: an explicit `ZCODE_COMMAND` override, then a
  * `zcode` executable on PATH, then the desktop app's bundled bundle (run with
  * the PATH `node`, since the app does not ship its own runtime).
@@ -67,7 +107,7 @@ function resolveCommandUncached(): ZcodeCommandResolution {
   if (override) {
     const [command, ...baseArgs] = splitCommandOverride(override);
     if (command) {
-      return { command, baseArgs, source: 'override' };
+      return { command, baseArgs, env: {}, source: 'override' };
     }
   }
 
@@ -76,7 +116,7 @@ function resolveCommandUncached(): ZcodeCommandResolution {
     // `zcode` is on their own PATH.
     const resolved = execFileSync('which', ['zcode'], { encoding: 'utf8' }).trim();
     if (resolved) {
-      return { command: resolved, baseArgs: [], source: 'path' };
+      return { command: resolved, baseArgs: [], env: {}, source: 'path' };
     }
   } catch {
     // Fall through to the bundled CLI.
@@ -84,11 +124,11 @@ function resolveCommandUncached(): ZcodeCommandResolution {
 
   for (const candidate of bundledCliPaths) {
     if (fs.existsSync(candidate)) {
-      return { command: 'node', baseArgs: [candidate], source: 'bundled' };
+      return { command: 'node', baseArgs: [candidate], env: resolveBundledCliEnv(candidate), source: 'bundled' };
     }
   }
 
-  return { command: null, baseArgs: [], source: 'missing' };
+  return { command: null, baseArgs: [], env: {}, source: 'missing' };
 }
 
 /** Returns the cached command resolution, refreshing it after the TTL. */
@@ -103,18 +143,22 @@ export function resolveZcodeCommand(): ZcodeCommandResolution {
 }
 
 /**
- * Returns a shell-ready ZCode command.
+ * Returns a shell-ready ZCode command, with any needed environment prefixed.
  *
  * Used by the websocket shell service to spawn the ZCode TUI in a PTY without
  * relying on the PTY's own PATH. Falls back to the bare name so a missing
  * install surfaces as a normal ENOENT instead of a silently wrong command.
  */
 export function getZcodeCommand(): string {
-  const { command, baseArgs } = resolveZcodeCommand();
+  const { command, baseArgs, env } = resolveZcodeCommand();
   if (!command) {
     return 'zcode';
   }
-  return [command, ...baseArgs].map(quoteShellArg).join(' ');
+  const invocation = [command, ...baseArgs].map(quoteShellArg).join(' ');
+  const envPrefix = Object.entries(env)
+    .map(([key, value]) => `${key}=${quoteShellArg(value)}`)
+    .join(' ');
+  return envPrefix ? `${envPrefix} ${invocation}` : invocation;
 }
 
 /** Drops cached resolution and auth status (used by tests to force re-resolution). */

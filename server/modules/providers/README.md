@@ -159,33 +159,54 @@ CloudCLI login flow. `CODEBUDDY_CONFIG_DIR` and `WORKBUDDY_CONFIG_DIR` relocate
 the provider state, while `WORKBUDDY_RUN_TIMEOUT_MS` controls the live-run
 timeout (one hour by default).
 
-ZCode authentication is read from `~/.zcode/cli/config.json`: the provider is
-considered authenticated when that document declares at least one provider with
-an `options.apiKey` and a resolvable model (`model.main` or `provider.<id>.models`).
-The desktop app's OAuth credentials under `~/.zcode/v2/credentials.json` are not
-sufficient on their own — the CLI exits with "Model config is missing" without a
-`cli/config.json` provider. `ZCODE_COMMAND` overrides the CLI launcher
-(`<command> [args...]`). The config and session database are always rooted at
-`~/.zcode`: `ZCODE_STORAGE_DIR` was verified to move only auxiliary state
-(plugin cache) and must not be used to relocate them.
+ZCode authentication is read from the legacy `~/.zcode/cli/config.json`: the
+provider is considered authenticated when that document declares at least one
+provider with an `options.apiKey` and a resolvable model (`model.main` or
+`provider.<id>.models`). Since 0.16.9 the CLI no longer needs that document to
+run — its model layer moved to `~/.zcode/v2/provider_config.json` and the bundled
+catalog — so this is a legacy signal that can report a working app as
+unauthenticated once the app stops maintaining `cli/config.json`. `ZCODE_COMMAND`
+overrides the CLI launcher (`<command> [args...]`); the bundled CLI also receives
+a `ZCODE_BUILTIN_PROVIDER_CONFIG_FILE` hint because the catalog ships at a path
+the CLI's own `process.argv[1]`-relative fallback cannot find. The config and
+session database are always rooted at `~/.zcode`: `ZCODE_STORAGE_DIR` was
+verified to move only auxiliary state (plugin cache) and must not be used to
+relocate them.
 
-ZCode's model catalog mirrors every model declared under
-`provider.<id>.models`, valued `<providerId>/<modelId>` and grouped by channel so
-the `ark` and `deepseek` entries that share a model id stay distinguishable.
-`DEFAULT` is `model.main`. Headless ZCode has no model flag — `--model` does not
-exist, `--settings` is rejected by the parser despite appearing in `--help`, and
-a `/model` prompt is treated as plain text — but it does honour a per-process
-channel: `ZCODE_MODEL` + `ZCODE_BASE_URL` + `ZCODE_API_KEY` (all three required;
-verified against 0.16.5, where the trio is self-contained and the `<provider>/`
-prefix is carried through as a label). `resolveZcodeModelEnv` therefore resolves
-a selected model to that trio by reading its channel's `options.baseURL` and
-`options.apiKey` from the config, and the runtime passes it to the spawn. The
-config is never written, and the rest of it (MCP servers, skills, permissions,
-tools) still loads. Selecting the model `model.main` already names returns no
-override, leaving that run on the config path, which also carries provider
-headers, timeouts, and request signing. A model whose channel cannot supply a
-base URL and key fails the run before spawning rather than silently answering on
-a different model.
+ZCode 0.16.9 resolves its model layer from the personal provider document
+`~/.zcode/v2/provider_config.json` (a `{ schemaVersion, config }` wrapper whose
+`config.providerConfigRules.providerRules` list providers and
+`config.personalModelIds` list their models); the legacy `~/.zcode/cli/config.json`
+no longer feeds that registry. CloudCLI's catalog mirrors every visible `api-key`
+provider in `providerOrder`, valued `<providerId>/<modelId>` and grouped by
+channel so providers that share a model id stay distinguishable, and appends the
+official coding-plan models (`bigmodel/GLM-5.3`, `bigmodel/GLM-5.3-Flash`) when
+their key can be recovered. ZCode's own account provider is unusable from a
+standalone CLI — the desktop app resolves its entitlement — so the same
+coding-plan key is re-exposed as an ordinary `api-key` provider against
+`https://open.bigmodel.cn/api/anthropic`. The key lives in
+`~/.zcode/v2/credentials.json` under an AES-256-GCM key derived from
+`sha256(ZCODE_CREDENTIAL_SECRET)` whose fallback is reproducible from the machine
+identity, so CloudCLI can recover it; when it cannot, the official models are
+simply omitted rather than shown but unrunnable. `DEFAULT` is the model a bare
+`--prompt` run selects: the first provider in `providerOrder` and its first
+declared model.
+
+Headless ZCode has no model flag — `--model` does not exist, `--settings` is
+rejected by the parser despite appearing in `--help`, and a `/model` prompt is
+treated as plain text. Version 0.16.9 also dropped the old per-process
+`ZCODE_MODEL`/`ZCODE_BASE_URL`/`ZCODE_API_KEY` trio, so the only per-invocation
+channel is the provider document itself: `resolveZcodeModelEnv` clones it, moves
+the requested provider to the front of `providerOrder` and the requested model to
+the front of that provider's `personalModelIds`, and points
+`ZCODE_PERSONAL_PROVIDER_CONFIG_FILE` at the copy, which the runtime deletes once
+the run ends. The user's own document is never written. Selecting the model a bare
+run already selects returns no override, leaving that run on the config path,
+which also carries provider headers, timeouts, and request signing. A model whose
+provider the document does not declare fails the run before spawning rather than
+silently answering on a different model. Known limit: `--resume` keeps the
+session's persisted model, so a mid-session model change does not affect a
+resumed turn.
 
 5. Implement skills.
 

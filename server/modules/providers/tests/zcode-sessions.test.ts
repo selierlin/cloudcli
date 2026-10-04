@@ -137,6 +137,84 @@ test('ZCode sessions provider skips malformed and half-written rows instead of f
   }
 });
 
+test('ZCode sessions provider drops cancelled turns but keeps real failures', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'zcode-session-cancelled-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    const dbPath = await seedZcodeRichSession(tempRoot, workspacePath);
+    const db = new Database(dbPath);
+    try {
+      const insertAssistant = db.prepare(`
+        INSERT INTO message (id, session_id, time_created, time_updated, data, sequence)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+      const insertPart = db.prepare(`
+        INSERT INTO part (id, message_id, session_id, time_created, time_updated, data, sequence)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      // A user-interrupted turn: ZCode stores the cancellation record itself on
+      // the assistant row. The partial text is real and must survive.
+      insertAssistant.run(
+        'message-cancelled', 'zcode-session-1', 1_700_000_010_000, 1_700_000_010_000,
+        JSON.stringify({
+          role: 'assistant',
+          error: {
+            name: 'AiSdkModelAdapterError',
+            data: {
+              message: 'Model request was cancelled.',
+              code: 'model_request_cancelled',
+              turnResult: 'cancelled',
+            },
+          },
+        }),
+        10,
+      );
+      insertPart.run(
+        'part-cancelled-text', 'message-cancelled', 'zcode-session-1',
+        1_700_000_010_000, 1_700_000_010_000,
+        JSON.stringify({ type: 'text', text: 'half a sentence' }), 0,
+      );
+
+      // An abort surfaced as a bare AbortError is cancelled too.
+      insertAssistant.run(
+        'message-aborted', 'zcode-session-1', 1_700_000_011_000, 1_700_000_011_000,
+        JSON.stringify({ role: 'assistant', error: { name: 'AbortError', data: { message: 'aborted' } } }),
+        11,
+      );
+
+      // A genuine provider failure must still render as an error.
+      insertAssistant.run(
+        'message-failed', 'zcode-session-1', 1_700_000_012_000, 1_700_000_012_000,
+        JSON.stringify({
+          role: 'assistant',
+          error: {
+            name: 'AiSdkModelAdapterError',
+            data: { message: 'Insufficient Balance', code: 'model_request_failed' },
+          },
+        }),
+        12,
+      );
+    } finally {
+      db.close();
+    }
+
+    const history = await new ZcodeSessionsProvider().fetchHistory('zcode-session-1');
+    const errors = history.messages.filter((message) => message.kind === 'error');
+    assert.equal(errors.length, 1);
+    assert.match(errors[0]?.content ?? '', /Insufficient Balance/);
+
+    // The interrupted turn's partial text is still shown.
+    assert.ok(history.messages.some((message) => message.content === 'half a sentence'));
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('ZCode normalizeMessage maps streaming deltas, tool events and the permission denial', () => {
   const provider = new ZcodeSessionsProvider();
   const envelope = (type: string, payload: Record<string, unknown>) => ({
@@ -210,6 +288,29 @@ test('ZCode normalizeMessage maps streaming deltas, tool events and the permissi
 
   const finished = provider.normalizeMessage(envelope('turn.completed', { response: 'done', resultType: 'success' }), null);
   assert.equal(finished[0]?.kind, 'stream_end');
+});
+
+test('ZCode normalizeMessage keeps whitespace-significant deltas untrimmed', () => {
+  const provider = new ZcodeSessionsProvider();
+  const envelope = (payload: Record<string, unknown>) => ({
+    type: 'model.streaming',
+    sessionId: 'sess_live-1',
+    payload: { assistantMessageId: 'msg_1', ...payload },
+  });
+
+  // A whitespace-only delta is the word separator and must survive as its own
+  // frame instead of being dropped as empty.
+  const space = provider.normalizeMessage(envelope({ kind: 'text_delta', delta: ' ' }), null);
+  assert.equal(space.length, 1);
+  assert.equal(space[0]?.content, ' ');
+
+  // A leading space must not be trimmed off the word it precedes.
+  const leading = provider.normalizeMessage(envelope({ kind: 'text_delta', delta: ' world' }), null);
+  assert.equal(leading[0]?.content, ' world');
+
+  // A genuinely empty or non-string delta is still dropped.
+  assert.deepEqual(provider.normalizeMessage(envelope({ kind: 'text_delta', delta: '' }), null), []);
+  assert.deepEqual(provider.normalizeMessage(envelope({ kind: 'text_delta', delta: 7 }), null), []);
 });
 
 test('ZCode normalizeMessage falls back to the passed session id and ignores non-rendering events', () => {

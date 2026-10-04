@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // Mock of the ZCode CLI in `--prompt ... --output-format stream-json` mode.
 // Behavior is selected by MOCK_MODE:
-//   success | tool-success | permission-denied | permission-flood |
+//   success | space-deltas | tool-success | permission-denied | permission-flood |
 //   no-trailing-newline | startup-error | hang | streaming-hang
 // The emitted events mirror the real 0.16.5 shapes captured from a live run,
 // including the top-level (payload-less) terminal `result` event.
 // When ZCODE_MOCK_ARGS_FILE is set, the full argv is written there so tests can
 // assert the spawn arguments precisely; ZCODE_MOCK_ENV_FILE does the same for
-// the model-override environment the runtime injects.
+// the provider-config environment the runtime injects.
 import fs from 'node:fs';
 
 const mode = process.env.MOCK_MODE || 'success';
@@ -32,12 +32,39 @@ if (process.env.ZCODE_MOCK_ARGS_FILE) {
   fs.writeFileSync(process.env.ZCODE_MOCK_ARGS_FILE, JSON.stringify(args, null, 2));
 }
 if (process.env.ZCODE_MOCK_ENV_FILE) {
-  const { ZCODE_MODEL, ZCODE_BASE_URL, ZCODE_API_KEY } = process.env;
+  const { ZCODE_PERSONAL_PROVIDER_CONFIG_FILE, ZCODE_BUILTIN_PROVIDER_CONFIG_FILE } = process.env;
+  // Unset keys are dropped by JSON.stringify, so a run with no injected env
+  // still dumps `{}` and the model-channel tests keep their exact shape.
   fs.writeFileSync(
     process.env.ZCODE_MOCK_ENV_FILE,
-    JSON.stringify({ ZCODE_MODEL, ZCODE_BASE_URL, ZCODE_API_KEY }, null, 2),
+    JSON.stringify({ ZCODE_PERSONAL_PROVIDER_CONFIG_FILE, ZCODE_BUILTIN_PROVIDER_CONFIG_FILE }, null, 2),
   );
 }
+
+/**
+ * Mirrors ZCode 0.16.9's default-model resolution: the first provider in
+ * `providerOrder` and that provider's first declared model. The runtime points
+ * `ZCODE_PERSONAL_PROVIDER_CONFIG_FILE` at a generated copy to change that
+ * selection, so reading it here is what makes the model-override assertions real.
+ */
+const resolvedModel = (() => {
+  const path = process.env.ZCODE_PERSONAL_PROVIDER_CONFIG_FILE;
+  if (!path) {
+    return 'ark/deepseek-v4-flash';
+  }
+  try {
+    const config = JSON.parse(fs.readFileSync(path, 'utf8')).config || {};
+    const rules = (config.providerConfigRules && config.providerConfigRules.providerRules) || [];
+    const order = config.providerOrder || [];
+    const firstId = order.find((id) => rules.some((rule) => rule.providerId === id))
+      || (rules[0] && rules[0].providerId);
+    const rule = rules.find((entry) => entry.providerId === firstId);
+    const modelId = rule && rule.config && (rule.config.personalModelIds || [])[0];
+    return firstId && modelId ? `${firstId}/${modelId}` : 'ark/deepseek-v4-flash';
+  } catch {
+    return 'ark/deepseek-v4-flash';
+  }
+})();
 
 const now = () => Date.now();
 const emit = (event) => process.stdout.write(`${JSON.stringify(event)}\n`);
@@ -60,15 +87,14 @@ const turnStarted = () => emit(envelope({
   payload: { turnNumber: 0, input: prompt, messageId: 'msg_mock_user' },
 }));
 const sessionUpdated = () => {
-  // The real CLI reports whichever model it resolved, including the per-process
-  // `ZCODE_MODEL` override the runtime injects.
-  const model = process.env.ZCODE_MODEL || 'ark/deepseek-v4-flash';
-  const [providerId, ...rest] = model.split('/');
+  // The real CLI reports whichever model it resolved from the provider document
+  // (the runtime injects a generated copy to change that selection).
+  const [providerId, ...rest] = resolvedModel.split('/');
   return emit(envelope({
     type: 'session.updated',
     payload: {
-      model,
-      modelRef: { providerId, modelId: rest.join('/') || model },
+      model: resolvedModel,
+      modelRef: { providerId, modelId: rest.join('/') || resolvedModel },
       toolCount: 4,
     },
   }));
@@ -182,7 +208,7 @@ if (mode === 'hang') {
   emit(envelope({ type: 'tool.updated', payload: { toolCallId: 'call_ok_1', toolName: 'Bash', kind: 'scheduled' } }));
   emit(envelope({ type: 'tool.updated', payload: { toolCallId: 'call_ok_1', toolName: 'Bash', startedAt: now(), kind: 'started' } }));
   toolResult('call_ok_1', 'ZCODE_TOOL_OK', true);
-  text(`RESUMED:${resumed || 'none'} PROMPT:${prompt} MODE:${modeArg} ATTACH:${attachments.join(',')}`);
+  text(`RESUMED:${resumed || 'none'} PROMPT:${prompt} MODE:${modeArg} ATTACH:${attachments.join(',')} MODEL:${resolvedModel}`);
   toolBatch(['call_ok_1'], 1, 0);
   turnCompleted(`ZCODE_TOOL_OK (${resumed || 'none'})`);
   result('ZCODE_TOOL_OK');
@@ -191,13 +217,24 @@ if (mode === 'hang') {
   turnCompleted(`PROMPT:${prompt}`);
   result(`PROMPT:${prompt}`, false);
   process.exit(0);
+} else if (mode === 'space-deltas') {
+  // The two real per-token shapes a naive trim erases: a whitespace-only delta
+  // and a leading space carried on the next word. Joining them must reproduce
+  // the sentence with its spaces intact.
+  streaming({ kind: 'text_start' });
+  for (const delta of ['Hello', ' ', 'world', ', this', ' is', ' a', ' test.']) {
+    streaming({ kind: 'text_delta', delta });
+  }
+  streaming({ kind: 'text_end' });
+  turnCompleted('Hello world, this is a test.');
+  result('Hello world, this is a test.');
 } else {
   // success
   streaming({ kind: 'start' });
   streaming({ kind: 'reasoning_start' });
   streaming({ kind: 'reasoning_delta', delta: 'thinking about it' });
   streaming({ kind: 'reasoning_end' });
-  text(`RESUMED:${resumed || 'none'} PROMPT:${prompt} MODE:${modeArg} ATTACH:${attachments.join(',')}`);
+  text(`RESUMED:${resumed || 'none'} PROMPT:${prompt} MODE:${modeArg} ATTACH:${attachments.join(',')} MODEL:${resolvedModel}`);
   streaming({ kind: 'finish' });
   const response = resumed ? `RESUMED:${resumed}` : prompt;
   turnCompleted(response);

@@ -24,12 +24,14 @@ const makeTempDir = async (prefix: string): Promise<string> => {
 beforeEach(() => {
   resetZcodeCommandForTests();
   delete process.env.ZCODE_COMMAND;
+  delete process.env.ZCODE_BUILTIN_PROVIDER_CONFIG_FILE;
   setZcodeHomeDirForTests(null);
 });
 
 afterEach(async () => {
   resetZcodeCommandForTests();
   delete process.env.ZCODE_COMMAND;
+  delete process.env.ZCODE_BUILTIN_PROVIDER_CONFIG_FILE;
   setZcodeHomeDirForTests(null);
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
@@ -72,6 +74,44 @@ test('ZCode auth resolves the bundled CLI with node when nothing is on PATH', as
   assert.equal(resolution.source, 'bundled');
   assert.equal(resolution.command, 'node');
   assert.deepEqual(resolution.baseArgs, [fakeBundle]);
+  // No `<resources>/config/provider/` beside this stub, so nothing is injected.
+  assert.deepEqual(resolution.env, {});
+});
+
+test('ZCode auth points the bundled CLI at its built-in provider config file', async () => {
+  const resourcesDir = await makeTempDir('zcode-auth-resources-');
+  const bundle = path.join(resourcesDir, 'glm', 'zcode.mjs');
+  const builtinConfig = path.join(resourcesDir, 'config', 'provider', 'zcode-builtin.json');
+  await mkdir(path.dirname(bundle), { recursive: true });
+  await mkdir(path.dirname(builtinConfig), { recursive: true });
+  await writeFile(bundle, '// stub', 'utf8');
+  await writeFile(builtinConfig, '{}', 'utf8');
+  setZcodeBundledCliPathsForTests([bundle]);
+
+  const resolution = resolveZcodeCommand();
+  assert.equal(resolution.source, 'bundled');
+  assert.deepEqual(resolution.env, { ZCODE_BUILTIN_PROVIDER_CONFIG_FILE: builtinConfig });
+  // The PTY consumer only receives a shell string, so the hint is prefixed there.
+  assert.ok(
+    getZcodeCommand().startsWith(`ZCODE_BUILTIN_PROVIDER_CONFIG_FILE='${builtinConfig}' `),
+    getZcodeCommand(),
+  );
+});
+
+test('ZCode auth leaves an operator-set built-in config path untouched', async () => {
+  const resourcesDir = await makeTempDir('zcode-auth-env-');
+  const bundle = path.join(resourcesDir, 'glm', 'zcode.mjs');
+  const builtinConfig = path.join(resourcesDir, 'config', 'provider', 'zcode-builtin.json');
+  await mkdir(path.dirname(bundle), { recursive: true });
+  await mkdir(path.dirname(builtinConfig), { recursive: true });
+  await writeFile(bundle, '// stub', 'utf8');
+  await writeFile(builtinConfig, '{}', 'utf8');
+  setZcodeBundledCliPathsForTests([bundle]);
+  process.env.ZCODE_BUILTIN_PROVIDER_CONFIG_FILE = '/custom/zcode-builtin.json';
+
+  const resolution = resolveZcodeCommand();
+  assert.deepEqual(resolution.env, {});
+  assert.ok(!getZcodeCommand().includes('/custom/zcode-builtin.json'));
 });
 
 test('ZCode auth reports not installed when no command resolves', async () => {

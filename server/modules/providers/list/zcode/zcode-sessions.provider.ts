@@ -76,6 +76,55 @@ const extractText = (value: unknown): string => {
   return unwrapJsonStringLiteral(text);
 };
 
+/** Error codes ZCode treats as "the turn was stopped", not "the turn failed". */
+const ZCODE_CANCELLED_ERROR_CODES = new Set([
+  'turn_cancelled',
+  'model_request_cancelled',
+  'MODEL_REQUEST_CANCELLED',
+  'ABORT_ERR',
+]);
+/** Message a codeless `Error`-named cancellation carries. */
+const ZCODE_PROTOCOL_STOPPED_MESSAGE = 'ZCode Protocol session stopped';
+/** Message a codeless `AiSdkModelAdapterError` cancellation carries. */
+const ZCODE_MODEL_CANCELLED_MESSAGE = 'Model request was cancelled.';
+
+/**
+ * Mirrors ZCode's own *isCancellationError* test over the persisted
+ * `message.data.error` shape (`{ name, data: { code, message, turnResult, ... } }`).
+ *
+ * A cancelled turn writes an assistant row whose `error` is the cancellation
+ * record itself rather than a failure; this predicate lets history drop it the
+ * same way the CLI does, instead of rendering a spurious error bubble for a
+ * turn the user deliberately stopped.
+ */
+const isZcodeCancelledError = (error: unknown): boolean => {
+  const record = readObjectRecord(error);
+  if (!record) {
+    return false;
+  }
+
+  const data = readObjectRecord(record.data);
+  const code = readOptionalString(data?.code);
+  const name = readOptionalString(record.name);
+  const message = readOptionalString(data?.message);
+
+  if (data?.turnResult === 'cancelled' || data?.resultType === 'cancelled') {
+    return true;
+  }
+  if (code !== undefined && ZCODE_CANCELLED_ERROR_CODES.has(code)) {
+    return true;
+  }
+  if (name === 'AbortError') {
+    return true;
+  }
+  if (code === undefined && name === 'Error' && message === ZCODE_PROTOCOL_STOPPED_MESSAGE) {
+    return true;
+  }
+  return code === undefined
+    && name === 'AiSdkModelAdapterError'
+    && message === ZCODE_MODEL_CANCELLED_MESSAGE;
+};
+
 const buildTokenUsage = (totals: ZcodeTokenTotals | undefined): AnyRecord | undefined => {
   if (!totals) {
     return undefined;
@@ -188,7 +237,11 @@ export class ZcodeSessionsProvider implements IProviderSessions {
       const assistantMessageId = readOptionalString(payload.assistantMessageId);
 
       if (kind === 'text_delta' || kind === 'reasoning_delta') {
-        const content = readOptionalString(payload.delta) ?? '';
+        // Deltas are whitespace-significant: a token's leading space — or a
+        // whitespace-only delta — is what separates English words, so the raw
+        // string must survive untrimmed. Only a missing, non-string or empty
+        // delta is dropped.
+        const content = typeof payload.delta === 'string' ? payload.delta : '';
         if (!content) {
           return [];
         }
@@ -379,25 +432,37 @@ export class ZcodeSessionsProvider implements IProviderSessions {
     const emittedMessageErrors = new Set<string>();
 
     for (const row of rows) {
+      // Every row belongs to one ZCode message; stamping that message id as the
+      // fork anchor is what lets "branch from here" target the message the user
+      // clicked, whichever part of it carried the row.
+      const emit = (message: NormalizedMessage): void => {
+        message.forkAnchorId = row.message_id;
+        normalized.push(message);
+      };
       const timestamp = normalizeProviderTimestamp(row.part_time_created ?? row.message_time_created);
       const baseId = `${row.message_id}_${row.part_id ?? normalized.length}`;
       const messageInfo = readJsonRecord(row.message_data);
       const messageRole = readOptionalString(messageInfo?.role);
 
+      // A cancelled turn persists an assistant row whose `error` is the
+      // cancellation record, not a failure; drop it rather than showing an
+      // error bubble for a turn the user deliberately stopped.
+      const errorValue = messageInfo?.error;
       if (
         messageInfo
         && messageRole === 'assistant'
-        && messageInfo.error != null
+        && errorValue != null
+        && !isZcodeCancelledError(errorValue)
         && !emittedMessageErrors.has(row.message_id)
       ) {
         emittedMessageErrors.add(row.message_id);
-        normalized.push(createNormalizedMessage({
+        emit(createNormalizedMessage({
           id: `${baseId}_error`,
           sessionId,
           timestamp,
           provider: PROVIDER,
           kind: 'error',
-          content: formatToolContent(messageInfo.error),
+          content: formatToolContent(errorValue),
         }));
       }
 
@@ -426,7 +491,7 @@ export class ZcodeSessionsProvider implements IProviderSessions {
           || parsedImages.attachments.length > 0
           || parsedFiles.attachments.length > 0
         ) {
-          normalized.push(createNormalizedMessage({
+          emit(createNormalizedMessage({
             id: baseId,
             sessionId,
             timestamp,
@@ -444,7 +509,7 @@ export class ZcodeSessionsProvider implements IProviderSessions {
       if (partType === 'reasoning') {
         const content = extractText(partData);
         if (content.trim()) {
-          normalized.push(createNormalizedMessage({
+          emit(createNormalizedMessage({
             id: baseId,
             sessionId,
             timestamp,
@@ -477,12 +542,12 @@ export class ZcodeSessionsProvider implements IProviderSessions {
           };
         }
 
-        normalized.push(toolMessage);
+        emit(toolMessage);
         continue;
       }
 
       if (partType === 'step-finish') {
-        normalized.push(createNormalizedMessage({
+        emit(createNormalizedMessage({
           id: baseId,
           sessionId,
           timestamp,
@@ -493,7 +558,7 @@ export class ZcodeSessionsProvider implements IProviderSessions {
       }
 
       if (partType === 'patch' || partType === 'agent') {
-        normalized.push(createNormalizedMessage({
+        emit(createNormalizedMessage({
           id: baseId,
           sessionId,
           timestamp,
