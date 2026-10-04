@@ -470,7 +470,9 @@
   },
   "message": {
     "editAndResend": "Edit and resend",
-    "forkFromHere": "Fork from here"
+    "forkFromHere": "Fork from here",
+    "forkFailed": "Could not branch this conversation. Please try again.",
+    "forkWorkspaceRewind": "Branching here would revert the workspace files this conversation changed afterwards. Branch from a later message, or from the end."
   },
   "export": {
     "trigger": "Export conversation",

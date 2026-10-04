@@ -25,6 +25,7 @@ import type { StreamingBufferRegistry } from '@/modules/chat/utils/streamingBuff
 import { createRevealPacer } from '@/modules/chat/utils/revealPacer';
 import type { RevealPacer } from '@/modules/chat/utils/revealPacer';
 import { getChatProviderLabel } from '@/modules/chat/utils/chatProviderLabel';
+import { forkFailureMessageKey } from '@/modules/chat/utils/forkFailureMessage';
 import {
   useProcessingSessions,
   useSessionProtectionActions,
@@ -381,6 +382,10 @@ function ChatInterface({
   /**
    * Branches the conversation into a new session that ends at this message,
    * then opens it. The session being viewed is left exactly as it was.
+   *
+   * A refusal is surfaced rather than swallowed: ZCode's guard rejects the whole
+   * branch when it would revert workspace files, and a silent no-op would read
+   * as a dead button. The server's code picks the wording.
    */
   const handleForkFromMessage = useCallback(async (message: ChatMessage) => {
     const anchorId = message.forkAnchorId;
@@ -392,13 +397,15 @@ function ChatInterface({
       const payload = await response.json();
       const forkedSessionId = payload?.data?.sessionId;
       if (!response.ok || typeof forkedSessionId !== 'string') {
-        throw new Error(payload?.message || `HTTP ${response.status}`);
+        alert(t(forkFailureMessageKey(payload?.error?.code)));
+        return;
       }
       onNavigateToSession?.(forkedSessionId);
     } catch (error) {
       console.error('Error forking session:', error);
+      alert(t('message.forkFailed'));
     }
-  }, [onNavigateToSession, selectedSession?.id]);
+  }, [onNavigateToSession, selectedSession?.id, t]);
 
   const { scheduledMessages, schedule: scheduleMessage, cancel: cancelScheduledMessage } =
     useScheduledMessages(currentSessionId || selectedSession?.id || null);
