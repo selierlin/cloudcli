@@ -156,6 +156,7 @@ export default function SidebarProjectSessions({
   };
 
   return (
+    <>
     <div
       className={cn(
         'grid transition-[grid-template-rows] duration-200 ease-out',
@@ -259,22 +260,28 @@ export default function SidebarProjectSessions({
               {isLoadingMoreSessions ? t('sessions.loadingSessions') : 'Load more sessions'}
             </Button>
           )}
-
-          {isManaging && (
-            <SidebarBatchSessionActions
-              selectedCount={selectedSessionIds.size}
-              selectableCount={selectableSessionIds.length}
-              areAllSelected={areAllSelectableSessionsSelected}
-              onToggleSelectAll={toggleSelectAll}
-              onArchive={requestBatchArchive}
-              onCancel={exitManaging}
-              t={t}
-            />
-          )}
         </>
       )}
     </div>
     </div>
     </div>
+
+    {isManaging && isExpanded && hasSessions && (
+      // Outside the collapse-animation wrapper above: that wrapper's
+      // `overflow-hidden` is itself a scroll container, so `sticky bottom-0`
+      // would stick within it and strand the bar at the end of the session
+      // list instead of the sidebar's bottom edge. `isExpanded` hides the bar
+      // if the project is collapsed while manage mode is open.
+      <SidebarBatchSessionActions
+        selectedCount={selectedSessionIds.size}
+        selectableCount={selectableSessionIds.length}
+        areAllSelected={areAllSelectableSessionsSelected}
+        onToggleSelectAll={toggleSelectAll}
+        onArchive={requestBatchArchive}
+        onCancel={exitManaging}
+        t={t}
+      />
+    )}
+    </>
   );
 }

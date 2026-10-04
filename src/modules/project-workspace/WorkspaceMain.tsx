@@ -69,6 +69,17 @@ function WorkspaceMain({
   // so that re-clicking the same folder is a new request the tree acts on.
   const [revealDirectory, setRevealDirectory] = useState<DirectoryRevealRequest | null>(null);
 
+  // Files and git hold browsing state (expanded folders, the active git view)
+  // that should survive tab switches, so they mount on first visit and are then
+  // only hidden instead of unmounted — the same keep-alive the tasks and browser
+  // tabs already get. Mounting lazily keeps a user who never opens them from
+  // paying their initial file-tree and git-status fetches. Seeded with the
+  // restored tab so the first paint is not an empty panel.
+  const [visitedTabs, setVisitedTabs] = useState<Set<AppTab>>(() => new Set([activeTab]));
+  if (!visitedTabs.has(activeTab)) {
+    setVisitedTabs(new Set(visitedTabs).add(activeTab));
+  }
+
   const shouldShowTasksTab = Boolean(tasksEnabled && isTaskMasterInstalled);
   const shouldShowBrowserTab = browserUseEnabled;
 
@@ -192,8 +203,8 @@ function WorkspaceMain({
             </WorkspaceErrorBoundary>
           </div>
 
-          {activeTab === 'files' && (
-            <div className="h-full overflow-hidden">
+          {visitedTabs.has('files') && (
+            <div className={`h-full overflow-hidden ${activeTab === 'files' ? '' : 'hidden'}`}>
               <FileTree
                 selectedProject={selectedProject}
                 onFileOpen={handleFileOpen}
@@ -213,8 +224,8 @@ function WorkspaceMain({
             </div>
           )}
 
-          {activeTab === 'git' && (
-            <div className="h-full overflow-hidden">
+          {visitedTabs.has('git') && (
+            <div className={`h-full overflow-hidden ${activeTab === 'git' ? '' : 'hidden'}`}>
               <GitPanel
                 selectedProject={selectedProject}
                 isMobile={isMobile}
