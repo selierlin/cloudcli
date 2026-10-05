@@ -9,6 +9,7 @@ import { getTaskIndicatorStatus } from '@/modules/sidebar/utils/sidebarProjectFo
 import TaskIndicator from '@/modules/sidebar/TaskIndicator';
 import SidebarProjectSessions from '@/modules/sidebar/SidebarProjectSessions';
 import { useCompactSidebar } from '@/modules/sidebar/hooks/useCompactSidebar';
+import { useExpandScrollAnchor } from '@/modules/sidebar/hooks/useExpandScrollAnchor';
 
 type SidebarProjectItemProps = {
   project: Project;
@@ -107,6 +108,10 @@ function SidebarProjectItem({
   const sessionCountLabel = `${sessionCountDisplay} session${totalSessionCount === 1 ? '' : 's'}`;
   const taskStatus = getTaskIndicatorStatus(project, mcpServerStatus);
   const mobileRenameInputRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  // Keeps this row pinned to its clicked viewport offset while the previously
+  // expanded project collapses above it.
+  const beginAnchor = useExpandScrollAnchor(isExpanded, rootRef);
 
   useEffect(() => {
     if (!isEditing || !mobileRenameInputRef.current) {
@@ -136,7 +141,14 @@ function SidebarProjectItem({
 
   const isCompact = useCompactSidebar();
 
-  const toggleProject = () => onToggleProject(project.projectId);
+  const toggleProject = () => {
+    // Only the expand direction moves this row: the previously expanded project
+    // above it collapses at the same time and pulls the row up out of view.
+    if (!isExpanded) {
+      beginAnchor();
+    }
+    onToggleProject(project.projectId);
+  };
   const toggleStarProject = () => onToggleStarProject(project.projectId);
 
   const saveProjectName = () => {
@@ -152,7 +164,10 @@ function SidebarProjectItem({
   };
 
   return (
-    <div className={cn('md:space-y-1', isDeleting && 'opacity-50 pointer-events-none')}>
+    <div
+      ref={rootRef}
+      className={cn('md:space-y-1', isDeleting && 'opacity-50 pointer-events-none')}
+    >
       <div className="sticky top-0 z-10 md:group group">
         {isCompact && (
         <div className="bg-background">
