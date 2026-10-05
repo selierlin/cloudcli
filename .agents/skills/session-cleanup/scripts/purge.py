@@ -137,6 +137,7 @@ def main():
         if args.apply:
             con.execute("delete from superseded_provider_sessions where session_id=?", (sid,))
             con.execute("delete from sessions where session_id=?", (sid,))
+            con.commit()  # 逐条落库：中途任何崩溃不回滚已删目标（文件删除不可逆，DB 必须跟上）
 
     # ---- zcode ----
     if not args.no_zcode:
@@ -174,9 +175,10 @@ def main():
             for f in sorted(glob.glob(os.path.join(ROLLOUT, "model-io-*.jsonl"))):
                 rid = os.path.basename(f).replace("model-io-", "").replace(".jsonl", "")
                 if rid in zids:
+                    sz = os.path.getsize(f)
                     if args.apply:
                         os.remove(f)
-                    freed += os.path.getsize(f)
+                    freed += sz
                     print(f"    rollout  {f.replace(HOME, '~')}")
 
     if args.apply:
