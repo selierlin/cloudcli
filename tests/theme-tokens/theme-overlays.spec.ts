@@ -32,10 +32,9 @@ import { BUILTIN_THEMES } from '@/shared/constants';
  *    promise the selector's badge makes to the user, so it is asserted token by
  *    token rather than eyeballed.
  * 3. **The syntax slots are take-it-or-leave-it.** They are deliberately *not* in
- *    `SURFACES`: a theme whose reference palette has no syntax colours to copy —
- *    the self-made `cc-polar` is one — must not be forced to invent a board, and
- *    a future reference that only ships chrome must still be able to call itself
- *    `full`. That is the same argument the terminal-font round made for keeping
+ *    `SURFACES`: a theme whose reference palette has no syntax colours to copy
+ *    must not be forced to invent a board, and a reference that only ships
+ *    chrome must still be able to call itself `full`. That is the same argument the terminal-font round made for keeping
  *    its token out of `SURFACES`. What follows from leaving it open is the one
  *    rule below: a theme that names any syntax slot has to name all the ones the
  *    base palette declares for that appearance, or the block reads half in its
@@ -242,7 +241,7 @@ function layerDepthAt(index: number): number {
 }
 
 type OverlayBlock = {
-  /** The full selector text, e.g. `[data-theme="cc-polar"].dark`. */
+  /** The full selector text, e.g. `[data-theme="cc-catppuccin"].dark`. */
   selector: string;
   declared: Record<string, string>;
 };
@@ -662,10 +661,10 @@ test('a theme that names any syntax slot names all of them for that appearance',
  * In both appearances. The first pass left the light half of the three reference
  * themes empty, on the reading that their references ship a dark board and
  * nothing else; all three do have a light answer, so the light half is declared
- * too and its absence would now be the regression. `cc-polar` stays out
- * entirely — it is self-made, with no board to copy and none invented for it.
- * The four references promoted after it (`cc-dracula` … `cc-tokyo-night`) each
- * ship a light and a dark board and are listed straight away.
+ * too and its absence would now be the regression. The four references promoted
+ * later (`cc-dracula` … `cc-tokyo-night`) each ship a light and a dark board and
+ * are listed straight away. `cc-ocean` is the one overlay that owns no board —
+ * it is `accent`-coverage, so its block is not expected to reach syntax at all.
  */
 const SYNTAX_BOARD_THEMES = [
   'cc-catppuccin', 'cc-islands', 'cc-onedark', 'cc-onedark-vivid',

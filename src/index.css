@@ -1589,10 +1589,10 @@
    `var(--palette-brand-400)` in `.dark`). Two shapes break that:
 
    - the terminal board, whose L1 *is* split across the two appearances, so a
-     theme that moves it declares a light half under `:not(.dark)` — `cc-polar`
+     theme that moves it declares a light half under `:not(.dark)` — `cc-catppuccin`
      below is the worked example;
    - tokens whose value is an appearance-specific literal rather than an L1
-     reference — the editor chrome, which `cc-polar` overrides that way.
+     reference — the editor chrome, which `cc-catppuccin` overrides that way.
    --------------------------------------------------------------------------- */
 
 /* cc-ocean — coverage: accent. A teal accent over the stock substrate. The
@@ -1601,191 +1601,6 @@
 [data-theme="cc-ocean"] {
   --palette-brand-500: 173 75% 27%;
   --palette-brand-400: 172 66% 55%;
-}
-
-/* cc-polar — coverage: full. A cool substrate with a frost-blue accent, plus a
-   terminal board and graph lanes retuned to the same family. Nearly everything
-   here is L1, so it is expressed once and both appearances pick their own step;
-   the terminal board is the exception and gets the `:not(.dark)` half below.
-
-   `--palette-white` is deliberately *not* overridden: it backs `--n-white` /
-   `--n-black` and the `--editor-*` surfaces, and retinting pure white or black
-   is the highest-risk contrast move there is — the contract freezes it for
-   every overlay anyway. The light card takes `--palette-sand-25` instead, so it
-   carries the theme's own tint; the dark card reads `--palette-ink-900` and
-   already did. That keeps `--n-white` / `--n-black` where they are: mostly
-   plain white / black fills and labels. The `gray` / `zinc` / `slate` /
-   `neutral` compatibility ramps are left alone for the same kind of reason:
-   they back ~1.5k utility sites whose light/dark step choice, not their hue,
-   carries the design, and they are already cool enough to sit under this
-   substrate. */
-[data-theme="cc-polar"] {
-  /* Substrate: the warm sand of light mode and the neutral ink of dark mode,
-     both moved onto the same cool blue-grey axis. */
-  /* Card paper: the substrate's hue at half its saturation, one step lighter. */
-  --palette-sand-25: 213 13% 98%;
-  --palette-sand-50: 213 26% 96%;
-  --palette-sand-100: 213 22% 92%;
-  --palette-sand-200: 214 18% 87%;
-  --palette-sand-500: 215 12% 45%;
-  --palette-sand-800: 218 28% 21%;
-  --palette-sand-950: 220 38% 8%;
-  --palette-ink-100: 218 26% 93%;
-  --palette-ink-400: 219 15% 62%;
-  --palette-ink-800: 220 15% 26%;
-  --palette-ink-850: 220 16% 22%;
-  --palette-ink-900: 220 16% 18%;
-  --palette-ink-950: 220 18% 13%;
-
-  /* Accent: frost blue. The light step is dark enough for white button text
-     (4.6:1) without going near-black. */
-  --palette-brand-500: 213 32% 47%;
-  --palette-brand-400: 210 34% 63%;
-
-  /* Terminal board, dark half. The ANSI hues keep their meanings (red is
-     error/deleted, green is success/added) and only the family's temperature
-     moves; the background and the selection fill follow the substrate so the
-     panel does not read as a foreign surface. The light half is in the
-     `:not(.dark)` block below. */
-  --palette-term-bg: 220 16% 22%;
-  --palette-term-fg: 218 24% 88%;
-  --palette-term-cursor: 193 44% 67%;
-  --palette-term-selection: 220 17% 32%;
-  --palette-term-black: 220 16% 26%;
-  --palette-term-red: 354 42% 56%;
-  --palette-term-green: 92 28% 65%;
-  --palette-term-yellow: 40 60% 73%;
-  --palette-term-blue: 213 32% 63%;
-  --palette-term-magenta: 311 25% 70%;
-  --palette-term-cyan: 193 44% 67%;
-  --palette-term-white: 218 27% 92%;
-  --palette-term-bright-black: 220 17% 36%;
-  --palette-term-bright-red: 354 45% 62%;
-  --palette-term-bright-green: 92 32% 70%;
-  --palette-term-bright-yellow: 40 65% 78%;
-  --palette-term-bright-blue: 213 38% 68%;
-  --palette-term-bright-magenta: 311 28% 75%;
-  --palette-term-bright-cyan: 179 26% 65%;
-  --palette-term-bright-white: 219 27% 94%;
-
-  /* Graph lanes. Same ten hues in the same order, desaturated onto the theme's
-     axis so a lane still reads as itself; every one of them keeps at least
-     2:1 against both substrates (the board the base ships bottoms out at 1.8). */
-  --palette-graph-1: 213 45% 52%;
-  --palette-graph-2: 40 60% 55%;
-  --palette-graph-3: 311 30% 60%;
-  --palette-graph-4: 92 32% 52%;
-  --palette-graph-5: 354 45% 58%;
-  --palette-graph-6: 193 45% 45%;
-  --palette-graph-7: 179 30% 45%;
-  --palette-graph-8: 260 40% 62%;
-  --palette-graph-9: 25 60% 55%;
-  --palette-graph-10: 140 35% 45%;
-}
-
-/* The editor is the one surface that needs the two-branch shape instead of a
-   single appearance-agnostic block: its base values are appearance-specific
-   literals rather than L1 references (`--editor-bg` is `hsl(var(--palette-white))`
-   in `:root` but `#282c34` in `.dark`), so the light half has to be scoped.
-
-   It is scoped with `:not(.dark)` rather than left to the bare `[data-theme]`
-   selector. A bare selector matches in both appearances, which would make the
-   light values win in the dark appearance too and rely on the `.dark` branch
-   out-specifying them — a token added to one branch and forgotten in the other
-   would then leak light chrome into dark mode. `:not(.dark)` makes the split
-   impossible to get wrong by omission.
-
-   The light branch retunes the chrome whose literals were picked against the old
-   warm-grey substrate and moves the editor's own page onto the substrate, which
-   is what the dark branch does too; the diff and bracket-status decorations keep
-   their semantic green/red. */
-[data-theme="cc-polar"]:not(.dark) {
-  /* Terminal board, light half. `cc-polar` is self-made, so there is no
-     reference light board to copy: the slots keep the dark half's hue and
-     saturation and have their lightness re-solved for this page, each holding
-     the contrast ratio it has against the dark substrate (capped at 4.5:1 for
-     the normal half and 6:1 for `bright-*`, so a hue is never pushed to olive
-     to reach a ratio). The two ends follow the substrate ladder instead —
-     `black` is `sand-100`, `bright-black` a mid grey — which is the shape
-     Gruvbox's own light board uses. The selection fill stays `sand-200` with
-     `--term-selection-fg` (which reads `bright-white`) on top of it. */
-  --palette-term-bg: 213 26% 96%;
-  --palette-term-fg: 218 24% 27.99%;
-  --palette-term-cursor: 193 44% 37.82%;
-  --palette-term-selection: 214 18% 87%;
-  --palette-term-black: 213 22% 92%;
-  --palette-term-red: 354 42% 50%;
-  --palette-term-green: 92 28% 36.92%;
-  --palette-term-yellow: 40 60% 34.8%;
-  --palette-term-blue: 213 32% 46.79%;
-  --palette-term-magenta: 311 25% 47.84%;
-  --palette-term-cyan: 193 44% 37.82%;
-  --palette-term-white: 218 27% 25.57%;
-  --palette-term-bright-black: 220 17% 50%;
-  --palette-term-bright-red: 354 45% 50%;
-  --palette-term-bright-green: 92 32% 29.86%;
-  --palette-term-bright-yellow: 40 65% 28.4%;
-  --palette-term-bright-blue: 213 38% 43.01%;
-  --palette-term-bright-magenta: 311 28% 40.03%;
-  --palette-term-bright-cyan: 179 26% 31.28%;
-  --palette-term-bright-white: 219 27% 24.24%;
-
-  --code-block-bg: var(--palette-sand-50);
-  --editor-bg: hsl(var(--palette-sand-50));
-  --editor-toolbar-bg: hsl(var(--palette-sand-50));
-  --editor-loading-bg: hsl(var(--palette-sand-50));
-  --editor-selection: hsl(var(--palette-sand-200));
-  --editor-selection-focused: hsl(var(--palette-brand-500) / 0.22);
-  --editor-gutter-bg: hsl(var(--palette-sand-50));
-  --editor-gutter-fg: hsl(var(--palette-sand-500));
-  --editor-gutter-separator: 1px solid hsl(var(--palette-sand-200));
-  --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.14);
-  --editor-active-line-gutter-bg: hsl(var(--palette-sand-100));
-  --editor-panel-bg: hsl(var(--palette-sand-100));
-  --editor-panel-border: 1px solid hsl(var(--palette-sand-200));
-  --editor-fold-placeholder-bg: hsl(var(--palette-sand-100));
-  --editor-fold-placeholder-fg: hsl(var(--palette-sand-500));
-  --editor-tooltip-bg: hsl(var(--palette-sand-100));
-  --editor-tooltip-border: 1px solid hsl(var(--palette-sand-200));
-  --editor-tooltip-arrow-border: hsl(var(--palette-sand-200));
-  --editor-tooltip-arrow: hsl(var(--palette-sand-100));
-  --editor-autocomplete-selected-bg: hsl(var(--palette-brand-500));
-  --editor-minimap-bg: hsl(var(--palette-sand-100));
-  --editor-toolbar-border: hsl(var(--palette-sand-200));
-  --editor-toolbar-fg: hsl(var(--palette-sand-800));
-  --editor-toolbar-hover-bg: hsl(var(--palette-sand-100));
-}
-
-[data-theme="cc-polar"].dark {
-  --code-block-bg: var(--palette-ink-950);
-  --editor-bg: hsl(var(--palette-ink-950));
-  --editor-fg: hsl(var(--palette-ink-100));
-  --editor-caret: hsl(var(--palette-brand-400));
-  --editor-cursor: hsl(var(--palette-brand-400));
-  --editor-selection: hsl(var(--palette-ink-850));
-  --editor-selection-focused: hsl(var(--palette-ink-850));
-  --editor-gutter-bg: hsl(var(--palette-ink-950));
-  --editor-gutter-fg: hsl(var(--palette-ink-400));
-  --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.06);
-  --editor-active-line-gutter-bg: hsl(var(--palette-ink-900));
-  --editor-panel-bg: hsl(var(--palette-ink-900));
-  --editor-panel-fg: hsl(var(--palette-ink-100));
-  --editor-search-match-bg: hsl(var(--palette-brand-400) / 0.35);
-  --editor-search-match-outline: 1px solid hsl(var(--palette-brand-400));
-  --editor-search-match-selected-bg: hsl(var(--palette-brand-400) / 0.18);
-  --editor-matching-bracket-bg: hsl(var(--palette-brand-400) / 0.28);
-  --editor-nonmatching-bracket-bg: hsl(var(--palette-danger-500) / 0.28);
-  --editor-fold-placeholder-fg: hsl(var(--palette-ink-400));
-  --editor-tooltip-bg: hsl(var(--palette-ink-850));
-  --editor-tooltip-arrow: hsl(var(--palette-ink-850));
-  --editor-autocomplete-selected-bg: hsl(var(--palette-ink-850));
-  --editor-autocomplete-selected-fg: hsl(var(--palette-ink-100));
-  --editor-minimap-bg: hsl(var(--palette-ink-950));
-  --editor-toolbar-bg: hsl(var(--palette-ink-850));
-  --editor-toolbar-border: hsl(var(--palette-ink-800));
-  --editor-toolbar-fg: hsl(var(--palette-ink-100));
-  --editor-toolbar-hover-bg: hsl(var(--palette-ink-800));
-  --editor-loading-bg: hsl(var(--palette-ink-950));
 }
 
 /* cc-catppuccin — coverage: full. Catppuccin, the board the Codex TUI defaults
@@ -2151,7 +1966,7 @@
 
   /* Graph lanes. Islands publishes seven hues, not ten lanes, so the board's ten
      hues stay in their own order and only their temperature and level move — the
-     method `cc-polar`'s lanes use. Saturation is levelled at 60% and lightness is
+     method `cc-catppuccin`'s lanes use. Saturation is levelled at 60% and lightness is
      the point that maximises the *worse* of the two substrates (#E9EAEE and
      #191A1C), which puts every lane at 3.79:1 or better on both. */
   --palette-graph-1: 198.6 60% 40.1%;
@@ -2166,7 +1981,7 @@
   --palette-graph-10: 83.7 60% 31.5%;
 }
 
-/* The editor's two halves, split the way `cc-polar`'s and `cc-catppuccin`'s are and
+/* The editor's two halves, split the way `cc-catppuccin`'s are and
    for the same reason: its base values are appearance-specific literals rather than
    L1 references, so a single block would leak light chrome into dark mode. */
 [data-theme="cc-islands"]:not(.dark) {
