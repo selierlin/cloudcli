@@ -646,6 +646,22 @@
     font-size: var(--ui-font-size, 14px);
   }
 
+  /* User font settings: the composer, so the text you type wears the same face
+     and size as the transcript beside it. Both of the composer's layers carry
+     `.chat-input-placeholder` — the textarea, and the @-mention highlight overlay
+     painted underneath it — so one rule covers both and their metrics cannot
+     drift apart; styling only one would move the mention pills off the caret.
+     The shell is in the selector because `text-sm` sits on those elements at the
+     same specificity, so the tie would otherwise be settled by document order.
+     Line height is deliberately left to `leading-6`: `useChatComposerState`
+     caches the textarea's computed line-height, and one that moved with the font
+     would go stale. `inherit` is the fallback before `useFontSettings` runs, so
+     the composer keeps the body face it has always had. */
+  .chat-composer-shell .chat-input-placeholder {
+    font-family: var(--ui-font-family, inherit);
+    font-size: var(--ui-font-size, 14px);
+  }
+
   /* Global transition defaults */
   button, 
   a, 

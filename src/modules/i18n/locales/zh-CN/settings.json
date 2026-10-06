@@ -320,7 +320,7 @@
       },
       "fontFamily": {
         "label": "字体族",
-        "description": "聊天消息使用的字体"
+        "description": "聊天消息与输入框使用的字体"
       },
       "fontFamilyOptions": {
         "serif": "衬线",

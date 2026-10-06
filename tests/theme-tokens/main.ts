@@ -9,14 +9,14 @@ import {
   resolveTerminalFontFamily,
   TERMINAL_THEME_TOKENS,
 } from '@/modules/shell/utils/terminalTheme';
-import type { TerminalFontFamilyId } from '@/shared/types';
+import type { FontFamilyId, TerminalFontFamilyId } from '@/shared/types';
 import { EXTREME_TOKENS, SCALE_TOKEN_NAMES } from '@/shared/tests/neutralScale';
 import { ensureSyntaxStyleElement, SYNTAX_TOKEN_MAP, syntaxTheme } from '@/shared/syntaxTheme';
 import type { SyntaxSemanticName } from '@/shared/syntaxTheme';
 import type { ThemeManifest } from '@/shared/types';
 import { applyUserThemeStyle, getUserThemeStyleState, previewUserThemeStyle } from '@/shared/userThemeStyles';
 import type { UserThemeStyleState } from '@/shared/userThemeStyles';
-import { applyThemeChrome } from '@/shared/utils';
+import { applyThemeChrome, FONT_FAMILY_CSS } from '@/shared/utils';
 import { readTokenSnapshot } from '@/shared/tokenSnapshot';
 
 import '../../src/index.css';
@@ -429,6 +429,122 @@ function readCodeBlockBoards(): {
   }
 }
 
+/** The id on the rendered composer probe, so a spec can select the element. */
+const COMPOSER_PROBE_ID = 'cc-composer-probe';
+
+/**
+ * The composer's two layers, spelled the way `ChatComposer.tsx` (the overlay) and
+ * `PromptInput.tsx` (the textarea) spell them. Both strings are the contract the
+ * shared font rule keys off, so they are kept verbatim rather than trimmed to the
+ * classes that happen to matter to this probe.
+ */
+const COMPOSER_OVERLAY_CLASS =
+  'chat-input-placeholder block w-full whitespace-pre-wrap break-words px-4 py-2 text-sm leading-6 text-transparent';
+const COMPOSER_TEXTAREA_CLASS =
+  'chat-input-placeholder block max-h-[40vh] w-full resize-none overflow-y-auto bg-transparent px-4 py-2 text-sm leading-6 text-foreground placeholder-muted-foreground/50 focus:outline-none sm:max-h-[300px]';
+
+/** The type metrics a composer layer inherits from the shared class. */
+export type ComposerTextMetrics = {
+  /** Computed font size, e.g. `17px`. */
+  size: string;
+  /** Computed stack, in the engine's own serialisation (WebKit drops the quotes Chromium keeps). */
+  family: string;
+  lineHeight: string;
+  letterSpacing: string;
+  padding: string;
+};
+
+/** One composer font choice, as the three places that must agree resolve it. */
+export type ComposerFontRead = {
+  /** The textarea the user types into. */
+  textarea: ComposerTextMetrics;
+  /** The @-mention highlight layer painted underneath it, which shares its class. */
+  overlay: ComposerTextMetrics;
+  /** The transcript's own body text, which the composer is supposed to match. */
+  transcript: ComposerTextMetrics;
+};
+
+/**
+ * The composer's type with one user font choice applied.
+ *
+ * Settings → Fonts is labelled "Chat / Interface Font Size" and describes itself
+ * as covering interface text, but the composer used to ignore it: it kept
+ * `text-sm` and the body's Encode Sans while the transcript beside it wore the
+ * chosen face at the chosen size. The composer draws two layers in the same
+ * place — the textarea and the highlight overlay underneath it — and one
+ * `.chat-input-placeholder` rule reaches both, which is what keeps their metrics
+ * equal. A rule that covered only one layer would drift the mention pills off the
+ * caret, so `overlay` is read next to `textarea` rather than assumed to match.
+ *
+ * `transcript` is assembled from `MessageComponent`'s own nesting (`break-words`
+ * around the markdown container's `prose`), and it is the reference the composer
+ * is compared against: a font stack reads back in the engine's own
+ * serialisation, so restating the expected stack here would assert Chromium's
+ * quoting rather than the contract.
+ *
+ * This page never mounts the app, so the class contract is restated here — if
+ * those classes change, this probe stops standing for the composer. The two
+ * custom properties are written the way `useFontSettings` writes them, so the
+ * caller names a choice rather than a stack.
+ */
+function readComposerFont(option: FontFamilyId, size: string): ComposerFontRead {
+  document.getElementById(COMPOSER_PROBE_ID)?.remove();
+
+  const build = (tag: 'div' | 'textarea', className: string): HTMLElement => {
+    const element = document.createElement(tag);
+    element.className = className;
+    element.textContent = 'Hello world';
+    // The stylesheet gives textareas a 150ms transition; a value read
+    // mid-interpolation is a value no one painted.
+    element.style.setProperty('transition', 'none');
+    return element;
+  };
+
+  const shell = document.createElement('div');
+  shell.id = COMPOSER_PROBE_ID;
+  shell.className = 'chat-composer-shell';
+  const overlay = build('div', COMPOSER_OVERLAY_CLASS);
+  const textarea = build('textarea', COMPOSER_TEXTAREA_CLASS);
+  shell.append(overlay, textarea);
+
+  const pane = document.createElement('div');
+  pane.className = 'chat-messages-pane';
+  const message = document.createElement('div');
+  message.className = 'chat-message';
+  const body = document.createElement('div');
+  body.className = 'break-words';
+  const prose = build('div', 'prose prose-sm max-w-none');
+  body.appendChild(prose);
+  message.appendChild(body);
+  pane.appendChild(message);
+
+  document.body.append(shell, pane);
+
+  const root = document.documentElement;
+  root.style.setProperty('--ui-font-family', FONT_FAMILY_CSS[option]);
+  root.style.setProperty('--ui-font-size', `${size}px`);
+
+  const read = (target: HTMLElement): ComposerTextMetrics => {
+    const computed = getComputedStyle(target);
+    return {
+      size: computed.fontSize,
+      family: computed.fontFamily,
+      lineHeight: computed.lineHeight,
+      letterSpacing: computed.letterSpacing,
+      padding: `${computed.paddingTop} ${computed.paddingRight} ${computed.paddingBottom} ${computed.paddingLeft}`,
+    };
+  };
+
+  try {
+    return { textarea: read(textarea), overlay: read(overlay), transcript: read(prose) };
+  } finally {
+    shell.remove();
+    pane.remove();
+    root.style.removeProperty('--ui-font-family');
+    root.style.removeProperty('--ui-font-size');
+  }
+}
+
 /**
  * Runs the production syntax-sheet injection again, the way a later-loaded chunk
  * would if that module ever stopped being part of the entry graph. The module
@@ -758,6 +874,8 @@ declare global {
       readCodeBlockColours(): { pre: string; code: string };
       /** The code-block panel's board, the editor page it follows, and its light half. */
       readCodeBlockBoards(): { reference: string; chat: string; editor: string; half: string };
+      /** The composer's type with a chat font choice applied, beside the transcript's. */
+      readComposerFont(option: FontFamilyId, size: string): ComposerFontRead;
       /** Re-runs the production syntax-sheet injection, as a later-loaded chunk would. */
       reinjectSyntaxStyleSheet(placement?: 'first' | 'last'): void;
       /** Removes a declaration from an injected sheet, returning the rules it was in. */
@@ -790,6 +908,7 @@ window.__THEME_TOKENS__ = {
   syntaxTokenNames,
   readCodeBlockColours,
   readCodeBlockBoards,
+  readComposerFont,
   reinjectSyntaxStyleSheet,
   removeDeclaration,
   readTokenPreviewSnapshot,
