@@ -1890,12 +1890,15 @@
    L1 step no theme may move, because `--palette-white` also backs `--n-white`.
    Neither the card nor the editor page can take it: the light card reads
    `--palette-sand-25`, a half-saturation step of Islands' own light substrate
-   (the treatment `cc-polar` and `cc-catppuccin` give it too), and the editor's
+   (the treatment `cc-catppuccin` gives it too), and the editor's
    own page takes the substrate as it does in both of those.
 
-   `--palette-white`, the `gray` / `zinc` / `slate` / `neutral` compatibility ramps
-   and `--n-white` / `--n-black` are left alone for the reasons the base records and
-   `theme-overlays.spec.ts` enforces.
+   `--palette-white` and `--n-white` / `--n-black` are frozen for every theme,
+   and `theme-overlays.spec.ts` asserts it. The `gray` / `zinc` / `slate` /
+   `neutral` compatibility ramps are *optional*: a `full` theme may retint one,
+   but only as a complete eleven-step family (asserted too), because a partial
+   ramp leaves the same seam one step over. This theme leaves all four at the
+   base values.
 
    Colour provenance: JetBrains IntelliJ Platform's bundled Islands Dark and
    Islands Light — `themes/islands/ManyIslandsDark.theme.json` and
@@ -2199,9 +2202,12 @@
    maximises the *worse* of the two substrates, which puts every lane at 3.76:1
    or better on both.
 
-   `--palette-white`, the `gray` / `zinc` / `slate` / `neutral` compatibility
-   ramps and `--n-white` / `--n-black` are left alone for the reasons the base
-   records and `theme-overlays.spec.ts` enforces.
+   `--palette-white` and `--n-white` / `--n-black` are frozen for every theme,
+   and `theme-overlays.spec.ts` asserts it. The `gray` / `zinc` / `slate` /
+   `neutral` compatibility ramps are *optional*: a `full` theme may retint one,
+   but only as a complete eleven-step family (asserted too), because a partial
+   ramp leaves the same seam one step over. This theme leaves all four at the
+   base values.
 
    Colour provenance: the `One Dark` IntelliJ plugin by Mark Skelton —
    `one-dark-theme-6.2.5.jar`, themeProvider `One Dark` (`one_dark.xml` plus
