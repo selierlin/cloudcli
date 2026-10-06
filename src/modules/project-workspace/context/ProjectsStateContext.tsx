@@ -28,6 +28,7 @@ type ProjectMainState = Pick<
   | 'handleProjectSelect'
   | 'handleSessionSelect'
   | 'refreshProjectsSilently'
+  | 'renameSession'
 >;
 
 type ProjectCommandState = Pick<
@@ -101,6 +102,7 @@ export function ProjectsStateProvider({
       handleProjectSelect: state.handleProjectSelect,
       handleSessionSelect: state.handleSessionSelect,
       refreshProjectsSilently: state.refreshProjectsSilently,
+      renameSession: state.renameSession,
     }),
     [
       state.activeTab,
@@ -113,6 +115,7 @@ export function ProjectsStateProvider({
       state.projects,
       state.refreshProjectsSilently,
       state.registerOptimisticSession,
+      state.renameSession,
       state.selectedProject,
       state.selectedSession,
       state.setActiveTab,

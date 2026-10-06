@@ -74,7 +74,8 @@
     },
     "tabs": {
       "settings": "Ajustes rápidos",
-      "outline": "Esquema"
+      "outline": "Esquema",
+      "commands": "Comandos"
     },
     "outline": {
       "empty": "Aún no hay mensajes",
@@ -95,6 +96,23 @@
       "openPanel": "Abrir panel de ajustes",
       "draggingStatus": "Arrastrando...",
       "toggleAndMove": "Clic para alternar, arrastra para mover"
+    },
+    "pin": "Fijar el panel abierto",
+    "unpin": "Desfijar el panel",
+    "close": "Cerrar el panel",
+    "commands": {
+      "searchPlaceholder": "Buscar comandos…",
+      "noProject": "Selecciona un proyecto para ver sus comandos.",
+      "loading": "Cargando comandos…",
+      "empty": "No hay comandos disponibles para este proyecto.",
+      "noMatches": "Ningún comando coincide con tu búsqueda.",
+      "loadError": "No se pudieron cargar los comandos.",
+      "groups": {
+        "builtIn": "Integrados",
+        "custom": "Personalizados",
+        "skills": "Skills"
+      },
+      "insertTitle": "Insertar {{command}} en el chat"
     }
   },
   "terminalShortcuts": {
@@ -215,6 +233,13 @@
         "label": "Tamaño de fuente",
         "description": "Tamaño de fuente del editor en píxeles"
       }
+    },
+    "theme": {
+      "label": "Tema",
+      "description": "Elige una apariencia clara u oscura, o sigue la de tu sistema operativo",
+      "light": "Claro",
+      "dark": "Oscuro",
+      "system": "Seguir la apariencia del sistema"
     }
   },
   "mcpForm": {
@@ -493,7 +518,8 @@
       },
       "technicalDetails": "Detalles técnicos",
       "technicalInfo": {
-        "default": "sandboxMode=workspace-write, approvalPolicy=on-request. Ejecuta comandos en el entorno aislado del espacio de trabajo. Codex decide cuándo se necesita aprobación; las solicitudes no pueden aprobarse en esta integración no interactiva.",        "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. Todos los comandos se autoejecutan dentro del directorio del proyecto.",
+        "default": "sandboxMode=workspace-write, approvalPolicy=on-request. Ejecuta comandos en el entorno aislado del espacio de trabajo. Codex decide cuándo se necesita aprobación; las solicitudes no pueden aprobarse en esta integración no interactiva.",
+        "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. Todos los comandos se autoejecutan dentro del directorio del proyecto.",
         "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never. Acceso completo al sistema; úsalo solo en entornos de confianza.",
         "overrideNote": "Puedes cambiar esto por sesión con el botón de modo en la interfaz del chat."
       }

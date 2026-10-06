@@ -15,7 +15,11 @@
     "copyAsText": "Copy as text"
   },
   "message": {
-    "branchFromHere": "Branch from this message"
+    "editAndResend": "Edit and resend",
+    "forkFromHere": "Fork from here",
+    "forkFailed": "Could not branch this conversation. Please try again.",
+    "forkWorkspaceRewind": "Branching here would revert the workspace files this conversation changed afterwards. Branch from a later message, or from the end.",
+    "answeredBy": "Answered by {{model}}"
   },
   "messageTypes": {
     "user": "U",
@@ -219,7 +223,7 @@
     "chooseModelStep": "2 · Choose a model",
     "clickToChooseModel": "Click to choose a model",
     "chooseModelForTool": "{{tool}} models",
-    "chooseModelDescription": "Models available in this tool's config",
+    "chooseModelDescription": "Built-in and custom models in one list",
     "addModel": "Add model",
     "manageModels": "Manage models",
     "searchModels": "Search models...",
@@ -249,12 +253,6 @@
     },
     "pressToSearch": "Press <kbd>{{shortcut}}</kbd> to search sessions, files, and commits",
     "chooseModel": "Choose a model",
-    "chooseModelDescription": "Built-in and custom models in one list",
-    "addModel": "Add model",
-    "searchModels": "Search models...",
-    "manageModels": "Manage models",
-    "noModelsFound": "No models found.",
-    "loadingModels": "Loading models…",
     "clickToChange": "Click to change model"
   },
   "commandResult": {
@@ -467,12 +465,6 @@
   },
   "tasks": {
     "nextTaskPrompt": "Start the next task"
-  },
-  "message": {
-    "editAndResend": "Edit and resend",
-    "forkFromHere": "Fork from here",
-    "forkFailed": "Could not branch this conversation. Please try again.",
-    "forkWorkspaceRewind": "Branching here would revert the workspace files this conversation changed afterwards. Branch from a later message, or from the end."
   },
   "export": {
     "trigger": "Export conversation",

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, KeyboardEvent, RefObject, SetStateAction } from 'react';
 
 import { api } from '@/shared/api';
@@ -55,7 +55,15 @@ const flattenFileTree = (files: ProjectFileNode[], basePath = ''): MentionableFi
 const isHiddenMentionPath = (file: MentionableFile): boolean =>
   file.path.split('/')[0].startsWith('.');
 
+// True when both flattened lists hold the same files in the same order.
+const haveSameFiles = (left: MentionableFile[], right: MentionableFile[]) =>
+  left.length === right.length &&
+  left.every(
+    (file, index) => file.path === right[index].path && file.relativePath === right[index].relativePath,
+  );
+
 export function useFileMentions({ selectedProject, input, setInput, textareaRef }: UseFileMentionsOptions) {
+  const projectId = selectedProject?.projectId;
   const [fileList, setFileList] = useState<MentionableFile[]>([]);
   const [fileMentions, setFileMentions] = useState<string[]>([]);
   const [filteredFiles, setFilteredFiles] = useState<MentionableFile[]>([]);
@@ -63,51 +71,82 @@ export function useFileMentions({ selectedProject, input, setInput, textareaRef 
   const [selectedFileIndex, setSelectedFileIndex] = useState(-1);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [atSymbolPosition, setAtSymbolPosition] = useState(-1);
+  // The file-list request still in flight. Starting a new one aborts it, so an
+  // older response can never overwrite a newer list.
+  const fileListRequestRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
+  const loadProjectFiles = useCallback(async (targetProjectId: string) => {
+    fileListRequestRef.current?.abort();
     const abortController = new AbortController();
+    fileListRequestRef.current = abortController;
 
-    const fetchProjectFiles = async () => {
+    try {
       // File list is keyed by DB projectId now; the backend resolves it to
       // the project's path before reading.
-      const projectId = selectedProject?.projectId;
+      const response = await api.getFiles(targetProjectId, {
+        signal: abortController.signal,
+      });
+      if (!response.ok) {
+        return;
+      }
+
+      const files = (await response.json()) as ProjectFileNode[];
+      if (abortController.signal.aborted) {
+        return;
+      }
+      const nextFileList = flattenFileTree(files);
+      // Hidden top-level paths (e.g. .claude, .agents) sort last so they do
+      // not monopolize the @ dropdown's first ten entries.
+      nextFileList.sort((left, right) =>
+        Number(isHiddenMentionPath(left)) - Number(isHiddenMentionPath(right)),
+      );
+      // Keeping the same array when nothing changed stops the filter effect
+      // below from re-running and resetting the highlighted row.
+      setFileList((previousFileList) =>
+        haveSameFiles(previousFileList, nextFileList) ? previousFileList : nextFileList,
+      );
+    } catch (error) {
+      // Ignore aborts from newer requests and rapid project switches; we only care about the latest request.
+      if ((error as { name?: string })?.name === 'AbortError') {
+        return;
+      }
+      console.error('Error fetching files:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    const fetchProjectFiles = async () => {
       setFileList([]);
       setFilteredFiles([]);
       if (!projectId) {
         return;
       }
 
-
-      try {
-        const response = await api.getFiles(projectId, {
-          signal: abortController.signal,
-        });
-        if (!response.ok) {
-          return;
-        }
-
-        const files = (await response.json()) as ProjectFileNode[];
-        const flattenedFiles = flattenFileTree(files);
-        // Hidden top-level paths (e.g. .claude, .agents) sort last so they do
-        // not monopolize the @ dropdown's first ten entries.
-        flattenedFiles.sort((left, right) =>
-          Number(isHiddenMentionPath(left)) - Number(isHiddenMentionPath(right)),
-        );
-        setFileList(flattenedFiles);
-      } catch (error) {
-        // Ignore aborts from rapid project switches; we only care about the latest request.
-        if ((error as { name?: string })?.name === 'AbortError') {
-          return;
-        }
-        console.error('Error fetching files:', error);
-      }
+      await loadProjectFiles(projectId);
     };
 
     fetchProjectFiles();
     return () => {
-      abortController.abort();
+      fileListRequestRef.current?.abort();
     };
-  }, [selectedProject?.projectId]);
+  }, [projectId, loadProjectFiles]);
+
+  // Files keep appearing after the list above was loaded (uploads, agent edits,
+  // the terminal, git checkouts) and nothing tells the composer about them, so
+  // the list is refetched each time the `@` dropdown opens. The dropdown stays
+  // open while the query is typed, so this is one request per `@`, not one per
+  // keystroke, and the previous list stays visible until the response lands.
+  useEffect(() => {
+    const refreshProjectFiles = async () => {
+      if (!showFileDropdown || !projectId) {
+        return;
+      }
+
+      await loadProjectFiles(projectId);
+    };
+
+    refreshProjectFiles();
+  }, [showFileDropdown, projectId, loadProjectFiles]);
 
   useEffect(() => {
     const textBeforeCursor = input.slice(0, cursorPosition);
@@ -234,7 +273,22 @@ export function useFileMentions({ selectedProject, input, setInput, textareaRef 
 
   const handleFileMentionsKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>): boolean => {
-      if (!showFileDropdown || filteredFiles.length === 0) {
+      if (!showFileDropdown) {
+        return false;
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        // The caret is still inside the `@` query, so a refetch landing after
+        // this would re-open the dropdown (or first show it, when nothing
+        // matched yet) and take the next Enter. Drop it; re-opening the
+        // dropdown fetches again.
+        fileListRequestRef.current?.abort();
+        setShowFileDropdown(false);
+        return true;
+      }
+
+      if (filteredFiles.length === 0) {
         return false;
       }
 
@@ -261,12 +315,6 @@ export function useFileMentions({ selectedProject, input, setInput, textareaRef 
         } else if (filteredFiles.length > 0) {
           selectFile(filteredFiles[0]);
         }
-        return true;
-      }
-
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setShowFileDropdown(false);
         return true;
       }
 

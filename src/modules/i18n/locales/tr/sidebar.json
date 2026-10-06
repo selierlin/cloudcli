@@ -57,7 +57,12 @@
     "tapToTryAgain": "Tekrar denemek için dokunun.",
     "clickToTryAgain": "Tekrar denemek için tıklayın.",
     "forkSession": "Oturumu çatalla",
-    "forkSessionDescription": "Bir kopyadan devam edin, bu oturuma dokunulmasın."
+    "forkSessionDescription": "Bir kopyadan devam edin, bu oturuma dokunulmasın.",
+    "select": "Seç",
+    "selectAllLoaded": "Yüklenenleri seç",
+    "clearSelection": "Seçimi kaldır",
+    "deleteSelected_one": "{{count}} oturumu sil",
+    "deleteSelected_other": "{{count}} oturumu sil"
   },
   "tooltips": {
     "viewEnvironments": "Ortamları Görüntüle",
@@ -149,7 +154,9 @@
     "restoreProjectError": "Proje geri yüklenirken hata oluştu. Lütfen tekrar dene.",
     "restoreSessionFailed": "Oturum geri yüklenemedi. Lütfen tekrar dene.",
     "restoreSessionError": "Oturum geri yüklenirken hata oluştu. Lütfen tekrar dene.",
-    "forkSessionError": "Bu oturum çatallanamadı. Lütfen tekrar deneyin."
+    "forkSessionError": "Bu oturum çatallanamadı. Lütfen tekrar deneyin.",
+    "deleteSessionsPartialFailure_one": "{{total}} oturumdan {{count}} tanesi silinemedi. Lütfen tekrar dene.",
+    "deleteSessionsPartialFailure_other": "{{total}} oturumdan {{count}} tanesi silinemedi. Lütfen tekrar dene."
   },
   "version": {
     "updateAvailable": "Güncelleme mevcut",
@@ -185,23 +192,27 @@
     "removeFromSidebar": "Yalnızca kenar çubuğundan kaldır",
     "archiveProject": "Projeyi arşivle",
     "archiveSession": "Oturumu arşivle",
-    "archiveSessionNotice": "Arşivleme, oturumu etkin listeden çıkarır ancak geçmişini korur.",
-    "archivedSessionNotice": "Bu oturum zaten arşivlenmiş. Gizli tutabilir veya kalıcı olarak silebilirsin.",
+    "archiveSessionNotice": "Arşivleme, oturumu etkin listeden kaldırır ve geçmişini korur.",
+    "archivedSessionNotice": "Bu oturum zaten arşivlendi. Gizli tutabilir veya kalıcı olarak silebilirsiniz.",
     "deleteSessionPermanently": "Kalıcı olarak sil",
     "deleteAllData": "Tüm veriyi kalıcı olarak sil",
     "allConversationsDeleted": "Proje kenar çubuğundan kaldırılacak. Dosyaların, bellek verilerin ve oturum verilerin korunacak.",
     "cannotUndo": "Projeyi sonra tekrar ekleyebilirsin.",
-    "archiveProject": "Projeyi arşivle",
-    "archiveSession": "Oturumu arşivle",
     "archiveSessionsTitle": "{{count}} oturumu arşivle",
     "archiveSessionsAction": "{{count}} oturumu arşivle",
     "archiveSessionsNotice": "Bu oturumlar etkin listelerden gizlenir; geçmişleri korunur ve arşivden geri yüklenebilir.",
     "permanentlyDeleteArchivedSessionsTitle": "{{count}} arşivlenmiş oturumu kalıcı olarak sil",
     "permanentlyDeleteArchivedSessionsAction": "{{count}} oturumu kalıcı olarak sil",
     "permanentlyDeleteArchivedSessionsNotice": "Seçili oturum kayıtları ve diskteki geçmiş dosyaları kalıcı olarak silinir. Arşivlenmiş projeler etkilenmez.",
-    "deleteSessionPermanently": "Kalıcı olarak sil",
-    "archiveSessionNotice": "Arşivleme, oturumu etkin listeden kaldırır ve geçmişini korur.",
-    "archivedSessionNotice": "Bu oturum zaten arşivlendi. Gizli tutabilir veya kalıcı olarak silebilirsiniz."
+    "confirmDeleteSessions": "Ne yapmak istersin:",
+    "deleteSessions_one": "{{count}} Oturumu Sil",
+    "deleteSessions_other": "{{count}} Oturumu Sil",
+    "selectedSessions_one": "seçili {{count}} oturum",
+    "selectedSessions_other": "seçili {{count}} oturum",
+    "archiveSessions_one": "{{count}} oturumu arşivle",
+    "archiveSessions_other": "{{count}} oturumu arşivle",
+    "archiveSessionsNotice_one": "Arşivleme, oturumu etkin listeden çıkarır ancak geçmişini korur.",
+    "archiveSessionsNotice_other": "Arşivleme, oturumları etkin listeden çıkarır ancak geçmişlerini korur."
   },
   "archived": {
     "manageSessions": "Oturumları yönet",

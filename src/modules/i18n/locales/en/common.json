@@ -102,7 +102,9 @@
     "featureGit": "Git",
     "newSession": "New Session",
     "untitledSession": "Untitled Session",
-    "projectFiles": "Project Files"
+    "projectFiles": "Project Files",
+    "renameSessionHint": "{{title}} (double-click to rename)",
+    "renameSessionLabel": "Session title"
   },
   "fileTree": {
     "loading": "Loading files...",

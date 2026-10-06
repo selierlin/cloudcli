@@ -94,10 +94,12 @@ export default function SidebarProjectSessions({
   const [isManaging, setIsManaging] = useState(false);
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
 
-  // Running sessions can never be archived in bulk, so prune the selection as
-  // sessions come and go (e.g. a session starts while manage mode is open).
-  // Returning `current` untouched when nothing changed lets React skip the
-  // re-render, keeping the row render count stable (see sidebarRowProps.test.tsx).
+  // Sessions that started a response can no longer be archived in bulk, so
+  // prune the selection as sessions come and go (e.g. a session starts a run
+  // while manage mode is open). A session only running background work is
+  // still deletable, so it stays selected. Returning `current` untouched when
+  // nothing changed lets React skip the re-render, keeping the row render count
+  // stable (see sidebarRowProps.test.tsx).
   useEffect(() => {
     setSelectedSessionIds((current) => {
       if (current.size === 0) {
@@ -105,17 +107,20 @@ export default function SidebarProjectSessions({
       }
       const availableSessionIds = new Set(
         sessions
-          .filter((session) => !activeSessions.has(session.id))
+          .filter((session) => !(activeSessions.has(session.id) && !backgroundSessionIds.has(session.id)))
           .map((session) => session.id),
       );
       const next = new Set([...current].filter((sessionId) => availableSessionIds.has(sessionId)));
       return next.size === current.size ? current : next;
     });
-  }, [activeSessions, sessions]);
+  }, [activeSessions, backgroundSessionIds, sessions]);
 
   const hasSessions = sessions.length > 0;
+  // A session with a response in flight cannot be archived in bulk — the same
+  // rule the row's options menu applies — so it is not selectable either.
+  // Sessions only running background work stay deletable, and so selectable.
   const selectableSessionIds = sessions
-    .filter((session) => !activeSessions.has(session.id))
+    .filter((session) => !(activeSessions.has(session.id) && !backgroundSessionIds.has(session.id)))
     .map((session) => session.id);
   const areAllSelectableSessionsSelected = selectableSessionIds.length > 0
     && selectableSessionIds.every((sessionId) => selectedSessionIds.has(sessionId));
@@ -213,9 +218,11 @@ export default function SidebarProjectSessions({
         </div>
       )}
 
+      {/* A page emptied by deleting every loaded row still has sessions behind
+          it on the server, so it keeps its "Load more" instead of "No sessions". */}
       {!initialSessionsLoaded ? (
         <SessionListSkeleton />
-      ) : !hasSessions ? (
+      ) : !hasSessions && !hasMoreSessions ? (
         <div className="px-3 py-2 text-left">
           <p className="text-xs text-muted-foreground">{t('sessions.noSessions')}</p>
         </div>

@@ -57,7 +57,12 @@
     "tapToTryAgain": "Toca para reintentar.",
     "clickToTryAgain": "Haz clic para reintentar.",
     "forkSession": "Bifurcar sesión",
-    "forkSessionDescription": "Continúa desde una copia y deja esta sin cambios."
+    "forkSessionDescription": "Continúa desde una copia y deja esta sin cambios.",
+    "select": "Seleccionar",
+    "selectAllLoaded": "Seleccionar las cargadas",
+    "clearSelection": "Quitar selección",
+    "deleteSelected_one": "Eliminar {{count}} sesión",
+    "deleteSelected_other": "Eliminar {{count}} sesiones"
   },
   "tooltips": {
     "viewEnvironments": "Ver entornos",
@@ -149,7 +154,9 @@
     "restoreProjectError": "Error al restaurar el proyecto. Inténtalo de nuevo.",
     "restoreSessionFailed": "No se pudo restaurar la sesión. Inténtalo de nuevo.",
     "restoreSessionError": "Error al restaurar la sesión. Inténtalo de nuevo.",
-    "forkSessionError": "No se pudo bifurcar esta sesión. Inténtalo de nuevo."
+    "forkSessionError": "No se pudo bifurcar esta sesión. Inténtalo de nuevo.",
+    "deleteSessionsPartialFailure_one": "No se pudo eliminar {{count}} sesión de {{total}}. Inténtalo de nuevo.",
+    "deleteSessionsPartialFailure_other": "No se pudieron eliminar {{count}} de {{total}} sesiones. Inténtalo de nuevo."
   },
   "version": {
     "updateAvailable": "Actualización disponible",
@@ -185,23 +192,27 @@
     "removeFromSidebar": "Solo quitar de la barra lateral",
     "archiveProject": "Archivar proyecto",
     "archiveSession": "Archivar sesión",
-    "archiveSessionNotice": "Archivar mantiene la sesión fuera de la lista activa y conserva su historial.",
+    "archiveSessionNotice": "Archivar quita la sesión de la lista activa y conserva su historial.",
     "archivedSessionNotice": "Esta sesión ya está archivada. Puedes mantenerla oculta o eliminarla permanentemente.",
     "deleteSessionPermanently": "Eliminar permanentemente",
     "deleteAllData": "Eliminar todos los datos permanentemente",
     "allConversationsDeleted": "El proyecto se quitará de la barra lateral. Tus archivos, memorias y datos de sesión se conservarán.",
     "cannotUndo": "Puedes volver a añadir el proyecto más tarde.",
-    "archiveProject": "Archivar proyecto",
-    "archiveSession": "Archivar sesión",
     "archiveSessionsTitle": "Archivar {{count}} sesiones",
     "archiveSessionsAction": "Archivar {{count}} sesiones",
     "archiveSessionsNotice": "Estas sesiones se ocultarán de las listas activas, pero su historial se conservará y podrá restaurarse desde el archivo.",
     "permanentlyDeleteArchivedSessionsTitle": "Eliminar permanentemente {{count}} sesiones archivadas",
     "permanentlyDeleteArchivedSessionsAction": "Eliminar permanentemente {{count}} sesiones",
     "permanentlyDeleteArchivedSessionsNotice": "Esto elimina permanentemente los registros de sesión seleccionados y sus archivos de historial en disco. Los proyectos archivados no se ven afectados.",
-    "deleteSessionPermanently": "Eliminar permanentemente",
-    "archiveSessionNotice": "Archivar quita la sesión de la lista activa y conserva su historial.",
-    "archivedSessionNotice": "Esta sesión ya está archivada. Puedes mantenerla oculta o eliminarla permanentemente."
+    "confirmDeleteSessions": "¿Qué quieres hacer con",
+    "deleteSessions_one": "Eliminar {{count}} sesión",
+    "deleteSessions_other": "Eliminar {{count}} sesiones",
+    "selectedSessions_one": "{{count}} sesión seleccionada",
+    "selectedSessions_other": "{{count}} sesiones seleccionadas",
+    "archiveSessions_one": "Archivar {{count}} sesión",
+    "archiveSessions_other": "Archivar {{count}} sesiones",
+    "archiveSessionsNotice_one": "Archivar mantiene la sesión fuera de la lista activa y conserva su historial.",
+    "archiveSessionsNotice_other": "Archivar mantiene las sesiones fuera de la lista activa y conserva su historial."
   },
   "archived": {
     "manageSessions": "Gestionar sesiones",
