@@ -226,7 +226,18 @@ export function createRevealPacer(
       }
     } else if (ch.full.length > ch.publishedInFull) {
       // The previous segment is still revealing — queue this one behind it.
-      ch.pending.push({ text, groupKey });
+      // Cumulative-snapshot providers (DSH) can emit several snapshots of the
+      // same message while a previous segment is still playing; fold them into
+      // the queued tail instead of stacking entries, or each queued copy would
+      // later replay the same growing prefix as its own wave.
+      const tail = ch.pending[ch.pending.length - 1];
+      if (tail && groupKey !== undefined && tail.groupKey === groupKey) {
+        if (text.length >= tail.text.length) {
+          ch.pending[ch.pending.length - 1] = { text, groupKey };
+        }
+      } else {
+        ch.pending.push({ text, groupKey });
+      }
     } else {
       // Idle: fold the finished segment into the frozen prefix, start fresh.
       ch.settled += ch.full;
