@@ -89,6 +89,11 @@ class ZcodeAppServerConnection {
   constructor(private readonly child: ChildProcess) {
     child.stdout?.setEncoding('utf8');
     child.stdout?.on('data', (chunk: string) => this.onData(chunk));
+    // An EPIPE on stdin (the app-server died mid-write) surfaces as an async
+    // `error` event on the stream, which the `write()` try/catch cannot catch;
+    // swallow it so it cannot take down the server process — the exit handler
+    // already fails every pending request.
+    child.stdin?.on('error', () => {});
     child.on('error', (error) => {
       this.failAll(new AppError(`The ZCode app-server could not start: ${error.message}`, {
         code: 'FORK_FAILED',
