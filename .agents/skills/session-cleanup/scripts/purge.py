@@ -81,14 +81,35 @@ def main():
                 targets.append(r)
                 break
 
-    if not targets:
+    # zcode 库独有目标：cloudcli 未收录它们（增量游标/DB 重建会漏掉），
+    # 因此上面永远匹配不到 —— 但它们的会话仍在 zcode 库里占地方。
+    zcode_only = []
+    if not args.no_zcode and os.path.exists(args.zcode_db):
+        known_ids = set()
+        for r in all_rows:
+            known_ids.update(x for x in (r["session_id"], r["provider_session_id"]) if x)
+        z = sqlite3.connect(f"file:{args.zcode_db}?mode=ro", uri=True)
+        try:
+            zids_all = [x[0] for x in z.execute("select id from session")]
+        finally:
+            z.close()
+        for p in prefixes:
+            for zid in zids_all:
+                if zid.startswith(p) and zid not in known_ids and zid not in zcode_only:
+                    zcode_only.append(zid)
+
+    if not targets and not zcode_only:
         sys.exit("没有会话匹配这些前缀（先跑 inventory.py 核对 id）")
 
     tgt_sids = {r["session_id"] for r in targets}
     live_psids = {r["provider_session_id"] for r in all_rows
                   if r["provider_session_id"] and r["session_id"] not in tgt_sids}
 
-    print(f"{'APPLY' if args.apply else 'DRY-RUN'}：命中 {len(targets)} 条会话\n")
+    print(f"{'APPLY' if args.apply else 'DRY-RUN'}：命中 {len(targets)} 条会话"
+          f"{f'，另有 {len(zcode_only)} 条 zcode 库独有（cloudcli 未收录）' if zcode_only else ''}\n")
+
+    for zid in zcode_only:
+        print(f"### {zid[:12]} [zcode] 库外（cloudcli 未收录） arch=- fork_dep=0 sup=0")
 
     files, dirs, missing, freed = [], [], [], 0
     fork_warn = []
@@ -141,7 +162,7 @@ def main():
 
     # ---- zcode ----
     if not args.no_zcode:
-        zids = set()
+        zids = set(zcode_only)
         for r in targets:
             if r["provider"] == "zcode" or (r["session_id"] or "").startswith("sess_"):
                 zids |= {x for x in (r["session_id"], r["provider_session_id"]) if x}

@@ -72,7 +72,7 @@ description: CloudCLI 会话清理与沉淀——清理无用会话（口水/smo
 
 | 脚本 | 作用 | 默认 |
 |---|---|---|
-| `inventory.py` | 只读盘点：会话表 + 体积 + 真实用户轮数 + 磁盘状态 + 首问预览 | 只读 |
+| `inventory.py` | 只读盘点：会话表 + 体积 + 真实用户轮数 + 磁盘状态 + 首问预览（zcode 行另读 zcode 库；并列出 cloudcli 未收录的「zcode 库独有」会话） | 只读 |
 | `purge.py` | 物理删除（DB 行 + transcript + superseded + WorkBuddy 残留目录 + zcode 库） | **干跑**；`--apply` 需 `--backup` |
 | `sediment_refs.py` | 采集 memory-bank 的 `s:` 引用并与会话交叉匹配 | 只读 |
 | `extract.py` | 按 provider 抽取对话脉络（USER/末答） | 只读 |
@@ -87,6 +87,7 @@ description: CloudCLI 会话清理与沉淀——清理无用会话（口水/smo
 
 - 服务在跑时**不要**删 `auth.db-wal`/`auth.db-shm`；`.backup` 产物是完整的独立库，其边车里 `-wal` 恒 0 字节，删边车无损。
 - `.backup` 产物是 WAL 库，只读打开须加 `?mode=ro&immutable=1`，否则报 `unable to open database file`。
+- **反过来，读「活动中的」WAL 库（如 zcode `db.sqlite`）不能加 `immutable=1`**——它会跳过 WAL，未 checkpoint 的提交读不到（曾把已存在的会话读成 0 行）。用 `?mode=ro`。`immutable` 只给静态快照用。
 - 别用 `.backup` 快照反推磁盘文件是否删除（快照只救 DB 行，**文件删了不可恢复**）——删除前想清楚。
 - zcode：应用内「永久删除」对 zcode 磁盘**零删除**（`jsonl_path` 恒 NULL，后端无该 provider 的 `resolveTranscriptPath`），必须额外清 zcode 库与 rollout。
 - 遇到「删了但 UI 还显示」：是内存缓存，先重启确认，别重复删。
