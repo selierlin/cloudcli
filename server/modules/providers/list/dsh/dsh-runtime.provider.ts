@@ -671,8 +671,12 @@ async function ensureAcpServer(): Promise<AcpServerState> {
       if (!run) {
         return;
       }
+      // The payload must carry `messageId` alongside the accumulated snapshot:
+      // `DshSessionsProvider.normalizeMessage` reads it to pin the row's upsert
+      // id, and dropping it here made the stable-id path unreachable while the
+      // snapshot content replayed under fresh random ids.
       for (const message of run.normalize(
-        { type: 'agent_message_chunk', content: accumulateChunk(run, 'text', messageId, text) },
+        { type: 'agent_message_chunk', content: accumulateChunk(run, 'text', messageId, text), messageId },
         run.appSessionId,
       )) {
         run.writer.send(message);
@@ -684,7 +688,7 @@ async function ensureAcpServer(): Promise<AcpServerState> {
         return;
       }
       for (const message of run.normalize(
-        { type: 'agent_thought_chunk', content: accumulateChunk(run, 'thinking', messageId, text) },
+        { type: 'agent_thought_chunk', content: accumulateChunk(run, 'thinking', messageId, text), messageId },
         run.appSessionId,
       )) {
         run.writer.send(message);
