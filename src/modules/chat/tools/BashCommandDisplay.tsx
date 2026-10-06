@@ -151,7 +151,7 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
         <span
           className={cn(
             'min-w-0 flex-1 font-mono text-xs text-foreground',
-            open ? 'whitespace-pre-wrap break-all' : 'whitespace-nowrap overflow-x-auto',
+            open ? 'whitespace-pre-wrap break-all' : 'whitespace-nowrap overflow-x-auto scrollbar-hide',
           )}
         >
           {command}
