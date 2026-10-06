@@ -1613,21 +1613,23 @@
    Both appearances are Catppuccin's own flavours — the light half is Latte, the
    dark half Mocha — mapped onto the L1 families the base already publishes, so
    one appearance-agnostic block lets the capsule pick each step, exactly as
-   `cc-polar` does.
+   `cc-islands` does.
 
-   Two values are deliberately *not* Catppuccin's:
+   One value is deliberately *not* Catppuccin's:
 
    - `--palette-sand-500`. Latte's own secondary text (`subtext0`, #6c6f85)
      reaches only 4.37:1 on Latte's base — under the AA floor §5.10 puts every
      shipped theme behind — so the next step down (`subtext1`, #5c5f77, 5.53:1)
      is used instead. Same account as the base's own `sand-500` move from 44% to
      43% in 1-H.
-   - `--palette-danger-800`, left at the base's dark red. Every red in Mocha is
-     a pastel meant to be *read* on a dark surface, and lands near 2:1 as a
-     *fill* with light text on it; the dark half's destructive button therefore
-     keeps the base fill, which reads at 6.9:1 under Mocha's `text`. The light
-     half does take Latte's red (5.2:1 under the frost label, against the base's
-     3.6:1).
+
+   `--palette-danger-800` used to be a second one, left on the base's deeper red
+   because Mocha's red is a pastel meant to be *read* on a dark surface and lands
+   near 2:1 as a *fill* under the dark half's light label. It now takes Mocha's
+   red anyway: the board is Catppuccin's everywhere else, and §5.10's pairs do
+   not cover `--destructive`, so the fill is the theme's own call — recorded here
+   rather than rediscovered later. The light half takes Latte's red (5.2:1 under
+   the frost label, against the base's 3.6:1), which is Catppuccin's too.
 
    `--palette-white` is deliberately not overridden either: it backs `--n-white`
    and the `--editor-*` surfaces, which no theme retints. The light card reads
@@ -1666,40 +1668,44 @@
   --palette-brand-500: 219.91 91.49% 53.92%;
   --palette-brand-400: 217.17 91.87% 75.88%;
 
-  /* Danger: Latte's red is the light fill (see the note above for why the dark
-     fill is left alone). */
+  /* Danger: each half takes its flavour's own red — Latte's for the light fill,
+     Mocha's for the dark one (see the note above for the 2:1 that buys). */
   --palette-danger-500: 347.08 86.67% 44.12%;
+  --palette-danger-800: 343.27 81.25% 74.9%;
 
-  /* Terminal board, dark half — Mocha's ANSI-16. Slots keep their meanings:
-     red is error/deleted, green success/added, blue info. Catppuccin publishes
-     fourteen colours for sixteen slots, so the `bright-*` half reuses the same
-     accents; only the two ends step apart — `bright-black` up to surface2 and
-     `bright-white` up to `text` — which is what stops the board reading as
-     eight repeated pairs. The light half is in the `:not(.dark)` block below
-     and applies the same role table to Latte. */
+  /* Terminal board, dark half — Mocha's ANSI-16, taken slot for slot from
+     `catppuccin/palette`'s `palette.json` (`ansiColors`, which publishes all
+     eight normal/bright pairs, not only the eight accents the first cut
+     reused). Slots keep their meanings: red is error/deleted, green
+     success/added, blue info. `selection` is the one slot the palette states
+     as a *rule* rather than a hex — Overlay 2 at 20–30% — and xterm paints a
+     single opaque swatch, so it is that mix at 30% composited onto this
+     flavour's base. The light half is in the `:not(.dark)` block below and
+     reads Latte's own column of the same table, so the two appearances no
+     longer share one hand-built board. */
   --palette-term-bg: 240 21.05% 14.9%;
   --palette-term-fg: 226.15 63.93% 88.04%;
   --palette-term-cursor: 9.6 55.56% 91.18%;
-  --palette-term-selection: 232.5 12% 39.22%;
+  --palette-term-selection: 234.29 13.91% 29.61%;
   --palette-term-black: 234.29 13.21% 31.18%;
   --palette-term-red: 343.27 81.25% 74.9%;
   --palette-term-green: 115.45 54.1% 76.08%;
   --palette-term-yellow: 41.35 86.05% 83.14%;
   --palette-term-blue: 217.17 91.87% 75.88%;
-  --palette-term-magenta: 267.41 83.51% 80.98%;
+  --palette-term-magenta: 316.47 71.83% 86.08%;
   --palette-term-cyan: 170 57.35% 73.33%;
-  --palette-term-white: 226.67 35.29% 80%;
+  --palette-term-white: 227.65 23.61% 71.76%;
   --palette-term-bright-black: 232.5 12% 39.22%;
-  --palette-term-bright-red: 350.4 65.22% 77.45%;
-  --palette-term-bright-green: 115.45 54.1% 76.08%;
-  --palette-term-bright-yellow: 41.35 86.05% 83.14%;
-  --palette-term-bright-blue: 217.17 91.87% 75.88%;
-  --palette-term-bright-magenta: 267.41 83.51% 80.98%;
-  --palette-term-bright-cyan: 170 57.35% 73.33%;
-  --palette-term-bright-white: 226.15 63.93% 88.04%;
+  --palette-term-bright-red: 343.55 83.78% 70.98%;
+  --palette-term-bright-green: 121.52 50.32% 69.22%;
+  --palette-term-bright-yellow: 44 69.23% 74.51%;
+  --palette-term-bright-blue: 217.06 95.77% 72.16%;
+  --palette-term-bright-magenta: 317.65 72.34% 81.57%;
+  --palette-term-bright-cyan: 172.78 57.45% 63.14%;
+  --palette-term-bright-white: 226.67 35.29% 80%;
 
   /* Graph lanes. The same ten hues in the same order, so a lane still reads as
-     itself — the method `cc-polar`'s lanes use. Saturation is levelled at 55%
+     itself — the method `cc-islands`'s lanes use. Saturation is levelled at 55%
      (Catppuccin's own accents are pastels picked for a dark base and fall to
      1.1–2.1:1 on Latte) and lightness is the point that maximises the *worse*
      of the two substrates, which puts every lane at 3.76:1 or better on both.
@@ -1717,41 +1723,37 @@
   --palette-graph-10: 83.7 55% 33.5%;
 }
 
-/* The editor's two halves, split the way `cc-polar`'s are and for the same
+/* The editor's two halves, split the way `cc-islands`'s are and for the same
    reason: its base values are appearance-specific literals rather than L1
    references, so a single block would leak light chrome into dark mode. */
 [data-theme="cc-catppuccin"]:not(.dark) {
-  /* Terminal board, light half — Latte, read through the same role table the
-     dark half uses: bg←base, fg←text, cursor←rosewater, selection←surface2,
-     black←surface1, red←red, green←green, yellow←yellow, blue←blue,
-     magenta←mauve, cyan←teal, white←subtext1, bright-red←maroon,
-     bright-white←text, and the rest of `bright-*` reusing their normal slot.
-     That table is this theme's own reading of the palette rather than a copy
-     of catppuccin/alacritty, which differs on `magenta` (pink there),
-     `bright-red` (red), `bright-white` (subtext0) and `selection` (rosewater);
-     the dark half has carried those four choices since it was written, so
-     applying the same table here is what keeps the two appearances off one
-     board instead of two. */
+  /* Terminal board, light half — Latte's own column of the same `ansiColors`
+     table the dark half reads (see above). Two things worth naming: the
+     brights run *lighter* than their normals on both flavours, which is
+     Catppuccin's own choice rather than the inversion a light ANSI port
+     usually makes, so "bright" reads as lower contrast here; and `selection`
+     is Overlay 2 mixed 30% into Latte's base — the opaque form of the guide's
+     "Overlay 2 at 20–30%", which is why it is not a palette hex either. */
   --palette-term-bg: 220 23.08% 94.9%;
   --palette-term-fg: 233.79 16.02% 35.49%;
   --palette-term-cursor: 10.8 58.82% 66.67%;
-  --palette-term-selection: 226.67 12.16% 70.98%;
-  --palette-term-black: 225 13.56% 76.86%;
+  --palette-term-selection: 225 13.33% 82.35%;
+  --palette-term-black: 233.33 12.8% 41.37%;
   --palette-term-red: 347.08 86.67% 44.12%;
   --palette-term-green: 109.23 57.64% 39.8%;
   --palette-term-yellow: 34.95 76.98% 49.41%;
   --palette-term-blue: 219.91 91.49% 53.92%;
-  --palette-term-magenta: 266.04 85.05% 58.04%;
+  --palette-term-magenta: 316.03 73.42% 69.02%;
   --palette-term-cyan: 183.23 73.86% 34.51%;
-  --palette-term-white: 233.33 12.8% 41.37%;
-  --palette-term-bright-black: 226.67 12.16% 70.98%;
-  --palette-term-bright-red: 354.78 76.3% 58.63%;
-  --palette-term-bright-green: 109.23 57.64% 39.8%;
-  --palette-term-bright-yellow: 34.95 76.98% 49.41%;
-  --palette-term-bright-blue: 219.91 91.49% 53.92%;
-  --palette-term-bright-magenta: 266.04 85.05% 58.04%;
-  --palette-term-bright-cyan: 183.23 73.86% 34.51%;
-  --palette-term-bright-white: 233.79 16.02% 35.49%;
+  --palette-term-white: 226.67 12.16% 70.98%;
+  --palette-term-bright-black: 232.8 10.37% 47.25%;
+  --palette-term-bright-red: 353.04 73.28% 51.57%;
+  --palette-term-bright-green: 113.68 48.31% 46.27%;
+  --palette-term-bright-yellow: 35.75 85.02% 55.49%;
+  --palette-term-bright-blue: 226.77 100% 63.53%;
+  --palette-term-bright-magenta: 318.84 98.37% 75.88%;
+  --palette-term-bright-cyan: 184.39 57.75% 41.76%;
+  --palette-term-bright-white: 225 13.56% 76.86%;
 
   --code-block-bg: var(--palette-sand-50);
   --editor-bg: hsl(var(--palette-sand-50));
@@ -1778,19 +1780,19 @@
   --editor-toolbar-fg: hsl(var(--palette-sand-800));
   --editor-toolbar-hover-bg: hsl(var(--palette-sand-100));
 
-  /* Latte's own syntax board, by the palette's role conventions — the dark half
-     records the mapping and why this one is a convention rather than a
-     published scheme. */
-  --cc-syntax-comment-color: #9ca0b0;
+  /* Latte's own syntax board — the official style guide's Language Defaults
+     table, one flavour at a time (Catppuccin ships no editor scheme, so the
+     table is the reference; the dark half records the mapping). */
+  --cc-syntax-comment-color: #7c7f93;
   --cc-syntax-punctuation-color: #7c7f93;
   --cc-syntax-class-name-color: #df8e1d;
   --cc-syntax-constant-color: #fe640b;
   --cc-syntax-number-color: #fe640b;
   --cc-syntax-keyword-color: #8839ef;
-  --cc-syntax-property-color: #7287fd;
+  --cc-syntax-property-color: #1e66f5;
   --cc-syntax-string-color: #40a02b;
   --cc-syntax-function-color: #1e66f5;
-  --cc-syntax-url-color: #04a5e5;
+  --cc-syntax-url-color: #1e66f5;
   --cc-syntax-block-foreground: #4c4f69;
 }
 
@@ -1825,20 +1827,22 @@
   --editor-toolbar-hover-bg: hsl(var(--palette-ink-800));
   --editor-loading-bg: hsl(var(--palette-ink-950));
 
-  /* Mocha's own syntax board. Catppuccin publishes these roles per flavour but
-     ships no editor scheme, so the slots come from the palette's official role
-     conventions rather than a file (see the plan's fidelity note). All eleven
+  /* Mocha's own syntax board, by the same table: comments and braces both
+     Overlay 2, properties and links Blue, keywords Mauve, strings Green,
+     numbers/constants Peach, classes Yellow, functions Blue. The guide gives
+     links one colour for the resting state and Sky only for "on hover", which
+     a static token cannot express, so `url` takes the resting Blue. All eleven
      differ from base Prism. */
-  --cc-syntax-comment-color: #6c7086;
+  --cc-syntax-comment-color: #9399b2;
   --cc-syntax-punctuation-color: #9399b2;
   --cc-syntax-class-name-color: #f9e2af;
   --cc-syntax-constant-color: #fab387;
   --cc-syntax-number-color: #fab387;
   --cc-syntax-keyword-color: #cba6f7;
-  --cc-syntax-property-color: #b4befe;
+  --cc-syntax-property-color: #89b4fa;
   --cc-syntax-string-color: #a6e3a1;
   --cc-syntax-function-color: #89b4fa;
-  --cc-syntax-url-color: #89dceb;
+  --cc-syntax-url-color: #89b4fa;
   --cc-syntax-block-foreground: #cdd6f4;
 }
 
@@ -2684,13 +2688,22 @@
        react-syntax-highlighter inlines them into a style attribute — so they are
        hex, the shape the base's own board uses.
 
-   Colour provenance: dracula-theme/README.md (the official Dracula and Alucard
-   boards) and dracula/alacritty's ANSI-16 for the terminal lanes. */
+   Colour provenance: spec.draculatheme.com — the authoritative reference, and
+   the one the README and every official port point at. It carries the Dracula
+   and Alucard palettes, the syntax classification, an ANSI-16 ramp for *both*
+   appearances, and a UI Color Palette; `dracula/alacritty` agrees with its dark
+   ANSI half slot for slot. */
 [data-theme="cc-dracula"] {
-  /* Dark appearance, substrate: page → card → secondary → input. */
+  /* Dark appearance, substrate: page → card → secondary → input. All four are
+     published values: the page is the palette's Background and the input step
+     is its Selection, while the two middle ones are the spec's own UI steps —
+     Background Light / Floating (#343746) and Background Lighter (#424450).
+     They used to be interpolations between the page and Selection; the spec's
+     UI Color Palette supplies the real steps, and they land inside the same
+     gap, so the ramp is even either way — this one just stops inventing. */
   --palette-ink-950: 231.43 14.89% 18.43%;
-  --palette-ink-900: 232.5 14.55% 21.57%;
-  --palette-ink-850: 230.53 14.07% 26.47%;
+  --palette-ink-900: 230 14.75% 23.92%;
+  --palette-ink-850: 231.43 9.59% 28.63%;
   --palette-ink-800: 231.82 13.92% 30.98%;
 
   /* Dark appearance, ink: secondary text → text. */
@@ -2717,9 +2730,14 @@
   --palette-brand-500: 252.28 54.04% 53.92%;
   --palette-brand-400: 264.71 89.47% 77.65%;
 
-  /* Danger. */
+  /* Danger: one published red per appearance. The light fill is Alucard's Red;
+     the dark fill is Dracula's. `--destructive` is outside `CONTRAST_PAIRS`, so
+     the dark one is a trade rather than a violation: Mocha's pastel red under
+     `--palette-ink-100` reads at 2.95:1, where the deeper invented step this
+     block used to carry read at 6.81:1. Faithfulness wins, as the sibling
+     promoted themes record. */
   --palette-danger-500: 5.96 65.71% 48.04%;
-  --palette-danger-800: 0 56.86% 40%;
+  --palette-danger-800: 0 100% 66.67%;
 
   /* The `gray` compatibility ramp, re-laid on Dracula's blue-violet hue at the
      base's own eleven lightnesses. This is the family the overlay contract used
@@ -2792,22 +2810,23 @@
    (its board was `sand-50` while the editor page stayed pure white). Claiming
    the editor is what restores it. */
 [data-theme="cc-dracula"]:not(.dark) {
-  /* Terminal board, light half — Alucard, the palette the theme's own README
-     publishes. Alucard has no terminal port of its own (dracula/alacritty ships
-     `dracula.toml` and nothing else), so this is read through the same role
-     table the dark half's ANSI-16 uses: red←Red, green←Green, yellow←Yellow,
-     blue←Purple (Dracula's blue slot has always been the purple), magenta←Pink,
-     cyan←Cyan, white←Foreground, selection←Selection, bg←Background with the
-     page's own damping applied. Two consequences, both deliberate: Alucard
-     publishes no `bright-*` ramp, so those slots reuse their normal partner
-     rather than invent one; and its only two neutrals are Foreground #1f1f1f
-     and Current Line #6c664b, so the four neutral slots land on those two
-     (`black` is the mid grey, the rest the deep one). */
+  /* Terminal board, light half — Alucard's own ANSI-16, straight off the spec's
+     ANSI Color Palette table (spec.draculatheme.com, the reference the README
+     and `dracula/alacritty` both point at). It is a full ramp, eight `bright-*`
+     slots included. An earlier version of this block read Alucard through the
+     dark half's role table and let each `bright-*` reuse its normal partner,
+     because it recorded "Alucard publishes no bright ramp" — the spec does, so
+     the reuse is gone. The light board inverts its neutral axis the way a light
+     terminal does: `black` is the Background and `white` the Foreground. The
+     spec binds `black` to the flavour's Background, and this theme paints that
+     paper desaturated (see the `sand-50` note above), so the two no longer
+     coincide — the published value is kept here and only `--palette-term-bg`
+     carries the paper. */
   --palette-term-bg: 48 58% 96.08%;
   --palette-term-fg: 0 0% 12.16%;
   --palette-term-cursor: 0 0% 12.16%;
   --palette-term-selection: 240 18.52% 84.12%;
-  --palette-term-black: 49.09 18.03% 35.88%;
+  --palette-term-black: 48 100% 96.08%;
   --palette-term-red: 5.96 65.71% 48.04%;
   --palette-term-green: 114.17 83.74% 24.12%;
   --palette-term-yellow: 48.11 72.55% 30%;
@@ -2815,14 +2834,14 @@
   --palette-term-magenta: 336.08 78.14% 35.88%;
   --palette-term-cyan: 197.96 96.08% 30%;
   --palette-term-white: 0 0% 12.16%;
-  --palette-term-bright-black: 0 0% 12.16%;
-  --palette-term-bright-red: 5.96 65.71% 48.04%;
-  --palette-term-bright-green: 114.17 83.74% 24.12%;
-  --palette-term-bright-yellow: 48.11 72.55% 30%;
-  --palette-term-bright-blue: 252.28 54.04% 53.92%;
-  --palette-term-bright-magenta: 336.08 78.14% 35.88%;
-  --palette-term-bright-cyan: 197.96 96.08% 30%;
-  --palette-term-bright-white: 0 0% 12.16%;
+  --palette-term-bright-black: 49.09 18.03% 35.88%;
+  --palette-term-bright-red: 5.84 65.81% 54.12%;
+  --palette-term-bright-green: 113.95 84.31% 30%;
+  --palette-term-bright-yellow: 48.18 71.74% 36.08%;
+  --palette-term-bright-blue: 252 53.92% 60%;
+  --palette-term-bright-magenta: 336.29 77.67% 42.16%;
+  --palette-term-bright-cyan: 198.07 95.65% 36.08%;
+  --palette-term-bright-white: 250 6.52% 18.04%;
 
   /* The editor/boards sit one sand step *deeper* than the page. The base's
      light direction is the reverse (editor page pure white, the one L1 step
@@ -2874,15 +2893,18 @@
 }
 
 /* The editor, dark half — the same recipe with the theme's ink steps, and
-   `--editor-bg` = `--code-block-bg` = `ink-950`, Dracula's own board. */
+   `--editor-bg` = `--code-block-bg` = `ink-950`, Dracula's own board. One slot
+   leaves the family recipe: the selection takes `ink-800`, which is the
+   palette's Selection, mirroring the light half's move onto Alucard's Selection
+   — a selection is a published colour, not a substrate step. */
 [data-theme="cc-dracula"].dark {
   --code-block-bg: var(--palette-ink-950);
   --editor-bg: hsl(var(--palette-ink-950));
   --editor-fg: hsl(var(--palette-ink-100));
   --editor-caret: hsl(var(--palette-brand-400));
   --editor-cursor: hsl(var(--palette-brand-400));
-  --editor-selection: hsl(var(--palette-ink-850));
-  --editor-selection-focused: hsl(var(--palette-ink-850));
+  --editor-selection: hsl(var(--palette-ink-800));
+  --editor-selection-focused: hsl(var(--palette-ink-800));
   --editor-gutter-bg: hsl(var(--palette-ink-950));
   --editor-gutter-fg: hsl(var(--palette-ink-400));
   --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.06);
@@ -2906,11 +2928,17 @@
   --editor-toolbar-hover-bg: hsl(var(--palette-ink-800));
   --editor-loading-bg: hsl(var(--palette-ink-950));
 
-  /* Dracula's board. Two slots follow the published colours rather than the One
-     Dark intuition: `class-name` is cyan (Dracula's `entity.name.class` /
-     `entity.name.type` are CYAN, not yellow) and `url` is cyan too (links and
-     types share it), which is why those two agree — Dracula spends one colour
-     twice. */
+  /* Dracula's board, per the spec's Syntax Highlighting Rules. `class-name` is
+     cyan and `url` is cyan too — Dracula's `entity.name.class` /
+     `entity.name.type` are CYAN rather than yellow, and links spend the same
+     colour — so those two agree; Dracula spends one colour twice.
+
+     `constant` and `number` are purple, which is one place the spec argues with
+     itself: its classification says "Numbers and Constants → Orange", but its
+     own worked example paints `#000` and `0` purple, its palette table lists
+     constants under *both* Orange and Purple, and the official VS Code theme
+     scopes `constant` (numbers ride that scope) to PURPLE with a comment about
+     conforming deliberately. Three readings to one, so purple stays. */
   --cc-syntax-comment-color: #6272a4;
   --cc-syntax-punctuation-color: #f8f8f2;
   --cc-syntax-class-name-color: #8be9fd;
@@ -2930,20 +2958,49 @@
    (see that block's note for the editor rationale and the two shape
    constraints).
 
-   Colour provenance: morhetz/gruvbox colors/gruvbox.vim:89-132.
+   Colour provenance — three places in morhetz/gruvbox colors/gruvbox.vim:
+   `:89-132` the absolute ramp, `:275-297` the Neovim `g:terminal_color_*`
+   board, and `:570-635` the syntax links the eleven slots are read off. The
+   terminal board resolves through the relative ladder at `:168-230`, so that
+   one block covers both appearances; the defaults it is read under are
+   `gruvbox_contrast_dark` / `_light` = `medium` (so `bg0` is `dark0` /
+   `light0`) and `improved_strings` = 0 (so `String` is green, not `fg1`).
+   Both terminal halves were checked slot by slot against that file.
 
-   Deliberate deviation from the reference: the three light *surface* steps
-   keep gruvbox's hue and lightness but drop saturation to the base's own
-   substrate levels (22/15/14%). Both morhetz's light board and
-   gruvbox-material's light `bg0` are `#fbf1c7` (S≈87%) — the reference never
-   toned it down — and in a full-UI context that saturation reads as a lemon
-   paper: vim paints one canvas, this UI spreads the substrate across page,
-   panels and borders. The lightness ladder and the warm hue are what read as
-   "gruvbox"; the lemon saturation is what the base never had. Text steps
-   (sand-500/800/950) are untouched: their low lightness hides the saturation,
-   and sand-500 is contrast-pinned. The card paper `sand-25` halves the already
-   damped `sand-50` saturation once more (11%): it reads as a near-white with a
-   whisper of the hue, which is what the panels should sit on. */
+   Deliberate deviations, each with the reason it is not a copy:
+
+   - The three light *surface* steps keep gruvbox's hue and lightness but drop
+     saturation to the base's own substrate levels (22/15/14%). Both morhetz's
+     light board and gruvbox-material's light `bg0` are `#fbf1c7` (S≈87%) — the
+     reference never toned it down — and in a full-UI context that saturation
+     reads as a lemon paper: vim paints one canvas, this UI spreads the
+     substrate across page, panels and borders. The lightness ladder and the
+     warm hue are what read as "gruvbox"; the lemon saturation is what the base
+     never had. The card paper `sand-25` halves the already damped `sand-50`
+     saturation once more (11%): it reads as a near-white with a whisper of the
+     hue, which is what the panels should sit on.
+
+     `sand-500` is then gruvbox's `fg3` (`dark3`) rather than its `fg4`
+     (`dark4`), because `#7c6f64` measures 3.86:1 on the damped page and 4.29:1
+     even against the undamped `light0` — both under the AA floor §5.10 puts
+     every shipped theme behind — while `#665c54` reads 5.17:1. Same shape as
+     `cc-catppuccin`'s `subtext1` move: the role is taken one step further than
+     the reference's own pick because the reference's pick is not legible here.
+
+   - The dark ladder runs `dark0` → `dark0_soft` → `dark1` → `dark2` rather than
+     the reference's `dark0`…`dark3`. Every step is a published ramp value; the
+     middle one is gruvbox's own *softer page* variant standing in for the card.
+     Laying the reference's four-step ladder instead would move the card to
+     `dark1` and drop gruvbox's own light `fg4` to **4.17:1** against it — under
+     AA — so the finer ladder is what lets the muted text stay faithful.
+
+   - Selection takes the ladder's furthest step in the reference's direction
+     rather than the reference value itself. gruvbox's `Visual` is `bg3`, drawn
+     *inverted* by default (`g:gruvbox_invert_selection` unset ⇒ `inverse`),
+     and neither half's ladder carries a `bg3` step; a solid colour is also all
+     xterm can take. Both selections therefore sit on `bg2` (`dark2` /
+     the damped `light2`) — the last surface step that way — and the dark
+     editor's selection is put on the same step as the terminal's. */
 [data-theme="cc-gruvbox"] {
   /* Dark appearance, substrate: page → card → secondary → input. */
   --palette-ink-950: 0 0% 15.69%;
@@ -2951,8 +3008,10 @@
   --palette-ink-850: 20 5.26% 22.35%;
   --palette-ink-800: 21.82 7.38% 29.22%;
 
-  /* Dark appearance, ink: secondary text → text. */
-  --palette-ink-400: 35 17.14% 61.82%;
+  /* Dark appearance, ink: secondary text → text. `ink-400` is the reference's
+     `fg4` (`light4`) exactly — it clears AA on both surfaces it is paired with
+     (5.30:1 on the page, 4.72:1 on the card). */
+  --palette-ink-400: 35 17.14% 58.82%;
   --palette-ink-100: 43.16 58.76% 80.98%;
 
   /* Light appearance, substrate: page → secondary → border. */
@@ -2971,9 +3030,12 @@
   --palette-brand-500: 19.19 96.63% 34.9%;
   --palette-brand-400: 26.99 99.13% 54.71%;
 
-  /* Danger. */
+  /* Danger: the reference's own red for each half. `--destructive` is outside
+     `CONTRAST_PAIRS`, so the dark fill is a choice — gruvbox's dark `red`
+     (`bright_red`) with `ink-100` on it reads 2.51:1, against 3.52:1 for the
+     deepened red it used to carry. Faithful first, recorded here. */
   --palette-danger-500: 357.71 100% 30.78%;
-  --palette-danger-800: 0 48.97% 52.35%;
+  --palette-danger-800: 6.33 96.14% 59.41%;
 
   /* The `gray` ramp on Gruvbox's warm hue — see `cc-dracula`'s block for what
      this family is and why it is re-laid whole. */
@@ -3028,20 +3090,25 @@
 
 /* The editor, light half — the `faded_*` board. Recipe as `cc-dracula`'s. */
 [data-theme="cc-gruvbox"]:not(.dark) {
-  /* Terminal board, light half — gruvbox's own light board, the one
-     `gruvbox-contrib`'s xresources port publishes. The normal half is the
-     `neutral_*` ramp (the same values the dark board uses for its normal half,
-     which is Gruvbox's own convention) and the `bright-*` half is the
-     `faded_*` ramp — so here the brighter end is the *darker* one, the reverse
-     of the dark board and the direction a light page needs. Two slots are not
-     in the port: `--term-selection` takes `sand-200` (the same fill the editor
-     uses) and `--term-bg` the damped page, so the panel stays part of the
-     parchment rather than recovering the reference's lemon saturation. */
+  /* Terminal board, light half — the same `:275-297` block read under
+     `background=light`. The normal half is the `neutral_*` ramp (the same
+     values the dark board uses for its normal half, which is Gruvbox's own
+     convention) and the `bright-*` half is the `faded_*` ramp — so here the
+     brighter end is the *darker* one, the reverse of the dark board and the
+     direction a light page needs. Two slots are not the block's own values:
+     `--term-selection` takes the damped `light2` (the same fill the editor
+     uses, and the last surface step toward the reference's `bg3` — see the
+     block note above), and `--term-bg` the damped page, so the panel stays
+     part of the parchment rather than recovering the reference's lemon
+     saturation. `--term-black` does stay the reference's literal `light0`,
+     which breaks the reference's own `black = bg0` binding at 4/3/4 channels
+     — invisible, and the price of having every slot auditable against the
+     table. */
   --palette-term-bg: 48.46 22% 88.24%;
   --palette-term-fg: 20 5.26% 22.35%;
   --palette-term-cursor: 20 5.26% 22.35%;
   --palette-term-selection: 40.38 14% 73.33%;
-  --palette-term-black: 51 93.75% 87.45%;
+  --palette-term-black: 48.46 86.67% 88.24%;
   --palette-term-red: 2.4 75.11% 45.69%;
   --palette-term-green: 59.52 70.79% 34.9%;
   --palette-term-yellow: 39.56 73.39% 48.63%;
@@ -3085,9 +3152,11 @@
 
   /* The `faded_*` board. `punctuation` and `block-foreground` take the Normal
      foreground (Gruvbox links `Operator` to `Normal`); `property` falls back to
-     `Identifier`, as Gruvbox has no property group. `number` / `constant` share
-     purple and `function` / `string` share green — the reference does that, it
-     is not a dropped slot. */
+     `Identifier`, as Gruvbox has no property group, and `url` takes
+     `markdownUrl` — purple — which is the one group in the reference that
+     colours a URL (`Underlined` is blue, but that is the generic link group and
+     `htmlLink` is `fg4`). `number` / `constant` share purple and `function` /
+     `string` share green — the reference does that, it is not a dropped slot. */
   --cc-syntax-comment-color: #928374;
   --cc-syntax-punctuation-color: #3c3836;
   --cc-syntax-class-name-color: #b57614;
@@ -3097,19 +3166,22 @@
   --cc-syntax-property-color: #076678;
   --cc-syntax-string-color: #79740e;
   --cc-syntax-function-color: #79740e;
-  --cc-syntax-url-color: #427b58;
+  --cc-syntax-url-color: #8f3f71;
   --cc-syntax-block-foreground: #3c3836;
 }
 
-/* The editor, dark half — the `bright_*` board, `--editor-bg` = `ink-950`. */
+/* The editor, dark half — the `bright_*` board, `--editor-bg` = `ink-950`.
+   Selection is `ink-800` (`dark2`), the same step the terminal's selection
+   takes, and the ladder's furthest step toward the reference's `bg3` (see the
+   block note above). */
 [data-theme="cc-gruvbox"].dark {
   --code-block-bg: var(--palette-ink-950);
   --editor-bg: hsl(var(--palette-ink-950));
   --editor-fg: hsl(var(--palette-ink-100));
   --editor-caret: hsl(var(--palette-brand-400));
   --editor-cursor: hsl(var(--palette-brand-400));
-  --editor-selection: hsl(var(--palette-ink-850));
-  --editor-selection-focused: hsl(var(--palette-ink-850));
+  --editor-selection: hsl(var(--palette-ink-800));
+  --editor-selection-focused: hsl(var(--palette-ink-800));
   --editor-gutter-bg: hsl(var(--palette-ink-950));
   --editor-gutter-fg: hsl(var(--palette-ink-400));
   --editor-active-line-bg: hsl(var(--palette-brand-400) / 0.06);
@@ -3134,7 +3206,9 @@
   --editor-loading-bg: hsl(var(--palette-ink-950));
 
   /* The `bright_*` board. `comment` is the same hex in both appearances —
-     Gruvbox's `gray_245` and `gray_244` happen to be equal. */
+     Gruvbox's `gray_245` and `gray_244` happen to be equal. `url` is
+     `markdownUrl` here too (the same purple `constant` / `number` take); see
+     the light half's note for why that group and not `Underlined`. */
   --cc-syntax-comment-color: #928374;
   --cc-syntax-punctuation-color: #ebdbb2;
   --cc-syntax-class-name-color: #fabd2f;
@@ -3144,7 +3218,7 @@
   --cc-syntax-property-color: #83a598;
   --cc-syntax-string-color: #b8bb26;
   --cc-syntax-function-color: #b8bb26;
-  --cc-syntax-url-color: #8ec07c;
+  --cc-syntax-url-color: #d3869b;
   --cc-syntax-block-foreground: #ebdbb2;
 }
 
