@@ -320,7 +320,7 @@
       },
       "fontFamily": {
         "label": "Font Family",
-        "description": "Font family for chat messages"
+        "description": "Font family for chat messages and the message input"
       },
       "fontFamilyOptions": {
         "serif": "Serif",
