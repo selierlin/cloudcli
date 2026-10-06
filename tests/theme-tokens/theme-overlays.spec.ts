@@ -116,12 +116,15 @@ const SURFACES: Record<string, string[]> = {
   cardSurface: ['--card', '--popover'],
   /**
    * The Tailwind compatibility skeleton — all four neutral families
-   * (`gray` / `zinc` / `slate` / `neutral`), 1380 utility sites:
-   *   `gray` 1223, `zinc` 66, `slate` 51, `neutral` 40.
-   *   Counted by scanning `src` for `n-<family>-<step>`, with the test tree and
-   *   this module's own probe file excluded by name. The probe file is left out
-   *   because it *names* these tokens as pairs; counting those would move the
-   *   figure every time a pair is added.
+   * (`gray` / `zinc` / `slate` / `neutral`). Counted by scanning `src` for
+   * `n-<family>-<step>`, with the test tree and this module's own probe file
+   * excluded by name. The probe file is left out because it *names* these
+   * tokens as pairs; counting those would move the figure every time a pair is
+   * added. Phase 2 is renaming this skeleton onto semantic tokens, so the total
+   * drifts and is deliberately not written down; recompute it with
+   *   `rg -o 'n-gray-[0-9]+' src | grep -v '/tests/' | wc -l`
+   * (the same for `zinc` / `slate` / `neutral`). Last counted 2026-10-06:
+   * `gray` 1287, `zinc` 66, `slate` 51, `neutral` 40.
    *
    * Out of reach for `accent` — retinting any of it would change far more than
    * that badge advertises — but *inside* the reach of a theme that already
@@ -134,9 +137,9 @@ const SURFACES: Record<string, string[]> = {
    * All four families are listed, not the two `gray` steps that happened to be
    * probed, and not `gray` alone: the old guard left `zinc` / `slate` /
    * `neutral` on *no* list at all, so an `accent` theme could retint 157 sites
-   * and still call itself `accent`. A family a `full` theme retints is expected
-   * to be retinted **all eleven steps** — a partial retint leaves the same
-   * seam, one step over.
+   * and still call itself `accent`. A family a `full` theme retints must be
+   * retinted **all eleven steps** — a partial retint leaves the same seam, one
+   * step over, and the ramp test below asserts this.
    */
   compat: [
     '--n-gray-50', '--n-gray-100', '--n-gray-200', '--n-gray-300', '--n-gray-400',
@@ -155,13 +158,13 @@ const SURFACES: Record<string, string[]> = {
   /**
    * Tokens no overlay is allowed to move, whatever its coverage.
    *
-   * `--n-white` / `--n-black` are mostly plain white / black fills and labels
-   * (257 sites), with only a handful of `hsl(var(--n-black) / 0.1)` shape uses
-   * behind them. Retinting pure white or black is the highest-risk move there
-   * is for contrast, and the sites they carry outnumber what any one theme
-   * advertises — so they stay frozen. (An earlier note called them
-   * "appearance-agnostic terminal chrome"; that reading covered 4 of the 257
-   * sites and is why the reason above is written out now.)
+   * `--n-white` / `--n-black` are mostly plain white / black fills and labels,
+   * with only a handful of `hsl(var(--n-black) / 0.1)` shape uses behind them.
+   * Retinting pure white or black is the highest-risk move there is for
+   * contrast, and they carry more sites than any one theme advertises — so they
+   * stay frozen. (An earlier note called them "appearance-agnostic terminal
+   * chrome"; that reading covered only four of the sites and is why the reason
+   * above is written out now.)
    *
    * `--palette-white` joins them now that the light card reads
    * `--palette-sand-25` instead. Its base value is pure white, the same literal
@@ -513,6 +516,58 @@ for (const theme of OVERLAY_THEMES) {
     }
   });
 }
+
+/**
+ * A theme that retints a compatibility family retints all eleven steps.
+ *
+ * `SURFACES.compat` states the rule, but nothing measured it: `beyondReach`
+ * only asks whether a moved token is *allowed*, and `derivedMoves` allows every
+ * `--n-*` step the moment the theme retints the L1 step behind it — so a theme
+ * that retints three steps leaves the other eight on the base values with no
+ * red anywhere. That partial ramp *is* the seam the family rule is about (half
+ * the ramp the theme's, half the base's), so it is pinned here.
+ *
+ * Both ends of the range are legitimate, so the assertion is "none or all",
+ * not "all": an `accent` theme moves none (and must not), and the ramps are
+ * optional for a `full` one. Only the middle is the defect.
+ *
+ * The count is of *moved* steps rather than declared ones, because the seam is
+ * a rendered difference: a theme that declares all eleven but lands one step on
+ * the base value still shows a base-coloured step among ten theme-coloured
+ * ones — the same seam, one step over.
+ */
+test('a theme that retints a compatibility family retints all eleven steps', async ({ page }) => {
+  await openFixture(page);
+
+  // Grouped out of `compat`, so a step added to a ramp there is covered here
+  // without a second list to keep in step.
+  const ramps = new Map<string, string[]>();
+  for (const token of SURFACES.compat) {
+    const family = token.slice(0, token.lastIndexOf('-'));
+    ramps.set(family, [...(ramps.get(family) ?? []), token]);
+  }
+  expect(ramps.size, 'SURFACES.compat declares no family to check').toBeGreaterThan(0);
+
+  const problems: string[] = [];
+  for (const theme of OVERLAY_THEMES) {
+    for (const appearance of APPEARANCES) {
+      const base = await read(page, null, appearance);
+      const themed = await read(page, theme.id, appearance);
+      const moved = new Set(differing(base.tokens, themed.tokens));
+
+      for (const [family, steps] of ramps) {
+        const count = steps.filter((step) => moved.has(step)).length;
+        if (count !== 0 && count !== steps.length) {
+          problems.push(
+            `${theme.id} in ${appearance}: retinted ${count} of ${steps.length} ${family} steps`,
+          );
+        }
+      }
+    }
+  }
+
+  expect(problems, `partial compatibility ramps:\n${problems.join('\n')}`).toEqual([]);
+});
 
 /**
  * The editor is the one surface whose base values are appearance-specific
