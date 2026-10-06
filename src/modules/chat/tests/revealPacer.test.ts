@@ -145,6 +145,43 @@ test('queues a distinct segment until the current one finishes revealing', () =>
   }
 });
 
+test('folds queued snapshots of one message into a single queued segment', () => {
+  const pacer = create();
+  const a = 'A'.repeat(600);
+  const b1 = 'B'.repeat(300);
+  const b2 = `${b1}${'C'.repeat(300)}`;
+
+  // A is still revealing when both snapshots of the next message arrive.
+  pacer.append('s1', a, 'dsh', 'text', 'm1');
+  pacer.append('s1', b1, 'dsh', 'text', 'm2');
+  pacer.append('s1', b2, 'dsh', 'text', 'm2');
+
+  vi.advanceTimersByTime(3000);
+
+  // Without tail-folding the queue replays b1 and then b2, so the final row
+  // would contain B's prefix twice.
+  const final = lastText();
+  assert.equal(final, a + b2, 'queued snapshots of one message must collapse into one wave');
+  for (const call of publishCalls) {
+    assert.ok((a + b2).startsWith(call.updates[0].text), 'no duplicated or rewound text');
+  }
+});
+
+test('a queued snapshot shorter than its queued predecessor never regresses the tail', () => {
+  const pacer = create();
+  const a = 'A'.repeat(600);
+  const b1 = 'B'.repeat(400);
+  const stale = b1.slice(0, 200);
+
+  pacer.append('s1', a, 'dsh', 'text', 'm1');
+  pacer.append('s1', b1, 'dsh', 'text', 'm2');
+  pacer.append('s1', stale, 'dsh', 'text', 'm2');
+
+  vi.advanceTimersByTime(3000);
+
+  assert.equal(lastText(), a + b1, 'a stale shorter snapshot must not shrink the queued text');
+});
+
 test('a queued short segment lands in full once its turn comes', () => {
   const pacer = create();
 
