@@ -171,7 +171,7 @@ test('an overlay theme moves the board readTerminalTheme resolves', async ({ pag
   }, themeId);
 
   const base = await boardWith(null);
-  const themed = await boardWith('cc-polar');
+  const themed = await boardWith('cc-catppuccin');
 
   // Re-reading without switching must be stable, so the difference below is the
   // overlay's doing rather than per-call noise.

@@ -323,13 +323,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * `system` is unscoped and applies in both appearances, which is what a `.css`
  * theme does today, and what a `.tmTheme` always gets: a code theme states one
  * palette, not one per appearance. `light` and `dark` restrict it to one — the
- * construct the built-in themes already use (`[data-theme="cc-polar"]:not(.dark)`
- * and `[data-theme="cc-polar"].dark`, §5.3 v9): a theme whose values assume one
- * appearance must not be applied under the other, where they would meet the
- * other half's base values. `:not(.dark)` rather than a bare selector for the
- * light half, because a bare one also matches in the dark appearance and would
- * only lose to `.dark` on specificity — which is exactly the silent leak the
- * built-in overlays were given the same shape to prevent.
+ * construct the built-in themes already use
+ * (`[data-theme="cc-catppuccin"]:not(.dark)` and `[data-theme="cc-catppuccin"].dark`,
+ * §5.3 v9): a theme whose values assume one appearance must not be applied under
+ * the other, where they would meet the other half's base values. `:not(.dark)`
+ * rather than a bare selector for the light half, because a bare one also
+ * matches in the dark appearance and would only lose to `.dark` on specificity
+ * — which is exactly the silent leak the built-in overlays were given the same
+ * shape to prevent.
  *
  * Exported because the `.tmTheme` compiler writes the same selector: one shape,
  * one place to change it.

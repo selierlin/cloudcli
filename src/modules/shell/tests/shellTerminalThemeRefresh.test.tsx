@@ -121,7 +121,7 @@ test('an open terminal re-reads the board when an overlay theme is picked', () =
   assert.equal(terminal.options.theme?.background, 'read-1');
 
   act(() => {
-    view.result.current.setThemeId('cc-polar');
+    view.result.current.setThemeId('cc-catppuccin');
   });
 
   assert.equal(
@@ -132,7 +132,7 @@ test('an open terminal re-reads the board when an overlay theme is picked', () =
 });
 
 test('an open terminal re-reads the board when the overlay is cleared', () => {
-  writeUserPreference('themeId', 'cc-polar');
+  writeUserPreference('themeId', 'cc-catppuccin');
   const { view, terminal } = renderTerminal();
   assert.equal(terminal.options.theme?.background, 'read-1');
 

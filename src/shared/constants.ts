@@ -353,14 +353,6 @@ export const BUILTIN_THEMES: ThemeManifest[] = [
     coverage: 'accent',
   },
   {
-    id: 'cc-polar',
-    name: '极地',
-    nameEn: 'Polar',
-    appearance: 'system',
-    source: 'builtin',
-    coverage: 'full',
-  },
-  {
     id: 'cc-catppuccin',
     name: '卡布奇诺',
     nameEn: 'Catppuccin',

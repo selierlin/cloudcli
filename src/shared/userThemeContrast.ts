@@ -48,7 +48,7 @@ type ContrastPair = {
  * each pair here is one the stylesheet actually paints. The button pair is
  * neither clause's by name, but both overlay themes were authored against it
  * (`cc-ocean`'s comment records moving its light step off a 3.5:1 value, and
- * `cc-polar`'s records choosing one that clears 4.6:1), so it is in scope.
+ * `cc-catppuccin`'s records one that clears 4.7:1), so it is in scope.
  *
  * The second half is the **compatibility ramp** (`--n-*`), and it exists because
  * of what `theme-overlays.spec.ts` no longer freezes: `gray` moved out of
