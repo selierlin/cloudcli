@@ -224,6 +224,8 @@ function SidebarProjectItem({
                         }
 
                         if (event.key === 'Escape') {
+                          // Cancelling the rename must not also close the code editor.
+                          event.stopPropagation();
                           onCancelEditingProject();
                         }
                       }}
@@ -363,6 +365,8 @@ function SidebarProjectItem({
                         saveProjectName();
                       }
                       if (event.key === 'Escape') {
+                        // Cancelling the rename must not also close the code editor.
+                        event.stopPropagation();
                         onCancelEditingProject();
                       }
                     }}

@@ -59,7 +59,8 @@
     },
     "tabs": {
       "settings": "快速設定",
-      "outline": "會話大綱"
+      "outline": "會話大綱",
+      "commands": "指令"
     },
     "outline": {
       "empty": "暫無訊息",
@@ -79,6 +80,23 @@
       "openPanel": "開啟設定面板",
       "draggingStatus": "正在拖曳...",
       "toggleAndMove": "點擊切換，拖曳移動"
+    },
+    "pin": "固定面板",
+    "unpin": "取消固定面板",
+    "close": "關閉面板",
+    "commands": {
+      "searchPlaceholder": "搜尋指令…",
+      "noProject": "選擇一個專案以檢視其指令。",
+      "loading": "正在載入指令…",
+      "empty": "此專案沒有可用的指令。",
+      "noMatches": "沒有符合搜尋的指令。",
+      "loadError": "無法載入指令。",
+      "groups": {
+        "builtIn": "內建",
+        "custom": "自訂",
+        "skills": "技能"
+      },
+      "insertTitle": "將 {{command}} 插入聊天"
     }
   },
   "terminalShortcuts": {
@@ -240,6 +258,13 @@
         "hack": "Hack",
         "ibm-plex-mono": "IBM Plex Mono"
       }
+    },
+    "theme": {
+      "label": "佈景主題",
+      "description": "選擇淺色或深色外觀，或跟隨作業系統設定",
+      "light": "淺色",
+      "dark": "深色",
+      "system": "跟隨系統外觀"
     }
   },
   "mcpForm": {
@@ -515,7 +540,8 @@
       },
       "technicalDetails": "技術詳情",
       "technicalInfo": {
-        "default": "sandboxMode=workspace-write, approvalPolicy=on-request. 在工作區沙箱內執行指令。Codex 決定何時需要核准；此非互動式整合無法核准請求。",        "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never。所有指令在專案目錄內自動執行。",
+        "default": "sandboxMode=workspace-write, approvalPolicy=on-request. 在工作區沙箱內執行指令。Codex 決定何時需要核准；此非互動式整合無法核准請求。",
+        "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never。所有指令在專案目錄內自動執行。",
         "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never。完全系統存取權限，僅在可信環境中使用。",
         "overrideNote": "您可以使用聊天介面中的模式按鈕按工作階段覆蓋此設定。"
       }

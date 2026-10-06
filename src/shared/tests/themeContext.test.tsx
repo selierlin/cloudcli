@@ -49,6 +49,36 @@ function ensureFaviconLink(): void {
   }
 }
 
+const originalMatchMedia = window.matchMedia;
+/** Listeners the provider registered on the emulated `prefers-color-scheme` query. */
+let colorSchemeListeners: Array<(event: MediaQueryListEvent) => void> = [];
+
+/**
+ * Emulates an OS appearance so `system` mode has something to follow. jsdom's
+ * `matchMedia` is a static stub, so the change event has to be driven by hand.
+ */
+const emulateSystemDarkAppearance = (matches: boolean) => {
+  colorSchemeListeners = [];
+  window.matchMedia = ((query: string) => ({
+    matches: query.includes('prefers-color-scheme: dark') ? matches : false,
+    media: query,
+    onchange: null,
+    addEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+      colorSchemeListeners.push(listener);
+    },
+    removeEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+      colorSchemeListeners = colorSchemeListeners.filter((entry) => entry !== listener);
+    },
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  })) as typeof window.matchMedia;
+};
+
+const changeSystemAppearance = (matches: boolean) => {
+  colorSchemeListeners.forEach((listener) => listener({ matches } as MediaQueryListEvent));
+};
+
 beforeEach(() => {
   localStorage.clear();
   // The preference store is a module-level singleton, so its in-memory copy
@@ -60,6 +90,12 @@ beforeEach(() => {
   ensureChromeMeta('theme-color');
   ensureChromeMeta('apple-mobile-web-app-status-bar-style');
   ensureFaviconLink();
+  emulateSystemDarkAppearance(false);
+});
+
+afterEach(() => {
+  window.matchMedia = originalMatchMedia;
+  colorSchemeListeners = [];
 });
 
 test('mounting stores no theme for a user who has never chosen one', () => {
@@ -261,7 +297,7 @@ test('an overlay picked elsewhere is adopted here', () => {
 
 test('an overlay pick is stored even while the appearance follows the system', () => {
   const { result } = renderHook(() => useTheme(), { wrapper });
-  assert.equal(result.current.theme, 'system');
+  assert.equal(result.current.themeMode, 'system');
 
   act(() => {
     result.current.setThemeId('cc-ocean');
@@ -294,4 +330,84 @@ test('an overlay this device does not ship falls back to the appearance default'
     warn.mock.calls.some(([message]) => String(message).includes('cc-not-installed')),
     'the fallback must be announced rather than silent',
   );
+});
+
+test('a user who has never chosen a theme is following the system', () => {
+  emulateSystemDarkAppearance(true);
+
+  const { result } = renderHook(() => useTheme(), { wrapper });
+
+  assert.equal(result.current.themeMode, 'system');
+  assert.equal(result.current.isDarkMode, true);
+  assert.equal(
+    readUserPreference<unknown>('theme', null),
+    null,
+    'following the system is the default, not something to record',
+  );
+});
+
+test('choosing "system" is stored and resolves against the OS', () => {
+  emulateSystemDarkAppearance(true);
+  writeUserPreference('theme', 'light');
+
+  const { result } = renderHook(() => useTheme(), { wrapper });
+  assert.equal(result.current.isDarkMode, false);
+
+  act(() => {
+    result.current.setThemeMode('system');
+  });
+
+  assert.equal(result.current.themeMode, 'system');
+  assert.equal(result.current.isDarkMode, true);
+  assert.equal(readUserPreference('theme', null), 'system');
+});
+
+test('the OS switching appearance flips the theme while following the system', () => {
+  writeUserPreference('theme', 'system');
+
+  const { result } = renderHook(() => useTheme(), { wrapper });
+  assert.equal(result.current.isDarkMode, false);
+
+  act(() => {
+    changeSystemAppearance(true);
+  });
+
+  assert.equal(result.current.isDarkMode, true);
+  assert.ok(document.documentElement.classList.contains('dark'));
+});
+
+test('the OS switching appearance leaves a pinned theme alone', () => {
+  writeUserPreference('theme', 'light');
+
+  const { result } = renderHook(() => useTheme(), { wrapper });
+
+  act(() => {
+    changeSystemAppearance(true);
+  });
+
+  assert.equal(result.current.themeMode, 'light');
+  assert.equal(result.current.isDarkMode, false);
+});
+
+test('an explicit toggle leaves system mode behind', () => {
+  writeUserPreference('theme', 'system');
+
+  const { result } = renderHook(() => useTheme(), { wrapper });
+
+  act(() => {
+    result.current.toggleDarkMode();
+  });
+
+  assert.equal(result.current.themeMode, 'dark');
+  assert.equal(readUserPreference('theme', null), 'dark');
+});
+
+test('a stored value written by a newer client falls back to following the system', () => {
+  emulateSystemDarkAppearance(true);
+  writeUserPreference('theme', 'solarized');
+
+  const { result } = renderHook(() => useTheme(), { wrapper });
+
+  assert.equal(result.current.themeMode, 'system');
+  assert.equal(result.current.isDarkMode, true);
 });

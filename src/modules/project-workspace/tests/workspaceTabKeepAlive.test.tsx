@@ -90,6 +90,7 @@ function Harness({ initialTab }: { initialTab: AppTab }) {
         onNavigateToSession={() => {}}
         onSessionEstablished={() => {}}
         onShowSettings={() => {}}
+        onRenameSession={async () => false}
         externalMessageUpdate={0}
         newSessionTrigger={0}
         onProjectSelect={() => {}}

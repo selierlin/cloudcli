@@ -57,7 +57,12 @@
     "tapToTryAgain": "Zum erneuten Versuchen tippen.",
     "clickToTryAgain": "Zum erneuten Versuchen klicken.",
     "forkSession": "Sitzung verzweigen",
-    "forkSessionDescription": "In einer Kopie fortfahren und diese hier unverändert lassen."
+    "forkSessionDescription": "In einer Kopie fortfahren und diese hier unverändert lassen.",
+    "select": "Auswählen",
+    "selectAllLoaded": "Alle geladenen auswählen",
+    "clearSelection": "Auswahl aufheben",
+    "deleteSelected_one": "{{count}} Sitzung löschen",
+    "deleteSelected_other": "{{count}} Sitzungen löschen"
   },
   "tooltips": {
     "viewEnvironments": "Umgebungen anzeigen",
@@ -149,7 +154,9 @@
     "restoreProjectError": "Fehler beim Wiederherstellen des Projekts. Bitte erneut versuchen.",
     "restoreSessionFailed": "Sitzung konnte nicht wiederhergestellt werden. Bitte erneut versuchen.",
     "restoreSessionError": "Fehler beim Wiederherstellen der Sitzung. Bitte erneut versuchen.",
-    "forkSessionError": "Diese Sitzung konnte nicht verzweigt werden. Bitte erneut versuchen."
+    "forkSessionError": "Diese Sitzung konnte nicht verzweigt werden. Bitte erneut versuchen.",
+    "deleteSessionsPartialFailure_one": "{{count}} Sitzung von {{total}} konnte nicht gelöscht werden. Bitte erneut versuchen.",
+    "deleteSessionsPartialFailure_other": "{{count}} von {{total}} Sitzungen konnten nicht gelöscht werden. Bitte erneut versuchen."
   },
   "version": {
     "updateAvailable": "Update verfügbar",
@@ -185,23 +192,27 @@
     "removeFromSidebar": "Nur aus der Seitenleiste entfernen",
     "archiveProject": "Projekt archivieren",
     "archiveSession": "Sitzung archivieren",
-    "archiveSessionNotice": "Beim Archivieren verschwindet die Sitzung aus der aktiven Liste, ihr Verlauf bleibt erhalten.",
-    "archivedSessionNotice": "Diese Sitzung ist bereits archiviert. Du kannst sie ausgeblendet lassen oder endgültig löschen.",
-    "deleteSessionPermanently": "Endgültig löschen",
+    "archiveSessionNotice": "Durch Archivieren wird die Sitzung aus der aktiven Liste entfernt, während ihr Verlauf erhalten bleibt.",
+    "archivedSessionNotice": "Diese Sitzung ist bereits archiviert. Sie können sie ausgeblendet lassen oder dauerhaft löschen.",
+    "deleteSessionPermanently": "Dauerhaft löschen",
     "deleteAllData": "Alle Daten dauerhaft löschen",
     "allConversationsDeleted": "Das Projekt wird aus der Seitenleiste entfernt. Deine Dateien, Erinnerungen und Sitzungsdaten bleiben erhalten.",
     "cannotUndo": "Du kannst das Projekt später erneut hinzufügen.",
-    "archiveProject": "Projekt archivieren",
-    "archiveSession": "Sitzung archivieren",
     "archiveSessionsTitle": "{{count}} Sitzungen archivieren",
     "archiveSessionsAction": "{{count}} Sitzungen archivieren",
     "archiveSessionsNotice": "Diese Sitzungen werden aus aktiven Listen ausgeblendet. Ihr Verlauf bleibt erhalten und kann aus dem Archiv wiederhergestellt werden.",
     "permanentlyDeleteArchivedSessionsTitle": "{{count}} archivierte Sitzungen dauerhaft löschen",
     "permanentlyDeleteArchivedSessionsAction": "{{count}} Sitzungen dauerhaft löschen",
     "permanentlyDeleteArchivedSessionsNotice": "Die ausgewählten Sitzungsdatensätze und ihre Verlaufsdateien auf dem Datenträger werden dauerhaft gelöscht. Archivierte Projekte sind nicht betroffen.",
-    "deleteSessionPermanently": "Dauerhaft löschen",
-    "archiveSessionNotice": "Durch Archivieren wird die Sitzung aus der aktiven Liste entfernt, während ihr Verlauf erhalten bleibt.",
-    "archivedSessionNotice": "Diese Sitzung ist bereits archiviert. Sie können sie ausgeblendet lassen oder dauerhaft löschen."
+    "confirmDeleteSessions": "Was möchtest du mit",
+    "deleteSessions_one": "{{count}} Sitzung löschen",
+    "deleteSessions_other": "{{count}} Sitzungen löschen",
+    "selectedSessions_one": "{{count}} ausgewählten Sitzung",
+    "selectedSessions_other": "{{count}} ausgewählten Sitzungen",
+    "archiveSessions_one": "{{count}} Sitzung archivieren",
+    "archiveSessions_other": "{{count}} Sitzungen archivieren",
+    "archiveSessionsNotice_one": "Beim Archivieren verschwindet die Sitzung aus der aktiven Liste, ihr Verlauf bleibt erhalten.",
+    "archiveSessionsNotice_other": "Beim Archivieren verschwinden die Sitzungen aus der aktiven Liste, ihr Verlauf bleibt erhalten."
   },
   "archived": {
     "manageSessions": "Sitzungen verwalten",

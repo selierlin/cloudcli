@@ -2,9 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { normalizedToChatMessages, useSessionStore } from '@/modules/chat';
 import { api } from '@/shared/api';
-import type { ChatMessage, ProjectSession, SessionOutlineItem } from '@/shared/types';
-
-type QuickSettingsTab = 'settings' | 'outline';
+import type { ChatMessage, ProjectSession, QuickSettingsTab, SessionOutlineItem } from '@/shared/types';
 
 type UseSessionOutlineDataOptions = {
   isOpen: boolean;

@@ -57,7 +57,12 @@
     "tapToTryAgain": "Touchez pour réessayer.",
     "clickToTryAgain": "Cliquez pour réessayer.",
     "forkSession": "Dupliquer la session",
-    "forkSessionDescription": "Continuer depuis une copie, en laissant celle-ci inchangée."
+    "forkSessionDescription": "Continuer depuis une copie, en laissant celle-ci inchangée.",
+    "select": "Sélectionner",
+    "selectAllLoaded": "Sélectionner les chargées",
+    "clearSelection": "Tout désélectionner",
+    "deleteSelected_one": "Supprimer {{count}} session",
+    "deleteSelected_other": "Supprimer {{count}} sessions"
   },
   "tooltips": {
     "viewEnvironments": "Voir les environnements",
@@ -149,7 +154,9 @@
     "restoreProjectError": "Erreur lors de la restauration du projet. Veuillez réessayer.",
     "restoreSessionFailed": "Échec de la restauration de la session. Veuillez réessayer.",
     "restoreSessionError": "Erreur lors de la restauration de la session. Veuillez réessayer.",
-    "forkSessionError": "Impossible de dupliquer cette session. Veuillez réessayer."
+    "forkSessionError": "Impossible de dupliquer cette session. Veuillez réessayer.",
+    "deleteSessionsPartialFailure_one": "{{count}} session sur {{total}} n'a pas pu être supprimée. Veuillez réessayer.",
+    "deleteSessionsPartialFailure_other": "{{count}} sessions sur {{total}} n'ont pas pu être supprimées. Veuillez réessayer."
   },
   "version": {
     "updateAvailable": "Mise à jour disponible",
@@ -186,22 +193,26 @@
     "archiveProject": "Archiver le projet",
     "archiveSession": "Archiver la session",
     "archiveSessionNotice": "L'archivage retire la session de la liste active tout en conservant son historique.",
-    "archivedSessionNotice": "Cette session est déjà archivée. Vous pouvez la laisser masquée ou la supprimer définitivement.",
+    "archivedSessionNotice": "Cette session est déjà archivée. Vous pouvez la garder masquée ou la supprimer définitivement.",
     "deleteSessionPermanently": "Supprimer définitivement",
     "deleteAllData": "Supprimer toutes les données définitivement",
     "allConversationsDeleted": "Le projet sera retiré de la barre latérale. Vos fichiers, mémoires et données de session seront conservés.",
     "cannotUndo": "Vous pourrez rajouter le projet ultérieurement.",
-    "archiveProject": "Archiver le projet",
-    "archiveSession": "Archiver la session",
     "archiveSessionsTitle": "Archiver {{count}} sessions",
     "archiveSessionsAction": "Archiver {{count}} sessions",
     "archiveSessionsNotice": "Ces sessions seront masquées des listes actives, mais leur historique sera conservé et pourra être restauré depuis les archives.",
     "permanentlyDeleteArchivedSessionsTitle": "Supprimer définitivement {{count}} sessions archivées",
     "permanentlyDeleteArchivedSessionsAction": "Supprimer définitivement {{count}} sessions",
     "permanentlyDeleteArchivedSessionsNotice": "Les enregistrements de session sélectionnés et leurs fichiers d'historique sur disque seront supprimés définitivement. Les projets archivés ne sont pas affectés.",
-    "deleteSessionPermanently": "Supprimer définitivement",
-    "archiveSessionNotice": "L'archivage retire la session de la liste active tout en conservant son historique.",
-    "archivedSessionNotice": "Cette session est déjà archivée. Vous pouvez la garder masquée ou la supprimer définitivement."
+    "confirmDeleteSessions": "Que souhaitez-vous faire avec",
+    "deleteSessions_one": "Supprimer {{count}} session",
+    "deleteSessions_other": "Supprimer {{count}} sessions",
+    "selectedSessions_one": "{{count}} session sélectionnée",
+    "selectedSessions_other": "{{count}} sessions sélectionnées",
+    "archiveSessions_one": "Archiver {{count}} session",
+    "archiveSessions_other": "Archiver {{count}} sessions",
+    "archiveSessionsNotice_one": "L'archivage retire la session de la liste active tout en conservant son historique.",
+    "archiveSessionsNotice_other": "L'archivage retire les sessions de la liste active tout en conservant leur historique."
   },
   "archived": {
     "manageSessions": "Gérer les sessions",

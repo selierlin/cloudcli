@@ -57,7 +57,12 @@
     "tapToTryAgain": "다시 시도하려면 탭하세요.",
     "clickToTryAgain": "다시 시도하려면 클릭하세요.",
     "forkSession": "세션 분기",
-    "forkSessionDescription": "복사본에서 계속하고, 이 세션은 변경하지 않습니다."
+    "forkSessionDescription": "복사본에서 계속하고, 이 세션은 변경하지 않습니다.",
+    "select": "선택",
+    "selectAllLoaded": "불러온 항목 모두 선택",
+    "clearSelection": "선택 해제",
+    "deleteSelected_one": "세션 {{count}}개 삭제",
+    "deleteSelected_other": "세션 {{count}}개 삭제"
   },
   "tooltips": {
     "viewEnvironments": "환경 보기",
@@ -149,7 +154,9 @@
     "restoreProjectError": "프로젝트 복원 오류. 다시 시도해주세요.",
     "restoreSessionFailed": "세션 복원 실패. 다시 시도해주세요.",
     "restoreSessionError": "세션 복원 오류. 다시 시도해주세요.",
-    "forkSessionError": "이 세션을 분기하지 못했습니다. 다시 시도해 주세요."
+    "forkSessionError": "이 세션을 분기하지 못했습니다. 다시 시도해 주세요.",
+    "deleteSessionsPartialFailure_one": "세션 {{total}}개 중 {{count}}개를 삭제하지 못했습니다. 다시 시도해주세요.",
+    "deleteSessionsPartialFailure_other": "세션 {{total}}개 중 {{count}}개를 삭제하지 못했습니다. 다시 시도해주세요."
   },
   "version": {
     "updateAvailable": "업데이트 가능",
@@ -185,23 +192,27 @@
     "removeFromSidebar": "사이드바에서만 제거",
     "archiveProject": "프로젝트 보관",
     "archiveSession": "세션 보관",
-    "archiveSessionNotice": "보관하면 세션이 활성 목록에서 제외되지만 기록은 유지됩니다.",
-    "archivedSessionNotice": "이 세션은 이미 보관되어 있습니다. 숨긴 상태로 두거나 영구 삭제할 수 있습니다.",
+    "archiveSessionNotice": "보관하면 세션이 활성 목록에서 제거되며 기록은 유지됩니다.",
+    "archivedSessionNotice": "이 세션은 이미 보관되었습니다. 숨긴 상태로 유지하거나 영구 삭제할 수 있습니다.",
     "deleteSessionPermanently": "영구 삭제",
     "deleteAllData": "모든 데이터 영구 삭제",
     "allConversationsDeleted": "프로젝트가 사이드바에서 제거됩니다. 파일, 메모리 및 세션 데이터는 보존됩니다.",
     "cannotUndo": "나중에 프로젝트를 다시 추가할 수 있습니다.",
-    "archiveProject": "프로젝트 보관",
-    "archiveSession": "세션 보관",
     "archiveSessionsTitle": "{{count}}개 세션 보관",
     "archiveSessionsAction": "{{count}}개 세션 보관",
     "archiveSessionsNotice": "이 세션은 활성 목록에서 숨겨지지만 기록은 유지되며 보관함에서 복원할 수 있습니다.",
     "permanentlyDeleteArchivedSessionsTitle": "보관된 세션 {{count}}개 영구 삭제",
     "permanentlyDeleteArchivedSessionsAction": "{{count}}개 세션 영구 삭제",
     "permanentlyDeleteArchivedSessionsNotice": "선택한 세션 기록과 디스크의 기록 파일이 영구 삭제됩니다. 보관된 프로젝트에는 영향을 주지 않습니다.",
-    "deleteSessionPermanently": "영구 삭제",
-    "archiveSessionNotice": "보관하면 세션이 활성 목록에서 제거되며 기록은 유지됩니다.",
-    "archivedSessionNotice": "이 세션은 이미 보관되었습니다. 숨긴 상태로 유지하거나 영구 삭제할 수 있습니다."
+    "confirmDeleteSessions": "다음 세션을 어떻게 하시겠습니까:",
+    "deleteSessions_one": "세션 {{count}}개 삭제",
+    "deleteSessions_other": "세션 {{count}}개 삭제",
+    "selectedSessions_one": "선택한 세션 {{count}}개",
+    "selectedSessions_other": "선택한 세션 {{count}}개",
+    "archiveSessions_one": "세션 {{count}}개 보관",
+    "archiveSessions_other": "세션 {{count}}개 보관",
+    "archiveSessionsNotice_one": "보관하면 세션이 활성 목록에서 제외되지만 기록은 유지됩니다.",
+    "archiveSessionsNotice_other": "보관하면 세션이 활성 목록에서 제외되지만 기록은 유지됩니다."
   },
   "archived": {
     "manageSessions": "세션 관리",

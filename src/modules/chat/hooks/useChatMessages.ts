@@ -394,6 +394,9 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       transcriptAnchorId: msg.transcriptAnchorId,
       forkAnchorId: msg.forkAnchorId,
       compact: msg.compact,
+      // Set by the provider only on an assistant reply, and only when it knows
+      // which model produced it, so every other row simply carries undefined.
+      model: msg.model,
     };
 
     if (appendCompactionRow(msg, converted, sharedMetadata, {

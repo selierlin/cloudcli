@@ -54,9 +54,9 @@ vi.mock('@/modules/quick-settings-panel/QuickSettingsOutline', () => ({
   default: () => <div data-testid="quick-settings-outline" />,
 }));
 
-it('opens on the session outline tab', () => {
-  render(<QuickSettingsPanelView />);
+it('renders the settings tab by default', () => {
+  render(<QuickSettingsPanelView selectedProject={null} />);
 
-  expect(screen.getByTestId('quick-settings-outline')).toBeTruthy();
-  expect(screen.queryByTestId('quick-settings-content')).toBeNull();
+  expect(screen.getByTestId('quick-settings-content')).toBeTruthy();
+  expect(screen.queryByTestId('quick-settings-outline')).toBeNull();
 });

@@ -12,7 +12,7 @@ type ThemeModeSelectorProps = {
 
 function ThemeModeSelector({ ariaLabel }: ThemeModeSelectorProps) {
   const { t } = useTranslation('settings');
-  const { theme, setTheme } = useTheme();
+  const { themeMode, setThemeMode } = useTheme();
 
   const options: Array<{ value: ThemeMode; icon: typeof Sun; label: string }> = [
     { value: 'light', icon: Sun, label: t('themeMode.light') },
@@ -27,7 +27,7 @@ function ThemeModeSelector({ ariaLabel }: ThemeModeSelectorProps) {
       className="inline-flex flex-shrink-0 touch-manipulation items-center rounded-full border border-border bg-muted p-0.5"
     >
       {options.map(({ value, icon: Icon, label }) => {
-        const isActive = theme === value;
+        const isActive = themeMode === value;
         return (
           <button
             key={value}
@@ -36,7 +36,7 @@ function ThemeModeSelector({ ariaLabel }: ThemeModeSelectorProps) {
             aria-checked={isActive}
             aria-label={label}
             title={label}
-            onClick={() => setTheme(value)}
+            onClick={() => setThemeMode(value)}
             className={cn(
               'inline-flex h-6 w-8 cursor-pointer items-center justify-center rounded-full transition-colors duration-200',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',

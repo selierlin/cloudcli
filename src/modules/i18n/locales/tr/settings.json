@@ -59,7 +59,8 @@
     },
     "tabs": {
       "settings": "Hızlı Ayarlar",
-      "outline": "Anahat"
+      "outline": "Anahat",
+      "commands": "Komutlar"
     },
     "outline": {
       "empty": "Henüz mesaj yok",
@@ -79,6 +80,23 @@
       "openPanel": "Ayarlar panelini aç",
       "draggingStatus": "Sürükleniyor...",
       "toggleAndMove": "Açıp kapamak için tıkla, taşımak için sürükle"
+    },
+    "pin": "Paneli sabitle",
+    "unpin": "Panel sabitlemesini kaldır",
+    "close": "Paneli kapat",
+    "commands": {
+      "searchPlaceholder": "Komut ara…",
+      "noProject": "Komutlarını görmek için bir proje seçin.",
+      "loading": "Komutlar yükleniyor…",
+      "empty": "Bu proje için kullanılabilir komut yok.",
+      "noMatches": "Aramanızla eşleşen komut yok.",
+      "loadError": "Komutlar yüklenemedi.",
+      "groups": {
+        "builtIn": "Yerleşik",
+        "custom": "Özel",
+        "skills": "Beceriler"
+      },
+      "insertTitle": "{{command}} komutunu sohbete ekle"
     }
   },
   "terminalShortcuts": {
@@ -191,6 +209,13 @@
         "label": "Yazı Tipi Boyutu",
         "description": "Editör yazı tipi boyutu (piksel)"
       }
+    },
+    "theme": {
+      "label": "Tema",
+      "description": "Açık veya koyu bir görünüm seçin ya da işletim sisteminizi izleyin",
+      "light": "Açık",
+      "dark": "Koyu",
+      "system": "Sistem görünümünü izle"
     }
   },
   "mcpForm": {
@@ -466,7 +491,8 @@
       },
       "technicalDetails": "Teknik ayrıntılar",
       "technicalInfo": {
-        "default": "sandboxMode=workspace-write, approvalPolicy=on-request. Komutları çalışma alanı korumalı ortamında çalıştırır. Onay gerektiğine Codex karar verir; bu etkileşimsiz entegrasyonda istekler onaylanamaz.",        "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. Tüm komutlar proje dizini içinde otomatik çalışır.",
+        "default": "sandboxMode=workspace-write, approvalPolicy=on-request. Komutları çalışma alanı korumalı ortamında çalıştırır. Onay gerektiğine Codex karar verir; bu etkileşimsiz entegrasyonda istekler onaylanamaz.",
+        "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. Tüm komutlar proje dizini içinde otomatik çalışır.",
         "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never. Tam sistem erişimi, yalnızca güvenilir ortamlarda kullan.",
         "overrideNote": "Sohbet arayüzündeki mod düğmesini kullanarak bunu oturum başına geçersiz kılabilirsin."
       }

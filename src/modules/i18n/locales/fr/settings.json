@@ -59,7 +59,8 @@
     },
     "tabs": {
       "settings": "Réglages rapides",
-      "outline": "Plan"
+      "outline": "Plan",
+      "commands": "Commandes"
     },
     "outline": {
       "empty": "Aucun message pour l'instant",
@@ -79,6 +80,23 @@
       "openPanel": "Ouvrir le panneau de paramètres",
       "draggingStatus": "Glissement...",
       "toggleAndMove": "Cliquer pour basculer, glisser pour déplacer"
+    },
+    "pin": "Épingler le panneau",
+    "unpin": "Détacher le panneau",
+    "close": "Fermer le panneau",
+    "commands": {
+      "searchPlaceholder": "Rechercher des commandes…",
+      "noProject": "Sélectionnez un projet pour voir ses commandes.",
+      "loading": "Chargement des commandes…",
+      "empty": "Aucune commande disponible pour ce projet.",
+      "noMatches": "Aucune commande ne correspond à votre recherche.",
+      "loadError": "Impossible de charger les commandes.",
+      "groups": {
+        "builtIn": "Intégrées",
+        "custom": "Personnalisées",
+        "skills": "Skills"
+      },
+      "insertTitle": "Insérer {{command}} dans le chat"
     }
   },
   "terminalShortcuts": {
@@ -190,6 +208,13 @@
         "label": "Taille de police",
         "description": "Taille de police de l'éditeur en pixels"
       }
+    },
+    "theme": {
+      "label": "Thème",
+      "description": "Choisissez une apparence claire ou sombre, ou suivez celle de votre système d'exploitation",
+      "light": "Clair",
+      "dark": "Sombre",
+      "system": "Suivre l'apparence du système"
     }
   },
   "mcpForm": {
@@ -468,7 +493,8 @@
       },
       "technicalDetails": "Détails techniques",
       "technicalInfo": {
-        "default": "sandboxMode=workspace-write, approvalPolicy=on-request. Exécute les commandes dans le bac à sable de l’espace de travail. Codex décide quand une approbation est nécessaire ; les demandes ne peuvent pas être approuvées dans cette intégration non interactive.",        "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. Toutes les commandes s'exécutent automatiquement dans le répertoire du projet.",
+        "default": "sandboxMode=workspace-write, approvalPolicy=on-request. Exécute les commandes dans le bac à sable de l’espace de travail. Codex décide quand une approbation est nécessaire ; les demandes ne peuvent pas être approuvées dans cette intégration non interactive.",
+        "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. Toutes les commandes s'exécutent automatiquement dans le répertoire du projet.",
         "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never. Accès système complet, à utiliser uniquement dans des environnements de confiance.",
         "overrideNote": "Vous pouvez remplacer ce mode par session via le bouton de mode dans l'interface de chat."
       }

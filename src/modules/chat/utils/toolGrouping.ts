@@ -34,6 +34,50 @@ const TOOL_CATEGORY_LABELS: Record<string, string> = {
 
 export type MessageListItem = ChatMessage | ToolGroupItem;
 
+/** A run of consecutive tool rows, already narrowed to the ones that can group. */
+type GroupableToolRun = (ChatMessage & { toolName: string })[];
+
+type CachedToolGroup = {
+  /** The exact run the group was built from; reused only while every row keeps its identity. */
+  run: GroupableToolRun;
+  /** Hidden reasoning both joins runs and changes what the preview names, so it is part of the key. */
+  showThinking: boolean;
+  group: ToolGroupItem;
+};
+
+// Chat rows keep their identity across a stream tick (useChatMessages' own
+// projection cache), but grouping re-runs on every tick over a fresh array.
+// Without this cache each collapsed run gets a brand-new group object, so
+// `memo(ToolGroupContainer)` cannot bail and every group on screen re-renders
+// ~10 times a second while only the streaming row actually changed. Keyed
+// weakly on the run's first row so entries disappear with the rows themselves.
+const toolGroupCache = new WeakMap<ChatMessage, CachedToolGroup>();
+
+function isSameRun(cachedRun: GroupableToolRun, run: GroupableToolRun): boolean {
+  return cachedRun.length === run.length
+    && cachedRun.every((message, index) => message === run[index]);
+}
+
+/** The group object for a run, reused unchanged while the run's rows are unchanged. */
+function getToolGroup(run: GroupableToolRun, showThinking: boolean): ToolGroupItem {
+  const first = run[0];
+  const cached = toolGroupCache.get(first);
+  if (cached && cached.showThinking === showThinking && isSameRun(cached.run, run)) {
+    return cached.group;
+  }
+
+  const group: ToolGroupItem = {
+    _isGroup: true,
+    toolName: first.toolName,
+    messages: run,
+    timestamp: first.timestamp,
+    preview: buildGroupPreview(run),
+    activitySummary: summarizeToolGroupActivity(run),
+  };
+  toolGroupCache.set(first, { run, showThinking, group });
+  return group;
+}
+
 export function isToolGroupItem(item: MessageListItem): item is ToolGroupItem {
   return '_isGroup' in item && (item as ToolGroupItem)._isGroup === true;
 }
@@ -123,12 +167,9 @@ export function summarizeToolGroupActivity(messages: ChatMessage[]): string {
  * Builds the collapsed group's summary line.
  *
  * Computed here rather than in the component so it happens once per grouping
- * pass instead of once per group render. It is not cached beyond that: grouping
- * re-runs on every visible-session stream publish because visibleMessages is
- * a fresh array, and a run's preview changes as the run grows, so a cache would have to be
- * keyed on the whole run. The old 10Hz path measured 0.18ms per publish over a
- * 100-message window; the frame-aligned path is judged by per-second cost so a
- * higher publish rate cannot hide behind a cheap single call.
+ * pass instead of once per group render, and skipped entirely for runs the tool
+ * group cache above can reuse — a run's preview depends on the whole run, which
+ * is exactly what that cache compares.
  */
 function buildGroupPreview(messages: ChatMessage[]): string {
   const named = messages
@@ -168,7 +209,7 @@ export function groupConsecutiveTools(
       continue;
     }
 
-    const run: ChatMessage[] = [message];
+    const run: GroupableToolRun = [message];
     let nextIndex = index + 1;
 
     while (nextIndex < messages.length) {
@@ -193,14 +234,7 @@ export function groupConsecutiveTools(
     // later multi-tool group. Otherwise arrival of tool two moves tool one to
     // a different React subtree, losing its DOM identity, expanded output and
     // measured height in one large layout jump.
-    items.push({
-      _isGroup: true,
-      toolName: message.toolName,
-      messages: run,
-      timestamp: message.timestamp,
-      preview: buildGroupPreview(run),
-      activitySummary: summarizeToolGroupActivity(run),
-    });
+    items.push(getToolGroup(run, showThinking));
 
     index = nextIndex;
   }
