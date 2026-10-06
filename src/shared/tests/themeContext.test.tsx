@@ -39,6 +39,16 @@ function chromeContent(name: string): string | null {
   return document.querySelector(`meta[name="${name}"]`)?.getAttribute('content') ?? null;
 }
 
+/** The favicon link `applyThemeChrome` republishes, mirroring `index.html`. */
+function ensureFaviconLink(): void {
+  if (!document.querySelector('link[rel="icon"]')) {
+    const link = document.createElement('link');
+    link.setAttribute('rel', 'icon');
+    link.setAttribute('href', '/icons/favicon-light-32.png');
+    document.head.appendChild(link);
+  }
+}
+
 beforeEach(() => {
   localStorage.clear();
   // The preference store is a module-level singleton, so its in-memory copy
@@ -49,6 +59,7 @@ beforeEach(() => {
   document.documentElement.style.removeProperty('color-scheme');
   ensureChromeMeta('theme-color');
   ensureChromeMeta('apple-mobile-web-app-status-bar-style');
+  ensureFaviconLink();
 });
 
 test('mounting stores no theme for a user who has never chosen one', () => {
@@ -153,6 +164,7 @@ test('the browser chrome follows the appearance', () => {
   const { result } = renderHook(() => useTheme(), { wrapper });
   assert.equal(chromeContent('apple-mobile-web-app-status-bar-style'), 'default');
   assert.equal(chromeContent('theme-color'), '#f7f6f3');
+  assert.equal(document.querySelector('link[rel="icon"]')?.getAttribute('href'), '/icons/favicon-light-32.png');
 
   act(() => {
     result.current.toggleDarkMode();
@@ -160,6 +172,7 @@ test('the browser chrome follows the appearance', () => {
 
   assert.equal(chromeContent('apple-mobile-web-app-status-bar-style'), 'black-translucent');
   assert.equal(chromeContent('theme-color'), '#141414');
+  assert.equal(document.querySelector('link[rel="icon"]')?.getAttribute('href'), '/icons/favicon-dark-32.png');
 });
 
 test('the registry keeps the appearance defaults and the overlay themes apart', () => {

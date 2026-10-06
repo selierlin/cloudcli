@@ -454,6 +454,10 @@ function resolveOpaqueTokenColor(token: string, backdropToken = '--background'):
  * elsewhere) and the iOS `apple-mobile-web-app-status-bar-style`. A theme overrides either through
  * `ThemeManifest.themeColor` (a token name) and `ThemeManifest.statusBar`.
  *
+ * The tab favicon follows the same appearance: the shell ships the light render as the static
+ * default and the first-paint script in `index.html` swaps it for the dark render on a dark start,
+ * so this only has to republish on later switches.
+ *
  * Called by `ThemeContext` on every appearance change and by the theme-token fixture, so a test can
  * drive the production chain rather than re-typing it.
  */
@@ -473,4 +477,8 @@ export function applyThemeChrome(
   const themeColor =
     resolveOpaqueTokenColor(overrides?.themeColor ?? '--background') || FALLBACK_THEME_COLOR[appearance];
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColor);
+
+  document
+    .querySelector('link[rel="icon"]')
+    ?.setAttribute('href', `/icons/favicon-${appearance}-32.png`);
 }

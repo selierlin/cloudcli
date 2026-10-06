@@ -2,7 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Favicon: the iOS app icon render. The light pair is the static default;
+         the script at the end of <head> swaps to the dark render when it resolves a
+         dark start, and applyThemeChrome republishes on later appearance switches.
+         A media-scoped pair is not used because Chrome ignores `media` on favicon
+         links and would pin one variant for both appearances. -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-light-32.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
     <title>CloudCLI UI</title>
 
@@ -82,9 +87,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Claude UI" />
     
-    <!-- iOS Safari Icons -->
-    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" />
+    <!-- iOS Safari Icons. iOS masks the corners itself, so the file ships
+         full-bleed rather than pre-rounded. -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180x180.png" />
     
     <!-- Theme Color. These two media-scoped values are the declaration-only
          fallback; the script at the end of <head> removes them and writes one exact
@@ -142,6 +147,16 @@
         meta.name = 'theme-color';
         meta.content = colour;
         document.head.appendChild(meta);
+
+        // The favicon mirrors the same resolution: the static link above is the
+        // light render, so a dark start (from the stored pick or the OS) swaps it
+        // before the browser has fetched the default.
+        if (pref === 'dark') {
+          var icon = document.querySelector('link[rel="icon"]');
+          if (icon) {
+            icon.setAttribute('href', '/icons/favicon-dark-32.png');
+          }
+        }
       })();
     </script>
   </head>
