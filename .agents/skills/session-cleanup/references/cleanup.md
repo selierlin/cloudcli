@@ -70,6 +70,8 @@ done
   - 最后 unlink rollout `~/.zcode/cli/rollout/model-io-<sid>.jsonl`。
 - **动手前先 `.backup` 一份 zcode 库**：`db.sqlite.before-<场景>-<ts>.backup`。
 - 这个范围用户拍板「要一起清」（2026-10-04）。`purge.py` 对 `provider=='zcode'` 的目标自动执行。
+- **读活动中的 zcode 库不要用 `?immutable=1`**：它会跳过 WAL，读不到尚未 checkpoint 的提交（曾把已存在的 `sess_*` 读成 0 行）。用 `file:<db>?mode=ro`（不带 immutable）。`immutable=1` 只适用于静态快照。
+- **cloudcli 对 zcode 是增量收录**（服务端游标 `scan_state.last_scanned_at` + watcher 变更时补最新 1 条）⇒ **早于游标、之后不再被写到的会话永不补录**（10-03/10-04 的历史会话曾整批缺席）。因此 zcode 垃圾可能**根本不在 cloudcli 库**：`inventory.py` 现已额外列出「zcode 库独有」会话（arch 列显示 `-`、末尾标 `库外`），`purge.py` 也接受这类目标（内部走 `zcode_only` 路径，直接操作 zcode 库）。
 
 ## 流程
 
