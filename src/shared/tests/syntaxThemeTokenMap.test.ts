@@ -113,32 +113,32 @@ test('the selector → variable mapping is frozen', () => {
     {
       ".command-line .command-line-prompt > span:before.color": "--cc-syntax-111",
       ".command-line .command-line-prompt.borderRightColor": "--cc-syntax-109",
-      ".language-css .token.atrule .token.rule.color": "--cc-syntax-56",
-      ".language-css .token.function.color": "--cc-syntax-52",
-      ".language-css .token.important.color": "--cc-syntax-55",
-      ".language-css .token.property.color": "--cc-syntax-51",
-      ".language-css .token.selector.color": "--cc-syntax-50",
-      ".language-css .token.url > .token.function.color": "--cc-syntax-53",
-      ".language-css .token.url > .token.string.url.color": "--cc-syntax-54",
-      ".language-javascript .token.operator.color": "--cc-syntax-57",
+      ".language-css .token.atrule .token.rule.color": "--cc-syntax-keyword-color",
+      ".language-css .token.function.color": "--cc-syntax-url-color",
+      ".language-css .token.important.color": "--cc-syntax-keyword-color",
+      ".language-css .token.property.color": "--cc-syntax-punctuation-color",
+      ".language-css .token.selector.color": "--cc-syntax-property-color",
+      ".language-css .token.url > .token.function.color": "--cc-syntax-url-color",
+      ".language-css .token.url > .token.string.url.color": "--cc-syntax-string-color",
+      ".language-javascript .token.operator.color": "--cc-syntax-keyword-color",
       ".language-javascript .token.template-string > .token.interpolation > .token.interpolation-punctuation.punctuation.color": "--cc-syntax-58",
-      ".language-json .token.null.keyword.color": "--cc-syntax-60",
-      ".language-json .token.operator.color": "--cc-syntax-59",
-      ".language-markdown .token.blockquote.punctuation.color": "--cc-syntax-67",
-      ".language-markdown .token.bold .token.content.color": "--cc-syntax-70",
-      ".language-markdown .token.code-snippet.color": "--cc-syntax-69",
-      ".language-markdown .token.hr.punctuation.color": "--cc-syntax-68",
-      ".language-markdown .token.italic .token.content.color": "--cc-syntax-71",
-      ".language-markdown .token.list.punctuation.color": "--cc-syntax-74",
-      ".language-markdown .token.strike .token.content.color": "--cc-syntax-72",
-      ".language-markdown .token.strike .token.punctuation.color": "--cc-syntax-73",
-      ".language-markdown .token.title.important > .token.punctuation.color": "--cc-syntax-75",
-      ".language-markdown .token.url > .token.content.color": "--cc-syntax-64",
-      ".language-markdown .token.url > .token.operator.color": "--cc-syntax-62",
-      ".language-markdown .token.url > .token.url.color": "--cc-syntax-65",
-      ".language-markdown .token.url-reference.url > .token.string.color": "--cc-syntax-63",
-      ".language-markdown .token.url-reference.url.color": "--cc-syntax-66",
-      ".language-markdown .token.url.color": "--cc-syntax-61",
+      ".language-json .token.null.keyword.color": "--cc-syntax-constant-color",
+      ".language-json .token.operator.color": "--cc-syntax-punctuation-color",
+      ".language-markdown .token.blockquote.punctuation.color": "--cc-syntax-comment-color",
+      ".language-markdown .token.bold .token.content.color": "--cc-syntax-constant-color",
+      ".language-markdown .token.code-snippet.color": "--cc-syntax-string-color",
+      ".language-markdown .token.hr.punctuation.color": "--cc-syntax-comment-color",
+      ".language-markdown .token.italic .token.content.color": "--cc-syntax-keyword-color",
+      ".language-markdown .token.list.punctuation.color": "--cc-syntax-property-color",
+      ".language-markdown .token.strike .token.content.color": "--cc-syntax-property-color",
+      ".language-markdown .token.strike .token.punctuation.color": "--cc-syntax-property-color",
+      ".language-markdown .token.title.important > .token.punctuation.color": "--cc-syntax-property-color",
+      ".language-markdown .token.url > .token.content.color": "--cc-syntax-function-color",
+      ".language-markdown .token.url > .token.operator.color": "--cc-syntax-punctuation-color",
+      ".language-markdown .token.url > .token.url.color": "--cc-syntax-url-color",
+      ".language-markdown .token.url-reference.url > .token.string.color": "--cc-syntax-punctuation-color",
+      ".language-markdown .token.url-reference.url.color": "--cc-syntax-url-color",
+      ".language-markdown .token.url.color": "--cc-syntax-punctuation-color",
       ".line-highlight.line-highlight.background": "--cc-syntax-102",
       ".line-highlight.line-highlight:before.background": "--cc-syntax-103",
       ".line-highlight.line-highlight:before.color": "--cc-syntax-104",
@@ -158,27 +158,27 @@ test('the selector → variable mapping is frozen', () => {
       ".prism-previewer-time.prism-previewer-time:before.background": "--cc-syntax-129",
       ".prism-previewer.prism-previewer:after.borderTopColor": "--cc-syntax-126",
       ".prism-previewer.prism-previewer:before.borderColor": "--cc-syntax-124",
-      ".rainbow-braces .token.token.punctuation.brace-level-1.color": "--cc-syntax-112",
-      ".rainbow-braces .token.token.punctuation.brace-level-10.color": "--cc-syntax-117",
-      ".rainbow-braces .token.token.punctuation.brace-level-11.color": "--cc-syntax-120",
-      ".rainbow-braces .token.token.punctuation.brace-level-12.color": "--cc-syntax-123",
-      ".rainbow-braces .token.token.punctuation.brace-level-2.color": "--cc-syntax-115",
-      ".rainbow-braces .token.token.punctuation.brace-level-3.color": "--cc-syntax-118",
-      ".rainbow-braces .token.token.punctuation.brace-level-4.color": "--cc-syntax-121",
-      ".rainbow-braces .token.token.punctuation.brace-level-5.color": "--cc-syntax-113",
-      ".rainbow-braces .token.token.punctuation.brace-level-6.color": "--cc-syntax-116",
-      ".rainbow-braces .token.token.punctuation.brace-level-7.color": "--cc-syntax-119",
-      ".rainbow-braces .token.token.punctuation.brace-level-8.color": "--cc-syntax-122",
-      ".rainbow-braces .token.token.punctuation.brace-level-9.color": "--cc-syntax-114",
-      "atrule.color": "--cc-syntax-29",
-      "attr-name.color": "--cc-syntax-24",
-      "attr-value > .token.punctuation.attr-equals.color": "--cc-syntax-48",
-      "attr-value > .token.punctuation.color": "--cc-syntax-43",
-      "attr-value.color": "--cc-syntax-42",
-      "boolean.color": "--cc-syntax-26",
-      "builtin.color": "--cc-syntax-39",
-      "cdata.color": "--cc-syntax-20",
-      "char.color": "--cc-syntax-38",
+      ".rainbow-braces .token.token.punctuation.brace-level-1.color": "--cc-syntax-property-color",
+      ".rainbow-braces .token.token.punctuation.brace-level-10.color": "--cc-syntax-string-color",
+      ".rainbow-braces .token.token.punctuation.brace-level-11.color": "--cc-syntax-function-color",
+      ".rainbow-braces .token.token.punctuation.brace-level-12.color": "--cc-syntax-keyword-color",
+      ".rainbow-braces .token.token.punctuation.brace-level-2.color": "--cc-syntax-string-color",
+      ".rainbow-braces .token.token.punctuation.brace-level-3.color": "--cc-syntax-function-color",
+      ".rainbow-braces .token.token.punctuation.brace-level-4.color": "--cc-syntax-keyword-color",
+      ".rainbow-braces .token.token.punctuation.brace-level-5.color": "--cc-syntax-property-color",
+      ".rainbow-braces .token.token.punctuation.brace-level-6.color": "--cc-syntax-string-color",
+      ".rainbow-braces .token.token.punctuation.brace-level-7.color": "--cc-syntax-function-color",
+      ".rainbow-braces .token.token.punctuation.brace-level-8.color": "--cc-syntax-keyword-color",
+      ".rainbow-braces .token.token.punctuation.brace-level-9.color": "--cc-syntax-property-color",
+      "atrule.color": "--cc-syntax-constant-color",
+      "attr-name.color": "--cc-syntax-constant-color",
+      "attr-value > .token.punctuation.attr-equals.color": "--cc-syntax-punctuation-color",
+      "attr-value > .token.punctuation.color": "--cc-syntax-string-color",
+      "attr-value.color": "--cc-syntax-string-color",
+      "boolean.color": "--cc-syntax-constant-color",
+      "builtin.color": "--cc-syntax-string-color",
+      "cdata.color": "--cc-syntax-comment-color",
+      "char.color": "--cc-syntax-string-color",
       "class-name.color": "--cc-syntax-class-name-color",
       "code[class*="language-"] *::-moz-selection.background": "--cc-syntax-8",
       "code[class*="language-"] *::-moz-selection.textShadow": "--cc-syntax-9",
@@ -193,7 +193,7 @@ test('the selector → variable mapping is frozen', () => {
       "code[class*="language-"]::selection.textShadow": "--cc-syntax-13",
       "comment.color": "--cc-syntax-comment-color",
       "constant.color": "--cc-syntax-constant-color",
-      "deleted.color": "--cc-syntax-34",
+      "deleted.color": "--cc-syntax-property-color",
       "div.code-toolbar > .toolbar.toolbar > .toolbar-item > a.background": "--cc-syntax-86",
       "div.code-toolbar > .toolbar.toolbar > .toolbar-item > a.color": "--cc-syntax-87",
       "div.code-toolbar > .toolbar.toolbar > .toolbar-item > a:focus.background": "--cc-syntax-96",
@@ -212,14 +212,14 @@ test('the selector → variable mapping is frozen', () => {
       "div.code-toolbar > .toolbar.toolbar > .toolbar-item > span:focus.color": "--cc-syntax-101",
       "div.code-toolbar > .toolbar.toolbar > .toolbar-item > span:hover.background": "--cc-syntax-98",
       "div.code-toolbar > .toolbar.toolbar > .toolbar-item > span:hover.color": "--cc-syntax-99",
-      "doctype.color": "--cc-syntax-21",
-      "entity.color": "--cc-syntax-23",
+      "doctype.color": "--cc-syntax-punctuation-color",
+      "entity.color": "--cc-syntax-punctuation-color",
       "function.color": "--cc-syntax-function-color",
-      "important.color": "--cc-syntax-35",
-      "inserted.color": "--cc-syntax-40",
+      "important.color": "--cc-syntax-property-color",
+      "inserted.color": "--cc-syntax-string-color",
       "keyword.color": "--cc-syntax-keyword-color",
       "number.color": "--cc-syntax-number-color",
-      "operator.color": "--cc-syntax-45",
+      "operator.color": "--cc-syntax-function-color",
       "pre[class*="language-"] *::-moz-selection.background": "--cc-syntax-10",
       "pre[class*="language-"] *::-moz-selection.textShadow": "--cc-syntax-11",
       "pre[class*="language-"] *::selection.background": "--cc-syntax-16",
@@ -228,15 +228,15 @@ test('the selector → variable mapping is frozen', () => {
       "pre[class*="language-"].color": "--cc-syntax-block-foreground",
       "pre[class*="language-"].textShadow": "--cc-syntax-5",
       "pre[id].linkable-line-numbers.linkable-line-numbers span.line-numbers-rows > span:hover:before.backgroundColor": "--cc-syntax-107",
-      "prolog.color": "--cc-syntax-19",
+      "prolog.color": "--cc-syntax-comment-color",
       "property.color": "--cc-syntax-property-color",
       "punctuation.color": "--cc-syntax-punctuation-color",
-      "regex.color": "--cc-syntax-41",
-      "selector.color": "--cc-syntax-36",
-      "special-attr > .token.attr-value > .token.value.css.color": "--cc-syntax-49",
+      "regex.color": "--cc-syntax-string-color",
+      "selector.color": "--cc-syntax-string-color",
+      "special-attr > .token.attr-value > .token.value.css.color": "--cc-syntax-punctuation-color",
       "string.color": "--cc-syntax-string-color",
-      "symbol.color": "--cc-syntax-33",
-      "tag.color": "--cc-syntax-32",
+      "symbol.color": "--cc-syntax-property-color",
+      "tag.color": "--cc-syntax-property-color",
       "token.cr:before.color": "--cc-syntax-78",
       "token.cr:before.textShadow": "--cc-syntax-79",
       "token.lf:before.color": "--cc-syntax-80",
@@ -246,7 +246,7 @@ test('the selector → variable mapping is frozen', () => {
       "token.tab:not(:empty):before.color": "--cc-syntax-76",
       "token.tab:not(:empty):before.textShadow": "--cc-syntax-77",
       "url.color": "--cc-syntax-url-color",
-      "variable.color": "--cc-syntax-44",
+      "variable.color": "--cc-syntax-function-color",
     }
   `);
 });
@@ -301,4 +301,62 @@ test('no call site hard-codes a syntax variable number', () => {
   }
 
   assert.deepEqual(offenders, [], 'these files hand-write a --cc-syntax-N literal');
+});
+
+/**
+ * Every token colour in the sheet reads a named token — directly or through the
+ * colour group it is bound to.
+ *
+ * This is what keeps a themed block from reading half in the theme and half in
+ * the base Prism palette. The eleven named slots are only the ten colours plus
+ * the block foreground; the other token colours are bound to them by
+ * `SYNTAX_SLOT_GROUPS`, so a Prism bump that adds a token class would leave the
+ * new one numbered — and numbered means a theme cannot reach it. This turns that
+ * into a failure instead.
+ *
+ * Scoped to `color` on a selector that names a token, in either spelling this
+ * library uses: a bare class name (`tag`, `boolean`, `comment`) or a compound
+ * carrying `.token` (`.language-css .token.property`, `attr-value > .token…`).
+ * Plugin chrome (code-toolbar, line-highlight, prism-previewer, line-numbers,
+ * command-line) matches neither and stays numbered; the whitespace markers spell
+ * their class without a leading dot (`token.tab:before`) and are the sheet's one
+ * translucent colour, so no group can hold them.
+ *
+ * The one exception is a token colour with no group to join: the template-literal
+ * interpolation punctuation is its own pink in both source themes, and binding
+ * it — like binding a whitespace marker — would have to move the base value.
+ * The lossless re-encoding test in `syntaxTheme.test.ts` covers the other
+ * direction of the binding: every grouped slot has to resolve back to its own
+ * source colour, so a slot bound to the wrong group fails there.
+ */
+const UNGROUPED_TOKEN_SLOTS = [
+  '.language-javascript .token.template-string > .token.interpolation > .token.interpolation-punctuation.punctuation.color',
+];
+
+test('every token colour in the sheet reads a colour group', () => {
+  const variables = collectSyntaxVariables(syntaxTheme.style);
+  const declared = new Set(Object.values(variables));
+  const named = new Set(Object.values(SYNTAX_TOKEN_MAP));
+
+  const ungrouped: string[] = [];
+  let examined = 0;
+  for (const [slot, variable] of Object.entries(variables)) {
+    if (slot.slice(slot.lastIndexOf('.') + 1) !== 'color') continue;
+    const selector = slot.slice(0, slot.lastIndexOf('.'));
+    if (!/^[a-z][a-z-]*$/.test(selector) && !selector.includes('.token')) continue;
+    examined += 1;
+    if (named.has(variable)) continue;
+    if (UNGROUPED_TOKEN_SLOTS.includes(slot)) continue;
+    ungrouped.push(slot);
+  }
+
+  assert.ok(examined > 0, 'the scan found no token colour to check, so it proves nothing');
+  assert.deepEqual(
+    ungrouped,
+    [],
+    'these token colours are neither named nor bound to a colour group, so a theme cannot reach them',
+  );
+  for (const slot of UNGROUPED_TOKEN_SLOTS) {
+    assert.ok(declared.has(variables[slot]), `the exception "${slot}" is not a theme-dependent slot any more`);
+  }
 });
