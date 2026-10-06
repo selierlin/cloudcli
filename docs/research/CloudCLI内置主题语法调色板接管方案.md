@@ -1,6 +1,6 @@
 # CloudCLI 内置主题接管语法调色板方案
 
-> 状态：**B1 / B1b / B2 / B3 / B4 已实施**（B4 为 2026-09-30 补三套内置主题的浅色语法半）；**本文 §8 决策 7 登记的那笔"另案"（N10 泄漏守卫缺口）也已收口**（2026-09-29，只动测试）。本文是 `docs/research/CloudCLI主题与配色体系设计方案.md`（下称"主题文档"）§8.9 / §5.7"语义化改名"的一个**收窄立项**，面向多 AI 会审。
+> 状态：**B1 / B1b / B2 / B3 / B4 / B5 已实施**（B4 为 2026-09-30 补三套内置主题的浅色语法半；**B5 为 2026-10-05 的色族绑定**——把 59 个"色值与某个具名令牌相同"的槽绑到那个令牌上，主题第一次能改到**整块**代码而不新增任何令牌名，见文末 B5 记录）；**本文 §8 决策 7 登记的那笔"另案"（N10 泄漏守卫缺口）也已收口**（2026-09-29，只动测试）。本文是 `docs/research/CloudCLI主题与配色体系设计方案.md`（下称"主题文档"）§8.9 / §5.7"语义化改名"的一个**收窄立项**，面向多 AI 会审。
 > 起因：2-P 之后用户提出再增一套 One Dark 变体（Vivid）。调查发现 **Vivid 的全部可见差异都落在语法调色板上**，而语法调色板是主题文档 §5.11 v7 明确记录的"不在任何覆盖层可达范围内"的边界。故本方案先解决那条边界，再落地新主题。
 > 编写日期：2026-09-28。文中所有行号对应当前的 `HEAD`。
 
@@ -109,7 +109,7 @@
 ### 2.2 非目标（明确不做，理由见 §9）
 
 - 不做"改名轮"的其余三条到期条款（`dark:` 双写、`--n-*` 整层、tailwind `n-*` 键）。
-- 不重命名那 136 项里的**其余 125 项**（含 rainbow-braces / code-toolbar / prism-previewer / line-numbers 等 Prism 插件 chrome）。
+- 不给那 136 项里的其余槽**新增契约名**（B5 后）：其中 **59 项**已按色族**绑定**到已有的十个令牌（引用既有名字、不发布新名、不加新变量，见 §3.1 第三层），**其余 66 项**仍为编号（Prism 插件 chrome、行号与工具栏、十二个 `::selection` 死键、模板插值标点、空白标记）。
 - 不给语法色加对比度断言（§5.10 的 6 组配对是 UI 配对，不是语法配对）。
 - 不改代码块的**几何 / 字体**（那是 `--editor-*` 与 `--ui-code-font-*` 的事）。
 - 不改 `--cc-syntax-*` 的**注入机制**（不新增 `<style>`、不动 `ThemeContext`）。
@@ -119,7 +119,7 @@
 
 ## 3. 设计方案
 
-### 3.1 机制：把 11 个槽升为语义名，其余保持编号
+### 3.1 机制：11 个槽升为语义名，59 个按色族绑定，其余 66 个保持编号
 
 ```
 今天                                     本方案
@@ -127,7 +127,7 @@
   --cc-syntax-18: hsl(220, 10%, 40%);       --cc-syntax-comment-color: hsl(220, 10%, 40%);
   --cc-syntax-30: hsl(286, 60%, 67%);       --cc-syntax-keyword-color: hsl(286, 60%, 67%);
   --cc-syntax-4:  hsl(220, 14%, 71%);       --cc-syntax-block-foreground: hsl(220, 14%, 71%);
-  ... 共 136 项                             ... 11 项有名 ＋ 其余 125 项仍为编号
+  ... 共 136 项                             ... 11 项有名 ＋ 59 项绑定（无新声明）＋ 66 项仍为编号
 }                                         }
 ```
 
@@ -139,6 +139,8 @@
 2. **`deriveTokenMap()` 一行都不用改。** 它是从生成物里"反查"出 `keyword.color` 对应哪个变量名；生成物现在写的就是 `--cc-syntax-keyword-color`，反查照旧命中。**这是 0-D 那层间接的红利**：改名的动作面被限制在"名字怎么生成"一处。
 3. **`SYNTAX_TOKEN_MAP` 的类型是 `Record<SyntaxSemanticName, string>`，所以加键是编译期强制的**：改 `SyntaxSemanticName` 会立刻让 `src/shared/tests/syntaxThemeTokenMap.test.ts:42` 的 `ONE_DARK_SLOT_COLOURS`（同类型）编译失败，逼着把新槽的期望色补上。这是好事，写进 DoD。
 4. **denylist 不需要改**：`/--cc-syntax-[0-9]/` 正好继续指认"还没升名的那些编号"，而升名后的 11 个不再命中。护栏语义自动跟着走。
+5. **第三层（B5）：色值已经等于某个具名令牌的槽，绑到那个令牌而不是编号。** 表在 `SYNTAX_SLOT_GROUPS`，一张"具名令牌 ← 同色的槽清单"，生成器在编号之前先查它；命中就把该槽的值写成 `var(--cc-syntax-<名>-color)`——**不声明任何新变量、不发布任何新名**。生效原因是这些槽与它们绑定的令牌在**两套源主题里同值**，所以"引用别人"与"写死自己的编号值"渲染出的颜色逐字节相同（错绑会被 §6.1 的无损重编解码测试抓住，见 DoD）。**绑定按颜色而非按语义**——`tag` 归 `property`、`boolean` 归 `constant`，因为它们分别是 One Dark 的红与橙；这是被"基础层零变化"逼出来的唯一解，也**沿用 `editorTheme.ts` 已有的同一条规则**（它同样按色族把 Lezer tag 映射到这些令牌）。`constant` 组代的是 `className`/`number` 共享的那个橙，不是"常量"这个语义。计数仍照旧自增，所以**绑定不改动任何编号**（`--cc-syntax-N` 对同一版 Prism 保持稳定，denylist 扫描依旧有意义）。两条没有归属的族与插件 chrome 不在表里、继续编号：空白标记（`token.tab:before` 等，全表唯一的半透明色）与模板插值标点（两套源主题里都是自己的粉），绑它们都要动基色。
+6. **反面记一笔（B5 的已知边界）**：绑定到 `constant` 的那组槽（`attr-name` / `boolean` / `atrule` / `null` / markdown 粗体）会**跟着 `constant` 走**。基色表里 `constant` / `number` / `class-name` 三槽**同橙**（oneDark `hsl(29,54%,61%)`、oneLight `hsl(35,99%,36%)`），所以绑定任意一个都不动基色；但覆盖层普遍把三者**拆开**，于是那几个字面量角色读的是 `constant` 的色：**`constant` 与 `number` 同值**的主题（catppuccin / onedark / onedark-vivid / dracula / gruvbox / tokyo-night）读出来与数字同色，**不同值**的主题（`cc-islands` 两个外观 —— 浅 `#871094`/`#1750eb`、暗 `#c77dbb`/`#2aacb8`；`cc-kanagawa` 暗 `#ffa066`/`#d27e99`）读 `constant` 色而非 `number` 色。**没有任何槽绑到 `className`**（它是编辑器要的名字，但不带同色的散槽），所以各主题普遍拆开 `class-name` 不影响这张表。这是"按颜色绑定"在"源主题不拆、目标主题拆"时的固有限制——比**今天它们停在 One Dark 橙上（完全不可达）要好**，且多数主题因此整体受益。取舍记在 B5 记录"三"。
 
 ### 3.2 哪些槽进契约面（**11 个**）
 
@@ -159,7 +161,7 @@
 **为什么到这里为止**：**这句在审阅后已用实测坐实，且数字收紧**——Vivid 改动的 175 条带前景色的语法属性，**其 base 色 175/175 全部等于这 10 个槽的 One Dark 色**，且落在**5 个**色族上：`keyword` `#c678dd`（紫）、`string` `#98c379`（绿）、`url` `#56b6c2`（青）、`property` `#e06c75`（红）、`punctuation` `#abb2bf`（灰）。**另 5 个槽的色族一个都没动**（`comment` `#5c6370`、`className`/`constant`/`number` `#d19a66`、`function` `#61afef`）——所以准确说法是"**改动的属性集合 ⊆ 契约槽的 5 个色族**"，而不是此前几稿里"六个色相加饱和"的宽读；那 5 个没动的槽在 B2 里会**照抄参照物而值不变**（不是漏做，是可以被这一步证明"确实没变"）。
 > 边界照实说：175/175 是**色族级**的覆盖证明（没有一条改动落在契约之外的色族上），不等于"175 条逐条都能被 11 个槽表达"——同一色族内不同语言的属性名在 Prism 侧本就合并到同一个槽，这正是"按颜色而非按语义映射"的既有口径（本节末段那笔账）。
 
-后 125 项是 HTML/JSON/Markdown 专用类、Prism 插件 chrome、行号与工具栏配色；它们**确实**也是变量（两主题取值不同），但升名只会造出"改了没反应"的假契约——原因见下一条。
+那 125 项不升名，但**分两种处置（B5 后）**：**59 项**是 HTML/JSON/Markdown 专用类，它们的色**已经等于这十个令牌之一**（`tag` 是 One Dark 的红因此归 `property`、`boolean` 是它的橙因此归 `constant`……），所以按色族**绑定**就能被主题带到（§3.1 第三层）——绑定不发新名、不加新变量，因而不构成假契约，只是把已有的十个名字接到它们本已相同的色上。**其余 66 项**（Prism 插件 chrome、行号与工具栏配色、十二个 `::selection` 死键、模板插值标点、空白标记）升名只会造出"改了没反应"的假契约——原因见下一条。
 
 **明确不进契约面的 17 个槽（实测，不是推断；**一行一槽**，不汇总）**
 
@@ -338,7 +340,7 @@
 > > **订正（2026-10-01，浅色终端板片）：事实 1 的后半句作废。** 上面事实 1 说"终端板走 L1 的 20 条 `--palette-term-*`，每套主题只声明一次 ⇒ **没有'浅色终端来源'这个问题**"。前半句在当时**属实**（板确实只声明一次），但后半句是**推论过头**：那个"只声明一次"是各主题当时的**选择**（把板写在无外观限定的 L1 块里），不是不变量；一旦像语法板那样把它拆进 `:not(.dark)` / `.dark` 两半，浅色半就同样有来源问题——而它**有答案**，与语法板同构：
 >
 > - **有官方浅色答案的**：`cc-catppuccin`（Latte）、`cc-gruvbox`（`gruvbox-contrib` 的 xresources light）、`cc-kanagawa`（`kanagawa.nvim` 的 `kanagawa_lotus.toml`）、`cc-tokyo-night`（官方 day 板，见该片）；
-> - **有官方色板、按角色表读的**：`cc-dracula`（README 的 Alucard；该生态不发终端端口，也没有 `bright-*` 阶梯）；
+> - **有官方色板、按角色表读的**：`cc-dracula`（README 的 Alucard；该生态不发终端端口，也没有 `bright-*` 阶梯）；**（2026-10-06 订正：整条作废——`spec.draculatheme.com` 发布 Alucard 自己的 ANSI-16，含完整八条 `bright-*`，浅色半现逐槽照抄，不再是"按角色表读"。该行自此应从"按颜色表读"一档移出，见《CloudCLI 主题与配色体系设计方案》的 2-Q 补记。）**
 > - **确实要自造的**：`cc-polar` / `cc-islands` / `cc-onedark` / `cc-onedark-vivid`——按 2-P 发明浅色壳的同一手法（保色相饱和、重解明度、对比度封顶）。
 >
 > 故事实 1 与其余两条并列时读作："终端面**与语法面一样**是外观相关的（只要主题选择拆分它）"。B 线当时"Vivid 的终端改动不需要明暗拆分"的做法**不受影响**（它确实没拆），受影响的只是那句"因此不存在来源问题"。逐槽取值、守卫与门槛见《CloudCLI 主题与配色体系设计方案》切片表 v20 的 2-R 记录。
@@ -394,8 +396,8 @@
 | §5.11 v7 / 695；1-E 记录 / 3741 | "语法高亮本轮不在任何覆盖层的可达范围内……`SURFACES` 里没有 `syntax` 组是如实反映边界而非漏写。**要把它纳入主题覆盖，得先做 §8.9 的改名／映射决策**" | **本条正是被执行的那句**。`SURFACES` 仍然没有 `syntax` 组，但**理由变了**：从"不可达"变成"可达但可选"（§3.4）。必须改措辞，否则读者会以为边界还在 |
 | `src/index.css:1689-1692`（`cc-catppuccin` 的注释） | "语法那一半在 `.tmTheme` 里已经有家了，本主题给的是壳那一半" | **改判**：壳与语法改由同一套内置主题承担；`.tmTheme` 那条路仍在（用户仍可自装），但不再是"内置主题只能给一半"的**唯一原因** |
 | §5.3（`coverage` 三值语义） | `accent` = 只动强调色族；`full` = 底料 ＋ 终端 ＋ 编辑器 ＋ Git 图 | **追加一句**：`full` **不承诺**语法板（可选面，同 `--term-font-family`），并互指本节 |
-| 附录 A 令牌清单 | 有 `语法：--cc-syntax-0..N（由 Prism 主题编译产生）` 一行（4761） | 追加 11 个具名槽 ＋ 订正计数（136 中 11 具名 / 125 编号），并点名 **17 个刻意不升名的槽**（`code[…]` 三件套 `0`/`1`/`2` ＋ 半活的 `3` ＋ 仅暗色有值的 `5` ＋ 12 条 `::selection`），一行一槽、各写理由 |
-| 审阅批注区（Claude 的 WARNING，4818）——**不是附录 B** | `--cc-syntax-N` 不是稳定契约（编号由遍历顺序决定） | **在 11 个具名槽上该 WARNING 失效**，需改判并注明生效范围（其余 125 项仍适用）。**引用已更正**（第二轮新发现 C）：`:4818` 落在主题文档的「## 审阅批注」区（该区始于 `:4807`），而真正的「## 附录 B：解包取证索引」在 `:4781`、内容是 WorkBuddy/Codex 的解包证据、与 `--cc-syntax-N` 无关。回写时**须写"审阅批注（Claude WARNING，4818）"**，否则下一位读者按"附录 B"去找会扑空 |
+| 附录 A 令牌清单 | 有 `语法：--cc-syntax-0..N（由 Prism 主题编译产生）` 一行（4761） | 追加 11 个具名槽 ＋ 订正计数（136 中 11 具名 / 125 编号），并点名 **17 个刻意不升名的槽**（`code[…]` 三件套 `0`/`1`/`2` ＋ 半活的 `3` ＋ 仅暗色有值的 `5` ＋ 12 条 `::selection`），一行一槽、各写理由。（B5 后计数为 **11 具名 / 59 绑定 / 66 编号**，17 个非契约槽仍全在 66 内）|
+| 审阅批注区（Claude 的 WARNING，4818）——**不是附录 B** | `--cc-syntax-N` 不是稳定契约（编号由遍历顺序决定） | **在 11 个具名槽上该 WARNING 失效**，需改判并注明生效范围（其余 **66** 项仍适用；B5 把另 59 项绑到具名令牌后，它们也不再携带编号）。**引用已更正**（第二轮新发现 C）：`:4818` 落在主题文档的「## 审阅批注」区（该区始于 `:4807`），而真正的「## 附录 B：解包取证索引」在 `:4781`、内容是 WorkBuddy/Codex 的解包证据、与 `--cc-syntax-N` 无关。回写时**须写"审阅批注（Claude WARNING，4818）"**，否则下一位读者按"附录 B"去找会扑空 |
 
 > 回写状态（**已落笔，2026-09-29**）：B1 实施后本表**逐条改写了主题文档**，并在主题文档侧反向标注本方案为改判来源（照终端字体那一轮的闭环体例）。实际落点与本文的差异，如实记两处：① 本表把审阅批注区的定位写成 `:4818`，那正是主题文档在**审阅时刻**的行号——B1 的段落写进去后该条**已下移**，故主题文档在原批注下追加的"B1 改判"注里**写明 `4818` 是审阅时刻的行号并指出它已下移**，不把过期行号当活引用；② 本表为 B2 / B3 预留的"逐套记录 / 片记录 ＋ 切片表一行"**已落**（B2 见"B2 实施记录"、B3 见"B3 实施记录"，主题文档切片表升 **v17**：B2 / B3 两行改为已实施 ＋ 各加一句逐套可见变化），切片表另按本表登记了 N10 的"待排期"行（**该行已于 2026-09-29 收口，见主题文档 §6 末的 N10 记录**）。主题文档的四处落点：§5.3 v12、§5.8 v8、§5.9 表格行、§5.11 v7 的边界改判，另加附录 A 的 11 具名槽清单与审阅批注区那一注。
 
@@ -487,6 +489,7 @@
 - **先给"零变化"下一个精确的定义**（N14，第二轮补）：**零变化指渲染值不变，产物文本会变**——B1 升名后注入的 `<style id="cc-syntax-theme">` 里 11 个变量**名字换了、值没换**。不写这句，B1 收口时的产物 diff 会被误判成违反承诺；**核对方法是逐槽比"值"，不是比产物文本**。
 - 基线重生成的 diff **只含新增的语法条目**，其余条目逐字节不变（人工核对 + 可脚本化）。
 - `--cc-syntax-*` 的 11 个具名槽：**名字变了、值没变**（黄金快照 ＋ 明暗两张期望色表）。
+- **B5 的绑定也是"产物文本变、渲染值不变"**：59 个绑定槽在产物里由 `var(--cc-syntax-N)` 改为 `var(--cc-syntax-<名>-color)`，但它们与所绑令牌在两套源主题里**同值**，所以解析出的颜色逐字节相同。这条由 `syntaxTheme.test.ts` 的**无损重编解码**保证（明色变量必须逐字重现 `oneLight`、暗色逐字重现 `oneDark`）——**一次错绑就会在那里红**，不必另设断言。绑定**不新增任何变量**，所以"基线条目数"也不变。
 - 无主题态 / `cc-light` / `cc-dark` 的**代码块**渲染值与今天相同（真引擎读 `readSyntaxToken`）。
 - **一处例外（新发现 A，必须单列，别混进上面三条）**：装了 `.tmTheme` 的用户，代码块**正文色会变**（新键自动落入其编译产物，取该主题的全局前景，见 §5.1 与 §5.1 验收口径）。**这是修好原本的错值，但它不属于"零变化"。**
 - **另一处非渲染面的变化**：用户主题的编译缓存会被指纹作废、**全员重编译一次**（预期；同时保证不会有旧编号名的缓存残留）。
@@ -589,7 +592,7 @@
 ## 9. 非目标
 
 - **不做**改名轮其余三条（`dark:` 双写与档位耦合、`--n-*` 整层处置、tailwind `n-*` 键）。
-- **不重命名**其余 125 项编号槽，**也不升名**那 17 个非契约槽（缺口 2：`code[…]` 三件套 ＋ 半活的槽 3 ＋ 仅暗色有值的槽 5 ＋ 12 条 `::selection`）。
+- **不重命名**其余编号槽。其中 **59 项**按色族**绑定**到已有令牌（B5：不发布新名、不加新变量、不改基色），**其余 66 项**继续编号——含 17 个非契约槽（缺口 2：`code[…]` 三件套 ＋ 半活的槽 3 ＋ 仅暗色有值的槽 5 ＋ 12 条 `::selection`），以及 Prism 插件 chrome、行号与工具栏、模板插值标点、空白标记。
 - **不做**语法色的对比度/可读性断言（§5.10 是 UI 配对）。
 - **不引入**新的注入机制、新的 `<style>` 元素、`ThemeContext` 改动。
 - **不统一** Prism 与 CodeMirror 的完整命名体系（§8.9/4952 当初那个"一次到位"的大目标被本方案有意放弃）。
@@ -1116,7 +1119,7 @@
 | `typecheck` ＋ `typecheck:theme-tokens` | 0 错 | `build:client` 是 vite/esbuild、**不校验类型**，故这两条必须单跑 |
 | `build` | exit 0 | — |
 | `token-baseline.json` diff | **22 增 / 0 删**，新增行 100% 含 `cc-syntax` | 这就是 §6.1 的"渲染值零变化"证据：11 明 ＋ 11 暗 |
-| 冻结快照 diff | **恰 11 行**改名为语义名，其余 125 个编号槽**逐字节未动** | 计数在命名槽上也自增是刻意的（见"三、5"） |
+| 冻结快照 diff | **恰 11 行**改名为语义名，其余 125 个编号槽**逐字节未动** | 计数在命名槽上也自增是刻意的（见"三、5"）。**B5 后记**：本节是 B1 当时的读数；B5 把其中 59 个编号槽绑到具名令牌，故今日快照为"70 条具名引用 ＋ 66 条编号"。|
 
 ### 二、变异集（9 条，逐条实测）
 
@@ -1239,6 +1242,8 @@ B2（回填四套既有 `full` 主题的语法板）是下一片。两个前置�
 | `cc-onedark` | 插件 jar 内 `one_dark.xml`（497 条属性，**dark-only**）| 逐属性读，一个文件一套 |
 | `cc-islands` | 平台 jar 内 `themes/islands/IslandSchemeDark.xml` | 逐属性读；**该 scheme 无 `DEFAULT_CLASS_NAME`** ⇒ 取 `DEFAULT_CLASS_REFERENCE` |
 | `cc-catppuccin` | **官方色板 v1.8.0**（Mocha / Latte）| ⚠️ **不是编辑器 scheme**：Codex 的 27 套主题编译进 229MB 二进制（`strings` 搜不到、包内无 `.tmTheme`）⇒ 只能取官方**角色约定**，如实记账 |
+
+> **〔2026-10-06 订正〕** "只能取官方**角色约定**"当时落成了三个与官方表不符的槽：`comment` 取 Overlay 0、`property` 取 Lavender、`url` 取 Sky。现已按 `catppuccin/catppuccin` 的 `docs/style-guide.md`（Code Editors → Language Defaults ＋ General 两表）**逐槽订正**为 **Overlay 2 / Blue / Blue**（`url` 取 Normal Links 的 Blue；Sky 是 "On Hover"，静态槽表达不了），同一片还把终端板改读 `catppuccin/palette` 的 `ansiColors`。本片正文另有一处事实该改：末段的"Catppuccin 只发布十四色供十六槽"不成立——`ansiColors` 正好发布八对 16 槽。表内"官方色板 **v1.8.0**"已复核，仍准确。详见《CloudCLI主题与配色体系设计方案》§6 的 **2-N 补记**。
 
 映射（甲）：comment ← `LINE_COMMENT`；punctuation ← `OPERATION_SIGN` / `BRACES`；className ← `CLASS_REFERENCE`；constant ← `CONSTANT`；number ← `NUMBER`；keyword ← `KEYWORD`；property ← `INSTANCE_FIELD`；string ← `STRING`；function ← `FUNCTION_DECLARATION`；url ← `VALID_STRING_ESCAPE`；blockForeground ← `IDENTIFIER`。
 
@@ -1450,5 +1455,85 @@ M2 的报文顺带证明了一件事：**扩表之前，整段删掉浅色板是
 | `tests/theme-tokens/theme-overlays.spec.ts` | `BOARD_IN_BOTH_APPEARANCES` 扩为四主题后连同其分支删除；三处段落注释改写（块头、"拥有板"、姊妹差）|
 
 **提交方式**：与 B1–B3 一致 —— 代码一个 `feat(theme):`、文档一个 `docs(theme):`。
+
+---
+
+## B5 实施记录（2026-10-05）
+
+> 范围：**把"色值已等于某个具名令牌"的 59 个槽绑到那个令牌** —— 主题从此能改到**整块**代码（HTML 标签、布尔、`@media`、diff 增减行、markdown 强调、CSS 属性名……），而**不新增任何令牌名、不新增任何变量、不改动任何基色值**。
+> 触发：用户追问"给 Solarized 做完之后会有什么效果"时发现——内置主题**只能改 11 个具名槽**，其余 token 色在任何主题下都停在基色 `prism-oneLight`/`oneDark` 上，于是代码块"一半在主题里、一半在两套 Prism 默认色里"（HTML 标签红、`true` 橙、`&&` 蓝，都是 One Dark 的色）。
+> 面：**只动 `src/shared/syntaxTheme.ts` 与其守卫 spec**；不动 `index.css`、不动注册表、不动服务端、不动终端面、不动底板、不动编辑器面、不动图道。
+
+### 一、机制：三层（11 具名 ＋ 59 绑定 ＋ 66 编号，合计仍 136）
+
+`SYNTAX_SLOT_GROUPS` 是一张"具名令牌 ← 同色的槽清单"，生成器在编号之前先查它；命中就把该槽的值写成 `var(--cc-syntax-<名>-color)`——**不声明任何新变量、不发布任何新名**。
+
+| 组 | 绑定槽数 | ＋该具名槽后 | 槽例 |
+|---|---|---|---|
+| `comment` | 4 | 5 | `prolog`、`cdata`、markdown 引用标点 / hr 标点 |
+| `punctuation` | 9 | 10 | `doctype`、`entity`、CSS `property`、JSON 操作符、markdown url |
+| `constant` | 5 | 6 | `attr-name`、`boolean`、`atrule`、JSON `null`、markdown 粗体 |
+| `keyword` | 7 | 8 | CSS `important` / `atrule .rule`、JS 操作符、markdown 斜体、3 个 rainbow-brace 档 |
+| `property` | 12 | 13 | `tag`、`symbol`、`deleted`、`important`、CSS `selector`、markdown 删除线 / list / title、3 个 rainbow-brace 档 |
+| `string` | 12 | 13 | `selector`、`char`、`builtin`、`inserted`、`regex`、`attr-value`…、3 个 rainbow-brace 档 |
+| `function` | 6 | 7 | `variable`、`operator`、markdown url 内容、3 个 rainbow-brace 档 |
+| `url` | 4 | 5 | CSS `function` / `url .function`、markdown url / url-reference |
+| **合计** | **59** | **70** | 具名引用在冻结快照里由 11 条升为 70 条，编号 66 条 |
+
+未绑定的两族刻意留编号：**空白标记**（`token.tab:before` 等，全表唯一的半透明色）与**模板插值标点**（两套源主题里都是自己的粉）——绑它们都要动基色。后者是唯一一条显式例外清单 `UNGROUPED_TOKEN_SLOTS`（模板插值的选择器不是合法类名、无法归入任何组）。Prism 插件 chrome（code-toolbar / line-highlight / prism-previewer / line-numbers / command-line）根本不是 token，也在编号内。
+
+### 二、判据：为什么"按颜色绑定"是唯一解，以及为什么零变化
+
+- **零变化是硬约束**（G4：基础层逐字节相同）。所以一个槽**只能**绑到"值已经与它相等"的令牌——这不是美学选择，是唯一可行解。绑定后该槽在产物里由 `var(--cc-syntax-N)` 变为 `var(--cc-syntax-<名>-color)`，但**解析出的颜色不动**，由 `syntaxTheme.test.ts` 的**无损重编解码**保证（明色变量必须逐字重现 `oneLight`、暗色逐字重现 `oneDark`）。
+- **不新增变量**：绑定的槽**不声明自己的变量**，只引用别处的名字 ⇒ 变量计数仍是 136、基线条目数不变、`--cc-syntax-N` 的编号不变（计数仍照旧自增，绑定不影响后续编号）。
+- **与编辑器同规则**：`editorTheme.ts` 早就按色族把 Lezer tag 映射到这些令牌（`tags.tagName`→`property`、`tags.bool`→`constant`、`tags.operator`→`url`…），本片只是把同一条规则推广到 Prism 侧。因两者共用 `SYNTAX_TOKEN_MAP`，**编辑器高亮零改动即受益**（`editorThemeTokens` 那组测试未动即通过）。
+- **判据**："按颜色而非按语义"是为"零变化"服务的；这也是为什么名字看起来与槽不搭（`tag` 归 `property`、`boolean` 归 `constant`）。
+
+### 三、已知边界（如实记：是取舍，不是缺陷）
+
+1. **`constant` 组的代表色**：基色表里 `constant` / `number` / `class-name` **同橙**（oneDark `hsl(29,54%,61%)`、oneLight `hsl(35,99%,36%)`），故绑任一个都不动基色。覆盖层普遍把三者拆开 ⇒ 绑定到 `constant` 的字面量角色读 `constant` 色：`constant` 与 `number` **同值**的主题（catppuccin / onedark / onedark-vivid / dracula / gruvbox / tokyo-night）读出来与数字同色；**不同值**的（`cc-islands` 两个外观 —— 浅 `#871094`/`#1750eb`、暗 `#c77dbb`/`#2aacb8`；`cc-kanagawa` 暗 `#ffa066`/`#d27e99`）读 `constant` 色。**没有任何槽绑到 `className`**（它是编辑器要的名字，但不带同色的散槽），故各主题普遍拆 `class-name` 不影响本表。
+2. **半可达的既有情形不变**：主题只声明了 11 个具名槽里的**一部分**时，未声明的槽回落基色——这是"声明即拥有"的既有语义，绑定不改变它，只是把"可达"的覆盖面从 11 个选择器扩到全部 token 色。
+
+### 四、门槛（全绿）
+
+| 项 | 读数 |
+|---|---|
+| `test:client`（vitest） | **161 文件 / 1322 通过 / 0 失败** |
+| `test:theme-tokens` · chromium ＋ webkit | **208 通过 / 0 失败** |
+| `npm test`（服务端树） | 1103 / **1092 通过 / 10 失败 / 1 跳过** —— **失败名集 A/B 逐字节相同**（本片全是 `src/`，而 `npm test` 的 glob 只含 `server/**`，构造上不可能受影响；10 条红全部来自并行的服务端改动线）|
+| `typecheck`（含 `typecheck:theme-tokens`） | 干净 |
+| `oxlint`（仅两个改动文件） | 0 警告 / 0 错误 |
+
+### 五、变异集（4 条，逐条实测，全 RED）
+
+| # | 变异 | 结果 | 抓它的测试 |
+|---|---|---|---|
+| M1 | 从 `SYNTAX_SLOT_GROUPS` 的 `property` 组删掉 `'tag.color'` | **RED ×2** | ①冻结快照 ②完整性守卫（报文点名 `'tag.color'`）|
+| M2 | 把 `comment` 组的 token 由 `comment` 改成 `string` | **RED ×3** | ①`the light variables reproduce oneLight exactly` ②`…oneDark…` ③冻结快照 |
+| M3 | 清空 `UNGROUPED_TOKEN_SLOTS` | **RED** | 完整性守卫报出模板插值槽 |
+| M4 | 往例外清单塞假条目 `'ghost.color'` | **RED** | `the exception "ghost.color" is not a theme-dependent slot any more` |
+
+四条均已还原，还原后复跑 **13 / 13 通过**、两文件与备份**逐字节相同**。
+
+> **M1 一开始只被快照抓住、新守卫漏掉**：守卫的谓词要求 `selector.includes('.token')`，而 `tag.color` 的选择器是**裸类名** `tag`。修法是把谓词改成"裸类名 **或** 含 `.token`"（`/^[a-z][a-z-]*$/` 分支）。这是"**守卫的跳过条件就是它的覆盖面**"的又一次命中——谓词写得比它要守的东西窄，缺口就静默。
+
+### 六、§6.3 记账（B5 增量）
+
+1. **代码块 · token 色 —— 两外观各一批**：59 个槽由"停在基色"变为"跟随主题的对应令牌"。**这是本片的主变更，也是本片的目的。**
+2. **基色（无主题态 / `cc-light` / `cc-dark`）逐字节不变** —— 由无损重编解码证明。
+3. **未动**：`index.css` / 注册表 / 服务端 / 终端面 / 底板 / 编辑器面 / 图道。
+4. **一处"没有发生"也要记**：本片**没有**新增任何令牌名，故 §2.2 的"不新增契约名"仍成立、`--cc-syntax-N` 的授权面与 denylist 语义不变。
+
+### 七、改动面
+
+| 文件 | 改动 |
+|---|---|
+| `src/shared/syntaxTheme.ts` | 新增 `SYNTAX_SLOT_GROUPS` ＋ `SLOT_GROUP` 反查表；生成循环在编号前先查绑定；模块注释补一"绑定"段与两组要点（按颜色绑定的理由、与编辑器同规则）|
+| `src/shared/tests/syntaxThemeTokenMap.test.ts` | 冻结快照重生成（具名引用 11 → 70、编号 66 不变）；新增"every token colour in the sheet reads a colour group"完整性守卫 ＋ `UNGROUPED_TOKEN_SLOTS` 例外清单 |
+| `docs/research/CloudCLI内置主题语法调色板接管方案.md` | §2.2 / §3.1 / §3.2 / §6.1 / §9 的措辞与计数改判；新增本记录 |
+
+**真引擎 A/B（本轮唯一的端到端证据）**：transcript fixture、暗色、`cc-gruvbox` —— `<section` 的 `tag` 由编号 `--cc-syntax-32`（One Dark 红 `rgb(224,108,117)`）变为 `--cc-syntax-property-color`（gruvbox 青 `rgb(131,165,152)`）；`data-role` 与 `true` 由 `--cc-syntax-24`/`26` → `--cc-syntax-constant-color`；`&&` 由 `--cc-syntax-45` → `--cc-syntax-function-color`；已具名的 `const`（keyword）与 `=`/`<`（punctuation）**不变**、基色（无主题）**不变**。像素核对（692×365）：BEFORE 判据红 109 px（散在字形行 48..340），AFTER 归零、gruvbox 青 11 → 216 px。`cc-dracula` / `cc-tokyo-night` 亦各跑一遍 AFTER 确认方向一致。
+
+**提交方式**：与 B1–B4 一致 —— 代码一个 `feat(theme):`、文档一个 `docs(theme):`。**（用户要求本轮暂不提交，两个代码文件留在工作区。）**
 
 

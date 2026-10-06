@@ -12,10 +12,12 @@ description: 为 CloudCLI 创作或修改主题。两条通道：内置配色主
 | 你要改的 | 通道 |
 |---|---|
 | 纯颜色，且能写成「重新赋值 `--palette-*` L1 家族成员」 | **A 内置** |
+| 纯颜色、家族模型够用，但参照物本身**过不了 §5.10 的 AA**，或**只有单侧外观**（内置覆盖层是 `appearance: 'system'`，必须一套同时画明暗两半） | **B 用户 CSS** |
 | 纯颜色，但要逐个面微调（家族模型覆盖不到） | **B 用户 CSS** |
 | 选择器 / 布局 / 材质 / 字体 / 隐藏元素 / 动画 | **B 用户 CSS** |
 
 一句话：**改的是 L1 家族的值 → A；改的是某个具体面的样子 → B。**
+但「家族模型够用」≠ 一定能走 A：参照物自己过不了 AA、或官方只有一种外观时，**忠实**与**内置**不可兼得，取忠实、落 B。先例 `solarized`（官方浅色＝把 base 定义整体交换的第二套）与 `nord`（官方**只有暗色**，没有任何浅色可抄）——两者都能写成 L1 家族，却都只能住 `~/.cloudcli/themes/`。
 
 > 别用「文件是 `.css` 还是 `.json`」判断——内置覆盖层本身就写在 `src/index.css` 里。
 > 走错的代价是契约直接拒：`tests/theme-tokens/token-contract.spec.ts` 规定，除
@@ -113,6 +115,15 @@ description: 为 CloudCLI 创作或修改主题。两条通道：内置配色主
   写 `#hex` 会**静默失效**——不报错，只是没效果。
 - **明暗分工**（推荐契约）：颜色规则全写 `:root:not(.dark)`，几何 / 材质 / 选择器写裸 `:root`。
   → 浅色是主题、切深色时颜色回落基色但布局改动保留。
+- **内容面（编辑器页 ＋ 代码块底）默认交还基座**（家族口径，2026-10-06 新增）：`--editor-*` 与
+  `--code-block-bg` **默认都不写**，让它们落在基座上——「白纸文档窗口」是多数自由式主题的正确
+  形态，基座那两块又都过过对比度。**要接管就得成对**：写了 `--editor-bg` 就必须给
+  `--code-block-bg` **同一个颜色**，否则「块 ≠ 页」，主题里会嵌进一块异色纸。这条
+  **无守卫、漏写静默**。已记账的例外：`console` / `tui` 只接管**浅色半**的编辑器页，并在浅色半
+  补了同色 `--code-block-bg`（深色半两个都不声明，回落基座后天然相等）。
+  ⚠️ **两个令牌的形态不同**：`--editor-bg` 持 full color（`hsl(...)` / `#hex`），
+  `--code-block-bg` 持**三元组**（消费端 `hsl(var(--code-block-bg))`）——**不能互相 `var()`**，
+  照抄对方的字面值时要换算成对应形态。
 - 覆盖层追加到 `<head>`，与 bundle 基色**同权重**，靠**文档顺序**取胜。
 - 文件形式**无法声明 `coverage`**（文件里没这字段）→ 选择器里不显示覆盖范围徽标。
 
@@ -127,16 +138,21 @@ description: 为 CloudCLI 创作或修改主题。两条通道：内置配色主
 | 板 | 终端 / 编辑器 / Git 图 | `--term-*`、`--editor-*`、`--graph-lane-*` |
 | 兼容层 | 见下 | `--n-gray-*` / `--n-white` / `--n-black` |
 
-**兼容层（`--n-*`）要按族整染**：`src/index.css` 里 `--n-*` 定义上方的注释明说这是给主题覆写的
-别名层（`bg-n-gray-700` 编译成 `hsl(var(--n-gray-700))`），四个中性族合计 **1380 处**
-（`gray` 1223 / `zinc` 66 / `slate` 51 / `neutral` 40；代码块底、次级按钮、悬停态、弹窗、
-Tooltip）。不染就是「外壳是主题色、内脏是冷灰」。
-契约（`tests/theme-tokens/theme-overlays.spec.ts` 的 `SURFACES.compat`）现在这样划：
-`coverage: full` **可以**染这四族，但**必须整族十一档一起染**——只染其中几档既动了 `compat`
-又算不上完整，会落回「档位之间」那种半冷半暖的接缝；`coverage: accent` **一档都不能动**，
-它承诺只做强调色家族。
-`--n-white` / `--n-black` **两种覆盖度都别动**：它们多是纯白 / 纯黑的填充与标签（257 处，
-`text-n-white` 143 · `bg-n-white` 51 · `bg-n-black` 36），染纯白或纯黑是这里风险最大的动作。
+**兼容层（`--n-*`）按族整染是可选的，但一旦染就必须整族十一档**：`src/index.css` 里 `--n-*`
+定义上方的注释明说这是给主题覆写的别名层（`bg-n-gray-700` 编译成 `hsl(var(--n-gray-700))`），
+四个中性族（`gray` / `zinc` / `slate` / `neutral`）撑着代码块底、次级按钮、悬停态、弹窗、
+Tooltip。不染就是「外壳是主题色、内脏是冷灰」——**不染本身不算错**（保留中性纸面是正当选择），
+**半染才是错**。
+契约（`tests/theme-tokens/theme-overlays.spec.ts` 的 `SURFACES.compat`）这样划：
+`coverage: full` **可以**染这四族，但**必须整族十一档一起染**——这条**有断言**
+（`a theme that retints a compatibility family retints all eleven steps`，按渲染后的差异档数取
+0 或 11）；`coverage: accent` **一档都不能动**，它承诺只做强调色家族。
+`--n-white` / `--n-black` **两种覆盖度都别动**：它们多是纯白 / 纯黑的填充与标签，染纯白或纯黑
+是这里风险最大的动作。
+
+> 站点数不必记死：`--n-*` 是过渡层，阶段 2 会把消费者改名到语义令牌，数字一直在漂。要量就现跑
+> `rg -o --no-filename 'n-gray-[0-9]+' src --glob '!**/tests/**' | wc -l`（`zinc` / `slate` /
+> `neutral` 同理）。2026-10-06 读数：`gray` 1287 / `zinc` 66 / `slate` 51 / `neutral` 40。
 
 **这三块会被 JS 侧重新读取**：`resolvedThemeId` 随用户主题变化（`ThemeContext.tsx`），所以
 `--term-*` / `--editor-*` / `--graph-lane-*` 也跟着主题走，不是只能改外壳。
