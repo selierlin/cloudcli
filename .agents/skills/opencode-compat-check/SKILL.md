@@ -1,6 +1,7 @@
 ---
 name: opencode-compat-check
 description: 检查 OpenCode CLI 升级后，CloudCLI 是否仍能读取其 SQLite 会话历史，并正确解析 `opencode run --format json` 的实时事件信封。用真实 opencode.db 与本机二进制提取的类型契约做两路对照，识别会静默丢正文、工具入参变空或会话索引失败的新结构。用于 OpenCode 升级、历史消息缺失/空白、生成过程不出字而结束时整段蹦出、模型选择器为空或兼容性复核；不用于新增 AI Provider（见 providers/README.md）或 Claude、CodeX、Pi、WorkBuddy、DSH、ZCode 的格式问题。
+disable-model-invocation: true
 ---
 
 # OpenCode 会话格式兼容性检查

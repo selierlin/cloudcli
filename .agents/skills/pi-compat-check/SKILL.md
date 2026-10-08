@@ -1,6 +1,7 @@
 ---
 name: pi-compat-check
 description: 检查 Pi CLI（pi.dev / @earendil-works/pi-coding-agent）升级后，CloudCLI 的会话解析器是否仍与实际写入的 JSONL transcript 格式一致。解析最新会话并与项目读取逻辑比对，识别会错误渲染、丢失分支或静默丢失消息的新结构。用于 Pi 升级、历史消息缺失/空白、树形 parentId 回溯断裂、compaction 语义变化，或兼容性复核；不用于新增 AI Provider（见 providers/README.md）或 CodeX、Claude、WorkBuddy 格式问题。
+disable-model-invocation: true
 ---
 
 # Pi transcript 格式兼容性检查

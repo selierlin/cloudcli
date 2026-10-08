@@ -1,6 +1,7 @@
 ---
 name: session-cleanup
 description: CloudCLI 会话清理与沉淀——清理无用会话（口水/smoke test、邻接垃圾、已归档无价值、已沉淀）与沉淀有价值会话到 memory-bank / OpenViking。含物理删除语义、先快照→干跑→确认→apply 纪律、各 provider 的 transcript 与残留布局、价值判定口径、以及向 session-sediment 的交接。触发词：清理口水会话、清理垃圾、清理无用会话、清会话、清理残留、清理孤儿目录、归档会话评估、哪些会话值得沉淀、会话沉淀、会话治理。
+disable-model-invocation: true
 ---
 
 # CloudCLI 会话清理（session-cleanup）

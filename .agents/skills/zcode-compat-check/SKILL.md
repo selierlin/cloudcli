@@ -1,6 +1,7 @@
 ---
 name: zcode-compat-check
 description: 检查 ZCode CLI 升级后，CloudCLI 是否仍能读取其 SQLite 会话历史与流式事件语义。用于 ZCode 历史消息缺失、工具卡片异常、会话索引失败或格式兼容性复核；不用于 Claude、Codex、Pi、WorkBuddy 或 DSH。
+disable-model-invocation: true
 ---
 
 # ZCode 会话格式兼容性检查

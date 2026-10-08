@@ -1,6 +1,7 @@
 ---
 name: provider-adapter-verification
 description: 验证和排查 CloudCLI Provider 适配层。当实时或历史会话的文本、图片/文件附件、工具调用、计划、错误或用量在 CloudCLI 中缺失、重复、错序或展示异常时使用；不用于纯样式或网络加载问题。
+disable-model-invocation: true
 ---
 
 # Provider 适配验证
