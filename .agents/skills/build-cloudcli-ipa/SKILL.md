@@ -1,6 +1,7 @@
 ---
 name: build-cloudcli-ipa
 description: 从本地 Capacitor iOS 项目构建可由 AltStore 安装的 CloudCLI IPA，并同步移动端服务器选择页资源。默认生成未签名 IPA（安装时由 AltStore 签名），设置 `CLOUDCLI_IOS_SIGN=1` 可用开发证书签名。用于打 IPA、打包、构建 IPA、部署到 iCloud/AltStore、装到手机；不用于重启本机服务或仅构建浏览器可访问的 Web 资源（使用 deploy-cloudcli），也不安装或启动实体设备上的 App。
+disable-model-invocation: true
 ---
 
 # Build CloudCLI IPA (AltStore)

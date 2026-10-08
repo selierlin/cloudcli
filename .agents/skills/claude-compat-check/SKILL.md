@@ -1,6 +1,7 @@
 ---
 name: claude-compat-check
 description: 检查 Claude Code 升级后，CloudCLI 的会话解析器是否仍与实际写入的 JSONL 格式一致。解析最新会话并与项目的 normalizeMessage 基线比对，识别会错误渲染或丢失的新结构。用于 Claude 升级、Claude 会话消息缺失/空白、出现未知原始文本气泡或兼容性复核；不用于新增 AI Provider（见 providers/README.md）或 CodeX、WorkBuddy 格式问题。
+disable-model-invocation: true
 ---
 
 # Claude Code 会话格式兼容性检查

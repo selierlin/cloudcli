@@ -1,6 +1,7 @@
 ---
 name: dsh-compat-check
 description: 检查 DeepSeek Harness（DSH）升级后，CloudCLI 是否仍能正确读取其 Zstandard JSONL 会话记录；用于 DSH 历史消息缺失、注入上下文误显示或格式兼容性复核。
+disable-model-invocation: true
 ---
 
 # DeepSeek Harness transcript 格式兼容性检查

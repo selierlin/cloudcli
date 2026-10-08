@@ -1,6 +1,7 @@
 ---
 name: theme-authoring
 description: 为 CloudCLI 创作或修改主题。两条通道：内置配色主题（`BUILTIN_THEMES` + `src/index.css` 的 `[data-theme]` 令牌覆盖层，随包发布、受契约守卫）与用户 CSS 主题（自由式样式表，落 `~/.cloudcli/themes/`，零代码改动、无守卫）。含通道判据、令牌体系、服务端文件闸门、DOM 锚点分级、对比度守恒、免登录验证配方。通道 A 的完整方法（参照物选择、三种来源形态、板令牌产出、契约读法、验证配方、回写清单）见 `builtin-channel.md`；通道 B 的选择器分级见 `selectors.md`、验证配方见 `verification.md`。触发词：做个主题、配色主题、CSS 主题、皮肤、换个配色、改配色、主题不生效、主题没反应。
+disable-model-invocation: true
 ---
 
 # CloudCLI 主题创作

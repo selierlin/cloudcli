@@ -1,6 +1,7 @@
 ---
 name: codex-compat-check
 description: 检查 CodeX CLI 升级后，CloudCLI 的会话解析器是否仍与实际写入的 rollout JSONL 格式一致。解析最新 rollout 并与项目读取逻辑比对，识别会静默丢失消息的格式迁移。用于 CodeX 升级、用户或子代理消息缺失/空白，或兼容性复核；不用于新增 AI Provider（见 providers/README.md）或 WorkBuddy、Claude 格式问题。
+disable-model-invocation: true
 ---
 
 # CodeX rollout 格式兼容性检查

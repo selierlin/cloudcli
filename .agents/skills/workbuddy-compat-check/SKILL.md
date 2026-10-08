@@ -1,6 +1,7 @@
 ---
 name: workbuddy-compat-check
 description: 检查 WorkBuddy 或 CodeBuddy 升级后，CloudCLI 的会话解析器是否仍与实际写入的 JSONL transcript 格式一致。解析最新会话并与项目读取逻辑比对，识别会错误渲染、展示注入上下文或丢失的新结构。用于 WorkBuddy/CodeBuddy 升级、用户提示被注入上下文替代、消息或工具事件缺失/空白，或兼容性复核；不用于新增 AI Provider（见 providers/README.md）或 CodeX、Claude 格式问题。
+disable-model-invocation: true
 ---
 
 # WorkBuddy / CodeBuddy transcript 格式兼容性检查

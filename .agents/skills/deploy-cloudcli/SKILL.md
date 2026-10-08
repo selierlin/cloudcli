@@ -1,6 +1,7 @@
 ---
 name: deploy-cloudcli
 description: 构建并重启 CloudCLI 本机服务，让前端/后端改动在浏览器或手机 H5 上生效。前端改动用 vite 构建 dist，服务由 server-infra 的 launchd（cloudclictl）管理并重启。触发词：部署、部署服务、重启服务、重新编译启动、让改动生效、浏览器/手机访问。当用户要打 ipa 包装到手机/同步 iCloud 时改用 build-cloudcli-ipa；若意图是构建 iOS IPA，不要用本 skill。
+disable-model-invocation: true
 ---
 
 # Deploy CloudCLI 服务
