@@ -6,14 +6,16 @@ import { createRevealPacer } from '@/modules/chat/utils/revealPacer';
 import type { LLMProvider, StreamingChannelUpdate } from '@/shared/types';
 
 /**
- * Whole-segment providers (Codex / DSH) have no token deltas: their prose
- * arrives as complete segments. The pacer spreads each segment over ~1.2s of
- * 32ms ticks through the same streaming-row channel the registry uses, and
- * converges synchronously on terminal/seal events. These tests pin the pacing
- * contract from the streaming plan §11.6: grace window, tick cadence, 1.2s
- * cap, append-only snapshots (no invented characters, no rewind), serial
+ * Whole-segment providers (DSH) have no token deltas: their prose arrives as
+ * complete segments. The pacer spreads each segment over ~1.2s of 32ms ticks
+ * through the same streaming-row channel the registry uses, and converges
+ * synchronously on terminal/seal events. These tests pin the pacing contract
+ * from the streaming plan §11.6: grace window, tick cadence, 1.2s cap,
+ * append-only snapshots (no invented characters, no rewind), serial
  * same-channel segments, hidden-session 5Hz coalescing, and the flush/drop
- * lifecycle the handler's seal trio relies on.
+ * lifecycle the handler's seal trio relies on. The provider argument is opaque
+ * here — Codex used to be the example provider and now streams real deltas, so
+ * these use DSH, the remaining whole-segment provider.
  */
 
 type PublishCall = {
@@ -54,7 +56,7 @@ afterEach(() => {
 test('publishes a short segment in full immediately', () => {
   const pacer = create();
 
-  pacer.append('s1', '短回答', 'codex', 'text', 'item-1');
+  pacer.append('s1', '短回答', 'dsh', 'text', 'item-1');
   assert.equal(publishCalls.length, 1);
   assert.deepEqual(publishCalls[0].updates, [{ channel: 'text', text: '短回答' }]);
 
@@ -66,7 +68,7 @@ test('holds the first reveal tick for 32ms so an in-grace terminal converges wit
   const pacer = create();
   const full = '长'.repeat(500);
 
-  pacer.append('s1', full, 'codex', 'text', 'm1');
+  pacer.append('s1', full, 'dsh', 'text', 'm1');
   assert.equal(publishCalls.length, 0, 'nothing publishes during the grace window');
 
   pacer.flushNow('s1');
@@ -80,7 +82,7 @@ test('reveals a long segment on 32ms ticks and finishes within the 1.2s cap', ()
   const pacer = create();
   const full = '字'.repeat(900);
 
-  pacer.append('s1', full, 'codex', 'text', 'm1');
+  pacer.append('s1', full, 'dsh', 'text', 'm1');
   vi.advanceTimersByTime(32);
   assert.equal(publishCalls.length, 1, 'the first slice lands on the first tick');
   const first = lastText();
@@ -130,8 +132,8 @@ test('queues a distinct segment until the current one finishes revealing', () =>
   const a = 'A'.repeat(600);
   const b = 'B'.repeat(600);
 
-  pacer.append('s1', a, 'codex', 'text', 'item-1');
-  pacer.append('s1', b, 'codex', 'text', 'item-2');
+  pacer.append('s1', a, 'dsh', 'text', 'item-1');
+  pacer.append('s1', b, 'dsh', 'text', 'item-2');
 
   vi.advanceTimersByTime(32);
   const first = lastText();
@@ -185,8 +187,8 @@ test('a queued snapshot shorter than its queued predecessor never regresses the 
 test('a queued short segment lands in full once its turn comes', () => {
   const pacer = create();
 
-  pacer.append('s1', 'G'.repeat(600), 'codex', 'text', 'i1');
-  pacer.append('s1', '短段', 'codex', 'text', 'i2');
+  pacer.append('s1', 'G'.repeat(600), 'dsh', 'text', 'i1');
+  pacer.append('s1', '短段', 'dsh', 'text', 'i2');
   vi.advanceTimersByTime(2000);
 
   assert.equal(lastText(), 'G'.repeat(600) + '短段');
@@ -209,8 +211,8 @@ test('hidden sessions publish the accumulated full text at most 5 times per seco
   visibleSessions.delete('s1');
   const pacer = create();
 
-  pacer.append('s1', 'A'.repeat(300), 'codex', 'text', 'm1');
-  pacer.append('s1', `${'A'.repeat(300)}${'B'.repeat(300)}`, 'codex', 'text', 'm1');
+  pacer.append('s1', 'A'.repeat(300), 'dsh', 'text', 'm1');
+  pacer.append('s1', `${'A'.repeat(300)}${'B'.repeat(300)}`, 'dsh', 'text', 'm1');
 
   assert.ok(!publishCalls.length, 'hidden sessions never reveal');
   vi.advanceTimersByTime(199);
@@ -230,7 +232,7 @@ test('flushNow converges a hidden session the moment it becomes visible', () => 
   visibleSessions.delete('s1');
   const pacer = create();
 
-  pacer.append('s1', 'C'.repeat(300), 'codex', 'text', 'm1');
+  pacer.append('s1', 'C'.repeat(300), 'dsh', 'text', 'm1');
   visibleSessions.add('s1');
   pacer.flushNow('s1');
 
@@ -242,7 +244,7 @@ test('flushNow converges a hidden session the moment it becomes visible', () => 
 test('flushNow with nothing unpublished is a no-op', () => {
   const pacer = create();
 
-  pacer.append('s1', 'E'.repeat(300), 'codex', 'text', 'm1');
+  pacer.append('s1', 'E'.repeat(300), 'dsh', 'text', 'm1');
   pacer.flushNow('s1');
   pacer.flushNow('s1');
 
@@ -252,7 +254,7 @@ test('flushNow with nothing unpublished is a no-op', () => {
 test('drop cancels pending reveal work so no half row resurrects', () => {
   const pacer = create();
 
-  pacer.append('s1', 'D'.repeat(900), 'codex', 'text', 'm1');
+  pacer.append('s1', 'D'.repeat(900), 'dsh', 'text', 'm1');
   pacer.drop('s1');
   assert.equal(pacer.has('s1'), false);
 
@@ -264,7 +266,7 @@ test('has tracks the segment lifecycle through flush and drop', () => {
   const pacer = create();
 
   assert.equal(pacer.has('s1'), false);
-  pacer.append('s1', 'F'.repeat(300), 'codex', 'text', 'm1');
+  pacer.append('s1', 'F'.repeat(300), 'dsh', 'text', 'm1');
   assert.equal(pacer.has('s1'), true);
   pacer.flushNow('s1');
   assert.equal(pacer.has('s1'), true, 'flush keeps state until the seal drops it');
@@ -275,7 +277,7 @@ test('has tracks the segment lifecycle through flush and drop', () => {
 test('empty text does not create state', () => {
   const pacer = create();
 
-  pacer.append('s1', '', 'codex', 'text', 'm1');
+  pacer.append('s1', '', 'dsh', 'text', 'm1');
   assert.equal(pacer.has('s1'), false);
   assert.deepEqual(publishCalls, []);
 });
@@ -283,8 +285,8 @@ test('empty text does not create state', () => {
 test('publishes thinking and text slices in one thinking-first batch', () => {
   const pacer = create();
 
-  pacer.append('s1', '思'.repeat(300), 'codex', 'thinking', 'r1');
-  pacer.append('s1', '文'.repeat(300), 'codex', 'text', 'm1');
+  pacer.append('s1', '思'.repeat(300), 'dsh', 'thinking', 'r1');
+  pacer.append('s1', '文'.repeat(300), 'dsh', 'text', 'm1');
   pacer.flushNow('s1');
 
   assert.deepEqual(publishCalls[0].updates, [
@@ -296,10 +298,10 @@ test('publishes thinking and text slices in one thinking-first batch', () => {
 test('a dropped session starts its next segment from an empty row', () => {
   const pacer = create();
 
-  pacer.append('s1', 'first', 'codex', 'text', 'i1');
+  pacer.append('s1', 'first', 'dsh', 'text', 'i1');
   pacer.flushNow('s1');
   pacer.drop('s1');
-  pacer.append('s1', 'second', 'codex', 'text', 'i2');
+  pacer.append('s1', 'second', 'dsh', 'text', 'i2');
   pacer.flushNow('s1');
 
   assert.deepEqual(publishCalls.map(call => call.updates), [

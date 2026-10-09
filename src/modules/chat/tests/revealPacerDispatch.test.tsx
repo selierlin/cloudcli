@@ -15,12 +15,14 @@ import type {
 } from '@/shared/types';
 
 /**
- * Whole-segment providers (Codex / DSH) must not land their prose through
+ * Whole-segment providers (DSH) must not land their prose through
  * `appendRealtime`: the streaming plan §11.6 routes it through the reveal
  * pacer so it plays through the same streaming-row channel as real deltas,
- * and the existing terminal/seal branches converge it. These tests pin the
- * dispatch: which providers are paced, which rows are not, and the seal
- * ordering (flush → finalize → drop) on `complete` / `tool_use` /
+ * and the existing terminal/seal branches converge it. Codex used to take the
+ * same route; it now runs over `codex app-server` and emits real deltas, so the
+ * reverse holds for it — its whole rows stay on the instant path. These tests
+ * pin the dispatch: which providers are paced, which rows are not, and the
+ * seal ordering (flush → finalize → drop) on `complete` / `tool_use` /
  * `history_truncated`.
  */
 
@@ -145,16 +147,29 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-test('codex prose is paced, never appended as an instant row', () => {
+test('codex prose now keeps the instant appendRealtime path', () => {
   const { published, appendRealtime, dispatch } = renderHandlers();
 
+  // Codex streams real `item/agentMessage/delta` frames over `codex app-server`
+  // now, so a whole `text` row (a message that never streamed deltas) must not
+  // be routed through the pacer any more.
   dispatch(wholeText('viewed', '整'.repeat(300), 'codex'));
+  vi.advanceTimersByTime(500);
+
+  assert.equal(appendRealtime.length, 1, 'codex prose takes the instant path');
+  assert.equal(published.length, 0, 'the pacer must never see codex');
+});
+
+test('dsh prose is paced, never appended as an instant row', () => {
+  const { published, appendRealtime, dispatch } = renderHandlers();
+
+  dispatch(wholeText('viewed', '整'.repeat(300), 'dsh'));
   assert.equal(appendRealtime.length, 0, 'whole-segment prose must not bypass the pacer');
   assert.equal(published.length, 0, 'and nothing publishes during the grace window');
 
   vi.advanceTimersByTime(32);
   assert.equal(published.length, 1);
-  assert.equal(published[0][2], 'codex');
+  assert.equal(published[0][2], 'dsh');
   assert.equal(published[0][1].length, 1);
   assert.equal(published[0][1][0].channel, 'text');
   const slice = published[0][1][0].text;
@@ -188,7 +203,7 @@ test('claude prose keeps its instant appendRealtime path', () => {
 test('a user-role text frame is never paced', () => {
   const { published, appendRealtime, dispatch } = renderHandlers();
 
-  dispatch(wholeText('viewed', '用户消息', 'codex', { role: 'user' }));
+  dispatch(wholeText('viewed', '用户消息', 'dsh', { role: 'user' }));
   vi.advanceTimersByTime(500);
 
   assert.equal(appendRealtime.length, 1);
@@ -198,7 +213,7 @@ test('a user-role text frame is never paced', () => {
 test('complete converges the reveal in the same synchronous stack, then finalizes', () => {
   const { published, finalizeStreaming, ops, pacer, dispatch } = renderHandlers();
 
-  dispatch(wholeText('viewed', '收'.repeat(300), 'codex', { id: 'm-final' }));
+  dispatch(wholeText('viewed', '收'.repeat(300), 'dsh', { id: 'm-final' }));
   dispatch(complete('viewed'));
 
   assert.equal(ops[0], 'publish', 'the seal flushes the pacer before anything else');
@@ -214,7 +229,7 @@ test('complete converges the reveal in the same synchronous stack, then finalize
 test('a tool use seals the mid-flight reveal so post-tool prose starts fresh', () => {
   const { published, finalizeStreaming, ops, pacer, dispatch } = renderHandlers();
 
-  dispatch(wholeText('viewed', '前'.repeat(300), 'codex', { id: 'm-a' }));
+  dispatch(wholeText('viewed', '前'.repeat(300), 'dsh', { id: 'm-a' }));
   dispatch(toolUse('viewed'));
 
   assert.equal(ops[0], 'publish');
@@ -229,7 +244,7 @@ test('a tool use seals the mid-flight reveal so post-tool prose starts fresh', (
 test('history_truncated drops the pacer so the replaced segment cannot resurrect', () => {
   const { published, pacer, dispatch } = renderHandlers();
 
-  dispatch(wholeText('viewed', '替'.repeat(300), 'codex', { id: 'm-x' }));
+  dispatch(wholeText('viewed', '替'.repeat(300), 'dsh', { id: 'm-x' }));
   dispatch(historyTruncated('viewed'));
   assert.equal(pacer.has('viewed'), false);
 

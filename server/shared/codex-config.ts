@@ -3,7 +3,6 @@ import os from 'node:os';
 import path from 'node:path';
 
 import TOML from '@iarna/toml';
-import type { CodexOptions } from '@openai/codex-sdk';
 
 import type { AnyRecord } from '@/shared/types.js';
 import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
@@ -11,8 +10,22 @@ import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
 /** Absolute path of Codex's own configuration file, the layer a profile is applied over. */
 export const DEFAULT_CODEX_CONFIG_PATH = path.join(os.homedir(), '.codex', 'config.toml');
 
-/** Shape of the SDK's `CodexOptions.config` — TOML-shaped values it flattens into `--config key=value`. */
-export type CodexConfigOverrides = NonNullable<CodexOptions['config']>;
+/**
+ * A TOML-shaped value the CLI's config override accepts.
+ *
+ * Declared here rather than imported from the SDK: the values are handed to the
+ * CLI's own `config` field, so the shape is the protocol's, and it has to keep
+ * compiling once the SDK dependency is gone.
+ */
+export type CodexConfigValue =
+  | string
+  | number
+  | boolean
+  | CodexConfigValue[]
+  | { [key: string]: CodexConfigValue };
+
+/** A config override table: keys map to the TOML values the CLI merges into its own config. */
+export type CodexConfigOverrides = { [key: string]: CodexConfigValue };
 
 /**
  * Top-level `config.toml` keys a profile file may override.
@@ -48,14 +61,14 @@ const readTomlRecord = async (filePath: string): Promise<AnyRecord | null> => {
   }
 };
 
-/** Narrows a parsed TOML value to the scalar/array/table shapes `--config` accepts. */
-const toOverrideValue = (value: unknown): CodexConfigOverrides[string] | undefined => {
+/** Narrows a parsed TOML value to the scalar/array/table shapes a config override accepts. */
+const toOverrideValue = (value: unknown): CodexConfigValue | undefined => {
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
     return value;
   }
 
   if (Array.isArray(value)) {
-    const items: CodexConfigOverrides[string][] = [];
+    const items: CodexConfigValue[] = [];
     for (const item of value) {
       const converted = toOverrideValue(item);
       if (converted === undefined) {
@@ -71,7 +84,7 @@ const toOverrideValue = (value: unknown): CodexConfigOverrides[string] | undefin
     return undefined;
   }
 
-  const entries: [string, CodexConfigOverrides[string]][] = [];
+  const entries: [string, CodexConfigValue][] = [];
   for (const [key, entry] of Object.entries(record)) {
     const converted = toOverrideValue(entry);
     if (converted === undefined) {
@@ -82,18 +95,19 @@ const toOverrideValue = (value: unknown): CodexConfigOverrides[string] | undefin
   return Object.fromEntries(entries);
 };
 
-/** Keeps a provider key a bare TOML key so the SDK can emit it as a dotted `-c` path. */
+/** Keeps a provider key a bare TOML key so it can be emitted as a dotted config path. */
 const sanitizeProviderKey = (key: string): string => key.replace(/[^A-Za-z0-9_]/g, '_');
 
 /**
- * Builds the `-c` overrides that layer one user-maintained Codex config file
- * over the base `~/.codex/config.toml`.
+ * Builds the structured overrides that layer one user-maintained Codex config
+ * file over the base `~/.codex/config.toml`.
  *
- * The SDK exposes no usable `--profile` passthrough, so a selected profile is
- * translated into structured `--config` overrides instead. The profile is a full
+ * The CLI exposes no usable `--profile` passthrough, so a selected profile is
+ * translated into structured config overrides instead. The profile is a full
  * `config.toml` the user maintains by hand (CC Switch exports exactly that
  * shape), therefore only `PROFILE_OVERRIDE_KEYS` and the profile's own provider
  * tables are forwarded — everything else stays whatever the base config says.
+
  *
  * Returns null when the file is missing, malformed or contributes nothing: an
  * unconfigured host is a normal state, not an error. Callers then fall back to
@@ -132,7 +146,7 @@ export const resolveCodexConfigOverrides = async (
     // means there is nothing to collide with.
     const baseProviders = readObjectRecord((await readTomlRecord(baseConfigPath))?.model_providers);
     const renamedProviders = new Map<string, string>();
-    const providers: Record<string, CodexConfigOverrides[string]> = {};
+    const providers: Record<string, CodexConfigValue> = {};
 
     for (const [key, definition] of Object.entries(profileProviders)) {
       const value = toOverrideValue(definition);
