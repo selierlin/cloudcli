@@ -182,11 +182,13 @@ function versionInfo() {
     info.knownLatest = v.latest_version;
     info.checkedAt = v.last_checked_at;
   } catch {}
-  // 项目 codex-sdk
+  // 项目锁定的 codex 包（CLI 本体；对话走它提供的 `app-server` 子命令。
+  // 曾经还有 `@openai/codex-sdk`，2026-10-07 换通道后已删除）
   const pkgPath = path.join(process.cwd(), 'package.json');
   try {
     const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-    info.sdk = pkg.dependencies?.['@openai/codex-sdk'] ?? pkg.devDependencies?.['@openai/codex-sdk'];
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+    info.sdk = deps['@openai/codex'];
   } catch {}
   return info;
 }
@@ -206,7 +208,7 @@ function printReport(filePath, data) {
   console.log('\n[版本]');
   if (info.cli) console.log(`  codex-cli:  ${info.cli}`);
   if (info.knownLatest) console.log(`  已知最新版: ${info.knownLatest}（${info.checkedAt ?? '时间未知'} 检查）`);
-  if (info.sdk) console.log(`  项目 codex-sdk: ${info.sdk}`);
+  if (info.sdk) console.log(`  项目 @openai/codex: ${info.sdk}`);
 
   console.log('\n[事件结构]');
   for (const [sig, n] of [...counts.entries()].sort((a, b) => b[1] - a[1])) {

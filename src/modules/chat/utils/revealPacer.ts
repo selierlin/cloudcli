@@ -17,11 +17,13 @@ const CHANNEL_ORDER: StreamChannel[] = ['thinking', 'text'];
 
 /**
  * Providers whose prose reaches the client as complete segments instead of
- * token deltas: `codex exec` reports an assistant message once, on
- * `item.completed`, and the DSH ACP bridge only emits committed
- * `assistant/message` blocks. Everything else keeps its real-time delta path.
+ * token deltas: the DSH ACP bridge only emits committed `assistant/message`
+ * blocks. Codex used to be here — `codex exec` reported an assistant message
+ * once, on `item.completed` — but conversations now run over `codex app-server`,
+ * which emits real `item/agentMessage/delta` frames, so Codex keeps the
+ * ordinary streaming path. Everything else keeps its real-time delta path too.
  */
-export const WHOLE_SEGMENT_PROVIDERS: ReadonlySet<LLMProvider> = new Set<LLMProvider>(['codex', 'dsh']);
+export const WHOLE_SEGMENT_PROVIDERS: ReadonlySet<LLMProvider> = new Set<LLMProvider>(['dsh']);
 
 type PacedSegment = {
   text: string;

@@ -2289,6 +2289,41 @@ export class CodexSessionsProvider implements IProviderSessions {
     const ts = raw.timestamp || new Date().toISOString();
     const baseId = raw.uuid || generateMessageId('codex');
 
+    // Token-level deltas (Codex over app-server; the exec channel has none).
+    // Two channels share the kind — the visible reply and the reasoning trace —
+    // so the channel travels with the frame and the client buffers them into
+    // separate rows. `sourceItemId` names the item the delta belongs to: one
+    // turn can carry several agent messages, and the id is what keeps their
+    // segments apart once each one's row has been finalized.
+    if (raw.type === 'stream_delta') {
+      const content = typeof raw.content === 'string' ? raw.content : '';
+      if (!content) {
+        return [];
+      }
+      const sourceItemId = readNonEmptyString(raw.sourceItemId as string | undefined);
+      return [createNormalizedMessage({
+        sessionId,
+        timestamp: ts,
+        provider: PROVIDER,
+        kind: 'stream_delta',
+        streamChannel: raw.streamChannel === 'thinking' ? 'thinking' : 'text',
+        content,
+        ...(sourceItemId ? { sourceItemId } : {}),
+      })];
+    }
+
+    // `stream_end` closes one assistant reply. Codex emits it once per agent
+    // message rather than once per turn, so a `delta → tool → delta` turn ends
+    // up as two segments and each is sealed on its own.
+    if (raw.type === 'stream_end') {
+      return [createNormalizedMessage({
+        sessionId,
+        timestamp: ts,
+        provider: PROVIDER,
+        kind: 'stream_end',
+      })];
+    }
+
     if (raw.type === 'item') {
       // Live items carry a stable SDK id, so an in-progress row and its later
       // completion collapse onto the same transcript entry instead of stacking.
