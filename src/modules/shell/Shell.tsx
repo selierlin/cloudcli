@@ -388,7 +388,7 @@ export default function Shell({
 
         {cliPromptOptions && isConnected && (
           <div
-            className="absolute inset-x-0 bottom-0 z-10 border-t border-n-gray-200/80 bg-n-gray-100/95 px-3 py-2 backdrop-blur-sm dark:border-n-gray-700/80 dark:bg-n-gray-800/95 md:hidden"
+            className="absolute inset-x-0 bottom-0 z-10 border-t border-border/80 bg-muted/95 px-3 py-2 backdrop-blur-sm md:hidden"
             onMouseDown={(e) => e.preventDefault()}
           >
             <div className="flex flex-wrap items-center gap-2">
@@ -412,7 +412,7 @@ export default function Shell({
                   sendInput('\x1b');
                   setCliPromptOptions(null);
                 }}
-                className="rounded bg-n-gray-200 px-3 py-1.5 text-xs font-medium text-n-gray-700 transition-colors hover:bg-n-gray-300 dark:bg-n-gray-700 dark:text-n-gray-200 dark:hover:bg-n-gray-600"
+                className="rounded bg-muted px-3 py-1.5 text-xs font-medium text-n-gray-700 transition-colors hover:bg-sunken dark:text-n-gray-200"
               >
                 Esc
               </button>

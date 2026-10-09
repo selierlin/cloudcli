@@ -210,7 +210,7 @@ export default function CodeEditorMediaPreview({
           href={currentUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center justify-center rounded-md p-1.5 text-n-gray-600 hover:bg-n-gray-100 hover:text-n-gray-900 dark:text-n-gray-400 dark:hover:bg-n-gray-800 dark:hover:text-n-white"
+          className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:text-foreground"
           aria-label={labels.openInNewTab}
           title={labels.openInNewTab}
         >
@@ -223,7 +223,7 @@ export default function CodeEditorMediaPreview({
         <button
           type="button"
           onClick={onToggleFullscreen}
-          className="flex items-center justify-center rounded-md p-1.5 text-n-gray-600 hover:bg-n-gray-100 hover:text-n-gray-900 dark:text-n-gray-400 dark:hover:bg-n-gray-800 dark:hover:text-n-white"
+          className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:text-foreground"
           aria-label={isFullscreen ? labels.exitFullscreen : labels.fullscreen}
           title={isFullscreen ? labels.exitFullscreen : labels.fullscreen}
         >
@@ -241,7 +241,7 @@ export default function CodeEditorMediaPreview({
       <button
         type="button"
         onClick={onClose}
-        className="flex items-center justify-center rounded-md p-1.5 text-n-gray-600 hover:bg-n-gray-100 hover:text-n-gray-900 dark:text-n-gray-400 dark:hover:bg-n-gray-800 dark:hover:text-n-white"
+        className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:text-foreground"
         aria-label={labels.close}
         title={labels.close}
       >
@@ -255,7 +255,7 @@ export default function CodeEditorMediaPreview({
   const header = (
     <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-3 py-1.5">
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <h3 className="truncate text-sm font-medium text-n-gray-900 dark:text-n-white">{file.name}</h3>
+        <h3 className="truncate text-sm font-medium text-foreground">{file.name}</h3>
       </div>
       {headerActions}
     </div>
@@ -272,7 +272,7 @@ export default function CodeEditorMediaPreview({
 
   const containerClassName = isFullscreen
     ? 'fixed inset-0 z-[9999] bg-background flex flex-col'
-    : 'fixed inset-0 z-[9999] md:bg-n-black/50 md:flex md:items-center md:justify-center md:p-4';
+    : 'fixed inset-0 z-[9999] md:bg-overlay/50 md:flex md:items-center md:justify-center md:p-4';
 
   const innerClassName = isFullscreen
     ? 'bg-background flex flex-col w-full h-full'

@@ -7,8 +7,8 @@ const KANBAN_COLUMN_CONFIG = [
     id: 'pending',
     titleKey: 'kanban.pending',
     status: 'pending',
-    color: 'bg-n-slate-50 dark:bg-n-slate-900/50 border-n-slate-200 dark:border-n-slate-700',
-    headerColor: 'bg-n-slate-100 dark:bg-n-slate-800 text-n-slate-800 dark:text-n-slate-200',
+    color: 'bg-card dark:bg-card/50 border-border',
+    headerColor: 'bg-muted text-foreground',
   },
   {
     id: 'in-progress',
@@ -42,8 +42,8 @@ const KANBAN_COLUMN_CONFIG = [
     id: 'cancelled',
     titleKey: 'kanban.cancelled',
     status: 'cancelled',
-    color: 'bg-n-gray-50 dark:bg-n-gray-900/50 border-n-gray-200 dark:border-n-gray-700',
-    headerColor: 'bg-n-gray-100 dark:bg-n-gray-800 text-n-gray-800 dark:text-n-gray-200',
+    color: 'bg-card dark:bg-card/50 border-border',
+    headerColor: 'bg-muted text-foreground',
   },
 ] as const;
 

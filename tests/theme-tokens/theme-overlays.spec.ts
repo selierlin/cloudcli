@@ -76,6 +76,7 @@ const SURFACES: Record<string, string[]> = {
     '--muted-foreground',
     '--secondary',
     '--accent',
+    '--sunken',
     '--nav-glass-bg',
     '--nav-divider-color',
     '--nav-input-bg',

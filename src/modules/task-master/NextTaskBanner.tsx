@@ -43,7 +43,7 @@ function PriorityIndicator({ priority }: { priority?: string }) {
   }
 
   return (
-    <div className="flex h-4 w-4 items-center justify-center rounded bg-n-gray-100 dark:bg-n-gray-800" title={t('tasks:priorities.lowTitle')}>
+    <div className="flex h-4 w-4 items-center justify-center rounded bg-muted" title={t('tasks:priorities.lowTitle')}>
       <Circle className="h-2.5 w-2.5 text-n-gray-400 dark:text-n-gray-500" />
     </div>
   );
@@ -87,7 +87,7 @@ export default function NextTaskBanner({ onShowAllTasks = null, onStartTask = nu
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
               <List className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-              <p className="text-sm font-medium text-n-gray-900 dark:text-n-white">{t('tasks:notConfigured.title')}</p>
+              <p className="text-sm font-medium text-foreground">{t('tasks:notConfigured.title')}</p>
             </div>
 
             <button
@@ -129,17 +129,17 @@ export default function NextTaskBanner({ onShowAllTasks = null, onStartTask = nu
   if (nextTask) {
     return (
       <>
-        <div className={cn('bg-n-slate-50 dark:bg-n-slate-900/30 border border-n-slate-200 dark:border-n-slate-700 rounded-lg p-3 mb-4', className)}>
+        <div className={cn('bg-card dark:bg-card/30 border border-border rounded-lg p-3 mb-4', className)}>
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="mb-1 flex items-center gap-2">
                 <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/50">
                   <Target className="h-3 w-3 text-blue-600 dark:text-blue-400" />
                 </div>
-                <span className="text-xs font-medium text-n-slate-600 dark:text-n-slate-400">Task {nextTask.id}</span>
+                <span className="text-xs font-medium text-muted-foreground">Task {nextTask.id}</span>
                 <PriorityIndicator priority={nextTask.priority} />
               </div>
-              <p className="line-clamp-1 text-sm font-medium text-n-slate-900 dark:text-n-slate-100">{nextTask.title}</p>
+              <p className="line-clamp-1 text-sm font-medium text-foreground">{nextTask.title}</p>
             </div>
 
             <div className="flex flex-shrink-0 items-center gap-1">
@@ -153,7 +153,7 @@ export default function NextTaskBanner({ onShowAllTasks = null, onStartTask = nu
 
               <button
                 onClick={() => setShowTaskDetail(true)}
-                className="rounded-md border border-n-slate-300 px-2 py-1.5 text-xs text-n-slate-600 hover:bg-n-slate-100 dark:border-n-slate-600 dark:text-n-slate-300 dark:hover:bg-n-slate-800"
+                className="rounded-md border border-input px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted"
                 title={t('tasks:banner.viewTaskDetails')}
               >
                 <Eye className="h-3 w-3" />
@@ -162,7 +162,7 @@ export default function NextTaskBanner({ onShowAllTasks = null, onStartTask = nu
               {onShowAllTasks && (
                 <button
                   onClick={onShowAllTasks}
-                  className="rounded-md border border-n-slate-300 px-2 py-1.5 text-xs text-n-slate-600 hover:bg-n-slate-100 dark:border-n-slate-600 dark:text-n-slate-300 dark:hover:bg-n-slate-800"
+                  className="rounded-md border border-input px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted"
                   title={t('tasks:banner.viewAllTasks')}
                 >
                   <List className="h-3 w-3" />
@@ -192,12 +192,12 @@ export default function NextTaskBanner({ onShowAllTasks = null, onStartTask = nu
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CheckCircle className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-            <span className="text-sm font-medium text-n-gray-900 dark:text-n-white">
+            <span className="text-sm font-medium text-foreground">
               {completedTasks === tasks.length ? t('tasks:banner.allComplete') : t('tasks:banner.noPending')}
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-n-gray-600 dark:text-n-gray-400">
+            <span className="text-xs text-muted-foreground">
               {completedTasks}/{tasks.length}
             </span>
             {onShowAllTasks && (

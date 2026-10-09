@@ -34,6 +34,20 @@ import {
  * registration, and it is derived from the same scanner as the baseline, so
  * the two can only disagree on purpose.
  *
+ * ## Final form (rename complete, route B)
+ *
+ * The rename is done, so this law no longer guards a *migration in flight* —
+ * it now freezes the **residual** census: the compat families route B keeps.
+ * It stays (D3 = c, partial retention) because that frozen census is the
+ * structural half of the DoD; its semantic half is
+ * `neutralConsumerWhitelist.test.ts`, which freezes the *set of signatures*
+ * and the reason each survives. They are complementary and neither subsumes
+ * the other: a bucket can be conserved at the wrong set of signatures, and a
+ * signature can be sanctioned at the wrong count. Retired alternatives
+ * ("declaration-side existence", deletion) were rejected because route B
+ * deliberately leaves `--n-*` consumers in place, which keeps the anti-vacuity
+ * guard below load-bearing rather than vestigial.
+ *
  *   UPDATE_THEME_ATOM_CONSERVATION=1 npm run test:client -- themeAtomConservation
  */
 

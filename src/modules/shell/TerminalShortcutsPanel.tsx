@@ -46,11 +46,11 @@ type TerminalShortcutsPanelProps = {
 const preventFocusSteal = (e: React.PointerEvent) => e.preventDefault();
 
 const KEY_BTN =
-  'shrink-0 rounded-md border border-n-gray-300 bg-n-gray-200 px-2.5 py-1.5 text-xs font-medium text-n-gray-700 transition-colors select-none active:border-blue-600 active:bg-blue-600 active:text-n-white disabled:cursor-not-allowed disabled:opacity-40 dark:border-n-gray-600 dark:bg-n-gray-700 dark:text-n-gray-100';
+  'shrink-0 rounded-md border border-input bg-sunken px-2.5 py-1.5 text-xs font-medium text-n-gray-700 transition-colors select-none active:border-blue-600 active:bg-blue-600 active:text-n-white disabled:cursor-not-allowed disabled:opacity-40 dark:text-n-gray-100';
 const KEY_BTN_ACTIVE =
   'shrink-0 rounded-md border border-blue-500 bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-n-white transition-colors select-none disabled:cursor-not-allowed disabled:opacity-40';
 const ICON_BTN =
-  'shrink-0 rounded-md border border-n-gray-300 bg-n-gray-200 p-1.5 text-n-gray-700 transition-colors select-none active:border-blue-600 active:bg-blue-600 active:text-n-white disabled:cursor-not-allowed disabled:opacity-40 dark:border-n-gray-600 dark:bg-n-gray-700 dark:text-n-gray-100';
+  'shrink-0 rounded-md border border-input bg-sunken p-1.5 text-n-gray-700 transition-colors select-none active:border-blue-600 active:bg-blue-600 active:text-n-white disabled:cursor-not-allowed disabled:opacity-40 dark:text-n-gray-100';
 
 /** Rendered by Shell's full and minimal views to send keys a mobile keyboard cannot produce, such as Esc, Tab, Ctrl and the arrows. */
 export default function TerminalShortcutsPanel({
@@ -115,7 +115,7 @@ export default function TerminalShortcutsPanel({
       className="pointer-events-none fixed inset-x-0 z-20 px-2 transition-[bottom] duration-[250ms] ease-out md:hidden"
       style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--keyboard-height, 0px))' }}
     >
-      <div className="pointer-events-auto flex items-center gap-1 overflow-x-auto rounded-lg border border-n-gray-200/80 bg-n-gray-100/95 px-1.5 py-1.5 shadow-lg backdrop-blur-sm [-webkit-overflow-scrolling:touch] [scrollbar-width:none] dark:border-n-gray-700/80 dark:bg-n-gray-900/95 [&::-webkit-scrollbar]:hidden">
+      <div className="pointer-events-auto flex items-center gap-1 overflow-x-auto rounded-lg border border-border/80 bg-card/95 px-1.5 py-1.5 shadow-lg backdrop-blur-sm [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <button
           type="button"
           onPointerDown={preventFocusSteal}

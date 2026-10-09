@@ -15,6 +15,7 @@
 | `[data-user-anchor]` | `LazyMessageRow.tsx` | 懒加载消息行的 wrapper |
 | `[data-message-timestamp]` | `MessageComponent.tsx` | 消息行 wrapper。**在 `LazyMessageRow` 的里层，两者不是同一级** |
 | `[data-slot="prompt-input"]` | `PromptInput.tsx` | 输入框根元素 |
+| `[data-slot="activity-tab"]` | `ActivityIndicator.tsx` | 输入框上方「推理中…」/「停止」两个标签。出厂是**接在输入框上沿的一体框**（直角下沿、无下边线）；主题改它必须连 `--activity-tab-overlap` 一起设：输入框边宽多少就压多少（`0` 或负值 = 改成独立浮块） |
 | `[role="separator"]` | 侧栏拖拽柄 | 侧栏宽度拖拽 |
 
 ## 二级：结构性类名（组合后唯一）

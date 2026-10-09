@@ -40,8 +40,8 @@ const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
   codex: {
     name: 'Codex',
     bgClass: 'bg-muted/50',
-    borderClass: 'border-n-gray-300 dark:border-n-gray-600',
-    textClass: 'text-n-gray-900 dark:text-n-gray-100',
+    borderClass: 'border-input',
+    textClass: 'text-foreground',
     subtextClass: 'text-n-gray-700 dark:text-n-gray-300',
     buttonClass: 'bg-n-gray-800 hover:bg-n-gray-900 active:bg-n-gray-950 dark:bg-n-gray-700 dark:hover:bg-n-gray-600 dark:active:bg-n-gray-500',
   },
@@ -187,7 +187,7 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
                   {t('agents.authStatus.connected')}
                 </Badge>
               ) : (
-                <Badge variant="secondary" className="bg-n-gray-100 text-n-gray-800 dark:bg-n-gray-800 dark:text-n-gray-300">
+                <Badge variant="secondary" className="bg-muted text-n-gray-800 dark:text-n-gray-300">
                   {t('agents.authStatus.disconnected')}
                 </Badge>
               )}

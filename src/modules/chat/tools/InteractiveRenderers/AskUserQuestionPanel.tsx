@@ -161,7 +161,7 @@ export const AskUserQuestionPanel: React.FC<PermissionPanelProps> = ({
         mounted ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'
       }`}
     >
-      <div className="relative overflow-hidden rounded-2xl border border-n-gray-200/80 bg-card shadow-lg dark:border-n-gray-700/50 dark:bg-n-gray-800/90 dark:shadow-2xl">
+      <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-card shadow-lg dark:bg-secondary/90 dark:shadow-2xl">
         {/* Accent line */}
         <div className="absolute left-0 right-0 top-0 h-[2px] bg-gradient-to-r from-blue-500 via-cyan-400 to-teal-400" />
 
@@ -210,7 +210,7 @@ export const AskUserQuestionPanel: React.FC<PermissionPanelProps> = ({
                       ? 'w-5 bg-blue-500 dark:bg-blue-400'
                       : i < currentStep
                         ? 'w-2.5 bg-blue-300 dark:bg-blue-600'
-                        : 'w-2.5 bg-n-gray-200 dark:bg-n-gray-700'
+                        : 'w-2.5 bg-sunken'
                   }`}
                 />
               ))}
@@ -218,7 +218,7 @@ export const AskUserQuestionPanel: React.FC<PermissionPanelProps> = ({
           )}
 
           {/* Question text */}
-          <p className="whitespace-pre-wrap break-words text-[14px] font-medium leading-snug text-n-gray-900 dark:text-n-gray-100">
+          <p className="whitespace-pre-wrap break-words text-[14px] font-medium leading-snug text-foreground">
             {q.question}
           </p>
           {multi && (
@@ -239,14 +239,14 @@ export const AskUserQuestionPanel: React.FC<PermissionPanelProps> = ({
                   className={`group flex w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-all duration-150 ${
                     isSelected
                       ? 'border-blue-300 bg-blue-50/80 ring-1 ring-blue-200/50 dark:border-blue-600 dark:bg-blue-900/25 dark:ring-blue-700/30'
-                      : 'border-n-gray-200 hover:border-n-gray-300 hover:bg-n-gray-50/60 dark:border-n-gray-700/60 dark:hover:border-n-gray-600 dark:hover:bg-n-gray-700/40'
+                      : 'border-border hover:border-border hover:bg-muted dark:hover:border-border'
                   }`}
                 >
                   {/* Keyboard hint */}
                   <kbd className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded font-mono text-[10px] transition-all duration-150 ${
                     isSelected
                       ? 'bg-blue-500 font-semibold text-n-white dark:bg-blue-500'
-                      : 'border border-n-gray-200 bg-n-gray-100 text-n-gray-400 group-hover:border-n-gray-300 dark:border-n-gray-700 dark:bg-n-gray-800 dark:text-n-gray-500 dark:group-hover:border-n-gray-600'
+                      : 'border border-border bg-muted text-n-gray-400 group-hover:border-input dark:text-n-gray-500'
                   }`}>
                     {optIdx + 1}
                   </kbd>
@@ -254,7 +254,7 @@ export const AskUserQuestionPanel: React.FC<PermissionPanelProps> = ({
                   <div className="min-w-0 flex-1">
                     <div className={`whitespace-pre-wrap break-words text-[13px] leading-tight transition-colors duration-150 ${
                       isSelected
-                        ? 'font-medium text-n-gray-900 dark:text-n-gray-100'
+                        ? 'font-medium text-foreground'
                         : 'text-n-gray-700 dark:text-n-gray-300'
                     }`}>
                       {opt.label}
@@ -287,20 +287,20 @@ export const AskUserQuestionPanel: React.FC<PermissionPanelProps> = ({
               className={`group flex w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-all duration-150 ${
                 isOtherOn
                   ? 'border-blue-300 bg-blue-50/80 ring-1 ring-blue-200/50 dark:border-blue-600 dark:bg-blue-900/25 dark:ring-blue-700/30'
-                  : 'border-dashed border-n-gray-200 hover:border-n-gray-300 hover:bg-n-gray-50/60 dark:border-n-gray-700/60 dark:hover:border-n-gray-600 dark:hover:bg-n-gray-700/40'
+                  : 'border-dashed border-border hover:border-border hover:bg-muted dark:hover:border-border'
               }`}
             >
               <kbd className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded font-mono text-[10px] transition-all duration-150 ${
                 isOtherOn
                   ? 'bg-blue-500 font-semibold text-n-white dark:bg-blue-500'
-                  : 'border border-n-gray-200 bg-n-gray-100 text-n-gray-400 group-hover:border-n-gray-300 dark:border-n-gray-700 dark:bg-n-gray-800 dark:text-n-gray-500 dark:group-hover:border-n-gray-600'
+                  : 'border border-border bg-muted text-n-gray-400 group-hover:border-input dark:text-n-gray-500'
               }`}>
                 0
               </kbd>
               <span className={`text-[13px] leading-tight transition-colors ${
                 isOtherOn
-                  ? 'font-medium text-n-gray-900 dark:text-n-gray-100'
-                  : 'text-n-gray-500 dark:text-n-gray-400'
+                  ? 'font-medium text-foreground'
+                  : 'text-muted-foreground'
               }`}>
                 Other...
               </span>
@@ -330,9 +330,9 @@ export const AskUserQuestionPanel: React.FC<PermissionPanelProps> = ({
                       e.stopPropagation();
                     }}
                     placeholder={t('chat:misc.typeAnswer')}
-                    className="w-full rounded-lg border-0 bg-n-gray-50 px-3 py-1.5 text-[13px] text-n-gray-900 outline-none ring-1 ring-n-gray-200 transition-shadow duration-200 placeholder:text-n-gray-400 focus:ring-2 focus:ring-blue-400 dark:bg-n-gray-900/60 dark:text-n-gray-100 dark:ring-n-gray-700 dark:placeholder:text-n-gray-600 dark:focus:ring-blue-500"
+                    className="w-full rounded-lg border-0 bg-card px-3 py-1.5 text-[13px] text-foreground outline-none ring-1 ring-border transition-shadow duration-200 placeholder:text-n-gray-400 focus:ring-2 focus:ring-blue-400 dark:bg-card/60 dark:placeholder:text-n-gray-600 dark:focus:ring-blue-500"
                   />
-                  <kbd className="absolute right-2 top-1/2 -translate-y-1/2 rounded border border-n-gray-200 bg-n-gray-100 px-1 py-0.5 font-mono text-[9px] text-n-gray-300 dark:border-n-gray-700 dark:bg-n-gray-800 dark:text-n-gray-600">
+                  <kbd className="absolute right-2 top-1/2 -translate-y-1/2 rounded border border-border bg-muted px-1 py-0.5 font-mono text-[9px] text-n-gray-300 dark:text-n-gray-600">
                     Enter
                   </kbd>
                 </div>
@@ -342,11 +342,11 @@ export const AskUserQuestionPanel: React.FC<PermissionPanelProps> = ({
         </div>
 
         {/* Footer — compact */}
-        <div className="flex items-center justify-between gap-2 border-t border-n-gray-100 bg-n-gray-50/50 px-4 py-2 dark:border-n-gray-700/50 dark:bg-n-gray-800/50">
+        <div className="flex items-center justify-between gap-2 border-t border-n-gray-100 bg-muted/50 px-4 py-2 dark:border-n-gray-700/50">
           <button
             type="button"
             onClick={handleSkip}
-            className="text-[11px] text-n-gray-400 transition-colors hover:text-n-gray-600 dark:text-n-gray-500 dark:hover:text-n-gray-300"
+            className="text-[11px] text-n-gray-400 transition-colors hover:text-foreground dark:text-n-gray-500"
           >
             {isSingle ? t('chat:misc.skipOne') : t('chat:misc.skipAll')}
             <span className="ml-1 text-[9px] text-n-gray-300 dark:text-n-gray-600">Esc</span>
@@ -357,7 +357,7 @@ export const AskUserQuestionPanel: React.FC<PermissionPanelProps> = ({
               <button
                 type="button"
                 onClick={() => setCurrentStep(s => s - 1)}
-                className="inline-flex items-center gap-0.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-n-gray-600 transition-all duration-150 hover:bg-n-gray-100 dark:text-n-gray-300 dark:hover:bg-n-gray-700/60"
+                className="inline-flex items-center gap-0.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-all duration-150 hover:bg-muted"
               >
                 <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />

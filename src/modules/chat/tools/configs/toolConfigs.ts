@@ -216,8 +216,8 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       colorScheme: {
         primary: 'text-n-gray-700 dark:text-n-gray-300',
         background: '',
-        border: 'border-n-gray-300 dark:border-n-gray-600',
-        icon: 'text-n-gray-500 dark:text-n-gray-400'
+        border: 'border-input',
+        icon: 'text-muted-foreground'
       }
     },
     result: {
@@ -307,10 +307,10 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       action: 'jump-to-results',
       colorScheme: {
         primary: 'text-n-gray-700 dark:text-n-gray-300',
-        secondary: 'text-n-gray-500 dark:text-n-gray-400',
+        secondary: 'text-muted-foreground',
         background: '',
         border: 'border-n-gray-400 dark:border-n-gray-500',
-        icon: 'text-n-gray-500 dark:text-n-gray-400'
+        icon: 'text-muted-foreground'
       }
     },
     result: {
@@ -340,10 +340,10 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       action: 'jump-to-results',
       colorScheme: {
         primary: 'text-n-gray-700 dark:text-n-gray-300',
-        secondary: 'text-n-gray-500 dark:text-n-gray-400',
+        secondary: 'text-muted-foreground',
         background: '',
         border: 'border-n-gray-400 dark:border-n-gray-500',
-        icon: 'text-n-gray-500 dark:text-n-gray-400'
+        icon: 'text-muted-foreground'
       }
     },
     result: {
@@ -428,7 +428,7 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       getValue: () => 'reading list',
       action: 'none',
       colorScheme: {
-        primary: 'text-n-gray-500 dark:text-n-gray-400',
+        primary: 'text-muted-foreground',
         border: 'border-violet-400 dark:border-violet-500'
       }
     },
@@ -503,7 +503,7 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       getValue: () => 'listing tasks',
       action: 'none',
       colorScheme: {
-        primary: 'text-n-gray-500 dark:text-n-gray-400',
+        primary: 'text-muted-foreground',
         border: 'border-violet-400 dark:border-violet-500',
         icon: 'text-violet-500 dark:text-violet-400'
       }

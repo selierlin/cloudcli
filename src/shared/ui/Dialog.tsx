@@ -179,7 +179,7 @@ export const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps
       <div className={cn('fixed inset-0 z-50', wrapperClassName)}>
         {/* Overlay */}
         <div
-          className="fixed inset-0 animate-dialog-overlay-show bg-n-black/50 backdrop-blur-sm"
+          className="fixed inset-0 animate-dialog-overlay-show bg-overlay/50 backdrop-blur-sm"
           onClick={() => {
             onPointerDownOutside?.();
             onOpenChange(false);

@@ -32,8 +32,8 @@ export default function TaskEmptyState({
             <Settings className="mx-auto mb-4 h-12 w-12" />
           </div>
 
-          <h3 className="mb-2 text-lg font-semibold text-n-gray-900 dark:text-n-white">{t('notConfigured.title')}</h3>
-          <p className="mb-6 text-sm text-n-gray-600 dark:text-n-gray-400">{t('notConfigured.description')}</p>
+          <h3 className="mb-2 text-lg font-semibold text-foreground">{t('notConfigured.title')}</h3>
+          <p className="mb-6 text-sm text-muted-foreground">{t('notConfigured.description')}</p>
 
           <div className="mb-6 rounded-lg bg-blue-50 p-4 text-left dark:bg-blue-950">
             <h4 className="mb-3 text-sm font-medium text-blue-900 dark:text-blue-100">{t('notConfigured.whatIsTitle')}</h4>
@@ -67,15 +67,15 @@ export default function TaskEmptyState({
               <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-n-gray-900 dark:text-n-white">{t('gettingStarted.title')}</h2>
-              <p className="text-sm text-n-gray-600 dark:text-n-gray-400">{t('gettingStarted.subtitle')}</p>
+              <h2 className="text-xl font-semibold text-foreground">{t('gettingStarted.title')}</h2>
+              <p className="text-sm text-muted-foreground">{t('gettingStarted.subtitle')}</p>
             </div>
           </div>
 
           <div className="mb-4 space-y-3">
-            <div className="rounded-lg border border-blue-100 bg-card p-3 dark:border-blue-800/50 dark:bg-n-gray-800/60">
-              <h4 className="mb-1 font-medium text-n-gray-900 dark:text-n-white">1. {t('gettingStarted.steps.createPRD.title')}</h4>
-              <p className="mb-3 text-sm text-n-gray-600 dark:text-n-gray-400">{t('gettingStarted.steps.createPRD.description')}</p>
+            <div className="rounded-lg border border-blue-100 bg-card p-3 dark:border-blue-800/50 dark:bg-secondary/60">
+              <h4 className="mb-1 font-medium text-foreground">1. {t('gettingStarted.steps.createPRD.title')}</h4>
+              <p className="mb-3 text-sm text-muted-foreground">{t('gettingStarted.steps.createPRD.description')}</p>
 
               <button
                 onClick={onCreatePrd}
@@ -86,14 +86,14 @@ export default function TaskEmptyState({
               </button>
 
               {existingPrds.length > 0 && (
-                <div className="mt-3 border-t border-n-gray-200 pt-3 dark:border-n-gray-700">
-                  <p className="mb-2 text-xs text-n-gray-500 dark:text-n-gray-400">{t('gettingStarted.steps.createPRD.existingPRDs')}</p>
+                <div className="mt-3 border-t border-border pt-3">
+                  <p className="mb-2 text-xs text-muted-foreground">{t('gettingStarted.steps.createPRD.existingPRDs')}</p>
                   <div className="flex flex-wrap gap-2">
                     {existingPrds.map((prd) => (
                       <button
                         key={prd.name}
                         onClick={() => onOpenPrd(prd)}
-                        className="inline-flex items-center gap-1 rounded bg-n-gray-100 px-2 py-1 text-xs text-n-gray-700 hover:bg-n-gray-200 dark:bg-n-gray-700 dark:text-n-gray-300 dark:hover:bg-n-gray-600"
+                        className="inline-flex items-center gap-1 rounded bg-muted px-2 py-1 text-xs text-n-gray-700 hover:bg-sunken dark:text-n-gray-300"
                       >
                         <FileText className="h-3 w-3" />
                         {prd.name}
@@ -104,19 +104,19 @@ export default function TaskEmptyState({
               )}
             </div>
 
-            <div className="rounded-lg border border-blue-100 bg-card p-3 dark:border-blue-800/50 dark:bg-n-gray-800/60">
-              <h4 className="mb-1 font-medium text-n-gray-900 dark:text-n-white">2. {t('gettingStarted.steps.generateTasks.title')}</h4>
-              <p className="text-sm text-n-gray-600 dark:text-n-gray-400">{t('gettingStarted.steps.generateTasks.description')}</p>
+            <div className="rounded-lg border border-blue-100 bg-card p-3 dark:border-blue-800/50 dark:bg-secondary/60">
+              <h4 className="mb-1 font-medium text-foreground">2. {t('gettingStarted.steps.generateTasks.title')}</h4>
+              <p className="text-sm text-muted-foreground">{t('gettingStarted.steps.generateTasks.description')}</p>
             </div>
 
-            <div className="rounded-lg border border-blue-100 bg-card p-3 dark:border-blue-800/50 dark:bg-n-gray-800/60">
-              <h4 className="mb-1 font-medium text-n-gray-900 dark:text-n-white">3. {t('gettingStarted.steps.analyzeTasks.title')}</h4>
-              <p className="text-sm text-n-gray-600 dark:text-n-gray-400">{t('gettingStarted.steps.analyzeTasks.description')}</p>
+            <div className="rounded-lg border border-blue-100 bg-card p-3 dark:border-blue-800/50 dark:bg-secondary/60">
+              <h4 className="mb-1 font-medium text-foreground">3. {t('gettingStarted.steps.analyzeTasks.title')}</h4>
+              <p className="text-sm text-muted-foreground">{t('gettingStarted.steps.analyzeTasks.description')}</p>
             </div>
 
-            <div className="rounded-lg border border-blue-100 bg-card p-3 dark:border-blue-800/50 dark:bg-n-gray-800/60">
-              <h4 className="mb-1 font-medium text-n-gray-900 dark:text-n-white">4. {t('gettingStarted.steps.startBuilding.title')}</h4>
-              <p className="text-sm text-n-gray-600 dark:text-n-gray-400">{t('gettingStarted.steps.startBuilding.description')}</p>
+            <div className="rounded-lg border border-blue-100 bg-card p-3 dark:border-blue-800/50 dark:bg-secondary/60">
+              <h4 className="mb-1 font-medium text-foreground">4. {t('gettingStarted.steps.startBuilding.title')}</h4>
+              <p className="text-sm text-muted-foreground">{t('gettingStarted.steps.startBuilding.description')}</p>
             </div>
           </div>
 
@@ -129,7 +129,7 @@ export default function TaskEmptyState({
           </button>
         </div>
 
-        <p className="text-sm text-n-gray-500 dark:text-n-gray-400">{t('gettingStarted.tip')}</p>
+        <p className="text-sm text-muted-foreground">{t('gettingStarted.tip')}</p>
       </div>
     </div>
   );

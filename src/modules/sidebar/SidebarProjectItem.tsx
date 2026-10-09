@@ -188,7 +188,7 @@ function SidebarProjectItem({
                     'w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-all duration-150 border',
                     isStarred
                       ? 'bg-yellow-500/10 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800'
-                      : 'bg-n-gray-500/10 dark:bg-n-gray-900/30 border-n-gray-200 dark:border-n-gray-800',
+                      : 'bg-n-gray-500/10 dark:bg-n-gray-900/30 border-border',
                   )}
                   onClick={(event) => {
                     event.stopPropagation();
@@ -201,7 +201,7 @@ function SidebarProjectItem({
                       'w-4 h-4 transition-colors',
                       isStarred
                         ? 'text-yellow-600 dark:text-yellow-400 fill-current'
-                        : 'text-n-gray-600 dark:text-n-gray-400',
+                        : 'text-muted-foreground',
                     )}
                   />
                 </button>

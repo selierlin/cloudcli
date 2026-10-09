@@ -75,7 +75,7 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
 
   return (
     <div
-      className="my-3 flex justify-center overflow-x-auto rounded-xl border border-border bg-n-white p-4 dark:bg-n-zinc-900 [&_svg]:h-auto [&_svg]:max-w-full"
+      className="my-3 flex justify-center overflow-x-auto rounded-xl border border-border bg-card p-4 [&_svg]:h-auto [&_svg]:max-w-full"
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   );

@@ -133,13 +133,13 @@ export function VersionUpgradeModal({
         <div className="fixed inset-0 z-50 flex items-center justify-center">
             {/* Backdrop */}
             <button
-                className="fixed inset-0 bg-n-black/50 backdrop-blur-sm"
+                className="fixed inset-0 bg-overlay/50 backdrop-blur-sm"
                 onClick={onClose}
                 aria-label={t('versionUpdate.ariaLabels.closeModal')}
             />
 
             {/* Modal */}
-            <div className="relative mx-4 max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-lg border border-n-gray-200 bg-card p-6 shadow-xl dark:border-n-gray-700 dark:bg-n-gray-800">
+            <div className="relative mx-4 max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-lg border border-border bg-card p-6 shadow-xl dark:bg-secondary">
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -149,15 +149,15 @@ export function VersionUpgradeModal({
                             </svg>
                         </div>
                         <div>
-                            <h2 className="text-lg font-semibold text-n-gray-900 dark:text-n-white">{t('versionUpdate.title')}</h2>
-                            <p className="text-sm text-n-gray-500 dark:text-n-gray-400">
+                            <h2 className="text-lg font-semibold text-foreground">{t('versionUpdate.title')}</h2>
+                            <p className="text-sm text-muted-foreground">
                                 {releaseInfo?.title || t('versionUpdate.newVersionReady')}
                             </p>
                         </div>
                     </div>
                     <button
                         onClick={onClose}
-                        className="rounded-md p-2 text-n-gray-400 hover:bg-n-gray-100 hover:text-n-gray-600 dark:hover:bg-n-gray-700 dark:hover:text-n-gray-300"
+                        className="rounded-md p-2 text-n-gray-400 hover:bg-muted hover:text-foreground"
                     >
                         <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -167,9 +167,9 @@ export function VersionUpgradeModal({
 
                 {/* Version Info */}
                 <div className="space-y-3">
-                    <div className="flex items-center justify-between rounded-lg bg-n-gray-50 p-3 dark:bg-n-gray-700/50">
+                    <div className="flex items-center justify-between rounded-lg bg-muted p-3 dark:bg-sunken/50">
                         <span className="text-sm font-medium text-n-gray-700 dark:text-n-gray-300">{t('versionUpdate.currentVersion')}</span>
-                        <span className="font-mono text-sm text-n-gray-900 dark:text-n-white">{currentVersion}</span>
+                        <span className="font-mono text-sm text-foreground">{currentVersion}</span>
                     </div>
                     <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-700 dark:bg-blue-900/20">
                         <span className="text-sm font-medium text-blue-700 dark:text-blue-300">{t('versionUpdate.latestVersion')}</span>
@@ -181,7 +181,7 @@ export function VersionUpgradeModal({
                 {releaseInfo?.body && (
                     <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                            <h3 className="text-sm font-medium text-n-gray-900 dark:text-n-white">{t('versionUpdate.whatsNew')}</h3>
+                            <h3 className="text-sm font-medium text-foreground">{t('versionUpdate.whatsNew')}</h3>
                             {releaseInfo?.htmlUrl && (
                                 <a
                                     href={releaseInfo.htmlUrl}
@@ -196,7 +196,7 @@ export function VersionUpgradeModal({
                                 </a>
                             )}
                         </div>
-                        <div className="max-h-64 overflow-y-auto rounded-lg border border-n-gray-200 bg-n-gray-50 p-4 dark:border-n-gray-600 dark:bg-n-gray-700/50">
+                        <div className="max-h-64 overflow-y-auto rounded-lg border border-border bg-muted p-4 dark:bg-sunken/50">
                             <div className="prose prose-sm max-w-none text-sm text-n-gray-700 dark:prose-invert dark:text-n-gray-300">
                                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={changelogComponents}>
                                     {cleanChangelog(releaseInfo.body)}
@@ -209,7 +209,7 @@ export function VersionUpgradeModal({
                 {/* Update Output */}
                 {(updateOutput || updateError) && (
                     <div className="space-y-2">
-                        <h3 className="text-sm font-medium text-n-gray-900 dark:text-n-white">{t('versionUpdate.updateProgress')}</h3>
+                        <h3 className="text-sm font-medium text-foreground">{t('versionUpdate.updateProgress')}</h3>
                         <div className="max-h-48 overflow-y-auto rounded-lg border border-n-gray-700 bg-n-gray-900 p-4 dark:bg-n-gray-950">
                             <pre className="whitespace-pre-wrap font-mono text-xs text-green-400">{updateOutput}</pre>
                         </div>
@@ -231,13 +231,13 @@ export function VersionUpgradeModal({
                 {/* Upgrade Instructions */}
                 {!isUpdating && !updateOutput && (
                     <div className="space-y-3">
-                        <h3 className="text-sm font-medium text-n-gray-900 dark:text-n-white">{t('versionUpdate.manualUpgrade')}</h3>
-                        <div className="rounded-lg border bg-n-gray-100 p-3 dark:bg-n-gray-800">
+                        <h3 className="text-sm font-medium text-foreground">{t('versionUpdate.manualUpgrade')}</h3>
+                        <div className="rounded-lg border bg-muted p-3">
                             <code className="font-mono text-sm text-n-gray-800 dark:text-n-gray-200">
                                 {upgradeCommand}
                             </code>
                         </div>
-                        <p className="text-xs text-n-gray-600 dark:text-n-gray-400">
+                        <p className="text-xs text-muted-foreground">
                             {t('versionUpdate.manualUpgradeHint')}
                         </p>
                     </div>
@@ -247,7 +247,7 @@ export function VersionUpgradeModal({
                 <div className="flex gap-2 pt-2">
                     <button
                         onClick={onClose}
-                        className="flex-1 rounded-md bg-n-gray-100 px-4 py-2 text-sm font-medium text-n-gray-700 transition-colors hover:bg-n-gray-200 dark:bg-n-gray-700 dark:text-n-gray-300 dark:hover:bg-n-gray-600"
+                        className="flex-1 rounded-md bg-muted px-4 py-2 text-sm font-medium text-n-gray-700 transition-colors hover:bg-sunken dark:text-n-gray-300"
                     >
                         {updateOutput ? t('versionUpdate.buttons.close') : t('versionUpdate.buttons.later')}
                     </button>
@@ -255,7 +255,7 @@ export function VersionUpgradeModal({
                         <>
                             <button
                                 onClick={() => copyTextToClipboard(upgradeCommand)}
-                                className="flex-1 rounded-md bg-n-gray-100 px-4 py-2 text-sm font-medium text-n-gray-700 transition-colors hover:bg-n-gray-200 dark:bg-n-gray-700 dark:text-n-gray-300 dark:hover:bg-n-gray-600"
+                                className="flex-1 rounded-md bg-muted px-4 py-2 text-sm font-medium text-n-gray-700 transition-colors hover:bg-sunken dark:text-n-gray-300"
                             >
                                 {t('versionUpdate.buttons.copyCommand')}
                             </button>

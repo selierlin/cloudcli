@@ -52,7 +52,7 @@ function HeaderIconButton({ title, onClick, icon, active = false }: HeaderIconBu
         'p-2 rounded-md min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center transition-colors',
         active
           ? 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/50'
-          : 'text-n-gray-600 dark:text-n-gray-400 hover:text-n-gray-900 dark:hover:text-n-white hover:bg-n-gray-100 dark:hover:bg-n-gray-800',
+          : 'text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:text-foreground',
       )}
     >
       {icon}
@@ -84,7 +84,7 @@ export default function PrdEditorHeader({
   const fileNameInputRef = useRef<HTMLInputElement | null>(null);
 
   return (
-    <div className="flex min-w-0 flex-shrink-0 items-center justify-between border-b border-n-gray-200 p-4 dark:border-n-gray-700">
+    <div className="flex min-w-0 flex-shrink-0 items-center justify-between border-b border-border p-4">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-purple-600">
           <FileText className="h-4 w-4 text-n-white" />
@@ -93,17 +93,17 @@ export default function PrdEditorHeader({
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
             <div className="flex min-w-0 flex-1 items-center gap-1">
-              <div className="flex min-w-0 flex-1 items-center rounded-md border border-n-gray-200 bg-n-gray-50 px-3 py-2 focus-within:border-purple-500 focus-within:ring-2 focus-within:ring-purple-500 dark:border-n-gray-600 dark:bg-n-gray-700 dark:focus-within:border-purple-400 dark:focus-within:ring-purple-400">
+              <div className="flex min-w-0 flex-1 items-center rounded-md border border-border bg-muted px-3 py-2 focus-within:border-purple-500 focus-within:ring-2 focus-within:ring-purple-500 dark:focus-within:border-purple-400 dark:focus-within:ring-purple-400">
                 <input
                   ref={fileNameInputRef}
                   type="text"
                   value={fileName}
                   onChange={(event) => onFileNameChange(event.target.value)}
-                  className="min-w-0 flex-1 border-none bg-transparent text-base font-medium text-n-gray-900 placeholder-n-gray-400 outline-none dark:text-n-white dark:placeholder-n-gray-500 sm:text-sm"
+                  className="min-w-0 flex-1 border-none bg-transparent text-base font-medium text-foreground placeholder-n-gray-400 outline-none dark:placeholder-n-gray-500 sm:text-sm"
                   placeholder="Enter PRD filename"
                   maxLength={100}
                 />
-                <span className="ml-1 whitespace-nowrap text-sm text-n-gray-500 dark:text-n-gray-400 sm:text-xs">
+                <span className="ml-1 whitespace-nowrap text-sm text-muted-foreground sm:text-xs">
                   .txt
                 </span>
               </div>
@@ -136,7 +136,7 @@ export default function PrdEditorHeader({
             </div>
           </div>
 
-          <p className="mt-1 truncate text-xs text-n-gray-500 dark:text-n-gray-400 sm:text-sm">
+          <p className="mt-1 truncate text-xs text-muted-foreground sm:text-sm">
             Product Requirements Document
           </p>
         </div>
@@ -213,7 +213,7 @@ export default function PrdEditorHeader({
 
         <button
           onClick={onToggleFullscreen}
-          className="hidden items-center justify-center rounded-md p-2 text-n-gray-600 hover:bg-n-gray-100 hover:text-n-gray-900 dark:text-n-gray-400 dark:hover:bg-n-gray-800 dark:hover:text-n-white md:flex"
+          className="hidden items-center justify-center rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:text-foreground md:flex"
           title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
         >
           {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}

@@ -104,7 +104,7 @@ export function ImageLightbox({ src, alt, onClose }: { src: string; alt: string;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-n-black/80 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-overlay/80 backdrop-blur-sm"
       onClick={onClose}
       role="dialog"
       aria-modal="true"

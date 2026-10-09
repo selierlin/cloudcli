@@ -59,7 +59,7 @@ export default function StepConfiguration({
           onAdvanceToConfirm={onAdvanceToConfirm}
         />
 
-        <p className="mt-1 text-xs text-n-gray-500 dark:text-n-gray-400">
+        <p className="mt-1 text-xs text-muted-foreground">
           {t('projectWizard.step2.newHelp')}
         </p>
       </div>
@@ -76,7 +76,7 @@ export default function StepConfiguration({
           className="w-full"
           disabled={isCreating}
         />
-        <p className="mt-1 text-xs text-n-gray-500 dark:text-n-gray-400">
+        <p className="mt-1 text-xs text-muted-foreground">
           {t('projectWizard.step2.githubHelp')}
         </p>
       </div>

@@ -88,7 +88,7 @@ export default function CodeEditorHeader({
       <div className="flex min-w-0 flex-1 shrink items-center gap-2">
         <div className="min-w-0 shrink">
           <div className="flex min-w-0 items-center gap-2">
-            <h3 className="truncate text-sm font-medium text-n-gray-900 dark:text-n-white">{file.name}</h3>
+            <h3 className="truncate text-sm font-medium text-foreground">{file.name}</h3>
             {hasUnsavedChanges && (
               <span
                 role="img"
@@ -104,14 +104,14 @@ export default function CodeEditorHeader({
             )}
           </div>
           <div className="flex min-w-0 items-center gap-1">
-            <p className="truncate text-xs text-n-gray-500 dark:text-n-gray-400" title={file.path}>{file.path}</p>
+            <p className="truncate text-xs text-muted-foreground" title={file.path}>{file.path}</p>
             <button
               type="button"
               onClick={handleCopyPath}
               className={`flex shrink-0 items-center justify-center rounded p-0.5 transition-colors ${
                 pathCopied
                   ? 'text-green-600 dark:text-green-400'
-                  : 'text-n-gray-400 hover:bg-n-gray-100 hover:text-n-gray-700 dark:text-n-gray-500 dark:hover:bg-n-gray-800 dark:hover:text-n-gray-200'
+                  : 'text-n-gray-400 hover:bg-muted hover:text-foreground dark:text-n-gray-500 dark:hover:text-foreground'
               }`}
               title={pathCopied ? labels.pathCopied : labels.copyPath}
               aria-label={pathCopied ? labels.pathCopied : labels.copyPath}
@@ -131,7 +131,7 @@ export default function CodeEditorHeader({
             className={`flex items-center justify-center rounded-md p-1.5 transition-colors ${
               markdownPreview
                 ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
-                : 'text-n-gray-600 hover:bg-n-gray-100 hover:text-n-gray-900 dark:text-n-gray-400 dark:hover:bg-n-gray-800 dark:hover:text-n-white'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:text-foreground'
             }`}
             title={markdownPreview ? labels.editMarkdown : labels.previewMarkdown}
           >
@@ -143,7 +143,7 @@ export default function CodeEditorHeader({
           <button
             type="button"
             onClick={onOpenHtmlPreview}
-            className="flex items-center justify-center rounded-md p-1.5 text-n-gray-600 hover:bg-n-gray-100 hover:text-n-gray-900 dark:text-n-gray-400 dark:hover:bg-n-gray-800 dark:hover:text-n-white"
+            className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:text-foreground"
             title={labels.previewHtml}
           >
             <Eye className="h-4 w-4" />
@@ -153,7 +153,7 @@ export default function CodeEditorHeader({
         <button
           type="button"
           onClick={onOpenSettings}
-          className="flex items-center justify-center rounded-md p-1.5 text-n-gray-600 hover:bg-n-gray-100 hover:text-n-gray-900 dark:text-n-gray-400 dark:hover:bg-n-gray-800 dark:hover:text-n-white"
+          className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:text-foreground"
           title={labels.settings}
         >
           <SettingsIcon className="h-4 w-4" />
@@ -162,7 +162,7 @@ export default function CodeEditorHeader({
         <button
           type="button"
           onClick={onDownload}
-          className="flex items-center justify-center rounded-md p-1.5 text-n-gray-600 hover:bg-n-gray-100 hover:text-n-gray-900 dark:text-n-gray-400 dark:hover:bg-n-gray-800 dark:hover:text-n-white"
+          className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:text-foreground"
           title={labels.download}
         >
           <Download className="h-4 w-4" />
@@ -175,7 +175,7 @@ export default function CodeEditorHeader({
           className={`flex items-center justify-center rounded-md p-1.5 transition-colors disabled:opacity-50 ${
             saveSuccess
               ? 'bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400'
-              : 'text-n-gray-600 hover:bg-n-gray-100 hover:text-n-gray-900 dark:text-n-gray-400 dark:hover:bg-n-gray-800 dark:hover:text-n-white'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:text-foreground'
           }`}
           title={saveTitle}
         >
@@ -192,7 +192,7 @@ export default function CodeEditorHeader({
           <button
             type="button"
             onClick={onToggleFullscreen}
-            className="flex items-center justify-center rounded-md p-1.5 text-n-gray-600 hover:bg-n-gray-100 hover:text-n-gray-900 dark:text-n-gray-400 dark:hover:bg-n-gray-800 dark:hover:text-n-white"
+            className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:text-foreground"
             title={isFullscreen ? labels.exitFullscreen : labels.fullscreen}
           >
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
@@ -202,7 +202,7 @@ export default function CodeEditorHeader({
         <button
           type="button"
           onClick={onClose}
-          className="flex items-center justify-center rounded-md p-1.5 text-n-gray-600 hover:bg-n-gray-100 hover:text-n-gray-900 dark:text-n-gray-400 dark:hover:bg-n-gray-800 dark:hover:text-n-white"
+          className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:text-foreground"
           title={labels.close}
         >
           <X className="h-4 w-4" />

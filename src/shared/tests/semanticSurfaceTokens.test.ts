@@ -41,14 +41,6 @@ const EXPECTED_LIGHT_SURFACE_WHITES: Record<string, number> = {
   'src/modules/chat/composer/PromptInput.tsx': 1, // the `/kbd` badge
   'src/modules/chat/transcript/ChatMessageImages.tsx': 2, // the button and its hover
   'src/modules/code-editor/CodeEditorMediaPreview.tsx': 1, // the iframe page itself is white
-
-  // Faces, deferred to their own slice rather than converted here: Mermaid ties
-  // its line colour to the surface, and CodeEditorSurface reads a different
-  // token family than the rest of the editor chrome. Listed so the guard is
-  // honest about the two remaining faces; completing that slice means editing
-  // this table, which is the point.
-  'src/modules/code-editor/markdown/MermaidDiagram.tsx': 1,
-  'src/modules/code-editor/CodeEditorSurface.tsx': 1,
 };
 
 test('only the frozen-white symbols still paint a light surface', () => {

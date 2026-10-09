@@ -59,17 +59,17 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
         return (
           <div
             key={idx}
-            className="border-gray-150 overflow-hidden rounded-lg border bg-n-gray-50/50 dark:border-n-gray-700/50 dark:bg-n-gray-800/30"
+            className="border-gray-150 overflow-hidden rounded-lg border bg-muted/50 dark:border-n-gray-700/50 dark:bg-muted/30"
           >
             <button
               type="button"
               onClick={() => setExpandedIdx(isExpanded ? null : idx)}
-              className="flex w-full items-start gap-2.5 px-3 py-2 text-left transition-colors hover:bg-n-gray-50 dark:hover:bg-n-gray-800/50"
+              className="flex w-full items-start gap-2.5 px-3 py-2 text-left transition-colors hover:bg-muted"
             >
               <div className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full ${
                 answerLabels.length > 0
                   ? 'bg-blue-100 dark:bg-blue-900/40'
-                  : 'bg-n-gray-100 dark:bg-n-gray-800'
+                  : 'bg-muted'
               }`}>
                 {answerLabels.length > 0 ? (
                   <svg className="h-2.5 w-2.5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
@@ -93,7 +93,7 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
                     </span>
                   )}
                 </div>
-                <div className="mt-0.5 whitespace-pre-wrap break-words text-xs leading-snug text-n-gray-600 dark:text-n-gray-400">
+                <div className="mt-0.5 whitespace-pre-wrap break-words text-xs leading-snug text-muted-foreground">
                   {q.question}
                 </div>
 
@@ -150,7 +150,7 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
                         <div className={`mt-0.5 h-3.5 w-3.5 flex-shrink-0 ${q.multiSelect ? 'rounded-[3px]' : 'rounded-full'} flex items-center justify-center border-[1.5px] ${
                           wasSelected
                             ? 'border-blue-500 bg-blue-500 dark:border-blue-400 dark:bg-blue-500'
-                            : 'border-n-gray-300 dark:border-n-gray-600'
+                            : 'border-input'
                         }`}>
                           {wasSelected && (
                             <svg className="h-2 w-2 text-n-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
@@ -159,7 +159,7 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <span className={`whitespace-pre-wrap break-words ${wasSelected ? 'font-medium text-n-gray-900 dark:text-n-gray-100' : ''}`}>
+                          <span className={`whitespace-pre-wrap break-words ${wasSelected ? 'font-medium text-foreground' : ''}`}>
                             {opt.label}
                           </span>
                           {opt.description && (
@@ -185,7 +185,7 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
                         </svg>
                       </div>
                       <div className="min-w-0 flex-1">
-                        <span className="font-medium text-n-gray-900 dark:text-n-gray-100">{lbl}</span>
+                        <span className="font-medium text-foreground">{lbl}</span>
                         <span className="ml-1 text-[10px] text-blue-500 dark:text-blue-400">(custom)</span>
                       </div>
                     </div>

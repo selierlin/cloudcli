@@ -25,7 +25,7 @@ export default function WizardProgress({ step }: WizardProgressProps) {
                     ? 'bg-green-500 text-n-white'
                     : currentStep === step
                       ? 'bg-blue-500 text-n-white'
-                      : 'bg-n-gray-200 text-n-gray-500 dark:bg-n-gray-700'
+                      : 'bg-sunken text-muted-foreground'
                 }`}
               >
                 {currentStep < step ? <Check className="h-4 w-4" /> : currentStep}
@@ -40,7 +40,7 @@ export default function WizardProgress({ step }: WizardProgressProps) {
             {currentStep < 2 && (
               <div
                 className={`mx-2 h-1 flex-1 rounded ${
-                  currentStep < step ? 'bg-green-500' : 'bg-n-gray-200 dark:bg-n-gray-700'
+                  currentStep < step ? 'bg-green-500' : 'bg-sunken'
                 }`}
               />
             )}

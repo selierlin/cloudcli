@@ -48,6 +48,11 @@ export default {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",
         },
+        // The second subdued surface, one step past `--muted` (see index.css).
+        sunken: "hsl(var(--sunken))",
+        // The modal / drawer backdrop scrim (see index.css). Theme-neutral
+        // black; a theme may tint it by declaring `--overlay`.
+        overlay: "hsl(var(--overlay))",
         accent: {
           DEFAULT: "hsl(var(--accent))",
           foreground: "hsl(var(--accent-foreground))",

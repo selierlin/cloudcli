@@ -134,7 +134,7 @@ disable-model-invocation: true
 |---|---|---|
 | L1 色板 | 家族成员，**唯一允许持字面值的一层** | `--palette-sand-500` / `--palette-brand-400` / `--palette-ink-100` |
 | L2 语义 | `hsl(var(--palette-*))`，不要直接赋字面值 | `--background` / `--foreground` / `--primary` / `--card` / `--muted` / `--border` |
-| 几何 | 派生 Tailwind 工具类 | `--radius`（`rounded-*` 全派生自它）、`--header-safe-area-top`、`--header-base-padding` |
+| 几何 | 派生 Tailwind 工具类 | `--radius`（`rounded-*` 全派生自它）、`--header-safe-area-top`、`--header-base-padding`、`--activity-tab-overlap` |
 | 玻璃导航 | 既有 glass 系统 | `--nav-glass-bg/-blur/-saturate`、`--nav-float-shadow/-ring`、`--nav-divider-color`、`--nav-input-*` |
 | 板 | 终端 / 编辑器 / Git 图 | `--term-*`、`--editor-*`、`--graph-lane-*` |
 | 兼容层 | 见下 | `--n-gray-*` / `--n-white` / `--n-black` |

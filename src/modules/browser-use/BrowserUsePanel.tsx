@@ -516,7 +516,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
       </div>
 
       {isFullscreen && selectedSession && (
-        <div className="fixed inset-0 z-50 bg-n-black/90 p-6">
+        <div className="fixed inset-0 z-50 bg-overlay/90 p-6">
           <div className="flex h-full flex-col rounded-md border border-n-white/10 bg-n-black">
             <div className="flex items-center justify-between border-b border-n-white/10 px-4 py-3 text-sm text-n-white/80">
               <div className="min-w-0 truncate">{selectedSession.title || selectedSession.url || t('sessions.fullscreenTitle')}</div>
