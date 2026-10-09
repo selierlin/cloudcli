@@ -466,6 +466,11 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
             provider: PROVIDER,
             kind: 'text',
             role: messageRole === 'user' ? 'user' : 'assistant',
+            // The model that answered, as OpenCode records it on the message
+            // row. Only the assistant row carries a top-level id: the user
+            // row's nested `model` is the picker's selection, not what ran, so
+            // this mirrors the role gate above and reads nothing for user turns.
+            model: messageRole === 'user' ? undefined : readOptionalString(messageInfo?.modelID),
             content: parsedFiles.text,
             images: parsedImages.attachments.length > 0 ? parsedImages.attachments : undefined,
             files: parsedFiles.attachments.length > 0 ? parsedFiles.attachments : undefined,

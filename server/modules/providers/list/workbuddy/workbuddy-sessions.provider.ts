@@ -9,7 +9,7 @@ import type {
   FetchHistoryResult,
   NormalizedMessage,
 } from '@/shared/types.js';
-import { AppError, createNormalizedMessage, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
+import { AppError, createNormalizedMessage, readObjectRecord, readOptionalString, sliceTailPage } from '@/shared/utils.js';
 import { summarizeWorkbuddyTokenUsage } from '@/modules/providers/services/provider-token-usage.service.js';
 
 import { forkWorkbuddyTranscriptPrefix } from './workbuddy-fork.provider.js';
@@ -1103,6 +1103,10 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
               role: 'assistant',
               forkAnchorId: eventAnchorId,
               content: record.text,
+              // The model the engine billed this reply to, carried on the row's
+              // `providerData`. Read from the event, not the picker, so it names
+              // what answered rather than what the next turn would use.
+              model: readOptionalString(readObjectRecord(event.providerData)?.model),
               sessionId: appSessionId,
               provider: 'workbuddy',
               ...timestampField,

@@ -74,6 +74,7 @@ const assistantMessage = (text: string, timestamp: number) => ({
   role: 'assistant',
   timestamp,
   cwd: '/Users/test/project',
+  providerData: { messageId: `engine-${timestamp}`, model: 'glm-5.3-flash' },
   content: [
     { type: 'reasoning_text', text: `thinking about ${text}` },
     { type: 'output_text', text },
@@ -104,6 +105,10 @@ test('fetchHistory decodes the WorkBuddy transcript via the provider session id'
     assert.equal(result.messages[2]?.role, 'assistant');
     assert.equal(result.messages[2]?.content, 'Hi!');
     assert.equal(result.messages[2]?.provider, 'workbuddy');
+    // The prose row names the model the engine billed the reply to; the
+    // thinking row above carries none.
+    assert.equal(result.messages[1]?.model, undefined);
+    assert.equal(result.messages[2]?.model, 'glm-5.3-flash');
   });
 });
 

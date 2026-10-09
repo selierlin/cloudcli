@@ -158,6 +158,7 @@ test('fetchHistory surfaces reasoning blocks as thinking rows ahead of the reply
               { type: 'reasoning', text: '先想一想' },
               { type: 'text', text: '答案' },
             ],
+            source: { kind: 'model', provider: 'deepseek-official', model: 'deepseek-v4-pro' },
             id: 'assistant-2',
           },
         },
@@ -172,6 +173,10 @@ test('fetchHistory surfaces reasoning blocks as thinking rows ahead of the reply
     assert.deepEqual(kinds.filter(([kind]) => kind === 'thinking'), [['thinking', '先想一想']]);
     const reply = history.messages.find((message) => message.kind === 'text' && message.role === 'assistant');
     assert.equal(reply?.content, '答案');
+    // Only the prose row carries the footer model; the reasoning row from the
+    // same message stays empty.
+    assert.equal(history.messages.find((message) => message.kind === 'thinking')?.model, undefined);
+    assert.equal(reply?.model, 'deepseek-v4-pro');
     assert.ok(
       history.messages.findIndex((message) => message.kind === 'thinking')
         < history.messages.findIndex((message) => message.kind === 'text' && message.role === 'assistant'),
@@ -209,9 +214,13 @@ test('fetchHistory decodes the DSH JSONL session log via the provider session id
     assert.equal(result.total, 2);
     assert.equal(result.messages[0]?.role, 'user');
     assert.equal(result.messages[0]?.content, 'hello there');
+    // The user row is not a model answer, so the footer model stays empty.
+    assert.equal(result.messages[0]?.model, undefined);
     assert.equal(result.messages[1]?.role, 'assistant');
     assert.equal(result.messages[1]?.content, 'Hi! How can I help?');
     assert.equal(result.messages[1]?.provider, 'dsh');
+    // The assistant row names the model DSH recorded as the reply's source.
+    assert.equal(result.messages[1]?.model, 'deepseek-v4-pro');
   });
 });
 

@@ -137,7 +137,7 @@ export async function seedZcodeRichSession(
       sessionId: 'zcode-session-1',
       sequence: 0,
       timeCreated: 1_700_000_001_000,
-      data: { role: 'user', modelID: 'deepseek-v4-flash', providerID: 'ark', mode: 'edit' },
+      data: { role: 'user', modelId: 'deepseek-v4-flash', providerId: 'ark', mode: 'edit' },
     });
     insertPart(db, {
       id: 'part-user-text',
@@ -155,8 +155,8 @@ export async function seedZcodeRichSession(
       timeCreated: 1_700_000_002_000,
       data: {
         role: 'assistant',
-        modelID: 'deepseek-v4-flash',
-        providerID: 'ark',
+        modelId: 'deepseek-v4-flash',
+        providerId: 'ark',
         finish: 'stop',
         tokens: { input: 10, output: 20, reasoning: 0, cache: { read: 3, write: 2 } },
       },

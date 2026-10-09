@@ -498,6 +498,10 @@ export class ZcodeSessionsProvider implements IProviderSessions {
             provider: PROVIDER,
             kind: 'text',
             role: messageRole === 'user' ? 'user' : 'assistant',
+            // Which model answered, read from the message row's `modelId`. Only
+            // the assistant row records one, so this mirrors the role gate
+            // above and stamps nothing on a user turn.
+            model: messageRole === 'user' ? undefined : readOptionalString(messageInfo?.modelId),
             content: parsedFiles.text,
             images: parsedImages.attachments.length > 0 ? parsedImages.attachments : undefined,
             files: parsedFiles.attachments.length > 0 ? parsedFiles.attachments : undefined,

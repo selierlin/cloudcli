@@ -11,7 +11,7 @@ import type {
   FetchHistoryResult,
   NormalizedMessage,
 } from '@/shared/types.js';
-import { createNormalizedMessage, sliceTailPage } from '@/shared/utils.js';
+import { createNormalizedMessage, readOptionalString, sliceTailPage } from '@/shared/utils.js';
 
 import { getDshSessionsRoot } from './dsh-models.provider.js';
 
@@ -232,6 +232,11 @@ function decodeSessionLog(text: string, appSessionId: string): NormalizedMessage
     } else if (event.type === 'assistant/message') {
       const message = (data.message as AnyRecord | null);
       const blocks = Array.isArray(message?.content) ? message.content : [];
+      // `AssistantMessage.source` is always a model source (`kind: 'model'`) whose
+      // `model` is the provider model id that produced this reply — the same
+      // answer-model provenance the footer shows for Claude.
+      const source = message?.source as AnyRecord | null;
+      const model = readOptionalString(source?.model);
       // Reasoning blocks precede the reply in the content array; the live
       // path surfaces them as thinking rows, so history must too — otherwise
       // the post-turn reconcile would drop what was just streamed.
@@ -258,6 +263,7 @@ function decodeSessionLog(text: string, appSessionId: string): NormalizedMessage
           content,
           sessionId: appSessionId,
           provider: 'dsh',
+          model,
           ...(timestamp ? { timestamp } : {}),
         }));
       }

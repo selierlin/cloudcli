@@ -141,6 +141,9 @@ test('normalizeMessage maps assistant blocks to thinking/text/tool_use rows', ()
     timestamp: '2026-09-09T08:00:02.000Z',
     message: {
       role: 'assistant',
+      api: 'anthropic-messages',
+      provider: 'ark',
+      model: 'deepseek-v4-flash',
       content: [
         thinking('Let me check'),
         text('Here is the answer'),
@@ -153,6 +156,9 @@ test('normalizeMessage maps assistant blocks to thinking/text/tool_use rows', ()
   assert.deepEqual(messages.map((message) => message.kind), ['thinking', 'text', 'tool_use']);
   assert.equal(messages[0].content, 'Let me check');
   assert.equal(messages[1].content, 'Here is the answer');
+  // Only the prose row carries the answering model; thinking has no footer.
+  assert.equal(messages[0].model, undefined);
+  assert.equal(messages[1].model, 'deepseek-v4-flash');
   assert.equal(messages[2].toolName, 'bash');
   assert.equal(messages[2].toolId, 'call_1');
   assert.deepEqual(messages[2].toolInput, { command: 'date' });

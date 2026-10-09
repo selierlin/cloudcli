@@ -34,7 +34,12 @@ test('ZCode sessions provider reads sqlite history and aggregates token usage', 
     assert.equal(history.messages[0]?.kind, 'text');
     assert.equal(history.messages[0]?.role, 'user');
     assert.equal(history.messages[0]?.content, 'Build the ZCode integration.');
+    // The user row records the picker's selection, but the footer names only
+    // the model that answered, so nothing is stamped on a user turn.
+    assert.equal(history.messages[0]?.model, undefined);
     assert.equal(history.messages[1]?.kind, 'thinking');
+    // The assistant row names the model ZCode recorded for the reply.
+    assert.equal(history.messages[2]?.model, 'deepseek-v4-flash');
     assert.equal(history.messages[2]?.content, 'The provider is wired.');
     assert.equal(history.messages[3]?.kind, 'tool_use');
     assert.equal(history.messages[3]?.toolName, 'bash');
