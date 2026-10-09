@@ -40,6 +40,15 @@ export class DshMcpProvider extends McpProvider {
     super('dsh', ['user', 'project'], ['stdio', 'http']);
   }
 
+  /**
+   * DSH composes its own MCP servers and refuses every write, so none of the
+   * scopes it can read are writable. The catalog seeder skips it: seeding a row
+   * it could never toggle off or delete would leave a permanent dead entry.
+   */
+  listWritableScopes(): McpScope[] {
+    return [];
+  }
+
   protected async readScopedServers(scope: McpScope, _workspacePath: string): Promise<Record<string, unknown>> {
     // DSH has no per-project MCP scope: its servers come from the harness home
     // and the booted profile, so they are reported under `user` only. Returning

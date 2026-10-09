@@ -1,6 +1,9 @@
 export { sessionSynchronizerService } from './services/session-synchronizer.service.js';
 export { providerSkillsService } from './services/skills.service.js';
 export { providerMcpService } from './services/mcp.service.js';
+// mcpCatalogService: owns the app-side user-scope MCP catalog (SSOT) that the
+// MCP matrix routes read and edit.
+export { mcpCatalogService } from './services/mcp-catalog.service.js';
 export { providerRuntimeService } from './services/provider-runtime.service.js';
 
 // providerModelsService: used by Commands to list models and resolve the active session model.

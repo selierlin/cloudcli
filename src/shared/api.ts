@@ -459,6 +459,18 @@ export const api = {
       ),
     saveGlobalMcpServer: (payload: unknown) => post('/api/providers/mcp/servers/global', payload),
 
+    // App-side MCP catalog (user-scope SSOT) that the MCP matrix reads and edits.
+    mcpCatalog: () => get('/api/providers/mcp/catalog'),
+    // Creates the entry when the payload carries no `id`, updates it otherwise.
+    mcpCatalogUpsert: (payload: unknown) => post('/api/providers/mcp/catalog', payload),
+    mcpCatalogToggle: (entryId: string, payload: { provider: string; enabled: boolean }) =>
+      post(`/api/providers/mcp/catalog/${encodeURIComponent(entryId)}/toggle`, payload),
+    mcpCatalogDelete: (entryId: string) =>
+      del(`/api/providers/mcp/catalog/${encodeURIComponent(entryId)}`),
+    // Escape hatch: re-applies every entry from its switches when a projection
+    // failed and no cell-level retry is left to press.
+    mcpCatalogResync: () => post('/api/providers/mcp/catalog/resync', {}),
+
     skills: (provider: string, { workspacePath }: { workspacePath?: string } = {}) =>
       get(`/api/providers/${encodeURIComponent(provider)}/skills${query({ workspacePath })}`),
     saveSkills: (provider: string, payload: unknown) =>

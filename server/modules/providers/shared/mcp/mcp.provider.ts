@@ -9,7 +9,14 @@ const resolveWorkspacePath = (workspacePath?: string): string =>
 
 const REDACTED_MCP_VALUE = '<redacted>';
 
-const redactMcpValues = (values?: Record<string, string>): Record<string, string> | undefined => {
+/**
+ * Replaces every value of one secret map with the response-only marker.
+ *
+ * Exported because the app-side MCP catalog redacts at its own response layer:
+ * a catalog row is not bound to one harness, so there is no provider instance
+ * whose `sanitizeServerForResponse` could do it.
+ */
+export const redactMcpValues = (values?: Record<string, string>): Record<string, string> | undefined => {
   if (!values || Object.keys(values).length === 0) {
     return undefined;
   }
@@ -21,8 +28,13 @@ const redactMcpValues = (values?: Record<string, string>): Record<string, string
  * Preserves one persisted secret when the edit form submits its response-only
  * redaction marker. Omitting a key still removes it, while replacing a value
  * with any non-marker string intentionally updates it.
+ *
+ * Exported because the app-side MCP catalog restores the same markers against
+ * its own stored raw definition: the catalog is the SSOT and must never persist
+ * a `<redacted>` placeholder, or a later projection would write the placeholder
+ * literally into a harness file.
  */
-const restoreRedactedMcpValues = (
+export const restoreRedactedMcpValues = (
   requested?: Record<string, string>,
   persisted?: Record<string, string>,
 ): Record<string, string> | undefined => {
@@ -86,6 +98,19 @@ export abstract class McpProvider implements IProviderMcp {
     scope: McpScope,
     options?: { workspacePath?: string },
   ): Promise<ProviderMcpServer[]> {
+    const servers = await this.listRawServersForScope(scope, options);
+    return servers.map((entry) => this.sanitizeServerForResponse(entry));
+  }
+
+  /**
+   * Reads one scope as persisted, without the response redaction
+   * `listServersForScope` applies. The app-side catalog persists the result, so
+   * it must not receive `<redacted>` placeholders.
+   */
+  async listRawServersForScope(
+    scope: McpScope,
+    options?: { workspacePath?: string },
+  ): Promise<ProviderMcpServer[]> {
     if (!this.supportedScopes.includes(scope)) {
       return [];
     }
@@ -94,8 +119,12 @@ export abstract class McpProvider implements IProviderMcp {
     const scopedServers = await this.readScopedServers(scope, workspacePath);
     return Object.entries(scopedServers)
       .map(([name, rawConfig]) => this.normalizeServerConfig(scope, name, rawConfig))
-      .filter((entry): entry is ProviderMcpServer => entry !== null)
-      .map((entry) => this.sanitizeServerForResponse(entry));
+      .filter((entry): entry is ProviderMcpServer => entry !== null);
+  }
+
+  /** Every readable scope is writable unless a harness-managed adapter says otherwise. */
+  listWritableScopes(): McpScope[] {
+    return [...this.supportedScopes];
   }
 
   async upsertServer(input: UpsertProviderMcpServerInput): Promise<ProviderMcpServer> {

@@ -193,6 +193,46 @@ CREATE TABLE IF NOT EXISTS provider_models (
 `;
 
 /**
+ * App-side MCP server catalog (the single source of truth for user-scope MCP).
+ *
+ * Each row is one MCP server definition plus one `enabled_<provider>` switch
+ * per harness. The row is the SSOT: the harness-native config files are
+ * projections of it (written by the providers module through the same
+ * adapter used by the per-harness MCP pages), so editing here and toggling a
+ * column is what moves a definition in or out of a harness file.
+ *
+ * `server_config` holds the connection definition as JSON, using the shape of
+ * `ProviderMcpServer` minus `provider`/`scope`/`name`/`transport` (the last is
+ * stored in its own column instead of being duplicated inside the JSON). It
+ * stores the raw, unredacted values — response redaction happens at the REST
+ * boundary, never before persistence.
+ *
+ * The provider set is hardcoded into the column list, mirroring
+ * `provider_models`'s `CHECK (provider IN (...))`. Adding a harness therefore
+ * needs an `ALTER TABLE` migration plus a constant update (known debt).
+ */
+export const MCP_SERVERS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS mcp_servers (
+    id TEXT PRIMARY KEY,                     -- uuid; used as the route identity
+    name TEXT NOT NULL UNIQUE,               -- catalog identity (= the key inside harness files)
+    transport TEXT NOT NULL
+        CHECK (transport IN ('stdio', 'http', 'sse')),
+    server_config TEXT NOT NULL,
+    enabled_claude BOOLEAN DEFAULT 0,
+    enabled_cursor BOOLEAN DEFAULT 0,
+    enabled_codex BOOLEAN DEFAULT 0,
+    enabled_opencode BOOLEAN DEFAULT 0,
+    enabled_dsh BOOLEAN DEFAULT 0,
+    enabled_workbuddy BOOLEAN DEFAULT 0,
+    enabled_pi BOOLEAN DEFAULT 0,
+    enabled_zcode BOOLEAN DEFAULT 0,
+    enabled_omp BOOLEAN DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+`;
+
+/**
  * Per-user application preferences that used to live in browser localStorage.
  *
  * One row per (user, key); `preference_value` is always a JSON document so a
@@ -301,6 +341,8 @@ ${APP_CONFIG_TABLE_SCHEMA_SQL}
 ${PROVIDER_MODELS_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_provider_models_provider_order
 ON provider_models(provider, sort_order, id);
+
+${MCP_SERVERS_TABLE_SCHEMA_SQL}
 
 ${USER_PREFERENCES_TABLE_SCHEMA_SQL}
 

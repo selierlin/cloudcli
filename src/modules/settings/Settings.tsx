@@ -14,6 +14,7 @@ import QuickRepliesSettingsTab from '@/modules/settings/tabs/QuickRepliesSetting
 import NetworkSettingsTab from '@/modules/settings/tabs/NetworkSettingsTab';
 import GitSettingsTab from '@/modules/settings/tabs/git-settings/GitSettingsTab';
 import BrowserUseSettingsTab from '@/modules/settings/tabs/browser-use-settings/BrowserUseSettingsTab';
+import { McpMatrix } from '@/modules/mcp';
 import NotificationsSettingsTab from '@/modules/settings/tabs/NotificationsSettingsTab';
 import TasksSettingsTab from '@/modules/settings/tabs/tasks-settings/TasksSettingsTab';
 import { PluginSettingsTab } from '@/modules/plugins';
@@ -145,6 +146,12 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
       channels: { ...notificationPreferences.channels, desktop: false },
     });
   };
+
+  // The MCP matrix owns user-scope MCP servers, so the agents tab's read-only
+  // user rows link here instead of editing them in place.
+  const handleOpenMcpMatrix = useCallback(() => {
+    setActiveTab('mcp');
+  }, [setActiveTab]);
 
   // Escape closes Settings, matching the other modals in the app. Layers that open
   // on top of it — nested modals, dropdown menus — mark themselves with
@@ -279,12 +286,15 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
                   dshPermissionMode={dshPermissionMode}
                   onDshPermissionModeChange={setDshPermissionMode}
                   projects={projects}
+                  onOpenMcpMatrix={handleOpenMcpMatrix}
                 />
               )}
 
               {activeTab === 'tasks' && <TasksSettingsTab />}
 
               {activeTab === 'browser' && <BrowserUseSettingsTab />}
+
+              {activeTab === 'mcp' && <McpMatrix />}
 
               {activeTab === 'notifications' && (
                 <NotificationsSettingsTab

@@ -1359,6 +1359,38 @@ export type UpsertProviderMcpServerPayload = {
   envHttpHeaders?: KeyValueMap;
 };
 
+/** The connection definition an app-side catalog entry holds: every ProviderMcpServer field except the identity and placement ones (provider/name/scope/transport), which the entry itself carries. */
+export type McpCatalogConfig = Omit<ProviderMcpServer, 'provider' | 'scope' | 'name' | 'transport'>;
+
+/** The request body that creates a catalog entry, or updates it when `id` is present; the per-harness switches are toggled separately, not through an edit. */
+export type UpsertMcpCatalogEntryPayload = {
+  id?: string;
+  name: string;
+  transport: McpTransport;
+  config: McpCatalogConfig;
+};
+
+/** One row of the app-side MCP catalog as the MCP matrix consumes it: a user-scope server definition plus one enable switch per harness saying whether it should be projected into that harness's config. */
+export type McpCatalogEntry = {
+  id: string;
+  name: string;
+  transport: McpTransport;
+  config: McpCatalogConfig;
+  enabled: Record<McpProvider, boolean>;
+  /** SQLite CURRENT_TIMESTAMP strings (`YYYY-MM-DD HH:MM:SS`, UTC). */
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** The result of writing (or clearing) one catalog entry in one harness; the matrix marks that single cell failed and retryable from it, since the switch alone cannot say whether the config file was updated. */
+export type McpCatalogProjectionOutcome = {
+  provider: McpProvider;
+  action: 'upsert' | 'remove';
+  ok: boolean;
+  /** The harness's own rejection message, present only when `ok` is false. */
+  error?: string;
+};
+
 /** Whether the MCP server form is being filled in field by field or pasted in as raw JSON, which selects the form's input mode. */
 type McpImportMode = 'form' | 'json';
 
@@ -1558,7 +1590,7 @@ export type AgentContext = {
 };
 
 /** Identifier of a top-level section in the settings dialog; use it whenever a tab is stored, compared or requested so deep links, the sidebar and the command palette all agree on the same set of names. */
-export type SettingsMainTab = 'agents' | 'appearance' | 'chat' | 'git' | 'api' | 'voice' | 'quickReplies' | 'tasks' | 'browser' | 'notifications' | 'plugins' | 'network' | 'about';
+export type SettingsMainTab = 'agents' | 'appearance' | 'chat' | 'git' | 'api' | 'voice' | 'quickReplies' | 'tasks' | 'browser' | 'mcp' | 'notifications' | 'plugins' | 'network' | 'about';
 
 /** The coding-agent CLI a settings screen is configuring, aliasing LLMProvider so agent-scoped settings read as being about an agent rather than a chat model. */
 export type AgentProvider = LLMProvider;

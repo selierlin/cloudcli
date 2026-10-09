@@ -9,6 +9,7 @@ import {
   MonitorPlay,
   Palette,
   Plug,
+  Server,
   Zap,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
@@ -64,6 +65,7 @@ export const SETTINGS_MAIN_TABS: SettingsMainTabMeta[] = [
   { id: 'quickReplies', label: 'Quick Replies', keywords: 'quick replies snippets canned prompts phrases composer', icon: Zap },
   { id: 'tasks', label: 'Tasks', keywords: 'tasks taskmaster', icon: ListChecks },
   { id: 'browser', label: 'Browser', keywords: 'browser playwright chromium automation', icon: MonitorPlay },
+  { id: 'mcp', label: 'MCP', keywords: 'mcp model context protocol servers matrix', icon: Server },
   { id: 'notifications', label: 'Notifications', keywords: 'notifications alerts push', icon: Bell },
   { id: 'plugins', label: 'Plugins', keywords: 'plugins extensions integrations', icon: Plug },
   { id: 'network', label: 'Network', keywords: 'network proxy http https gateway no_proxy', icon: Globe },
@@ -139,7 +141,9 @@ export const MCP_SUPPORTED_SCOPES: Record<McpProvider, McpScope[]> = {
   opencode: ['user', 'project'],
   dsh: ['user', 'project'],
   workbuddy: ['user', 'local', 'project'],
-  pi: [],
+  // Pi 1.0+ has native MCP support backed by `~/.pi/agent/mcp.json` (or the
+  // `PI_CODING_AGENT_DIR` override); only the user scope is offered here.
+  pi: ['user'],
   zcode: ['user', 'project'],
   // OMP reads MCP servers from config files it owns (`.mcp.json`, `mcp.json`,
   // `.claude.json`, `.cursor/mcp.json`, `.vscode/mcp.json`); CloudCLI does not
@@ -157,7 +161,8 @@ export const MCP_SUPPORTED_TRANSPORTS: Record<McpProvider, McpTransport[]> = {
   // though the harness can host MCP servers itself.
   dsh: ['stdio', 'http'],
   workbuddy: ['stdio', 'http', 'sse'],
-  pi: [],
+  // Pi speaks stdio and streamable HTTP only; its `mcp.json` rejects SSE.
+  pi: ['stdio', 'http'],
   zcode: ['stdio', 'http', 'sse'],
   omp: [],
 };
@@ -176,7 +181,7 @@ export const MCP_ADD_BLOCKED_REASON: Record<McpProvider, McpAddBlockedReason | n
   opencode: null,
   dsh: 'harnessManaged',
   workbuddy: null,
-  pi: 'noNativeSupport',
+  pi: null,
   zcode: null,
   // OMP has native MCP support, but it configures its servers in its own files
   // rather than through CloudCLI, which is what `harnessManaged` reports.
@@ -191,10 +196,24 @@ export const MCP_SUPPORTS_WORKING_DIRECTORY: Record<McpProvider, boolean> = {
   opencode: false,
   dsh: false,
   workbuddy: false,
-  pi: false,
+  pi: true,
   zcode: false,
   omp: false,
 };
+
+/**
+ * The harness whose capability flags drive the catalog entry form.
+ *
+ * A catalog entry is a cross-harness definition rather than one harness's
+ * server, so the form's per-harness `provider` prop has no counterpart on it.
+ * `McpServerFormModal` reads three provider-keyed tables to decide what to
+ * show, and codex is the only harness that unlocks every field a catalog entry
+ * can hold (`cwd` via the table above, plus the codex-only `envVars` /
+ * `bearerTokenEnvVar`). The transport list is supplied explicitly, since a
+ * catalog entry may use a transport that codex itself cannot speak and simply
+ * stay switched off for it.
+ */
+export const MCP_CATALOG_FORM_PROVIDER: McpProvider = 'codex';
 
 // ---------------------------
 
