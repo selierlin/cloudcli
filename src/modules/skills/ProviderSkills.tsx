@@ -78,7 +78,7 @@ const SCOPE_BADGE_CLASSES: Record<SkillsScope, string> = {
   repo: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
   project: 'border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300',
   admin: 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300',
-  system: 'border-n-slate-500/30 bg-n-slate-500/10 text-n-slate-700 dark:text-n-slate-300',
+  system: 'border-border/30 bg-muted/10 text-muted-foreground',
 };
 
 const SCOPE_ORDER: SkillsScope[] = ['user', 'plugin', 'repo', 'project', 'admin', 'system'];

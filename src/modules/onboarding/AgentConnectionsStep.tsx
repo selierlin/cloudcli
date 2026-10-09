@@ -26,8 +26,8 @@ const providerCards = [
   {
     provider: 'codex' as const,
     title: 'OpenAI Codex',
-    connectedClassName: 'bg-n-gray-100 dark:bg-n-gray-800/50 border-n-gray-300 dark:border-n-gray-600',
-    iconContainerClassName: 'bg-n-gray-100 dark:bg-n-gray-800',
+    connectedClassName: 'bg-muted dark:bg-muted/50 border-input',
+    iconContainerClassName: 'bg-muted',
     loginButtonClassName: 'bg-n-gray-800 hover:bg-n-gray-900 dark:bg-n-gray-700 dark:hover:bg-n-gray-600',
   },
   {

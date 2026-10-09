@@ -107,7 +107,7 @@ export default function SidebarModals({
 
       {pendingDeletion?.kind === 'project' &&
         ReactDOM.createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-n-black/60 p-4 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay/60 p-4 backdrop-blur-sm">
             <div className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
               <div className="p-6">
                 <div className="flex items-start gap-4">
@@ -161,7 +161,7 @@ export default function SidebarModals({
 
       {pendingDeletion?.kind === 'session' &&
         ReactDOM.createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-n-black/60 p-4 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay/60 p-4 backdrop-blur-sm">
             <div className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
               <div className="p-6">
                 <div className="flex items-start gap-4">
@@ -220,7 +220,7 @@ export default function SidebarModals({
 
       {batchSessionArchiveConfirmation &&
         ReactDOM.createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-n-black/60 p-4 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay/60 p-4 backdrop-blur-sm">
             <div className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
               <div className="p-6">
                 <div className="flex items-start gap-4">
@@ -257,7 +257,7 @@ export default function SidebarModals({
 
       {batchArchivedSessionDeleteConfirmation &&
         ReactDOM.createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-n-black/60 p-4 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay/60 p-4 backdrop-blur-sm">
             <div className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
               <div className="p-6">
                 <div className="flex items-start gap-4">

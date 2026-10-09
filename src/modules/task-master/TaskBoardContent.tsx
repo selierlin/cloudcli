@@ -51,10 +51,10 @@ function KanbanColumns({
           <div className="max-h-[calc(100vh-300px)] min-h-[200px] space-y-3 overflow-y-auto p-3">
             {column.tasks.length === 0 ? (
               <div className="py-8 text-center text-n-gray-400 dark:text-n-gray-500">
-                <div className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-n-gray-200 dark:bg-n-gray-700">
+                <div className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-sunken">
                   <div className="h-3 w-3 rounded-full bg-n-gray-300 dark:bg-n-gray-600" />
                 </div>
-                <div className="text-xs font-medium text-n-gray-500 dark:text-n-gray-400">{t('kanban.noTasksYet')}</div>
+                <div className="text-xs font-medium text-muted-foreground">{t('kanban.noTasksYet')}</div>
                 <div className="mt-1 text-xs text-n-gray-400 dark:text-n-gray-500">
                   {column.status === 'pending'
                     ? t('kanban.tasksWillAppear')
@@ -97,7 +97,7 @@ export default function TaskBoardContent({
   if (filteredTaskCount === 0) {
     return (
       <div className="py-12 text-center">
-        <div className="text-n-gray-500 dark:text-n-gray-400">
+        <div className="text-muted-foreground">
           <Search className="mx-auto mb-4 h-12 w-12 opacity-50" />
           <h3 className="mb-2 text-lg font-medium">{t('noMatchingTasks.title')}</h3>
           <p className="text-sm">{t('noMatchingTasks.description')}</p>

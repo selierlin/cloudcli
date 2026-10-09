@@ -135,14 +135,14 @@ export default function SessionOptions({
             <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
           </button>
           <button
-            className="flex h-6 w-6 items-center justify-center rounded bg-n-gray-50 hover:bg-n-gray-100 dark:bg-n-gray-900/20 dark:hover:bg-n-gray-900/40"
+            className="flex h-6 w-6 items-center justify-center rounded bg-muted/50 hover:bg-muted"
             onClick={(event) => {
               event.stopPropagation();
               onCancelEditingSession();
             }}
             title={t('tooltips.cancel')}
           >
-            <X className="h-3 w-3 text-n-gray-600 dark:text-n-gray-400" />
+            <X className="h-3 w-3 text-muted-foreground" />
           </button>
         </>
       ) : (

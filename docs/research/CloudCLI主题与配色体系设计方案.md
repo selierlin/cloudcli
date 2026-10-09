@@ -4940,6 +4940,34 @@ M4 / M5 的报文值得记一笔：四族进 `compat` 之后，`accent` **仍由
 
 ---
 
+#### 2-Q 补记之三（2026-10-07）：全量忠实度审计 —— 修 `cc-tokyo-night` 的 `ink-900`
+
+用户要求"认真检查哪些内置 / 外置主题还没忠实于官方"，随后"做全量审计并修 tokyo-night"。审计口径与 2-N 补记 / 2-Q 补记之（一）（二）一致：**逐套把自己声明的参照物取来、逐槽反算 hex 比对**，命中即改、命中不了的偏离逐条记账。这次比前三次更宽——**八套内置配色主题（含 2-N…2-Q 那几套"已改过"的）＋ 两套外置配色移植主题（`solarized` / `nord`）全过一遍**，不只是本次动的这一套。
+
+**一处实锤缺陷（本片唯一改动）**：`cc-tokyo-night` 的 `--palette-ink-900` 曾是 `240 3.94% 10.2%`（= **`#19191b`**，一个近乎中性的灰），而它的头注释、引入它的提交 `9e54a693`、以及本机的主题 provenance 记忆**三处都声称**它取自官方 `night.lua` 的 `bg_dark #16161e`。对官方（`folke/tokyonight.nvim`，本机 clone `cdc07ac`）逐位核：`#16161e` 的 HSL 是 `240 15.38% 10.2%`——**H 与 L 都对，唯 S 被写成 `3.94%`**（`15.38 → 3.94` 的笔误），于是"它比 `ink-950` 更暗、且带 tokyo-night 的蓝"这条官方高度语言在实物上退化成了一个灰。改回 `240 15.38% 10.2%`（= `#16161e`）。**这不是有意视觉变更，是恢复注释声明的原意**；因该 token 只是底料、S 变而 L 不变，对比度配对全部照过。
+
+**一处我先前报错、本片纠正**：初次检查时我曾把语法 `comment` 槽 `#51597d` 判为"与官方 `#565f89` 不符"。**判错了参照物**——语法板（B 线）的参照物**不是** folke nvim，而是 `vs-tokyo-night-vscode-theme`（见《内置主题语法调色板接管方案》§10.3 与 §3.7），该主题 `tokenColors` 里 `comment` 的 `foreground` 正是 `#51597d`（浅色 `#888b94`）。**语法槽 11 个两外观逐槽命中，无需改动。** 记这一笔，免得下一位读者照 folke 的 `comment` 去"修"一个正确的值。
+
+**审计结论（除上面一处外，全部忠实）**：
+
+| 主题 | 底料 / 终端 | 语法板 | 结论 |
+|---|---|---|---|
+| `cc-catppuccin` | Mocha/Latte 逐槽 = `palette.json` | 逐槽 = style guide | ✅ |
+| `cc-dracula` | 底料阶中两档 = 官方 `#343746` / `#424450` | 11 槽逐字命中 | ✅ |
+| `cc-gruvbox` | 暗 4 档 = `dark0` / `dark0_soft` / `dark1` / `dark2`；终端两半 | 逐槽（`url` = `markdownUrl`） | ✅ |
+| `cc-islands` | 底料 = Islands gray 阶；终端 = `-90` / `-100` 阶（官方无 ANSI-16，已记账） | 暗 = `IslandSchemeDark.xml`、浅 = `Light.xml`（**前导零被 IntelliJ 剥除**，如 `33b3` = `#0033b3`） | ✅ |
+| `cc-onedark` | 底料 = `one_dark.theme.json`；终端 normal 槽 = `one_dark.xml` 的 `CONSOLE_*_OUTPUT` | `one_dark.xml`（暗）／Atom One Light（浅） | ✅ |
+| `cc-onedark-vivid` | 同 base ＋ `ink-100`/终端 5 色 = `one_dark_vivid.xml` | `one_dark_vivid.xml`；浅色半**逐字节** = `cc-onedark`（官方 vivid 脚本在浅色上是恒等，已记账） | ✅ |
+| `cc-kanagawa` | 暗 3 档 = `sumiInk3/4/5`；终端 = wave 板 | 暗 = wave、浅 = lotus（浅色 `property` 压暗 2 L 点过 AA，§10.6 第 1 条） | ✅ |
+| `cc-tokyo-night` | 终端两板 = 官方 kitty `night` / `day` conf（除已记账的黑槽选位） | VS Code 主题 11 槽 | ⚠️→✅（本片修 `ink-900`） |
+| `solarized` / `nord`（外置） | 16 色 = 官方字面 | — | ✅ |
+
+**两处未取证到底、如实记账**（都不是本片能定的）：① `cc-islands` 浅色 `sand-950` = `#000000`，`ManyIslandsLight.theme.json` 里没有显式声明它（`editor-text` 是 `#080808`），疑为 IntelliJ Light 继承的平台默认 UI 文字色，但本机无平台默认表可对；② 未复核 `cc-polar` / `cc-ocean` 与三套外置**风格**主题（`console` / `liquid-glass` / `neubrutalism` / `macos-native` / `clay` / `fluent` / `tui` / `win9x`）——后八套无官方配色可对（材质 / 复古 OS），本就不在"忠实"射程内。
+
+**门槛**：`test:theme-tokens` **204 passed / 0 failed**（与 2-Q 补记之二逐位相同——只改值、不改声明集合）；`test:client` **178 文件 / 1444 用例全过**（含工作区另一条线 sidebar 的在途用例，本片纯 CSS）；`lint` **0 error**（163 warnings，与开工前同）；`typecheck` / `build` exit 0。产物核对：`dist/assets/*.css` 里该令牌解析为 `240 15.38% 10.2%`、旧值 `19191b` 已无残留。
+
+---
+
 #### 2-R 实施记录（2026-10-01，`65f533a2` / `bef544b4` / `5ef1484e`）
 
 **范围**：为缺少浅色终端板的 8 套 `full` 覆盖层主题各追加一条 20 槽浅色板，并补一条"浅色半声明即须完整"的守卫。来源是用户的一次新要求——"目前哪些主题有适配终端的配色？我说的配色包括深色和浅色"。量化后：9 套 `full` 主题里只有 `cc-tokyo-night` 两半齐备（它自己的 day / night 拆分见该片记录），其余 8 套的终端板**只有一块**，声明在各自**无外观限定**的 `[data-theme="x"] {}` 块里，因而浅暗同值。清账后主题线无待拍板、无待办，故同 2-N / 2-O / 2-P / 2-Q，是用户驱动的新增量，切片表顺延编号。

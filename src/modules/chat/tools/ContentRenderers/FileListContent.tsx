@@ -25,7 +25,7 @@ export const FileListContent: React.FC<FileListContentProps> = ({
   return (
     <div>
       {title && (
-        <div className="mb-1 text-[11px] text-n-gray-500 dark:text-n-gray-400">
+        <div className="mb-1 text-[11px] text-muted-foreground">
           {title}
         </div>
       )}

@@ -12,18 +12,18 @@ export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProp
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-n-black/50 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-lg border border-n-gray-200 bg-card shadow-xl dark:border-n-gray-700 dark:bg-n-gray-800">
-        <div className="flex items-center justify-between border-b border-n-gray-200 p-6 dark:border-n-gray-700">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay/50 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-lg border border-border bg-card shadow-xl dark:bg-secondary">
+        <div className="flex items-center justify-between border-b border-border p-6">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/50">
               <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
             </div>
-            <h3 className="text-lg font-semibold text-n-gray-900 dark:text-n-white">Create AI-Generated Task</h3>
+            <h3 className="text-lg font-semibold text-foreground">Create AI-Generated Task</h3>
           </div>
           <button
             onClick={onClose}
-            className="rounded-md p-2 text-n-gray-400 hover:bg-n-gray-100 hover:text-n-gray-600 dark:hover:bg-n-gray-700 dark:hover:text-n-gray-300"
+            className="rounded-md p-2 text-n-gray-400 hover:bg-muted hover:text-foreground"
           >
             <X className="h-5 w-5" />
           </button>
@@ -40,9 +40,9 @@ export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProp
                 <p className="mb-3 text-sm text-blue-800 dark:text-blue-200">
                   Ask for a task in chat with context and requirements. TaskMaster can generate implementation-ready tasks.
                 </p>
-                <div className="rounded border border-blue-200 bg-card p-3 dark:border-blue-700 dark:bg-n-gray-800">
-                  <p className="mb-1 text-xs font-medium text-n-gray-600 dark:text-n-gray-400">Example:</p>
-                  <p className="font-mono text-sm text-n-gray-900 dark:text-n-white">
+                <div className="rounded border border-blue-200 bg-card p-3 dark:border-blue-700 dark:bg-secondary">
+                  <p className="mb-1 text-xs font-medium text-muted-foreground">Example:</p>
+                  <p className="font-mono text-sm text-foreground">
                     Please add a task for profile image uploads and include best-practice research.
                   </p>
                 </div>
@@ -50,7 +50,7 @@ export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProp
             </div>
           </div>
 
-          <div className="border-t border-n-gray-200 pt-4 text-center dark:border-n-gray-700">
+          <div className="border-t border-border pt-4 text-center">
             <a
               href="https://github.com/eyaltoledano/claude-task-master/blob/main/docs/examples.md"
               target="_blank"
@@ -63,7 +63,7 @@ export default function CreateTaskModal({ isOpen, onClose }: CreateTaskModalProp
 
           <button
             onClick={onClose}
-            className="w-full rounded-lg border border-n-gray-300 bg-card px-4 py-2 text-sm font-medium text-n-gray-700 hover:bg-n-gray-50 dark:border-n-gray-600 dark:bg-n-gray-700 dark:text-n-gray-300 dark:hover:bg-n-gray-600"
+            className="w-full rounded-lg border border-input bg-card px-4 py-2 text-sm font-medium text-n-gray-700 hover:bg-muted dark:bg-secondary dark:text-n-gray-300 dark:hover:bg-sunken"
           >
             Got it
           </button>

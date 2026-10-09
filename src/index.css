@@ -221,6 +221,19 @@
     --muted-foreground: var(--palette-sand-500);
     --accent: var(--palette-sand-100);
     --accent-foreground: var(--palette-sand-800);
+    /* The second subdued surface — the step past `--muted`. `muted` /
+       `secondary` / `accent` all land on one step (sand-100 light, ink-850
+       dark), so a surface that sat one step further out in the compatibility
+       ramp (`bg-gray-200 dark:bg-gray-700`) had no token to fold onto without
+       collapsing two levels into one. Light takes sand-200 — the same step
+       `--border` / `--input` use; dark ink-800. */
+    --sunken: var(--palette-sand-200);
+    /* The dim layer a modal / drawer lays over its backdrop. Deliberately the
+       same pure black in both appearances — a scrim does not invert with the
+       theme — but named as a token so an overlay could tint it; none does
+       today. `--palette-black` is the one palette step no theme re-lays, so
+       this reads identical under every theme. */
+    --overlay: var(--palette-black);
     --destructive: var(--palette-danger-500);
     --destructive-foreground: var(--palette-frost-50);
     --border: var(--palette-sand-200);
@@ -234,6 +247,12 @@
        chat surface resolves it as `hsl(var(--code-block-bg) / 0.5)`. */
     --code-block-bg: var(--palette-white);
     --radius: 0.5rem;
+    /* How far the composer's activity tab drops into the input it caps, in
+       pixels. The tab's opaque surface covers the input's top border by this
+       amount, which is what makes the two read as a single outline; a theme
+       whose input border is thicker (or absent) sets it to match, and `0`
+       detaches the tab into a standalone pill. */
+    --activity-tab-overlap: 1px;
 
     /* Nav design tokens */
     --nav-glass-bg: var(--palette-sand-50) / 0.7;
@@ -499,6 +518,10 @@
     --muted-foreground: var(--palette-ink-400);
     --accent: var(--palette-ink-850);
     --accent-foreground: var(--palette-ink-100);
+    --sunken: var(--palette-ink-800);
+    /* Same pure black as light: the scrim stays a scrim in dark mode rather
+       than inverting (see :root). */
+    --overlay: var(--palette-black);
     --destructive: var(--palette-danger-800);
     --destructive-foreground: var(--palette-ink-100);
     --border: var(--palette-ink-850);
@@ -1051,6 +1074,28 @@
 
   .chat-composer-shell {
     contain: layout style;
+    /* The composer is the bottom row of the fixed workspace shell
+       (ProjectWorkspaceShell), which reaches the screen edge because
+       viewport-fit=cover is set. The shell's `bottom` tracks only
+       --keyboard-height, so on a notched device the input's bottom corners
+       fall under the screen's corner radius and home indicator. Lift it clear
+       of that inset — but cancel the lift while the keyboard is up: the
+       keyboard already raises the shell (and --keyboard-height with it), so
+       keeping the inset there would open a gap between input and keyboard. */
+    --chat-composer-safe-bottom: max(0px, env(safe-area-inset-bottom, 0px) - var(--keyboard-height, 0px));
+    padding-bottom: calc(0.5rem + var(--chat-composer-safe-bottom));
+  }
+
+  @media (min-width: 640px) {
+    .chat-composer-shell {
+      padding-bottom: calc(1rem + var(--chat-composer-safe-bottom));
+    }
+  }
+
+  @media (min-width: 768px) {
+    .chat-composer-shell {
+      padding-bottom: calc(1.5rem + var(--chat-composer-safe-bottom));
+    }
   }
 
   .chat-activity-enter {
@@ -1157,10 +1202,10 @@
         opacity: 1 !important;
       }
       
-      .hover\:bg-n-gray-50:hover,
-      .hover\:bg-n-gray-100:hover,
+      /* Only the live status-colour hovers remain — the `--n-gray-*` members of
+         this neutralizer were retired with the neutral-colour rename (their
+         consumers folded onto L2 tokens), so those rules match nothing. */
       .hover\:bg-red-200:hover,
-      .dark\:hover\:bg-n-gray-700:hover,
       .dark\:hover\:bg-red-900\/50:hover {
         background-color: inherit;
       }
@@ -3472,7 +3517,7 @@
 [data-theme="cc-tokyo-night"] {
   /* Dark appearance, substrate: page → card → secondary → input. */
   --palette-ink-950: 235 18.75% 12.55%;
-  --palette-ink-900: 240 3.94% 10.2%;
+  --palette-ink-900: 240 15.38% 10.2%;
   --palette-ink-850: 228 23.36% 20.98%;
   --palette-ink-800: 228.95 24.36% 30.59%;
 

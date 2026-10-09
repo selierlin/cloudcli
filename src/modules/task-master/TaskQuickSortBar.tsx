@@ -30,7 +30,7 @@ export default function TaskQuickSortBar({ sortField, sortOrder, onSortChange }:
           'flex items-center gap-1 px-3 py-1.5 rounded-md text-sm',
           sortField === 'id'
             ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
-            : 'bg-n-gray-100 dark:bg-n-gray-800 text-n-gray-600 dark:text-n-gray-400 hover:bg-n-gray-200 dark:hover:bg-n-gray-700',
+            : 'bg-secondary text-muted-foreground hover:bg-secondary/80',
         )}
       >
         {t('sort.id')} {getSortIcon('id', sortField, sortOrder)}
@@ -42,7 +42,7 @@ export default function TaskQuickSortBar({ sortField, sortOrder, onSortChange }:
           'flex items-center gap-1 px-3 py-1.5 rounded-md text-sm',
           sortField === 'status'
             ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
-            : 'bg-n-gray-100 dark:bg-n-gray-800 text-n-gray-600 dark:text-n-gray-400 hover:bg-n-gray-200 dark:hover:bg-n-gray-700',
+            : 'bg-secondary text-muted-foreground hover:bg-secondary/80',
         )}
       >
         {t('sort.status')} {getSortIcon('status', sortField, sortOrder)}
@@ -54,7 +54,7 @@ export default function TaskQuickSortBar({ sortField, sortOrder, onSortChange }:
           'flex items-center gap-1 px-3 py-1.5 rounded-md text-sm',
           sortField === 'priority'
             ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
-            : 'bg-n-gray-100 dark:bg-n-gray-800 text-n-gray-600 dark:text-n-gray-400 hover:bg-n-gray-200 dark:hover:bg-n-gray-700',
+            : 'bg-secondary text-muted-foreground hover:bg-secondary/80',
         )}
       >
         {t('sort.priority')} {getSortIcon('priority', sortField, sortOrder)}

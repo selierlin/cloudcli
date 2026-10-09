@@ -303,7 +303,7 @@ export default function FileTree({ selectedProject, onFileOpen, revealDirectory 
 
       {/* Delete Confirmation Dialog */}
       {operations.deleteConfirmation.isOpen && operations.deleteConfirmation.item && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-n-black/50">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-overlay/50">
           <div className="mx-4 max-w-sm rounded-lg border border-border bg-background p-4 shadow-lg">
             <div className="mb-4 flex items-center gap-3">
               <div className="rounded-full bg-red-100 p-2 dark:bg-red-900/30">

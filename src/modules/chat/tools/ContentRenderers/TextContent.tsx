@@ -28,7 +28,7 @@ export const TextContent: React.FC<TextContentProps> = ({
     }
 
     return (
-      <pre className={`mt-1 overflow-x-auto rounded bg-n-gray-900 p-2.5 font-mono text-xs text-n-gray-100 dark:bg-n-gray-950 ${className}`}>
+      <pre className={`mt-1 overflow-x-auto rounded bg-code-block p-2.5 font-mono text-xs text-foreground ${className}`}>
         {formattedJson}
       </pre>
     );
@@ -36,7 +36,7 @@ export const TextContent: React.FC<TextContentProps> = ({
 
   if (format === 'code') {
     return (
-      <pre className={`mt-1 overflow-hidden whitespace-pre-wrap break-words rounded border border-n-gray-200/50 bg-n-gray-50 p-2 font-mono text-xs text-n-gray-700 dark:border-n-gray-700/50 dark:bg-n-gray-800/50 dark:text-n-gray-300 ${className}`}>
+      <pre className={`mt-1 overflow-hidden whitespace-pre-wrap break-words rounded border border-border/50 bg-muted p-2 font-mono text-xs text-n-gray-700 dark:bg-muted/50 dark:text-n-gray-300 ${className}`}>
         {content}
       </pre>
     );

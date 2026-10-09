@@ -33,22 +33,22 @@ export default function TaskMasterSetupModal({ isOpen, project, onClose, onAfter
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-n-black/50 p-4 pt-16 backdrop-blur-sm">
-      <div className="flex h-[600px] w-full max-w-4xl flex-col rounded-lg border border-n-gray-200 bg-card shadow-xl dark:border-n-gray-700 dark:bg-n-gray-900">
-        <div className="flex items-center justify-between border-b border-n-gray-200 p-4 dark:border-n-gray-700">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-overlay/50 p-4 pt-16 backdrop-blur-sm">
+      <div className="flex h-[600px] w-full max-w-4xl flex-col rounded-lg border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border p-4">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/50">
               <Terminal className="h-4 w-4 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-n-gray-900 dark:text-n-white">{t('setupModal.title')}</h2>
-              <p className="text-sm text-n-gray-500 dark:text-n-gray-400">{t('setupModal.subtitle', { projectName: project.displayName })}</p>
+              <h2 className="text-lg font-semibold text-foreground">{t('setupModal.title')}</h2>
+              <p className="text-sm text-muted-foreground">{t('setupModal.subtitle', { projectName: project.displayName })}</p>
             </div>
           </div>
 
           <button
             onClick={closeModal}
-            className="rounded-md p-2 text-n-gray-400 hover:bg-n-gray-100 hover:text-n-gray-600 dark:hover:bg-n-gray-800 dark:hover:text-n-gray-300"
+            className="rounded-md p-2 text-n-gray-400 hover:bg-muted hover:text-foreground"
             title="Close"
           >
             <Plus className="h-5 w-5 rotate-45" />
@@ -72,9 +72,9 @@ export default function TaskMasterSetupModal({ isOpen, project, onClose, onAfter
           </div>
         </div>
 
-        <div className="border-t border-n-gray-200 bg-n-gray-50 p-4 dark:border-n-gray-700 dark:bg-n-gray-800/50">
+        <div className="border-t border-border bg-muted p-4 dark:bg-muted/50">
           <div className="flex items-center justify-between">
-            <div className="text-sm text-n-gray-600 dark:text-n-gray-400">
+            <div className="text-sm text-muted-foreground">
               {isTaskMasterComplete ? (
                 <span className="flex items-center gap-2 text-green-600 dark:text-green-400">
                   <span className="h-2 w-2 rounded-full bg-green-500" />
@@ -91,7 +91,7 @@ export default function TaskMasterSetupModal({ isOpen, project, onClose, onAfter
                 'px-4 py-2 text-sm font-medium rounded-md transition-colors',
                 isTaskMasterComplete
                   ? 'bg-green-600 hover:bg-green-700 text-n-white'
-                  : 'text-n-gray-700 dark:text-n-gray-300 bg-card dark:bg-n-gray-700 border border-n-gray-300 dark:border-n-gray-600 hover:bg-n-gray-50 dark:hover:bg-n-gray-600',
+                  : 'text-n-gray-700 dark:text-n-gray-300 bg-card dark:bg-secondary border border-input hover:bg-muted dark:hover:bg-sunken',
               )}
             >
               {isTaskMasterComplete ? t('setupModal.closeContinueButton') : t('setupModal.closeButton')}

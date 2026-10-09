@@ -50,22 +50,22 @@ export default function TaskHelpModal({ isOpen, onClose, onCreatePrd }: TaskHelp
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-n-black/50 p-4 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-lg border border-n-gray-200 bg-card shadow-xl dark:border-n-gray-700 dark:bg-n-gray-900">
-        <div className="flex items-center justify-between border-b border-n-gray-200 p-6 dark:border-n-gray-700">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay/50 p-4 backdrop-blur-sm">
+      <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-lg border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border p-6">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/50">
               <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-n-gray-900 dark:text-n-white">{t('helpGuide.title')}</h2>
-              <p className="text-sm text-n-gray-600 dark:text-n-gray-400">{t('helpGuide.subtitle')}</p>
+              <h2 className="text-xl font-semibold text-foreground">{t('helpGuide.title')}</h2>
+              <p className="text-sm text-muted-foreground">{t('helpGuide.subtitle')}</p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="rounded-lg p-2 text-n-gray-400 hover:bg-n-gray-100 hover:text-n-gray-600 dark:hover:bg-n-gray-700 dark:hover:text-n-gray-300"
+            className="rounded-lg p-2 text-n-gray-400 hover:bg-muted hover:text-foreground"
             title="Close"
           >
             <X className="h-5 w-5" />
@@ -80,7 +80,7 @@ export default function TaskHelpModal({ isOpen, onClose, onCreatePrd }: TaskHelp
                   {step.index}
                 </div>
                 <div>
-                  <h4 className="mb-2 font-medium text-n-gray-900 dark:text-n-white">{step.title}</h4>
+                  <h4 className="mb-2 font-medium text-foreground">{step.title}</h4>
                   <p className="text-sm text-n-gray-700 dark:text-n-gray-300">{step.description}</p>
 
                   {step.index === 1 && (
@@ -100,9 +100,9 @@ export default function TaskHelpModal({ isOpen, onClose, onCreatePrd }: TaskHelp
             </div>
           ))}
 
-          <div className="rounded-lg border border-n-gray-200 bg-n-gray-50 p-4 dark:border-n-gray-700 dark:bg-n-gray-800/50">
-            <h4 className="mb-2 font-medium text-n-gray-900 dark:text-n-white">{t('helpGuide.proTips.title')}</h4>
-            <ul className="space-y-2 text-sm text-n-gray-600 dark:text-n-gray-400">
+          <div className="rounded-lg border border-border bg-muted p-4 dark:bg-muted/50">
+            <h4 className="mb-2 font-medium text-foreground">{t('helpGuide.proTips.title')}</h4>
+            <ul className="space-y-2 text-sm text-muted-foreground">
               <li>{t('helpGuide.proTips.search')}</li>
               <li>{t('helpGuide.proTips.views')}</li>
               <li>{t('helpGuide.proTips.filters')}</li>

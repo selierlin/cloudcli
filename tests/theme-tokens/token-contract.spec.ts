@@ -198,9 +198,11 @@ test('no colour token holds a literal value outside the palette, the editor boar
  *     retired the literal gray atoms and left these selectors dead for the
  *     whole user-theme line until the review caught it — this guard is what
  *     makes a future rename turn red instead of silently detaching the rules
- *     again (§5.8 v8).
+ *     again (§5.8 v8). The neutral-colour rename later did the same to the
+ *     `--n-gray-*` members of the block, so the guard now pins the live
+ *     status-colour members and forbids the retired gray ones from returning.
  */
-test('touch-hover is variant-gated, and the leftover neutralizers reference the compatibility scale, not retired atoms', () => {
+test('touch-hover is variant-gated, and the leftover neutralizers reference only live classes', () => {
   const css = readStylesheet();
 
   const retired = css.match(
@@ -217,11 +219,17 @@ test('touch-hover is variant-gated, and the leftover neutralizers reference the 
   );
   expect(config).toMatch(/hoverOnlyWhenSupported:\s*true/);
 
-  // Anti-embers: the remaining touch block must still name the live classes,
-  // or the block could go quietly empty while this test stays green.
-  expect(css).toMatch(/\.hover\\:bg-n-gray-50:hover/);
-  expect(css).toMatch(/\.hover\\:bg-n-gray-100:hover/);
-  expect(css).toMatch(/\.dark\\:hover\\:bg-n-gray-700:hover/);
+  // Anti-embers: the remaining touch block must still name the *live* classes,
+  // or the block could go quietly empty while this test stays green. The live
+  // members are the status-colour hovers. The `--n-gray-*` members were retired
+  // with the neutral-colour rename (their consumers folded onto L2 tokens), so
+  // a raw `bg-n-gray-*` hover selector here is now a dead rule and must not
+  // reappear.
+  expect(css).toMatch(/\.hover\\:bg-red-200:hover/);
+  expect(css).toMatch(/\.dark\\:hover\\:bg-red-900\\\/50:hover/);
+  expect(css).not.toMatch(/\.hover\\:bg-n-gray-50:hover/);
+  expect(css).not.toMatch(/\.hover\\:bg-n-gray-100:hover/);
+  expect(css).not.toMatch(/\.dark\\:hover\\:bg-n-gray-700:hover/);
 
   // The deleted blunt neutralizer must not come back: it wiped the base
   // background of self-tinted buttons (e.g. the sticky header's bg-n-white/*)

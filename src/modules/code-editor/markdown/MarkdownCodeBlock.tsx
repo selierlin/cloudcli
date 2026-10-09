@@ -27,7 +27,7 @@ export default function MarkdownCodeBlock({
   if (shouldRenderInline) {
     return (
       <code
-        className={`whitespace-pre-wrap break-words rounded-md border border-n-gray-200 bg-n-gray-100 px-1.5 py-0.5 font-mono text-[0.9em] text-n-gray-900 dark:border-n-gray-700 dark:bg-n-gray-800/60 dark:text-n-gray-100 ${className || ''}`}
+        className={`whitespace-pre-wrap break-words rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground dark:bg-muted/60 ${className || ''}`}
         {...props}
       >
         {children}

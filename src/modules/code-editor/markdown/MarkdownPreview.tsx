@@ -21,7 +21,7 @@ const markdownPreviewComponents: Components = {
   // second Typography-styled <pre> shell from framing it.
   pre: ({ children }) => <>{children}</>,
   blockquote: ({ children }) => (
-    <blockquote className="my-2 border-l-4 border-n-gray-300 pl-4 italic text-n-gray-600 dark:border-n-gray-600 dark:text-n-gray-400">
+    <blockquote className="my-2 border-l-4 border-input pl-4 italic text-muted-foreground">
       {children}
     </blockquote>
   ),
@@ -32,15 +32,15 @@ const markdownPreviewComponents: Components = {
   ),
   table: ({ children }) => (
     <div className="my-2 overflow-x-auto">
-      <table className="min-w-full border-collapse border border-n-gray-200 dark:border-n-gray-700">{children}</table>
+      <table className="min-w-full border-collapse border border-border">{children}</table>
     </div>
   ),
-  thead: ({ children }) => <thead className="bg-n-gray-50 dark:bg-n-gray-800">{children}</thead>,
+  thead: ({ children }) => <thead className="bg-muted">{children}</thead>,
   th: ({ children }) => (
-    <th className="border border-n-gray-200 px-3 py-2 text-left text-sm font-semibold dark:border-n-gray-700">{children}</th>
+    <th className="border border-border px-3 py-2 text-left text-sm font-semibold">{children}</th>
   ),
   td: ({ children }) => (
-    <td className="border border-n-gray-200 px-3 py-2 align-top text-sm dark:border-n-gray-700">{children}</td>
+    <td className="border border-border px-3 py-2 align-top text-sm">{children}</td>
   ),
 };
 

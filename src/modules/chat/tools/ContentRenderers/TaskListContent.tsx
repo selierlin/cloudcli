@@ -99,7 +99,7 @@ const statusConfig = {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
-    textClass: 'text-n-gray-900 dark:text-n-gray-100',
+    textClass: 'text-foreground',
     badgeClass: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
   },
   pending: {
@@ -109,7 +109,7 @@ const statusConfig = {
       </svg>
     ),
     textClass: 'text-n-gray-700 dark:text-n-gray-300',
-    badgeClass: 'bg-n-gray-100 dark:bg-n-gray-800 text-n-gray-600 dark:text-n-gray-400 border-n-gray-200 dark:border-n-gray-700'
+    badgeClass: 'bg-muted text-muted-foreground border-border'
   }
 };
 
@@ -126,7 +126,7 @@ export const TaskListContent: React.FC<TaskListContentProps> = ({ content }) => 
   // Nothing parsed: fall back to the payload verbatim, exactly as before.
   if (tasks.length === 0) {
     return (
-      <pre className="whitespace-pre-wrap font-mono text-[11px] text-n-gray-600 dark:text-n-gray-400">
+      <pre className="whitespace-pre-wrap font-mono text-[11px] text-muted-foreground">
         {content}
       </pre>
     );
@@ -138,10 +138,10 @@ export const TaskListContent: React.FC<TaskListContentProps> = ({ content }) => 
   return (
     <div>
       <div className="mb-1.5 flex items-center gap-2">
-        <span className="text-[11px] text-n-gray-500 dark:text-n-gray-400">
+        <span className="text-[11px] text-muted-foreground">
           {completed}/{total} completed
         </span>
-        <div className="h-1 flex-1 overflow-hidden rounded-full bg-n-gray-200 dark:bg-n-gray-700">
+        <div className="h-1 flex-1 overflow-hidden rounded-full bg-sunken">
           <div
             className="h-full rounded-full bg-green-500 transition-all dark:bg-green-400"
             style={{ width: `${total > 0 ? (completed / total) * 100 : 0}%` }}
@@ -153,7 +153,7 @@ export const TaskListContent: React.FC<TaskListContentProps> = ({ content }) => 
           return (
             <pre
               key={`text-${index}`}
-              className="whitespace-pre-wrap font-mono text-[11px] text-n-gray-600 dark:text-n-gray-400"
+              className="whitespace-pre-wrap font-mono text-[11px] text-muted-foreground"
             >
               {segment.lines.join('\n')}
             </pre>

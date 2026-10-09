@@ -115,7 +115,7 @@ export default function ConfirmActionModal({ action, onCancel, onConfirm }: Conf
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-n-black/60 backdrop-blur-sm" onClick={handleCancel} />
+      <div className="fixed inset-0 bg-overlay/60 backdrop-blur-sm" onClick={handleCancel} />
       {/*
         Capped to the viewport with only the message scrolling, so a long body
         (a multi-paragraph commit message, a long file list) can never push the

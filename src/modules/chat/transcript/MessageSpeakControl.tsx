@@ -32,7 +32,7 @@ const MessageSpeakControl = ({ content }: { content: string }) => {
         onClick={toggle}
         title={title}
         aria-label={title}
-        className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-n-gray-400 transition-colors hover:text-n-gray-600 dark:text-n-gray-500 dark:hover:text-n-gray-300"
+        className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-n-gray-400 transition-colors hover:text-foreground dark:text-n-gray-500"
       >
         {state === 'playing' ? (
           <Square className="h-3.5 w-3.5" />
