@@ -187,6 +187,23 @@ export interface IProviderSkills {
 export interface IProviderMcp {
   listServers(options?: { workspacePath?: string }): Promise<Record<McpScope, ProviderMcpServer[]>>;
   listServersForScope(scope: McpScope, options?: { workspacePath?: string }): Promise<ProviderMcpServer[]>;
+  /**
+   * Reads one scope as persisted, without the response redaction
+   * `listServersForScope` applies.
+   *
+   * The app-side catalog stores what this returns: reading through the redacted
+   * path would persist `<redacted>` placeholders, which a later projection would
+   * then write literally into a harness file and destroy the credential.
+   */
+  listRawServersForScope(scope: McpScope, options?: { workspacePath?: string }): Promise<ProviderMcpServer[]>;
+  /**
+   * Scopes this adapter persists writes into.
+   *
+   * Harness-managed adapters whose `writeScopedServers` throws report none, even
+   * when they can still read a scope. The catalog seeder skips them so it never
+   * stores a row that no toggle or delete could clear.
+   */
+  listWritableScopes(): McpScope[];
   upsertServer(input: UpsertProviderMcpServerInput): Promise<ProviderMcpServer>;
   removeServer(
     input: { name: string; scope?: McpScope; workspacePath?: string },

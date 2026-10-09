@@ -25,6 +25,8 @@ type AgentCategoryContentSectionProps = {
   dshPermissionMode: DshPermissionMode;
   onDshPermissionModeChange: (value: DshPermissionMode) => void;
   projects: AgentSettingsProject[];
+  /** Opens the MCP matrix tab, which is where user-scope MCP servers are edited now. */
+  onOpenMcpMatrix?: () => void;
 };
 
 /** Rendered by AgentsSettingsTab to show the panel for the selected provider and category. */
@@ -47,6 +49,7 @@ export default function AgentCategoryContentSection({
   dshPermissionMode,
   onDshPermissionModeChange,
   projects,
+  onOpenMcpMatrix,
 }: AgentCategoryContentSectionProps) {
   return (
     <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-4">
@@ -151,6 +154,7 @@ export default function AgentCategoryContentSection({
             fullPath: project.fullPath,
             path: project.path,
           }))}
+          onOpenMcpMatrix={onOpenMcpMatrix}
         />
       )}
 

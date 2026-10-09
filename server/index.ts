@@ -14,6 +14,7 @@ import type { LLMProvider } from '@/shared/types.js';
 import {
     closeSessionsWatcher,
     initializeSessionsWatcher,
+    mcpCatalogService,
     providerRuntimeService,
 } from '@/modules/providers/index.js';
 import { chatRunRegistry, createWebSocketServer } from '@/modules/websocket/index.js';
@@ -385,6 +386,21 @@ async function startServer() {
     try {
         // Initialize authentication database
         await initializeDatabase();
+
+        // Seed the app-side MCP catalog from the harnesses' existing user-scope
+        // servers. The service guards this with an app_config flag, so it runs
+        // once ever; a failure only skips this boot's seed.
+        try {
+            const seeded = await mcpCatalogService.seedCatalogOnce();
+            if (seeded.conflicts.length > 0) {
+                console.warn(
+                    '[WARN] MCP catalog seed found conflicting definitions for:',
+                    seeded.conflicts.join(', '),
+                );
+            }
+        } catch (error) {
+            console.warn('[WARN] Could not seed the MCP catalog:', getErrorMessage(error));
+        }
 
         // Apply the stored global proxy to process.env before any session can
         // spawn, so every harness inherits the same decision.

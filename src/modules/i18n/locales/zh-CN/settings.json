@@ -142,6 +142,7 @@
     "quickReplies": "快捷回复",
     "tasks": "任务",
     "browser": "浏览器",
+    "mcp": "MCP",
     "notifications": "通知",
     "plugins": "插件",
     "network": "网络",
@@ -898,6 +899,17 @@
       "hint": "由 CloudCLI 管理。",
       "harnessHint": "由 {{provider}} 自己管理，CloudCLI 只读取并展示。"
     },
+    "sections": {
+      "userScope": "用户作用域",
+      "fileScopes": "项目与本地作用域"
+    },
+    "openMatrix": "在 MCP 矩阵中管理",
+    "userScope": {
+      "managedBadge": "由 MCP 矩阵管理",
+      "managedHint": "在 MCP 矩阵中编辑；此页仅作展示。",
+      "unmanagedBadge": "未纳管（只读）",
+      "unmanagedHint": "在 CloudCLI 之外创建；此页仅作展示。"
+    },
     "help": {
       "title": "关于 Codex MCP",
       "description": "Codex 支持基于 stdio 的 MCP 服务器。您可以添加服务器，通过额外的工具和资源来扩展 Codex 的功能。"
@@ -943,6 +955,63 @@
       "title": "团队 MCP 配置",
       "description": "在您的团队中共享 MCP 服务器配置，每个人自动保持同步。",
       "cta": "CloudCLI Pro 可用"
+    }
+  },
+  "mcpMatrix": {
+    "title": "MCP 服务器",
+    "description": "集中维护 user scope 的 MCP 服务器目录：按智能体逐格开启即写入其配置，关闭即移除。",
+    "loading": "正在加载 MCP 服务器...",
+    "reload": "重新加载",
+    "empty": "还没有 MCP 服务器。新增一个即可在多个智能体间复用。",
+    "searchPlaceholder": "搜索 MCP 服务器",
+    "searchNoResults": "没有匹配的 MCP 服务器。",
+    "addEntry": "新增 MCP 服务器",
+    "resync": "重新同步",
+    "resyncFailed": "部分智能体未能更新 — {{details}}",
+    "serverColumn": "服务器",
+    "actionsColumn": "操作",
+    "bulk": {
+      "menuLabel": "{{provider}} 列操作",
+      "scopeAll": "作用于全部 {{count}} 个服务器",
+      "scopeSearch": "作用于匹配搜索的 {{count}} 个服务器",
+      "enableAll": "全部启用",
+      "disableAll": "全部关闭"
+    },
+    "row": {
+      "menuLabel": "{{name}} 的操作",
+      "edit": "编辑",
+      "enableAll": "对所有智能体启用",
+      "disableAll": "对所有智能体关闭",
+      "delete": "删除",
+      "deleteConfirm": "删除「{{name}}」？它将在所有已启用它的智能体中被移除。",
+      "deleteFailed": "部分智能体拒绝移除 — {{details}}"
+    },
+    "form": {
+      "addTitle": "新增 MCP 服务器",
+      "editTitle": "编辑 MCP 服务器",
+      "description": "在目录中只存一份，随后写入你为它启用的每个智能体的配置。",
+      "submitAdd": "新增服务器",
+      "submitEdit": "保存修改",
+      "droppedColumns": "{{providers}} 不支持新的 transport，已自动关闭。"
+    },
+    "undo": {
+      "enabled_other": "已启用 {{count}} 个服务器",
+      "disabled_other": "已关闭 {{count}} 个服务器",
+      "action": "撤销",
+      "dismiss": "关闭提示"
+    },
+    "cell": {
+      "on": "{{name}} 已为 {{provider}} 启用",
+      "off": "{{name}} 未为 {{provider}} 启用",
+      "fail": "{{name}} 已为 {{provider}} 启用，但配置文件未能更新：{{error}}。点击重试。"
+    },
+    "disabled": {
+      "harnessManaged": "{{provider}} 在 CloudCLI 之外自行配置 MCP 服务器",
+      "noNativeSupport": "{{provider}} 没有内置 MCP 支持",
+      "transport": "{{provider}} 不支持 {{transport}} 传输方式"
+    },
+    "errors": {
+      "unknown": "未知错误"
     }
   },
   "pluginSettings": {

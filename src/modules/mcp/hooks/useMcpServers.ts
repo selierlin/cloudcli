@@ -68,6 +68,31 @@ const mcpServersCache = new Map<string, McpServersCacheEntry>();
 // Settings users often switch between provider tabs repeatedly. A short module
 // cache prevents those tab switches from refetching every project config file.
 
+/**
+ * Drops cached per-harness MCP server lists so their next read hits the config
+ * files again.
+ *
+ * The MCP matrix writes those same files through the app-side catalog and
+ * cannot reach this module-private cache, so without an explicit drop its
+ * writes stay invisible to this hook for the rest of the TTL. Omitting
+ * `provider` clears every harness, for a write that touched more than one file.
+ */
+export const invalidateMcpServersCache = (provider?: McpProvider): void => {
+  if (!provider) {
+    mcpServersCache.clear();
+    return;
+  }
+
+  // Keys are `${provider}:${sortedProjectPaths}`, so one harness owns a prefix
+  // rather than a single key.
+  const prefix = `${provider}:`;
+  for (const key of [...mcpServersCache.keys()]) {
+    if (key.startsWith(prefix)) {
+      mcpServersCache.delete(key);
+    }
+  }
+};
+
 const toResponseJson = async <T>(response: Response): Promise<T> => response.json() as Promise<T>;
 
 const getApiErrorMessage = (payload: unknown, fallback: string): string => {

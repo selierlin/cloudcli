@@ -8,7 +8,7 @@ import test, { mock } from 'node:test';
 
 import express, { type NextFunction, type Request, type Response } from 'express';
 
-import { closeConnection, initializeDatabase, projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { closeConnection, initializeDatabase, mcpServersDb, projectsDb, sessionsDb } from '@/modules/database/index.js';
 import providerRouter from '@/modules/providers/provider.routes.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import type { IProvider } from '@/shared/interfaces.js';
@@ -1173,5 +1173,126 @@ test('the workflow agent route reads an agent\'s timeline and status from its ru
     const missing = await missingResponse.json() as { error: { code: string } };
     assert.equal(missingResponse.status, 404);
     assert.equal(missing.error.code, 'WORKFLOW_AGENT_NOT_FOUND');
+  });
+});
+
+test('MCP catalog routes create, list, and delete an entry addressed by its immutable id', async () => {
+  await withProviderServer(async (baseUrl) => {
+    // A name that would need percent-encoding to survive as a path segment; the
+    // catalog addresses entries by uuid precisely so names never take that trip.
+    const name = '@modelcontextprotocol/server-filesystem';
+    const createResponse = await fetch(`${baseUrl}/api/providers/mcp/catalog`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        transport: 'stdio',
+        config: { command: 'npx', env: { API_KEY: 'super-secret' } },
+      }),
+    });
+    const created = await createResponse.json() as {
+      data: { entry: { id: string; name: string; enabled: Record<string, boolean> }; outcomes: unknown[] };
+    };
+
+    assert.equal(createResponse.status, 201);
+    assert.equal(created.data.entry.name, name);
+    // A create has no enabled harness, so there is nothing to project.
+    assert.deepEqual(created.data.outcomes, []);
+    assert.deepEqual(
+      Object.entries(created.data.entry.enabled).filter(([, value]) => value),
+      [],
+    );
+    // The catalog stores the raw value; redaction belongs to the response layer.
+    assert.equal(
+      mcpServersDb.getCatalogEntry(created.data.entry.id)?.config.env?.API_KEY,
+      'super-secret',
+    );
+
+    const listResponse = await fetch(`${baseUrl}/api/providers/mcp/catalog`);
+    const listed = await listResponse.json() as {
+      data: { entries: Array<{ id: string; name: string; config: { env?: Record<string, string> } }> };
+    };
+    assert.equal(listResponse.status, 200);
+    assert.deepEqual(listed.data.entries.map((entry) => entry.name), [name]);
+    // ...and the response is the one place the secret must not survive.
+    assert.deepEqual(listed.data.entries[0]?.config.env, { API_KEY: '<redacted>' });
+
+    const deleteResponse = await fetch(
+      `${baseUrl}/api/providers/mcp/catalog/${created.data.entry.id}`,
+      { method: 'DELETE' },
+    );
+    const deleted = await deleteResponse.json() as { data: { removed: boolean; outcomes: unknown[] } };
+    assert.equal(deleteResponse.status, 200);
+    assert.equal(deleted.data.removed, true);
+    assert.deepEqual(deleted.data.outcomes, []);
+    assert.equal(mcpServersDb.getCatalogEntry(created.data.entry.id), null);
+  });
+});
+
+test('MCP catalog routes are not shadowed by the per-provider MCP routes', async () => {
+  await withProviderServer(async (baseUrl) => {
+    // Read as `/:provider/mcp/servers` this would be rejected with
+    // UNSUPPORTED_PROVIDER, so a catalog-shaped body proves the right handler won.
+    const listResponse = await fetch(`${baseUrl}/api/providers/mcp/catalog`);
+    const listed = await listResponse.json() as { data?: { entries: unknown[] }; error?: { code: string } };
+    assert.equal(listResponse.status, 200);
+    assert.deepEqual(listed.data?.entries, []);
+
+    // `resync` must also reach its own handler rather than the `:id` route it
+    // shares a prefix with. An empty catalog makes it a no-op.
+    const resyncResponse = await fetch(`${baseUrl}/api/providers/mcp/catalog/resync`, {
+      method: 'POST',
+    });
+    const resynced = await resyncResponse.json() as { data: { outcomes: unknown[] } };
+    assert.equal(resyncResponse.status, 200);
+    assert.deepEqual(resynced.data.outcomes, []);
+  });
+});
+
+test('MCP catalog routes validate their payloads and report unknown entries', async () => {
+  await withProviderServer(async (baseUrl) => {
+    const post = (body: unknown) => fetch(`${baseUrl}/api/providers/mcp/catalog`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const toggle = (id: string, body: unknown) => fetch(
+      `${baseUrl}/api/providers/mcp/catalog/${id}/toggle`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+    );
+
+    const missingName = await post({ transport: 'stdio' });
+    assert.equal(missingName.status, 400);
+    assert.equal(
+      ((await missingName.json()) as { error: { code: string } }).error.code,
+      'MCP_NAME_REQUIRED',
+    );
+
+    const missingTransport = await post({ name: 'filesystem' });
+    assert.equal(missingTransport.status, 400);
+    assert.equal(
+      ((await missingTransport.json()) as { error: { code: string } }).error.code,
+      'MCP_TRANSPORT_REQUIRED',
+    );
+
+    const missingEnabled = await toggle('some-id', { provider: 'claude' });
+    assert.equal(missingEnabled.status, 400);
+    assert.equal(
+      ((await missingEnabled.json()) as { error: { code: string } }).error.code,
+      'INVALID_MCP_CATALOG_TOGGLE',
+    );
+
+    const unknownEntry = await fetch(`${baseUrl}/api/providers/mcp/catalog/unknown-id`, {
+      method: 'DELETE',
+    });
+    assert.equal(unknownEntry.status, 404);
+    assert.equal(
+      ((await unknownEntry.json()) as { error: { code: string } }).error.code,
+      'MCP_CATALOG_ENTRY_NOT_FOUND',
+    );
   });
 });

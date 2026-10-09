@@ -186,6 +186,11 @@ export function ActionMenu({
       tabIndex={-1}
       data-escape-layer
       className={cn(
+        // A portal menu lives in <body> alongside full-screen dialogs, so its
+        // `z-[70]` is a "floating menu" tier that sits *below* a `z-[9999]`
+        // dialog. A menu opened inside such a dialog must raise itself with
+        // `menuClassName` (see MATRIX_MENU_CLASS in McpMatrix) or it renders
+        // behind the dialog and never shows.
         portal ? 'fixed z-[70]' : 'absolute top-full z-50 mt-2',
         'min-w-[220px] rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg',
         'animate-in fade-in-0 zoom-in-95',

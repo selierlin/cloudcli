@@ -25,6 +25,8 @@ type AgentsSettingsTabProps = {
   dshPermissionMode: DshPermissionMode;
   onDshPermissionModeChange: (value: DshPermissionMode) => void;
   projects: AgentSettingsProject[];
+  /** Opens the MCP matrix tab, which is where user-scope MCP servers are edited now. */
+  onOpenMcpMatrix?: () => void;
 };
 
 /** Rendered by Settings for the "agents" tab, hosting per-provider account, permission, MCP and skill settings. */
@@ -46,6 +48,7 @@ export default function AgentsSettingsTab({
   dshPermissionMode,
   onDshPermissionModeChange,
   projects,
+  onOpenMcpMatrix,
 }: AgentsSettingsTabProps) {
   const [selectedAgent, setSelectedAgent] = useState<AgentProvider>('claude');
   const [selectedCategory, setSelectedCategory] = useState<AgentCategory>('account');
@@ -151,6 +154,7 @@ export default function AgentsSettingsTab({
           dshPermissionMode={dshPermissionMode}
           onDshPermissionModeChange={onDshPermissionModeChange}
           projects={projects}
+          onOpenMcpMatrix={onOpenMcpMatrix}
         />
       </div>
     </div>

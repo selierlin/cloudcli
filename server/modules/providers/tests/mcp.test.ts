@@ -7,6 +7,7 @@ import test from 'node:test';
 import TOML from '@iarna/toml';
 
 import { projectsDb } from '@/modules/database/index.js';
+import { ClaudeMcpProvider } from '@/modules/providers/list/claude/claude-mcp.provider.js';
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
 import { AppError } from '@/shared/utils.js';
 
@@ -803,6 +804,38 @@ test('providerMcpService merges WorkBuddy user scope across .mcp.json and mcp.js
       projectsDb.deleteProjectById(registeredProject.project_id);
     }
     restoreWorkbuddyEnv();
+    restoreHomeDir();
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('ClaudeMcpProvider exposes raw values the redacted list hides', { concurrency: false }, async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-mcp-raw-'));
+  const restoreHomeDir = patchHomeDir(tempRoot);
+  try {
+    await fs.writeFile(
+      path.join(tempRoot, '.claude.json'),
+      JSON.stringify({
+        mcpServers: {
+          filesystem: {
+            type: 'stdio', command: 'npx', args: ['-y', 'pkg'], env: { API_KEY: 'super-secret' },
+          },
+        },
+      }),
+      'utf8',
+    );
+    const claude = new ClaudeMcpProvider();
+
+    // The response path redacts secrets for the UI.
+    const redacted = await claude.listServersForScope('user');
+    assert.deepEqual(redacted.map((entry) => entry.env), [{ API_KEY: '<redacted>' }]);
+
+    // The raw path the catalog seeder uses keeps them, so persisting through it
+    // cannot store a placeholder that a later projection would write literally.
+    const raw = await claude.listRawServersForScope('user');
+    assert.deepEqual(raw.map((entry) => entry.name), ['filesystem']);
+    assert.equal(raw[0].env?.API_KEY, 'super-secret');
+  } finally {
     restoreHomeDir();
     await fs.rm(tempRoot, { recursive: true, force: true });
   }

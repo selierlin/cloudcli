@@ -1,5 +1,18 @@
-import { MCP_SUPPORTED_TRANSPORTS, MCP_SUPPORTS_WORKING_DIRECTORY } from '@/shared/constants';
-import type { KeyValueMap, McpFormState, McpProvider, McpScope, McpTransport, UpsertProviderMcpServerPayload } from '@/shared/types';
+import {
+  MCP_CATALOG_FORM_PROVIDER,
+  MCP_GLOBAL_SUPPORTED_TRANSPORTS,
+  MCP_SUPPORTED_TRANSPORTS,
+  MCP_SUPPORTS_WORKING_DIRECTORY,
+} from '@/shared/constants';
+import type {
+  KeyValueMap,
+  McpFormState,
+  McpProvider,
+  McpScope,
+  McpTransport,
+  UpsertMcpCatalogEntryPayload,
+  UpsertProviderMcpServerPayload,
+} from '@/shared/types';
 
 type CreateMcpPayloadOptions = {
   supportedTransports?: McpTransport[];
@@ -173,5 +186,42 @@ export const createMcpPayloadFromForm = (
     envVars: includeProviderSpecificFields ? formData.envVars : undefined,
     bearerTokenEnvVar: includeProviderSpecificFields ? formData.bearerTokenEnvVar.trim() || undefined : undefined,
     envHttpHeaders: includeProviderSpecificFields ? formData.envHttpHeaders : undefined,
+  };
+};
+
+/**
+ * Builds the catalog-entry request body from the shared MCP form.
+ *
+ * The catalog holds one cross-harness definition, so the form is filled in for
+ * the widest field set — {@link MCP_CATALOG_FORM_PROVIDER} — and every field it
+ * can produce is kept, including the ones only some harnesses use. The
+ * placement fields (`scope` / `workspacePath`) are dropped: catalog entries are
+ * always user scope, and a switch decides which harnesses they reach.
+ */
+export const createMcpCatalogEntryPayload = (
+  entryId: string | null,
+  formData: McpFormState,
+): UpsertMcpCatalogEntryPayload => {
+  const payload = createMcpPayloadFromForm(MCP_CATALOG_FORM_PROVIDER, formData, {
+    supportedTransports: MCP_GLOBAL_SUPPORTED_TRANSPORTS,
+    supportsWorkingDirectory: true,
+    includeProviderSpecificFields: true,
+  });
+
+  return {
+    ...(entryId ? { id: entryId } : {}),
+    name: payload.name,
+    transport: payload.transport,
+    config: {
+      command: payload.command,
+      args: payload.args,
+      env: payload.env,
+      cwd: payload.cwd,
+      url: payload.url,
+      headers: payload.headers,
+      envVars: payload.envVars,
+      bearerTokenEnvVar: payload.bearerTokenEnvVar,
+      envHttpHeaders: payload.envHttpHeaders,
+    },
   };
 };

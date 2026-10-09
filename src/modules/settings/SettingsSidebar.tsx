@@ -1,4 +1,4 @@
-import { Bell, Bot, GitBranch, Globe, Info, Key, ListChecks, MessageSquare, Mic, MonitorPlay, Palette, Puzzle, Zap } from 'lucide-react';
+import { Bell, Bot, GitBranch, Globe, Info, Key, ListChecks, MessageSquare, Mic, MonitorPlay, Palette, Puzzle, Server, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { cn } from '@/shared/utils';
@@ -26,6 +26,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'quickReplies', labelKey: 'mainTabs.quickReplies', icon: Zap },
   { id: 'tasks', labelKey: 'mainTabs.tasks', icon: ListChecks },
   { id: 'browser', labelKey: 'mainTabs.browser', icon: MonitorPlay },
+  { id: 'mcp', labelKey: 'mainTabs.mcp', icon: Server },
   { id: 'plugins', labelKey: 'mainTabs.plugins', icon: Puzzle },
   { id: 'network', labelKey: 'mainTabs.network', icon: Globe },
   { id: 'notifications', labelKey: 'mainTabs.notifications', icon: Bell },

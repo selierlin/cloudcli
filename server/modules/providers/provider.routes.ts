@@ -1,6 +1,7 @@
 import compression from 'compression';
 import express, { type Request, type Response } from 'express';
 
+import { mcpCatalogService } from '@/modules/providers/services/mcp-catalog.service.js';
 import { providerAuthService } from '@/modules/providers/services/provider-auth.service.js';
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
@@ -14,13 +15,15 @@ import { sessionsService } from '@/modules/providers/services/sessions.service.j
 import type {
   CustomProviderModelInput,
   LLMProvider,
+  McpCatalogConfig,
   McpScope,
   McpTransport,
   ProviderSkillCreateFile,
   ProviderSkillCreateInput,
+  UpsertMcpCatalogEntryInput,
   UpsertProviderMcpServerInput,
 } from '@/shared/types.js';
-import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
+import { AppError, asyncHandler, createApiSuccessResponse, readObjectRecord } from '@/shared/utils.js';
 
 const router = express.Router();
 const sessionMessagesCompression = compression({ threshold: 1024 });
@@ -157,6 +160,44 @@ const parseMcpTransport = (value: unknown): McpTransport => {
   });
 };
 
+/**
+ * Reads the connection fields shared by the direct MCP routes and the catalog
+ * entry payload. `source` is whichever object carries them: the flat request
+ * body for `/:provider/mcp/servers`, or the nested `config` object for a
+ * catalog entry.
+ */
+const parseMcpConfigFields = (source: Record<string, unknown>): McpCatalogConfig => ({
+  command: readOptionalQueryString(source.command),
+  args: Array.isArray(source.args) ? source.args.filter((entry): entry is string => typeof entry === 'string') : undefined,
+  env: typeof source.env === 'object' && source.env !== null
+    ? Object.fromEntries(
+      Object.entries(source.env as Record<string, unknown>).filter(
+        (entry): entry is [string, string] => typeof entry[1] === 'string',
+      ),
+    )
+    : undefined,
+  cwd: readOptionalQueryString(source.cwd),
+  url: readOptionalQueryString(source.url),
+  headers: typeof source.headers === 'object' && source.headers !== null
+    ? Object.fromEntries(
+      Object.entries(source.headers as Record<string, unknown>).filter(
+        (entry): entry is [string, string] => typeof entry[1] === 'string',
+      ),
+    )
+    : undefined,
+  envVars: Array.isArray(source.envVars)
+    ? source.envVars.filter((entry): entry is string => typeof entry === 'string')
+    : undefined,
+  bearerTokenEnvVar: readOptionalQueryString(source.bearerTokenEnvVar),
+  envHttpHeaders: typeof source.envHttpHeaders === 'object' && source.envHttpHeaders !== null
+    ? Object.fromEntries(
+      Object.entries(source.envHttpHeaders as Record<string, unknown>).filter(
+        (entry): entry is [string, string] => typeof entry[1] === 'string',
+      ),
+    )
+    : undefined,
+});
+
 const parseMcpUpsertPayload = (payload: unknown): UpsertProviderMcpServerInput => {
   if (!payload || typeof payload !== 'object') {
     throw new AppError('Request body must be an object.', {
@@ -183,35 +224,7 @@ const parseMcpUpsertPayload = (payload: unknown): UpsertProviderMcpServerInput =
     transport,
     scope,
     workspacePath,
-    command: readOptionalQueryString(body.command),
-    args: Array.isArray(body.args) ? body.args.filter((entry): entry is string => typeof entry === 'string') : undefined,
-    env: typeof body.env === 'object' && body.env !== null
-      ? Object.fromEntries(
-        Object.entries(body.env as Record<string, unknown>).filter(
-          (entry): entry is [string, string] => typeof entry[1] === 'string',
-        ),
-      )
-      : undefined,
-    cwd: readOptionalQueryString(body.cwd),
-    url: readOptionalQueryString(body.url),
-    headers: typeof body.headers === 'object' && body.headers !== null
-      ? Object.fromEntries(
-        Object.entries(body.headers as Record<string, unknown>).filter(
-          (entry): entry is [string, string] => typeof entry[1] === 'string',
-        ),
-      )
-      : undefined,
-    envVars: Array.isArray(body.envVars)
-      ? body.envVars.filter((entry): entry is string => typeof entry === 'string')
-      : undefined,
-    bearerTokenEnvVar: readOptionalQueryString(body.bearerTokenEnvVar),
-    envHttpHeaders: typeof body.envHttpHeaders === 'object' && body.envHttpHeaders !== null
-      ? Object.fromEntries(
-        Object.entries(body.envHttpHeaders as Record<string, unknown>).filter(
-          (entry): entry is [string, string] => typeof entry[1] === 'string',
-        ),
-      )
-      : undefined,
+    ...parseMcpConfigFields(body),
   };
 };
 
@@ -333,6 +346,58 @@ const parseProvider = (value: unknown): LLMProvider => {
     code: 'UNSUPPORTED_PROVIDER',
     statusCode: 400,
   });
+};
+
+/**
+ * Reads a catalog entry payload: the user-scope connection definition plus the
+ * optional `id` that marks an edit. Catalog entries are always user scope, so
+ * the payload carries no scope, and the per-harness switches are toggled
+ * separately rather than through an edit.
+ */
+const parseMcpCatalogEntryPayload = (payload: unknown): UpsertMcpCatalogEntryInput => {
+  if (!payload || typeof payload !== 'object') {
+    throw new AppError('Request body must be an object.', {
+      code: 'INVALID_REQUEST_BODY',
+      statusCode: 400,
+    });
+  }
+
+  const body = payload as Record<string, unknown>;
+  const name = readOptionalQueryString(body.name);
+  if (!name) {
+    throw new AppError('name is required.', {
+      code: 'MCP_NAME_REQUIRED',
+      statusCode: 400,
+    });
+  }
+
+  const id = readOptionalQueryString(body.id);
+
+  return {
+    ...(id ? { id } : {}),
+    name,
+    transport: parseMcpTransport(body.transport),
+    config: parseMcpConfigFields(readObjectRecord(body.config) ?? {}),
+  };
+};
+
+const parseMcpCatalogTogglePayload = (payload: unknown): { provider: LLMProvider; enabled: boolean } => {
+  if (!payload || typeof payload !== 'object') {
+    throw new AppError('Request body must be an object.', {
+      code: 'INVALID_REQUEST_BODY',
+      statusCode: 400,
+    });
+  }
+
+  const body = payload as Record<string, unknown>;
+  if (typeof body.enabled !== 'boolean') {
+    throw new AppError('enabled must be a boolean.', {
+      code: 'INVALID_MCP_CATALOG_TOGGLE',
+      statusCode: 400,
+    });
+  }
+
+  return { provider: parseProvider(body.provider), enabled: body.enabled };
 };
 
 /** Both fields are optional: an empty body forks the whole conversation. */
@@ -818,6 +883,67 @@ router.post(
     // report a per-provider error instead of failing the whole request.
     const results = await providerMcpService.addMcpServerToAllProviders(payload);
     res.status(201).json(createApiSuccessResponse({ results }));
+  }),
+);
+
+// ----------------- MCP catalog routes (user-scope SSOT / matrix) -----------------
+/**
+ * The catalog is the app-side single source of truth for user-scope MCP
+ * servers; each enabled harness is a projection of one catalog row written
+ * through that harness's own adapter. Entries are addressed by their immutable
+ * `id`, never by `name`: MCP names routinely contain characters (a `/`, for
+ * example, in `@modelcontextprotocol/server-filesystem`) that cannot survive as
+ * a path segment.
+ *
+ * `resync` is registered before the `:id` routes even though Express cannot
+ * confuse a three-segment literal path with a four-segment parameterised one —
+ * this route file has been bitten by ordering before, so the intent is pinned
+ * by a test as well.
+ */
+router.post(
+  '/mcp/catalog/resync',
+  asyncHandler(async (_req: Request, res: Response) => {
+    const outcomes = await mcpCatalogService.resyncCatalogToProviders();
+    res.json(createApiSuccessResponse({ outcomes }));
+  }),
+);
+
+router.get(
+  '/mcp/catalog',
+  asyncHandler(async (_req: Request, res: Response) => {
+    res.json(createApiSuccessResponse({ entries: mcpCatalogService.listCatalog() }));
+  }),
+);
+
+router.post(
+  '/mcp/catalog',
+  asyncHandler(async (req: Request, res: Response) => {
+    const payload = parseMcpCatalogEntryPayload(req.body);
+    const result = await mcpCatalogService.upsertCatalogEntry(payload);
+    res.status(201).json(createApiSuccessResponse(result));
+  }),
+);
+
+router.delete(
+  '/mcp/catalog/:id',
+  asyncHandler(async (req: Request, res: Response) => {
+    const result = await mcpCatalogService.deleteCatalogEntry(
+      readPathParam(req.params.id, 'id'),
+    );
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
+router.post(
+  '/mcp/catalog/:id/toggle',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { provider, enabled } = parseMcpCatalogTogglePayload(req.body);
+    const result = await mcpCatalogService.toggleCatalogApp(
+      readPathParam(req.params.id, 'id'),
+      provider,
+      enabled,
+    );
+    res.json(createApiSuccessResponse(result));
   }),
 );
 

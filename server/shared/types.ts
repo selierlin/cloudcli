@@ -946,6 +946,71 @@ export type UpsertProviderMcpServerInput = {
   envHttpHeaders?: Record<string, string>;
 };
 
+/**
+ * Connection definition of one app-side catalog MCP server.
+ *
+ * It is exactly a `ProviderMcpServer` without the fields the catalog stores
+ * separately: `provider`/`scope` never apply (the catalog is user-scope only),
+ * `name` is its own column, and `transport` has its own column so the value is
+ * not kept in two places. Provider adapters translate this shape into their
+ * native config at projection time.
+ */
+export type McpCatalogConfig = Omit<
+  ProviderMcpServer,
+  'provider' | 'scope' | 'name' | 'transport'
+>;
+
+/**
+ * One row of the app-side MCP catalog, exposed to routes and the frontend.
+ *
+ * `id` is the immutable route identity; `name` is the file key inside each
+ * harness. `enabled` records, per harness, whether this definition should be
+ * projected into that harness's user-scope config.
+ */
+export type McpCatalogEntry = {
+  id: string;
+  name: string;
+  transport: McpTransport;
+  config: McpCatalogConfig;
+  enabled: Record<LLMProvider, boolean>;
+  /** SQLite CURRENT_TIMESTAMP strings (`YYYY-MM-DD HH:MM:SS`, UTC). */
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * Payload for creating or updating a catalog entry.
+ *
+ * Omit `id` to create a new entry (one is generated); pass an existing `id` to
+ * update that row. Per-harness switches are intentionally not part of this
+ * payload — they are toggled separately so an edit never silently changes what
+ * is projected.
+ */
+export type UpsertMcpCatalogEntryInput = {
+  id?: string;
+  name: string;
+  transport: McpTransport;
+  config: McpCatalogConfig;
+};
+
+/**
+ * Result of one projection attempt against one harness.
+ *
+ * The catalog row is the commit point: it is written first, then each enabled
+ * harness is written best-effort. A harness that rejects the write (unsupported
+ * scope/transport, an unreadable config, a harness that refuses app-managed
+ * writes) is reported here as `ok: false` instead of failing the whole request,
+ * so the matrix can render it as a retryable failed cell.
+ */
+export type McpCatalogProjectionOutcome = {
+  provider: LLMProvider;
+  /** Which write was attempted last for this harness. */
+  action: 'upsert' | 'remove';
+  ok: boolean;
+  /** Present only when `ok` is false. */
+  error?: string;
+};
+
 // ---------------------------
 //----------------- PROVIDER AUTH TYPES ------------
 /**

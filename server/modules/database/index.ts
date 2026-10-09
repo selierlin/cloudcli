@@ -6,6 +6,8 @@ export { credentialsDb } from '@/modules/database/repositories/credentials.js';
 export { githubTokensDb } from '@/modules/database/repositories/github-tokens.js';
 export { notificationChannelEndpointsDb } from '@/modules/database/repositories/notification-channel-endpoints.js';
 export { notificationPreferencesDb } from '@/modules/database/repositories/notification-preferences.js';
+// mcpServersDb: used by Providers to persist the app-side user-scope MCP catalog.
+export { mcpServersDb } from '@/modules/database/repositories/mcp-servers.db.js';
 // providerModelsDb: used by Providers to persist user-managed custom model rows.
 export { providerModelsDb } from '@/modules/database/repositories/provider-models.js';
 // projectsDb: used by Projects, Worktrees, Git, WebSocket, and notification modules to persist and resolve project records.

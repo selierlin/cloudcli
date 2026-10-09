@@ -142,6 +142,7 @@
     "quickReplies": "Quick Replies",
     "tasks": "Tasks",
     "browser": "Browser",
+    "mcp": "MCP",
     "notifications": "Notifications",
     "plugins": "Plugins",
     "network": "Network",
@@ -915,6 +916,17 @@
       "hint": "Managed by CloudCLI.",
       "harnessHint": "Managed by {{provider}} itself; CloudCLI only reads it."
     },
+    "sections": {
+      "userScope": "User scope",
+      "fileScopes": "Project & local scope"
+    },
+    "openMatrix": "Manage in the MCP matrix",
+    "userScope": {
+      "managedBadge": "Managed by MCP matrix",
+      "managedHint": "Edit it in the MCP matrix; this page only lists it.",
+      "unmanagedBadge": "Not in the matrix (read-only)",
+      "unmanagedHint": "Created outside CloudCLI; this page only lists it."
+    },
     "help": {
       "title": "About Codex MCP",
       "description": "Codex supports stdio-based MCP servers. You can add servers that extend Codex's capabilities with additional tools and resources."
@@ -960,6 +972,65 @@
       "title": "Team MCP Configs",
       "description": "Share MCP server configurations across your team. Everyone stays in sync automatically.",
       "cta": "Available with CloudCLI Pro"
+    }
+  },
+  "mcpMatrix": {
+    "title": "MCP Servers",
+    "description": "One catalog of user-scope MCP servers. Enable a server per agent to write it into that agent's config, or turn it off to remove it.",
+    "loading": "Loading MCP servers...",
+    "reload": "Reload",
+    "empty": "No MCP servers yet. Add one to reuse it across agents.",
+    "searchPlaceholder": "Search MCP servers",
+    "searchNoResults": "No MCP servers match your search.",
+    "addEntry": "Add MCP server",
+    "resync": "Resync",
+    "resyncFailed": "Some agents could not be updated — {{details}}",
+    "serverColumn": "Server",
+    "actionsColumn": "Actions",
+    "bulk": {
+      "menuLabel": "{{provider}} column actions",
+      "scopeAll": "Applies to all {{count}} servers",
+      "scopeSearch": "Applies to the {{count}} servers matching your search",
+      "enableAll": "Enable all",
+      "disableAll": "Disable all"
+    },
+    "row": {
+      "menuLabel": "{{name}} actions",
+      "edit": "Edit",
+      "enableAll": "Enable for every agent",
+      "disableAll": "Disable for every agent",
+      "delete": "Delete",
+      "deleteConfirm": "Delete \"{{name}}\"? It will be removed from every agent that has it enabled.",
+      "deleteFailed": "Some agents refused the removal — {{details}}"
+    },
+    "form": {
+      "addTitle": "Add MCP server",
+      "editTitle": "Edit MCP server",
+      "description": "Stored once in the catalog, then written into the config of every agent you enable it for.",
+      "submitAdd": "Add server",
+      "submitEdit": "Save changes",
+      "droppedColumns": "{{providers}} cannot use the new transport, so they were turned off."
+    },
+    "undo": {
+      "enabled_one": "Enabled {{count}} server",
+      "enabled_other": "Enabled {{count}} servers",
+      "disabled_one": "Disabled {{count}} server",
+      "disabled_other": "Disabled {{count}} servers",
+      "action": "Undo",
+      "dismiss": "Dismiss"
+    },
+    "cell": {
+      "on": "{{name}} is enabled for {{provider}}",
+      "off": "{{name}} is not enabled for {{provider}}",
+      "fail": "{{name}} is enabled for {{provider}}, but its config file was not updated: {{error}}. Click to retry."
+    },
+    "disabled": {
+      "harnessManaged": "{{provider}} configures its own MCP servers outside CloudCLI",
+      "noNativeSupport": "{{provider}} has no built-in MCP support",
+      "transport": "{{provider}} does not support the {{transport}} transport"
+    },
+    "errors": {
+      "unknown": "Unknown error"
     }
   },
   "pluginSettings": {

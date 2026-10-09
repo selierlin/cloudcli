@@ -3,6 +3,7 @@ import { Database } from 'better-sqlite3';
 import {
   APP_CONFIG_TABLE_SCHEMA_SQL,
   LAST_SCANNED_AT_SQL,
+  MCP_SERVERS_TABLE_SCHEMA_SQL,
   NOTIFICATION_CHANNEL_ENDPOINTS_TABLE_SCHEMA_SQL,
   PROJECTS_TABLE_SCHEMA_SQL,
   PROVIDER_MODELS_TABLE_SCHEMA_SQL,
@@ -613,6 +614,7 @@ export const runMigrations = (db: Database) => {
       CREATE INDEX IF NOT EXISTS idx_provider_models_provider_order
       ON provider_models(provider, sort_order, id)
     `);
+    db.exec(MCP_SERVERS_TABLE_SCHEMA_SQL);
     db.exec(USER_PREFERENCES_TABLE_SCHEMA_SQL);
     db.exec(SESSION_DRAFTS_TABLE_SCHEMA_SQL);
     db.exec(SUPERSEDED_PROVIDER_SESSIONS_TABLE_SCHEMA_SQL);

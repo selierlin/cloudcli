@@ -7,7 +7,12 @@ import { test, vi } from 'vitest';
  * A harness-managed provider (DSH) reports the MCP servers its own harness
  * loads, but every write is rejected. These tests pin the two halves of that:
  * the rows and their connection details are shown, and the edit and delete
- * actions are not offered, unlike for a provider the app can write.
+ * actions are not offered.
+ *
+ * The second test covers the sibling case: a provider the app *can* write still
+ * shows its user-scope rows read-only, because that scope now belongs to the
+ * MCP matrix. What stays editable there is the file-native project/local scope,
+ * which the scope-section tests cover.
  *
  * The fake `t` returns keys, so the assertions stay independent of locale files.
  */
@@ -21,7 +26,21 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/shared/api', () => ({
-  api: { providers: { mcpServers: (...args: unknown[]) => mocks.mcpServers(...args) } },
+  api: {
+    providers: {
+      mcpServers: (...args: unknown[]) => mocks.mcpServers(...args),
+      // The page also reads the MCP catalog to tell matrix-managed rows from
+      // file-only ones; these tests are about the file rows, so it stays empty.
+      mcpCatalog: async () => ({ ok: true, json: async () => ({ success: true, data: { entries: [] } }) }),
+    },
+  },
+  readApiJson: async (response: { ok: boolean; json: () => Promise<{ success: boolean }> }) => {
+    const payload = await response.json();
+    if (!response.ok || payload.success === false) {
+      throw new Error('request failed');
+    }
+    return payload;
+  },
 }));
 
 vi.mock('react-i18next', () => ({
@@ -91,11 +110,12 @@ test('lists the harness servers read-only with their connection details', async 
   assert.equal(countActions(container), 0);
 });
 
-test('offers edit and delete for a provider the app manages', async () => {
+test('lists a writable provider user-scope servers read-only, since the matrix owns that scope', async () => {
   const container = await renderServers('claude');
   const text = container.textContent ?? '';
 
   assert.match(text, /playwright/);
+  assert.match(text, /mcpServers\.userScope\.unmanagedBadge/);
   assert.doesNotMatch(text, /mcpServers\.managed\.badge/);
-  assert.equal(countActions(container), 2);
+  assert.equal(countActions(container), 0);
 });
