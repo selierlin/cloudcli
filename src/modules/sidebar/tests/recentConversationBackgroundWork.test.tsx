@@ -61,6 +61,9 @@ const renderList = (conversations: RecentConversationListItem[], state: RowState
     onTogglePinned={noop}
     onDeleteSession={noop}
     onRequestBatchArchive={noop}
+    projects={[]}
+    selectedProject={null}
+    onNewSession={noop}
     t={t}
   />,
 );

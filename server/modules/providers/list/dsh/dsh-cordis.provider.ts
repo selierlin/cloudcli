@@ -1,19 +1,23 @@
 import { spawnSync } from 'node:child_process';
 
+import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
+
 import { DSH_ACP_PROFILE, getDshHome } from './dsh-models.provider.js';
 
 /**
- * Composition reader for the MCP servers the DeepSeek Harness loads itself.
+ * Composition reader for the DeepSeek Harness's own Cordis configuration.
  *
- * DSH declares MCP servers as loader patch entries in its Cordis composition
- * (`$DSH_HOME/cordis.patch.yml` plus each profile's own patch layer), so there
- * is no single config document to read the way Claude or Codex expose one.
- * Rather than re-implementing the composer's layer order, overrides and disable
- * rules - and drifting from them on every harness upgrade - this reads the
- * composed tree the CLI prints for the exact profile the runtime boots. The
- * settings list and the running sessions therefore agree by construction.
+ * DSH declares its plugins as loader patch entries in a Cordis composition
+ * (`$DSH_HOME/cordis.patch.yml` plus each profile's own patch layer) rather
+ * than a single config document the way Claude or Codex expose one, so both the
+ * MCP servers and the pi-ai provider routes live in the composed tree. Rather
+ * than re-implementing the composer's layer order, overrides and disable rules
+ * - and drifting from them on every harness upgrade - this reads the composed
+ * tree the CLI prints for the exact profile the runtime boots. The settings
+ * surfaces and the running sessions therefore agree by construction.
  *
- * Used by the DSH MCP provider to report the harness's servers read-only.
+ * Used by the DSH MCP provider to report the harness's servers read-only and by
+ * the DSH model adapter to list the configured pi-ai provider routes.
  */
 
 /** Loader package that bridges an external MCP server into the harness tool list. */
@@ -238,15 +242,19 @@ function parseBlock(
 }
 
 /**
- * Extracts the MCP server declarations from a composed DSH profile tree, keyed
- * by each entry's `serverName` so callers can treat the result like any other
- * provider's name-to-raw-config map. Entries from other plugins, disabled
- * entries and entries without a usable server name are skipped, and each config
- * is returned untouched so the provider adapter owns the field mapping.
+ * Parses a composed DSH profile tree into its loader entries, keyed by entry id.
  *
- * Exported for the DSH MCP test, which drives it with recorded dump output.
+ * The composer prints one flat sequence: every entry carries its own `id`,
+ * `name`, optional `config` and optional `disabled`, with `insert` layers
+ * already expanded in place. A reader that needs one plugin's resolved config
+ * looks its entry up by id instead of re-implementing the composer's layer
+ * order, so it sees whatever the profile and home patch layers actually
+ * produced.
+ *
+ * Used by the DSH MCP and DSH model readers; exported for the DSH tests, which
+ * drive it with recorded dump output.
  */
-export function parseDshMcpServerConfigs(document: string): Record<string, unknown> {
+export function parseDshComposedEntries(document: string): Record<string, Record<string, unknown>> {
   const lines = toSignificantLines(document);
   if (lines.length === 0) {
     return {};
@@ -257,26 +265,80 @@ export function parseDshMcpServerConfigs(document: string): Record<string, unkno
     return {};
   }
 
-  const configs: Record<string, unknown> = {};
+  const entries: Record<string, Record<string, unknown>> = {};
   for (const entry of composed.value) {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
       continue;
     }
+    // Duplicate ids cannot occur in a composed tree, but keeping the last one
+    // mirrors the loader, which lets a later layer's entry win.
+    if (typeof entry.id === 'string' && entry.id.trim()) {
+      entries[entry.id.trim()] = entry;
+    }
+  }
+
+  return entries;
+}
+
+/**
+ * Reads the entries the harness composes for the profile the runtime boots.
+ *
+ * Used by the DSH MCP and DSH model readers. A missing, failing or overrunning
+ * CLI yields an empty map, so a machine without a usable DSH falls back to its
+ * own config documents instead of failing the settings request.
+ */
+export function readDshComposedEntries(): Record<string, Record<string, unknown>> {
+  const dump = spawnSync('dsh', ['--profile', DSH_ACP_PROFILE, '--dump-config'], {
+    encoding: 'utf8',
+    timeout: DUMP_TIMEOUT_MS,
+    maxBuffer: DUMP_MAX_BUFFER_BYTES,
+    // Pin the harness home the ACP runtime spawns with, so the listed entries
+    // are the ones the sessions actually load.
+    env: { ...process.env, DSH_HOME: getDshHome() },
+  });
+
+  if (dump.error || dump.status !== 0 || typeof dump.stdout !== 'string') {
+    const reason = dump.error?.message ?? `dsh exited with code ${dump.status}`;
+    console.warn(`[DSH] composed config unavailable: ${reason}`);
+    return {};
+  }
+
+  return parseDshComposedEntries(dump.stdout);
+}
+
+/**
+ * Keeps the MCP client entries of a composed tree, keyed by each entry's
+ * `serverName` so callers can treat the result like any other provider's
+ * name-to-raw-config map. Entries from other plugins, disabled entries and
+ * entries without a usable server name are skipped, and each config is returned
+ * untouched so the provider adapter owns the field mapping.
+ */
+function mcpServerConfigsFromEntries(
+  entries: Record<string, Record<string, unknown>>,
+): Record<string, unknown> {
+  const configs: Record<string, unknown> = {};
+  for (const entry of Object.values(entries)) {
     if (entry.name !== DSH_MCP_CLIENT_PACKAGE || entry.disabled === 'true') {
       continue;
     }
-    const config = entry.config;
-    if (!config || typeof config !== 'object' || Array.isArray(config)) {
+    const config = readObjectRecord(entry.config);
+    const serverName = readOptionalString(config?.serverName);
+    if (!config || !serverName) {
       continue;
     }
-    const serverName = config.serverName;
-    if (typeof serverName !== 'string' || !serverName.trim()) {
-      continue;
-    }
-    configs[serverName.trim()] = config;
+    configs[serverName] = config;
   }
 
   return configs;
+}
+
+/**
+ * Extracts the MCP server declarations from a composed tree document.
+ *
+ * Exported for the DSH MCP test, which drives it with recorded dump output.
+ */
+export function parseDshMcpServerConfigs(document: string): Record<string, unknown> {
+  return mcpServerConfigsFromEntries(parseDshComposedEntries(document));
 }
 
 /**
@@ -287,20 +349,5 @@ export function parseDshMcpServerConfigs(document: string): Record<string, unkno
  * instead of failing the settings request.
  */
 export function readDshComposedMcpServerConfigs(): Record<string, unknown> {
-  const dump = spawnSync('dsh', ['--profile', DSH_ACP_PROFILE, '--dump-config'], {
-    encoding: 'utf8',
-    timeout: DUMP_TIMEOUT_MS,
-    maxBuffer: DUMP_MAX_BUFFER_BYTES,
-    // Pin the harness home the ACP runtime spawns with, so the listed servers
-    // are the ones the sessions actually load.
-    env: { ...process.env, DSH_HOME: getDshHome() },
-  });
-
-  if (dump.error || dump.status !== 0 || typeof dump.stdout !== 'string') {
-    const reason = dump.error?.message ?? `dsh exited with code ${dump.status}`;
-    console.warn(`[DSH] composed MCP config unavailable: ${reason}`);
-    return {};
-  }
-
-  return parseDshMcpServerConfigs(dump.stdout);
+  return mcpServerConfigsFromEntries(readDshComposedEntries());
 }

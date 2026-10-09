@@ -81,11 +81,12 @@ server/modules/providers/list/<provider>/
 
 Provider 列表：`claude / codex / cursor / opencode / dsh / workbuddy`。同一个面在不同 Provider 下实现差异很大，体现适配器价值。
 
-### 4.1 runtime —— 三种实现风格
+### 4.1 runtime —— 四种实现风格
 
 | 风格 | Provider | 机制 |
 |---|---|---|
-| **SDK 直连** | claude、codex | `@anthropic-ai/claude-agent-sdk` 的 `query()` / `@openai/codex-sdk` 的 `thread.runStreamed()`；不 spawn 进程，消费 SDK 事件流；`AbortController` 取消 |
+| **SDK 直连** | claude | `@anthropic-ai/claude-agent-sdk` 的 `query()`；不 spawn 进程，消费 SDK 事件流；`AbortController` 取消 |
+| **子进程 + JSON-RPC** | codex | `spawn(codex app-server)`，NDJSON 帧按三态分流（应答 / 反向请求 / 通知）；一 run 一进程一线程，`turn/interrupt` abort。**（2026-10-07 由「SDK 直连」改来：原先经 `@openai/codex-sdk` 的 `thread.runStreamed()`（内部 `codex exec --json`）拿不到正文增量，换 `app-server` 后才有 `item/agentMessage/delta`。）** |
 | **子进程 + JSONL** | workbuddy | `spawn(codebuddy, ['-p', '--output-format', 'stream-json', ...])`；stdout 按行拆 JSON 事件；abort 优先写 `control_request` interrupt，超时后 SIGTERM→SIGKILL |
 | **ACP 桥** | dsh | 走 ACP（Agent Client Protocol）bridge，一次性程序化应答权限 |
 

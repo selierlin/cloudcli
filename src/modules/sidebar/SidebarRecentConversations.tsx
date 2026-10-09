@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Check, ChevronRight, Edit2, Loader2, MessageSquare, MoreHorizontal, Pin, PinOff, Trash2, X } from 'lucide-react';
+import { Check, ChevronRight, Edit2, Folder, Loader2, MessageSquare, MoreHorizontal, Pin, PinOff, Plus, Trash2, X } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import type { TFunction } from 'i18next';
 
 import { ActionMenu, Button, Dialog, DialogContent, DialogTitle, LLMProviderLogo } from '@/shared/ui';
 import { cn } from '@/shared/utils';
-import type { LLMProvider, ProjectSession, RecentConversationListItem } from '@/shared/types';
+import type { LLMProvider, Project, ProjectSession, RecentConversationListItem } from '@/shared/types';
 import { formatCompactAge } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import { useCopyProviderSessionId } from '@/modules/sidebar/hooks/useCopyProviderSessionId';
 import SidebarBatchSessionActions from '@/modules/sidebar/SidebarBatchSessionActions';
@@ -35,6 +35,11 @@ type SidebarRecentConversationsProps = {
   onTogglePinned: (sessionId: string, isPinned: boolean) => void;
   onDeleteSession: (sessionId: string, sessionTitle: string) => void;
   onRequestBatchArchive: (sessionIds: string[], onCompleted: (archivedSessionIds: string[]) => void) => void;
+  /** Active projects, used by the new-session entry when no project is selected. */
+  projects: Project[];
+  /** The projects state keeps this synced to the session open in the chat window. */
+  selectedProject: Project | null;
+  onNewSession: (project: Project) => void;
   t: TFunction;
 };
 
@@ -459,14 +464,14 @@ function RecentConversationRow({
                 <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
               </button>
               <button
-                className="flex h-6 w-6 items-center justify-center rounded bg-n-gray-50 hover:bg-n-gray-100 dark:bg-n-gray-900/20 dark:hover:bg-n-gray-900/40"
+                className="flex h-6 w-6 items-center justify-center rounded bg-muted/50 hover:bg-muted"
                 onClick={(event) => {
                   event.stopPropagation();
                   onCancelEditingSession();
                 }}
                 title={t('tooltips.cancel')}
               >
-                <X className="h-3 w-3 text-n-gray-600 dark:text-n-gray-400" />
+                <X className="h-3 w-3 text-muted-foreground" />
               </button>
             </>
           ) : (
@@ -567,6 +572,9 @@ export default function SidebarRecentConversations({
   onTogglePinned,
   onDeleteSession,
   onRequestBatchArchive,
+  projects,
+  selectedProject,
+  onNewSession,
   t,
 }: SidebarRecentConversationsProps) {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -632,6 +640,46 @@ export default function SidebarRecentConversations({
   const exitManaging = () => {
     setIsManaging(false);
     setSelectedSessionIds(new Set());
+  };
+
+  // New-session entry for the conversations tab. The projects state keeps
+  // `selectedProject` synced to the session open in the chat window, so it is
+  // the session's owning project whenever one is open; without one, fall back
+  // to picking a project from the menu.
+  const renderNewSessionControl = () => {
+    if (selectedProject) {
+      return (
+        <button
+          type="button"
+          title={t('sessions.newSession')}
+          aria-label={t('sessions.newSession')}
+          className="flex h-7 w-7 flex-none items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          onClick={() => onNewSession(selectedProject)}
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      );
+    }
+
+    return (
+      <ActionMenu
+        label={t('sessions.newSession')}
+        ariaLabel={t('sessions.newSession')}
+        icon={Plus}
+        iconOnly
+        portal
+        variant="ghost"
+        size="sm"
+        disabled={projects.length === 0}
+        triggerClassName="h-7 w-7 text-muted-foreground hover:bg-muted hover:text-foreground [&_svg]:size-3.5"
+        items={projects.map((project) => ({
+          key: project.projectId,
+          label: project.displayName || project.fullPath || project.path || project.projectId,
+          icon: Folder,
+          onSelect: () => onNewSession(project),
+        }))}
+      />
+    );
   };
 
   const requestBatchArchive = () => {
@@ -704,6 +752,7 @@ export default function SidebarRecentConversations({
         <p className="mt-1 text-xs text-muted-foreground">
           {t('recent.emptyDescription', 'Your most recently updated conversations will appear here.')}
         </p>
+        <div className="mt-3 flex justify-center">{renderNewSessionControl()}</div>
       </div>
     );
   }
@@ -716,6 +765,7 @@ export default function SidebarRecentConversations({
         </span>
         <div className="flex items-center gap-2">
           <span className="text-[10px] tabular-nums text-muted-foreground/70">{total}</span>
+          {renderNewSessionControl()}
           <Button
             variant="ghost"
             size="sm"

@@ -1,5 +1,6 @@
 import { AbstractProvider } from '@/modules/providers/shared/base/abstract.provider.js';
 import { DshProviderAuth } from '@/modules/providers/list/dsh/dsh-auth.provider.js';
+import { readDshComposedEntries } from '@/modules/providers/list/dsh/dsh-cordis.provider.js';
 import { DshProviderModels } from '@/modules/providers/list/dsh/dsh-models.provider.js';
 import { DshMcpProvider } from '@/modules/providers/list/dsh/dsh-mcp.provider.js';
 import { dshRuntime } from '@/modules/providers/list/dsh/dsh-runtime.provider.js';
@@ -17,7 +18,7 @@ import type {
 
 export class DshProvider extends AbstractProvider {
   readonly runtime: IProviderRuntime = dshRuntime;
-  readonly models: IProviderModels = new DshProviderModels();
+  readonly models: IProviderModels = new DshProviderModels(readDshComposedEntries);
   readonly mcp = new DshMcpProvider();
   readonly auth: IProviderAuth = new DshProviderAuth();
   readonly skills: IProviderSkills = new DshSkillsProvider();

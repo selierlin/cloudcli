@@ -29,6 +29,10 @@ npm run build:client        # 只改了 src/ 时
 # npm run build             # 改了 server/ 或 shared/ 时（client + server 一起）
 ```
 
+⚠️ 只重启不重建前端是最常见的"改了却没生效"来源：`cloudclictl restart` 只起服务，
+浏览器加载的仍是 `dist/` 里的旧产物。可对比 `dist/assets/index-*.js` 的 mtime 与
+源码改动时间——产物比改动旧，就是没构建。改了 `src/` 必须先跑这一步。
+
 3. 重启服务（server-infra/cloudcli 的 launchd LaunchAgent，install 时已链接到
    `~/.local/bin/cloudclictl`）：
 
@@ -39,10 +43,18 @@ cloudclictl restart
 4. 验证（先确认进程与端口，再看资源与日志。`curl` 必须带 `--noproxy '*'`，
    否则本机代理 127.0.0.1:7890 会劫持 localhost、返回 502 误判服务故障）：
 
+端口不要写死：它由 `SERVER_PORT` 决定（`server/index.ts:333`，回退 legacy `PORT`，
+两者都没设才默认 `3001`）；本机在项目根 `.env` 里设了自定义值（如 `SERVER_PORT=3011`）。
+先在同一个 shell 里取出实际端口，下面命令都用它：
+
+```bash
+PORT=$(sed -n 's/^SERVER_PORT=//p' .env 2>/dev/null | tail -1 | tr -d '"'); PORT=${PORT:-3001}; echo "port=$PORT"
+```
+
 ```bash
 launchctl list | grep cloudcli                                  # ① job 已加载（有 PID 即正常）
-nc -z -w 2 127.0.0.1 3001 && echo "3001 open"                   # ② 端口在监听
-curl -s --noproxy '*' http://localhost:3001/ | grep -o 'assets/index-[^"]*'  # ③ 新 asset 指纹
+nc -z -w 2 127.0.0.1 "$PORT" && echo "$PORT open"                # ② 端口在监听
+curl -s --noproxy '*' "http://localhost:$PORT/" | grep -o 'assets/index-[^"]*'  # ③ 新 asset 指纹
 tail -n 500 ~/Library/Logs/CloudCLI/cloudcli.out.log            # ④ 启动日志（out）
 tail -n 500 ~/Library/Logs/CloudCLI/cloudcli.err.log            # ⑤ 启动日志（err）
 ```
@@ -54,7 +66,7 @@ tail -n 500 ~/Library/Logs/CloudCLI/cloudcli.err.log            # ⑤ 启动日�
 - `cloudclictl restart` 报告成功但服务未起：`launchctl list | grep cloudcli` 确认 job 是否加载；
   若为空，是 bootout→bootstrap 的偶发竞态，手动加载兜底：
   `launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.selier.cloudcli.plist`
-  再 `launchctl list | grep cloudcli` 确认 PID、`nc -z 127.0.0.1 3001` 确认端口。
+  再 `launchctl list | grep cloudcli` 确认 PID、`nc -z 127.0.0.1 "$PORT"` 确认端口（端口取法见第 4 步）。
 - curl 返回 502：先排除代理劫持——shell 有 `http_proxy=http://127.0.0.1:7890`，
   curl 必须带 `--noproxy '*'`（见验证步骤）。
 - 看最近日志：`cloudclictl logs [N]`（out+err 一起打印，默认 20 行，不会挂起；
