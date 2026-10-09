@@ -9,9 +9,7 @@
     "copied": "Zpráva zkopírována",
     "selectFormat": "Vyberte formát kopírování",
     "copyAsMarkdown": "Kopírovat jako Markdown",
-    "copyAsText": "Kopírovat jako text",
-    "markdownShort": "MD",
-    "textShort": "TXT"
+    "copyAsText": "Kopírovat jako text"
   },
   "messageTypes": {
     "user": "U",

@@ -48,6 +48,9 @@ pids
 *.seed
 *.pid.lock
 
+# MD notes app runtime data (written under docs/ when its workspace points at the repo)
+.mdnotes/
+
 # Coverage directory used by tools like istanbul
 coverage/
 *.lcov

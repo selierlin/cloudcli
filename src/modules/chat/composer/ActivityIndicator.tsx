@@ -107,7 +107,7 @@ export default function ActivityIndicator({ activity, onAbort, isInputFocused = 
       }`}
     >
       <div className="flex items-end justify-between gap-2">
-        <div className={`${tabSurfaceClassName} min-w-0 max-w-full gap-2`}>
+        <div data-slot="activity-tab" className={`${tabSurfaceClassName} min-w-0 max-w-full gap-2`}>
           <span
             className={`h-1.5 w-1.5 shrink-0 animate-pulse rounded-full ${
               isBackground ? 'bg-purple-500 dark:bg-purple-400' : 'bg-primary'
@@ -124,6 +124,7 @@ export default function ActivityIndicator({ activity, onAbort, isInputFocused = 
         {renderedActivity.canInterrupt && onAbort && (
           <button
             type="button"
+            data-slot="activity-tab"
             onClick={onAbort}
             className={`${tabSurfaceClassName} pointer-events-auto gap-1.5 text-muted-foreground hover:bg-card hover:text-destructive`}
             aria-label={t('claudeStatus.stop', { defaultValue: 'Stop' })}
