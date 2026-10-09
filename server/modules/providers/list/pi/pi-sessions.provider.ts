@@ -114,6 +114,8 @@ type PiContentBlock = {
 type PiAgentMessage = {
   role?: unknown;
   content?: unknown;
+  /** The model recorded on an assistant message, shown in the reply footer. */
+  model?: unknown;
   timestamp?: unknown;
   toolCallId?: unknown;
   toolName?: unknown;
@@ -305,6 +307,9 @@ export function normalizePiAgentMessage(
         kind: 'text',
         role: 'assistant',
         content: block.text,
+        // Pi records the answering model on the assistant message itself, so
+        // the reply footer names it without consulting `model_change`.
+        model: readNonEmptyString(message.model),
         id: blockId(baseId, blockIndex, messages.length),
         sessionId,
         provider: 'pi',

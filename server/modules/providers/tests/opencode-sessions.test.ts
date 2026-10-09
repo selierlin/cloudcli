@@ -495,7 +495,12 @@ test('OpenCode sessions provider reads sqlite history and token usage', { concur
     assert.equal(history.messages[0]?.kind, 'text');
     assert.equal(history.messages[0]?.role, 'user');
     assert.equal(history.messages[0]?.content, 'Build the OpenCode integration.');
+    // The user row carries only the picker's nested selection, so the footer
+    // model stays empty there.
+    assert.equal(history.messages[0]?.model, undefined);
     assert.equal(history.messages[1]?.kind, 'thinking');
+    // The assistant row names the model OpenCode recorded for the reply.
+    assert.equal(history.messages[2]?.model, 'anthropic/claude-sonnet-4-5');
     assert.equal(history.messages[2]?.content, 'The provider is wired.');
     assert.equal(history.messages[3]?.kind, 'tool_use');
     assert.deepEqual(history.messages[3]?.toolResult, { content: 'ok', isError: false });

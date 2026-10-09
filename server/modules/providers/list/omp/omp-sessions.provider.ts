@@ -119,6 +119,8 @@ type OmpContentBlock = {
 type OmpAgentMessage = {
   role?: unknown;
   content?: unknown;
+  /** The model recorded on an assistant message, shown in the reply footer. */
+  model?: unknown;
   timestamp?: unknown;
   toolCallId?: unknown;
   toolName?: unknown;
@@ -333,6 +335,9 @@ function buildOmpAgentMessages(
         kind: 'text',
         role: 'assistant',
         content: block.text,
+        // OMP records the answering model on the assistant message itself, so
+        // the reply footer names it without consulting `model_change`.
+        model: readNonEmptyString(message.model),
         id: blockId(baseId, blockIndex, messages.length),
         sessionId,
         provider: 'omp',
