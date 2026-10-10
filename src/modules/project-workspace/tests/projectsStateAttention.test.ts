@@ -45,9 +45,9 @@ const renderProjectsState = async (initialPending: ReadonlySet<string> = new Set
   );
 
   return renderHook(
-    ({ pending }: { pending: ReadonlySet<string> }) =>
+    ({ pending, sessionId }: { pending: ReadonlySet<string>; sessionId: string }) =>
       useProjectsState({
-        sessionId: URL_SESSION_ID,
+        sessionId,
         navigate: vi.fn() as never,
         subscribe: (listener: ServerEventListener) => {
           listeners.add(listener);
@@ -57,7 +57,7 @@ const renderProjectsState = async (initialPending: ReadonlySet<string> = new Set
         isSessionProcessing: () => false,
         pendingApprovalSessionIds: pending,
       }),
-    { initialProps: { pending: initialPending } },
+    { initialProps: { pending: initialPending, sessionId: URL_SESSION_ID } },
   );
 };
 
@@ -165,7 +165,7 @@ test('the poll rebuilds a blocked row after a refresh dropped the event', async 
   assert.equal(result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID), undefined);
 
   await act(async () => {
-    rerender({ pending: new Set([OTHER_SESSION_ID]) });
+    rerender({ pending: new Set([OTHER_SESSION_ID]), sessionId: URL_SESSION_ID });
   });
 
   assert.equal(
@@ -183,10 +183,10 @@ test('a poll that stops listing an approval clears only what it flagged', async 
     emit({ kind: 'complete', sessionId: 'notice-session' });
   });
   await act(async () => {
-    rerender({ pending: new Set([OTHER_SESSION_ID]) });
+    rerender({ pending: new Set([OTHER_SESSION_ID]), sessionId: URL_SESSION_ID });
   });
   await act(async () => {
-    rerender({ pending: new Set() });
+    rerender({ pending: new Set(), sessionId: URL_SESSION_ID });
   });
 
   assert.equal(
@@ -205,12 +205,71 @@ test('the poll flags the open session too, for its own row to hide', async () =>
   const { result, rerender } = await renderProjectsState();
 
   await act(async () => {
-    rerender({ pending: new Set([URL_SESSION_ID]) });
+    rerender({ pending: new Set([URL_SESSION_ID]), sessionId: URL_SESSION_ID });
   });
 
   assert.equal(
     result.current.sidebarSharedProps.attentionSessions.get(URL_SESSION_ID),
     'action',
     'the row suppresses the indicator for the selected session itself',
+  );
+});
+
+test('leaving a session blocked on an approval flags it at once, before any poll', async () => {
+  const { result, rerender } = await renderProjectsState();
+
+  // The approval lands while the session is on screen, so it is not flagged yet.
+  await act(async () => {
+    emit({ kind: 'permission_request', sessionId: URL_SESSION_ID, requestId: 'r1' });
+  });
+  assert.equal(result.current.sidebarSharedProps.attentionSessions.get(URL_SESSION_ID), undefined);
+
+  await act(async () => {
+    rerender({ pending: new Set(), sessionId: OTHER_SESSION_ID });
+  });
+
+  assert.equal(
+    result.current.sidebarSharedProps.attentionSessions.get(URL_SESSION_ID),
+    'action',
+    'switching away must flag the row without waiting up to 5s for the poll',
+  );
+});
+
+test('an approval answered while on screen is not re-flagged on leaving', async () => {
+  const { result, rerender } = await renderProjectsState();
+
+  await act(async () => {
+    emit({ kind: 'permission_request', sessionId: URL_SESSION_ID, requestId: 'r1' });
+    emit({ kind: 'permission_resolved', sessionId: URL_SESSION_ID, requestId: 'r1' });
+  });
+
+  await act(async () => {
+    rerender({ pending: new Set(), sessionId: OTHER_SESSION_ID });
+  });
+
+  assert.equal(
+    result.current.sidebarSharedProps.attentionSessions.get(URL_SESSION_ID),
+    undefined,
+    'an already-answered approval must not come back as a false capsule',
+  );
+});
+
+test('leaving still flags a session that has an unanswered request left', async () => {
+  const { result, rerender } = await renderProjectsState();
+
+  await act(async () => {
+    emit({ kind: 'permission_request', sessionId: URL_SESSION_ID, requestId: 'r1' });
+    emit({ kind: 'permission_request', sessionId: URL_SESSION_ID, requestId: 'r2' });
+    emit({ kind: 'permission_resolved', sessionId: URL_SESSION_ID, requestId: 'r1' });
+  });
+
+  await act(async () => {
+    rerender({ pending: new Set(), sessionId: OTHER_SESSION_ID });
+  });
+
+  assert.equal(
+    result.current.sidebarSharedProps.attentionSessions.get(URL_SESSION_ID),
+    'action',
+    'one request is still open, so the row is still blocked',
   );
 });
