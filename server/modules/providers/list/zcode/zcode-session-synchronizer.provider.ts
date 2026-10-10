@@ -28,6 +28,32 @@ type SynchronizeRowsResult = {
 };
 
 /**
+ * Tables addressed by `session_id`, in deletion order.
+ *
+ * Every table that carries a `session_id` column is listed, including the ones
+ * whose foreign key cascades from `session`: relying on the cascade makes a
+ * destructive delete depend on the pragma taking effect and on the installed
+ * schema declaring it at all, and either failing leaves rows behind that nothing
+ * will ever clean up (a rescan only indexes `session`).
+ *
+ * `part` comes before `message` because its foreign key points at `message`, not
+ * at `session`. Anything absent in a given schema version is skipped.
+ */
+const ZCODE_SESSION_REFERENCING_TABLES = [
+  'part',
+  'message',
+  'session_entry',
+  'todo',
+  'session_target',
+  'session_input',
+  'model_usage',
+  'turn_usage',
+  'tool_usage',
+  'input_history',
+  'dwf_actor',
+] as const;
+
+/**
  * Resolves a session's project path to its real filesystem path.
  *
  * ZCode stores an absolute `directory`, but on macOS `/tmp` is reported as
@@ -69,6 +95,37 @@ export class ZcodeSessionSynchronizer implements IProviderSessionSynchronizer {
     }
 
     return this.synchronizeRows(undefined, 1).firstSessionId;
+  }
+
+  /**
+   * Deletes one session and every row that points at it from ZCode's shared
+   * store. Called by the app on permanent delete, because ZCode sessions have
+   * no per-session transcript file to unlink — the store is the only source of
+   * truth, so leaving it behind lets the next scan re-index the session.
+   */
+  async deleteProviderSession(providerSessionId: string): Promise<void> {
+    const dbPath = getZcodeDatabasePath();
+    if (!fsSync.existsSync(dbPath)) {
+      return;
+    }
+
+    const db = new Database(dbPath);
+    try {
+      db.pragma('busy_timeout = 2000');
+      db.pragma('foreign_keys = ON');
+      // `part` first: it hangs off `message`, so emptying it before the
+      // messages keeps the delete correct whether or not the cascade fires.
+      for (const table of ZCODE_SESSION_REFERENCING_TABLES) {
+        try {
+          db.prepare(`DELETE FROM ${table} WHERE session_id = ?`).run(providerSessionId);
+        } catch {
+          // Table absent in this schema version; nothing to clean up for it.
+        }
+      }
+      db.prepare('DELETE FROM session WHERE id = ?').run(providerSessionId);
+    } finally {
+      db.close();
+    }
   }
 
   private synchronizeRows(since?: Date, limit?: number): SynchronizeRowsResult {

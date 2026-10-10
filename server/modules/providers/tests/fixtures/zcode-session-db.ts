@@ -45,6 +45,34 @@ export async function createZcodeDatabase(homeDir: string): Promise<string> {
         data TEXT NOT NULL,
         sequence INTEGER
       );
+      -- usage / bookkeeping tables ZCode really has. They are declared WITHOUT
+      -- foreign keys on purpose: the fixture then fails if the delete starts
+      -- depending on a cascade, which a real schema with the FK would hide.
+      CREATE TABLE session_entry (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        data TEXT NOT NULL
+      );
+      CREATE TABLE model_usage (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        model TEXT NOT NULL
+      );
+      CREATE TABLE turn_usage (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        turn INTEGER NOT NULL
+      );
+      CREATE TABLE tool_usage (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        tool TEXT NOT NULL
+      );
+      CREATE TABLE input_history (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        text TEXT NOT NULL
+      );
     `);
   } finally {
     db.close();
@@ -240,6 +268,22 @@ export async function seedZcodeSession(
       timeCreated: 1_700_000_001_000,
       data: { type: 'text', text: JSON.stringify(options.firstUserText) },
     });
+    // One row per usage/bookkeeping table so a delete that skips any of them
+    // leaves an orphan behind for the assertions to find.
+    const sid = options.sessionId;
+    for (const [table, column, value] of [
+      ['session_entry', 'data', JSON.stringify({ kind: 'entry' })],
+      ['model_usage', 'model', 'deepseek-v4-flash'],
+      ['turn_usage', 'turn', '1'],
+      ['tool_usage', 'tool', 'bash'],
+      ['input_history', 'text', options.firstUserText],
+    ] as const) {
+      db.prepare(`INSERT INTO ${table} (id, session_id, ${column}) VALUES (?, ?, ?)`).run(
+        `${table}-${sid}`,
+        sid,
+        value,
+      );
+    }
   } finally {
     db.close();
   }
