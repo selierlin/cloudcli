@@ -17,13 +17,22 @@ const CHANNEL_ORDER: StreamChannel[] = ['thinking', 'text'];
 
 /**
  * Providers whose prose reaches the client as complete segments instead of
- * token deltas: the DSH ACP bridge only emits committed `assistant/message`
- * blocks. Codex used to be here — `codex exec` reported an assistant message
- * once, on `item.completed` — but conversations now run over `codex app-server`,
- * which emits real `item/agentMessage/delta` frames, so Codex keeps the
- * ordinary streaming path. Everything else keeps its real-time delta path too.
+ * token deltas:
+ *
+ * - `dsh` — the DSH ACP bridge only emits committed `assistant/message` blocks.
+ * - `openclaw` — `openclaw acp` bridges to the resident Gateway, and while the
+ *   Gateway does produce `chat` `state:"delta"` frames, its live-delta
+ *   broadcast does not reach the ACP client: every real prompt (2026-10-10,
+ *   mimo-v2.6-pro and glm-5.3-flash) arrived as a single `agent_message_chunk`
+ *   at turn end. The runtime still accumulates chunks into one growing
+ *   snapshot, so a streaming Gateway would only make the reveal catch up faster.
+ *
+ * Codex used to be here — `codex exec` reported an assistant message once, on
+ * `item.completed` — but conversations now run over `codex app-server`, which
+ * emits real `item/agentMessage/delta` frames, so Codex keeps the ordinary
+ * streaming path. Everything else keeps its real-time delta path too.
  */
-export const WHOLE_SEGMENT_PROVIDERS: ReadonlySet<LLMProvider> = new Set<LLMProvider>(['dsh']);
+export const WHOLE_SEGMENT_PROVIDERS: ReadonlySet<LLMProvider> = new Set<LLMProvider>(['dsh', 'openclaw']);
 
 type PacedSegment = {
   text: string;

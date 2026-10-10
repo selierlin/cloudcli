@@ -47,6 +47,9 @@ const FALLBACK_DEFAULT_MODEL: Record<LLMProvider, string> = {
   // OMP's catalog comes from `omp models --json`; this mirrors the backend's
   // last-resort catalog for the first paint before it loads.
   omp: 'deepseek/deepseek-v4-pro',
+  // OpenClaw's catalog is config-driven (`openclaw.json`); the backend falls
+  // back to `openclaw/default` until the document declares a model.
+  openclaw: 'openclaw/default',
 };
 
 const readProviderModelSettings = (): ProviderModelSettings => (
@@ -83,6 +86,9 @@ const FALLBACK_PERMISSION_MODES: Record<LLMProvider, PermissionMode[]> = {
   pi: ['default', 'readonly'],
   zcode: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
   omp: ['default', 'readonly'],
+  // `default` routes OpenClaw's ACP permission requests to the chat UI;
+  // `auto` answers them with the bridge's allow-once option.
+  openclaw: ['default', 'auto'],
 };
 
 type ProviderCapabilities = {

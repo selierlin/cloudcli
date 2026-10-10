@@ -33,7 +33,8 @@
     "workbuddy": "WorkBuddy",
     "pi": "Pi",
     "zcode": "ZCode",
-    "omp": "OMP"
+    "omp": "OMP",
+    "openclaw": "OpenClaw"
   },
   "tools": {
     "settings": "工具设置",
@@ -242,7 +243,8 @@
       "workbuddy": "准备好使用带有 {{model}} 的 WorkBuddy。请在下方开始输入您的消息。",
       "pi": "准备好使用带有 {{model}} 的 Pi。请在下方开始输入您的消息。",
       "zcode": "准备好使用带有 {{model}} 的 ZCode。请在下方开始输入您的消息。",
-      "omp": "准备好使用带有 {{model}} 的 OMP。请在下方开始输入您的消息。"
+      "omp": "准备好使用带有 {{model}} 的 OMP。请在下方开始输入您的消息。",
+      "openclaw": "准备好使用带有 {{model}} 的 OpenClaw。请在下方开始输入您的消息。"
     },
     "pressToSearch": "按 <kbd>{{shortcut}}</kbd> 搜索会话、文件和提交"
   },

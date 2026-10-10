@@ -34,16 +34,17 @@ export default function AgentConnectionCard({
   const available = status.authenticated || externallyManaged;
   // ZCode has no in-app OAuth flow: it authenticates from `~/.zcode/cli/config.json`,
   // so the login button would be misleading. Pi's credentials live in its own
-  // `pi auth` flow, OMP's in its own `/login` flow, and WorkBuddy Desktop
+  // `pi auth` flow, OMP's in its own `/login` flow, OpenClaw's in
+  // `openclaw.json` / `openclaw models auth`, and WorkBuddy Desktop
   // manages its CLI auth out-of-band.
-  const canLogin = provider !== 'workbuddy' && provider !== 'pi' && provider !== 'zcode' && provider !== 'omp' && !available && !status.loading;
+  const canLogin = provider !== 'workbuddy' && provider !== 'pi' && provider !== 'zcode' && provider !== 'omp' && provider !== 'openclaw' && !available && !status.loading;
   const containerClassName = available ? connectedClassName : 'border-border bg-card';
 
   const statusText = status.loading
     ? t('agents.authStatus.checking')
     : externallyManaged
       ? `${t('agents.externalAuth.available')} (${t('agents.externalAuth.managedByDesktop')})`
-      : provider === 'workbuddy' || provider === 'pi' || provider === 'zcode' || provider === 'omp'
+      : provider === 'workbuddy' || provider === 'pi' || provider === 'zcode' || provider === 'omp' || provider === 'openclaw'
         ? t('agents.externalAuth.description', { agent: title })
         : status.authenticated
           ? status.email || t('agents.authStatus.connected')

@@ -81,6 +81,7 @@ function createDependencies(queryClaude: RunFunction): AgentDependencies {
     queryPi: unexpected as RunFunction,
     queryZcode: unexpected as RunFunction,
     queryOmp: unexpected as RunFunction,
+    queryOpenclaw: unexpected as RunFunction,
     GithubClient: class {} as unknown as AgentDependencies['GithubClient'],
   };
 }

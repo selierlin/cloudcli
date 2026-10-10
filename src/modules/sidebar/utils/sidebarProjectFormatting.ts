@@ -330,4 +330,5 @@ export const PROVIDER_LABELS: Record<LLMProvider, string> = {
   pi: 'Pi',
   zcode: 'ZCode',
   omp: 'OMP',
+  openclaw: 'OpenClaw',
 };

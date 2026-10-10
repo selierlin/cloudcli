@@ -8,7 +8,7 @@ import type {
   ProviderAuthSubscriptionOverride,
 } from '@/shared/types';
 
-const CLI_PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode', 'omp'];
+const CLI_PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode', 'omp', 'openclaw'];
 
 const createInitialProviderAuthStatusMap = (loading = true): ProviderAuthStatusMap => ({
   claude: { installed: false, provider: 'claude', authenticated: false, email: null, method: null, error: null, loading },
@@ -20,6 +20,7 @@ const createInitialProviderAuthStatusMap = (loading = true): ProviderAuthStatusM
   pi: { installed: false, provider: 'pi', authenticated: false, email: null, method: null, error: null, loading },
   zcode: { installed: false, provider: 'zcode', authenticated: false, email: null, method: null, error: null, loading },
   omp: { installed: false, provider: 'omp', authenticated: false, email: null, method: null, error: null, loading },
+  openclaw: { installed: false, provider: 'openclaw', authenticated: false, email: null, method: null, error: null, loading },
 });
 
 type ProviderAuthStatusPayload = {

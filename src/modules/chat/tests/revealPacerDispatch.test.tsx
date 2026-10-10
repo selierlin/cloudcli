@@ -176,6 +176,24 @@ test('dsh prose is paced, never appended as an instant row', () => {
   assert.ok(slice.length > 0 && slice.length < 300, 'the segment reveals in slices');
 });
 
+test('openclaw prose is paced, never appended as an instant row', () => {
+  const { published, appendRealtime, dispatch } = renderHandlers();
+
+  // The `openclaw acp` bridge delivers a turn as one terminal
+  // `agent_message_chunk` (the Gateway's live deltas never reach the ACP
+  // client), so OpenClaw shares DSH's whole-segment reveal path.
+  dispatch(wholeText('viewed', '整'.repeat(300), 'openclaw'));
+  assert.equal(appendRealtime.length, 0, 'openclaw prose must not bypass the pacer');
+  assert.equal(published.length, 0, 'and nothing publishes during the grace window');
+
+  vi.advanceTimersByTime(32);
+  assert.equal(published.length, 1);
+  assert.equal(published[0][2], 'openclaw');
+  assert.equal(published[0][1][0].channel, 'text');
+  const slice = published[0][1][0].text;
+  assert.ok(slice.length > 0 && slice.length < 300, 'the segment reveals in slices');
+});
+
 test('dsh reasoning is paced on the thinking channel', () => {
   const { published, appendRealtime, dispatch } = renderHandlers();
 

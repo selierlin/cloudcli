@@ -42,6 +42,7 @@ const PROVIDER_META: { id: LLMProvider; name: string }[] = [
   { id: "pi", name: "Pi" },
   { id: "zcode", name: "ZCode" },
   { id: "omp", name: "OMP" },
+  { id: "openclaw", name: "OpenClaw" },
 ];
 
 const MOD_KEY =
@@ -114,6 +115,7 @@ function getProviderDisplayName(p: LLMProvider) {
   if (p === "pi") return "Pi";
   if (p === "zcode") return "ZCode";
   if (p === "omp") return "OMP";
+  if (p === "openclaw") return "OpenClaw";
   return "Claude";
 }
 
@@ -537,6 +539,10 @@ export default function ProviderSelectionEmptyState({
                 omp: t("providerSelection.readyPrompt.omp", {
                   model: currentModelLabel,
                   defaultValue: "Ready with OMP {{model}}",
+                }),
+                openclaw: t("providerSelection.readyPrompt.openclaw", {
+                  model: currentModelLabel,
+                  defaultValue: "Ready with OpenClaw {{model}}",
                 }),
               }[provider]
             }

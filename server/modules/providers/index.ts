@@ -32,3 +32,7 @@ export { getPiCommand } from './list/pi/pi-auth.provider.js';
 // getZcodeCommand: used by the websocket shell service to spawn the ZCode CLI
 // (either the `zcode` binary or `node <bundle>`) without relying on the PTY's PATH.
 export { getZcodeCommand } from './list/zcode/zcode-auth.provider.js';
+
+// getOpenclawCommand: used by the websocket shell service to spawn the OpenClaw
+// CLI at its resolved absolute path (not reliant on the PTY's PATH).
+export { getOpenclawCommand } from './list/openclaw/openclaw-auth.provider.js';

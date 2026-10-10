@@ -582,6 +582,32 @@ const migrateProviderModelsProviderCheck = (db: Database): void => {
   }
 };
 
+/**
+ * Adds any `enabled_<provider>` column the MCP catalog schema declares but an
+ * existing database predates.
+ *
+ * `CREATE TABLE IF NOT EXISTS` never adds columns to a table that already
+ * exists, so every new harness would otherwise need a hand-written ALTER. This
+ * reads the column list out of the schema itself, so adding a provider to
+ * `MCP_SERVERS_TABLE_SCHEMA_SQL` is enough — the exact silent failure the
+ * schema comment warns about cannot happen.
+ */
+const addMissingMcpEnabledProviderColumns = (db: Database): void => {
+  if (!tableExists(db, 'mcp_servers')) {
+    return;
+  }
+  const existingColumns = new Set(getTableInfo(db, 'mcp_servers').map((column) => column.name));
+  const declaredColumns = new Set(
+    MCP_SERVERS_TABLE_SCHEMA_SQL.match(/\benabled_[a-z0-9_]+\b/g) ?? [],
+  );
+  for (const column of declaredColumns) {
+    if (!existingColumns.has(column)) {
+      console.log(`Running migration: Adding ${column} column to mcp_servers table`);
+      db.exec(`ALTER TABLE mcp_servers ADD COLUMN ${column} BOOLEAN DEFAULT 0`);
+    }
+  }
+};
+
 export const runMigrations = (db: Database) => {
   try {
     const usersTableInfo = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
@@ -615,6 +641,7 @@ export const runMigrations = (db: Database) => {
       ON provider_models(provider, sort_order, id)
     `);
     db.exec(MCP_SERVERS_TABLE_SCHEMA_SQL);
+    addMissingMcpEnabledProviderColumns(db);
     db.exec(USER_PREFERENCES_TABLE_SCHEMA_SQL);
     db.exec(SESSION_DRAFTS_TABLE_SCHEMA_SQL);
     db.exec(SUPERSEDED_PROVIDER_SESSIONS_TABLE_SCHEMA_SQL);

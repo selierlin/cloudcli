@@ -29,6 +29,7 @@ const PROVIDERS: Array<{ id: LLMProvider; label: string }> = [
   { id: 'pi', label: 'Pi' },
   { id: 'zcode', label: 'ZCode' },
   { id: 'omp', label: 'OMP' },
+  { id: 'openclaw', label: 'OpenClaw' },
 ];
 
 type ModelLibraryPanelProps = {

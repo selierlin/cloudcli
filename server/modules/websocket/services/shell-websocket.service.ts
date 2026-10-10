@@ -6,7 +6,7 @@ import pty, { type IPty } from 'node-pty';
 import { WebSocket, type RawData } from 'ws';
 
 import { parseIncomingJsonObject, stripAnsiSequences } from '@/shared/utils.js';
-import { getPiCommand, getWorkbuddyCommand, getZcodeCommand } from '@/modules/providers/index.js';
+import { getOpenclawCommand, getPiCommand, getWorkbuddyCommand, getZcodeCommand } from '@/modules/providers/index.js';
 
 type ShellIncomingMessage = {
   type?: string;
@@ -337,6 +337,21 @@ function buildShellCommand(
     // below, which would mis-resume the DSH session id against
     // `claude --resume` and then open an unrelated new claude session.
     return initialCommand || resolveUserShell(process.env);
+  }
+
+  if (provider === 'openclaw') {
+    // OpenClaw's TUI takes the session *key* (`--session agent:main:…`), which
+    // is exactly the provider-native id the app stores, so a session can be
+    // taken over in a terminal. The absolute binary is resolved so the PTY's
+    // bash does not need it on its own PATH.
+    const openclawBin = getOpenclawCommand();
+    if (resumeSessionId) {
+      if (os.platform() === 'win32') {
+        return `${openclawBin} tui --session "${resumeSessionId}"; if ($LASTEXITCODE -ne 0) { ${openclawBin} tui }`;
+      }
+      return `${openclawBin} tui --session "${resumeSessionId}" || ${openclawBin} tui`;
+    }
+    return initialCommand || `${openclawBin} tui`;
   }
 
   // Launching with the flag is what unlocks "bypass permissions" in the CLI's
@@ -676,6 +691,8 @@ export function handleShellConnection(
                         ? 'Pi'
                       : provider === 'zcode'
                           ? 'ZCode'
+                      : provider === 'openclaw'
+                          ? 'OpenClaw'
                     : 'Claude';
           welcomeMsg = hasSession && resumeSessionId
             ? `\x1b[36mResuming ${providerName} session ${resumeSessionId} in: ${projectPath}\x1b[0m\r\n`

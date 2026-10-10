@@ -219,6 +219,26 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     // OmpForkProvider.
     supportsSessionForking: true,
   },
+  openclaw: {
+    provider: 'openclaw',
+    // `default` routes OpenClaw's ACP permission requests to the chat UI;
+    // `auto` answers them with the bridge's allow-once option. OpenClaw keeps its
+    // own approval policy, so neither mode rewrites the harness configuration.
+    permissionModes: ['default', 'auto'],
+    defaultPermissionMode: 'default',
+    // Attachments are not passed through the ACP bridge yet.
+    supportsImages: false,
+    supportsFiles: false,
+    supportsAbort: true,
+    supportsPermissionRequests: true,
+    // History carries an assistant `usage` block per turn, so the token counter
+    // reads the newest one on the active path.
+    supportsTokenUsage: true,
+    supportsEffort: false,
+    supportsMessageEditing: false,
+    // Phase 3 evaluates OpenClaw's ACP `fork` method.
+    supportsSessionForking: false,
+  },
 };
 
 /**

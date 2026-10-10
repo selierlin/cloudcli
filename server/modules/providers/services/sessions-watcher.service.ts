@@ -8,6 +8,7 @@ import { sessionSynchronizerService } from '@/modules/providers/services/session
 import { getDshSessionsRoot } from '@/modules/providers/list/dsh/dsh-models.provider.js';
 import { isDshSessionLogFile } from '@/modules/providers/list/dsh/dsh-sessions.provider.js';
 import { getOmpSessionsRoot } from '@/modules/providers/list/omp/omp-models.provider.js';
+import { getOpenclawAgentsDir, getOpenclawHomeDir } from '@/modules/providers/list/openclaw/openclaw-models.provider.js';
 import { getPiSessionsRoot } from '@/modules/providers/list/pi/pi-models.provider.js';
 import { getWorkbuddySessionRoots } from '@/modules/providers/list/workbuddy/workbuddy-storage.provider.js';
 import { getZcodeHomeDir } from '@/modules/providers/list/zcode/zcode-models.provider.js';
@@ -59,6 +60,13 @@ function getProviderWatchPaths(): Array<{ provider: LLMProvider; rootPath: strin
       provider: 'omp',
       rootPath: getOmpSessionsRoot(),
     },
+    {
+      provider: 'openclaw',
+      // OpenClaw keeps every conversation in a per-agent SQLite store under
+      // `agents/<agentId>/agent/`; watching that root catches the checkpoint
+      // writes that update `openclaw-agent.sqlite`.
+      rootPath: getOpenclawAgentsDir(),
+    },
   ];
 }
 
@@ -79,6 +87,11 @@ function isProviderEnginePresent(provider: LLMProvider, rootPath: string): boole
     // ZCode's storage root is created by the app; without it there is nothing
     // to watch and the watcher must not create a phantom ~/.zcode tree.
     return existsSync(getZcodeHomeDir());
+  }
+  if (provider === 'openclaw') {
+    // OpenClaw's state root is created by its own install; without it there is
+    // nothing to watch and the watcher must not create a phantom ~/.openclaw.
+    return existsSync(getOpenclawHomeDir());
   }
   // The remaining providers store transcripts under home-dir config folders
   // owned by the engine; watching an empty-but-created folder is harmless and
@@ -134,6 +147,10 @@ function isWatcherTargetFile(provider: LLMProvider, filePath: string): boolean {
 
   if (provider === 'zcode') {
     return path.basename(filePath) === 'db.sqlite';
+  }
+
+  if (provider === 'openclaw') {
+    return path.basename(filePath) === 'openclaw-agent.sqlite';
   }
 
   return filePath.endsWith('.jsonl');

@@ -4,6 +4,7 @@ import CodexLogo from '@/shared/ui/CodexLogo';
 import CursorLogo from '@/shared/ui/CursorLogo';
 import DshLogo from '@/shared/ui/DshLogo';
 import OpenCodeLogo from '@/shared/ui/OpenCodeLogo';
+import OpenclawLogo from '@/shared/ui/OpenclawLogo';
 import PiLogo from '@/shared/ui/PiLogo';
 import WorkbuddyLogo from '@/shared/ui/WorkbuddyLogo';
 import ZcodeLogo from '@/shared/ui/ZcodeLogo';
@@ -50,6 +51,10 @@ export function LLMProviderLogo({
     // OMP (oh-my-pi) ships no mark of its own; it reuses Pi's, which is also
     // its upstream project.
     return <PiLogo className={className} />;
+  }
+
+  if (provider === 'openclaw') {
+    return <OpenclawLogo className={className} />;
   }
 
   return <ClaudeLogo className={className} />;

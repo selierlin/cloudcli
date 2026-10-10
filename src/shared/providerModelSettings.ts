@@ -11,7 +11,7 @@ export type ProviderModelSettings = Partial<Record<LLMProvider, ProviderModelSel
 
 /** Providers whose model and effort choices can be saved. */
 export const LLM_PROVIDERS: LLMProvider[] = [
-  'claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode', 'omp',
+  'claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode', 'omp', 'openclaw',
 ];
 
 /** Collects existing browser-only model and effort choices for first-login migration. */

@@ -84,6 +84,10 @@ const getProviderCommand = ({
     return 'echo "OMP authentication is managed inside `omp` itself. Run `omp` in a terminal, use /login, then retry."';
   }
 
+  if (provider === 'openclaw') {
+    return 'echo "OpenClaw authentication is configured via ~/.openclaw/openclaw.json (an apiKey provider) or `openclaw models auth`. Configure it, then retry."';
+  }
+
   return 'claude --dangerously-skip-permissions /login';
 };
 
@@ -97,6 +101,7 @@ const getProviderTitle = (provider: LLMProvider) => {
   if (provider === 'pi') return 'Pi Login';
   if (provider === 'zcode') return 'ZCode Login';
   if (provider === 'omp') return 'OMP Login';
+  if (provider === 'openclaw') return 'OpenClaw Login';
   return 'Claude CLI Login';
 };
 

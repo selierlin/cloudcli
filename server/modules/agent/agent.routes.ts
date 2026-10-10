@@ -43,6 +43,7 @@ type AgentRouterDependencies = {
   queryPi: ProviderRunFunction;
   queryZcode: ProviderRunFunction;
   queryOmp: ProviderRunFunction;
+  queryOpenclaw: ProviderRunFunction;
   GithubClient: typeof import('@octokit/rest').Octokit;
 };
 
@@ -72,6 +73,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
   const queryPi = dependencies.queryPi;
   const queryZcode = dependencies.queryZcode;
   const queryOmp = dependencies.queryOmp;
+  const queryOpenclaw = dependencies.queryOpenclaw;
   const Octokit = dependencies.GithubClient;
   const router = express.Router();
 
@@ -678,7 +680,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
    *                          - Source for auto-generated branch names (if createBranch=true and no branchName)
    *                          - Fallback for PR title if no commits are made
    *
-   * @param {string} provider - (Optional) AI provider to use. Options: 'claude' | 'cursor' | 'codex' | 'opencode' | 'dsh' | 'workbuddy' | 'pi' | 'zcode' | 'omp'
+   * @param {string} provider - (Optional) AI provider to use. Options: 'claude' | 'cursor' | 'codex' | 'opencode' | 'dsh' | 'workbuddy' | 'pi' | 'zcode' | 'omp' | 'openclaw'
    *                           Default: 'claude'
    *
    * @param {boolean} stream - (Optional) Enable Server-Sent Events (SSE) streaming for real-time updates.
@@ -806,7 +808,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
    * Input Validations (400 Bad Request):
    *   - Either githubUrl OR projectPath must be provided (not neither)
    *   - message must be non-empty string
-   *   - provider must be 'claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode', or 'omp'
+   *   - provider must be 'claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode', 'omp', or 'openclaw'
    *   - createBranch/createPR requires githubUrl OR projectPath (not neither)
    *   - branchName must pass Git naming rules (if provided)
    *
@@ -936,8 +938,8 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
       return res.status(400).json({ error: 'message is required' });
     }
 
-    if (requestedProvider !== null && !['claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode', 'omp'].includes(requestedProvider)) {
-      return res.status(400).json({ error: 'provider must be "claude", "cursor", "codex", "opencode", "dsh", "workbuddy", "pi", "zcode", or "omp"' });
+    if (requestedProvider !== null && !['claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode', 'omp', 'openclaw'].includes(requestedProvider)) {
+      return res.status(400).json({ error: 'provider must be "claude", "cursor", "codex", "opencode", "dsh", "workbuddy", "pi", "zcode", "omp", or "openclaw"' });
     }
 
     // Validate GitHub branch/PR creation requirements
@@ -1164,6 +1166,19 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
           sessionId: appSessionId,
           model: model || undefined,
           effort,
+          permissionMode: 'bypassPermissions'
+        }, run.writer);
+      } else if (provider === 'openclaw') {
+        console.log('🤖 Starting OpenClaw session');
+
+        // Phase 1 has no live runtime: the injected runner is the guard that
+        // rejects the run, so agent API calls surface the same 501 the chat
+        // path does rather than silently doing nothing.
+        await queryOpenclaw(message.trim(), {
+          projectPath: finalProjectPath,
+          cwd: finalProjectPath,
+          sessionId: appSessionId,
+          model: model || undefined,
           permissionMode: 'bypassPermissions'
         }, run.writer);
       }
