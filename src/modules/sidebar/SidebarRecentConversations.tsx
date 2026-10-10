@@ -5,8 +5,9 @@ import type { TFunction } from 'i18next';
 
 import { ActionMenu, Button, Dialog, DialogContent, DialogTitle, LLMProviderLogo } from '@/shared/ui';
 import { cn } from '@/shared/utils';
-import type { LLMProvider, Project, ProjectSession, RecentConversationListItem } from '@/shared/types';
+import type { LLMProvider, Project, ProjectSession, RecentConversationListItem, SessionAttentionLevel } from '@/shared/types';
 import { formatCompactAge } from '@/modules/sidebar/utils/sidebarProjectFormatting';
+import { ActivitySlot, AttentionSlot } from '@/modules/sidebar/SessionStatusIndicators';
 import { useCopyProviderSessionId } from '@/modules/sidebar/hooks/useCopyProviderSessionId';
 import SidebarBatchSessionActions from '@/modules/sidebar/SidebarBatchSessionActions';
 
@@ -21,8 +22,8 @@ type SidebarRecentConversationsProps = {
   activeSessions: ReadonlySet<string>;
   /** Sessions whose turn ended while their background tasks still run. */
   backgroundSessionIds: ReadonlySet<string>;
-  /** Sessions the runtime flagged as needing the user's attention. */
-  attentionSessionIds: ReadonlySet<string>;
+  /** Sessions the runtime flagged as waiting on the user, mapped to how strongly to flag them. */
+  attentionSessions: ReadonlyMap<string, SessionAttentionLevel>;
   currentTime: Date;
   onConversationSelect: (
     projectId: string | null,
@@ -61,8 +62,8 @@ type RecentConversationRowProps = {
   isProcessing: boolean;
   /** The session's turn has ended but the agents, workflows or commands it launched still run. */
   hasBackgroundWork: boolean;
-  /** The runtime flagged this session as needing the user's attention. */
-  needsAttention: boolean;
+  /** The unread level to flag beside the title, or undefined when nothing awaits the user. */
+  attentionLevel?: SessionAttentionLevel;
   isManaging: boolean;
   isBatchSelected: boolean;
   currentTime: Date;
@@ -88,7 +89,7 @@ function RecentConversationRow({
   isSelected,
   isProcessing,
   hasBackgroundWork,
-  needsAttention,
+  attentionLevel,
   isManaging,
   isBatchSelected,
   currentTime,
@@ -108,6 +109,9 @@ function RecentConversationRow({
   const isEditing = editingSessionId === conversation.sessionId;
   const providerLabel = PROVIDER_LABELS[conversation.provider];
   const age = formatCompactAge(conversation.lastActivity, currentTime);
+  // Unread is a channel of its own, drawn on the right edge while the row's
+  // own activity stays on the left and its age inline below.
+  const isUnread = Boolean(attentionLevel) && !isSelected;
   const {
     copyState,
     copyLabel,
@@ -193,7 +197,7 @@ function RecentConversationRow({
 
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-1.5">
-          <span className="block truncate text-[13px] font-normal leading-4">
+          <span className={cn('block truncate text-[13px] leading-4', isUnread ? 'font-bold' : 'font-normal')}>
             {conversation.sessionTitle}
           </span>
           {conversation.isPinned && (
@@ -201,23 +205,15 @@ function RecentConversationRow({
               <Pin className="h-3 w-3 fill-current" aria-hidden="true" />
             </span>
           )}
+          <span className="ml-auto flex flex-shrink-0 items-center">
+            <AttentionSlot level={attentionLevel} isSelected={isSelected} t={t} />
+          </span>
         </span>
         <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] leading-3 text-muted-foreground">
           <span className="truncate">{conversation.projectDisplayName}</span>
-          {/* Processing keeps the fork's right-edge spinner; this slot is the
-              purple dot's (upstream) and otherwise the age. */}
-          {hasBackgroundWork ? (
-            // No spinner: nothing is responding. The purple of the workflow
-            // and agent cards says what is still running.
-            <>
-              <span className="flex-shrink-0 text-muted-foreground/40">·</span>
-              <span
-                role="status"
-                aria-label={t('tooltips.backgroundWorkIndicator', 'Background work running')}
-                className="h-2 w-2 flex-shrink-0 animate-pulse rounded-full bg-purple-500 dark:bg-purple-400"
-              />
-            </>
-          ) : age && (
+          {/* The background dot moved to the row's left edge, leaving this
+              inline slot to the age alone. */}
+          {age && (
             <>
               <span className="flex-shrink-0 text-muted-foreground/40">·</span>
               <time className="flex-shrink-0 tabular-nums" dateTime={conversation.lastActivity ?? undefined}>
@@ -232,15 +228,13 @@ function RecentConversationRow({
 
   return (
     <div className="group relative">
-      {needsAttention && !isSelected && (
-        <div className="absolute left-0 top-1/2 z-10 -translate-x-1 -translate-y-1/2 transform">
-          <span
-            role="status"
-            aria-label={t('tooltips.attentionRequiredIndicator', 'Session needs attention')}
-            className="block h-2 w-2 animate-pulse rounded-full bg-amber-500"
-          />
-        </div>
-      )}
+      <ActivitySlot
+        isProcessing={isProcessing}
+        hasBackgroundWork={hasBackgroundWork}
+        isSelected={isSelected}
+        className="left-2.5 -translate-x-1"
+        t={t}
+      />
       <div className="md:hidden">
         <div
           className={cn(
@@ -253,11 +247,6 @@ function RecentConversationRow({
           <div className="flex min-w-0 flex-1 cursor-pointer items-center gap-2" onClick={selectConversation}>
             {rowBody}
           </div>
-          {isProcessing && (
-            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center text-muted-foreground" aria-label={t('tooltips.processingSessionIndicator', 'Processing session')}>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            </span>
-          )}
           {!isManaging && <button
             type="button"
             aria-label={t('sessions.sessionOptionsFor', { name: conversation.sessionTitle })}
@@ -430,7 +419,6 @@ function RecentConversationRow({
         >
           {rowBody}
 
-          {isProcessing && <Loader2 className="h-3.5 w-3.5 flex-shrink-0 animate-spin text-muted-foreground" aria-label={t('tooltips.processingSessionIndicator', 'Processing session')} />}
           {!isManaging && <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/40 transition-transform group-hover:translate-x-0.5 group-hover:text-muted-foreground" />}
         </a>
 
@@ -563,7 +551,7 @@ export default function SidebarRecentConversations({
   selectedSession,
   activeSessions,
   backgroundSessionIds,
-  attentionSessionIds,
+  attentionSessions,
   currentTime,
   onConversationSelect,
   onLoadMore,
@@ -705,7 +693,7 @@ export default function SidebarRecentConversations({
         isSelected={isSelected}
         isProcessing={activeSessions.has(conversation.sessionId) && !hasBackgroundWork}
         hasBackgroundWork={hasBackgroundWork}
-        needsAttention={attentionSessionIds.has(conversation.sessionId)}
+        attentionLevel={attentionSessions.get(conversation.sessionId)}
         isManaging={isManaging}
         isBatchSelected={selectedSessionIds.has(conversation.sessionId)}
         currentTime={currentTime}

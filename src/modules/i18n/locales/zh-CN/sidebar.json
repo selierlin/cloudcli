@@ -75,13 +75,14 @@
     "removeFromFavorites": "从收藏移除",
     "editSessionName": "手动编辑会话名称",
     "deleteSession": "永久删除此会话",
-    "activeSessionIndicator": "最近活跃的会话（最近 2 分钟）",
     "save": "保存",
     "cancel": "取消",
     "clearSearch": "清除搜索",
     "openCommandPalette": "打开命令面板",
-    "attentionRequiredIndicator": "会话需要处理",
-    "backgroundWorkIndicator": "后台任务运行中"
+    "backgroundWorkIndicator": "后台任务运行中",
+    "processingSessionIndicator": "会话处理中",
+    "attentionActionIndicator": "会话需要你处理",
+    "attentionNoticeIndicator": "会话有新动态"
   },
   "navigation": {
     "chat": "聊天",

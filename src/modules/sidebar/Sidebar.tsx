@@ -9,7 +9,7 @@ import { useTaskMaster, useTasksSettings } from '@/modules/task-master';
 import { usePaletteOps } from '@/modules/command-palette';
 import { useBackgroundSessionIdSet, useBusySessionIdSet } from '@/shared/context/SessionProtectionContext';
 import { getPageTitle } from '@/shared/utils';
-import type { LLMProvider, LoadingProgress, MCPServerStatus, Project, ProjectSession, SidebarProjectListProps } from '@/shared/types';
+import type { LLMProvider, LoadingProgress, MCPServerStatus, Project, ProjectSession, SessionAttentionLevel, SidebarProjectListProps } from '@/shared/types';
 import SidebarCollapsed from '@/modules/sidebar/SidebarCollapsed';
 import SidebarContent from '@/modules/sidebar/SidebarContent';
 import SidebarModals from '@/modules/sidebar/SidebarModals';
@@ -18,7 +18,7 @@ type SidebarProps = {
   projects: Project[];
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
-  attentionSessionIds: ReadonlySet<string>;
+  attentionSessions: ReadonlyMap<string, SessionAttentionLevel>;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: ProjectSession) => void;
   onNewSession: (project: Project) => void;
@@ -47,7 +47,7 @@ function Sidebar({
   projects,
   selectedProject,
   selectedSession,
-  attentionSessionIds,
+  attentionSessions,
   onProjectSelect,
   onSessionSelect,
   onNewSession,
@@ -235,7 +235,7 @@ function Sidebar({
     loadingMoreProjects,
     activeSessions,
     backgroundSessionIds,
-    attentionSessionIds,
+    attentionSessions,
     isProjectStarred,
     onRenameDraftChange: updateRenameDraft,
     onToggleProject: toggleProject,

@@ -1261,7 +1261,7 @@ export default function SidebarContent({
             selectedSession={projectListProps.selectedSession}
             activeSessions={projectListProps.activeSessions}
             backgroundSessionIds={projectListProps.backgroundSessionIds}
-            attentionSessionIds={projectListProps.attentionSessionIds}
+            attentionSessions={projectListProps.attentionSessions}
             currentTime={projectListProps.currentTime}
             onConversationSelect={onConversationResultClick}
             onLoadMore={onLoadMoreRecentConversations}

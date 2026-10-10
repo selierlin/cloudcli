@@ -2,17 +2,17 @@ import assert from 'node:assert/strict';
 
 import { render } from '@testing-library/react';
 import React from 'react';
-import { test, vi } from 'vitest';
+import { test } from 'vitest';
 
-import type { LLMProvider, ProjectSession, RecentConversationListItem, SidebarProjectListProps } from '@/shared/types';
+import type { LLMProvider, ProjectSession, RecentConversationListItem, SessionAttentionLevel, SidebarProjectListProps } from '@/shared/types';
 
 /**
- * The Conversations list draws a session's state inline: a spinner while a
- * response is in flight, the purple pulse of the workflow and agent cards
- * while only background work is running, and the row's age otherwise. These
- * assertions were carried over from the recents row tests the fork replaced;
- * they lock the indicators to the semantics the sidebar shares with the
- * Projects list (see sessionRowBackgroundWork.test.tsx).
+ * The Conversations list shares the Projects list's two channels: activity on
+ * the row's left edge (a spinning ring while a response is in flight, the
+ * purple pulse of the workflow and agent cards while only background work
+ * runs) and unread on the right edge (an amber capsule or a blue dot). The
+ * row's age stays inline in its subtitle. These assertions lock the two tabs
+ * to one behaviour (see sessionRowBackgroundWork.test.tsx).
  */
 
 const { default: SidebarRecentConversations } = await import('@/modules/sidebar/SidebarRecentConversations');
@@ -38,7 +38,7 @@ const conversation = (
 type RowState = {
   activeSessions?: Set<string>;
   backgroundSessionIds?: Set<string>;
-  attentionSessionIds?: Set<string>;
+  attentionSessions?: Map<string, SessionAttentionLevel>;
 };
 
 const renderList = (conversations: RecentConversationListItem[], state: RowState = {}) => render(
@@ -52,7 +52,7 @@ const renderList = (conversations: RecentConversationListItem[], state: RowState
     selectedSession={null as unknown as ProjectSession | null}
     activeSessions={state.activeSessions ?? new Set<string>()}
     backgroundSessionIds={state.backgroundSessionIds ?? new Set<string>()}
-    attentionSessionIds={state.attentionSessionIds ?? new Set<string>()}
+    attentionSessions={state.attentionSessions ?? new Map<string, SessionAttentionLevel>()}
     currentTime={NOW}
     onConversationSelect={noop}
     onLoadMore={noop}
@@ -68,41 +68,51 @@ const renderList = (conversations: RecentConversationListItem[], state: RowState
   />,
 );
 
-test('a session with only background work running gets the purple dot, not the spinner, and is not processing', () => {
+test('a session with only background work running gets a purple dot and keeps its age', () => {
   const { container } = renderList(
-    [conversation('s1'), conversation('s2')],
+    [conversation('s1')],
     { activeSessions: new Set(['s1']), backgroundSessionIds: new Set(['s1']) },
   );
 
   assert.equal(container.querySelectorAll('.animate-spin').length, 0, 'nothing spins while only background work runs');
   const dots = container.querySelectorAll('[role="status"].bg-purple-500');
-  assert.ok(dots.length >= 1, 'the background row carries the purple dot');
+  assert.equal(dots.length, 1, 'the activity slot sits outside the responsive branches, so it renders once');
   assert.equal(dots[0].getAttribute('aria-label'), 'tooltips.backgroundWorkIndicator');
-  assert.ok(container.querySelectorAll('time').length >= 1, 'the other row shows its age');
+  assert.equal(container.querySelectorAll('time').length, 2, 'the age slot is freed — the dot moved to the left edge');
 });
 
-test('a response in flight keeps the spinner and no purple dot', () => {
+test('a response in flight shows the spinning ring and no purple dot', () => {
   const { container } = renderList(
     [conversation('s1')],
     { activeSessions: new Set(['s1']) },
   );
 
-  // jsdom renders both layouts: exactly one spinner per layout (the fork's
-  // right-edge one). A subtitle spinner next to the project name would
-  // double this — the row must never spin in two places at once.
-  assert.equal(container.querySelectorAll('.animate-spin').length, 2, 'a response in flight spins once per layout, at the row edge');
+  // One ring for the row, on its left edge. A subtitle spinner next to the
+  // project name would make this three — the row must never spin twice.
+  assert.equal(container.querySelectorAll('.animate-spin').length, 1, 'a response in flight spins once, at the left edge');
   assert.equal(container.querySelectorAll('[role="status"].bg-purple-500').length, 0);
 });
 
-test('a session needing attention gets the amber dot unless selected', () => {
+test('a session waiting on the user gets an amber capsule on the right edge', () => {
   const { container } = renderList(
     [conversation('s1'), conversation('s2')],
-    { attentionSessionIds: new Set(['s1', 's2']) },
+    { attentionSessions: new Map([['s1', 'action'], ['s2', 'action']]) },
   );
 
-  const dots = container.querySelectorAll('[role="status"].bg-amber-500');
-  assert.equal(dots.length, 2);
-  assert.equal(dots[0].getAttribute('aria-label'), 'tooltips.attentionRequiredIndicator');
+  // Both responsive layouts render the row, so each conversation carries two.
+  const markers = container.querySelectorAll('[role="status"].bg-amber-500');
+  assert.equal(markers.length, 4);
+  assert.equal(markers[0].getAttribute('aria-label'), 'tooltips.attentionActionIndicator');
+});
+
+test('a passive unread event is flagged in blue rather than amber', () => {
+  const { container } = renderList(
+    [conversation('s1')],
+    { attentionSessions: new Map([['s1', 'notice']]) },
+  );
+
+  assert.equal(container.querySelectorAll('[role="status"].bg-blue-500').length, 2);
+  assert.equal(container.querySelectorAll('[role="status"].bg-amber-500').length, 0);
 });
 
 test('an idle session shows its age and nothing pulses', () => {

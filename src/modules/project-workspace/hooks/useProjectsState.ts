@@ -7,7 +7,7 @@ import type { ServerEvent,
   LLMProvider,
   LoadingProgress,
   Project,
-  ProjectSession,IsSessionProcessing } from '@/shared/types';
+  ProjectSession,IsSessionProcessing,SessionAttentionLevel } from '@/shared/types';
 import { mergeProjectSelectionMetadata } from '@/modules/project-workspace/utils/projectSelectionMetadata';
 import { readSelectedProvider } from '@/shared/selectedProvider';
 
@@ -18,6 +18,24 @@ type UseProjectsStateArgs = {
   subscribe: (listener: (event: ServerEvent) => void) => () => void;
   isMobile: boolean;
   isSessionProcessing: IsSessionProcessing;
+};
+
+/**
+ * How strongly an unread event should be flagged on a session row.
+ *
+ * Only `permission_request` blocks the run until the user answers, so only it
+ * earns `action`; every other kind — plain errors included — carries the
+ * passive `notice`. An `error` is not something the user can answer, so
+ * flagging it as action (which promises "act and it clears") would mislead.
+ * See SessionAttentionLevel.
+ */
+const getAttentionLevel = (kind: string | undefined): SessionAttentionLevel =>
+  kind === 'permission_request' ? 'action' : 'notice';
+
+/** The `requestId` a permission event names, or null when the wire omits it. */
+const readPermissionRequestId = (event: ServerEvent): string | null => {
+  const requestId = event.requestId;
+  return typeof requestId === 'string' && requestId ? requestId : null;
 };
 
 /**
@@ -389,7 +407,9 @@ export function useProjectsState({
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedSession, setSelectedSession] = useState<ProjectSession | null>(null);
-  const [attentionSessionIds, setAttentionSessionIds] = useState<Set<string>>(new Set());
+  // Sessions flagged as waiting on the user, each with how strongly to flag it.
+  // Sticky until the session is opened or deleted — see markSessionAttention.
+  const [attentionSessions, setAttentionSessions] = useState<Map<string, SessionAttentionLevel>>(new Map());
   const [activeTab, setActiveTab] = useState<AppTab>(readPersistedTab);
 
   useEffect(() => {
@@ -466,12 +486,21 @@ export function useProjectsState({
    * same payload — the workspace header and document title.
    */
   const projectsRequestIdRef = useRef(0);
+  /**
+   * Outstanding `permission_request` ids per session, keyed by session id.
+   *
+   * A session can have several permission requests in flight and each
+   * `permission_resolved` / `permission_cancelled` clears only the request it
+   * names, so the row's amber capsule must stay until the *last* one is gone.
+   * The set — not the single event — decides whether to clear.
+   */
+  const pendingPermissionRequestIdsRef = useRef<Map<string, Set<string>>>(new Map());
 
   useEffect(() => {
     sessionLookupRef.current = null;
   }, [sessionId]);
 
-  const markSessionAttention = useCallback((targetSessionId?: string | null) => {
+  const markSessionAttention = useCallback((targetSessionId: string | null | undefined, level: SessionAttentionLevel) => {
     if (!targetSessionId) {
       return;
     }
@@ -481,13 +510,15 @@ export function useProjectsState({
       return;
     }
 
-    setAttentionSessionIds((previous) => {
-      if (previous.has(targetSessionId)) {
+    setAttentionSessions((previous) => {
+      const current = previous.get(targetSessionId);
+      // Never downgrade an unread permission/error back to a passive notice.
+      if (current === 'action' || current === level) {
         return previous;
       }
 
-      const next = new Set(previous);
-      next.add(targetSessionId);
+      const next = new Map(previous);
+      next.set(targetSessionId, level);
       return next;
     });
   }, [sessionId]);
@@ -497,12 +528,12 @@ export function useProjectsState({
       return;
     }
 
-    setAttentionSessionIds((previous) => {
+    setAttentionSessions((previous) => {
       if (!previous.has(targetSessionId)) {
         return previous;
       }
 
-      const next = new Set(previous);
+      const next = new Map(previous);
       next.delete(targetSessionId);
       return next;
     });
@@ -755,6 +786,40 @@ export function useProjectsState({
         : null;
       const viewedSessionId = selectedSessionRef.current?.id ?? sessionId ?? null;
 
+      // Remember which permission requests are still open before the mark
+      // below, so a later resolve/cancel can tell whether it was the last one.
+      if (event.kind === 'permission_request' && eventSessionId) {
+        const requestId = readPermissionRequestId(event);
+        if (requestId) {
+          const pending = pendingPermissionRequestIdsRef.current.get(eventSessionId) ?? new Set<string>();
+          pending.add(requestId);
+          pendingPermissionRequestIdsRef.current.set(eventSessionId, pending);
+        }
+      }
+
+      // A permission answered or cancelled elsewhere ends the wait: clear the
+      // row once its last outstanding request is gone. Sessions we never
+      // tracked are left alone — their attention may be a plain notice this
+      // event has nothing to say about.
+      if (
+        eventSessionId
+        && eventSessionId !== viewedSessionId
+        && (event.kind === 'permission_resolved' || event.kind === 'permission_cancelled')
+      ) {
+        const pending = pendingPermissionRequestIdsRef.current.get(eventSessionId);
+        if (pending) {
+          const requestId = readPermissionRequestId(event);
+          if (requestId) {
+            pending.delete(requestId);
+          }
+
+          if (!requestId || pending.size === 0) {
+            pendingPermissionRequestIdsRef.current.delete(eventSessionId);
+            clearSessionAttention(eventSessionId);
+          }
+        }
+      }
+
       if (
         eventSessionId
         && eventSessionId !== viewedSessionId
@@ -767,7 +832,7 @@ export function useProjectsState({
         && event.kind !== 'permission_cancelled'
         && event.kind !== 'websocket_reconnected'
       ) {
-        markSessionAttention(eventSessionId);
+        markSessionAttention(eventSessionId, getAttentionLevel(event.kind));
       }
 
       if (event.kind !== 'session_upserted') {
@@ -790,7 +855,7 @@ export function useProjectsState({
       ) {
         setExternalMessageUpdate((prev) => prev + 1);
       } else {
-        markSessionAttention(upsert.sessionId);
+        markSessionAttention(upsert.sessionId, 'notice');
       }
 
       setProjects((previousProjects) => {
@@ -874,7 +939,7 @@ export function useProjectsState({
     };
 
     return subscribe(handleEvent);
-  }, [isSessionProcessing, markSessionAttention, navigate, refreshProjectsSilently, sessionId, subscribe]);
+  }, [clearSessionAttention, isSessionProcessing, markSessionAttention, navigate, refreshProjectsSilently, sessionId, subscribe]);
 
   useEffect(() => {
     return () => {
@@ -1260,7 +1325,7 @@ export function useProjectsState({
       projects,
       selectedProject,
       selectedSession,
-      attentionSessionIds,
+      attentionSessions,
       onProjectSelect: handleProjectSelect,
       onSessionSelect: handleSessionSelect,
       onNewSession: handleNewSession,
@@ -1277,7 +1342,7 @@ export function useProjectsState({
       isMobile,
     }),
     [
-      attentionSessionIds,
+      attentionSessions,
       handleNewSession,
       handleProjectDelete,
       handleProjectSelect,
