@@ -5,7 +5,7 @@ import {
 } from '@/shared/authToken';
 import { IS_PLATFORM } from '@/shared/utils';
 import { readVoiceConfig, voiceConfigHeaders } from '@/shared/voiceConfig';
-import type { SessionMessagesRequestOptions } from '@/shared/types';
+import type { McpTestConnectionInput, SessionMessagesRequestOptions } from '@/shared/types';
 
 // Headers are a plain record rather than the full `HeadersInit` union so the
 // defaults below can be merged with a caller's headers by spreading.
@@ -458,6 +458,9 @@ export const api = {
         `/api/providers/${provider}/mcp/servers/${encodeURIComponent(serverName)}${query({ scope, workspacePath })}`,
       ),
     saveGlobalMcpServer: (payload: unknown) => post('/api/providers/mcp/servers/global', payload),
+    // Probes an http/sse endpoint with a JSON-RPC handshake before saving.
+    testMcpServer: (payload: McpTestConnectionInput) =>
+      post('/api/providers/mcp/test', payload),
 
     // App-side MCP catalog (user-scope SSOT) that the MCP matrix reads and edits.
     mcpCatalog: () => get('/api/providers/mcp/catalog'),

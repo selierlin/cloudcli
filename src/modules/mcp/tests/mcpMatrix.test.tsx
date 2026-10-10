@@ -153,7 +153,7 @@ test('renders one column per harness that has a user scope', async () => {
   const headers = Array.from(container.querySelectorAll('thead th')).map((th) => th.textContent ?? '');
   const body = headers.join('|');
 
-  for (const providerName of ['Claude', 'Cursor', 'Codex', 'OpenCode', 'DeepSeek Harness', 'WorkBuddy', 'Pi', 'ZCode']) {
+  for (const providerName of ['Claude', 'Cursor', 'Codex', 'OpenCode', 'DeepSeek', 'WorkBuddy', 'Pi', 'ZCode']) {
     assert.ok(body.includes(providerName), `expected a ${providerName} column`);
   }
 
@@ -451,6 +451,14 @@ function selectMenuItem(container: HTMLElement, label: string, itemLabel: string
   fireEvent.click(item);
 }
 
+/** Opens an entry's edit form through the pencil pinned to its sticky first column. */
+function openEditorFor(container: HTMLElement, name: string): void {
+  const row = rowFor(container, name);
+  const edit = row.querySelector('button[aria-label="mcpMatrix.row.edit"]') as HTMLButtonElement | null;
+  assert.ok(edit, `expected an edit control for "${name}"`);
+  fireEvent.click(edit);
+}
+
 /**
  * Asserts an open portal menu outranks the Settings dialog hosting the matrix.
  *
@@ -718,7 +726,7 @@ test('opens the edit form prefilled and saves under the entry\'s id', async () =
     [{ provider: 'claude', action: 'upsert', ok: true }],
   );
 
-  selectMenuItem(container, 'mcpMatrix.row.menuLabel:{"name":"notion"}', 'mcpMatrix.row.edit');
+  openEditorFor(container, 'notion');
   await waitFor(() => assert.ok(document.querySelector('form'), 'expected the entry form'));
 
   const name = controlByPlaceholder('input', 'mcpForm.placeholders.serverName');
@@ -743,7 +751,7 @@ test('opens the edit form prefilled and saves under the entry\'s id', async () =
 test('keeps what the user typed when the panel re-renders', async () => {
   const container = await renderMatrix();
 
-  selectMenuItem(container, 'mcpMatrix.row.menuLabel:{"name":"notion"}', 'mcpMatrix.row.edit');
+  openEditorFor(container, 'notion');
   await waitFor(() => assert.ok(document.querySelector('form'), 'expected the entry form'));
 
   const name = controlByPlaceholder('input', 'mcpForm.placeholders.serverName') as HTMLInputElement | null;
@@ -880,7 +888,7 @@ test('turns off the harnesses that cannot use an entry\'s new transport', async 
     [{ provider: 'codex', action: 'remove', ok: true }],
   );
 
-  selectMenuItem(container, 'mcpMatrix.row.menuLabel:{"name":"notion"}', 'mcpMatrix.row.edit');
+  openEditorFor(container, 'notion');
   await waitFor(() => assert.ok(document.querySelector('form'), 'expected the entry form'));
   fireEvent.change(transportSelect(), { target: { value: 'sse' } });
   fireEvent.submit(document.querySelector('form') as HTMLFormElement);
@@ -915,7 +923,7 @@ test('states which columns a save dropped, and nothing when it dropped none', as
     [{ provider: 'claude', action: 'upsert', ok: true }],
   );
 
-  selectMenuItem(container, 'mcpMatrix.row.menuLabel:{"name":"notion"}', 'mcpMatrix.row.edit');
+  openEditorFor(container, 'notion');
   await waitFor(() => assert.ok(document.querySelector('form'), 'expected the entry form'));
   fireEvent.submit(document.querySelector('form') as HTMLFormElement);
 
@@ -939,7 +947,7 @@ test('marks the harnesses a save failed to write, and retries them on the cell',
     ],
   );
 
-  selectMenuItem(container, 'mcpMatrix.row.menuLabel:{"name":"notion"}', 'mcpMatrix.row.edit');
+  openEditorFor(container, 'notion');
   await waitFor(() => assert.ok(document.querySelector('form'), 'expected the entry form'));
   fireEvent.submit(document.querySelector('form') as HTMLFormElement);
 

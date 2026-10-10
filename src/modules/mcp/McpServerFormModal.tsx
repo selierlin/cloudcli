@@ -21,6 +21,8 @@ type McpServerFormModalProps = {
   submitLabel?: string;
   supportedScopes?: McpScope[];
   supportedTransports?: McpTransport[];
+  /** Id of the catalog entry being edited, when opened from the MCP matrix; lets "test connection" restore redacted values from the catalog row. */
+  catalogEntryId?: string;
   onClose: () => void;
   onSubmit: (formData: McpFormState, editingServer: ProviderMcpServer | null) => Promise<void>;
 };
@@ -88,6 +90,7 @@ export default function McpServerFormModal({
   submitLabel,
   supportedScopes,
   supportedTransports,
+  catalogEntryId,
   onClose,
   onSubmit,
 }: McpServerFormModalProps) {
@@ -115,6 +118,9 @@ export default function McpServerFormModal({
     projectOptions,
     isEditing,
     isSubmitting,
+    isTesting,
+    testResult,
+    canTest,
     jsonValidationError,
     canSubmit,
     updateForm,
@@ -123,6 +129,7 @@ export default function McpServerFormModal({
     updateJsonInput,
     updateMultilineText,
     handleSubmit,
+    handleTest,
   } = useMcpServerForm({
     provider,
     editingServer,
@@ -132,6 +139,7 @@ export default function McpServerFormModal({
     unsupportedTransportMessage: isGlobalMode
       ? (transport) => t('mcpServers.errors.globalTransportUnsupported', { transport })
       : undefined,
+    catalogEntryId,
     onSubmit: handleFormSubmit,
   });
 
@@ -142,6 +150,10 @@ export default function McpServerFormModal({
   const supportsHttpHeaders = formData.transport === 'http' || formData.transport === 'sse';
   const supportsWorkingDirectory = !isGlobalMode && MCP_SUPPORTS_WORKING_DIRECTORY[provider];
   const showCodexOnlyFields = provider === 'codex' && !isGlobalMode;
+  // JSON mode hides the transport selector, so the endpoint shape is only known
+  // once the payload is parsed; show the test action there too and let the
+  // handler decide whether the current input is testable.
+  const showTestButton = formData.importMode === 'json' || formData.transport !== 'stdio';
 
   if (isGlobalMode && globalImpact) {
     const supportedCount = globalImpact.filter((entry) => entry.supported).length;
@@ -233,32 +245,36 @@ export default function McpServerFormModal({
             </div>
           )}
 
-          {!isEditing && (
-            <div className="mb-4 flex gap-2">
-              <button
-                type="button"
-                onClick={() => updateForm('importMode', 'form')}
-                className={`rounded-lg px-4 py-2 font-medium transition-colors ${
-                  formData.importMode === 'form'
-                    ? 'bg-blue-600 text-n-white'
-                    : 'bg-secondary text-n-gray-700 hover:bg-secondary/80 dark:text-n-gray-300'
-                }`}
-              >
-                {t('mcpForm.importMode.form')}
-              </button>
-              <button
-                type="button"
-                onClick={() => updateForm('importMode', 'json')}
-                className={`rounded-lg px-4 py-2 font-medium transition-colors ${
-                  formData.importMode === 'json'
-                    ? 'bg-blue-600 text-n-white'
-                    : 'bg-secondary text-n-gray-700 hover:bg-secondary/80 dark:text-n-gray-300'
-                }`}
-              >
-                {t('mcpForm.importMode.json')}
-              </button>
+          {isEditing && (
+            <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              {t('mcpForm.redactionHint')}
             </div>
           )}
+
+          <div className="mb-4 flex gap-2">
+            <button
+              type="button"
+              onClick={() => updateForm('importMode', 'form')}
+              className={`rounded-lg px-4 py-2 font-medium transition-colors ${
+                formData.importMode === 'form'
+                  ? 'bg-blue-600 text-n-white'
+                  : 'bg-secondary text-n-gray-700 hover:bg-secondary/80 dark:text-n-gray-300'
+              }`}
+            >
+              {t('mcpForm.importMode.form')}
+            </button>
+            <button
+              type="button"
+              onClick={() => updateForm('importMode', 'json')}
+              className={`rounded-lg px-4 py-2 font-medium transition-colors ${
+                formData.importMode === 'json'
+                  ? 'bg-blue-600 text-n-white'
+                  : 'bg-secondary text-n-gray-700 hover:bg-secondary/80 dark:text-n-gray-300'
+              }`}
+            >
+              {t('mcpForm.importMode.json')}
+            </button>
+          </div>
 
           {isEditing && (
             <div className="rounded-lg border border-border bg-card p-3 dark:bg-card/50">
@@ -508,7 +524,25 @@ export default function McpServerFormModal({
             </div>
           )}
 
+          {testResult && (
+            <p className={`break-words text-xs ${testResult.ok ? 'text-green-600' : 'text-red-500'}`}>
+              {testResult.ok
+                ? t('mcpForm.test.success', { server: testResult.serverName ?? 'MCP' })
+                : t('mcpForm.test.failure', { message: testResult.error ?? '' })}
+            </p>
+          )}
+
           <div className="flex justify-end gap-2 pt-4">
+            {showTestButton && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleTest}
+                disabled={!canTest}
+              >
+                {isTesting ? t('mcpForm.actions.testing') : t('mcpForm.actions.testConnection')}
+              </Button>
+            )}
             <Button type="button" variant="outline" onClick={onClose}>
               {t('mcpForm.actions.cancel')}
             </Button>

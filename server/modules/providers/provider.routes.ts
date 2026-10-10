@@ -17,6 +17,8 @@ import type {
   LLMProvider,
   McpCatalogConfig,
   McpScope,
+  McpTestConnectionInput,
+  McpTestConnectionSource,
   McpTransport,
   ProviderSkillCreateFile,
   ProviderSkillCreateInput,
@@ -226,6 +228,83 @@ const parseMcpUpsertPayload = (payload: unknown): UpsertProviderMcpServerInput =
     workspacePath,
     ...parseMcpConfigFields(body),
   };
+};
+
+/**
+ * Parses the optional `source` of a "test connection" body, which lets the
+ * probe restore redacted header values from the saved definition. Anything
+ * unrecognizable is dropped rather than rejected: a missing source only means
+ * the probe tests the values as sent, which is how it behaved before.
+ */
+const parseMcpTestSource = (value: unknown): McpTestConnectionSource | undefined => {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const source = value as Record<string, unknown>;
+  if (source.kind === 'catalog') {
+    const id = readOptionalQueryString(source.id);
+    return id ? { kind: 'catalog', id } : undefined;
+  }
+
+  if (source.kind === 'provider') {
+    const name = readOptionalQueryString(source.name);
+    const provider = readOptionalQueryString(source.provider);
+    if (!name || !provider) {
+      return undefined;
+    }
+
+    return {
+      kind: 'provider',
+      provider: provider as LLMProvider,
+      name,
+      scope: parseMcpScope(source.scope) ?? 'user',
+      workspacePath: readOptionalQueryString(source.workspacePath),
+    };
+  }
+
+  return undefined;
+};
+
+/**
+ * Parses the "test connection" body. Only http/sse can be probed, so `stdio`
+ * is rejected here rather than reaching the probe; `headers` is optional and
+ * carries the token under test.
+ */
+const parseMcpTestPayload = (payload: unknown): McpTestConnectionInput => {
+  if (!payload || typeof payload !== 'object') {
+    throw new AppError('Request body must be an object.', {
+      code: 'INVALID_REQUEST_BODY',
+      statusCode: 400,
+    });
+  }
+
+  const body = payload as Record<string, unknown>;
+  const transport = parseMcpTransport(body.transport);
+  if (transport === 'stdio') {
+    throw new AppError('Only http and sse transports can be tested.', {
+      code: 'MCP_TEST_UNSUPPORTED_TRANSPORT',
+      statusCode: 400,
+    });
+  }
+
+  const url = readOptionalQueryString(body.url);
+  if (!url) {
+    throw new AppError('url is required.', {
+      code: 'MCP_URL_REQUIRED',
+      statusCode: 400,
+    });
+  }
+
+  const headers = typeof body.headers === 'object' && body.headers !== null
+    ? Object.fromEntries(
+      Object.entries(body.headers as Record<string, unknown>).filter(
+        (entry): entry is [string, string] => typeof entry[1] === 'string',
+      ),
+    )
+    : undefined;
+
+  return { transport, url, headers, source: parseMcpTestSource(body.source) };
 };
 
 const parseProviderSkillCreatePayload = (payload: unknown): ProviderSkillCreateInput => {
@@ -883,6 +962,19 @@ router.post(
     // report a per-provider error instead of failing the whole request.
     const results = await providerMcpService.addMcpServerToAllProviders(payload);
     res.status(201).json(createApiSuccessResponse({ results }));
+  }),
+);
+
+// Probes an http/sse MCP endpoint before it is saved, so the form can verify a
+// URL and token without persisting a broken definition. Registered as a
+// literal path next to `/mcp/servers/global`; it cannot be shadowed by the
+// parameterised `/:provider/mcp/...` routes (their segment counts differ).
+router.post(
+  '/mcp/test',
+  asyncHandler(async (req: Request, res: Response) => {
+    const input = parseMcpTestPayload(req.body);
+    const result = await providerMcpService.testMcpConnectivity(input);
+    res.json(createApiSuccessResponse(result));
   }),
 );
 

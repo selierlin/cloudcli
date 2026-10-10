@@ -10,6 +10,7 @@ import type {
   McpProvider,
   McpScope,
   McpTransport,
+  ProviderMcpServer,
   UpsertMcpCatalogEntryPayload,
   UpsertProviderMcpServerPayload,
 } from '@/shared/types';
@@ -156,6 +157,34 @@ export const parseJsonMcpPayload = (
       ? readStringRecord(parsed.envHttpHeaders ?? parsed.env_http_headers) ?? {}
       : undefined,
   };
+};
+
+/**
+ * Renders one stored MCP server back into the JSON text the JSON import mode edits.
+ *
+ * The inverse of {@link parseJsonMcpPayload}: it re-emits every field that parser
+ * reads, so switching an existing server into JSON mode shows its real shape and
+ * a round-trip that leaves the text untouched is a no-op. Values the response
+ * redacted stay verbatim (`<redacted>`) — the API restores them on save.
+ */
+export const createJsonInputFromServer = (server: ProviderMcpServer): string => {
+  const config: Record<string, unknown> = { type: server.transport };
+
+  if (server.transport === 'stdio') {
+    if (server.command) config.command = server.command;
+    if (server.args?.length) config.args = server.args;
+    if (server.cwd) config.cwd = server.cwd;
+  } else {
+    if (server.url) config.url = server.url;
+    if (server.headers && Object.keys(server.headers).length > 0) config.headers = server.headers;
+  }
+
+  if (server.env && Object.keys(server.env).length > 0) config.env = server.env;
+  if (server.envVars?.length) config.envVars = server.envVars;
+  if (server.bearerTokenEnvVar) config.bearerTokenEnvVar = server.bearerTokenEnvVar;
+  if (server.envHttpHeaders && Object.keys(server.envHttpHeaders).length > 0) config.envHttpHeaders = server.envHttpHeaders;
+
+  return JSON.stringify(config, null, 2);
 };
 
 export const createMcpPayloadFromForm = (
