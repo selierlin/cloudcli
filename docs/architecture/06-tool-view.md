@@ -295,8 +295,9 @@ non-null.
 
 ## Grouping consecutive calls
 
-**RULE: two or more consecutive calls to the same tool collapse into one row. A call that
-spawned an agent never joins one.**
+**RULE: two or more consecutive calls to the same tool collapse into one row — inside a
+Process Run a batch only collapses past three calls. A call that spawned an agent never
+joins one.**
 
 ```mermaid
 flowchart TD
@@ -338,6 +339,15 @@ with `terminal` mapped to `$` and anything absent to the tool's uppercased first
 the `x{n}` badge, the preview, and — via `useGroupDiffStats` — the summed `+N -M` for a run
 whose config has `contentType: 'diff'`. Expanding it renders the run's real
 `MessageComponent` rows.
+
+**Inside a Process Run the batch folds later.** `ChatMessagesPane` passes
+`collapseAbove={PROCESS_RUN_TOOL_COLLAPSE_ABOVE}`, which is 3, so a batch only collapses
+once it holds more than three calls; two or three calls render as their own rows with no
+disclosure line, and the run shows the tools instead of an outline. `shouldCollapseToolBatch`
+owns the comparison, and the pane calls it a second time from `estimateToolGroupRowHeight`
+so the collapsed row's placeholder height matches whichever form the batch takes. A batch
+that grows past the threshold mid-stream therefore swaps from flat rows to one collapsed
+row — its rows unmount at that point.
 
 ## Subagents
 
