@@ -7,7 +7,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // 关闭系统「摇动撤销」（shake-to-undo）。WKWebView 内的可编辑元素（聊天输入框、
+        // 终端隐藏 textarea）一旦带上编辑历史，摇动设备就会弹出系统的「撤销输入」确认框；
+        // 本 App 没有任何依赖摇动的功能，全局禁用可避免误摇丢草稿。该属性覆盖整个 App，
+        // 对 WKWebView 的 web 内容同样生效。
+        application.applicationSupportsShakeToEdit = false
         return true
     }
 
