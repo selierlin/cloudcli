@@ -95,8 +95,12 @@ export default function ActivityIndicator({ activity, onAbort, isInputFocused = 
     : t('claudeStatus.elapsed.minutesSeconds', { minutes, seconds, defaultValue: '{{minutes}}m {{seconds}}s' });
   const tabSurfaceClassName = [
     'chat-activity-tab inline-flex h-8 items-center rounded-b-none rounded-t-lg border border-b-0 bg-card px-3 text-xs transition-all duration-200',
+    // Focused: match the composer's own `focus-within:border-primary/30 ring-1
+    // ring-primary/15` so the tag caps the input with the same outline. The tag
+    // is the form's sibling (absolute at bottom-full), so it cannot inherit that
+    // focus-within; the ring's lower half is clipped by `.chat-activity-tab`.
     isInputFocused
-      ? 'border-primary/30 shadow-[0_-1px_2px_hsl(var(--foreground)/0.08),1px_0_2px_hsl(var(--foreground)/0.06),-1px_0_2px_hsl(var(--foreground)/0.06)]'
+      ? 'border-primary/30 ring-1 ring-primary/15 shadow-[0_-1px_2px_hsl(var(--foreground)/0.08),1px_0_2px_hsl(var(--foreground)/0.06),-1px_0_2px_hsl(var(--foreground)/0.06)]'
       : 'border-border/50 shadow-[0_-1px_1px_hsl(var(--foreground)/0.04),1px_0_1px_hsl(var(--foreground)/0.03),-1px_0_1px_hsl(var(--foreground)/0.03)]',
   ].join(' ');
 
