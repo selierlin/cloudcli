@@ -18,6 +18,37 @@
 | `[data-slot="activity-tab"]` | `ActivityIndicator.tsx` | 输入框上方「推理中…」/「停止」两个标签。出厂是**接在输入框上沿的一体框**（直角下沿、无下边线）；主题改它必须连 `--activity-tab-overlap` 一起设：输入框边宽多少就压多少（`0` 或负值 = 改成独立浮块） |
 | `[role="separator"]` | 侧栏拖拽柄 | 侧栏宽度拖拽 |
 
+## 拼接面的聚焦态：必须自绘（**无守卫，漏写静默**）
+
+`[data-slot="activity-tab"]` 是 `[data-slot="prompt-input"]` 的**兄弟节点**（绝对定位在
+`bottom-full`，见 `ChatComposer.tsx`）——**吃不到输入框的 `:focus-within`，也没有可用的
+类钩子**。于是：**任何用 `!important` 静态钉死标签 `border-color` / `box-shadow` 的主题，
+输入框聚焦时外观一变，标签就静止不动**，接缝处从"加粗/变色的框"掉回"原样的细线"，很显眼。
+
+出厂组件本有聚焦分支（`ActivityIndicator.tsx` 收到 `isInputFocused` 就换类），但主题的
+`!important` 静态值会**反过来盖掉它**（`!important` > 工具类）——**这条无守卫、漏写不报错。**
+修法是从祖先侧感知焦点、自己把变化画回来：
+
+```css
+:root:has([data-slot='prompt-input']:focus-within) [data-slot='activity-tab'] {
+  /* 值与同主题输入框的 :focus-within 对齐 */
+  border-color: hsl(var(--ring) / 0.9) !important;
+  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.25) !important;
+}
+```
+
+三个要点：
+- **`:has()` 一定可用**：用户主题是 raw `textContent` 注入（`userThemeStyles.ts`），不经任何
+  处理，`:has()` 原样交给浏览器求值。
+- **底边不用管**：标签自带的 `.chat-activity-tab { clip-path: inset(-8px -8px 0 -8px) }`
+  （`src/index.css`）会把环的**下半圈裁掉**，所以可放心用完整的 `0 0 0 Npx` spread ring
+  ——不会在输入框里留一道横线。
+- **跟的方式照抄输入框**：有的主题聚焦是"加粗"（加 ring），有的是"位移"（如 `neubrutalism`
+  整块下压 3px）——标签要跟着做**同一个**变化，不只是加环。
+
+> **内置主题不受此坑影响**：`index.css` 的 `cc-*` 是纯令牌、不覆盖这两个 slot，走组件自带
+> 的聚焦分支。
+
 ## 二级：结构性类名（组合后唯一）
 
 | 锚点 | 来源 | 说明 |
