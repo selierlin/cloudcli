@@ -1,4 +1,4 @@
-import { Check, Minus, MoreHorizontal, Pencil, Plus, RefreshCw, Server, Trash2 } from 'lucide-react';
+import { Check, Globe, Minus, MoreHorizontal, Pencil, Plus, RefreshCw, Server, Terminal, Trash2, Zap, type LucideIcon } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -14,9 +14,10 @@ import type {
   McpFormState,
   McpProvider,
   McpScope,
+  McpTransport,
   ProviderMcpServer,
 } from '@/shared/types';
-import { ActionMenu, Badge, Button, Input } from '@/shared/ui';
+import { ActionMenu, Button, Input } from '@/shared/ui';
 import McpMatrixCell from '@/modules/mcp/McpMatrixCell';
 import McpServerFormModal from '@/modules/mcp/McpServerFormModal';
 import {
@@ -73,6 +74,34 @@ const CATALOG_FORM_SCOPES: McpScope[] = ['user'];
  * full-screen, tapping "…" appears to do nothing at all.
  */
 const MATRIX_MENU_CLASS = 'z-[10000]';
+
+/**
+ * The compact column-header labels, overriding the full harness names where they
+ * are long enough to widen the column. The full name stays in the per-column
+ * menu's ARIA label and every cell's hover text, so only the visible trigger
+ * shortens and more harness columns fit on one screen.
+ */
+const MCP_MATRIX_PROVIDER_SHORT_NAMES: Partial<Record<McpProvider, string>> = {
+  dsh: 'DeepSeek',
+};
+
+/** The transport glyph each row's leading column uses in place of a text badge, to keep that column narrow. */
+const MCP_TRANSPORT_ICONS: Record<McpTransport, LucideIcon> = {
+  stdio: Terminal,
+  http: Globe,
+  sse: Zap,
+};
+
+/** Renders an entry's transport as a small icon, narrower than the text badge it replaces. */
+function TransportIcon({ transport }: { transport: McpTransport }) {
+  const Icon = MCP_TRANSPORT_ICONS[transport];
+  return (
+    <span className="flex-shrink-0" title={transport}>
+      <Icon className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+      <span className="sr-only">{transport}</span>
+    </span>
+  );
+}
 
 /** Presents a catalog entry to the shared form, which expects one harness's server. */
 const toFormServer = (entry: McpCatalogEntry): ProviderMcpServer => ({
@@ -353,9 +382,9 @@ export default function McpMatrix() {
                     (entry) => getCellDisabledReason(entry, provider) !== null,
                   );
                   return (
-                    <th key={provider} scope="col" className="px-3 py-2 text-center font-medium text-muted-foreground">
+                    <th key={provider} scope="col" className="px-2 py-2 text-center font-medium text-muted-foreground">
                       <ActionMenu
-                        label={MCP_PROVIDER_NAMES[provider]}
+                        label={MCP_MATRIX_PROVIDER_SHORT_NAMES[provider] ?? MCP_PROVIDER_NAMES[provider]}
                         ariaLabel={t('mcpMatrix.bulk.menuLabel', { provider: MCP_PROVIDER_NAMES[provider] })}
                         variant="ghost"
                         size="sm"
@@ -400,18 +429,25 @@ export default function McpMatrix() {
                     scope="row"
                     className="sticky left-0 z-10 border-t border-border bg-background px-3 py-2 text-left font-medium text-foreground"
                   >
-                    <div className="flex min-w-0 items-center gap-2">
+                    <div className="flex min-w-0 items-center gap-1.5">
                       <span className="truncate">{entry.name}</span>
-                      <Badge variant="outline" className="text-xs">
-                        {entry.transport}
-                      </Badge>
+                      <TransportIcon transport={entry.transport} />
+                      <button
+                        type="button"
+                        onClick={() => setFormTarget({ entry })}
+                        title={t('mcpMatrix.row.edit')}
+                        aria-label={t('mcpMatrix.row.edit')}
+                        className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   </th>
                   {MCP_MATRIX_PROVIDERS.map((provider) => {
                     const write = cellWrites[getMcpCellKey(entry.id, provider)];
                     const disabled = getCellDisabledReason(entry, provider) !== null;
                     return (
-                      <td key={provider} className="border-t border-border px-3 py-2 text-center">
+                      <td key={provider} className="border-t border-border px-2 py-2 text-center">
                         <McpMatrixCell
                           state={getCellState(entry, provider, write?.status === 'failed')}
                           label={describeCell(entry, provider, write)}
@@ -432,12 +468,6 @@ export default function McpMatrix() {
                       menuClassName={MATRIX_MENU_CLASS}
                       align="right"
                       items={[
-                        {
-                          key: 'edit',
-                          label: t('mcpMatrix.row.edit'),
-                          icon: Pencil,
-                          onSelect: () => setFormTarget({ entry }),
-                        },
                         {
                           key: 'enable',
                           label: t('mcpMatrix.row.enableAll'),
@@ -475,6 +505,7 @@ export default function McpMatrix() {
           currentProjects={[]}
           supportedScopes={CATALOG_FORM_SCOPES}
           supportedTransports={MCP_GLOBAL_SUPPORTED_TRANSPORTS}
+          catalogEntryId={formTarget?.entry?.id}
           title={t(editingServer ? 'mcpMatrix.form.editTitle' : 'mcpMatrix.form.addTitle')}
           description={t('mcpMatrix.form.description')}
           submitLabel={t(editingServer ? 'mcpMatrix.form.submitEdit' : 'mcpMatrix.form.submitAdd')}

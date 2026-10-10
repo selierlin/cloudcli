@@ -386,6 +386,7 @@
       "form": "表单输入",
       "json": "JSON 导入"
     },
+    "redactionHint": "显示为 <redacted> 的字段已脱敏：保持不变即保留原值，填入新值则覆盖。",
     "scope": {
       "label": "范围",
       "userGlobal": "用户（全局）",
@@ -440,7 +441,13 @@
       "saving": "保存中...",
       "addServer": "添加服务器",
       "updateServer": "更新服务器",
-      "addServerTo": "添加服务器到 {{provider}}"
+      "addServerTo": "添加服务器到 {{provider}}",
+      "testConnection": "测试连接",
+      "testing": "测试中..."
+    },
+    "test": {
+      "success": "连接成功：{{server}}",
+      "failure": "连接失败：{{message}}"
     }
   },
   "saveStatus": {

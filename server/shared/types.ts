@@ -947,6 +947,43 @@ export type UpsertProviderMcpServerInput = {
 };
 
 /**
+ * Where a "test connection" probe's saved definition lives, so the probe can
+ * restore the `<redacted>` header values the edit form echoed back.
+ *
+ * A catalog entry is addressed by its immutable id; a harness's own server by
+ * the same identity the save path uses (provider, scope, workspace path, name).
+ */
+export type McpTestConnectionSource =
+  | { kind: 'catalog'; id: string }
+  | { kind: 'provider'; provider: LLMProvider; name: string; scope: McpScope; workspacePath?: string };
+
+/**
+ * Input for the MCP "test connection" probe: the http/sse endpoint and headers
+ * the form currently holds. `source` is set when the form is editing a saved
+ * server, so the probe can substitute a persisted secret for each `<redacted>`
+ * marker before sending; it is absent for a new server.
+ */
+export type McpTestConnectionInput = {
+  transport: McpTransport;
+  url: string;
+  headers?: Record<string, string>;
+  source?: McpTestConnectionSource;
+};
+
+/**
+ * Outcome of probing an http/sse MCP endpoint with a JSON-RPC `initialize`.
+ * `ok` is the only field callers must branch on; `status`/`serverName`/
+ * `protocolVersion` describe a success and `error` a failure.
+ */
+export type McpTestConnectionResult = {
+  ok: boolean;
+  status?: number;
+  serverName?: string;
+  protocolVersion?: string;
+  error?: string;
+};
+
+/**
  * Connection definition of one app-side catalog MCP server.
  *
  * It is exactly a `ProviderMcpServer` without the fields the catalog stores

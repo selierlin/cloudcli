@@ -386,6 +386,7 @@
       "form": "Form Input",
       "json": "JSON Import"
     },
+    "redactionHint": "Values shown as <redacted> are masked: leave them as-is to keep the stored value, or enter a new value to replace it.",
     "scope": {
       "label": "Scope",
       "userGlobal": "User (Global)",
@@ -440,7 +441,9 @@
       "saving": "Saving...",
       "addServer": "Add Server",
       "updateServer": "Update Server",
-      "addServerTo": "Add Server to {{provider}}"
+      "addServerTo": "Add Server to {{provider}}",
+      "testConnection": "Test connection",
+      "testing": "Testing..."
     },
     "scopes": {
       "userGlobal": "User (Global)",
@@ -458,7 +461,11 @@
     "addToProvider": "{{action}} to {{provider}}",
     "workingDirectory": "Working Directory",
     "envVarNames": "Environment Variable Names",
-    "bearerTokenEnvVar": "Bearer Token Environment Variable"
+    "bearerTokenEnvVar": "Bearer Token Environment Variable",
+    "test": {
+      "success": "Connection OK: {{server}}",
+      "failure": "Connection failed: {{message}}"
+    }
   },
   "saveStatus": {
     "success": "Settings saved successfully!",

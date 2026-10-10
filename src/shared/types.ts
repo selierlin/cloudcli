@@ -1373,6 +1373,35 @@ export type UpsertProviderMcpServerPayload = {
   envHttpHeaders?: KeyValueMap;
 };
 
+/**
+ * Where a "test connection" probe's saved definition lives, so the probe can
+ * restore the `<redacted>` header values the edit form echoed back.
+ *
+ * A catalog entry is addressed by its immutable id; a harness's own server by
+ * the same identity the save path uses (provider, scope, workspace path, name).
+ */
+export type McpTestConnectionSource =
+  | { kind: 'catalog'; id: string }
+  | { kind: 'provider'; provider: McpProvider; name: string; scope: McpScope; workspacePath?: string };
+
+/** The connection fields the MCP "test connection" probe needs; only http/sse carry them, and the probe tests exactly what the form holds rather than a saved server. */
+export type McpTestConnectionInput = {
+  transport: McpTransport;
+  url: string;
+  headers?: KeyValueMap;
+  /** Set when the form is editing a saved server, so the probe can restore `<redacted>` header values from what was persisted; absent for a new server. */
+  source?: McpTestConnectionSource;
+};
+
+/** The outcome of probing an http/sse MCP endpoint; `ok` is the only field callers branch on, the rest describe the reply for the inline result message. */
+export type McpTestConnectionResult = {
+  ok: boolean;
+  status?: number;
+  serverName?: string;
+  protocolVersion?: string;
+  error?: string;
+};
+
 /** The connection definition an app-side catalog entry holds: every ProviderMcpServer field except the identity and placement ones (provider/name/scope/transport), which the entry itself carries. */
 export type McpCatalogConfig = Omit<ProviderMcpServer, 'provider' | 'scope' | 'name' | 'transport'>;
 
