@@ -20,6 +20,16 @@ import type {
 import { AppError, sliceTailPage } from '@/shared/utils.js';
 
 /**
+ * A tool approval a running session is waiting on, trimmed to what the sidebar
+ * renders. Runtimes return richer records (input, timestamps); only the
+ * identity and the label travel to the client.
+ */
+type RunningSessionPendingPermission = {
+  requestId: string;
+  toolName: string;
+};
+
+/**
  * One session the running-sessions poll reports as busy.
  *
  * A chat run in progress is listed as before. A session whose turn has ended
@@ -43,6 +53,17 @@ type RunningSessionEntry = {
   canInterrupt?: false;
   statusText?: string;
   tasks?: BackgroundTaskSummary[];
+  /**
+   * Owning project, resolved from the session's project path. Null when the
+   * session has no project row.
+   */
+  projectId?: string | null;
+  /**
+   * Tool approvals waiting on the user. Absent when the provider does not
+   * implement `permissions.listPending`; an empty array means it does but
+   * nothing is waiting. Callers must read absent as "unknown", not "none".
+   */
+  pendingPermissions?: RunningSessionPendingPermission[];
 };
 
 type CreateAppSessionResult = {
@@ -169,6 +190,55 @@ function resolveProjectDisplayName(
  * class, keeping normalization/history call sites decoupled from implementation
  * file layout.
  */
+/**
+ * Attaches the sidebar-facing per-session detail to every running entry: the
+ * owning project and any tool approvals waiting on the user.
+ *
+ * `projectId` is always written (null when the session has no project row).
+ * `pendingPermissions` is written only when the provider implements
+ * `permissions.listPending` — an absent array means "this provider cannot
+ * report pending approvals", which callers must not read as "none".
+ */
+function decorateRunningEntries(entries: RunningSessionEntry[]): void {
+  const providers = providerRegistry.listProviders();
+
+  for (const entry of entries) {
+    const projectPath = sessionsDb.getSessionById(entry.sessionId)?.project_path ?? null;
+    entry.projectId = projectPath
+      ? projectsDb.getProjectPath(projectPath)?.project_id ?? null
+      : null;
+
+    const permissions = providers.find((provider) => provider.id === entry.provider)?.runtime.permissions;
+    if (permissions && typeof permissions.listPending === 'function') {
+      entry.pendingPermissions = permissions
+        .listPending(entry.sessionId)
+        .map(toRunningPendingPermission)
+        .filter((item): item is RunningSessionPendingPermission => item !== null);
+    }
+  }
+}
+
+/**
+ * Narrows one runtime pending-approval record to the sidebar summary, dropping
+ * shapes we cannot render. The tool name falls back the way the Claude runtime
+ * does so the label is never blank.
+ */
+function toRunningPendingPermission(value: unknown): RunningSessionPendingPermission | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const record = value as { requestId?: unknown; toolName?: unknown };
+  if (typeof record.requestId !== 'string' || record.requestId.length === 0) {
+    return null;
+  }
+  return {
+    requestId: record.requestId,
+    toolName: typeof record.toolName === 'string' && record.toolName.length > 0
+      ? record.toolName
+      : 'UnknownTool',
+  };
+}
+
 export const sessionsService = {
   /**
    * Lists provider ids that can load session history and normalize live messages.
@@ -231,6 +301,8 @@ export const sessionsService = {
       });
       runningById.set(session.session_id, entries[entries.length - 1]);
     }
+
+    decorateRunningEntries(entries);
 
     return entries;
   },

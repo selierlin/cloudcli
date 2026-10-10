@@ -131,3 +131,54 @@ test('a poll that changes what it says about a listed task is not dropped as a r
   assert.equal(listed?.nested, true);
   assert.equal(listed?.description, 'Audit the whole frontend');
 });
+
+test('a poll carries the pending approvals it reports', () => {
+  const { result } = renderHook(() => useSessionProtection());
+  const pending = [{ requestId: 'req-1', toolName: 'Bash' }];
+
+  act(() => {
+    result.current.syncProcessingSessions([
+      { sessionId: 'session-1', startedAt: Date.now(), canInterrupt: true, pendingPermissions: pending },
+    ]);
+  });
+
+  assert.deepEqual(result.current.getSessionActivity('session-1')?.pendingPermissions, pending);
+});
+
+test('a websocket frame keeps the pending approvals the last poll reported', () => {
+  // markSessionProcessing fires on provider frames; if it rebuilt the entry
+  // without the poll's pending approvals, the next frame would erase a blocked
+  // indicator the sidebar had just rebuilt.
+  const { result } = renderHook(() => useSessionProtection());
+  const pending = [{ requestId: 'req-1', toolName: 'Bash' }];
+
+  act(() => {
+    result.current.syncProcessingSessions([
+      { sessionId: 'session-1', startedAt: Date.now(), canInterrupt: true, pendingPermissions: pending },
+    ]);
+  });
+  act(() => {
+    result.current.markSessionProcessing('session-1', { statusText: 'Thinking', canInterrupt: true });
+  });
+
+  assert.deepEqual(result.current.getSessionActivity('session-1')?.pendingPermissions, pending);
+});
+
+test('a poll that resolves the pending approvals is not dropped as a repeat', () => {
+  // The entry looks identical apart from the approvals, so a match that ignored
+  // them would keep the stale blocked state forever.
+  const { result } = renderHook(() => useSessionProtection());
+  const startedAt = Date.now() - 60_000;
+  const snapshot = (pendingPermissions: { requestId: string; toolName: string }[]) => ({
+    sessionId: 'session-1', startedAt, canInterrupt: false, background: true, tasks: [task({ startedAt })], pendingPermissions,
+  });
+
+  act(() => {
+    result.current.syncProcessingSessions([snapshot([{ requestId: 'req-1', toolName: 'Bash' }])]);
+  });
+  act(() => {
+    result.current.syncProcessingSessions([snapshot([])]);
+  });
+
+  assert.deepEqual(result.current.getSessionActivity('session-1')?.pendingPermissions, []);
+});

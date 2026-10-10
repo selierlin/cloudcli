@@ -184,6 +184,12 @@ export type BackgroundTaskSummary = {
   nested?: boolean;
 };
 
+/** One tool approval a running session is waiting on, as reported by the running-sessions poll. */
+export type SessionPendingPermission = {
+  requestId: string;
+  toolName: string;
+};
+
 /** What a busy session is doing, as shown by the activity indicator: producing a response, or only running background tasks. */
 export type SessionActivity = {
   /** Provider-supplied status line; null renders the default activity label. */
@@ -203,6 +209,12 @@ export type SessionActivity = {
   background?: boolean;
   /** The background tasks the session still has running, with or without a response in flight. */
   tasks?: BackgroundTaskSummary[];
+  /**
+   * Tool approvals the running-sessions poll reported as waiting on the user.
+   * Absent when the provider cannot report them, which is not the same as an
+   * empty list; lets the sidebar rebuild a blocked indicator after a refresh.
+   */
+  pendingPermissions?: SessionPendingPermission[];
 };
 
 /** Every busy session, keyed by session id. Read it to tell whether a session is busy; check `background` to tell how. */
@@ -246,6 +258,8 @@ export type SessionActivitySnapshot = {
   /** True when the server lists the session for its background tasks alone, with no chat run. */
   background?: boolean;
   tasks?: BackgroundTaskSummary[];
+  /** Tool approvals the poll reported as waiting; absent when the provider cannot report them. */
+  pendingPermissions?: SessionPendingPermission[];
 };
 
 // ---------------------------

@@ -47,6 +47,7 @@ test('clears the old selected session when navigating to the root route', async 
       subscribe: () => () => {},
       isMobile: false,
       isSessionProcessing: () => false,
+      pendingApprovalSessionIds: new Set<string>(),
     }),
     { initialProps: { sessionId: 'old-session' } as Props },
   );

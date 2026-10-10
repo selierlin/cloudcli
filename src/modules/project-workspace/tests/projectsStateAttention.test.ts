@@ -39,22 +39,25 @@ const emit = (event: Record<string, unknown>) => {
   }
 };
 
-const renderProjectsState = async () => {
+const renderProjectsState = async (initialPending: ReadonlySet<string> = new Set()) => {
   const { useProjectsState } = await import(
     '@/modules/project-workspace/hooks/useProjectsState'
   );
 
-  return renderHook(() =>
-    useProjectsState({
-      sessionId: URL_SESSION_ID,
-      navigate: vi.fn() as never,
-      subscribe: (listener: ServerEventListener) => {
-        listeners.add(listener);
-        return () => listeners.delete(listener);
-      },
-      isMobile: false,
-      isSessionProcessing: () => false,
-    }),
+  return renderHook(
+    ({ pending }: { pending: ReadonlySet<string> }) =>
+      useProjectsState({
+        sessionId: URL_SESSION_ID,
+        navigate: vi.fn() as never,
+        subscribe: (listener: ServerEventListener) => {
+          listeners.add(listener);
+          return () => listeners.delete(listener);
+        },
+        isMobile: false,
+        isSessionProcessing: () => false,
+        pendingApprovalSessionIds: pending,
+      }),
+    { initialProps: { pending: initialPending } },
   );
 };
 
@@ -154,5 +157,60 @@ test('a resolution for a session we never tracked leaves its notice alone', asyn
     result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID),
     'notice',
     'the notice is not a permission request this event can clear',
+  );
+});
+
+test('the poll rebuilds a blocked row after a refresh dropped the event', async () => {
+  const { result, rerender } = await renderProjectsState();
+  assert.equal(result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID), undefined);
+
+  await act(async () => {
+    rerender({ pending: new Set([OTHER_SESSION_ID]) });
+  });
+
+  assert.equal(
+    result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID),
+    'action',
+    'the poll is the only channel a refreshed page has',
+  );
+});
+
+test('a poll that stops listing an approval clears only what it flagged', async () => {
+  const { result, rerender } = await renderProjectsState();
+
+  // A plain unread notice the websocket set, with no approval behind it.
+  await act(async () => {
+    emit({ kind: 'complete', sessionId: 'notice-session' });
+  });
+  await act(async () => {
+    rerender({ pending: new Set([OTHER_SESSION_ID]) });
+  });
+  await act(async () => {
+    rerender({ pending: new Set() });
+  });
+
+  assert.equal(
+    result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID),
+    undefined,
+    'the answer reached the server, so the row is no longer blocked',
+  );
+  assert.equal(
+    result.current.sidebarSharedProps.attentionSessions.get('notice-session'),
+    'notice',
+    'a notice the websocket set is not this channel to clear',
+  );
+});
+
+test('the poll flags the open session too, for its own row to hide', async () => {
+  const { result, rerender } = await renderProjectsState();
+
+  await act(async () => {
+    rerender({ pending: new Set([URL_SESSION_ID]) });
+  });
+
+  assert.equal(
+    result.current.sidebarSharedProps.attentionSessions.get(URL_SESSION_ID),
+    'action',
+    'the row suppresses the indicator for the selected session itself',
   );
 });

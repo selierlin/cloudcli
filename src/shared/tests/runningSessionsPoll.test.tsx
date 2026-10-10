@@ -86,3 +86,31 @@ test('one task entry in a shape the client does not read hides only itself', asy
   await waitFor(() => assert.ok(result.current.get('held-session')));
   assert.deepEqual(result.current.get('held-session')?.tasks?.map((task) => task.taskId), ['w1']);
 });
+
+test('the poll carries pending approvals and keeps absence distinct from none', async () => {
+  // Absent means the provider cannot report pending approvals; an empty array
+  // means it can and nothing is waiting. Conflating them would make the sidebar
+  // clear a blocked indicator on every poll from an unsupported provider.
+  runningSessions.mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      data: {
+        sessions: [
+          { sessionId: 'blocked-session', startedAt: 1_700_000_000_000, canInterrupt: true, pendingPermissions: [{ requestId: 'req-1', toolName: 'Bash' }] },
+          { sessionId: 'supported-session', startedAt: 1_700_000_000_000, canInterrupt: true, pendingPermissions: [] },
+          { sessionId: 'unsupported-session', startedAt: 1_700_000_000_000, canInterrupt: true },
+        ],
+      },
+    }),
+  });
+
+  const { SessionProtectionProvider, useProcessingSessions } = await import('@/shared/context/SessionProtectionContext');
+  const wrapper = ({ children }: { children: React.ReactNode }) =>
+    React.createElement(SessionProtectionProvider, null, children);
+  const { result } = renderHook(() => useProcessingSessions(), { wrapper });
+
+  await waitFor(() => assert.ok(result.current.get('unsupported-session')));
+  assert.deepEqual(result.current.get('blocked-session')?.pendingPermissions, [{ requestId: 'req-1', toolName: 'Bash' }]);
+  assert.deepEqual(result.current.get('supported-session')?.pendingPermissions, []);
+  assert.equal('pendingPermissions' in (result.current.get('unsupported-session') ?? {}), false, 'no support leaves the field absent');
+});

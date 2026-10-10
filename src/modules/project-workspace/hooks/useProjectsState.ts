@@ -18,6 +18,12 @@ type UseProjectsStateArgs = {
   subscribe: (listener: (event: ServerEvent) => void) => () => void;
   isMobile: boolean;
   isSessionProcessing: IsSessionProcessing;
+  /**
+   * Sessions the running-sessions poll reports as blocked on a tool approval.
+   * The only source that survives a refresh, since the websocket event that
+   * first announced the approval is not replayed.
+   */
+  pendingApprovalSessionIds: ReadonlySet<string>;
 };
 
 /**
@@ -403,6 +409,7 @@ export function useProjectsState({
   subscribe,
   isMobile,
   isSessionProcessing,
+  pendingApprovalSessionIds,
 }: UseProjectsStateArgs) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -538,6 +545,47 @@ export function useProjectsState({
       return next;
     });
   }, []);
+
+  /**
+   * The previous poll's blocked sessions.
+   *
+   * The poll is authoritative for a session blocked on a tool approval: it is
+   * the only channel a refreshed page has, and it is how an approval answered
+   * on another device reaches this one. Comparing it with the current report
+   * lets this channel clear exactly the sessions it flagged, without touching a
+   * `notice` the websocket set.
+   */
+  const previousPendingApprovalSessionIdsRef = useRef<ReadonlySet<string>>(new Set());
+
+  useEffect(() => {
+    const answeredSessionIds = previousPendingApprovalSessionIdsRef.current;
+    previousPendingApprovalSessionIdsRef.current = pendingApprovalSessionIds;
+
+    setAttentionSessions((previous) => {
+      const next = new Map(previous);
+      let changed = false;
+
+      // Rebuild: the poll is authoritative even for the session on screen — the
+      // row hides the indicator for the selected session on its own.
+      for (const targetSessionId of pendingApprovalSessionIds) {
+        if (next.get(targetSessionId) !== 'action') {
+          next.set(targetSessionId, 'action');
+          changed = true;
+        }
+      }
+
+      // Clear: a session this channel had flagged and the poll no longer lists
+      // has had its approval answered.
+      for (const targetSessionId of answeredSessionIds) {
+        if (!pendingApprovalSessionIds.has(targetSessionId) && next.get(targetSessionId) === 'action') {
+          next.delete(targetSessionId);
+          changed = true;
+        }
+      }
+
+      return changed ? next : previous;
+    });
+  }, [pendingApprovalSessionIds]);
 
   const fetchProjects = useCallback(async ({ showLoadingState = true }: FetchProjectsOptions = {}) => {
     // Claimed before the request starts and read again in `finally`, so the
