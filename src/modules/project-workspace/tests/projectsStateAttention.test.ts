@@ -1,0 +1,158 @@
+import assert from 'node:assert/strict';
+
+import { act, renderHook } from '@testing-library/react';
+import { afterEach, beforeEach, test, vi } from 'vitest';
+
+/**
+ * The sidebar's unread channel is driven entirely by websocket events, so its
+ * leveling and clearing rules live here rather than in a rendered row.
+ *
+ * Two rules are load-bearing. First, only a `permission_request` is an
+ * `action` — an `error` is something the user cannot answer, so it is a plain
+ * `notice` and must not promise "act and it clears". Second, a permission that
+ * is answered or cancelled elsewhere clears the row, but only once the last of
+ * the session's outstanding requests is gone: a session can have several in
+ * flight and each resolve names just one.
+ */
+
+const projectsResponse = vi.fn();
+
+vi.mock('@/shared/api', () => ({
+  api: {
+    projects: () => projectsResponse(),
+    projectTaskmaster: () => Promise.resolve({ ok: false }),
+    sessionDetails: () => Promise.resolve({ ok: false }),
+    projectSessions: () => Promise.resolve({ ok: false }),
+  },
+}));
+
+const URL_SESSION_ID = 'url-session';
+const OTHER_SESSION_ID = 'other-session';
+
+type ServerEventListener = (event: Record<string, unknown>) => void;
+
+const listeners = new Set<ServerEventListener>();
+
+const emit = (event: Record<string, unknown>) => {
+  for (const listener of listeners) {
+    listener(event);
+  }
+};
+
+const renderProjectsState = async () => {
+  const { useProjectsState } = await import(
+    '@/modules/project-workspace/hooks/useProjectsState'
+  );
+
+  return renderHook(() =>
+    useProjectsState({
+      sessionId: URL_SESSION_ID,
+      navigate: vi.fn() as never,
+      subscribe: (listener: ServerEventListener) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      isMobile: false,
+      isSessionProcessing: () => false,
+    }),
+  );
+};
+
+beforeEach(() => {
+  localStorage.clear();
+  projectsResponse.mockReset();
+  projectsResponse.mockResolvedValue({ ok: true, json: async () => [] });
+  listeners.clear();
+});
+
+afterEach(() => {
+  vi.resetModules();
+});
+
+test('a permission request is an action while an error is only a notice', async () => {
+  const { result } = await renderProjectsState();
+
+  await act(async () => {
+    emit({ kind: 'permission_request', sessionId: OTHER_SESSION_ID, requestId: 'r1' });
+    emit({ kind: 'error', sessionId: 'error-session' });
+  });
+
+  assert.equal(result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID), 'action');
+  assert.equal(result.current.sidebarSharedProps.attentionSessions.get('error-session'), 'notice');
+});
+
+test('the session open in the chat view is never flagged', async () => {
+  const { result } = await renderProjectsState();
+
+  await act(async () => {
+    emit({ kind: 'permission_request', sessionId: URL_SESSION_ID, requestId: 'r1' });
+  });
+
+  assert.equal(result.current.sidebarSharedProps.attentionSessions.get(URL_SESSION_ID), undefined);
+});
+
+test('resolving the only pending permission clears the row', async () => {
+  const { result } = await renderProjectsState();
+
+  await act(async () => {
+    emit({ kind: 'permission_request', sessionId: OTHER_SESSION_ID, requestId: 'r1' });
+  });
+  assert.equal(result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID), 'action');
+
+  await act(async () => {
+    emit({ kind: 'permission_resolved', sessionId: OTHER_SESSION_ID, requestId: 'r1' });
+  });
+  assert.equal(result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID), undefined);
+});
+
+test('a cancellation clears the row just like a resolution', async () => {
+  const { result } = await renderProjectsState();
+
+  await act(async () => {
+    emit({ kind: 'permission_request', sessionId: OTHER_SESSION_ID, requestId: 'r1' });
+    emit({ kind: 'permission_cancelled', sessionId: OTHER_SESSION_ID, requestId: 'r1' });
+  });
+
+  assert.equal(result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID), undefined);
+});
+
+test('the capsule stays until the last of several requests is answered', async () => {
+  const { result } = await renderProjectsState();
+
+  await act(async () => {
+    emit({ kind: 'permission_request', sessionId: OTHER_SESSION_ID, requestId: 'r1' });
+    emit({ kind: 'permission_request', sessionId: OTHER_SESSION_ID, requestId: 'r2' });
+  });
+
+  await act(async () => {
+    emit({ kind: 'permission_resolved', sessionId: OTHER_SESSION_ID, requestId: 'r1' });
+  });
+  assert.equal(
+    result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID),
+    'action',
+    'one request is still open, so the row keeps its capsule',
+  );
+
+  await act(async () => {
+    emit({ kind: 'permission_resolved', sessionId: OTHER_SESSION_ID, requestId: 'r2' });
+  });
+  assert.equal(result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID), undefined);
+});
+
+test('a resolution for a session we never tracked leaves its notice alone', async () => {
+  const { result } = await renderProjectsState();
+
+  await act(async () => {
+    emit({ kind: 'complete', sessionId: OTHER_SESSION_ID });
+  });
+  assert.equal(result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID), 'notice');
+
+  await act(async () => {
+    emit({ kind: 'permission_resolved', sessionId: OTHER_SESSION_ID, requestId: 'never-tracked' });
+  });
+  assert.equal(
+    result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID),
+    'notice',
+    'the notice is not a permission request this event can clear',
+  );
+});

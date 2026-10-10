@@ -4,7 +4,7 @@ import type { TFunction } from 'i18next';
 
 import { Button } from '@/shared/ui';
 import { cn } from '@/shared/utils';
-import type { LLMProvider, Project, ProjectSession, SessionWithProvider } from '@/shared/types';
+import type { LLMProvider, Project, ProjectSession, SessionAttentionLevel, SessionWithProvider } from '@/shared/types';
 import SidebarSessionItem from '@/modules/sidebar/SidebarSessionItem';
 import SidebarBatchSessionActions from '@/modules/sidebar/SidebarBatchSessionActions';
 import { useCompactSidebar } from '@/modules/sidebar/hooks/useCompactSidebar';
@@ -19,7 +19,7 @@ type SidebarProjectSessionsProps = {
   isLoadingMoreSessions: boolean;
   activeSessions: ReadonlySet<string>;
   backgroundSessionIds: ReadonlySet<string>;
-  attentionSessionIds: ReadonlySet<string>;
+  attentionSessions: ReadonlyMap<string, SessionAttentionLevel>;
   currentTime: Date;
   /** The session being renamed, when it belongs to this project. */
   sessionRenameId: string | null;
@@ -72,7 +72,7 @@ export default function SidebarProjectSessions({
   isLoadingMoreSessions,
   activeSessions,
   backgroundSessionIds,
-  attentionSessionIds,
+  attentionSessions,
   currentTime,
   sessionRenameId,
   sessionRenameDraft,
@@ -238,7 +238,7 @@ export default function SidebarProjectSessions({
               isManaging={isManaging}
               isBatchSelected={selectedSessionIds.has(session.id)}
               hasBackgroundWork={backgroundSessionIds.has(session.id)}
-              needsAttention={attentionSessionIds.has(session.id)}
+              attentionLevel={attentionSessions.get(session.id)}
               currentTime={currentTime}
               onRenameDraftChange={onRenameDraftChange}
               isEditing={session.id === sessionRenameId}

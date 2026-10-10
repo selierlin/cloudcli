@@ -1742,6 +1742,13 @@ export type MobileTerminalSelectionManager = {
 
 //----------------- SIDEBAR ------------
 
+/**
+ * Why a session is flagged as waiting on the user, drawn as a marker beside its
+ * title. `action` blocks the run until the user responds (a permission prompt
+ * or an error); `notice` is passive output the user has not seen yet.
+ */
+export type SessionAttentionLevel = 'action' | 'notice';
+
 /** The complete project-list state and callback bundle the sidebar assembles once and threads down through its project list, project rows and session rows. */
 /**
  * What a session row needs to draw its state and act on the session, named once
@@ -1758,8 +1765,8 @@ export type SessionRowActions = {
   activeSessions: ReadonlySet<string>;
   /** The subset of `activeSessions` that only has background tasks running, which show the purple dot instead of the spinner. */
   backgroundSessionIds: ReadonlySet<string>;
-  /** Sessions waiting on the user, which show the amber dot. */
-  attentionSessionIds: ReadonlySet<string>;
+  /** Sessions waiting on the user, mapped to how strongly to flag them; rows draw the marker beside the title. */
+  attentionSessions: ReadonlyMap<string, SessionAttentionLevel>;
   onRenameDraftChange: (draft: string) => void;
   onStartEditingSession: (projectId: string, sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;

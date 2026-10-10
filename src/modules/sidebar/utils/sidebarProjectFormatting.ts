@@ -12,14 +12,10 @@ import type {
 
 // Presentation data the sidebar derives from a session before rendering its row.
 type SessionViewModel = {
-  isActive: boolean;
   sessionName: string;
   sessionTime: string;
   messageCount: number;
 };
-
-// 绿点“最近活跃”的时间窗口（分钟）：会话最后活动距今超过该值就不再高亮。
-const RECENTLY_ACTIVE_WINDOW_MINUTES = 2;
 
 export const formatCompactAge = (
   dateString: string | null | undefined,
@@ -67,19 +63,12 @@ const getSessionTime = (session: SessionWithProvider): string => {
 
 export const createSessionViewModel = (
   session: SessionWithProvider,
-  currentTime: Date,
   t: TFunction,
-): SessionViewModel => {
-  const sessionDate = getSessionDate(session);
-  const diffInMinutes = Math.floor((currentTime.getTime() - sessionDate.getTime()) / (1000 * 60));
-
-  return {
-    isActive: diffInMinutes < RECENTLY_ACTIVE_WINDOW_MINUTES,
-    sessionName: getSessionName(session, t),
-    sessionTime: getSessionTime(session),
-    messageCount: Number(session.messageCount || 0),
-  };
-};
+): SessionViewModel => ({
+  sessionName: getSessionName(session, t),
+  sessionTime: getSessionTime(session),
+  messageCount: Number(session.messageCount || 0),
+});
 
 /**
  * Cached against the project object, not its id.

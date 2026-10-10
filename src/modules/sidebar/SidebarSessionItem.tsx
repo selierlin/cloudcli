@@ -4,8 +4,9 @@ import type { TFunction } from 'i18next';
 
 import { Badge, Dialog, DialogContent, DialogTitle, LLMProviderLogo, Tooltip, buttonVariants } from '@/shared/ui';
 import { cn } from '@/shared/utils';
-import type { LLMProvider, Project, ProjectSession, SessionWithProvider } from '@/shared/types';
+import type { LLMProvider, Project, ProjectSession, SessionAttentionLevel, SessionWithProvider } from '@/shared/types';
 import { PROVIDER_LABELS, createSessionViewModel, formatCompactAge } from '@/modules/sidebar/utils/sidebarProjectFormatting';
+import { ActivitySlot, AttentionSlot } from '@/modules/sidebar/SessionStatusIndicators';
 import { useCompactSidebar } from '@/modules/sidebar/hooks/useCompactSidebar';
 import { useProviderSessionIdCopy } from '@/modules/sidebar/hooks/useProviderSessionIdCopy';
 import SessionOptions from '@/modules/sidebar/SessionOptions';
@@ -21,7 +22,8 @@ type SidebarSessionItemProps = {
   isBatchSelected: boolean;
   /** The session's turn has ended but the agents, workflows or commands it launched still run. */
   hasBackgroundWork: boolean;
-  needsAttention: boolean;
+  /** The unread level to flag beside the title, or undefined when nothing awaits the user. */
+  attentionLevel?: SessionAttentionLevel;
   currentTime: Date;
   /** Resolved for this row, so a keystroke elsewhere does not invalidate it. */
   isEditing: boolean;
@@ -49,7 +51,7 @@ function SidebarSessionItem({
   isManaging,
   isBatchSelected,
   hasBackgroundWork,
-  needsAttention,
+  attentionLevel,
   currentTime,
   isEditing,
   renameDraft,
@@ -66,20 +68,13 @@ function SidebarSessionItem({
   t,
 }: SidebarSessionItemProps) {
   const isCompact = useCompactSidebar();
-  const sessionView = createSessionViewModel(session, currentTime, t);
+  const sessionView = createSessionViewModel(session, t);
   const isSelected = selectedSession?.id === session.id;
   const compactSessionAge = formatCompactAge(sessionView.sessionTime, currentTime);
   const [isMobileOptionsOpen, setIsMobileOptionsOpen] = useState(false);
-  const showAttentionIndicator = needsAttention && !isSelected;
-  // Background work takes the recent-activity dot's place: the session is
-  // still doing something, which says more than that it was touched lately.
-  const showBackgroundIndicator = !showAttentionIndicator && !isSelected && hasBackgroundWork;
-  const showRecentIndicator = !showAttentionIndicator && !showBackgroundIndicator && !isProcessing && !isSelected && sessionView.isActive;
-  const indicatorLabel = showAttentionIndicator
-    ? t('tooltips.attentionRequiredIndicator', { defaultValue: 'Session needs attention' })
-    : showBackgroundIndicator
-      ? t('tooltips.backgroundWorkIndicator', { defaultValue: 'Background work running' })
-      : t('tooltips.activeSessionIndicator');
+  // Unread is a channel of its own on the row's right edge; bolding the title
+  // echoes it there so the left edge stays free for the activity indicator.
+  const isUnread = Boolean(attentionLevel) && !isSelected;
   const providerLabel = PROVIDER_LABELS[session.__provider];
 
   // The desktop controls live in SessionOptions, which owns the rename panel and
@@ -133,24 +128,13 @@ function SidebarSessionItem({
 
   return (
     <div className="group relative">
-      {(showAttentionIndicator || showBackgroundIndicator || showRecentIndicator) && (
-        <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 transform">
-          <Tooltip content={indicatorLabel} position="right">
-            <div
-              role="status"
-              aria-label={indicatorLabel}
-              className={cn(
-                'h-2 w-2 animate-pulse rounded-full',
-                showAttentionIndicator
-                  ? 'bg-amber-500'
-                  : showBackgroundIndicator
-                    ? 'bg-purple-500 dark:bg-purple-400'
-                    : 'bg-green-500',
-              )}
-            />
-          </Tooltip>
-        </div>
-      )}
+      <ActivitySlot
+        isProcessing={isProcessing}
+        hasBackgroundWork={hasBackgroundWork}
+        isSelected={isSelected}
+        className="left-0 -translate-x-1"
+        t={t}
+      />
 
       {isCompact && (
       <div>
@@ -162,8 +146,6 @@ function SidebarSessionItem({
               : '',
             !isSelected && isProcessing
               ? 'border-border/60 bg-muted/20'
-              : !isSelected && sessionView.isActive
-              ? 'border-green-500/30 bg-green-50/5 dark:bg-green-900/5'
               : 'border-border/30',
           )}
           onClick={selectMobileSession}
@@ -194,7 +176,7 @@ function SidebarSessionItem({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <div
-                  className="min-w-0 flex-1 truncate text-sm font-normal text-foreground"
+                  className={cn('min-w-0 truncate text-sm text-foreground', isUnread ? 'font-bold' : 'font-normal')}
                   title={sessionView.sessionName}
                 >
                   {sessionView.sessionName}
@@ -206,17 +188,13 @@ function SidebarSessionItem({
                     </span>
                   </Tooltip>
                 )}
-                {isProcessing ? (
-                  <span className="ml-auto flex-shrink-0">
-                    <Tooltip content={t('tooltips.processingSessionIndicator', 'Processing session')} position="top">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      </span>
-                    </Tooltip>
-                  </span>
-                ) : compactSessionAge && (
-                  <span className="ml-auto flex-shrink-0 text-[11px] text-muted-foreground">{compactSessionAge}</span>
-                )}
+                <span className="ml-auto flex flex-shrink-0 items-center gap-1.5">
+                  {compactSessionAge && (
+                    <span className="text-[11px] text-muted-foreground">{compactSessionAge}</span>
+                  )}
+                  {compactSessionAge && isUnread && <span className="text-[11px] text-muted-foreground/40">·</span>}
+                  <AttentionSlot level={attentionLevel} isSelected={isSelected} t={t} />
+                </span>
               </div>
               <div className="mt-0.5 flex items-center">
                 {sessionView.messageCount > 0 && (
@@ -399,9 +377,7 @@ function SidebarSessionItem({
               : 'border-border/30',
             !isSelected && isProcessing
               ? 'border-border/60 bg-muted/20 hover:bg-muted/25'
-              : !isSelected && sessionView.isActive
-                ? 'border-green-500/30 bg-green-50/5 hover:bg-green-50/10 dark:bg-green-900/5 dark:hover:bg-green-900/10'
-                : 'hover:bg-accent',
+              : 'hover:bg-accent',
             isManaging && isProcessing && 'cursor-not-allowed opacity-60',
           )}
           // Left-click keeps in-app navigation; Ctrl/Cmd/middle-click and the
@@ -445,7 +421,7 @@ function SidebarSessionItem({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <div
-                  className="min-w-0 flex-1 truncate text-sm font-normal text-foreground"
+                  className={cn('min-w-0 truncate text-sm text-foreground', isUnread ? 'font-bold' : 'font-normal')}
                   title={sessionView.sessionName}
                 >
                   {sessionView.sessionName}
@@ -457,29 +433,20 @@ function SidebarSessionItem({
                     </span>
                   </Tooltip>
                 )}
-                {isProcessing ? (
-                  <span
-                    className={cn(
-                      'ml-auto flex-shrink-0 transition-opacity duration-200',
-                      isEditing ? 'opacity-0' : 'group-hover:opacity-0',
-                    )}
-                  >
-                    <Tooltip content={t('tooltips.processingSessionIndicator', 'Processing session')} position="top">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      </span>
-                    </Tooltip>
-                  </span>
-                ) : compactSessionAge && (
-                  <span
-                    className={cn(
-                      'ml-auto flex-shrink-0 text-[11px] text-muted-foreground transition-opacity duration-200',
-                      isEditing ? 'opacity-0' : 'group-hover:opacity-0',
-                    )}
-                  >
-                    {compactSessionAge}
-                  </span>
-                )}
+                <span className="ml-auto flex flex-shrink-0 items-center gap-1.5">
+                  {compactSessionAge && (
+                    <span
+                      className={cn(
+                        'text-[11px] text-muted-foreground transition-opacity duration-200',
+                        isEditing ? 'opacity-0' : 'group-hover:opacity-0',
+                      )}
+                    >
+                      {compactSessionAge}
+                    </span>
+                  )}
+                  {compactSessionAge && isUnread && <span className="text-[11px] text-muted-foreground/40">·</span>}
+                  <AttentionSlot level={attentionLevel} isSelected={isSelected} t={t} />
+                </span>
               </div>
               <div className="mt-0.5 flex items-center">
                 {sessionView.messageCount > 0 && <Badge variant="secondary" className="px-1 py-0 text-xs">{sessionView.messageCount}</Badge>}
