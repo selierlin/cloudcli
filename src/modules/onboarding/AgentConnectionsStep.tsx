@@ -65,6 +65,13 @@ const providerCards = [
     iconContainerClassName: 'bg-n-zinc-100 dark:bg-n-zinc-800',
     loginButtonClassName: 'bg-n-zinc-800 hover:bg-n-zinc-900 dark:bg-n-zinc-700 dark:hover:bg-n-zinc-600',
   },
+  {
+    provider: 'openclaw' as const,
+    title: 'OpenClaw',
+    connectedClassName: 'bg-sky-100 dark:bg-sky-800/50 border-sky-300 dark:border-sky-600',
+    iconContainerClassName: 'bg-sky-100 dark:bg-sky-800',
+    loginButtonClassName: 'bg-sky-700 hover:bg-sky-800 dark:bg-sky-700 dark:hover:bg-sky-600',
+  },
 ];
 
 /** Rendered by Onboarding as its second step, listing every CLI provider the user can log into. */

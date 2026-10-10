@@ -59,6 +59,7 @@ export type UserPreferences = {
   piPermissions: unknown;
   zcodePermissions: unknown;
   ompPermissions: unknown;
+  openclawPermissions: unknown;
   codeEditorSettings: unknown;
   uiPreferences: unknown;
   /** The composer's saved snippets; only `@/shared/quickReplies` reads or writes them. */
@@ -133,6 +134,7 @@ const LEGACY_STORAGE_KEYS: Record<UserPreferenceKey, string> = {
   piPermissions: '',
   zcodePermissions: '',
   ompPermissions: '',
+  openclawPermissions: '',
   // Unused: the four code-editor settings never shared one key, so they are
   // read by readLegacyCodeEditorSettings instead.
   codeEditorSettings: '',

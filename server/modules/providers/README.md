@@ -49,6 +49,8 @@ Current provider ids in this repo are:
 - `workbuddy`
 - `pi`
 - `zcode`
+- `omp`
+- `openclaw`
 
 Those ids are mirrored in backend unions and frontend provider constants. If
 adding a new provider, update every place that hardcodes this list.
@@ -69,7 +71,7 @@ server/modules/providers/list/<provider>/
   <provider>-session-synchronizer.provider.ts
 ```
 
-The existing provider folders are `claude`, `codex`, `cursor`, `opencode`, `dsh`, `workbuddy`, `pi`, and `zcode`.
+The existing provider folders are `claude`, `codex`, `cursor`, `opencode`, `dsh`, `workbuddy`, `pi`, `zcode`, `omp`, and `openclaw`.
 
 Each provider wrapper owns its SDK/CLI runtime alongside its auth, model, and
 session facets. Runtime adapters receive registry-backed model and session
@@ -151,6 +153,8 @@ Current MCP formats in this repo are:
 | WorkBuddy | `~/.codebuddy.json` / `~/.workbuddy/.mcp.json` and `<workspace>/.mcp.json` | `user`, `local`, `project` | `stdio`, `http`, `sse` |
 | Pi | n/a (Pi has no native MCP server support) | — | — |
 | ZCode | `~/.zcode/cli/config.json` (`mcp.servers`) and `<workspace>/.zcode/config.json` | `user`, `project` | `stdio`, `http`, `sse` |
+| OMP | Harness-managed MCP configuration (its own `.mcp.json` / `mcp.json` / `.claude.json` / `.cursor/mcp.json` / `.vscode/mcp.json`) | — | — |
+| OpenClaw | `~/.openclaw/openclaw.json` (`mcp.servers`), harness-managed | — | — |
 
 WorkBuddy authentication is owned by the WorkBuddy desktop app. CloudCLI only
 checks that the configured `codebuddy` executable (PATH, `CODEBUDDY_COMMAND`,
@@ -231,6 +235,8 @@ Current skill discovery roots are:
 | WorkBuddy | `~/.workbuddy/skills` (or the configured WorkBuddy state directory) | None | `/` | WorkBuddy currently loads user skills only; the adapter does not invent project-level discovery. |
 | Pi | `~/.pi/agent/skills`, `~/.agents/skills` | `<workspace>/.pi/skills`, `<workspace>/.agents/skills` + cwd-to-git-root `.agents/skills` | `/skill:` | Pi loads all four roots (user roots always; project roots only after Pi trusts the project). Direct root-level `.md` files count as skills only in Pi's own roots (`~/.pi/agent/skills`, `.pi/skills`). |
 | ZCode | `~/.zcode/skills`, `~/.agents/skills` | Cwd-to-git-worktree-root `.zcode/skills` and `.agents/skills` | `/skill ` | ZCode walks every directory from the cwd up to its git worktree root. The command is space-separated (`/skill <name>`), so it is built by the adapter rather than via `commandPrefix`. |
+| OMP | `<agent dir>/skills`, `~/.agents/skills` | `<workspace>/.omp/skills`, `<workspace>/.agents/skills`, `<workspace>/.claude/skills` | `/skill:` | Reads its own roots plus the Agents and Claude compatibility roots it is configured to honour. `<workspace>/.pi/skills` is deliberately omitted: OMP claims Pi project compatibility, but a probe skill placed there was not discovered. |
+| OpenClaw | `~/.openclaw/skills`, `~/.openclaw/plugin-skills` | `<workspace>/.openclaw/skills` | `/` | `plugin-skills` holds symlinks installed by plugins. Bundled skills inside the npm install are not listed, because they are not user-managed. |
 
 Command forms currently used by the providers are:
 
@@ -280,6 +286,8 @@ Current session sync roots are:
 | WorkBuddy | `~/.codebuddy/projects/**/*.jsonl` and `~/.workbuddy/projects/**/*.jsonl` | The first process scan backfills both roots; later scans honor the orchestration cursor. `ai-title`, user prompts, Task events, and `rawResponse.todos` are normalized without indexing `subagents` or transient desktop workspaces. |
 | Pi | `~/.pi/agent/sessions/**/*.jsonl` (`PI_CODING_AGENT_SESSION_DIR` overrides) | Header `session` entry carries the UUID + cwd; `session_info` entries give explicit names; the first user prompt is the fallback title. Files are matched by `_<UUID>.jsonl` suffix. |
 | ZCode | `~/.zcode/cli/db/db.sqlite` (`storage.sessionDbPath` in `~/.zcode/cli/config.json` overrides) | Reads active sessions/messages/parts from ZCode's OpenCode-derived shared SQLite database. There is no `project` table, so `projectPath` comes from `session.directory` (realpath-normalized); `jsonl_path` is stored as `null` so deleting one app session cannot remove the shared DB. |
+| OMP | `<sessions root>/**/*.jsonl` (`PI_CODING_AGENT_SESSION_DIR` overrides; default `<agent dir>/sessions`) | Sessions live under `--<encoded-cwd>--/<timestamp>_<UUID>.jsonl`. The `session` header carries the UUID + cwd; a `title` line above it is rewritten in place and wins over the first user prompt. Files are matched by their `_<UUID>.jsonl` suffix. |
+| OpenClaw | `~/.openclaw/agents/<agentId>/agent/openclaw-agent.sqlite` (`OPENCLAW_STATE_DIR` overrides) | Reads the active branch from `session_transcript_active_events` in each agent's shared SQLite store; events are decoded from `event_json` or a zstd `event_zstd` frame. `jsonl_path` is stored as `null` because deleting one app session must not remove the shared store; permanent deletes go through `deleteProviderSession`. |
 
 8. Register the provider.
 

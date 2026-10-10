@@ -278,7 +278,9 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                                               ? t('messageTypes.zcode', { defaultValue: 'ZCode' })
                                               : provider === 'omp'
                                                   ? t('messageTypes.omp', { defaultValue: 'OMP' })
-                                                  : t('messageTypes.claude'))}
+                                                  : provider === 'openclaw'
+                                                      ? t('messageTypes.openclaw', { defaultValue: 'OpenClaw' })
+                                                      : t('messageTypes.claude'))}
               </div>
             </div>
           )}

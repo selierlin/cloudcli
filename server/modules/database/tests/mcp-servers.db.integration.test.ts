@@ -25,6 +25,7 @@ const EXPECTED_COLUMNS = [
   'enabled_pi',
   'enabled_zcode',
   'enabled_omp',
+  'enabled_openclaw',
   'created_at',
   'updated_at',
 ];
@@ -39,6 +40,7 @@ const allDisabled = {
   pi: false,
   zcode: false,
   omp: false,
+  openclaw: false,
 };
 
 const withDatabase = async (

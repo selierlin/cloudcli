@@ -18,6 +18,7 @@ const AGENT_NAMES: Record<AgentProvider, string> = {
   pi: 'Pi',
   zcode: 'ZCode',
   omp: 'OMP',
+  openclaw: 'OpenClaw',
 };
 
 /** Rendered by AgentsSettingsTab to pick which agent provider the tab is configuring. */

@@ -33,7 +33,8 @@
     "workbuddy": "WorkBuddy",
     "pi": "Pi",
     "zcode": "ZCode",
-    "omp": "OMP"
+    "omp": "OMP",
+    "openclaw": "OpenClaw"
   },
   "tools": {
     "settings": "Tool Settings",
@@ -249,7 +250,8 @@
       "workbuddy": "Ready to use WorkBuddy with {{model}}. Start typing your message below.",
       "pi": "Ready to use Pi with {{model}}. Start typing your message below.",
       "zcode": "Ready to use ZCode with {{model}}. Start typing your message below.",
-      "omp": "Ready to use OMP with {{model}}. Start typing your message below."
+      "omp": "Ready to use OMP with {{model}}. Start typing your message below.",
+      "openclaw": "Ready to use OpenClaw with {{model}}. Start typing your message below."
     },
     "pressToSearch": "Press <kbd>{{shortcut}}</kbd> to search sessions, files, and commits",
     "chooseModel": "Choose a model",

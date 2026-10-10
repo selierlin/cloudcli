@@ -182,7 +182,7 @@ CREATE TABLE IF NOT EXISTS app_config (
 export const PROVIDER_MODELS_TABLE_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS provider_models (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    provider TEXT NOT NULL CHECK (provider IN ('claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode', 'omp')),
+    provider TEXT NOT NULL CHECK (provider IN ('claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode', 'omp', 'openclaw')),
     model_id TEXT NOT NULL,
     model_name TEXT NOT NULL,
     sort_order INTEGER NOT NULL DEFAULT 0,
@@ -227,6 +227,7 @@ CREATE TABLE IF NOT EXISTS mcp_servers (
     enabled_pi BOOLEAN DEFAULT 0,
     enabled_zcode BOOLEAN DEFAULT 0,
     enabled_omp BOOLEAN DEFAULT 0,
+    enabled_openclaw BOOLEAN DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

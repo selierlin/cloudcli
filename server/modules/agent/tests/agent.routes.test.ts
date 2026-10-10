@@ -56,6 +56,7 @@ function createDependencies(
     queryPi: unexpectedProviderCall as AgentDependencies['queryPi'],
     queryZcode: unexpectedProviderCall as AgentDependencies['queryZcode'],
     queryOmp: unexpectedProviderCall as AgentDependencies['queryOmp'],
+    queryOpenclaw: unexpectedProviderCall as AgentDependencies['queryOpenclaw'],
     GithubClient: class {} as unknown as AgentDependencies['GithubClient'],
     ...overrides,
   };

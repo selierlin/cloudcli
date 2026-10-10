@@ -430,19 +430,26 @@ test('providerMcpService global adder writes to every provider and degrades per 
       workspacePath,
     });
 
-    assert.equal(globalResult.length, 9);
+    assert.equal(globalResult.length, 10);
     // DSH remains externally managed, Pi has no native MCP support, and OMP's
-    // MCP servers are harness-managed; WorkBuddy and ZCode persist their native
-    // MCP config and therefore participate in the global add operation.
+    // and OpenClaw's MCP servers are harness-managed; WorkBuddy and ZCode
+    // persist their native MCP config and therefore participate in the global
+    // add operation.
     const dshEntry = globalResult.find((entry) => entry.provider === 'dsh');
     assert.equal(dshEntry?.created, false);
     const piEntry = globalResult.find((entry) => entry.provider === 'pi');
     assert.equal(piEntry?.created, false);
     const ompEntry = globalResult.find((entry) => entry.provider === 'omp');
     assert.equal(ompEntry?.created, false);
+    const openclawEntry = globalResult.find((entry) => entry.provider === 'openclaw');
+    assert.equal(openclawEntry?.created, false);
     assert.ok(
       globalResult
-        .filter((entry) => entry.provider !== 'dsh' && entry.provider !== 'pi' && entry.provider !== 'omp')
+        .filter((entry) =>
+          entry.provider !== 'dsh'
+          && entry.provider !== 'pi'
+          && entry.provider !== 'omp'
+          && entry.provider !== 'openclaw')
         .every((entry) => entry.created === true),
     );
 
@@ -475,7 +482,7 @@ test('providerMcpService global adder writes to every provider and degrades per 
       workspacePath,
     });
 
-    assert.equal(sseResult.length, 9);
+    assert.equal(sseResult.length, 10);
     assert.deepEqual(
       sseResult.filter((entry) => entry.created).map((entry) => entry.provider).sort(),
       ['claude', 'workbuddy', 'zcode'],
@@ -501,7 +508,7 @@ test('providerMcpService global adder writes to every provider and degrades per 
       workspacePath,
     });
 
-    assert.equal(localResult.length, 9);
+    assert.equal(localResult.length, 10);
     assert.deepEqual(
       localResult.filter((entry) => entry.created).map((entry) => entry.provider).sort(),
       ['claude', 'workbuddy'],

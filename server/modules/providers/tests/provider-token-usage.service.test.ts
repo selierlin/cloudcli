@@ -14,6 +14,12 @@ import {
   createZcodeDatabase,
   seedZcodeRichSession,
 } from '@/modules/providers/tests/fixtures/zcode-session-db.js';
+import {
+  openclawHeaderEntry,
+  openclawMessageEntry,
+  seedOpenclawSession,
+} from '@/modules/providers/tests/fixtures/openclaw-agent-db.js';
+import { setOpenclawHomeDirForTests } from '@/modules/providers/list/openclaw/openclaw-models.provider.js';
 import { AppError } from '@/shared/utils.js';
 
 function createSessionRow(overrides: Record<string, unknown> = {}) {
@@ -527,6 +533,113 @@ test('ZCode token usage skips an all-zero synthetic newest row', async () => {
     assert.equal(usage.inputTokens, 13);
     assert.equal(usage.outputTokens, 20);
   } finally {
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+});
+
+test('OpenClaw token usage reads the newest assistant snapshot from the agent store', async () => {
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), 'provider-token-usage-openclaw-'));
+  setOpenclawHomeDirForTests(tempDirectory);
+  try {
+    await seedOpenclawSession(tempDirectory, {
+      sessionKey: 'agent:main:main',
+      windowId: 'window-1',
+      events: [
+        { json: openclawHeaderEntry(tempDirectory) },
+        { json: openclawMessageEntry('u1', { role: 'user', content: 'hello' }) },
+        {
+          json: openclawMessageEntry('a1', {
+            role: 'assistant',
+            model: 'ark/deepseek-v4-flash',
+            content: [{ type: 'text', text: 'hi' }],
+            usage: { input: 100, output: 20, cacheRead: 10, cacheWrite: 5, totalTokens: 200 },
+          }),
+        },
+      ],
+    });
+
+    const service = createProviderTokenUsageService({
+      getSessionById: () => createSessionRow({
+        provider: 'openclaw',
+        provider_session_id: 'agent:main:main',
+      }),
+    });
+
+    assert.deepEqual(await service.getSessionTokenUsage('app-session'), {
+      used: 120,
+      total: 200,
+      inputTokens: 100,
+      outputTokens: 20,
+      cacheReadTokens: 10,
+      cacheCreationTokens: 5,
+      cacheTokens: 15,
+      breakdown: { input: 115, output: 20 },
+    });
+  } finally {
+    setOpenclawHomeDirForTests(null);
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+});
+
+test('OpenClaw token usage skips an all-zero synthetic newest row', async () => {
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), 'provider-token-usage-openclaw-zero-'));
+  setOpenclawHomeDirForTests(tempDirectory);
+  try {
+    await seedOpenclawSession(tempDirectory, {
+      sessionKey: 'agent:main:main',
+      windowId: 'window-1',
+      events: [
+        { json: openclawHeaderEntry(tempDirectory) },
+        {
+          json: openclawMessageEntry('a1', {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'live' }],
+            usage: { input: 100, output: 20, cacheRead: 10, cacheWrite: 5, totalTokens: 200 },
+          }),
+        },
+        // The newest active turn is a synthetic all-zero row and must not clear
+        // the counter the live turn set.
+        {
+          json: openclawMessageEntry('a2', {
+            role: 'assistant',
+            content: [{ type: 'text', text: '' }],
+            usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 },
+          }),
+        },
+      ],
+    });
+
+    const service = createProviderTokenUsageService({
+      getSessionById: () => createSessionRow({
+        provider: 'openclaw',
+        provider_session_id: 'agent:main:main',
+      }),
+    });
+
+    const usage = await service.getSessionTokenUsage('app-session');
+    assert.equal(usage.used, 120);
+    assert.equal(usage.inputTokens, 100);
+  } finally {
+    setOpenclawHomeDirForTests(null);
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+});
+
+test('OpenClaw token usage reports empty when the agent store is missing', async () => {
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), 'provider-token-usage-openclaw-missing-'));
+  setOpenclawHomeDirForTests(tempDirectory);
+  try {
+    const service = createProviderTokenUsageService({
+      getSessionById: () => createSessionRow({
+        provider: 'openclaw',
+        provider_session_id: 'agent:main:main',
+      }),
+    });
+
+    const usage = await service.getSessionTokenUsage('app-session');
+    assert.equal(usage.used, 0);
+  } finally {
+    setOpenclawHomeDirForTests(null);
     await rm(tempDirectory, { recursive: true, force: true });
   }
 });

@@ -26,6 +26,7 @@ type McpServerRow = {
   enabled_pi: number;
   enabled_zcode: number;
   enabled_omp: number;
+  enabled_openclaw: number;
   created_at: string;
   updated_at: string;
 };
@@ -55,6 +56,7 @@ const ENABLED_COLUMN_BY_PROVIDER: Record<LLMProvider, keyof McpServerRow> = {
   pi: 'enabled_pi',
   zcode: 'enabled_zcode',
   omp: 'enabled_omp',
+  openclaw: 'enabled_openclaw',
 };
 
 const parseServerConfig = (raw: string): McpCatalogConfig => {

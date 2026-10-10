@@ -28,6 +28,7 @@ const MCP_PROVIDER_BUTTON_CLASSES: Record<McpProvider, string> = {
   pi: 'bg-primary text-primary-foreground hover:bg-primary/90',
   zcode: 'bg-primary text-primary-foreground hover:bg-primary/90',
   omp: 'bg-primary text-primary-foreground hover:bg-primary/90',
+  openclaw: 'bg-primary text-primary-foreground hover:bg-primary/90',
 };
 
 /**

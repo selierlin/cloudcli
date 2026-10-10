@@ -131,6 +131,7 @@ export const MCP_PROVIDER_NAMES: Record<McpProvider, string> = {
   pi: 'Pi',
   zcode: 'ZCode',
   omp: 'OMP',
+  openclaw: 'OpenClaw',
 };
 
 /** Scopes each provider can install an MCP server into; drives the scope selector and validation. */
@@ -149,6 +150,9 @@ export const MCP_SUPPORTED_SCOPES: Record<McpProvider, McpScope[]> = {
   // `.claude.json`, `.cursor/mcp.json`, `.vscode/mcp.json`); CloudCLI does not
   // manage them yet, so no scope is offered.
   omp: [],
+  // OpenClaw keeps `mcp.servers` in `~/.openclaw/openclaw.json` with a single
+  // user scope, but CloudCLI does not project into that file yet.
+  openclaw: [],
 };
 
 /** Transports each provider can talk to an MCP server over; drives the transport selector and validation. */
@@ -165,6 +169,7 @@ export const MCP_SUPPORTED_TRANSPORTS: Record<McpProvider, McpTransport[]> = {
   pi: ['stdio', 'http'],
   zcode: ['stdio', 'http', 'sse'],
   omp: [],
+  openclaw: [],
 };
 
 /** Transports offered when configuring a global (provider-agnostic) MCP server; each provider accepts or rejects them individually, so the global entry does not narrow the list. */
@@ -186,6 +191,8 @@ export const MCP_ADD_BLOCKED_REASON: Record<McpProvider, McpAddBlockedReason | n
   // OMP has native MCP support, but it configures its servers in its own files
   // rather than through CloudCLI, which is what `harnessManaged` reports.
   omp: 'harnessManaged',
+  // OpenClaw likewise keeps `mcp.servers` in its own `openclaw.json`.
+  openclaw: 'harnessManaged',
 };
 
 /** Whether a provider honours an MCP server's working-directory setting; the form hides the field when it does not. */
@@ -199,6 +206,7 @@ export const MCP_SUPPORTS_WORKING_DIRECTORY: Record<McpProvider, boolean> = {
   pi: true,
   zcode: false,
   omp: false,
+  openclaw: false,
 };
 
 /**
@@ -306,6 +314,7 @@ export const PROVIDER_PERMISSION_PREFERENCE_KEYS: Record<LLMProvider, UserPrefer
   pi: 'piPermissions',
   zcode: 'zcodePermissions',
   omp: 'ompPermissions',
+  openclaw: 'openclawPermissions',
 };
 
 // ---------------------------

@@ -55,7 +55,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 const ALL_PROVIDERS: McpProvider[] = [
-  'claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode', 'omp',
+  'claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode', 'omp', 'openclaw',
 ];
 
 /** Builds a catalog entry with every harness switch off unless named. */
@@ -157,8 +157,10 @@ test('renders one column per harness that has a user scope', async () => {
     assert.ok(body.includes(providerName), `expected a ${providerName} column`);
   }
 
-  // OMP reads MCP servers from config files it owns, so it never gets a column.
+  // OMP and OpenClaw read MCP servers from config files they own, so neither
+  // gets a column.
   assert.ok(!body.includes('OMP'), 'OMP should not have a column');
+  assert.ok(!body.includes('OpenClaw'), 'OpenClaw should not have a column');
 });
 
 test('reads the catalog from the api', async () => {

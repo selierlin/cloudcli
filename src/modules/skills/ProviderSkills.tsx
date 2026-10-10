@@ -59,6 +59,7 @@ const PROVIDER_NAMES: Record<SkillsProvider, string> = {
   pi: 'Pi',
   zcode: 'ZCode',
   omp: 'OMP',
+  openclaw: 'OpenClaw',
 };
 
 const PROVIDER_SKILL_PATHS: Record<Exclude<SkillsProvider, 'opencode'>, string> = {
@@ -70,6 +71,7 @@ const PROVIDER_SKILL_PATHS: Record<Exclude<SkillsProvider, 'opencode'>, string> 
   pi: '~/.pi/agent/skills/<skill-name>/SKILL.md',
   zcode: '~/.zcode/skills/<skill-name>/SKILL.md',
   omp: '~/.omp/agent/skills/<skill-name>/SKILL.md',
+  openclaw: '~/.openclaw/skills/<skill-name>/SKILL.md',
 };
 
 const SCOPE_BADGE_CLASSES: Record<SkillsScope, string> = {

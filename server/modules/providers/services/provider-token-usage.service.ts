@@ -7,9 +7,17 @@ import Database from 'better-sqlite3';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import type { AnyRecord } from '@/shared/types.js';
-import { AppError, getOpenCodeDatabasePath, readJsonRecord, readObjectRecord } from '@/shared/utils.js';
+import { AppError, getOpenCodeDatabasePath, readJsonRecord, readObjectRecord, readOptionalString } from '@/shared/utils.js';
 import { resolvePiTranscriptPath } from '@/modules/providers/list/pi/pi-sessions.provider.js';
 import { resolveOmpTranscriptPath } from '@/modules/providers/list/omp/omp-sessions.provider.js';
+import {
+  getOpenclawAgentDbPath,
+  getOpenclawAgentIdFromSessionKey,
+} from '@/modules/providers/list/openclaw/openclaw-models.provider.js';
+import {
+  decodeOpenclawTranscriptEvent,
+  type OpenclawTranscriptEventRow,
+} from '@/modules/providers/list/openclaw/openclaw-sessions.provider.js';
 import { getZcodeDatabasePath } from '@/modules/providers/list/zcode/zcode-models.provider.js';
 
 type SessionRow = NonNullable<ReturnType<typeof sessionsDb.getSessionById>>;
@@ -535,6 +543,94 @@ function emptyZcodeTokenUsage(): TokenUsageResult {
 }
 
 /**
+ * Reads OpenClaw's newest assistant token snapshot from the agent's SQLite
+ * store.
+ *
+ * OpenClaw records `message.usage` (`{ input, output, cacheRead, cacheWrite,
+ * totalTokens }`) on each assistant message, so the newest one on the active
+ * branch is the current context occupation — the same semantics as the
+ * Pi/OMP/Claude readers. `providerSessionId` is OpenClaw's stable session key;
+ * it is mapped back to the live window before reading, because the key survives
+ * a reset/rollover that changes the window id.
+ */
+function readOpenclawTokenUsage(providerSessionId: string): TokenUsageResult {
+  const empty = emptyZcodeTokenUsage();
+  const agentId = getOpenclawAgentIdFromSessionKey(providerSessionId);
+  if (!agentId) {
+    return empty;
+  }
+
+  const databasePath = getOpenclawAgentDbPath(agentId);
+  if (!fsSync.existsSync(databasePath)) {
+    return empty;
+  }
+
+  const database = new Database(databasePath, { readonly: true, fileMustExist: true });
+  try {
+    database.pragma('busy_timeout = 2000');
+    const location = database
+      .prepare('SELECT current_session_id AS sid FROM session_nodes WHERE session_key = ?')
+      .get(providerSessionId) as { sid: string | null } | undefined;
+    const sessionId = readOptionalString(location?.sid);
+    if (!sessionId) {
+      return empty;
+    }
+
+    const rows = database.prepare(`
+      SELECT t.event_json AS event_json, t.event_zstd AS event_zstd
+      FROM session_transcript_active_events a
+      INNER JOIN transcript_events t
+        ON t.session_id = a.session_id AND t.seq = a.event_seq
+      WHERE a.session_id = ?
+      ORDER BY a.active_position DESC
+    `).all(sessionId) as OpenclawTranscriptEventRow[];
+
+    for (const row of rows) {
+      const entry = decodeOpenclawTranscriptEvent(row);
+      if (entry?.type !== 'message') {
+        continue;
+      }
+      const message = readObjectRecord(entry.message);
+      if (message?.role !== 'assistant') {
+        continue;
+      }
+      const usage = readObjectRecord(message.usage);
+      if (!usage) {
+        continue;
+      }
+
+      const inputTokens = readUsageNumber(usage.input);
+      const outputTokens = readUsageNumber(usage.output);
+      const cacheReadTokens = readUsageNumber(usage.cacheRead);
+      const cacheCreationTokens = readUsageNumber(usage.cacheWrite);
+      const totalTokens = readUsageNumber(usage.totalTokens);
+
+      // Interrupt/error turns persist an all-zero usage block rather than none
+      // at all; skip them so a counter a live event just set is not zeroed.
+      if (inputTokens === 0 && outputTokens === 0 && cacheReadTokens === 0 && cacheCreationTokens === 0) {
+        continue;
+      }
+
+      const cacheTokens = cacheReadTokens + cacheCreationTokens;
+      return {
+        used: inputTokens + outputTokens,
+        total: totalTokens > 0 ? totalTokens : 160_000,
+        inputTokens,
+        outputTokens,
+        cacheReadTokens,
+        cacheCreationTokens,
+        cacheTokens,
+        breakdown: { input: inputTokens + cacheTokens, output: outputTokens },
+      };
+    }
+
+    return empty;
+  } finally {
+    database.close();
+  }
+}
+
+/**
  * Creates the provider token-usage service used by the provider routes. The
  * provider test suite supplies isolated filesystem and session dependencies so
  * every calculator can be exercised without touching a developer's real data.
@@ -673,6 +769,13 @@ export function createProviderTokenUsageService(
         }
 
         return readZcodeTokenUsage(databasePath, providerSessionId);
+      }
+
+      if (session.provider === 'openclaw') {
+        // OpenClaw's store lives per agent; the session key carries the agent
+        // id, so a missing/mis-shaped store simply reports empty usage rather
+        // than throwing (sessions can predate an install move).
+        return readOpenclawTokenUsage(providerSessionId);
       }
 
       if (session.provider === 'codex') {
