@@ -61,27 +61,44 @@ done
 
 `scripts/purge.py` 在删 WorkBuddy 会话时会顺手 `rmtree` 同名目录，并跳过「仍是别的在库会话 psid」的目录。
 
-## zcode 的特殊口径
+## zcode / opencode 的特殊口径（**单侧删除必然复活**）
 
-- zcode 会话在 `sessions` 表里 **`jsonl_path` 恒为 NULL**，后端**没有该 provider 的 `resolveTranscriptPath`** ⇒ **应用内「永久删除」对 zcode 磁盘零删除**，只删 DB 行。
-- zcode 真实 transcript 在它自己的库 `~/.zcode/cli/db/db.sqlite`（表 `session`/`message`/`part`/`session_entry`/`model_usage`/`turn_usage`/`tool_usage`…）：
-  - `PRAGMA foreign_keys=ON; delete from session where id in(...)` 级联掉大部分（多数表 `references session(id) on delete cascade`）；
-  - 再手删**无 FK** 的 `input_history`、`dwf_actor`、`part`（`part.message_id` 有级联，但按 session_id 兜一层更稳）；
-  - 最后 unlink rollout `~/.zcode/cli/rollout/model-io-<sid>.jsonl`。
-- **动手前先 `.backup` 一份 zcode 库**：`db.sqlite.before-<场景>-<ts>.backup`。
-- 这个范围用户拍板「要一起清」（2026-10-04）。`purge.py` 对 `provider=='zcode'` 的目标自动执行。
-- **读活动中的 zcode 库不要用 `?immutable=1`**：它会跳过 WAL，读不到尚未 checkpoint 的提交（曾把已存在的 `sess_*` 读成 0 行）。用 `file:<db>?mode=ro`（不带 immutable）。`immutable=1` 只适用于静态快照。
-- **cloudcli 对 zcode 是增量收录**（服务端游标 `scan_state.last_scanned_at` + watcher 变更时补最新 1 条）⇒ **早于游标、之后不再被写到的会话永不补录**（10-03/10-04 的历史会话曾整批缺席）。因此 zcode 垃圾可能**根本不在 cloudcli 库**：`inventory.py` 现已额外列出「zcode 库独有」会话（arch 列显示 `-`、末尾标 `库外`），`purge.py` 也接受这类目标（内部走 `zcode_only` 路径，直接操作 zcode 库）。
+这两个 provider 把所有会话放在**一个共享 sqlite 库**里，没有各自的 transcript 文件：
+
+| provider | 库路径 |
+|---|---|
+| zcode | `~/.zcode/cli/db/db.sqlite`（另有 `~/.zcode/cli/rollout/model-io-<sid>.jsonl`）|
+| opencode | `~/.local/share/opencode/opencode.db` —— **不在 `~/.opencode/`**，那个目录根本不存在 |
+
+**头号坑：只删 cloudcli 侧等于没删。** app 行删了、provider 库里的行还在 ⇒ watcher 下一轮就把会话重新索引回来，用户看到「删掉的会话又出现了」。这已不是"可能"，是必然。
+
+- 应用内「永久删除」现已覆盖两侧（服务端为两个 provider 实现了 `deleteProviderSession`，见 `sessions.service.ts:deleteOrArchiveSessionById`）；**脚本必须照做**，否则同样的复活会再来一次。`purge.py` 已同时清两侧。
+- 两侧删除都**在删 app 行之前**完成：失败时两侧都还在、可以重试。若先删 app 行再把异常吞掉，就会留下一个只有 provider 库知道的"游魂会话"。
+
+**复活是怎么发生的（判据）**：两个 provider 的 `synchronizeFile` 都是 `synchronizeRows(undefined, LIMIT 1)` —— 不看扫描游标，只按 `time_updated DESC` 取**最新 1 条**。所以只要 provider 库被写过（哪怕你只是删掉了别的会话），库里仅剩的那条就会被当成"最新"捞回来。
+
+判据一句话：**清完 provider 库要看它的 `session` 表是否真的少了那几行，不能只看 cloudcli 库。**
+
+删除要点：
+- **读活动中的库不能加 `immutable=1`**（会跳过 WAL，把未 checkpoint 的会话读成 0 行）；用 `?mode=ro`。`immutable` 只给静态快照用。
+- 破坏性操作**不依赖级联生效**：`PRAGMA foreign_keys=ON` 之外，还要按 `session_id` 显式删从属表（schema 版本之间会变，赌不起）。
+  - zcode：`part` / `message` / `input_history` / `dwf_actor`。`part` 挂在 `message` 上，**不是**挂在 `session` 上。
+  - opencode：`part` / `message` / `session_context_epoch` / `session_input` / `session_message` / `todo` / `session_share`，外加 `event` / `event_sequence` 两张以 **`aggregate_id`** 为键的表（没有 session 列）。
+- 动手前先 `.backup`：`db.sqlite.before-<场景>-<ts>.backup` / `opencode.db.before-<场景>-<ts>.backup`。
+
+**cloudcli 对这两个 provider 是增量收录**（服务端游标 `scan_state.last_scanned_at` + watcher 只补最新 1 条）⇒ **早于游标、之后不再被写到的会话永不补录**。所以它们的垃圾可能**根本不在 cloudcli 库**：`inventory.py` 会额外列出「provider 库独有」会话（arch 列显示 `-`），`purge.py` 也接受这类目标。
+
+若某条会话**同时**在 cloudcli 库和 provider 库里查不到，别急着当已清理——先跑 `inventory.py` 看「库独有」那一段。
 
 ## 流程
 
 1. **只读盘点**：`python3 scripts/inventory.py`（可 `--archived-only` / `--sort size`）。看一眼总量与候选。
 2. **分桶**：按上面口径列出「净口水 / 边界」，**边界单独贴出交用户定**。
-3. **快照**：`sqlite3 ~/.cloudcli/auth.db ".backup $HOME/.cloudcli/auth.db.before-chatter-cleanup-$(date +%Y%m%d-%H%M%S).backup"`（zcode 有目标时同样快照 zcode 库）。把 timestamp 存到 `/tmp` 备收尾用。
+3. **快照**：`sqlite3 ~/.cloudcli/auth.db".backup $HOME/.cloudcli/auth.db.before-chatter-cleanup-$(date +%Y%m%d-%H%M%S).backup"`。**zcode / opencode 有目标时同样快照它们的库**（两个路径见上表）。把 timestamp 存到 `/tmp` 备收尾用。
 4. **干跑**：把候选 id 写成目标文件（每行一个 `session_id` 或 `provider_session_id`，支持前缀），
-   `python3 scripts/purge.py --targets /tmp/targets.txt`（默认干跑）。核对：命中数、每条磁盘 EXISTS/absent、fork 依赖、superseded 数、WorkBuddy 目录、将被删的 zcode 行数。
+   `python3 scripts/purge.py --targets /tmp/targets.txt`（默认干跑）。核对：命中数、每条磁盘 EXISTS/absent、fork 依赖、superseded 数、WorkBuddy 目录、**将被删的各 provider 库行数**。
 5. **确认后 apply**：`python3 scripts/purge.py --targets /tmp/targets.txt --apply --backup <刚做的快照路径>`。
-6. **回归核对**（见下）。
+6. **回归核对**（见下）—— **含 provider 库的 `session` 表行数**。
 7. 若 UI 仍显示已删会话 → 重启服务刷新（`deploy-cloudcli`）或告知用户是内存缓存。
 
 ## 回归核对
@@ -106,6 +123,8 @@ print("integrity_check:", c.execute("pragma integrity_check").fetchone()[0])
 
 四个数都要干净：**被删数=预期、新增=0、其余 path 未变、已删 0 残留且剩余 0 缺失**。
 
+**zcode / opencode 另加一项**：两个 provider 库里各表也要核对（`session` 行数按预期减少、`message`/`part` 无孤儿）。只核 cloudcli 库会漏掉「provider 侧没删干净」这种复活源——见 §zcode / opencode 的特殊口径。
+
 ## 常见坑
 
 - 活动目录被误清 → 记得 `! -newermt '-10 minutes'`。
@@ -114,3 +133,6 @@ print("integrity_check:", c.execute("pragma integrity_check").fetchone()[0])
 - superseded 漏删 → 旧 transcript 被 watcher 重新索引成新会话。
 - 备份命名不统一 → 收尾找不到对应快照。
 - 服务在跑也能写 WAL 库，**不要**为清理停服务。
+- **provider 库只删一侧 ⇒ 会话必然复活**（zcode / opencode，见上）。
+- **opencode 库不在 `~/.opencode/`**，在 `~/.local/share/opencode/`——那个目录不存在，别照着路径猜。
+- 干跑时 provider 库「命中 0 条」要分清是「已清空」还是「路径写错」：后者会静默什么都不删。

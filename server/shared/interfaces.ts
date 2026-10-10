@@ -296,4 +296,19 @@ export interface IProviderSessionSynchronizer {
    * (`jsonl_path` is NULL). Returns null when no transcript exists yet.
    */
   resolveTranscriptPath?(providerSessionId: string, projectPath: string): Promise<string | null>;
+
+  /**
+   * Removes one session from the provider's own storage, for providers that keep
+   * every session in a shared database instead of per-session files.
+   *
+   * The service layer calls this on permanent delete after unlinking whatever
+   * transcript files it could resolve. Without it the provider database keeps
+   * the session, and the next scan re-indexes it — the app shows a session the
+   * user deleted. Providers with per-session files leave this undefined because
+   * deleting the file already removes the source of truth.
+   *
+   * Implementations must delete rows the foreign keys do not cascade on, and
+   * must be safe to call for a session the provider store no longer holds.
+   */
+  deleteProviderSession?(providerSessionId: string): Promise<void>;
 }

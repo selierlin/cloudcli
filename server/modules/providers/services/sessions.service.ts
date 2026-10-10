@@ -863,6 +863,32 @@ export const sessionsService = {
     }
 
     let removedFromDisk = false;
+    // Providers that keep every session in one shared database (OpenCode,
+    // ZCode) have no per-session transcript file, so their store has to be
+    // pruned explicitly — otherwise the next scan re-indexes the session the
+    // user just deleted, and it reappears in the sidebar.
+    const synchronizer = (() => {
+      try {
+        return providerRegistry.resolveProvider(session.provider as LLMProvider).sessionSynchronizer;
+      } catch {
+        return undefined;
+      }
+    })();
+    const prunesProviderStore = options.deletedFromDisk && Boolean(synchronizer?.deleteProviderSession);
+
+    // Only the provider's own id can address its store. Falling back to the app
+    // id would address a row that cannot exist (app-created sessions are keyed
+    // by a generated id), turning the delete into a silent no-op that leaves the
+    // session to reappear. Refusing is the honest outcome: the delete can be
+    // retried once the runtime reports the id back.
+    const providerSessionId = session.provider_session_id;
+    if (prunesProviderStore && !providerSessionId) {
+      throw new AppError(
+        `Session "${sessionId}" has no ${session.provider} provider id yet, so its provider store cannot be pruned. Retry the delete once the session has run.`,
+        { code: 'SESSION_PROVIDER_ID_MISSING', statusCode: 409 }
+      );
+    }
+
     if (options.deletedFromDisk) {
       // Every file the conversation has lived in, not just the one the row
       // points at now: editing a message on a provider that rewinds by
@@ -870,11 +896,10 @@ export const sessionsService = {
       // transcript behind. Deleting only the current one would leave the
       // replaced turns on disk, and unreachable through the app.
       let resolvedTranscriptPath = session.jsonl_path;
-      if (!resolvedTranscriptPath && session.provider_session_id && session.project_path) {
+      if (!resolvedTranscriptPath && providerSessionId && session.project_path) {
         try {
-          const synchronizer = providerRegistry.resolveProvider(session.provider as LLMProvider).sessionSynchronizer;
-          resolvedTranscriptPath = (await synchronizer.resolveTranscriptPath?.(
-            session.provider_session_id,
+          resolvedTranscriptPath = (await synchronizer?.resolveTranscriptPath?.(
+            providerSessionId,
             session.project_path,
           )) ?? null;
         } catch {
@@ -888,6 +913,13 @@ export const sessionsService = {
       for (const transcript of transcripts) {
         removedFromDisk = (await removeFileIfExists(transcript)) || removedFromDisk;
       }
+    }
+
+    // Runs before the app row is dropped so a failure leaves both sides intact
+    // and the delete can be retried, instead of an app row that vanishes while
+    // the provider store still holds the session for the next scan to re-index.
+    if (prunesProviderStore && providerSessionId) {
+      await synchronizer!.deleteProviderSession!(providerSessionId);
     }
 
     sessionsDb.clearSupersededProviderSessions(sessionId);

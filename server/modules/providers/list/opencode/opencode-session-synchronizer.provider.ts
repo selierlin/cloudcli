@@ -33,6 +33,31 @@ type OpenCodeChildSessionRow = {
 };
 
 /**
+ * Tables addressed by `session_id`, in deletion order.
+ *
+ * Every table carrying a `session_id` column is listed, including the ones whose
+ * foreign key cascades from `session`: relying on the cascade makes a
+ * destructive delete depend on the pragma taking effect and on the installed
+ * schema declaring it at all, and either failing leaves rows nothing will ever
+ * clean up. `part` comes before `message` because its foreign key points at
+ * `message`. Anything absent in a given schema version is skipped.
+ *
+ * The `event` tree is keyed by `aggregate_id` rather than a session column, so
+ * it needs its own list and cannot share this table's `session_id` shape.
+ */
+const OPENCODE_SESSION_REFERENCING_TABLES = [
+  'part',
+  'message',
+  'session_context_epoch',
+  'session_input',
+  'session_message',
+  'todo',
+  'session_share',
+] as const;
+
+const OPENCODE_EVENT_TABLES = ['event', 'event_sequence'] as const;
+
+/**
  * Session indexer for OpenCode's SQLite-backed session store.
  */
 export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer {
@@ -58,6 +83,58 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
 
     const result = this.synchronizeRows(undefined, 1);
     return result.firstSessionId;
+  }
+
+  /**
+   * Deletes one session and every row that points at it from OpenCode's shared
+   * store. Called by the app on permanent delete, because OpenCode sessions have
+   * no per-session transcript file to unlink — `opencode.db` is the only source
+   * of truth, so leaving it behind lets the next scan re-index the session.
+   *
+   * Child sessions (rows whose `parent_id` is this session) go too. The scan
+   * filters them out with `parent_id IS NULL`, so a child left behind is never
+   * indexed and never cleaned up — invisible rows occupying the store forever.
+   */
+  async deleteProviderSession(providerSessionId: string): Promise<void> {
+    const dbPath = getOpenCodeDatabasePath();
+    if (!fsSync.existsSync(dbPath)) {
+      return;
+    }
+
+    const db = new Database(dbPath);
+    try {
+      db.pragma('busy_timeout = 2000');
+      db.pragma('foreign_keys = ON');
+      const sessionIds = [providerSessionId];
+      try {
+        const children = db
+          .prepare('SELECT id FROM session WHERE parent_id = ?')
+          .all(providerSessionId) as Array<{ id: string }>;
+        sessionIds.push(...children.map((child) => child.id));
+      } catch {
+        // No `parent_id` column in this schema version; the session has no children.
+      }
+      // Placeholders, never interpolated ids: a session id is provider-supplied
+      // text and must not be spliced into SQL.
+      const inClause = sessionIds.map(() => '?').join(',');
+      for (const table of OPENCODE_SESSION_REFERENCING_TABLES) {
+        try {
+          db.prepare(`DELETE FROM ${table} WHERE session_id IN (${inClause})`).run(...sessionIds);
+        } catch {
+          // Table absent in this schema version; nothing to clean up for it.
+        }
+      }
+      for (const table of OPENCODE_EVENT_TABLES) {
+        try {
+          db.prepare(`DELETE FROM ${table} WHERE aggregate_id IN (${inClause})`).run(...sessionIds);
+        } catch {
+          // Table absent in this schema version; nothing to clean up for it.
+        }
+      }
+      db.prepare(`DELETE FROM session WHERE id IN (${inClause})`).run(...sessionIds);
+    } finally {
+      db.close();
+    }
   }
 
   private synchronizeRows(

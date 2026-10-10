@@ -177,6 +177,31 @@ const createOpenCodeDatabase = async (homeDir: string, workspacePath: string): P
       1,
     );
 
+    db.prepare(`
+      INSERT INTO session (
+        id, project_id, parent_id, slug, directory, title, version, time_created, time_updated,
+        time_archived, tokens_input, tokens_output, tokens_reasoning, tokens_cache_read,
+        tokens_cache_write
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      'open-sibling-session-1',
+      'project-1',
+      null,
+      'open-sibling-session-1',
+      workspacePath,
+      'OpenCode sibling session',
+      '0.0.0',
+      1_700_000_002_000,
+      1_700_000_003_000,
+      null,
+      5,
+      10,
+      2,
+      1,
+      1,
+    );
+
     const userMessageData = JSON.stringify({
       role: 'user',
       time: { created: 1_700_000_001_000 },
@@ -271,6 +296,15 @@ const createOpenCodeDatabase = async (homeDir: string, workspacePath: string): P
   }
 };
 
+/** Counts rows referencing one session, addressing `session` by id and the rest by session_id. */
+const countRows = (db: Database.Database, table: string, sessionId: string): number => {
+  const column = table === 'session' ? 'id' : 'session_id';
+  const row = db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE ${column} = ?`).get(sessionId) as
+    | { n: number }
+    | undefined;
+  return row?.n ?? 0;
+};
+
 test('OpenCode session synchronizer indexes sqlite sessions without deletable transcript paths', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-sync-'));
   const workspacePath = path.join(tempRoot, 'workspace');
@@ -287,7 +321,8 @@ test('OpenCode session synchronizer indexes sqlite sessions without deletable tr
       const processed = synchronizer.synchronize();
 
       return Promise.resolve(processed).then(async (count) => {
-        assert.equal(count, 1);
+        // The child session is excluded by the scan's `parent_id IS NULL` filter.
+        assert.equal(count, 2);
         const indexed = sessionsDb.getSessionById('open-session-1');
         assert.equal(indexed?.provider, 'opencode');
         assert.equal(indexed?.project_path, workspacePath);
@@ -304,6 +339,146 @@ test('OpenCode session synchronizer indexes sqlite sessions without deletable tr
           'open-child-session-1',
         );
       });
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('OpenCode permanent delete removes the session from the provider store so no scan re-indexes it', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-delete-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    await createOpenCodeDatabase(tempRoot, workspacePath);
+    const dbPath = path.join(tempRoot, '.local', 'share', 'opencode', 'opencode.db');
+    await withIsolatedDatabase(async () => {
+      const synchronizer = new OpenCodeSessionSynchronizer();
+      // The seed holds the parent, an unrelated sibling, and a child; the scan
+      // indexes the two top-level ones.
+      assert.equal(await synchronizer.synchronize(), 2);
+
+      await synchronizer.deleteProviderSession('open-session-1');
+
+      const db = new Database(dbPath, { readonly: true });
+      try {
+        assert.equal(countRows(db, 'session', 'open-session-1'), 0);
+        assert.equal(countRows(db, 'message', 'open-session-1'), 0);
+        // `part` hangs off `message` rather than `session`, so it must be
+        // addressed by session_id or the transcript text survives.
+        assert.equal(countRows(db, 'part', 'open-session-1'), 0);
+        // Child sessions go with the parent: the scan filters `parent_id IS
+        // NULL`, so an orphaned child is never indexed and never cleaned up.
+        assert.equal(countRows(db, 'session', 'open-child-session-1'), 0);
+        // An unrelated session must be untouched.
+        assert.equal(countRows(db, 'session', 'open-sibling-session-1'), 1);
+      } finally {
+        db.close();
+      }
+
+      // The app row is the service layer's job; what this asserts is that a
+      // rescan cannot bring the deleted session back. The surviving sibling is
+      // still in the store, so it is what the rescan finds instead.
+      sessionsDb.deleteSessionById('open-session-1');
+      assert.equal(await synchronizer.synchronize(), 1);
+      assert.equal(sessionsDb.getSessionById('open-session-1'), null);
+      assert.equal(sessionsDb.getSessionById('open-sibling-session-1')?.provider, 'opencode');
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('a permanent delete through the service empties the OpenCode store, not just the app row', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-delete-service-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    await createOpenCodeDatabase(tempRoot, workspacePath);
+    const dbPath = path.join(tempRoot, '.local', 'share', 'opencode', 'opencode.db');
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createAppSession('app-session-1', 'opencode', workspacePath);
+      sessionsDb.assignProviderSessionId('app-session-1', 'open-session-1');
+      assert.equal(await new OpenCodeSessionSynchronizer().synchronize(), 2);
+
+      // Goes through the real provider registry, because the wiring being
+      // verified is the service reaching the provider's store — a synchronizer
+      // test cannot fail if the service forgets to call it.
+      const { sessionsService } = await import('@/modules/providers/services/sessions.service.js');
+      await sessionsService.deleteOrArchiveSessionById('app-session-1', { force: true, deletedFromDisk: true });
+
+      assert.equal(sessionsDb.getSessionById('app-session-1'), null);
+      const db = new Database(dbPath, { readonly: true });
+      try {
+        assert.equal(countRows(db, 'session', 'open-session-1'), 0);
+        assert.equal(countRows(db, 'message', 'open-session-1'), 0);
+        assert.equal(countRows(db, 'part', 'open-session-1'), 0);
+      } finally {
+        db.close();
+      }
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('a permanent delete is refused while the provider id is still unknown, rather than silently no-op', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-delete-no-psid-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    await createOpenCodeDatabase(tempRoot, workspacePath);
+    const dbPath = path.join(tempRoot, '.local', 'share', 'opencode', 'opencode.db');
+    await withIsolatedDatabase(async () => {
+      // An app-created session whose provider has not reported its id back yet.
+      // Falling back to the app id would address a row that cannot exist in the
+      // store, so the delete would "succeed" and the session would reappear.
+      sessionsDb.createAppSession('app-session-pending', 'opencode', workspacePath);
+
+      const { sessionsService } = await import('@/modules/providers/services/sessions.service.js');
+      await assert.rejects(
+        () => sessionsService.deleteOrArchiveSessionById('app-session-pending', { force: true, deletedFromDisk: true }),
+        /provider id/,
+      );
+
+      // Nothing was removed on either side.
+      assert.equal(sessionsDb.getSessionById('app-session-pending')?.provider, 'opencode');
+      const db = new Database(dbPath, { readonly: true });
+      try {
+        assert.equal(countRows(db, 'session', 'open-session-1'), 1);
+      } finally {
+        db.close();
+      }
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('OpenCode permanent delete tolerates a provider store that no longer holds the session', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-delete-absent-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    await createOpenCodeDatabase(tempRoot, workspacePath);
+    await withIsolatedDatabase(async () => {
+      // Deleting twice must not throw: the sidebar can retry a delete whose
+      // first attempt already pruned the store.
+      const synchronizer = new OpenCodeSessionSynchronizer();
+      await synchronizer.deleteProviderSession('open-session-1');
+      await assert.doesNotReject(() => synchronizer.deleteProviderSession('open-session-1'));
     });
   } finally {
     restoreHomeDir();
