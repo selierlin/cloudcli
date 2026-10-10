@@ -1,6 +1,6 @@
 # CloudCLI 侧边栏状态指示重设计 · 二期需求
 
-> 状态：**需求草案 v3（2026-10-10）**，已过**两轮**审阅（一审 27 条 + 二审 11 条 = Claude 3 + CodeBuddy 8，逐条复算；一审零反驳全采纳，二审 8 成立 / 2 部分 / 1 重复、**2 条携带错误论据**，见 §9 / §11）；用户拍板项见 §6。**批次 1 已实施（2026-10-10）：P-1 + 需求 A 的「服务端权威重建」已落地并全绿；C-3 的「前端即时补记」（§2.4 `suppressedPendingRef`）未做；批次 2 / 3 未开工。**
+> 状态：**需求草案 v3（2026-10-10）**，已过**两轮**审阅（一审 27 条 + 二审 11 条 = Claude 3 + CodeBuddy 8，逐条复算；一审零反驳全采纳，二审 8 成立 / 2 部分 / 1 重复、**2 条携带错误论据**，见 §9 / §11）；用户拍板项见 §6。**批次 1 已实施（2026-10-10）：P-1 + 需求 A（含 C-3 两侧＝服务端权威重建 + 前端即时补记）已落地并全绿；批次 2 / 3 未开工。**
 > 出处：一期方案 `CloudCLI侧边栏状态指示重设计方案.md` §10「二期（另立）」的 4 条要点 + §13 风险表的 2 条缺口，本文把它们展开成「问题 / 真源 / 缺口 / 选项 / 验收判据 / 前置」。
 > 关系：一期（`a38128e6`）解决的是**「指示看得懂」**（形状与语义）；二期解决的是**「指示说的是真话」**（数据源与生命周期）。二期不改视觉层，只补**数据源**。
 > 真源：本文所有 `文件:行号` 均于 2026-10-10 实地复算（含审阅批注提出的主张），非转述。v2 相对 v1 有 **6 处核心论断改写 + 2 处事实更正**（见 §9 汇总）。
@@ -132,6 +132,11 @@
 > 两者不互斥：**推荐都做** —— 前端即时补记管「切走瞬间立刻亮」，服务端重建管「刷新/换设备也对」。
 > **重建入口形态（二审 T6）**：可写成 **`rebuildAttention(sid, level)`**，与 `markSessionAttention` 平级、由 `useProjectsState` 内部持有——本质是把「viewed 闸」的判断从调用方移进函数内，比「新跨 provider 通道 + 新入口」两个新概念省一层（同构先例：`useChatRealtimeHandlers` 已在 `subscribe` 上做跨会话写入，`useProjectsState.ts:823-836`）。
 > **清除口径（二审 Claude/C6）**：服务端重建出来的 action，其**清除也须走同一 5s 轮询的集合差集**（不能只挂本地 WS 事件）——否则跨设备解决权限后胶囊残留；本地事件只做加速。
+
+> **✅ C-3 两侧均已实施（2026-10-10）**：
+> - **前端即时补记**＝新设 `suppressedPendingRef`（`Map<sessionId, Set<requestId>>`，`permission_request` 命中当前会话时登记；`permission_resolved`/`permission_cancelled` **不带 viewed 例外**地实时移除，满足上面「不得复用 `pendingPermissionRequestIdsRef`」的要求）。补记落在**单个**「viewed 变化」effect 里（`previousViewedSessionIdRef` 记住上一个 viewed 会话），**同时覆盖 `handleSessionSelect` 与 `sessionId` 变化两条入口**，故未单独建 `rebuildAttention` 符号——补记直接写 `attentionSessions`，与轮询路径同形。
+> - **服务端权威重建**＝`useProjectsState` 的轮询差集 effect（重建列出的、清除本通道标过而轮询不再列的）。
+> - 守卫 3 条见 `src/modules/project-workspace/tests/projectsStateAttention.test.ts`（切走即时置位 / 会话内已答不复活 / 部分已答仍置位），已反向验证命中。
 
 ### 2.5 验收判据
 
@@ -328,7 +333,7 @@ chokidar change（usePolling:true，纯 touch 必然被抓，sessions-watcher.se
 | 6 | **`projectId` 缺口**：与一期片 2 合并处理？ | 合并 / 分开 | **合并**（同源同改），无新增阻碍 |
 | 7 | **upsert 判别位** | D-1 顺带产出**可复用内容指纹** / 前端指纹 | **D-1**，`change` 逐路径显式传参，**并按 T2 落成指纹**（兼喂 B） |
 
-> **批次 1 实施回填（2026-10-10）**：#1 采 **A-1**（T3 探针已闭合为「缩窄成立」，见 §2.4）；#2 采**显式区分**（缺席＝不支持／空数组＝无——`RunningSessionEntry` 与 `SessionActivity` 的注释均写明，且「未实现 `listPending` 的 provider 缺席该字段」有守卫）；#6 **合并**（`projectId` 已随 `/running` 旁挂，`null` 表示无项目行）；#3 **只落服务端半边**（5s 轮询的权威重建已实施，见 `useProjectsState.ts` 的差集 effect；「前端即时补记」`suppressedPendingRef` **未做**）。**#4 / #5 / #7 属批次 2 / 3，本轮未动。**
+> **批次 1 实施回填（2026-10-10）**：#1 采 **A-1**（T3 探针已闭合为「缩窄成立」，见 §2.4）；#2 采**显式区分**（缺席＝不支持／空数组＝无——`RunningSessionEntry` 与 `SessionActivity` 的注释均写明，且「未实现 `listPending` 的 provider 缺席该字段」有守卫）；#6 **合并**（`projectId` 已随 `/running` 旁挂，`null` 表示无项目行）；#3 **两者都落**（服务端 5s 轮询权威重建 + 前端即时补记 `suppressedPendingRef`，见 §2.4）。**#4 / #5 / #7 属批次 2 / 3，本轮未动。**
 
 ---
 
@@ -336,7 +341,7 @@ chokidar change（usePolling:true，纯 touch 必然被抓，sessions-watcher.se
 
 | 批次 | 内容 | 理由 |
 |---|---|---|
-| **批次 1** ✅ **已实施（2026-10-10）** | `P-1`（**服务层组装 pending** + `/running` 旁挂 `pendingPermissions` + `projectId`）→ **需求 A**（action 重建 + C-3） | 最痛（阻塞权限无痕）；一处改同时喂一期片 2；**provider 契约零变更**。**实施口径**：C-3 只落「服务端权威重建」半边（刷新可恢复，切走 ≤5s），前端即时补记未做 |
+| **批次 1** ✅ **已实施（2026-10-10）** | `P-1`（**服务层组装 pending** + `/running` 旁挂 `pendingPermissions` + `projectId`）→ **需求 A**（action 重建 + C-3） | 最痛（阻塞权限无痕）；一处改同时喂一期片 2；**provider 契约零变更**。**实施口径**：C-3 两侧都落（服务端权威重建 + 前端即时补记 `suppressedPendingRef`） |
 | **批次 2** | **需求 D**（判别位，修 WS 链路）**顺带产出可复用内容指纹** → **需求 B**（未读持久化，复用该指纹） | **T2：D 与 B 可共用一个内容指纹**（`synchronizeFile` 本就全解析）⇒ **由三步压两步**；**T4：C-1 行数不可作 B 的通用信号**，原「C-1 作现成来源」作废 |
 | **批次 3** | 需求 C 的**展示槽**（**若 T4 后仍决定做**：仅 Claude 侧、且须先过滤非对话行；否则砍） | 展示价值最低；T4 后倾向砍 |
 

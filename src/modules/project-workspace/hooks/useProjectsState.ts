@@ -502,6 +502,19 @@ export function useProjectsState({
    * The set — not the single event — decides whether to clear.
    */
   const pendingPermissionRequestIdsRef = useRef<Map<string, Set<string>>>(new Map());
+  /**
+   * Permission requests that arrived for the session on screen, keyed by session
+   * id, and were therefore never flagged (the viewed-session gate in
+   * `markSessionAttention` drops them). Leaving that session flags it at once, so
+   * its row is not blank until the next 5s poll.
+   *
+   * Kept apart from `pendingPermissionRequestIdsRef` on purpose: that map tracks
+   * every request but only clears a session we are *not* viewing, so a resolve
+   * or cancel for the session on screen leaves a stale entry there. This map
+   * removes on resolve/cancel whatever is on screen, so re-entering and leaving a
+   * session never resurrects an already-answered approval as a false capsule.
+   */
+  const suppressedPendingRef = useRef<Map<string, Set<string>>>(new Map());
 
   useEffect(() => {
     sessionLookupRef.current = null;
@@ -842,6 +855,34 @@ export function useProjectsState({
           const pending = pendingPermissionRequestIdsRef.current.get(eventSessionId) ?? new Set<string>();
           pending.add(requestId);
           pendingPermissionRequestIdsRef.current.set(eventSessionId, pending);
+
+          // The request is for the session on screen, so the mark below is
+          // suppressed. Remember it here instead, for the leave-the-session path
+          // to flag at once without waiting up to 5s for the poll.
+          if (eventSessionId === viewedSessionId) {
+            const suppressed = suppressedPendingRef.current.get(eventSessionId) ?? new Set<string>();
+            suppressed.add(requestId);
+            suppressedPendingRef.current.set(eventSessionId, suppressed);
+          }
+        }
+      }
+
+      // Drop a settled request from the suppressed map whatever is on screen, so
+      // leaving the session never re-flags an approval that was already answered.
+      if (
+        eventSessionId
+        && (event.kind === 'permission_resolved' || event.kind === 'permission_cancelled')
+      ) {
+        const suppressed = suppressedPendingRef.current.get(eventSessionId);
+        if (suppressed) {
+          const requestId = readPermissionRequestId(event);
+          if (requestId) {
+            suppressed.delete(requestId);
+          }
+
+          if (!requestId || suppressed.size === 0) {
+            suppressedPendingRef.current.delete(eventSessionId);
+          }
         }
       }
 
@@ -998,8 +1039,38 @@ export function useProjectsState({
     };
   }, []);
 
+  /**
+   * The session that was on screen the last time the effect below ran. Leaving a
+   * session that is still blocked on a suppressed approval flags its row here,
+   * with no wait on the poll.
+   */
+  const previousViewedSessionIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    clearSessionAttention(selectedSession?.id ?? sessionId ?? null);
+    const viewedSessionId = selectedSession?.id ?? sessionId ?? null;
+    const previousViewedSessionId = previousViewedSessionIdRef.current;
+    previousViewedSessionIdRef.current = viewedSessionId;
+
+    // Leaving a session that is still blocked flags it at once. Reading the
+    // suppressed map — which drops answered requests in real time — is what keeps
+    // an already-answered approval from coming back as a false capsule.
+    if (
+      previousViewedSessionId
+      && previousViewedSessionId !== viewedSessionId
+      && suppressedPendingRef.current.has(previousViewedSessionId)
+    ) {
+      setAttentionSessions((previous) => {
+        if (previous.get(previousViewedSessionId) === 'action') {
+          return previous;
+        }
+
+        const next = new Map(previous);
+        next.set(previousViewedSessionId, 'action');
+        return next;
+      });
+    }
+
+    clearSessionAttention(viewedSessionId);
   }, [clearSessionAttention, selectedSession?.id, sessionId]);
 
   useEffect(() => {
