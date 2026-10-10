@@ -57,6 +57,7 @@ const renderProjectsState = async (wrapper?: (props: { children: ReactNode }) =>
         },
         isMobile: false,
         isSessionProcessing: () => false,
+        pendingApprovalSessionIds: new Set<string>(),
       }),
     wrapper ? { wrapper } : undefined,
   );

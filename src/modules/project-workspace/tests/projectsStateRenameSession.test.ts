@@ -53,6 +53,7 @@ const renderProjectsState = async () => {
       subscribe: () => () => {},
       isMobile: false,
       isSessionProcessing: () => false,
+      pendingApprovalSessionIds: new Set<string>(),
     }),
     { initialProps: { sessionId: undefined } as { sessionId?: string } },
   );

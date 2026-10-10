@@ -10,7 +10,7 @@ import type { ReactNode } from 'react';
 import {
   useSessionProtection,
 } from '@/shared/hooks/useSessionProtection';
-import type { BackgroundTaskSummary, GetSessionActivity, IsSessionProcessing, MarkSessionBackground, MarkSessionIdle, MarkSessionProcessing, SessionActivity, SessionActivityMap, SyncProcessingSessions } from '@/shared/types';
+import type { BackgroundTaskSummary, GetSessionActivity, IsSessionProcessing, MarkSessionBackground, MarkSessionIdle, MarkSessionProcessing, SessionActivity, SessionActivityMap, SessionPendingPermission, SyncProcessingSessions } from '@/shared/types';
 import { api } from '@/shared/api';
 
 type RunningSessionApiItem = {
@@ -20,6 +20,7 @@ type RunningSessionApiItem = {
   canInterrupt?: unknown;
   background?: unknown;
   tasks?: unknown;
+  pendingPermissions?: unknown;
 };
 
 type RunningSessionsApiPayload = {
@@ -41,6 +42,7 @@ const SessionProtectionStateContext = createContext<SessionActivityMap | null>(n
 const SessionProtectionActionsContext = createContext<SessionProtectionActions | null>(null);
 const BusySessionIdsContext = createContext<ReadonlySet<string> | null>(null);
 const BackgroundSessionIdsContext = createContext<ReadonlySet<string> | null>(null);
+const PendingApprovalSessionIdsContext = createContext<ReadonlySet<string> | null>(null);
 
 /**
  * The set of session ids whose activity passes `include`, with a stable
@@ -72,6 +74,7 @@ function useSessionIdSet(
 
 const isAnyActivity = () => true;
 const isBackgroundOnly = (activity: SessionActivity) => Boolean(activity.background);
+const isPendingApproval = (activity: SessionActivity) => (activity.pendingPermissions?.length ?? 0) > 0;
 
 const parseStartedAt = (value: unknown): number | undefined => {
   if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
@@ -120,6 +123,30 @@ const parseBackgroundTasks = (value: unknown): BackgroundTaskSummary[] | undefin
   return tasks;
 };
 
+/**
+ * The poll's pending approvals, kept only when every entry carries a request id.
+ * Absent means the provider cannot report pending approvals — distinct from an
+ * empty list, which says it can and nothing is waiting.
+ */
+const parsePendingPermissions = (value: unknown): SessionPendingPermission[] | undefined => {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const pending: SessionPendingPermission[] = [];
+  for (const item of value) {
+    const entry = item as Partial<Record<'requestId' | 'toolName', unknown>> | null;
+    if (!entry || typeof entry.requestId !== 'string' || entry.requestId.length === 0) {
+      continue;
+    }
+    pending.push({
+      requestId: entry.requestId,
+      toolName: typeof entry.toolName === 'string' ? entry.toolName : '',
+    });
+  }
+  return pending;
+};
+
 /** Mounted by the project-workspace route; tracks which sessions are busy — producing a response or running background tasks — so chat, sidebar and project-workspace agree on session activity. */
 export function SessionProtectionProvider({ children }: { children: ReactNode }) {
   const {
@@ -156,6 +183,7 @@ export function SessionProtectionProvider({ children }: { children: ReactNode })
               canInterrupt: typeof session.canInterrupt === 'boolean' ? session.canInterrupt : undefined,
               background: session.background === true,
               tasks: parseBackgroundTasks(session.tasks),
+              pendingPermissions: parsePendingPermissions(session.pendingPermissions),
             };
           })
           .filter((session): session is NonNullable<typeof session> => Boolean(session)),
@@ -198,14 +226,17 @@ export function SessionProtectionProvider({ children }: { children: ReactNode })
 
   const busySessionIds = useSessionIdSet(processingSessions, isAnyActivity);
   const backgroundSessionIds = useSessionIdSet(processingSessions, isBackgroundOnly);
+  const pendingApprovalSessionIds = useSessionIdSet(processingSessions, isPendingApproval);
 
   return (
     <SessionProtectionActionsContext.Provider value={actions}>
       <BusySessionIdsContext.Provider value={busySessionIds}>
         <BackgroundSessionIdsContext.Provider value={backgroundSessionIds}>
-          <SessionProtectionStateContext.Provider value={processingSessions}>
-            {children}
-          </SessionProtectionStateContext.Provider>
+          <PendingApprovalSessionIdsContext.Provider value={pendingApprovalSessionIds}>
+            <SessionProtectionStateContext.Provider value={processingSessions}>
+              {children}
+            </SessionProtectionStateContext.Provider>
+          </PendingApprovalSessionIdsContext.Provider>
         </BackgroundSessionIdsContext.Provider>
       </BusySessionIdsContext.Provider>
     </SessionProtectionActionsContext.Provider>
@@ -236,6 +267,20 @@ export function useBackgroundSessionIdSet(): ReadonlySet<string> {
     throw new Error('useBackgroundSessionIdSet must be used within SessionProtectionProvider');
   }
   return backgroundSessionIds;
+}
+
+/**
+ * The busy sessions the running-sessions poll reports as blocked on a tool
+ * approval. A membership-only view with a stable identity, for the sidebar to
+ * rebuild a blocked indicator after a refresh, when the websocket event that
+ * would have set it has long passed.
+ */
+export function usePendingApprovalSessionIds(): ReadonlySet<string> {
+  const pendingApprovalSessionIds = useContext(PendingApprovalSessionIdsContext);
+  if (!pendingApprovalSessionIds) {
+    throw new Error('usePendingApprovalSessionIds must be used within SessionProtectionProvider');
+  }
+  return pendingApprovalSessionIds;
 }
 
 export function useProcessingSessions(): SessionActivityMap {

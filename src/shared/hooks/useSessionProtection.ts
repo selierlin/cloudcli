@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 
-import type { BackgroundTaskSummary, GetSessionActivity, IsSessionProcessing, MarkSessionBackground, MarkSessionIdle, MarkSessionProcessing, SessionActivity, SessionActivityMap, SessionActivitySnapshot, SyncProcessingSessions } from '@/shared/types';
+import type { BackgroundTaskSummary, GetSessionActivity, IsSessionProcessing, MarkSessionBackground, MarkSessionIdle, MarkSessionProcessing, SessionActivity, SessionActivityMap, SessionActivitySnapshot, SessionPendingPermission, SyncProcessingSessions } from '@/shared/types';
 
 
 
@@ -18,12 +18,23 @@ const backgroundTasksKey = (tasks: readonly BackgroundTaskSummary[] | undefined)
     .map((task) => [task.taskId, task.toolUseId, task.taskType, task.description, task.workflowName ?? '', task.startedAt, task.nested ? 1 : 0].join('\u0001'))
     .join('\u0000');
 
+/**
+ * The pending approvals as an identity. A poll that reports the same approvals
+ * (or the same absence) must not churn the map, but one whose set changed must,
+ * so both `requestId` and `toolName` are read.
+ */
+const pendingPermissionsKey = (pending: readonly SessionPendingPermission[] | undefined): string =>
+  (pending ?? [])
+    .map((item) => [item.requestId, item.toolName].join('\u0001'))
+    .join('\u0000');
+
 const sessionActivitiesMatch = (left: SessionActivity, right: SessionActivity): boolean =>
   left.statusText === right.statusText
   && left.canInterrupt === right.canInterrupt
   && left.startedAt === right.startedAt
   && Boolean(left.background) === Boolean(right.background)
-  && backgroundTasksKey(left.tasks) === backgroundTasksKey(right.tasks);
+  && backgroundTasksKey(left.tasks) === backgroundTasksKey(right.tasks)
+  && pendingPermissionsKey(left.pendingPermissions) === pendingPermissionsKey(right.pendingPermissions);
 
 const sessionActivityMapsMatch = (
   left: ReadonlyMap<string, SessionActivity>,
@@ -82,6 +93,9 @@ export function useSessionProtection() {
         // The tasks keep running under the new turn; they are reported again
         // when it ends.
         ...(existing?.tasks ? { tasks: existing.tasks } : {}),
+        // A websocket frame says nothing about pending approvals, so keep what
+        // the last poll reported instead of erasing it.
+        ...(existing?.pendingPermissions ? { pendingPermissions: existing.pendingPermissions } : {}),
       };
 
       if (
@@ -143,6 +157,9 @@ export function useSessionProtection() {
         startedAt: Math.min(...tasks.map((task) => task.startedAt)),
         background: true,
         tasks,
+        // The turn ended, but any approvals still waiting are unresolved; keep
+        // them until a poll says otherwise.
+        ...(existing?.pendingPermissions ? { pendingPermissions: existing.pendingPermissions } : {}),
       };
       if (existing && sessionActivitiesMatch(existing, next)) {
         return prev;
@@ -195,6 +212,7 @@ export function useSessionProtection() {
           startedAt: snapshotStartedAt ?? existing?.startedAt ?? now,
           ...(snapshot.background ? { background: true } : {}),
           ...(snapshot.tasks ? { tasks: snapshot.tasks } : {}),
+          ...(snapshot.pendingPermissions ? { pendingPermissions: snapshot.pendingPermissions } : {}),
         });
       }
 

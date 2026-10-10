@@ -1078,6 +1078,7 @@ test('the running-sessions route reports a session held open for background work
         background: true,
         canInterrupt: false,
         tasks,
+        projectId: null,
       }]);
     });
   } finally {

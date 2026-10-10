@@ -246,6 +246,16 @@ async function withClaudeCliRegistry(
   }
 }
 
+/**
+ * Resolves the project id a running entry should report for `sessionId`, using
+ * the same path→project lookup the service performs, so the running-sessions
+ * expectations stay exact instead of matching "any string".
+ */
+function resolveProjectId(sessionId: string): string | null {
+  const projectPath = sessionsDb.getSessionById(sessionId)?.project_path ?? null;
+  return projectPath ? projectsDb.getProjectPath(projectPath)?.project_id ?? null : null;
+}
+
 const task = (taskId: string, startedAt: number): BackgroundTaskSummary => ({
   taskId,
   toolUseId: `toolu_${taskId}`,
@@ -278,6 +288,7 @@ test('running sessions list a session whose background work outlived its turn', 
           background: true,
           canInterrupt: false,
           tasks,
+          projectId: resolveProjectId('held-session'),
         }]);
         assert.ok(run.lastSeq > 0, 'the finished run still reports its sequence for replay');
       },
@@ -310,6 +321,7 @@ test('running sessions carry their tasks on a chat run that is still going', { c
           startedAt: run.startedAt,
           lastSeq: 0,
           tasks,
+          projectId: resolveProjectId('busy-session'),
         });
       },
     ));
@@ -329,6 +341,7 @@ test('running sessions with no background work are the chat runs alone', { concu
       async () => {
         assert.deepEqual(await sessionsService.listRunningSessions(), [{
           sessionId: 'plain-session', provider: 'codex', startedAt: run.startedAt, lastSeq: 0,
+          projectId: resolveProjectId('plain-session'),
         }]);
       },
     ));
@@ -354,6 +367,7 @@ test('running sessions report a turn driven by the Claude CLI', { concurrency: f
             lastSeq: 0,
             canInterrupt: false,
             statusText: 'Running in the Claude CLI',
+            projectId: resolveProjectId('cli-session'),
           }]);
         },
       ),
@@ -426,5 +440,57 @@ test('an unreadable registry never fails the running-sessions poll', { concurren
         );
       },
     );
+  });
+});
+
+test('running entries carry the owning project and the provider pending approvals', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('waiting-session', 'claude', '/tmp/running-project');
+    const run = chatRunRegistry.startRun({
+      appSessionId: 'waiting-session', provider: 'claude', providerSessionId: null, connection: null, userId: null,
+    });
+    assert.ok(run);
+
+    await withClaudeCliRegistry([], async () => await withProviders(
+      {
+        claude: {
+          run: async () => undefined,
+          abort: () => false,
+          permissions: {
+            resolve: () => undefined,
+            listPending: (sessionId: string) => sessionId === 'waiting-session'
+              // The second record omits toolName: the summary must still carry a label.
+              ? [{ requestId: 'req-1', toolName: 'Bash' }, { requestId: 'req-2' }]
+              : [],
+          },
+        },
+      },
+      async () => {
+        const [entry] = await sessionsService.listRunningSessions();
+        assert.equal(entry.projectId, resolveProjectId('waiting-session'));
+        assert.deepEqual(entry.pendingPermissions, [
+          { requestId: 'req-1', toolName: 'Bash' },
+          { requestId: 'req-2', toolName: 'UnknownTool' },
+        ]);
+      },
+    ));
+  });
+});
+
+test('a provider without pending-approval support omits the field rather than reporting none', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('unsupported-session', 'codex', '/tmp/running-project');
+    const run = chatRunRegistry.startRun({
+      appSessionId: 'unsupported-session', provider: 'codex', providerSessionId: null, connection: null, userId: null,
+    });
+    assert.ok(run);
+
+    await withClaudeCliRegistry([], async () => await withProviders(
+      { codex: { run: async () => undefined, abort: () => false } },
+      async () => {
+        const [entry] = await sessionsService.listRunningSessions();
+        assert.equal('pendingPermissions' in entry, false, 'no listPending support leaves the key absent, not empty');
+      },
+    ));
   });
 });
