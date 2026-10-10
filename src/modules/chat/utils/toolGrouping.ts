@@ -3,6 +3,26 @@ import { getToolConfig } from '@/modules/chat/tools/configs/toolConfigs';
 
 export const TOOL_GROUP_THRESHOLD = 2;
 
+/**
+ * A batch inside a Process Run folds only once it holds more than this many
+ * calls; shorter batches stay flat so the run shows its tools directly.
+ */
+export const PROCESS_RUN_TOOL_COLLAPSE_ABOVE = 3;
+
+/**
+ * Whether a run of tool rows renders as a collapsed row. Standalone runs fold
+ * from `TOOL_GROUP_THRESHOLD`; a Process Run passes its own
+ * `PROCESS_RUN_TOOL_COLLAPSE_ABOVE` through `ToolGroupContainer`.
+ *
+ * `ChatMessagesPane` calls this a second time to size the row's placeholder
+ * height, so the collapsed geometry and the estimate cannot drift apart.
+ */
+export function shouldCollapseToolBatch(messageCount: number, collapseAbove?: number): boolean {
+  return collapseAbove === undefined
+    ? messageCount >= TOOL_GROUP_THRESHOLD
+    : messageCount > collapseAbove;
+}
+
 /** How many of a group's tool inputs the collapsed summary line spells out. */
 const PREVIEWED_TOOL_COUNT = 2;
 

@@ -9,12 +9,17 @@ import { useIsExportingTranscript } from '@/modules/chat/context/TranscriptRende
 import { DiffStatsBadge } from '@/modules/chat/tools/DiffStatsBadge';
 import { ToolStatusBadge } from '@/modules/chat/tools/ToolStatusBadge';
 import { parseToolPayload, summarizeDiff } from '@/modules/chat/utils/messageTransforms';
-import { TOOL_GROUP_THRESHOLD } from '@/modules/chat/utils/toolGrouping';
+import { shouldCollapseToolBatch } from '@/modules/chat/utils/toolGrouping';
 
 type ToolGroupContainerProps = {
   group: ToolGroupItem;
-  /** Process runs fold even a one-tool batch so opening the run reveals its outline first. */
-  collapseSingleTool?: boolean;
+  /**
+   * Process runs keep their short batches flat: the batch folds only once it
+   * holds more than this many calls, so a short run reads as direct evidence
+   * under the process title. Omitted for standalone batches, which fold from
+   * `TOOL_GROUP_THRESHOLD`.
+   */
+  collapseAbove?: number;
   /** The containing Process Run already renders the harness identity for this tool batch. */
   hidesProcessIdentity?: boolean;
   /** Lets the parent Process Run retain this batch's user-owned disclosure across unmounts. */
@@ -85,7 +90,7 @@ function getToolGroupIcon(icon: string | undefined, toolName: string): string {
  */
 function ToolGroupContainer({
   group,
-  collapseSingleTool = false,
+  collapseAbove,
   hidesProcessIdentity = false,
   expanded,
   onExpandedChange,
@@ -103,7 +108,7 @@ function ToolGroupContainer({
 }: ToolGroupContainerProps) {
   const { t } = useTranslation('chat');
   const isExporting = useIsExportingTranscript();
-  const isGrouped = collapseSingleTool || group.messages.length >= TOOL_GROUP_THRESHOLD;
+  const isGrouped = shouldCollapseToolBatch(group.messages.length, collapseAbove);
   const toolNames = useMemo(
     () => new Set(group.messages.map((message) => message.toolName || group.toolName)),
     [group.messages, group.toolName],

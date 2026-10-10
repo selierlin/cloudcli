@@ -15,7 +15,12 @@ import { getIntrinsicMessageKey } from '@/modules/chat/utils/messageKeys';
 import {
   deriveExecutionProcessProjection,
 } from '@/modules/chat/utils/executionProcess';
-import { groupConsecutiveTools, isToolGroupItem } from '@/modules/chat/utils/toolGrouping';
+import {
+  groupConsecutiveTools,
+  isToolGroupItem,
+  PROCESS_RUN_TOOL_COLLAPSE_ABOVE,
+  shouldCollapseToolBatch,
+} from '@/modules/chat/utils/toolGrouping';
 import { deriveReasoningPresentations } from '@/modules/chat/utils/reasoningDisclosure';
 import {
   disclosureRegistryReducer,
@@ -60,13 +65,18 @@ function estimateMessageRowHeight(message: ChatMessage): number {
   return clampEstimatedRowHeight(56 + lines * 21, 680);
 }
 
-function estimateToolGroupRowHeight(messages: ChatMessage[]): number {
+/**
+ * Reserves the geometry a tool batch will occupy before it has been measured.
+ * `collapseAbove` mirrors the container's own rule: a batch that stays flat
+ * inside a process run occupies its rows' real height, not one collapsed row.
+ */
+function estimateToolGroupRowHeight(messages: ChatMessage[], collapseAbove?: number): number {
   const hasIssue = messages.some(
     (message) =>
       message.toolResult?.isError ||
       ['error', 'denied', 'stopped'].includes(String(message.toolStatus || '')),
   );
-  if (messages.length >= 2 && !hasIssue) return 64;
+  if (!hasIssue && shouldCollapseToolBatch(messages.length, collapseAbove)) return 64;
   return clampEstimatedRowHeight(
     messages.reduce((height, message) => height + estimateMessageRowHeight(message), 0),
     680,
@@ -580,6 +590,11 @@ function ChatMessagesPane({
                       executionGroup && itemMessageKeys.some((key) => executionGroup.attentionKeys.has(key)),
                     );
                     const shouldHideProcessItem = isProcessCollapsed && !hasAttentionMember;
+                    // A process-run batch keeps up to three calls flat; only a
+                    // longer one gets its own disclosure row.
+                    const toolCollapseAbove = executionGroup
+                      ? PROCESS_RUN_TOOL_COLLAPSE_ABOVE
+                      : undefined;
                     const toolDisclosureKey = executionGroup
                       ? `process-tools:${itemMessageKeys[0]}`
                       : undefined;
@@ -611,12 +626,12 @@ function ChatMessagesPane({
                           rowKey={`${sessionId ?? 'no-session'}:tool-group:${getMessageKey(item.messages[0])}`}
                           timestamp={item.timestamp}
                           initiallyNearViewport={initiallyNearViewport}
-                          estimatedHeight={estimateToolGroupRowHeight(item.messages)}
+                          estimatedHeight={estimateToolGroupRowHeight(item.messages, toolCollapseAbove)}
                           isProcessCollapsed={shouldHideProcessItem}
                         >
                           <ToolGroupContainer
                             group={item}
-                            collapseSingleTool={Boolean(executionGroup)}
+                            collapseAbove={toolCollapseAbove}
                             hidesProcessIdentity={Boolean(executionGroup)}
                             expanded={executionGroup ? toolDisclosure === 'user_open' : undefined}
                             onExpandedChange={

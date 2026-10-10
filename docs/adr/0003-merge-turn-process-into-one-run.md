@@ -4,7 +4,7 @@ status: accepted
 
 # Merge a turn's ordinary process into one run
 
-Real WorkBuddy turns can emit dozens of intermediate prose boundaries, and presenting each boundary as an independently folded Process Stage replaces prose noise with a wall of identical disclosure rows. CloudCLI will instead project at most one ordinary Process Run per assistant Turn: reasoning, intermediate prose, progress and tool batches retain their original order inside it, while only the rightmost prose remains the Answer. The run is folded by default, attention content remains directly visible, and opening the run reveals narration as its readable spine while reasoning and tool batches remain independently folded evidence.
+Real WorkBuddy turns can emit dozens of intermediate prose boundaries, and presenting each boundary as an independently folded Process Stage replaces prose noise with a wall of identical disclosure rows. CloudCLI will instead project at most one ordinary Process Run per assistant Turn: reasoning, intermediate prose, progress and tool batches retain their original order inside it, while only the rightmost prose remains the Answer. The run is folded by default, attention content remains directly visible, and opening the run reveals narration as its readable spine and reasoning as folded evidence, while a tool batch only folds once it outgrows three calls so a short run reads as the tools themselves.
 
 ## Considered options
 
