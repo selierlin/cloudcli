@@ -264,3 +264,89 @@ test('skips a transcript the session was edited away from', async () => {
     assert.equal(readSession(sessionId)?.custom_name, 'first prompt');
   });
 });
+
+const withTimestamp = <T extends object>(event: T, timestamp: string): T & { timestamp: string } =>
+  ({ ...event, timestamp });
+
+test('records the newest main-line conversation timestamp as the content fingerprint', async () => {
+  await withIsolatedEnvironment(async (homeDir) => {
+    const sessionId = 'sess-fingerprint';
+    const cwd = path.join(homeDir, 'project');
+    await writeSessionFile(homeDir, sessionId, [
+      withTimestamp(makeUserMessage(sessionId, cwd, 'hi'), '2026-01-01T10:00:00.000Z'),
+      withTimestamp(makeAssistantMessage(sessionId, cwd, 'hello'), '2026-01-01T10:00:05.000Z'),
+    ]);
+
+    await new ClaudeSessionSynchronizer().synchronize();
+
+    assert.equal(
+      sessionsDb.getSessionContentUpdatedAt(sessionId, 'claude'),
+      '2026-01-01T10:00:05.000Z',
+    );
+  });
+});
+
+test('a bare touch that leaves the conversation unchanged reports a metadata-only change', async () => {
+  await withIsolatedEnvironment(async (homeDir) => {
+    const sessionId = 'sess-touch';
+    const cwd = path.join(homeDir, 'project');
+    const filePath = path.join(homeDir, '.claude', 'projects', sessionId, `${sessionId}.jsonl`);
+    const events = () => [
+      withTimestamp(makeUserMessage(sessionId, cwd, 'hi'), '2026-01-01T10:00:00.000Z'),
+      withTimestamp(makeAssistantMessage(sessionId, cwd, 'hello'), '2026-01-01T10:00:05.000Z'),
+    ];
+
+    await writeSessionFile(homeDir, sessionId, events());
+    const first = await new ClaudeSessionSynchronizer().synchronizeFileDetailed(filePath);
+    assert.equal(first.sessionId, sessionId);
+    assert.equal(first.contentChanged, false, 'no baseline means metadata, not content');
+
+    // Rewriting identical bytes bumps the file's mtime but not the conversation.
+    await writeSessionFile(homeDir, sessionId, events());
+    const second = await new ClaudeSessionSynchronizer().synchronizeFileDetailed(filePath);
+    assert.equal(second.contentChanged, false, 'an unchanged conversation is not content');
+  });
+});
+
+test('appending a main-line turn reports a content change', async () => {
+  await withIsolatedEnvironment(async (homeDir) => {
+    const sessionId = 'sess-append';
+    const cwd = path.join(homeDir, 'project');
+    const filePath = path.join(homeDir, '.claude', 'projects', sessionId, `${sessionId}.jsonl`);
+
+    await writeSessionFile(homeDir, sessionId, [
+      withTimestamp(makeUserMessage(sessionId, cwd, 'hi'), '2026-01-01T10:00:00.000Z'),
+      withTimestamp(makeAssistantMessage(sessionId, cwd, 'hello'), '2026-01-01T10:00:05.000Z'),
+    ]);
+    await new ClaudeSessionSynchronizer().synchronizeFileDetailed(filePath);
+
+    await writeSessionFile(homeDir, sessionId, [
+      withTimestamp(makeUserMessage(sessionId, cwd, 'hi'), '2026-01-01T10:00:00.000Z'),
+      withTimestamp(makeAssistantMessage(sessionId, cwd, 'hello'), '2026-01-01T10:00:05.000Z'),
+      withTimestamp(makeUserMessage(sessionId, cwd, 'more'), '2026-01-01T10:01:00.000Z'),
+      withTimestamp(makeAssistantMessage(sessionId, cwd, 'reply'), '2026-01-01T10:01:02.000Z'),
+    ]);
+    const second = await new ClaudeSessionSynchronizer().synchronizeFileDetailed(filePath);
+    assert.equal(second.contentChanged, true);
+  });
+});
+
+test('a subagent sidechain turn does not move the content fingerprint', async () => {
+  await withIsolatedEnvironment(async (homeDir) => {
+    const sessionId = 'sess-sidechain';
+    const cwd = path.join(homeDir, 'project');
+    await writeSessionFile(homeDir, sessionId, [
+      withTimestamp(makeUserMessage(sessionId, cwd, 'hi'), '2026-01-01T10:00:00.000Z'),
+      withTimestamp(makeAssistantMessage(sessionId, cwd, 'hello'), '2026-01-01T10:00:05.000Z'),
+      { ...withTimestamp(makeAssistantMessage(sessionId, cwd, 'sub'), '2026-01-01T11:00:00.000Z'), isSidechain: true },
+    ]);
+
+    await new ClaudeSessionSynchronizer().synchronize();
+
+    assert.equal(
+      sessionsDb.getSessionContentUpdatedAt(sessionId, 'claude'),
+      '2026-01-01T10:00:05.000Z',
+      'a subagent line must not advance the session watermark',
+    );
+  });
+});

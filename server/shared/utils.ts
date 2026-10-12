@@ -1121,8 +1121,54 @@ export function normalizeSessionName(rawValue: string | undefined, fallback: str
 
 // ---------------------------
 //----------------- PROVIDER SESSION VALUE NORMALIZATION UTILITIES ------------
+/** SQLite `CURRENT_TIMESTAMP`: UTC with no timezone suffix. */
+const SQLITE_UTC_TIMESTAMP_REGEX = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+
 /**
- * Converts provider-native timestamps into ISO strings.
+ * Canonical ISO string for a content timestamp, or `null` when the value
+ * carries no usable time.
+ *
+ * Providers persist epoch timestamps in three shapes — ISO strings (Claude),
+ * millisecond numbers (openclaw, WorkBuddy) and numeric strings — and
+ * `new Date('1791531485193')` is `Invalid Date`, so a bare pass-through drops a
+ * numeric value silently. Every writer of `sessions.content_updated_at` goes
+ * through this helper, and every reader normalizes with it, so the column has
+ * exactly one stored shape (`YYYY-MM-DDTHH:mm:ss.sssZ`) and the unread
+ * comparison never mixes shapes.
+ */
+export function normalizeContentTimestamp(value: unknown): string | null {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    // Epoch seconds are ~1e9-1e10, epoch milliseconds ~1e12; anything below
+    // the millisecond floor is read as seconds.
+    const millis = value < 1_000_000_000_000 ? value * 1000 : value;
+    const date = new Date(millis);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    const parsed = Number(trimmed);
+    if (Number.isFinite(parsed)) {
+      return normalizeContentTimestamp(parsed);
+    }
+
+    const candidate = SQLITE_UTC_TIMESTAMP_REGEX.test(trimmed)
+      ? `${trimmed.replace(' ', 'T')}Z`
+      : trimmed;
+    const date = new Date(candidate);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  }
+
+  return null;
+}
+
+/**
+ * Converts provider-native timestamps into ISO strings, defaulting to now when
+ * the value is unusable.
  *
  * Provider CLIs commonly persist epoch timestamps as milliseconds, seconds, or
  * already-formatted date strings. Use this helper when normalizing session
@@ -1130,24 +1176,7 @@ export function normalizeSessionName(rawValue: string | undefined, fallback: str
  * shape to API responses and database rows.
  */
 export function normalizeProviderTimestamp(value: unknown): string {
-  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-    const millis = value < 1_000_000_000_000 ? value * 1000 : value;
-    return new Date(millis).toISOString();
-  }
-
-  if (typeof value === 'string' && value.trim()) {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) {
-      return normalizeProviderTimestamp(parsed);
-    }
-
-    const date = new Date(value);
-    if (!Number.isNaN(date.getTime())) {
-      return date.toISOString();
-    }
-  }
-
-  return new Date().toISOString();
+  return normalizeContentTimestamp(value) ?? new Date().toISOString();
 }
 
 /**

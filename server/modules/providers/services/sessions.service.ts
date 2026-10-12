@@ -501,7 +501,9 @@ export const sessionsService = {
       effort: source.effort,
     });
 
-    await broadcastSessionUpserted(forkSessionId);
+    // A fork copies a transcript onto a new id; nothing new was said, so the
+    // row appears in the sidebar without an unread flag.
+    await broadcastSessionUpserted(forkSessionId, 'metadata');
 
     return {
       sessionId: forkSessionId,

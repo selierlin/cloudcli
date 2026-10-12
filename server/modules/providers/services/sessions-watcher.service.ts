@@ -13,7 +13,7 @@ import { getPiSessionsRoot } from '@/modules/providers/list/pi/pi-models.provide
 import { getWorkbuddySessionRoots } from '@/modules/providers/list/workbuddy/workbuddy-storage.provider.js';
 import { getZcodeHomeDir } from '@/modules/providers/list/zcode/zcode-models.provider.js';
 import { broadcastSessionUpsertedBatch } from '@/modules/websocket/index.js';
-import type { LLMProvider } from '@/shared/types.js';
+import type { LLMProvider, SessionUpsertChange } from '@/shared/types.js';
 
 type WatcherEventType = 'add' | 'change';
 
@@ -120,11 +120,12 @@ type PendingWatcherUpdate = {
   providers: Set<LLMProvider>;
   changeTypes: Set<WatcherEventType>;
   /**
-   * Provider-native session ids reported by the synchronizers. They are
-   * translated back to app-facing session rows at flush time, because the
-   * transcript file names on disk only ever contain provider ids.
+   * Provider-native session ids reported by the synchronizers, each with the
+   * change classification to announce it under. They are translated back to
+   * app-facing session rows at flush time, because the transcript file names on
+   * disk only ever contain provider ids.
    */
-  updatedSessionIds: Set<string>;
+  updatedSessionIds: Map<string, SessionUpsertChange>;
 };
 
 let pendingWatcherUpdate: PendingWatcherUpdate | null = null;
@@ -186,20 +187,26 @@ function schedulePendingWatcherFlush(): void {
 function queuePendingWatcherUpdate(
   eventType: WatcherEventType,
   provider: LLMProvider,
-  updatedSessionId: string | null
+  updatedSessionId: string | null,
+  change: SessionUpsertChange
 ): void {
   if (!pendingWatcherUpdate) {
     pendingWatcherUpdate = {
       providers: new Set<LLMProvider>(),
       changeTypes: new Set<WatcherEventType>(),
-      updatedSessionIds: new Set<string>(),
+      updatedSessionIds: new Map<string, SessionUpsertChange>(),
     };
   }
 
   pendingWatcherUpdate.providers.add(provider);
   pendingWatcherUpdate.changeTypes.add(eventType);
   if (updatedSessionId) {
-    pendingWatcherUpdate.updatedSessionIds.add(updatedSessionId);
+    // Content wins within one debounce window: an add and a touch of the same
+    // session must announce the stronger of the two, never the weaker.
+    const existing = pendingWatcherUpdate.updatedSessionIds.get(updatedSessionId);
+    if (existing !== 'content') {
+      pendingWatcherUpdate.updatedSessionIds.set(updatedSessionId, change);
+    }
   }
 
   schedulePendingWatcherFlush();
@@ -226,7 +233,9 @@ async function flushPendingWatcherUpdate(): Promise<void> {
     // Per-session deltas instead of full project snapshots: an upsert of one
     // session can never clobber unrelated client state, so the frontend needs
     // no "suppress updates while a run is active" protection logic.
-    await broadcastSessionUpsertedBatch(queuedUpdate.updatedSessionIds);
+    await broadcastSessionUpsertedBatch(
+      [...queuedUpdate.updatedSessionIds].map(([sessionId, change]) => ({ sessionId, change })),
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error('Session watcher refresh failed while broadcasting session_upserted', { error: message });
@@ -238,6 +247,27 @@ async function flushPendingWatcherUpdate(): Promise<void> {
       schedulePendingWatcherFlush();
     }
   }
+}
+
+/**
+ * Classifies one watcher event for the `session_upserted` broker.
+ *
+ * An `add` is always new content. A `change` defers to the synchronizer's
+ * content-level signal: a false answer means the bytes moved without the
+ * conversation advancing (a `touch`), so the client must not flag it unread.
+ * A null answer means the provider cannot tell, and the previous behaviour —
+ * announce content — is kept so a possible new message is never swallowed.
+ *
+ * @internal Exported for the watcher tests.
+ */
+export function classifyWatcherChange(
+  eventType: WatcherEventType,
+  contentChanged: boolean | null
+): SessionUpsertChange {
+  if (eventType === 'add') {
+    return 'content';
+  }
+  return contentChanged === false ? 'metadata' : 'content';
 }
 
 /**
@@ -262,7 +292,14 @@ async function onUpdate(
       filePath,
       sessionId: result.sessionId,
     });
-    queuePendingWatcherUpdate(eventType, provider, result.sessionId);
+
+    // An `add` is always new content. For a `change`, trust the synchronizer's
+    // content-level signal to tell a real append from a bare touch; when the
+    // provider cannot tell (null) keep the previous behaviour — announce
+    // content — rather than risk swallowing a possible new-message notice.
+    const change = classifyWatcherChange(eventType, result.contentChanged);
+
+    queuePendingWatcherUpdate(eventType, provider, result.sessionId, change);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`Session watcher sync failed for provider "${provider}"`, {

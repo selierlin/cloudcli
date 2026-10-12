@@ -272,6 +272,16 @@ export interface IProviderSessions {
 // ---------------------------
 //----------------- PROVIDER SESSION SYNCHRONIZER INTERFACE ------------
 /**
+ * Outcome of indexing one transcript file. `contentChanged` is true only when
+ * the transcript's own content advanced; false when the file changed but the
+ * conversation did not (a touch), or when there was no baseline to compare.
+ */
+export type SessionFileSyncResult = {
+  sessionId: string | null;
+  contentChanged: boolean;
+};
+
+/**
  * Session indexing contract for one provider.
  *
  * Implementations scan provider-specific session artifacts on disk and upsert
@@ -289,6 +299,18 @@ export interface IProviderSessionSynchronizer {
    * Parses and upserts one provider artifact file without running a full scan.
    */
   synchronizeFile(filePath: string): Promise<string | null>;
+
+  /**
+   * Like `synchronizeFile`, but also reports whether the file's *content*
+   * moved on since it was last indexed — not merely whether the file changed.
+   *
+   * A provider implements this only when it can derive a content-level signal
+   * from the transcript (Claude reads the newest main-line conversation
+   * timestamp). The watcher uses the answer to tell a real new message from a
+   * metadata-only touch, so absent means "cannot tell" and the caller must
+   * fall back to treating the change as content.
+   */
+  synchronizeFileDetailed?(filePath: string): Promise<SessionFileSyncResult>;
 
   /**
    * Resolves the on-disk transcript path for one provider session id, so a

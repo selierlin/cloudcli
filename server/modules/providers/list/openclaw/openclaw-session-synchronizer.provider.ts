@@ -16,7 +16,7 @@ import {
   type OpenclawTranscriptEventRow,
 } from '@/modules/providers/list/openclaw/openclaw-sessions.provider.js';
 import { sessionsDb } from '@/modules/database/index.js';
-import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
+import type { IProviderSessionSynchronizer, SessionFileSyncResult } from '@/shared/interfaces.js';
 import {
   normalizeProviderTimestamp,
   normalizeSessionName,
@@ -41,6 +41,8 @@ type OpenclawNodeRow = {
 type SynchronizeRowsResult = {
   processed: number;
   firstSessionId: string | null;
+  /** Whether the first indexed row's content timestamp advanced (see the detailed sync). */
+  firstContentChanged: boolean;
   /** True when the agent store could not be read, so the scan must be retried. */
   failed: boolean;
 };
@@ -108,11 +110,25 @@ export class OpenclawSessionSynchronizer implements IProviderSessionSynchronizer
    * session rows.
    */
   async synchronizeFile(filePath: string): Promise<string | null> {
+    return (await this.synchronizeFileDetailed(filePath)).sessionId;
+  }
+
+  /**
+   * Indexes the store and reports whether the session's own content advanced.
+   *
+   * OpenClaw is a *shared* SQLite store, so the watcher fires on any write —
+   * including one for another session or a WAL checkpoint. Comparing the
+   * session's `last_interaction_at` before and after the upsert is what tells a
+   * real new message from an unrelated write; without it every store write
+   * would raise a false unread flag.
+   */
+  async synchronizeFileDetailed(filePath: string): Promise<SessionFileSyncResult> {
     if (path.basename(filePath) !== 'openclaw-agent.sqlite') {
-      return null;
+      return { sessionId: null, contentChanged: false };
     }
     const agentId = path.basename(path.dirname(path.dirname(filePath)));
-    return this.synchronizeAgent(agentId, undefined, 1).firstSessionId;
+    const result = this.synchronizeAgent(agentId, undefined, 1);
+    return { sessionId: result.firstSessionId, contentChanged: result.firstContentChanged };
   }
 
   /**
@@ -160,7 +176,7 @@ export class OpenclawSessionSynchronizer implements IProviderSessionSynchronizer
   private synchronizeAgent(agentId: string, since?: Date, limit?: number): SynchronizeRowsResult {
     const dbPath = getOpenclawAgentDbPath(agentId);
     if (!fsSync.existsSync(dbPath)) {
-      return { processed: 0, firstSessionId: null, failed: false };
+      return { processed: 0, firstSessionId: null, firstContentChanged: false, failed: false };
     }
 
     const db = new Database(dbPath, { readonly: true, fileMustExist: true });
@@ -188,28 +204,33 @@ export class OpenclawSessionSynchronizer implements IProviderSessionSynchronizer
 
       let processed = 0;
       let firstSessionId: string | null = null;
+      let firstContentChanged = false;
       for (const row of rows) {
-        const indexedSessionId = this.upsertSession(db, row);
-        if (!indexedSessionId) {
+        const upserted = this.upsertSession(db, row);
+        if (!upserted) {
           continue;
         }
         if (!firstSessionId) {
-          firstSessionId = indexedSessionId;
+          firstSessionId = upserted.sessionId;
+          firstContentChanged = upserted.contentChanged;
         }
         processed += 1;
       }
 
-      return { processed, firstSessionId, failed: false };
+      return { processed, firstSessionId, firstContentChanged, failed: false };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.warn(`[OpenclawProvider] Failed to synchronize agent ${agentId}:`, message);
-      return { processed: 0, firstSessionId: null, failed: true };
+      return { processed: 0, firstSessionId: null, firstContentChanged: false, failed: true };
     } finally {
       db.close();
     }
   }
 
-  private upsertSession(db: Database.Database, row: OpenclawNodeRow): string | null {
+  private upsertSession(
+    db: Database.Database,
+    row: OpenclawNodeRow,
+  ): { sessionId: string; contentChanged: boolean } | null {
     const sessionKey = readOptionalString(row.session_key);
     const currentSessionId = readOptionalString(row.current_session_id);
     if (!sessionKey || !currentSessionId) {
@@ -251,7 +272,14 @@ export class OpenclawSessionSynchronizer implements IProviderSessionSynchronizer
       ?? row.created_at
       ?? createdSource;
 
-    return sessionsDb.createSession(
+    // `last_interaction_at` is OpenClaw's own content-level "last interaction"
+    // stamp and is already the row's `updated_at` source; reading the stored
+    // value *before* the upsert is what lets the detailed sync tell a real new
+    // message from an unrelated write to the shared store.
+    const previousContentAt = sessionsDb.getSessionContentUpdatedAt(sessionKey, PROVIDER);
+    const contentUpdatedAt = normalizeProviderTimestamp(updatedSource);
+
+    const sessionId = sessionsDb.createSession(
       sessionKey,
       PROVIDER,
       projectPath,
@@ -259,7 +287,15 @@ export class OpenclawSessionSynchronizer implements IProviderSessionSynchronizer
       normalizeProviderTimestamp(createdSource),
       normalizeProviderTimestamp(updatedSource),
       null,
+      'provider_title',
+      contentUpdatedAt,
     );
+
+    const previousMs = previousContentAt ? Date.parse(previousContentAt) : Number.NaN;
+    const nextMs = Date.parse(contentUpdatedAt);
+    const contentChanged = !Number.isNaN(previousMs) && !Number.isNaN(nextMs) && previousMs !== nextMs;
+
+    return { sessionId, contentChanged };
   }
 
   /**

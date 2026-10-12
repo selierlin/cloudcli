@@ -269,6 +269,16 @@ export type SessionUpsertedProject = {
 };
 
 /**
+ * Whether a `session_upserted` delta reflects a real content change or just a
+ * metadata refresh.
+ *
+ * `content` means the transcript gained a new main-line turn and the row may be
+ * flagged unread. `metadata` means only the row's bookkeeping moved — a title
+ * change, a `fork`, or a bare file `touch` — and the client must not flag it.
+ */
+export type SessionUpsertChange = 'content' | 'metadata';
+
+/**
  * The `session_upserted` sidebar delta, built only by
  * `modules/websocket/services/session-upsert-broadcast.service.ts`.
  *
@@ -290,6 +300,29 @@ export type SessionUpsertedEvent = {
     summary: string;
     messageCount: number;
     lastActivity: string;
+    /**
+     * The session's content-level timestamp, or null when its provider cannot
+     * supply one. Sent alongside `change` so the client can persist a read
+     * watermark from the same value it will later compare against, instead of
+     * re-fetching the project list to learn it.
+     */
+    contentUpdatedAt: string | null;
+    /**
+     * Whether this session is unread for the user the delta is for. Computed on
+     * the server from the same content timestamp and watermark the project list
+     * uses, so an incrementally-upserted row carries the same answer a full
+     * refetch would — the sidebar keeps its flags without re-deriving them.
+     *
+     * The broadcast is user-agnostic and this deployment is single-user, so the
+     * value is computed for the sole user; a multi-user broadcast would need a
+     * per-connection payload.
+     */
+    isUnread: boolean;
+    /**
+     * Why this delta was emitted. Additive and always present from this
+     * producer; a client that does not know the field treats it as `content`.
+     */
+    change: SessionUpsertChange;
   };
   project: SessionUpsertedProject | null;
   timestamp: string;

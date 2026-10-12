@@ -1,6 +1,6 @@
 # CloudCLI 侧边栏状态指示重设计 · 二期需求
 
-> 状态：**需求草案 v3（2026-10-10）**，已过**两轮**审阅（一审 27 条 + 二审 11 条 = Claude 3 + CodeBuddy 8，逐条复算；一审零反驳全采纳，二审 8 成立 / 2 部分 / 1 重复、**2 条携带错误论据**，见 §9 / §11）；用户拍板项见 §6。**批次 1 已实施（2026-10-10）：P-1 + 需求 A（含 C-3 两侧＝服务端权威重建 + 前端即时补记）已落地并全绿；批次 2 / 3 未开工。**
+> 状态：**需求草案 v3（2026-10-10）**，已过**两轮**审阅（一审 27 条 + 二审 11 条 = Claude 3 + CodeBuddy 8，逐条复算；一审零反驳全采纳，二审 8 成立 / 2 部分 / 1 重复、**2 条携带错误论据**，见 §9 / §11）；用户拍板项见 §6。**实施状态（2026-10-10）：批次 1（P-1 + 需求 A，含 C-3 两侧＝服务端权威重建 + 前端即时补记）✅、批次 2（2-A＝需求 D 判别位 + 内容指纹；2-B＝需求 B 未读持久化）✅，双端全绿（服务端 1301 测试仅余文档基线 9 条、前端 187 文件全绿）；批次 3（需求 C）经用户拍板不做（见 §7）。**
 > 出处：一期方案 `CloudCLI侧边栏状态指示重设计方案.md` §10「二期（另立）」的 4 条要点 + §13 风险表的 2 条缺口，本文把它们展开成「问题 / 真源 / 缺口 / 选项 / 验收判据 / 前置」。
 > 关系：一期（`a38128e6`）解决的是**「指示看得懂」**（形状与语义）；二期解决的是**「指示说的是真话」**（数据源与生命周期）。二期不改视觉层，只补**数据源**。
 > 真源：本文所有 `文件:行号` 均于 2026-10-10 实地复算（含审阅批注提出的主张），非转述。v2 相对 v1 有 **6 处核心论断改写 + 2 处事实更正**（见 §9 汇总）。
@@ -209,13 +209,26 @@ B 的判据「`lastActivity > watermark` ⇒ 未读」**需要「内容级信号
 
 ### 3.6 验收判据
 
-- [ ] 刷新后未读还在；**换设备（同账号）后未读一致**。
-- [ ] 打开会话 → **本端**立即清除；**另一设备在该次拉取（hydrate / refresh）后**清除。**「另一设备不刷新时未读仍在」是已知口径、不是缺陷**——`user_preferences` / `session_drafts` 均**无服务端推送**，`hydrateUserPreferences` 只在登录时拉一次（`AuthContext.tsx:141`）。
-- [ ] **（主路径）查看中收到新消息 → 切走 → 刷新 → 无未读**（水位写入覆盖切走，见 §3.4）。
-- [ ] 文件被 touch（mtime 变、内容不变）**不**产生未读（需内容级信号）。
-- [ ] 两设备交替打开**不同**会话，水位互不回潮（并发，B-4 天然满足 / B-3 需事务合并）。
-- [ ] 会话删除 → 水位一并清理（**须新写清理代码**：`deleteSessionById` 是单表 `DELETE`，B-4 的表不会自动回收，见 §3.4 劣列）。
-- [ ] 水位存储体积有界。
+- [x] 刷新后未读还在；**换设备（同账号）后未读一致**。
+- [x] 打开会话 → **本端**立即清除；**另一设备在该次拉取（hydrate / refresh）后**清除。**「另一设备不刷新时未读仍在」是已知口径、不是缺陷**——`user_preferences` / `session_drafts` 均**无服务端推送**，`hydrateUserPreferences` 只在登录时拉一次（`AuthContext.tsx:141`）。
+- [x] **（主路径）查看中收到新消息 → 切走 → 刷新 → 无未读**（水位写入覆盖切走，见 §3.4）。
+- [x] 文件被 touch（mtime 变、内容不变）**不**产生未读（需内容级信号）。
+- [x] 两设备交替打开**不同**会话，水位互不回潮（并发，B-4 天然满足 / B-3 需事务合并）。
+- [x] 会话删除 → 水位一并清理（**须新写清理代码**：`deleteSessionById` 是单表 `DELETE`，B-4 的表不会自动回收，见 §3.4 劣列）。
+- [x] 水位存储体积有界。
+
+> **批次 2-B 实施回填（2026-10-10）**
+>
+> - **存储通道＝B-4**：新表 `session_read_state(user_id, session_id, last_seen_at)`（`(user_id, session_id)` PK，FK→`users`），REST 走 `GET/PUT/DELETE /api/user/read-state`（sessionId 走 body，同 drafts）。仓储 `session-read-state.db.ts`。
+> - **水位来源＝内容指纹，不是 `lastActivity`**：`last_seen_at` 存该会话 `content_updated_at`（§5.4 #6 / 二审 T2 的可复用指纹）在「切走/进入」时刻的快照。**这是对 §3.4 措辞「写 lastActivity 快照」的收紧**——判据字段与 §3.5 要求的内容级信号同源，因此 §3.6 第 4 条（touch 不误报）成立；`lastActivity` 仍是展示用字段，两值已在投影层分开。
+> - **判据**：`isSessionUnread(sid, contentUpdatedAt) = 有水位 && contentUpdatedAt > 水位`。**两条边界（有意为之、非缺陷）**：
+>   1. **无水位 ⇒ 判为已读**（升级/从未点开过的会话不刷一片未读）；
+>   2. **provider 无内容指纹（`contentUpdatedAt` 为 null）⇒ 永不判未读**（宁可漏报，不猜）。当前只有 Claude 产出指纹。
+> - **水位写入时机**：投影载入后按水位重建 notice（唯一跨刷新通道，`applyPersistedUnread`）；URL 变化 effect 里对「被离开」与「被进入」两个会话都用**当时最新**的 `contentUpdatedAt` 写水位（覆盖主路径 §3.6 第 3 条）。**App 直接关闭仍无 `beforeunload` 兜底**——进入时已写一次水位，故崩溃场景最多误报一次，未做额外兜底。
+> - **删除清理**：`deleteSessionById` / `deleteSessionByProviderSessionId` 同步 `DELETE FROM session_read_state`；前端 `handleSessionDelete` 同步清本地。
+> - **`contentUpdatedAt` 也随 WS `session_upserted` 下发**（与 2-A 的 `change` 同处），使新建会话无需重取项目列表即可写水位。
+> - **守卫**：服务端 `user.service`（校验/转发）、`sessions.db`（指纹往返 + 删除清理）、`projects-with-sessions-fetch`（投影带 `contentUpdatedAt` 且与 `lastActivity` 不同值）、WS payload；前端 `sessionReadState`（判据 + 无水位 + 无指纹 + 不重复写）、`projectsStateAttention`（载入重建 / 切走写水位 / 删除清水位）。**反向验证 4 条变异全部变红并已还原**。
+
 
 ### 3.7 前置
 
@@ -300,6 +313,8 @@ chokidar change（usePolling:true，纯 touch 必然被抓，sessions-watcher.se
 | D-3 幂等键（防御） | 事件带 `revision`（如 `session.updated_at` 或会话级单调计数），前端忽略非递增 |
 
 > **推荐 D-1 为主、D-3 为辅。** D-3 只在真的引入重放/多次投递时才有意义，记为**防御性待办**。
+>
+> **收口（2026-10-10，实施后）**：**采 D-1**（已落地）。**D-3 不做**——核实后它守的是一个不可能的失效：`markSessionAttention` 按 `Map<id, level>` 构造天然幂等（`current === level` 早退），系统无计数/序号，重复投递不改任何状态；且网关不重放（见上「提法更正」）。
 
 **⚠️ D-1 的五条落实要求（二审多来源，均已复算）**：
 
@@ -313,11 +328,21 @@ chokidar change（usePolling:true，纯 touch 必然被抓，sessions-watcher.se
 
 ### 5.5 验收判据
 
-- [ ] **文件被 touch（mtime 变、内容不变）→ 不产生未读、不广播 `content`**（**核心病例**，可在 watcher 同步层构造「同内容不同 mtime」fixture 断言）。
-- [ ] 真有新消息（transcript 追加） → 产生未读。
-- [ ] fork 广播按 `metadata` 处理（不置位）。
-- [ ] （防御）同一事件重复投递 → 只置位一次。
-- [ ] 一期文档 / §13 风险表把「重连重放去重」正名为「假未读治理」，并注明「无重放」的实测依据。
+- [x] **文件被 touch（mtime 变、内容不变）→ 不产生未读、不广播 `content`**（**核心病例**，可在 watcher 同步层构造「同内容不同 mtime」fixture 断言）。
+- [x] 真有新消息（transcript 追加） → 产生未读。
+- [x] fork 广播按 `metadata` 处理（不置位）。
+- [x] （防御）同一事件重复投递 → 只置位一次。**（无需额外实现：`markSessionAttention` 按 `Map<id, level>` 构造天然幂等——`current === level` 早退，且系统无计数/序号，"重放去重"经实测不成立，不为不可能的失效挂守卫。见 §5.2 / §7 实施后记。）**
+- [x] 一期文档 / §13 风险表把「重连重放去重」正名为「假未读治理」，并注明「无重放」的实测依据。**（2026-10-10 已回写：一期文档 §6 / §10 / §12.11 正名，§13 风险表四行同步。）**
+
+> **批次 2-A 实施回填（2026-10-10）**
+>
+> - **判别位**：`session_upserted.session.change: 'content' | 'metadata'`，**三条生产者逐路径显式传参**——fork＝`metadata`（`sessions.service.ts`）、run 首次拿到 provider id＝`content`（`chat-run-registry.service.ts`，保守缺省并注释）、watcher＝自算。**builder 不猜**。
+> - **watcher 的 diff 判据用的是「内容指纹」而非 §5.4 #2 提议的「行数+字节数」**：按 §5.4 #6 / 二审 T2，落地为 `sessions.content_updated_at`（Claude 取主线 user/assistant 行的**最新 timestamp**，跳过 `isSidechain` 与外部 sid）。指纹**与 mtime 无关**，故核心病例（touch）天然不产生 `content`。§5.4 #2 的「行数+字节」提议**已被 #6 取代**，不再单独实施。
+> - **`absent ≠ false`**：provider 无 `synchronizeFileDetailed`（9 个实现中的 8 个）⇒ `contentChanged: null` ⇒ watcher 按 `content` 处理（宁可多报不误吞）；`false` ⇒ `metadata`；`true` ⇒ `content`。接口以**可选方法**加在 `IProviderSessionSynchronizer` 上，**其余 synchronizer 零改动**。
+> - **无基线默认 `metadata`**（§5.4 #4）：老数据 / 首次索引时 `content_updated_at` 为 NULL，升级不刷未读。
+> - **`change` 是「内容级信号」的副产品，但它只覆盖 WS 链路**：B 的刷新链不走 WS，故 B 用的是同一张表的 `content_updated_at`（见 §3.6 回填）。
+> - **第 4 / 5 条（2026-10-10 收口）**：第 4 条（重复投递幂等）**经核实由构造天然满足、不挂守卫**——`markSessionAttention` 按 `Map<id, level>` 早退（`current === level`），系统无计数/序号，重复投递不改任何状态；第 5 条（一期文档正名）**已回写**（一期文档 §6 / §10 / §12.11 正名 + §13 风险表四行同步）。
+> - **守卫**：`claude-session-synchronizer`（指纹往返 + touch→metadata + 追加→content + 子代理不推进）、`sessions-watcher`（`classifyWatcherChange` 三态）、`session-upsert-broadcast`（`change` 透传 + 批内各自分类）、`projectsStateAttention`（metadata 不置 notice / content 置 notice）。**反向验证 4 条变异全部变红并已还原**。
 
 ---
 
@@ -335,6 +360,8 @@ chokidar change（usePolling:true，纯 touch 必然被抓，sessions-watcher.se
 
 > **批次 1 实施回填（2026-10-10）**：#1 采 **A-1**（T3 探针已闭合为「缩窄成立」，见 §2.4）；#2 采**显式区分**（缺席＝不支持／空数组＝无——`RunningSessionEntry` 与 `SessionActivity` 的注释均写明，且「未实现 `listPending` 的 provider 缺席该字段」有守卫）；#6 **合并**（`projectId` 已随 `/running` 旁挂，`null` 表示无项目行）；#3 **两者都落**（服务端 5s 轮询权威重建 + 前端即时补记 `suppressedPendingRef`，见 §2.4）。**#4 / #5 / #7 属批次 2 / 3，本轮未动。**
 
+> **批次 2 实施回填（2026-10-10）**：**#4 采 B-4**（新表 `session_read_state` + `GET/PUT/DELETE /api/user/read-state`，与 `session_drafts` 同构）；**#7 采 D-1 并落成指纹**（`sessions.content_updated_at`，见 §5.4 #6）。**#5（`messageCount`）属批次 3，已由用户拍板不做（2026-10-10，见 §7）**——计数链路与两处恒假渲染槽均维持现状。详细口径与两条有意边界（无水位⇒已读、无指纹⇒永不未读）见 §3.6 的实施回填。
+
 ---
 
 ## 7. 建议排序与批次
@@ -342,10 +369,12 @@ chokidar change（usePolling:true，纯 touch 必然被抓，sessions-watcher.se
 | 批次 | 内容 | 理由 |
 |---|---|---|
 | **批次 1** ✅ **已实施（2026-10-10）** | `P-1`（**服务层组装 pending** + `/running` 旁挂 `pendingPermissions` + `projectId`）→ **需求 A**（action 重建 + C-3） | 最痛（阻塞权限无痕）；一处改同时喂一期片 2；**provider 契约零变更**。**实施口径**：C-3 两侧都落（服务端权威重建 + 前端即时补记 `suppressedPendingRef`） |
-| **批次 2** | **需求 D**（判别位，修 WS 链路）**顺带产出可复用内容指纹** → **需求 B**（未读持久化，复用该指纹） | **T2：D 与 B 可共用一个内容指纹**（`synchronizeFile` 本就全解析）⇒ **由三步压两步**；**T4：C-1 行数不可作 B 的通用信号**，原「C-1 作现成来源」作废 |
-| **批次 3** | 需求 C 的**展示槽**（**若 T4 后仍决定做**：仅 Claude 侧、且须先过滤非对话行；否则砍） | 展示价值最低；T4 后倾向砍 |
+| **批次 2** ✅ **已实施（2026-10-10）** | **需求 D**（判别位，修 WS 链路）**顺带产出可复用内容指纹** → **需求 B**（未读持久化，复用该指纹） | **T2：D 与 B 可共用一个内容指纹**（`synchronizeFile` 本就全解析）⇒ **由三步压两步**；**T4：C-1 行数不可作 B 的通用信号**，原「C-1 作现成来源」作废。**实施拆两片**：**2-A**＝需求 D（`session.change` 判别位 + `sessions.content_updated_at` 内容指纹）；**2-B**＝需求 B（`session_read_state` 表 + `/api/user/read-state` + 前端未读重建），复用 2-A 的指纹 |
+| **批次 3** ⛔ **不做（2026-10-10 用户拍板）** | 需求 C 的展示槽（`messageCount`）：计数链路不做，两处恒假渲染槽也不删 | 展示价值最低；**T4：行数口径含非对话行、且仅 Claude 成立**，不足以作通用信号 ⇒ **维持现状**（属已知死槽）。 |
 
 > **测试建议（二审 CodeBuddy/CBC-G）**：§2.5 / §3.6 / §5.5 现多为人工勾选框，但其中三条**天生可自动化**且失效模式**静默**，建议各挂一条守卫：①「重建 action 与实时 action 得同一 `attentionSessions` 值且清同一个 pending 集合」；②「同一事件重复投递只置位一次」（纯函数级）；③「同内容不同 mtime 不广播 `content`」（watcher 同步层 fixture）。
+>
+> **实施后记（2026-10-10）**：① 与 ③ 已挂守卫（`projectsStateAttention` 的重建/清除一致断言；`claude-session-synchronizer`＋`sessions-watcher` 的内容级 fixture）。**② 经核实无需守卫**——`markSessionAttention` 按 `Map<id, level>` 构造天然幂等（`current === level` 早退），且系统无计数/序号，重复投递不改任何状态；挂守卫＝断言一个不可能发生的失效。
 
 ---
 

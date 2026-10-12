@@ -1,6 +1,6 @@
 import { getConnection } from '@/modules/database/connection.js';
 import { projectsDb } from '@/modules/database/repositories/projects.db.js';
-import { normalizeProjectPath } from '@/shared/utils.js';
+import { normalizeContentTimestamp, normalizeProjectPath } from '@/shared/utils.js';
 import type { SessionNameSource } from '@/shared/types.js';
 
 type SessionRow = {
@@ -23,6 +23,8 @@ type SessionRow = {
   isArchived: number;
   created_at: string;
   updated_at: string;
+  /** Timestamp of the newest main-line conversation event; NULL when unknown. */
+  content_updated_at: string | null;
 };
 
 type RecentSessionsPage = {
@@ -31,26 +33,18 @@ type RecentSessionsPage = {
 };
 
 const SESSION_ROW_COLUMNS =
-  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, name_source, model, effort, isPinned, forked_from_session_id, isArchived, created_at, updated_at';
+  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, name_source, model, effort, isPinned, forked_from_session_id, isArchived, created_at, updated_at, content_updated_at';
 
-const SQLITE_UTC_TIMESTAMP_REGEX = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
-
-function normalizeTimestamp(value?: string): string | null {
-  if (!value) return null;
-
-  // SQLite CURRENT_TIMESTAMP is stored as UTC without a timezone suffix.
-  // Normalize it here so every session reader returns canonical ISO strings
-  // and the sidebar never interprets fresh rows as local-time "hours old".
-  const normalizedValue = SQLITE_UTC_TIMESTAMP_REGEX.test(value)
-    ? `${value.replace(' ', 'T')}Z`
-    : value;
-
-  const parsed = new Date(normalizedValue);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-
-  return parsed.toISOString();
+/**
+ * Canonical ISO shape for every timestamp read out of the DB.
+ *
+ * Delegates to the shared content-timestamp normalizer, which also accepts a
+ * bare epoch value: a column written by a provider that stored a number
+ * (`1791531485193`) must not silently read back as null — the unread
+ * comparison would then always answer "no content".
+ */
+function normalizeTimestamp(value?: string | number | null): string | null {
+  return normalizeContentTimestamp(value);
 }
 
 function normalizeSessionRow<T extends SessionRow | null | undefined>(row: T): T {
@@ -62,6 +56,7 @@ function normalizeSessionRow<T extends SessionRow | null | undefined>(row: T): T
     ...row,
     created_at: normalizeTimestamp(row.created_at) ?? row.created_at,
     updated_at: normalizeTimestamp(row.updated_at) ?? row.updated_at,
+    content_updated_at: normalizeTimestamp(row.content_updated_at ?? undefined),
   };
 }
 
@@ -93,11 +88,13 @@ export const sessionsDb = {
     createdAt?: string,
     updatedAt?: string,
     jsonlPath?: string | null,
-    nameSource: SessionNameSource = 'provider_title'
+    nameSource: SessionNameSource = 'provider_title',
+    contentUpdatedAt?: string | number | null
   ): string {
     const db = getConnection();
     const createdAtValue = normalizeTimestamp(createdAt);
     const updatedAtValue = normalizeTimestamp(updatedAt);
+    const contentUpdatedAtValue = normalizeTimestamp(contentUpdatedAt ?? undefined);
     const normalizedProjectPath = normalizeProjectPathForProvider(provider, projectPath);
 
     // First, ensure the project path is recorded in the projects table,
@@ -124,6 +121,7 @@ export const sessionsDb = {
            updated_at = COALESCE(?, CURRENT_TIMESTAMP),
            project_path = ?,
            jsonl_path = ?,
+           content_updated_at = COALESCE(?, content_updated_at),
            isArchived = CASE WHEN ? IS NOT NULL AND julianday(?) > julianday(updated_at) THEN 0 ELSE isArchived END,
            custom_name = CASE
              WHEN session_id <> provider_session_id
@@ -146,6 +144,7 @@ export const sessionsDb = {
         updatedAtValue,
         normalizedProjectPath,
         jsonlPath ?? null,
+        contentUpdatedAtValue,
         updatedAtValue,
         updatedAtValue,
         customName ?? null,
@@ -162,14 +161,15 @@ export const sessionsDb = {
     // keyed by the provider-native id for both columns. The ON CONFLICT path
     // covers legacy rows that predate the provider_session_id mapping.
     db.prepare(
-      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, name_source, project_path, jsonl_path, isArchived, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
+      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, name_source, project_path, jsonl_path, isArchived, created_at, updated_at, content_updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP), ?)
        ON CONFLICT(session_id) DO UPDATE SET
          provider = excluded.provider,
          provider_session_id = excluded.provider_session_id,
          updated_at = excluded.updated_at,
          project_path = excluded.project_path,
          jsonl_path = excluded.jsonl_path,
+         content_updated_at = COALESCE(excluded.content_updated_at, sessions.content_updated_at),
          isArchived = CASE WHEN ? IS NULL OR julianday(excluded.updated_at) > julianday(sessions.updated_at) THEN 0 ELSE sessions.isArchived END,
          custom_name = CASE
            WHEN sessions.session_id <> sessions.provider_session_id
@@ -195,10 +195,57 @@ export const sessionsDb = {
       jsonlPath ?? null,
       createdAtValue,
       updatedAtValue,
+      contentUpdatedAtValue,
       updatedAtValue
     );
 
     return providerSessionId;
+  },
+
+  /**
+   * Returns a session's recorded content timestamp, or null when the row does
+   * not exist yet or its provider never supplied one.
+   *
+   * The on-disk watcher reads this right before re-indexing a transcript: an
+   * unchanged value means the file's bytes changed without its conversation
+   * moving on (a `touch` or an attribute write), which must not raise a false
+   * unread flag.
+   */
+  getSessionContentUpdatedAt(providerSessionId: string, provider: string): string | null {
+    const row = getConnection()
+      .prepare(
+        `SELECT content_updated_at FROM sessions
+         WHERE provider_session_id = ? AND provider = ?
+         LIMIT 1`
+      )
+      .get(providerSessionId, provider) as { content_updated_at: string | null } | undefined;
+
+    return normalizeTimestamp(row?.content_updated_at ?? undefined);
+  },
+
+  /**
+   * Stamps a fallback content timestamp on a row that has none.
+   *
+   * A provider that cannot supply a content-level timestamp leaves the column
+   * null, which reads as "never unread". The central content-event path calls
+   * this so such a session still gets a version — but only when the column is
+   * empty, so a precise value from a provider (Claude, openclaw) is never
+   * overwritten by the fallback. This is the `COALESCE(precise, fallback)` half
+   * that runs at the event, not at the row write.
+   */
+  backfillContentUpdatedAt(sessionIdOrProviderSessionId: string, contentUpdatedAt: string | number): void {
+    const value = normalizeTimestamp(contentUpdatedAt);
+    if (!value) {
+      return;
+    }
+
+    getConnection()
+      .prepare(
+        `UPDATE sessions SET content_updated_at = ?
+         WHERE content_updated_at IS NULL
+           AND (session_id = ? OR provider_session_id = ?)`
+      )
+      .run(value, sessionIdOrProviderSessionId, sessionIdOrProviderSessionId);
   },
 
   /**
@@ -796,12 +843,22 @@ export const sessionsDb = {
 
   deleteSessionById(sessionId: string): boolean {
     const db = getConnection();
+    // `session_read_state` has no foreign key into `sessions`, so its rows for
+    // this session would otherwise linger and could resurrect an unread flag if
+    // a session ever reused the id.
+    db.prepare('DELETE FROM session_read_state WHERE session_id = ?').run(sessionId);
     return db.prepare('DELETE FROM sessions WHERE session_id = ?').run(sessionId).changes > 0;
   },
 
   /** Used by the OpenCode synchronizer to remove indexed child sessions by their native id. */
   deleteSessionByProviderSessionId(providerSessionId: string, provider: string): boolean {
     const db = getConnection();
+    db.prepare(
+      `DELETE FROM session_read_state
+       WHERE session_id IN (
+         SELECT session_id FROM sessions WHERE provider_session_id = ? AND provider = ?
+       )`
+    ).run(providerSessionId, provider);
     return db
       .prepare('DELETE FROM sessions WHERE provider_session_id = ? AND provider = ?')
       .run(providerSessionId, provider).changes > 0;

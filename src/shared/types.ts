@@ -88,6 +88,22 @@ export type ProjectSession = {
   created_at?: string;
   updated_at?: string;
   lastActivity?: string;
+  /**
+   * Timestamp of the session's newest main-line conversation event, or null
+   * when the provider cannot supply one. Distinct from `lastActivity` (which
+   * tracks the file's `updated_at` and therefore also moves on a bare file
+   * `touch`): the read-state comparison uses this so a `touch` is not reported
+   * as a new message.
+   */
+  contentUpdatedAt?: string | null;
+  /**
+   * Whether the session has content the requesting user has not seen.
+   *
+   * Decided on the server (content timestamp vs the user's read watermark) and
+   * carried on both the project list and the `session_upserted` delta, so the
+   * sidebar shows one authoritative flag instead of re-deriving it per client.
+   */
+  isUnread?: boolean;
   messageCount?: number;
   /** True when the user pinned the session so it sorts above unpinned ones. */
   isPinned?: boolean;

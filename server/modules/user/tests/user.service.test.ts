@@ -22,6 +22,11 @@ function createDependencies(overrides: Partial<UserDependencies> = {}): UserDepe
       saveDraft: () => undefined,
       deleteDraft: () => undefined,
     },
+    readState: {
+      getReadState: () => [],
+      saveReadState: () => undefined,
+      deleteReadState: () => undefined,
+    },
     readSystemGitConfig: async () => ({ git_name: null, git_email: null }),
     applyGlobalGitConfig: async () => undefined,
     logInfo: () => undefined,
@@ -148,4 +153,71 @@ test('saveDraft rejects text past the storage limit', () => {
     () => service.saveDraft(5, 'session-1', { text: 'x'.repeat(100_001) }),
     /too long/i,
   );
+});
+
+test('getReadState returns every stored watermark for the user', () => {
+  const service = createUserService(createDependencies({
+    readState: {
+      getReadState: () => [{ sessionId: 'session-1', lastSeenAt: '2026-01-01T00:00:00.000Z' }],
+      saveReadState: () => undefined,
+      deleteReadState: () => undefined,
+    },
+  }));
+
+  assert.deepEqual(service.getReadState(5), {
+    success: true,
+    readState: [{ sessionId: 'session-1', lastSeenAt: '2026-01-01T00:00:00.000Z' }],
+  });
+});
+
+test('saveReadState forwards the session id and its content snapshot', () => {
+  const saved: unknown[][] = [];
+  const service = createUserService(createDependencies({
+    readState: {
+      getReadState: () => [],
+      saveReadState: (...args) => saved.push(args),
+      deleteReadState: () => undefined,
+    },
+  }));
+
+  service.saveReadState(5, 'session-1', '2026-01-02T00:00:00.000Z');
+
+  assert.deepEqual(saved, [[5, 'session-1', '2026-01-02T00:00:00.000Z']]);
+});
+
+test('saveReadState treats a missing timestamp as a cleared watermark', () => {
+  const saved: unknown[][] = [];
+  const service = createUserService(createDependencies({
+    readState: {
+      getReadState: () => [],
+      saveReadState: (...args) => saved.push(args),
+      deleteReadState: () => undefined,
+    },
+  }));
+
+  service.saveReadState(5, 'session-1', undefined);
+
+  assert.deepEqual(saved, [[5, 'session-1', null]]);
+});
+
+test('read-state writes reject a blank or over-long session id', () => {
+  const service = createUserService(createDependencies());
+
+  assert.throws(() => service.saveReadState(5, '   ', '2026-01-01T00:00:00.000Z'), /session id/i);
+  assert.throws(() => service.deleteReadState(5, 'x'.repeat(201)), /session id/i);
+});
+
+test('deleteReadState forwards the session id', () => {
+  const deleted: unknown[][] = [];
+  const service = createUserService(createDependencies({
+    readState: {
+      getReadState: () => [],
+      saveReadState: () => undefined,
+      deleteReadState: (...args) => deleted.push(args),
+    },
+  }));
+
+  service.deleteReadState(5, 'session-1');
+
+  assert.deepEqual(deleted, [[5, 'session-1']]);
 });

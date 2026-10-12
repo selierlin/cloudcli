@@ -90,5 +90,33 @@ export function createUserRouter(service: ReturnType<typeof createUserService>):
     }
   });
 
+  // Read watermarks follow the same body-carried-session-id shape as drafts:
+  // session ids are not guaranteed URL-path-safe, so they never ride the path.
+  router.get('/read-state', (req, res, next) => {
+    try {
+      res.json(service.getReadState(readUserId(req)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put('/read-state', (req, res, next) => {
+    try {
+      const body = req.body as { sessionId?: unknown; lastSeenAt?: unknown };
+      res.json(service.saveReadState(readUserId(req), body?.sessionId, body?.lastSeenAt));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete('/read-state', (req, res, next) => {
+    try {
+      const body = req.body as { sessionId?: unknown };
+      res.json(service.deleteReadState(readUserId(req), body?.sessionId));
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return router;
 }

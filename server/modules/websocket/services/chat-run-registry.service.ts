@@ -152,7 +152,11 @@ function recordProviderSessionId(run: ChatRun, providerSessionId: string): void 
 
   try {
     sessionsDb.assignProviderSessionId(run.appSessionId, providerSessionId);
-    void broadcastSessionUpserted(run.appSessionId).catch((error) => {
+    // This mapping is announced the moment a run first reports its
+    // provider-native id — i.e. as a new turn's content lands. It has no
+    // transcript snapshot to diff against, so it is classified as content by
+    // default rather than risk swallowing a real new-message notice.
+    void broadcastSessionUpserted(run.appSessionId, 'content').catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
       console.error('[ChatRunRegistry] Failed to broadcast canonical session mapping', {
         appSessionId: run.appSessionId,

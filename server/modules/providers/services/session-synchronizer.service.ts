@@ -151,17 +151,36 @@ export const sessionSynchronizerService = {
 
   /**
    * Indexes one provider artifact file without running a full provider rescan.
+   *
+   * `contentChanged` is the provider's answer to "did the conversation move on,
+   * or did only the file's metadata change?" — true when the transcript content
+   * advanced, false when it was a metadata-only touch or there was no baseline,
+   * and null when the provider cannot tell (its synchronizer has no
+   * content-level signal). The watcher treats null as content, so a provider
+   * that cannot tell behaves exactly as it did before the signal existed.
    */
   async synchronizeProviderFile(
     provider: LLMProvider,
     filePath: string
-  ): Promise<{ provider: LLMProvider; indexed: boolean; sessionId: string | null }> {
-    const resolvedProvider = providerRegistry.resolveProvider(provider);
-    const sessionId = await resolvedProvider.sessionSynchronizer.synchronizeFile(filePath);
-    return {
-      provider,
-      indexed: Boolean(sessionId),
-      sessionId,
-    };
+  ): Promise<{
+    provider: LLMProvider;
+    indexed: boolean;
+    sessionId: string | null;
+    contentChanged: boolean | null;
+  }> {
+    const synchronizer = providerRegistry.resolveProvider(provider).sessionSynchronizer;
+
+    const detailed = await synchronizer.synchronizeFileDetailed?.(filePath);
+    if (detailed) {
+      return {
+        provider,
+        indexed: Boolean(detailed.sessionId),
+        sessionId: detailed.sessionId,
+        contentChanged: detailed.contentChanged,
+      };
+    }
+
+    const sessionId = await synchronizer.synchronizeFile(filePath);
+    return { provider, indexed: Boolean(sessionId), sessionId, contentChanged: null };
   },
 };

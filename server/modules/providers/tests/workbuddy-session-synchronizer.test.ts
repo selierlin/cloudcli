@@ -403,6 +403,69 @@ test('synchronizeFile returns null for non-jsonl or subagent files', async () =>
   assert.equal(await synchronizer.synchronizeFile('/some/path/subagents/agent-1.jsonl'), null);
 });
 
+test('synchronizeFileDetailed reports no content change on the first index', async () => {
+  await withIsolatedEnvironment(async (homeDir) => {
+    const cwd = path.join(homeDir, 'workspace', 'detailed-first');
+    const sessionId = 'wb-detailed-first';
+    await writeSessionFile(homeDir, '.codebuddy', cwd, sessionId, [
+      makeUserMessage(sessionId, cwd, 'First message', 1_700_000_000_000),
+    ]);
+
+    const filePath = path.join(homeDir, '.codebuddy', 'projects', encodeCwd(cwd), `${sessionId}.jsonl`);
+    const result = await new WorkbuddySessionSynchronizer().synchronizeFileDetailed(filePath);
+
+    // With no stored baseline there is nothing to compare against, so the first
+    // index must not claim the conversation moved on.
+    assert.deepEqual(result, { sessionId, contentChanged: false });
+  });
+});
+
+test('synchronizeFileDetailed reports a content change when a newer message appears', async () => {
+  await withIsolatedEnvironment(async (homeDir) => {
+    const cwd = path.join(homeDir, 'workspace', 'detailed-append');
+    const sessionId = 'wb-detailed-append';
+    await writeSessionFile(homeDir, '.codebuddy', cwd, sessionId, [
+      makeUserMessage(sessionId, cwd, 'First message', 1_700_000_000_000),
+    ]);
+
+    const filePath = path.join(homeDir, '.codebuddy', 'projects', encodeCwd(cwd), `${sessionId}.jsonl`);
+    const synchronizer = new WorkbuddySessionSynchronizer();
+    await synchronizer.synchronizeFile(filePath);
+
+    // Append an assistant reply with a newer timestamp: real content advanced.
+    await appendFile(filePath, `\n${JSON.stringify(makeAssistantMessage(
+      sessionId,
+      cwd,
+      [{ type: 'output_text', text: 'Here is the answer.' }],
+      1_700_000_100_000,
+    ))}`);
+
+    const result = await synchronizer.synchronizeFileDetailed(filePath);
+    assert.deepEqual(result, { sessionId, contentChanged: true });
+  });
+});
+
+test('synchronizeFileDetailed ignores a bare mtime touch with no new message', async () => {
+  await withIsolatedEnvironment(async (homeDir) => {
+    const cwd = path.join(homeDir, 'workspace', 'detailed-touch');
+    const sessionId = 'wb-detailed-touch';
+    await writeSessionFile(homeDir, '.codebuddy', cwd, sessionId, [
+      makeUserMessage(sessionId, cwd, 'Only message', 1_700_000_000_000),
+    ]);
+
+    const filePath = path.join(homeDir, '.codebuddy', 'projects', encodeCwd(cwd), `${sessionId}.jsonl`);
+    const synchronizer = new WorkbuddySessionSynchronizer();
+    await synchronizer.synchronizeFile(filePath);
+
+    // The mtime moves (a `touch`), but the newest message timestamp is the same,
+    // so the conversation did not advance and unread must not be raised.
+    await utimes(filePath, new Date(), new Date(Date.now() + 60_000));
+
+    const result = await synchronizer.synchronizeFileDetailed(filePath);
+    assert.deepEqual(result, { sessionId, contentChanged: false });
+  });
+});
+
 test('fetchHistory decodes the engine transcript into user and assistant messages', async () => {
   await withIsolatedEnvironment(async (homeDir) => {
     const cwd = path.join(homeDir, 'workspace', 'history-project');
