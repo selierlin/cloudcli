@@ -9,9 +9,10 @@ import { useChatRealtimeHandlers } from '@/modules/chat/hooks/useChatRealtimeHan
 import { createStreamingBufferRegistry } from '@/modules/chat/utils/streamingBufferRegistry';
 import { createRevealPacer } from '@/modules/chat/utils/revealPacer';
 import {
+  clearTurnDurations,
+  endTurn,
   getTurnDuration,
   markTurnStart,
-  recordTurnDuration,
 } from '@/modules/chat/utils/turnDurationRegistry';
 import MessageComponent from '@/modules/chat/transcript/MessageComponent';
 import { UiPreferencesProvider } from '@/shared/context/UiPreferencesContext';
@@ -27,29 +28,68 @@ beforeAll(async () => {
 describe('the turn duration registry', () => {
   it('reports the elapsed time between the recorded start and the run end', () => {
     markTurnStart('registry-session-a', 1_000);
-    recordTurnDuration('registry-session-a', 'seg-a', 13_500);
+    endTurn('registry-session-a', 'seg-a', 13_500);
     expect(getTurnDuration('registry-session-a', 'seg-a')).toBe(12_500);
   });
 
   it('reports nothing for a turn this client never dispatched', () => {
     // No start was recorded (a turn another client ran): the end alone is not a
     // duration, and inventing one would put a number on a reply we did not time.
-    recordTurnDuration('registry-session-b', 'seg-b', 5_000);
+    endTurn('registry-session-b', 'seg-b', 5_000);
     expect(getTurnDuration('registry-session-b', 'seg-b')).toBeUndefined();
   });
 
   it('refuses a negative elapsed time rather than reporting it', () => {
     markTurnStart('registry-session-c', 5_000);
-    recordTurnDuration('registry-session-c', 'seg-c', 4_000);
+    endTurn('registry-session-c', 'seg-c', 4_000);
     expect(getTurnDuration('registry-session-c', 'seg-c')).toBeUndefined();
   });
 
   it('consumes the start so a stale one cannot time a later turn', () => {
     markTurnStart('registry-session-d', 1_000);
-    recordTurnDuration('registry-session-d', 'seg-d1', 2_000);
-    recordTurnDuration('registry-session-d', 'seg-d2', 9_000);
+    endTurn('registry-session-d', 'seg-d1', 2_000);
+    endTurn('registry-session-d', 'seg-d2', 9_000);
     expect(getTurnDuration('registry-session-d', 'seg-d1')).toBe(1_000);
     expect(getTurnDuration('registry-session-d', 'seg-d2')).toBeUndefined();
+  });
+
+  it('consumes the start even when the turn has no answer segment to time', () => {
+    // An abort (and a run that produced no text of its own) closes the turn
+    // with a null segment; the start must still go, or it would time whatever
+    // turn came next.
+    markTurnStart('registry-session-f', 1_000);
+    endTurn('registry-session-f', null, 2_000);
+    endTurn('registry-session-f', 'seg-later', 9_000);
+    expect(getTurnDuration('registry-session-f', 'seg-later')).toBeUndefined();
+  });
+
+  it('drops a session\'s measurements and its unconsumed start on clear', () => {
+    markTurnStart('registry-session-e', 1_000);
+    endTurn('registry-session-e', 'seg-e', 2_000);
+    markTurnStart('registry-session-e', 3_000);
+
+    clearTurnDurations('registry-session-e');
+
+    expect(getTurnDuration('registry-session-e', 'seg-e')).toBeUndefined();
+    // The pending start went with it: closing a later turn records nothing.
+    endTurn('registry-session-e', 'seg-e2', 4_000);
+    expect(getTurnDuration('registry-session-e', 'seg-e2')).toBeUndefined();
+    // Another session is untouched.
+    markTurnStart('registry-session-e-other', 1_000);
+    endTurn('registry-session-e-other', 'seg-x', 2_000);
+    expect(getTurnDuration('registry-session-e-other', 'seg-x')).toBe(1_000);
+  });
+
+  it('sheds the oldest measurements once the retained set is full', () => {
+    // Mirrors MAX_RETAINED_DURATIONS: the registry is a cache of what this JS
+    // context timed, so it must not grow with every turn forever.
+    const sessionId = 'registry-session-cap';
+    for (let i = 0; i <= 1_000; i += 1) {
+      markTurnStart(sessionId, 0);
+      endTurn(sessionId, `seg-${i}`, 1);
+    }
+    expect(getTurnDuration(sessionId, 'seg-1000')).toBe(1);
+    expect(getTurnDuration(sessionId, 'seg-0')).toBeUndefined();
   });
 });
 
@@ -136,7 +176,7 @@ describe('recording a turn duration at the run terminal', () => {
     assert.equal(getTurnDuration(sessionId, 'seg-mid'), undefined);
   });
 
-  test('an aborted run records no duration', () => {
+  test('an aborted run records no duration and consumes the turn start', () => {
     const sessionId = 'duration-session-2';
     const { dispatch, stored } = renderHandlers(sessionId);
     markTurnStart(sessionId, Date.now() - 5_000);
@@ -145,6 +185,12 @@ describe('recording a turn duration at the run terminal', () => {
     dispatch(event(sessionId, { kind: 'complete', aborted: true }));
 
     assert.equal(getTurnDuration(sessionId, 'seg-x'), undefined);
+
+    // The aborted turn's start was consumed, so the next terminal cannot time
+    // itself against it.
+    stored.push(userRow('u2', sessionId), answerRow('seg-y', sessionId));
+    dispatch(event(sessionId, { kind: 'complete', success: true }));
+    assert.equal(getTurnDuration(sessionId, 'seg-y'), undefined);
   });
 
   test('a run that produced no answer of its own borrows no earlier turn\'s time', () => {
@@ -159,6 +205,40 @@ describe('recording a turn duration at the run terminal', () => {
     dispatch(event(sessionId, { kind: 'complete', success: true }));
 
     assert.equal(getTurnDuration(sessionId, 'seg-old'), undefined);
+
+    // That answerless terminal still consumed the start.
+    stored.push(answerRow('seg-new', sessionId));
+    dispatch(event(sessionId, { kind: 'complete', success: true }));
+    assert.equal(getTurnDuration(sessionId, 'seg-new'), undefined);
+  });
+
+  test('a rejected send consumes the start because its run never reports a terminal', () => {
+    const sessionId = 'duration-session-4';
+    const { dispatch, stored } = renderHandlers(sessionId);
+    markTurnStart(sessionId, Date.now() - 4_000);
+    stored.push(userRow('u1', sessionId));
+
+    dispatch(event(sessionId, { kind: 'protocol_error', code: 'SEND_REJECTED', error: 'nope' }));
+
+    stored.push(answerRow('seg-after', sessionId));
+    dispatch(event(sessionId, { kind: 'complete', success: true }));
+    assert.equal(getTurnDuration(sessionId, 'seg-after'), undefined);
+  });
+
+  test('a refused stop leaves the live run\'s start alone', () => {
+    const sessionId = 'duration-session-5';
+    const { dispatch, stored } = renderHandlers(sessionId);
+    markTurnStart(sessionId, Date.now() - 6_000);
+    stored.push(userRow('u1', sessionId), answerRow('seg-live', sessionId));
+
+    // The stop request was refused because the task had already settled; the
+    // run is still alive and will report its own `complete`.
+    dispatch(event(sessionId, { kind: 'protocol_error', code: 'NO_SUCH_TASK', error: 'no task' }));
+
+    dispatch(event(sessionId, { kind: 'complete', success: true }));
+    const duration = getTurnDuration(sessionId, 'seg-live');
+    assert.equal(typeof duration, 'number', 'the live run still reports its elapsed time');
+    assert.ok((duration ?? -1) >= 6_000);
   });
 });
 

@@ -11,6 +11,7 @@ import type { ServerEvent,
   ProjectSession,IsSessionProcessing,SessionAttentionLevel } from '@/shared/types';
 import { mergeProjectSelectionMetadata } from '@/modules/project-workspace/utils/projectSelectionMetadata';
 import { readSelectedProvider } from '@/shared/selectedProvider';
+import { clearTurnDurations } from '@/modules/chat';
 import {
   clearSessionReadState,
   getSessionLastSeenAt,
@@ -1407,6 +1408,10 @@ export function useProjectsState({
       // The server drops every read-state row for a deleted session; mirror that
       // here so a reused id cannot inherit the old watermark.
       clearSessionReadState(sessionIdToDelete);
+      // The in-memory turn timings are keyed by session too, so a churned-through
+      // session would otherwise keep every turn it ever timed for this context's
+      // whole lifetime.
+      clearTurnDurations(sessionIdToDelete);
 
       if (selectedSession?.id === sessionIdToDelete) {
         setSelectedSession(null);
