@@ -69,6 +69,27 @@ function normalizeProjectPathForProvider(provider: string, projectPath: string):
   return normalizeProjectPath(projectPath);
 }
 
+/**
+ * Reclaims the read watermarks of the session rows a `DELETE FROM sessions`
+ * is about to remove.
+ *
+ * `session_read_state` has no foreign key into `sessions` (see schema.ts), so
+ * every path that drops session rows has to clear it explicitly — a lingering
+ * row would let a reused session id inherit a stale watermark. The subquery is
+ * evaluated before the session delete, so it sees exactly the rows going away.
+ * Centralised so the delete paths cannot drift apart.
+ */
+function reclaimReadStateFor(
+  db: ReturnType<typeof getConnection>,
+  whereClause: string,
+  ...params: Array<string | number>
+): void {
+  db.prepare(
+    `DELETE FROM session_read_state
+     WHERE session_id IN (SELECT session_id FROM sessions WHERE ${whereClause})`
+  ).run(...params);
+}
+
 export const sessionsDb = {
   /**
    * Upserts one session row discovered on disk by a provider synchronizer.
@@ -310,6 +331,7 @@ export const sessionsDb = {
     // id is the provider-native one, which is what this row claims, so replace
     // it rather than leaving two sidebar entries for one conversation.
     db.transaction(() => {
+      reclaimReadStateFor(db, 'session_id = ? AND session_id <> ?', input.providerSessionId, input.sessionId);
       db.prepare('DELETE FROM sessions WHERE session_id = ? AND session_id <> ?')
         .run(input.providerSessionId, input.sessionId);
       db.prepare(
@@ -355,6 +377,7 @@ export const sessionsDb = {
         .get(providerSessionId, providerSessionId, sessionId) as SessionRow | undefined;
 
       if (duplicate) {
+        reclaimReadStateFor(db, 'session_id = ?', duplicate.session_id);
         db.prepare('DELETE FROM sessions WHERE session_id = ?').run(duplicate.session_id);
         db.prepare(
           `UPDATE sessions SET
@@ -409,12 +432,26 @@ export const sessionsDb = {
     const db = getConnection();
 
     db.transaction(() => {
+      reclaimReadStateFor(
+        db,
+        '(session_id = ? OR provider_session_id = ?) AND session_id <> ?',
+        input.providerSessionId,
+        input.providerSessionId,
+        sessionId,
+      );
       db.prepare(
         `DELETE FROM sessions
          WHERE (session_id = ? OR provider_session_id = ?)
            AND session_id <> ?`,
       ).run(input.providerSessionId, input.providerSessionId, sessionId);
       if (input.supersededProviderSessionId) {
+        reclaimReadStateFor(
+          db,
+          '(session_id = ? OR provider_session_id = ?) AND session_id <> ?',
+          input.supersededProviderSessionId,
+          input.supersededProviderSessionId,
+          sessionId,
+        );
         db.prepare(
           `DELETE FROM sessions
            WHERE (session_id = ? OR provider_session_id = ?)
@@ -799,6 +836,7 @@ export const sessionsDb = {
   deleteSessionsByProjectPath(projectPath: string): void {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPath(projectPath);
+    reclaimReadStateFor(db, 'project_path = ?', normalizedProjectPath);
     db.prepare(`DELETE FROM sessions WHERE project_path = ?`).run(normalizedProjectPath);
   },
 

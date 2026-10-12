@@ -268,3 +268,93 @@ test('deleting a session also drops its read-state rows', async () => {
     assert.deepEqual(sessionReadStateDb.getReadState(7), []);
   });
 });
+
+test('deleting every session in a project also drops their read-state rows', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createSession('project-a-1', 'claude', '/workspace/a', 'A1');
+    sessionsDb.createSession('project-a-2', 'claude', '/workspace/a', 'A2');
+    sessionsDb.createSession('project-b-1', 'claude', '/workspace/b', 'B1');
+    getConnection()
+      .prepare('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)')
+      .run(7, 'reader', 'x');
+    sessionReadStateDb.saveReadState(7, 'project-a-1', '2026-01-01T10:00:05.000Z');
+    sessionReadStateDb.saveReadState(7, 'project-a-2', '2026-01-01T10:00:05.000Z');
+    sessionReadStateDb.saveReadState(7, 'project-b-1', '2026-01-01T10:00:05.000Z');
+
+    sessionsDb.deleteSessionsByProjectPath('/workspace/a');
+
+    // Only the surviving project keeps its watermark; the deleted project's
+    // rows would otherwise linger with no session to belong to.
+    assert.deepEqual(
+      sessionReadStateDb.getReadState(7).map((row) => row.sessionId),
+      ['project-b-1'],
+    );
+  });
+});
+
+test('merging a duplicate on provider-id assignment drops the duplicate watermark', async () => {
+  await withIsolatedDatabase(() => {
+    // The app row exists without a provider id; the watcher indexed the same
+    // transcript first, so a duplicate row keyed by the provider id is merged
+    // into the app row.
+    sessionsDb.createAppSession('app-session', 'claude', '/workspace/demo-project');
+    sessionsDb.createSession('provider-session', 'claude', '/workspace/demo-project', 'From disk');
+    getConnection()
+      .prepare('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)')
+      .run(7, 'reader', 'x');
+    sessionReadStateDb.saveReadState(7, 'provider-session', '2026-01-01T10:00:05.000Z');
+
+    sessionsDb.assignProviderSessionId('app-session', 'provider-session');
+
+    assert.equal(sessionsDb.getSessionById('app-session')?.provider_session_id, 'provider-session');
+    assert.deepEqual(sessionReadStateDb.getReadState(7), []);
+  });
+});
+
+test('repointing a session drops the discarded rows watermarks', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-session', 'codex', '/workspace/demo-project');
+    sessionsDb.createSession('new-provider-session', 'codex', '/workspace/demo-project', 'New');
+    sessionsDb.createSession('old-provider-session', 'codex', '/workspace/demo-project', 'Old');
+    getConnection()
+      .prepare('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)')
+      .run(7, 'reader', 'x');
+    sessionReadStateDb.saveReadState(7, 'new-provider-session', '2026-01-01T10:00:05.000Z');
+    sessionReadStateDb.saveReadState(7, 'old-provider-session', '2026-01-01T10:00:05.000Z');
+
+    sessionsDb.repointSessionToProviderSession('app-session', {
+      providerSessionId: 'new-provider-session',
+      jsonlPath: '/workspace/demo-project/new.jsonl',
+      supersededProviderSessionId: 'old-provider-session',
+    });
+
+    assert.deepEqual(sessionReadStateDb.getReadState(7), []);
+  });
+});
+
+test('creating a forked session drops the watcher rows watermark', async () => {
+  await withIsolatedDatabase(() => {
+    // The watcher indexed the fork's transcript under its own (provider) id
+    // before the app session claimed it.
+    sessionsDb.createSession('fork-provider-session', 'claude', '/workspace/demo-project', 'Fork');
+    getConnection()
+      .prepare('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)')
+      .run(7, 'reader', 'x');
+    sessionReadStateDb.saveReadState(7, 'fork-provider-session', '2026-01-01T10:00:05.000Z');
+
+    sessionsDb.createForkedSession({
+      sessionId: 'app-fork',
+      provider: 'claude',
+      projectPath: '/workspace/demo-project',
+      customName: 'Fork',
+      providerSessionId: 'fork-provider-session',
+      jsonlPath: '/workspace/demo-project/fork.jsonl',
+      forkedFromSessionId: 'app-source',
+      nameSource: 'fork',
+      model: null,
+      effort: null,
+    });
+
+    assert.deepEqual(sessionReadStateDb.getReadState(7), []);
+  });
+});

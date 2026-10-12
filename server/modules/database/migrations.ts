@@ -659,6 +659,9 @@ export const runMigrations = (db: Database) => {
     db.exec(USER_PREFERENCES_TABLE_SCHEMA_SQL);
     db.exec(SESSION_DRAFTS_TABLE_SCHEMA_SQL);
     db.exec(SESSION_READ_STATE_TABLE_SCHEMA_SQL);
+    // Every session-row delete reclaims watermarks by session_id (the primary
+    // key leads with user_id, so it cannot serve those lookups).
+    db.exec('CREATE INDEX IF NOT EXISTS idx_session_read_state_session ON session_read_state(session_id)');
     db.exec(SUPERSEDED_PROVIDER_SESSIONS_TABLE_SCHEMA_SQL);
     addSupersededTranscriptPathColumn(db);
 
