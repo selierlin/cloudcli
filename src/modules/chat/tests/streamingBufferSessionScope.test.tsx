@@ -43,6 +43,7 @@ const renderHandlers = () => {
     appendRealtime: (sessionId: string, msg: unknown) => {
       appendRealtime.push([sessionId, msg]);
     },
+    getMessages: () => [],
   } as unknown as SessionStore;
 
   // Deltas now reach the store through the registry's flush callback rather
