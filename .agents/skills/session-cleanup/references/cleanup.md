@@ -94,7 +94,7 @@ done
 
 1. **只读盘点**：`python3 scripts/inventory.py`（可 `--archived-only` / `--sort size`）。看一眼总量与候选。
 2. **分桶**：按上面口径列出「净口水 / 边界」，**边界单独贴出交用户定**。
-3. **快照**：`sqlite3 ~/.cloudcli/auth.db".backup $HOME/.cloudcli/auth.db.before-chatter-cleanup-$(date +%Y%m%d-%H%M%S).backup"`。**zcode / opencode 有目标时同样快照它们的库**（两个路径见上表）。把 timestamp 存到 `/tmp` 备收尾用。
+3. **快照**：`sqlite3 ~/.cloudcli/auth.db ".backup $HOME/.cloudcli/auth.db.before-chatter-cleanup-$(date +%Y%m%d-%H%M%S).backup"`。**zcode / opencode 有目标时同样快照它们的库**（两个路径见上表）。把 timestamp 存到 `/tmp` 备收尾用。
 4. **干跑**：把候选 id 写成目标文件（每行一个 `session_id` 或 `provider_session_id`，支持前缀），
    `python3 scripts/purge.py --targets /tmp/targets.txt`（默认干跑）。核对：命中数、每条磁盘 EXISTS/absent、fork 依赖、superseded 数、WorkBuddy 目录、**将被删的各 provider 库行数**。
 5. **确认后 apply**：`python3 scripts/purge.py --targets /tmp/targets.txt --apply --backup <刚做的快照路径>`。
