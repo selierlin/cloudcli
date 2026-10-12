@@ -110,6 +110,9 @@ test-results/
 .claude/*
 !.claude/skills/
 !.claude/skills/**
+
+# Lark skills (untracked, local only)
+.agents/skills/lark-*/
 .cursor/
 .roo/
 .taskmaster/
