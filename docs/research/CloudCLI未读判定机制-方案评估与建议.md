@@ -251,7 +251,10 @@
 | claude | 正文行 `timestamp`（ISO 毫秒，如 `2026-10-10T10:26:45.676Z`） | **已实现** | — |
 | workbuddy | 正文行 `timestamp`（**毫秒 epoch 数字**，如 `1791531485193`） | **近零** | 抽取层**已自带归一化**：`workbuddy-sessions.provider.ts` 的 `readEventTimestamp` 同时吃 ISO 字符串与毫秒数字、统一输出 ISO。**仍需补的只是"取主线最新对话事件"的筛选**（该函数服务于消息归一化，不做主线筛选）。 |
 | openclaw | `session_nodes.last_interaction_at`（毫秒） | **≈1 行** | 该字段是 OpenClaw 自维护的"最后交互时间"（内容级），且现有 synchronizer **已经在用它当 `updated_at`**（`openclaw-session-synchronizer.provider.ts:270`，`const updatedSource = row.last_interaction_at ?? …`），只是没往 `content_updated_at` 那一列写 |
-| codex / opencode / zcode / dsh / pi / omp / cursor | 待核 | 待核 | 建议做一次逐 provider 可得性普查（见 §8 Q7） |
+| codex / opencode / zcode / dsh / pi / omp | codex：`response_item` 行的 `timestamp`；pi / omp：消息行 `timestamp`；dsh：事件 `time`（毫秒）；opencode / zcode：`message.time_created`（毫秒） | **已实现（2026-10-12）** | 普查已落地，见下「普查结论」 |
+| cursor | **无结构化内容时间戳**（仅正文 `<timestamp>` 文本 + 文件 mtime） | 判不做 | 用文件 mtime 会把裸 `touch` 变假未读 ⇒ **唯一残留缺口** |
+
+> **普查结论（2026-10-12，随「#4」落地，提交 `db2c5e29`）**：codex / dsh / pi / omp 四家走新增共享工具 `readNewestContentTimestamp` + `streamFileLines`（只认 user/assistant 消息行；标题/改名、注入的上下文、token 计数与生命周期事件都不算对话内容 ⇒ 裸 `touch`、改名不推水位）；opencode / zcode 取 `message` 表 `MAX(time_created)`（而非会因改名前移的 `session.time_updated`）。**cursor 判不做**——无结构化内容时间戳，用 mtime 会造成假未读。至此产出精确内容版本的 provider：claude / workbuddy / openclaw / pi / omp / codex / dsh / opencode / zcode 共 **9 家**。
 
 **两个由实测暴露的、影响方案判定的细节：**
 
@@ -441,7 +444,7 @@ content_updated_at = COALESCE( 本次 provider 提供的精确内容时间戳,  
 - **Q4｜水位怎么读？** 现状是全量 `hydrate` 一次（会话多时内存 Map 会大）。是否改为"随投影内联"（投影直接带 `isUnread`，前端不持有 watermarks）？**审阅补充：不要因此删掉全量 hydrate**——它仍是离线降级与来源 ① 的输入（§6.2）。即结论是"二者并存"，而非"下沉即删全量"。
 - **Q5｜假未读的容忍度？（已升格为 S4 同批必做，见 §5 S4）** 对 openclaw（共享 SQLite，任何写入都可能触发 watcher）你能接受多少假未读？**须在 S4 同批为 SQLite 型 provider 收窄 change 判定（`last_interaction_at` 变了才算 content），或直接补精确值**，否则要正面回答"能接受多少次假未读"。
 - **Q6｜要不要一步到位重构成游标模型？** 即：不再有 `content_updated_at`，只有 `content_revision` + `last_seen_revision`。（审阅补充：因可**双列共存**，此问实为"是否以 revision 为判据、时间戳降为展示"，代价比"二选一"更小。）
-- **Q7｜逐 provider 可得性普查**：请评审者补充/核对 codex / opencode / zcode / dsh / pi / omp / cursor 各自"内容级时间戳"的现成字段与成本。
+- **Q7｜逐 provider 可得性普查**（✅ **已实施 2026-10-12**，见 §4 普查结论）：请评审者补充/核对 codex / opencode / zcode / dsh / pi / omp / cursor 各自"内容级时间戳"的现成字段与成本。→ pi / omp / codex / dsh 走共享 `readNewestContentTimestamp`；opencode / zcode 取 `message.MAX(time_created)`；**cursor 判不做**（无结构化内容时间戳）。
 - **Q8｜有没有我们没考虑到的方案？** 尤其：是否存在**完全不需要 per-provider、也不需要 touch 假未读**的第三方设计（例如由 run-registry 侧统一在"助手产出一条消息"时打点，而不依赖文件系统）？
 - **Q9｜（审阅新增·✅ 已拍板 2026-10-11 → **B-1 / C-1 / D-a**，见文首决议清单）下沉的决策点**：**前置 B｜clear 规则**——"只 raise 从不清"要不要改；**真正必现的冲突不是时序竞态，而是语义不一致**：§2.5 边界 1（无水位 ⇒ 服务端 `isUnread` 恒 false）× 来源 ①（WS 对**从未打开过**的会话照样 raise）——即"**用户从没点开的会话来了消息，蓝点该不该在下次全量投影时被灭掉？**"（请直接给出规则）；**前置 C｜水位写路径**是否迁移到服务端（不迁移的两个后果见 §6.2）；**前置 D｜增量事件要不要带 `isUnread`**（见 §6.2 前置 D，三选一决定 §6.5 的冗余面）。三项都直接影响 T4 的验收标准。
 - **Q10｜（新增·✅ 已拍板 2026-10-11 → **(b) 仅下沉读 / 判定**，见文首决议清单）下沉与原设计（需求 B）的关系**：三选一——**(a) 维持现状**（判定留在前端，需求 B 原地即为终态，无冗余、无回退）；**(b) 仅下沉读/判定**（保 hydrate；前端判定薄层的冗余面**取决于前置 D**：选"载荷带 `isUnread`"则 ≈0，否则 ≥ 一个函数）；**(c) 读写都下沉**（前端水位 Map 整体可退，冗余面 = 整个 `sessionReadState.ts`）。请评审者确认 §6.5 的裁定："需求 B 不推翻、不回退，下沉是第二阶段"是否成立；若主张回退需求 B，请说明如何在没有水位表/内容版本列的前提下实现任何未读方案。
@@ -502,6 +505,7 @@ content_updated_at = COALESCE( 本次 provider 提供的精确内容时间戳,  
 | 2026-10-11 | 全文校对：修正 4 处行号漂移（`useProjectsState.ts:1035→1039`、`:1172→1178`、`sessionReadState.ts:105→103`、`openclaw-...provider.ts:228→249`）与 2 处内部不一致（front-matter 一轮→三轮、§0 三个→四个前置）；吸收**第三轮批注 9 条**（Claude 5 + mimo 4，8 采纳 / 1 驳回 R8）：B-1 改写 + 驻留代价、后果①改判为"历史行残余"、C-2 删"Turn 结束"、D-a 补陈旧性约束、新增「默认实现配方 + 收益边界」 |
 | 2026-10-11 | **方案定案**：用户拍板采纳默认配方 **b + B-1 + C-1 + D-a**。更新 front-matter 状态、决议清单（各项标 ✅ 已拍板）、§8 Q9/Q10 标记为已决议；§7 T3 补 D-a（增量载荷穿 userId 附 `isUnread`），T4 补 B-1 / D-a 配套断言 |
 | 2026-10-11 | **实施落地**：T1–T5 全部完成。新增 `shared/session-unread.ts`、`normalizeContentTimestamp`、`sessions.db.backfillContentUpdatedAt`；投影与增量载荷带 `isUnread`；front-end `applyPersistedUnread` 改读服务端结论；openclaw / workbuddy 各补 `synchronizeFileDetailed`。同步：§2.6 行号按实施后校准 + 补兜底/归一化落点、§7 补实施状态表、front-matter 状态改为已实施。**验证**：双端 typecheck / build 通过；前端 188 文件 / 1555 测试全绿（Node 20）；服务端全量 1346 测试，红集与干净树**逐名一致**（10 项均为环境依赖既有红，本次净增 47 测试全通过） |
+| 2026-10-12 | **补齐内容级时间戳（「#4」）**：pi / omp / codex / dsh / opencode / zcode 六家 synchronizer 补 `contentUpdatedAt`（`createSession` 第 9 参），闭合"除 claude/workbuddy/openclaw 外恒 NULL ⇒ 仅一次性兜底 ⇒ 刷新后未读不亮"的残留。新增共享 `readNewestContentTimestamp` + `streamFileLines`（只认 user/assistant 消息行）；opencode / zcode 取 `message.MAX(time_created)` 而非会因改名前移的 `session.time_updated`。仓库层不动（UPSERT COALESCE）。同步：§4 补「普查结论」、Q7 标已实施；**cursor 为唯一残留缺口**（无结构化内容时间戳，判不做）。**验证**：六家各一条回归测试 + 逐条以「谓词置真 / 改用 `time_updated`」变异转红；定向 6 测试文件 85 项 / 84 通过 / 1 失败（唯一红为既有基线红，已用干净树对比确认）；双端 typecheck、oxlint 改动文件 0/0 |
 
 ---
 
