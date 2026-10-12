@@ -5,6 +5,8 @@ import test from 'node:test';
 
 import express from 'express';
 
+import { sessionsService } from '@/modules/providers/index.js';
+
 import { createCommandsRouter } from '../commands.routes.js';
 
 /**
@@ -123,4 +125,21 @@ test('cost and status commands report the same resolved model as /models', async
 
   assert.equal((cost.data as { model: string }).model, 'haiku');
   assert.equal((status.data as { model: string }).model, 'haiku');
+});
+
+test('models command honors every provider the runtime registry exposes', async () => {
+  // `MODEL_PROVIDERS` is a plain string array, so a provider added to
+  // `LLMProvider` without a matching entry silently resolves to Claude's
+  // catalog and label. Drive this off the provider registry — which is
+  // exhaustive by type — so a new provider fails here instead of falling back
+  // unnoticed.
+  for (const provider of sessionsService.listProviderIds()) {
+    const result = await executeCommand('/models', { provider });
+    const data = result.data as { current: { provider: string; providerLabel: string } };
+    assert.equal(data.current.provider, provider);
+    assert.ok(
+      typeof data.current.providerLabel === 'string' && data.current.providerLabel.length > 0,
+      `provider "${provider}" has no display label`,
+    );
+  }
 });

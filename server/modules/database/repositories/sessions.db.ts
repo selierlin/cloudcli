@@ -231,12 +231,18 @@ export const sessionsDb = {
    * unchanged value means the file's bytes changed without its conversation
    * moving on (a `touch` or an attribute write), which must not raise a false
    * unread flag.
+   *
+   * `(provider_session_id, provider)` is not unique, so the lookup is ordered
+   * like `getSessionByProviderSessionId`: without a tie-break `LIMIT 1` could
+   * return a stale duplicate row whose `content_updated_at` is NULL, which the
+   * caller reads as "no new content" and drops the warning.
    */
   getSessionContentUpdatedAt(providerSessionId: string, provider: string): string | null {
     const row = getConnection()
       .prepare(
         `SELECT content_updated_at FROM sessions
          WHERE provider_session_id = ? AND provider = ?
+         ORDER BY updated_at DESC
          LIMIT 1`
       )
       .get(providerSessionId, provider) as { content_updated_at: string | null } | undefined;

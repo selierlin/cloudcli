@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -630,6 +630,34 @@ test('OpenClaw token usage reports empty when the agent store is missing', async
   const tempDirectory = await mkdtemp(path.join(tmpdir(), 'provider-token-usage-openclaw-missing-'));
   setOpenclawHomeDirForTests(tempDirectory);
   try {
+    const service = createProviderTokenUsageService({
+      getSessionById: () => createSessionRow({
+        provider: 'openclaw',
+        provider_session_id: 'agent:main:main',
+      }),
+    });
+
+    const usage = await service.getSessionTokenUsage('app-session');
+    assert.equal(usage.used, 0);
+  } finally {
+    setOpenclawHomeDirForTests(null);
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+});
+
+test('OpenClaw token usage reports empty when the agent store is unreadable', async () => {
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), 'provider-token-usage-openclaw-broken-'));
+  setOpenclawHomeDirForTests(tempDirectory);
+  try {
+    // The store file exists but has none of the tables the reader queries, so
+    // opening and querying it throws; usage must still report empty rather
+    // than failing the route.
+    const dbPath = path.join(tempDirectory, 'agents', 'main', 'agent', 'openclaw-agent.sqlite');
+    await mkdir(path.dirname(dbPath), { recursive: true });
+    const db = new Database(dbPath);
+    db.exec('CREATE TABLE unrelated (x INTEGER)');
+    db.close();
+
     const service = createProviderTokenUsageService({
       getSessionById: () => createSessionRow({
         provider: 'openclaw',
