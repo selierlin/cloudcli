@@ -317,6 +317,16 @@ export const PROVIDER_PERMISSION_PREFERENCE_KEYS: Record<LLMProvider, UserPrefer
   openclaw: 'openclawPermissions',
 };
 
+/**
+ * Browser-local blob holding WorkBuddy's permission pick.
+ *
+ * Unlike every other provider, WorkBuddy does not keep its mode in the synced
+ * preference store: the picker writes this per-device key instead. The settings
+ * controller (read + write) and the composer's default-mode fallback must agree
+ * on the literal, so it is shared here rather than spelled out on both sides.
+ */
+export const WORKBUDDY_SETTINGS_STORAGE_KEY = 'workbuddy-settings';
+
 // ---------------------------
 
 //----------------- NATIVE STORAGE KEYS ------------

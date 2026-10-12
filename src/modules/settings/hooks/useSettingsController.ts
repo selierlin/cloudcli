@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTheme } from '@/shared/context/ThemeContext';
 import { api } from '@/shared/api';
 import { setNotificationSoundEnabled, setNotificationVibrationEnabled } from '@/shared/utils';
+import { WORKBUDDY_SETTINGS_STORAGE_KEY } from '@/shared/constants';
 import {
   readCodeEditorSettings,
   writeCodeEditorSettings,
@@ -12,7 +13,7 @@ import {
   writeUserPreferences,
 } from '@/shared/userSettings';
 import { useProviderAuthStatus } from '@/modules/provider-auth';
-import type { AgentProvider, ClaudePermissionsState, CodeEditorSettingsState, CodexPermissionMode, CursorPermissionsState, DshPermissionMode, NotificationPreferencesState, PiPermissionMode, ProjectSortOrder, SettingsMainTab, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
+import type { AgentProvider, ClaudePermissionsState, CodeEditorSettingsState, CodexPermissionMode, CursorPermissionsState, DshPermissionMode, LLMProvider, NotificationPreferencesState, OpenclawPermissionMode, OmpPermissionMode, PermissionMode, PiPermissionMode, ProjectSortOrder, SettingsMainTab, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
 
 const DEFAULT_CURSOR_PERMISSIONS: CursorPermissionsState = {
   allowedCommands: [],
@@ -61,6 +62,14 @@ type ZcodeSettingsStorage = {
 
 type PiSettingsStorage = {
   permissionMode?: PiPermissionMode;
+};
+
+type OmpSettingsStorage = {
+  permissionMode?: OmpPermissionMode;
+};
+
+type OpenclawSettingsStorage = {
+  permissionMode?: OpenclawPermissionMode;
 };
 
 type NotificationPreferencesResponse = {
@@ -118,14 +127,42 @@ const toPiPermissionMode = (value: unknown): PiPermissionMode => {
   return 'default';
 };
 
+const toOmpPermissionMode = (value: unknown): OmpPermissionMode => {
+  if (value === 'readonly') {
+    return value;
+  }
+
+  return 'default';
+};
+
+const toOpenclawPermissionMode = (value: unknown): OpenclawPermissionMode => (
+  value === 'auto' ? 'auto' : 'default'
+);
+
 const readWorkbuddyPermissionMode = (): WorkbuddyPermissionMode => {
   try {
-    const stored = JSON.parse(localStorage.getItem('workbuddy-settings') || '{}') as WorkbuddySettingsStorage;
+    const stored = JSON.parse(localStorage.getItem(WORKBUDDY_SETTINGS_STORAGE_KEY) || '{}') as WorkbuddySettingsStorage;
     return toWorkbuddyPermissionMode(stored.permissionMode);
   } catch {
     return 'default';
   }
 };
+
+/**
+ * Wraps a provider's permission-mode state setter so that editing the setting
+ * also drops the composer's provider-level "last used" override.
+ *
+ * The composer resolves a chat's mode as session pick > provider pick >
+ * settings default, so without this drop a mode picked during an earlier chat
+ * would keep shadowing the default the user just saved.
+ */
+const usePermissionModeSetter = <T extends PermissionMode>(
+  provider: LLMProvider,
+  setStoredValue: (value: T) => void,
+): ((value: T) => void) => useCallback((value: T) => {
+  setStoredValue(value);
+  localStorage.removeItem(`permissionMode-last-${provider}`);
+}, [provider, setStoredValue]);
 
 const toResponseJson = async <T>(response: Response): Promise<T> => response.json() as Promise<T>;
 
@@ -198,13 +235,17 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
   const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferencesState>(() => (
     createDefaultNotificationPreferences()
   ));
-  const [codexPermissionMode, setCodexPermissionMode] = useState<CodexPermissionMode>('default');
-  const [workbuddyPermissionMode, setWorkbuddyPermissionMode] = useState<WorkbuddyPermissionMode>(
+  const [codexPermissionMode, setCodexPermissionModeState] = useState<CodexPermissionMode>('default');
+  const [workbuddyPermissionMode, setWorkbuddyPermissionModeState] = useState<WorkbuddyPermissionMode>(
     readWorkbuddyPermissionMode,
   );
-  const [zcodePermissionMode, setZcodePermissionMode] = useState<ZcodePermissionMode>('acceptEdits');
-  const [piPermissionMode, setPiPermissionMode] = useState<PiPermissionMode>('default');
+  const [zcodePermissionMode, setZcodePermissionModeState] = useState<ZcodePermissionMode>('acceptEdits');
+  const [piPermissionMode, setPiPermissionModeState] = useState<PiPermissionMode>('default');
   const [dshPermissionMode, setDshPermissionModeState] = useState<DshPermissionMode>('default');
+  /** OMP's stored default mode, edited by the omp permission panel and used as the composer's fallback for OMP chats. */
+  const [ompPermissionMode, setOmpPermissionModeState] = useState<OmpPermissionMode>('default');
+  /** OpenClaw's stored default mode, edited by the openclaw permission panel and used as the composer's fallback for OpenClaw chats. */
+  const [openclawPermissionMode, setOpenclawPermissionModeState] = useState<OpenclawPermissionMode>('default');
 
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginProvider, setLoginProvider] = useState<ActiveLoginProvider>('');
@@ -234,15 +275,19 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
       });
 
       const savedCodexSettings = readUserPreference<CodexSettingsStorage>('codexPermissions', {});
-      setCodexPermissionMode(toCodexPermissionMode(savedCodexSettings.permissionMode));
-      setWorkbuddyPermissionMode(readWorkbuddyPermissionMode());
+      setCodexPermissionModeState(toCodexPermissionMode(savedCodexSettings.permissionMode));
+      setWorkbuddyPermissionModeState(readWorkbuddyPermissionMode());
 
       const savedZcodeSettings = readUserPreference<ZcodeSettingsStorage>('zcodePermissions', {});
-      setZcodePermissionMode(toZcodePermissionMode(savedZcodeSettings.permissionMode));
+      setZcodePermissionModeState(toZcodePermissionMode(savedZcodeSettings.permissionMode));
       const savedPiSettings = readUserPreference<PiSettingsStorage>('piPermissions', {});
-      setPiPermissionMode(toPiPermissionMode(savedPiSettings.permissionMode));
+      setPiPermissionModeState(toPiPermissionMode(savedPiSettings.permissionMode));
       const savedDshSettings = readUserPreference<DshSettingsStorage>('dshPermissions', {});
       setDshPermissionModeState(toDshPermissionMode(savedDshSettings.permissionMode));
+      const savedOmpSettings = readUserPreference<OmpSettingsStorage>('ompPermissions', {});
+      setOmpPermissionModeState(toOmpPermissionMode(savedOmpSettings.permissionMode));
+      const savedOpenclawSettings = readUserPreference<OpenclawSettingsStorage>('openclawPermissions', {});
+      setOpenclawPermissionModeState(toOpenclawPermissionMode(savedOpenclawSettings.permissionMode));
 
       try {
         const notificationResponse = await api.settings.notificationPreferences();
@@ -265,11 +310,13 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
       setClaudePermissions(createEmptyClaudePermissions());
       setCursorPermissions(createEmptyCursorPermissions());
       setNotificationPreferences(createDefaultNotificationPreferences());
-      setCodexPermissionMode('default');
-      setWorkbuddyPermissionMode('default');
-      setZcodePermissionMode('acceptEdits');
-      setPiPermissionMode('default');
+      setCodexPermissionModeState('default');
+      setWorkbuddyPermissionModeState('default');
+      setZcodePermissionModeState('acceptEdits');
+      setPiPermissionModeState('default');
       setDshPermissionModeState('default');
+      setOmpPermissionModeState('default');
+      setOpenclawPermissionModeState('default');
       setProjectSortOrder('date');
     }
   }, []);
@@ -325,8 +372,14 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
         dshPermissions: {
           permissionMode: dshPermissionMode,
         },
+        ompPermissions: {
+          permissionMode: ompPermissionMode,
+        },
+        openclawPermissions: {
+          permissionMode: openclawPermissionMode,
+        },
       });
-      localStorage.setItem('workbuddy-settings', JSON.stringify({ permissionMode: workbuddyPermissionMode }));
+      localStorage.setItem(WORKBUDDY_SETTINGS_STORAGE_KEY, JSON.stringify({ permissionMode: workbuddyPermissionMode }));
 
       const notificationResponse = await api.settings.saveNotificationPreferences(
         notificationPreferences,
@@ -349,6 +402,8 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     zcodePermissionMode,
     piPermissionMode,
     dshPermissionMode,
+    ompPermissionMode,
+    openclawPermissionMode,
     cursorPermissions.allowedCommands,
     cursorPermissions.disallowedCommands,
     cursorPermissions.skipPermissions,
@@ -418,6 +473,8 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     zcodePermissionMode,
     piPermissionMode,
     dshPermissionMode,
+    ompPermissionMode,
+    openclawPermissionMode,
     notificationPreferences,
     projectSortOrder,
   ]);
@@ -455,12 +512,16 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     };
   }, [autoSaveSnapshotKey, isOpen, saveSettings, settingsHydrated]);
 
-  // Changing the stored DSH default must not be masked by the composer's last
-  // DSH selection, so clear that provider-level override when the setting edits.
-  const setDshPermissionMode = useCallback((value: DshPermissionMode) => {
-    setDshPermissionModeState(value);
-    localStorage.removeItem('permissionMode-last-dsh');
-  }, []);
+  // Changing a stored default must not be masked by the composer's last
+  // selection for that provider, so each setter drops the provider-level
+  // override the composer writes when a mode is picked during a chat.
+  const setCodexPermissionMode = usePermissionModeSetter<CodexPermissionMode>('codex', setCodexPermissionModeState);
+  const setWorkbuddyPermissionMode = usePermissionModeSetter<WorkbuddyPermissionMode>('workbuddy', setWorkbuddyPermissionModeState);
+  const setZcodePermissionMode = usePermissionModeSetter<ZcodePermissionMode>('zcode', setZcodePermissionModeState);
+  const setPiPermissionMode = usePermissionModeSetter<PiPermissionMode>('pi', setPiPermissionModeState);
+  const setDshPermissionMode = usePermissionModeSetter<DshPermissionMode>('dsh', setDshPermissionModeState);
+  const setOmpPermissionMode = usePermissionModeSetter<OmpPermissionMode>('omp', setOmpPermissionModeState);
+  const setOpenclawPermissionMode = usePermissionModeSetter<OpenclawPermissionMode>('openclaw', setOpenclawPermissionModeState);
 
   // Clear save status after 2 seconds
   useEffect(() => {
@@ -509,6 +570,10 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     setPiPermissionMode,
     dshPermissionMode,
     setDshPermissionMode,
+    ompPermissionMode,
+    setOmpPermissionMode,
+    openclawPermissionMode,
+    setOpenclawPermissionMode,
     providerAuthStatus,
     openLoginForProvider,
     showLoginModal,

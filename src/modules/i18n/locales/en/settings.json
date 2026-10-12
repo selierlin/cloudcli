@@ -877,6 +877,34 @@
         }
       }
     },
+    "omp": {
+      "permissionMode": "Permission Mode",
+      "description": "Controls how OMP runs tools and commands",
+      "modes": {
+        "default": {
+          "title": "Autonomous",
+          "description": "OMP runs tools on its own with no approval gate."
+        },
+        "readonly": {
+          "title": "Read-only",
+          "description": "Only read-only tools (read, grep, glob) are allowed; OMP cannot modify files."
+        }
+      }
+    },
+    "openclaw": {
+      "permissionMode": "Permission Mode",
+      "description": "Controls how CloudCLI answers OpenClaw permission requests",
+      "modes": {
+        "default": {
+          "title": "Ask in chat",
+          "description": "Show each OpenClaw permission request in the chat composer for an Allow once or Deny decision."
+        },
+        "auto": {
+          "title": "Auto-allow requests",
+          "description": "Answer OpenClaw permission requests with Allow once. This does not change OpenClaw's own approval policy."
+        }
+      }
+    },
     "actions": {
       "add": "Add"
     }

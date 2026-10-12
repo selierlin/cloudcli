@@ -3,7 +3,7 @@ import { AlertTriangle, Plus, Shield, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { Button, Input } from '@/shared/ui';
-import type { CodexPermissionMode, DshPermissionMode, PermissionMode, PiPermissionMode, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
+import type { CodexPermissionMode, DshPermissionMode, OpenclawPermissionMode, OmpPermissionMode, PermissionMode, PiPermissionMode, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
 
 const COMMON_CLAUDE_TOOLS = [
   'Bash(git log:*)',
@@ -779,7 +779,89 @@ function PiPermissions({ permissionMode, onPermissionModeChange }: Omit<PiPermis
   );
 }
 
-type PermissionsContentProps = ClaudePermissionsProps | CursorPermissionsProps | CodexPermissionsProps | ZcodePermissionsProps | PiPermissionsProps | DshPermissionsProps;
+type OmpPermissionsProps = {
+  agent: 'omp';
+  permissionMode: OmpPermissionMode;
+  onPermissionModeChange: (value: OmpPermissionMode) => void;
+};
+
+type OpenclawPermissionsProps = {
+  agent: 'openclaw';
+  permissionMode: OpenclawPermissionMode;
+  onPermissionModeChange: (value: OpenclawPermissionMode) => void;
+};
+
+function OmpPermissions({ permissionMode, onPermissionModeChange }: Omit<OmpPermissionsProps, 'agent'>) {
+  const { t } = useTranslation('settings');
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Shield className="h-5 w-5 text-green-500" />
+          <h3 className="text-lg font-medium text-foreground">{t('permissions.omp.permissionMode')}</h3>
+        </div>
+        <p className="text-sm text-muted-foreground">{t('permissions.omp.description')}</p>
+
+        <PermissionModeCard
+          mode="default"
+          selectedMode={permissionMode}
+          onSelect={(mode) => onPermissionModeChange(mode as OmpPermissionMode)}
+          radioName="ompPermissionMode"
+          title={t('permissions.omp.modes.default.title')}
+          description={t('permissions.omp.modes.default.description')}
+          tone="default"
+        />
+        <PermissionModeCard
+          mode="readonly"
+          selectedMode={permissionMode}
+          onSelect={(mode) => onPermissionModeChange(mode as OmpPermissionMode)}
+          radioName="ompPermissionMode"
+          title={t('permissions.omp.modes.readonly.title')}
+          description={t('permissions.omp.modes.readonly.description')}
+          tone="info"
+        />
+      </div>
+    </div>
+  );
+}
+
+function OpenclawPermissions({ permissionMode, onPermissionModeChange }: Omit<OpenclawPermissionsProps, 'agent'>) {
+  const { t } = useTranslation('settings');
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Shield className="h-5 w-5 text-green-500" />
+          <h3 className="text-lg font-medium text-foreground">{t('permissions.openclaw.permissionMode')}</h3>
+        </div>
+        <p className="text-sm text-muted-foreground">{t('permissions.openclaw.description')}</p>
+
+        <PermissionModeCard
+          mode="default"
+          selectedMode={permissionMode}
+          onSelect={(mode) => onPermissionModeChange(mode as OpenclawPermissionMode)}
+          radioName="openclawPermissionMode"
+          title={t('permissions.openclaw.modes.default.title')}
+          description={t('permissions.openclaw.modes.default.description')}
+          tone="default"
+        />
+        <PermissionModeCard
+          mode="auto"
+          selectedMode={permissionMode}
+          onSelect={(mode) => onPermissionModeChange(mode as OpenclawPermissionMode)}
+          radioName="openclawPermissionMode"
+          title={t('permissions.openclaw.modes.auto.title')}
+          description={t('permissions.openclaw.modes.auto.description')}
+          tone="info"
+        />
+      </div>
+    </div>
+  );
+}
+
+type PermissionsContentProps = ClaudePermissionsProps | CursorPermissionsProps | CodexPermissionsProps | ZcodePermissionsProps | PiPermissionsProps | DshPermissionsProps | OmpPermissionsProps | OpenclawPermissionsProps;
 
 /** Rendered by AgentCategoryContentSection for the "permissions" category, one variant per agent provider. */
 export default function PermissionsContent(props: PermissionsContentProps) {
@@ -801,6 +883,14 @@ export default function PermissionsContent(props: PermissionsContentProps) {
 
   if (props.agent === 'dsh') {
     return <DshPermissions {...props} />;
+  }
+
+  if (props.agent === 'omp') {
+    return <OmpPermissions {...props} />;
+  }
+
+  if (props.agent === 'openclaw') {
+    return <OpenclawPermissions {...props} />;
   }
 
   return <CodexPermissions {...props} />;
