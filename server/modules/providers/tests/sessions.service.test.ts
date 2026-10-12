@@ -494,3 +494,82 @@ test('a provider without pending-approval support omits the field rather than re
     ));
   });
 });
+
+/**
+ * Resolves every provider to a synchronizer whose `deleteProviderSession`
+ * records the id it was asked to prune — the seam the delete path uses to
+ * clean a provider that keeps all sessions in one shared store.
+ */
+async function withDeletableProviderStore(
+  runTest: (prunedIds: string[]) => void | Promise<void>,
+): Promise<void> {
+  const prunedIds: string[] = [];
+  const realResolveProvider = providerRegistry.resolveProvider;
+  providerRegistry.resolveProvider = ((provider: string) =>
+    ({
+      id: provider,
+      sessionSynchronizer: {
+        deleteProviderSession: async (providerSessionId: string) => {
+          prunedIds.push(providerSessionId);
+        },
+      },
+    })) as unknown as typeof providerRegistry.resolveProvider;
+  try {
+    await runTest(prunedIds);
+  } finally {
+    providerRegistry.resolveProvider = realResolveProvider;
+  }
+}
+
+test('deleting a session that never ran skips the provider store instead of failing', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    await withDeletableProviderStore(async (prunedIds) => {
+      sessionsDb.createAppSession('never-ran', 'opencode', '/tmp/delete-project');
+
+      const result = await sessionsService.deleteOrArchiveSessionById('never-ran', {
+        force: true,
+        deletedFromDisk: true,
+      });
+
+      assert.equal(result.action, 'deleted');
+      assert.equal(sessionsDb.getSessionById('never-ran'), null);
+      assert.deepEqual(prunedIds, [], 'no provider id means there is no store row to prune');
+    });
+  });
+});
+
+test('deleting a session that ran prunes its provider store by the provider id', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    await withDeletableProviderStore(async (prunedIds) => {
+      sessionsDb.createAppSession('ran-once', 'opencode', '/tmp/delete-project');
+      sessionsDb.assignProviderSessionId('ran-once', 'opencode-native-1');
+
+      const result = await sessionsService.deleteOrArchiveSessionById('ran-once', {
+        force: true,
+        deletedFromDisk: true,
+      });
+
+      assert.equal(result.action, 'deleted');
+      assert.equal(sessionsDb.getSessionById('ran-once'), null);
+      assert.deepEqual(prunedIds, ['opencode-native-1']);
+    });
+  });
+});
+
+test('permanently deleting archived sessions does not abort on a session that never ran', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    await withDeletableProviderStore(async (prunedIds) => {
+      sessionsDb.createAppSession('batch-ran', 'opencode', '/tmp/delete-project');
+      sessionsDb.assignProviderSessionId('batch-ran', 'opencode-native-2');
+      sessionsDb.createAppSession('batch-never-ran', 'opencode', '/tmp/delete-project');
+      sessionsDb.updateSessionIsArchived('batch-ran', true);
+      sessionsDb.updateSessionIsArchived('batch-never-ran', true);
+
+      await sessionsService.permanentlyDeleteArchivedSessions(['batch-ran', 'batch-never-ran']);
+
+      assert.equal(sessionsDb.getSessionById('batch-ran'), null);
+      assert.equal(sessionsDb.getSessionById('batch-never-ran'), null);
+      assert.deepEqual(prunedIds, ['opencode-native-2']);
+    });
+  });
+});

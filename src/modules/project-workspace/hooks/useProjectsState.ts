@@ -630,6 +630,19 @@ export function useProjectsState({
   }, [pendingApprovalSessionIds]);
 
   /**
+   * The poll's current blocked set, kept in a ref so the leave/enter effect can
+   * tell whether a session it is about to stop watching is still blocked.
+   *
+   * The poll effect above only re-runs when the set's membership changes. A
+   * session that is still waiting keeps the same set, so clearing its attention
+   * on leaving would never be undone while the approval stays unanswered.
+   */
+  const pendingApprovalSessionIdsRef = useRef(pendingApprovalSessionIds);
+  useEffect(() => {
+    pendingApprovalSessionIdsRef.current = pendingApprovalSessionIds;
+  }, [pendingApprovalSessionIds]);
+
+  /**
    * Rebuilds the persisted unread flags from the server's answer.
    *
    * This is the only channel that survives a reload: the websocket notice that
@@ -1189,7 +1202,13 @@ export function useProjectsState({
       }
     }
 
-    clearSessionAttention(viewedSessionId);
+    // Drop the flag for the session being watched, unless it is still blocked on
+    // an approval. The leave path re-flags a session the websocket saw a request
+    // for, but a session the poll alone flagged would lose its capsule here and
+    // the poll would not raise it again while the same set stays unchanged.
+    if (!viewedSessionId || !pendingApprovalSessionIdsRef.current.has(viewedSessionId)) {
+      clearSessionAttention(viewedSessionId);
+    }
   }, [clearSessionAttention, selectedSession?.id, sessionId]);
 
   useEffect(() => {

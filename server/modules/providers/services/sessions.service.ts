@@ -950,18 +950,13 @@ export const sessionsService = {
     })();
     const prunesProviderStore = options.deletedFromDisk && Boolean(synchronizer?.deleteProviderSession);
 
-    // Only the provider's own id can address its store. Falling back to the app
-    // id would address a row that cannot exist (app-created sessions are keyed
-    // by a generated id), turning the delete into a silent no-op that leaves the
-    // session to reappear. Refusing is the honest outcome: the delete can be
-    // retried once the runtime reports the id back.
+    // Only the provider's own id can address its store. A null id means the
+    // runtime never reported one, so the provider store cannot hold a row keyed
+    // by this session and there is nothing to prune — the app row is deleted on
+    // its own. Refusing the delete instead would strand app-created sessions
+    // that never ran (they can never acquire an id) and abort a permanent-delete
+    // batch on the first such row.
     const providerSessionId = session.provider_session_id;
-    if (prunesProviderStore && !providerSessionId) {
-      throw new AppError(
-        `Session "${sessionId}" has no ${session.provider} provider id yet, so its provider store cannot be pruned. Retry the delete once the session has run.`,
-        { code: 'SESSION_PROVIDER_ID_MISSING', statusCode: 409 }
-      );
-    }
 
     if (options.deletedFromDisk) {
       // Every file the conversation has lived in, not just the one the row
