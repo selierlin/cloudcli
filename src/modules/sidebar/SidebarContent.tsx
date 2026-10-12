@@ -1390,18 +1390,16 @@ export default function SidebarContent({
                       {areAllArchivedGroupsExpanded ? t('archived.collapseAll') : t('archived.expandAll')}
                     </button>
                   )}
-                  <button
-                    type="button"
-                    className="h-7 rounded-md px-2 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-                    disabled={batchDeletableArchivedSessionIds.length === 0 && !isManagingArchivedSessions}
-                    onClick={() => (
-                      isManagingArchivedSessions
-                        ? exitArchivedSessionManagement()
-                        : setIsManagingArchivedSessions(true)
-                    )}
-                  >
-                    {isManagingArchivedSessions ? t('actions.cancel') : t('archived.manageSessions')}
-                  </button>
+                  {!isManagingArchivedSessions && (
+                    <button
+                      type="button"
+                      className="h-7 rounded-md px-2 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={batchDeletableArchivedSessionIds.length === 0}
+                      onClick={() => setIsManagingArchivedSessions(true)}
+                    >
+                      {t('archived.manageSessions')}
+                    </button>
+                  )}
                 </div>
               </div>
               {archivedProjects.map((project) => {
