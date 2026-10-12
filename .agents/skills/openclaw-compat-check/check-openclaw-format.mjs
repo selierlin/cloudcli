@@ -16,7 +16,7 @@ import Database from 'better-sqlite3';
 // CloudCLI 读取逻辑真正依赖的表/字段（见 openclaw-sessions/session-synchronizer/token-usage）。
 const REQUIRED_COLUMNS = {
   session_nodes: ['session_key', 'current_session_id', 'display_name', 'created_at', 'updated_at'],
-  session_windows: ['session_id', 'session_key', 'created_at', 'updated_at'],
+  session_windows: ['session_id', 'session_key'],
   transcript_events: ['session_id', 'seq', 'event_json', 'event_zstd'],
   session_transcript_active_events: ['session_id', 'active_position', 'event_seq'],
   session_transcript_index_state: ['session_id'],
@@ -233,7 +233,7 @@ for (const { agentId, dbPath } of targets) {
       nodes = db.prepare(`
         SELECT session_key, current_session_id FROM session_nodes
         WHERE current_session_id IS NOT NULL
-        ORDER BY COALESCE(last_activity_at, updated_at, created_at, 0) DESC, session_key DESC
+        ORDER BY COALESCE(last_interaction_at, updated_at, created_at, 0) DESC, session_key DESC
         LIMIT ?
       `).all(args.includes('--all') ? 5 : 1);
     } catch (error) {
