@@ -807,3 +807,48 @@ test('Codex history restores user prompts from typed item_completed rows', { con
     await rm(tempRoot, { recursive: true, force: true });
   }
 });
+
+test('Codex synchronizer stamps the content timestamp from the newest conversation turn', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-session-sync-content-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  const providerSessionId = 'codex-content-1';
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    const sessionsDir = path.join(tempRoot, '.codex', 'sessions', '2026', '07', '07');
+    await mkdir(sessionsDir, { recursive: true });
+    const lines = [
+      JSON.stringify({ type: 'session_meta', payload: { id: providerSessionId, cwd: workspacePath } }),
+      JSON.stringify({
+        timestamp: '2026-07-07T10:00:00.000Z',
+        type: 'response_item',
+        payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hello' }] },
+      }),
+      JSON.stringify({
+        timestamp: '2026-07-07T10:00:03.000Z',
+        type: 'response_item',
+        payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'hi' }] },
+      }),
+      // A bookkeeping event lands after the reply; it is not conversation
+      // content, so it must not become the session's watermark.
+      JSON.stringify({
+        timestamp: '2026-07-07T10:00:09.000Z',
+        type: 'event_msg',
+        payload: { type: 'token_count', info: { total_token_usage: { total_tokens: 12 } } },
+      }),
+    ];
+    await writeFile(path.join(sessionsDir, `rollout-${providerSessionId}.jsonl`), `${lines.join('\n')}\n`, 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      await new CodexSessionSynchronizer().synchronize();
+      assert.equal(
+        sessionsDb.getSessionById(providerSessionId)?.content_updated_at,
+        '2026-07-07T10:00:03.000Z',
+      );
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});

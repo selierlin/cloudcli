@@ -1180,6 +1180,90 @@ export function normalizeProviderTimestamp(value: unknown): string {
 }
 
 /**
+ * Picks the newest content-level timestamp out of a JSONL transcript.
+ *
+ * Each provider's transcript differs in which rows count as conversation
+ * content and where the timestamp lives, so the caller supplies both a
+ * predicate for a row and a reader for its timestamp. The newest matching value
+ * is normalized to the canonical ISO shape and returned, or `null` when no row
+ * qualifies.
+ *
+ * Used by the pi/omp/codex/dsh session synchronizers to write
+ * `sessions.content_updated_at` from the transcript's own conversation rather
+ * than the file mtime: the server-side unread check then tells a real new
+ * message from a bare `touch`, which must not raise a flag. `lines` accepts a
+ * sync or async iterable so a caller can stream a file or pass decoded text.
+ */
+export async function readNewestContentTimestamp(
+  lines: Iterable<string> | AsyncIterable<string>,
+  isContentEntry: (entry: AnyRecord) => boolean,
+  readTimestamp: (entry: AnyRecord) => unknown,
+): Promise<string | null> {
+  let newest: string | null = null;
+  let newestMs: number | null = null;
+
+  for await (const rawLine of lines) {
+    const line = typeof rawLine === 'string' ? rawLine.trim() : '';
+    if (!line) {
+      continue;
+    }
+
+    let entry: AnyRecord;
+    try {
+      const parsed = JSON.parse(line) as unknown;
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        continue;
+      }
+      entry = parsed as AnyRecord;
+    } catch {
+      continue;
+    }
+
+    if (!isContentEntry(entry)) {
+      continue;
+    }
+
+    const stamp = normalizeContentTimestamp(readTimestamp(entry));
+    if (!stamp) {
+      continue;
+    }
+
+    const ms = Date.parse(stamp);
+    if (Number.isNaN(ms)) {
+      continue;
+    }
+
+    if (newestMs === null || ms > newestMs) {
+      newestMs = ms;
+      newest = stamp;
+    }
+  }
+
+  return newest;
+}
+
+/**
+ * Streams a UTF-8 file line by line as an async iterable.
+ *
+ * Used together with `readNewestContentTimestamp` by the JSONL session
+ * synchronizers so a transcript can be scanned for its newest message without
+ * loading the whole file into memory. The reader is closed when the stream
+ * ends, which is the only way the callers consume it.
+ */
+export async function* streamFileLines(filePath: string): AsyncGenerator<string> {
+  const fileStream = fs.createReadStream(filePath, { encoding: 'utf8' });
+  const lineReader = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
+  try {
+    for await (const line of lineReader) {
+      yield line;
+    }
+  } finally {
+    lineReader.close();
+    fileStream.destroy();
+  }
+}
+
+/**
  * Parses a JSON string or narrows an existing object into a plain record.
  *
  * Use this when provider databases store structured JSON inside text columns.

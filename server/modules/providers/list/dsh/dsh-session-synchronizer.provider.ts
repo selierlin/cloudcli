@@ -4,7 +4,7 @@ import path from 'node:path';
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
 import type { AnyRecord } from '@/shared/types.js';
-import { normalizeSessionName, readFileTimestamps } from '@/shared/utils.js';
+import { normalizeSessionName, readFileTimestamps, readNewestContentTimestamp } from '@/shared/utils.js';
 
 import { getDshSessionsRoot } from './dsh-models.provider.js';
 import {
@@ -169,7 +169,29 @@ export class DshSessionSynchronizer implements IProviderSessionSynchronizer {
       timestamps.createdAt,
       timestamps.updatedAt,
       logPath,
+      'provider_title',
+      await this.readContentUpdatedAt(logPath),
     );
+  }
+
+  /**
+   * Reads the newest main-line conversation timestamp out of a session log.
+   *
+   * The harness stamps each event with an epoch-millisecond `time`; only the
+   * real user prompt and the assistant reply are conversation content, so an
+   * injected context event or a lifecycle event cannot advance the session's
+   * watermark and raise a false unread flag. This is the content-level value
+   * written to `sessions.content_updated_at`.
+   */
+  private async readContentUpdatedAt(logPath: string): Promise<string | null> {
+    try {
+      const buffer = await fsp.readFile(logPath);
+      const text = decodeSessionLogBuffer(buffer, logPath);
+      return readNewestContentTimestamp(text.split(/\r?\n/), isDshMainLineEvent, (event) => event.time);
+    } catch {
+      // A corrupt or mid-write log leaves the row's previous content timestamp.
+      return null;
+    }
   }
 
   /**
@@ -207,4 +229,23 @@ export class DshSessionSynchronizer implements IProviderSessionSynchronizer {
     }
     return undefined;
   }
+}
+
+/**
+ * Whether a DSH session-log event is a main-line conversation message.
+ *
+ * A real user prompt (`user/message` whose `source.kind` is absent or `user`)
+ * or an assistant reply (`assistant/message`) is the conversation itself;
+ * injected context and lifecycle events are not, so they must not advance the
+ * session's content timestamp.
+ */
+function isDshMainLineEvent(event: AnyRecord): boolean {
+  if (event.type === 'assistant/message') {
+    return true;
+  }
+  if (event.type !== 'user/message') {
+    return false;
+  }
+  const source = (event.data as AnyRecord | null)?.source as AnyRecord | null;
+  return !source?.kind || source.kind === 'user';
 }

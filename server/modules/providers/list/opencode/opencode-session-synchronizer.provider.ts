@@ -21,6 +21,7 @@ type OpenCodeSessionRow = {
   time_created: number | null;
   time_updated: number | null;
   worktree: string | null;
+  content_time: number | null;
 };
 
 type SynchronizeRowsResult = {
@@ -164,7 +165,8 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
           s.title AS title,
           s.time_created AS time_created,
           s.time_updated AS time_updated,
-          p.worktree AS worktree
+          p.worktree AS worktree,
+          (SELECT MAX(m.time_created) FROM message m WHERE m.session_id = s.id) AS content_time
         FROM session s
         LEFT JOIN project p ON p.id = s.project_id
         WHERE s.time_archived IS NULL
@@ -246,6 +248,10 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
     // must stay null to avoid deleting opencode.db when one app session is removed.
     // Return the canonical stored row id so watcher-triggered sidebar updates
     // stay on the app session once provider_session_id has already been mapped.
+    //
+    // The content timestamp is the newest message's `time_created`, not the
+    // session's `time_updated`: the latter also moves on a rename, which would
+    // raise a false unread flag for a session whose conversation never changed.
     return sessionsDb.createSession(
       sessionId,
       this.provider,
@@ -254,6 +260,8 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
       normalizeProviderTimestamp(row.time_created),
       normalizeProviderTimestamp(row.time_updated ?? row.time_created),
       null,
+      'provider_title',
+      row.content_time,
     );
   }
 

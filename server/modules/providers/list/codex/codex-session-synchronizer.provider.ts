@@ -9,6 +9,8 @@ import {
   findFilesRecursivelyCreatedAfter,
   normalizeSessionName,
   readFileTimestamps,
+  readNewestContentTimestamp,
+  streamFileLines,
 } from '@/shared/utils.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
 import type { SessionNameSource } from '@/shared/types.js';
@@ -54,7 +56,8 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
         timestamps.createdAt,
         timestamps.updatedAt,
         filePath,
-        parsed.sessionNameSource ?? 'provider_title'
+        parsed.sessionNameSource ?? 'provider_title',
+        await this.readContentUpdatedAt(filePath),
       );
       processed += 1;
     }
@@ -85,8 +88,23 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       timestamps.createdAt,
       timestamps.updatedAt,
       filePath,
-      parsed.sessionNameSource ?? 'provider_title'
+      parsed.sessionNameSource ?? 'provider_title',
+      await this.readContentUpdatedAt(filePath),
     );
+  }
+
+  /**
+   * Reads the newest main-line conversation timestamp out of a rollout, or null
+   * when it has no user/assistant turn yet.
+   *
+   * This is the content-level value written to `sessions.content_updated_at`:
+   * Codex stamps every rollout row with a timestamp, but only a `response_item`
+   * message row belongs to the conversation, so a trailing `token_count` or
+   * `task_complete` event cannot advance the session's watermark and raise a
+   * false unread flag.
+   */
+  private async readContentUpdatedAt(filePath: string): Promise<string | null> {
+    return readNewestContentTimestamp(streamFileLines(filePath), isCodexMainLineMessage, (entry) => entry.timestamp);
   }
 
   /**
@@ -236,6 +254,24 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
 
     return undefined;
   }
+}
+
+/**
+ * Whether a Codex rollout row is a main-line conversation turn.
+ *
+ * Codex represents a turn as a `response_item` with a `message` payload whose
+ * role is `user` or `assistant`; every other row (session metadata, turn
+ * context, token counts, tool calls) is not the conversation itself.
+ */
+function isCodexMainLineMessage(entry: Record<string, unknown>): boolean {
+  if (entry.type !== 'response_item') {
+    return false;
+  }
+  const payload = entry.payload as Record<string, unknown> | null;
+  if (payload?.type !== 'message') {
+    return false;
+  }
+  return payload.role === 'user' || payload.role === 'assistant';
 }
 
 /**

@@ -346,6 +346,32 @@ test('OpenCode session synchronizer indexes sqlite sessions without deletable tr
   }
 });
 
+test('OpenCode session synchronizer stamps the content timestamp from the newest message', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-content-ts-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    await createOpenCodeDatabase(tempRoot, workspacePath);
+    await withIsolatedDatabase(async () => {
+      await new OpenCodeSessionSynchronizer().synchronize();
+
+      // The store's newest message was created at 1_700_000_002_000, but the
+      // session's own `time_updated` is later (1_700_000_004_000) because a
+      // rename/title write moved it. The content timestamp must follow the
+      // message, so a rename cannot raise a false unread flag.
+      assert.equal(
+        sessionsDb.getSessionById('open-session-1')?.content_updated_at,
+        new Date(1_700_000_002_000).toISOString(),
+      );
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('OpenCode permanent delete removes the session from the provider store so no scan re-indexes it', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-delete-'));
   const workspacePath = path.join(tempRoot, 'workspace');

@@ -118,6 +118,26 @@ test('synchronizer prefers an explicit session_info name over the first prompt',
   });
 });
 
+test('content timestamp tracks the newest message, not a later session_info rename', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const uuid = '01a0854d-c915-701f-b114-06ddbce5b14f';
+    await writeTranscript(sessionsRoot, cwd, uuid, [
+      header(uuid, cwd),
+      userMessage('a1', null, 'Hello'),
+      // A rename lands after the message; it must not advance the watermark,
+      // or the server-side unread check would flag a session nobody wrote to.
+      sessionInfo('a2', 'a1', 'Renamed later'),
+    ]);
+
+    const processed = await new PiSessionSynchronizer().synchronize();
+    assert.equal(processed, 1);
+    assert.equal(
+      sessionsDb.getSessionById(uuid)?.content_updated_at,
+      '2026-09-09T08:00:01.000Z',
+    );
+  });
+});
+
 test('synchronizer falls back to the first user prompt for unnamed sessions', async () => {
   await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
     const uuid = '01a0854d-c915-701f-b114-06ddbce5b14f';

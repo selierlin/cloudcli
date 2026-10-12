@@ -119,6 +119,45 @@ test('synchronizer falls back to the first user prompt when the title is empty',
   });
 });
 
+test('content timestamp comes from the newest message entry', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const uuid = '01a0c3c6-0000-7000-8000-000000000014';
+    const dir = path.join(sessionsRoot, encodeOmpCwd(cwd));
+    await mkdir(dir, { recursive: true });
+    const assistantMessage = (id: string, parentId: string) => ({
+      type: 'message',
+      id,
+      parentId,
+      timestamp: '2026-09-21T00:00:05.000Z',
+      message: { role: 'assistant', content: 'Hi there' },
+    });
+    // A lifecycle row lands after the reply, carrying an even later timestamp.
+    // It is not conversation content, so it must not become the watermark.
+    const lifecycleRow = {
+      type: 'thinking_level_change',
+      id: 'a3',
+      parentId: 'a2',
+      timestamp: '2026-09-21T00:00:09.000Z',
+      thinkingLevel: 'off',
+    };
+    await writeFile(
+      path.join(dir, `2026-09-21T00-00-00-000Z_${uuid}.jsonl`),
+      [
+        JSON.stringify(header(uuid, cwd)),
+        JSON.stringify(userMessage('a1', null, 'Hello')),
+        JSON.stringify(assistantMessage('a2', 'a1')),
+        JSON.stringify(lifecycleRow),
+      ].join('\n') + '\n',
+    );
+
+    await new OmpSessionSynchronizer().synchronize();
+    assert.equal(
+      sessionsDb.getSessionById(uuid)?.content_updated_at,
+      '2026-09-21T00:00:05.000Z',
+    );
+  });
+});
+
 // OMP rewrites the first `title` line in place once it has titled the session,
 // so a later scan has to upgrade a prompt-derived name to the real title.
 test('synchronizer upgrades a prompt-derived name to a later OMP title', async () => {

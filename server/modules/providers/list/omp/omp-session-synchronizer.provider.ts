@@ -11,6 +11,8 @@ import {
   findFilesRecursivelyCreatedAfter,
   normalizeSessionName,
   readFileTimestamps,
+  readNewestContentTimestamp,
+  streamFileLines,
 } from '@/shared/utils.js';
 
 const FALLBACK_SESSION_NAME = 'Untitled OMP Session';
@@ -118,6 +120,8 @@ export class OmpSessionSynchronizer implements IProviderSessionSynchronizer {
       timestamps.createdAt,
       timestamps.updatedAt,
       filePath,
+      'provider_title',
+      await readNewestContentTimestamp(streamFileLines(filePath), isOmpMainLineMessage, (entry) => entry.timestamp),
     );
     this.lastParsedSessionId = parsed.sessionId;
     return 1;
@@ -254,6 +258,21 @@ export class OmpSessionSynchronizer implements IProviderSessionSynchronizer {
     }
     return normalizeSessionName(rawName, FALLBACK_SESSION_NAME);
   }
+}
+
+/**
+ * Whether an OMP entry is a main-line user prompt or assistant reply.
+ *
+ * Only these move a session's content timestamp: the `title`/`session` header
+ * rows and tool/compaction rows are not the conversation itself, so a title
+ * rewrite must not read as a new message.
+ */
+function isOmpMainLineMessage(entry: AnyRecord): boolean {
+  if (entry.type !== 'message') {
+    return false;
+  }
+  const role = (entry.message as AnyRecord | null)?.role;
+  return role === 'user' || role === 'assistant';
 }
 
 /** Reads the first text content of an OMP user message (string or blocks). */

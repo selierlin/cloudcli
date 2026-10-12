@@ -425,6 +425,32 @@ test('synchronizer indexes session logs for registered projects', async () => {
   });
 });
 
+test('synchronizer stamps the content timestamp from real messages, skipping injected context', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const acpSessionId = 'dsh-content-ts-1';
+    await writeSessionLog(sessionsRoot, cwd, acpSessionId, [
+      userMessage('Hello', 1, 1_789_000_000_000),
+      assistantMessage('Hi', 2, 1_789_000_001_000),
+      // Injected context also arrives as a `user/message`, with a non-user
+      // source and a later time; it must not become the session's watermark.
+      {
+        type: 'user/message',
+        seq: 3,
+        time: 1_789_000_009_000,
+        data: { content: [{ type: 'text', text: 'workspace instructions' }], source: { kind: 'runtime' } },
+      },
+    ]);
+    projectsDb.createProjectPath(cwd);
+
+    const processed = await new DshSessionSynchronizer().synchronize();
+    assert.equal(processed, 1);
+    assert.equal(
+      sessionsDb.getSessionById(acpSessionId)?.content_updated_at,
+      new Date(1_789_000_001_000).toISOString(),
+    );
+  });
+});
+
 test('synchronizer indexes a generation-named (v3) session log', async () => {
   await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
     const acpSessionId = 'dsh-session-v3-index';
