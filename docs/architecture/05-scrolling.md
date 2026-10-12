@@ -564,7 +564,8 @@ manual scrolling cancels the same shared frame immediately.
 
 Three details exist purely to protect the scroll position:
 
-1. **Measure before unmount.** `handleNearViewportChange` reads `offsetHeight` *while the
+1. **Measure before unmount.** `handleNearViewportChange` reads the exact rendered height
+   (`getBoundingClientRect`, so 0px and fractional heights too) *while the
    content is still in the DOM*, then renders the placeholder at exactly that height. A row
    you have already seen costs nothing in geometry to scroll back through.
 2. **The wrapper stays addressable.** The search jump queries `[data-message-timestamp]`,

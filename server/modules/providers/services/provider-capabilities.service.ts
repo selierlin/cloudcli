@@ -26,6 +26,14 @@ type ProviderCapabilities = {
   /** Whether the provider runtime can accept model-level reasoning effort. */
   supportsEffort: boolean;
   /**
+   * Reasoning-effort levels the runtime can pass on, weakest first, and so the
+   * levels a custom model-library entry may declare. Empty exactly when
+   * `supportsEffort` is false. Covers every level a predefined model declares
+   * (a providers test enforces this) and, unlike the model catalog, does not
+   * depend on which upstream providers this machine has connected.
+   */
+  effortLevels: string[];
+  /**
    * Whether an already-sent message can be replaced, which requires the
    * provider to re-run a conversation truncated at a chosen point.
    */
@@ -53,6 +61,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsPermissionRequests: true,
     supportsTokenUsage: true,
     supportsEffort: true,
+    effortLevels: ['low', 'medium', 'high', 'xhigh', 'max', 'ultracode'],
     // `resumeSessionAt` re-runs a conversation truncated at a message, and
     // `forkSession` copies a transcript prefix into a new session file.
     supportsMessageEditing: true,
@@ -68,6 +77,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsPermissionRequests: false,
     supportsTokenUsage: false,
     supportsEffort: false,
+    effortLevels: [],
     supportsMessageEditing: false,
     supportsSessionForking: false,
   },
@@ -81,6 +91,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsPermissionRequests: false,
     supportsTokenUsage: true,
     supportsEffort: true,
+    effortLevels: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
     // Not from the Codex SDK, which only starts and resumes threads: both ride
     // the same CLI's `app-server` protocol, whose `thread/fork` copies a
     // thread up to a chosen turn. Editing is that fork plus a new prompt,
@@ -101,6 +112,9 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsPermissionRequests: false,
     supportsTokenUsage: true,
     supportsEffort: true,
+    // Passed on as OpenCode's `--variant`. `thinking` (MiniMax's on/off
+    // variant, paired with `none`) is not a strength, so it sorts last.
+    effortLevels: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'thinking'],
     supportsMessageEditing: false,
     // Forking rides OpenCode's own HTTP API, driven through a throwaway
     // `opencode serve`: it remaps message ids itself, so the copy is a native
@@ -109,6 +123,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
   },
   workbuddy: {
     provider: 'workbuddy',
+    effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
     // The embedded CodeBuddy engine shares the app's permission-mode
     // vocabulary (default/acceptEdits/bypassPermissions/plan), passed through
     // `--permission-mode` on every run.
@@ -131,6 +146,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
   },
   dsh: {
     provider: 'dsh',
+    effortLevels: [],
     // `default` routes DSH's one-shot ACP permission requests to the chat UI;
     // `auto` answers them with the harness's allow-once option. DSH keeps its
     // own sandbox policy, so neither mode rewrites the harness configuration.
@@ -148,6 +164,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
   },
   pi: {
     provider: 'pi',
+    effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
     // Pi runs tools autonomously with no approval gate. Its only real safety
     // lever is the built-in tool allowlist, so the picker offers the honest
     // pair: default (autonomous) and read-only (`--tools read,grep,find,ls`).
@@ -174,6 +191,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
   },
   zcode: {
     provider: 'zcode',
+    effortLevels: [],
     // ZCode's `--mode` accepts build|edit|plan|yolo, mapped 1:1 from the shared
     // permission vocabulary. Headless ZCode has no approval channel: `edit`
     // auto-approves file writes but denies shell commands, `build` denies both,
@@ -202,6 +220,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
   },
   omp: {
     provider: 'omp',
+    effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
     // OMP runs tools autonomously with no approval gate, and rejects an unknown
     // name in `--tools` outright. Its only real safety lever is therefore the
     // built-in tool allowlist, so the picker offers the honest pair: default
@@ -232,6 +251,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
   },
   openclaw: {
     provider: 'openclaw',
+    effortLevels: [],
     // `default` routes OpenClaw's ACP permission requests to the chat UI;
     // `auto` answers them with the bridge's allow-once option. OpenClaw keeps its
     // own approval policy, so neither mode rewrites the harness configuration.
@@ -253,7 +273,9 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
 };
 
 /**
- * Application service exposing the provider capability matrix.
+ * Application service exposing the provider capability matrix. Used by the
+ * Providers routes (the capabilities endpoints) and by the Providers model
+ * service, which reads `effortLevels` to validate custom-model effort.
  */
 export const providerCapabilitiesService = {
   getProviderCapabilities(provider: LLMProvider): ProviderCapabilities {
