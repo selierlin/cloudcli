@@ -5,18 +5,20 @@
   python3 purge.py --targets FILE
   python3 purge.py --targets FILE --apply --backup /path/auth.db.before-*.backup
   # 可选: --db PATH  --zcode-db PATH  --no-zcode  --opencode-db PATH  --no-opencode
+  #       --openclaw-home PATH  --no-openclaw
 
 --targets FILE: 每行一个 session_id 或 provider_session_id（支持前缀；'#' 注释与空行忽略）。
 
 语义 = 应用内 permanentlyDeleteArchivedSessions({force:true, deletedFromDisk:true})：
   sessions 行 + superseded_provider_sessions 行 + 主/超期 transcript + WorkBuddy 同名残留目录。
-  zcode / opencode 目标另清各自provider 库（--no-zcode / --no-opencode 关闭）。
+  zcode / opencode / openclaw 目标另清各自 provider 库（--no-<provider> 关闭）。
 
 安全：默认只打印计划；--apply 会强制要求 --backup 指向已存在的快照文件。
 """
 import argparse
 import glob
 import os
+import re
 import shutil
 import sqlite3
 import sys
@@ -25,7 +27,39 @@ HOME = os.path.expanduser("~")
 DEFAULT_DB = os.path.join(HOME, ".cloudcli/auth.db")
 DEFAULT_ZCODE = os.path.join(HOME, ".zcode/cli/db/db.sqlite")
 DEFAULT_OPENCODE = os.path.join(HOME, ".local/share/opencode/opencode.db")
+DEFAULT_OPENCLAW_HOME = os.path.join(HOME, ".openclaw")
 ROLLOUT = os.path.join(HOME, ".zcode/cli/rollout")
+
+# OpenClaw keeps one shared store *per agent* (`agents/<agentId>/agent/
+# openclaw-agent.sqlite`); a session key is `agent:<agentId>:<key>`. Like
+# zcode/opencode the app row is only an index, so deleting it alone lets the next
+# scan re-index the session — the store rows must go too. Mirrors
+# OpenclawSessionSynchronizer.deleteProviderSession.
+OPENCLAW_SESSION_KEY_RE = re.compile(r"^agent:([^:]+):")
+# Cleared per window id, then session_windows/session_nodes by session_key.
+OPENCLAW_WINDOW_TABLES = [
+    "session_transcript_active_events",
+    "transcript_events",
+    "session_transcript_index_state",
+]
+
+
+def openclaw_agent_id(session_key):
+    m = OPENCLAW_SESSION_KEY_RE.match(session_key or "")
+    return m.group(1) if m else None
+
+
+def openclaw_agent_db_path(openclaw_home, agent_id):
+    return os.path.join(openclaw_home, "agents", agent_id, "agent", "openclaw-agent.sqlite")
+
+
+def openclaw_agent_ids(openclaw_home):
+    base = os.path.join(openclaw_home, "agents")
+    try:
+        entries = os.listdir(base)
+    except OSError:
+        return []
+    return [e for e in entries if os.path.exists(openclaw_agent_db_path(openclaw_home, e))]
 
 # providers whose sessions live in one shared sqlite store instead of per-session
 # files: the app row is only an index, so deleting it alone leaves the session
@@ -111,6 +145,8 @@ def main():
     ap.add_argument("--no-zcode", action="store_true")
     ap.add_argument("--opencode-db", default=DEFAULT_OPENCODE)
     ap.add_argument("--no-opencode", action="store_true")
+    ap.add_argument("--openclaw-home", default=DEFAULT_OPENCLAW_HOME)
+    ap.add_argument("--no-openclaw", action="store_true")
     args = ap.parse_args()
 
     shared_dbs = {}
@@ -166,7 +202,25 @@ def main():
                 if sid.startswith(p) and sid not in known_ids and sid not in store_only[provider]:
                     store_only[provider].append(sid)
 
-    store_only_total = sum(len(v) for v in store_only.values())
+    # openclaw 的库是「每个 agent 一个 store」，键是 session_key —— 不能套上面单库
+    # 的循环，单独扫。
+    openclaw_store_only = []
+    if not args.no_openclaw:
+        for agent_id in openclaw_agent_ids(args.openclaw_home):
+            dbp = openclaw_agent_db_path(args.openclaw_home, agent_id)
+            s = sqlite3.connect(f"file:{dbp}?mode=ro", uri=True)
+            try:
+                keys = [x[0] for x in s.execute("select session_key from session_nodes")]
+            except sqlite3.Error:
+                continue
+            finally:
+                s.close()
+            for p in prefixes:
+                for k in keys:
+                    if k.startswith(p) and k not in known_ids and k not in openclaw_store_only:
+                        openclaw_store_only.append(k)
+
+    store_only_total = sum(len(v) for v in store_only.values()) + len(openclaw_store_only)
     if not targets and not store_only_total:
         sys.exit("没有会话匹配这些前缀（先跑 inventory.py 核对 id）")
 
@@ -174,14 +228,17 @@ def main():
     live_psids = {r["provider_session_id"] for r in all_rows
                   if r["provider_session_id"] and r["session_id"] not in tgt_sids}
 
-    store_note = "，".join(f"{len(v)} 条 {p} 库独有（cloudcli 未收录）"
-                          for p, v in store_only.items() if v)
+    store_note = "，".join(
+        [f"{len(v)} 条 {p} 库独有（cloudcli 未收录）" for p, v in store_only.items() if v]
+        + ([f"{len(openclaw_store_only)} 条 openclaw 库独有（cloudcli 未收录）"] if openclaw_store_only else []))
     print(f"{'APPLY' if args.apply else 'DRY-RUN'}：命中 {len(targets)} 条会话"
           f"{f'，另有 {store_note}' if store_note else ''}\n")
 
     for provider, ids in store_only.items():
         for sid in ids:
             print(f"### {sid[:12]} [{provider}] 库外（cloudcli 未收录） arch=- fork_dep=0 sup=0")
+    for sid in openclaw_store_only:
+        print(f"### {sid[:18]} [openclaw] 库外（cloudcli 未收录） arch=- fork_dep=0 sup=0")
 
     files, dirs, missing, freed = [], [], [], 0
     fork_warn = []
@@ -309,6 +366,59 @@ def main():
                         os.remove(f)
                     freed += sz
                     print(f"    rollout  {f.replace(HOME, '~')}")
+
+    # ---- openclaw：每个 agent 一个共享 store ----
+    if not args.no_openclaw:
+        oc_ids = set(openclaw_store_only)
+        for r in targets:
+            if r["provider"] == "openclaw":
+                oc_ids.update(x for x in (r["session_id"], r["provider_session_id"]) if x)
+        by_agent = {}
+        unshaped = set()
+        for k in oc_ids:
+            a = openclaw_agent_id(k)
+            (by_agent.setdefault(a, set()).add(k) if a else unshaped.add(k))
+        if unshaped:
+            print(f"\n    （{len(unshaped)} 条 openclaw 目标非 session_key 形态，无 store 行，仅删 app 行）")
+        for agent_id in sorted(by_agent):
+            dbp = openclaw_agent_db_path(args.openclaw_home, agent_id)
+            if not os.path.exists(dbp):
+                continue
+            store = sqlite3.connect(dbp)
+            try:
+                store.execute("PRAGMA foreign_keys=ON")
+                have = {x[0] for x in store.execute("select session_key from session_nodes")}
+                hit = sorted(by_agent[agent_id] & have)
+                print(f"\n--- openclaw[{agent_id}] 库：命中 {len(hit)} 条 ---")
+                if not hit:
+                    continue
+                q = ",".join("?" * len(hit))
+                windows = [x[0] for x in store.execute(
+                    f"select session_id from session_windows where session_key in ({q})", hit)
+                    if x[0]]
+                if windows:
+                    wq = ",".join("?" * len(windows))
+                    for t in OPENCLAW_WINDOW_TABLES:
+                        try:
+                            n = store.execute(
+                                f"select count(*) from {t} where session_id in ({wq})", windows).fetchone()[0]
+                        except sqlite3.Error:
+                            continue
+                        if n:
+                            print(f"    {t}: {n} 行")
+                    print(f"    session_windows: {len(windows)} 行")
+                    if args.apply:
+                        for t in OPENCLAW_WINDOW_TABLES:
+                            try:
+                                store.execute(f"delete from {t} where session_id in ({wq})", windows)
+                            except sqlite3.Error:
+                                pass  # 该 schema 版本没有这张表
+                if args.apply:
+                    store.execute(f"delete from session_windows where session_key in ({q})", hit)
+                    store.execute(f"delete from session_nodes where session_key in ({q})", hit)
+                    store.commit()
+            finally:
+                store.close()
 
     if args.apply:
         con.commit()
