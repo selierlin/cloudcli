@@ -429,7 +429,7 @@ test('a permanent delete through the service empties the OpenCode store, not jus
   }
 });
 
-test('a permanent delete is refused while the provider id is still unknown, rather than silently no-op', { concurrency: false }, async () => {
+test('a permanent delete with an unknown provider id removes the app row and leaves the store', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-delete-no-psid-'));
   const workspacePath = path.join(tempRoot, 'workspace');
   await mkdir(workspacePath, { recursive: true });
@@ -440,18 +440,16 @@ test('a permanent delete is refused while the provider id is still unknown, rath
     const dbPath = path.join(tempRoot, '.local', 'share', 'opencode', 'opencode.db');
     await withIsolatedDatabase(async () => {
       // An app-created session whose provider has not reported its id back yet.
-      // Falling back to the app id would address a row that cannot exist in the
-      // store, so the delete would "succeed" and the session would reappear.
+      // There is no store row this app id can address, so the delete removes the
+      // app row alone; a later scan re-indexes the store row, which the user can
+      // delete again once the runtime has reported the provider id — never a
+      // session stranded in the sidebar.
       sessionsDb.createAppSession('app-session-pending', 'opencode', workspacePath);
 
       const { sessionsService } = await import('@/modules/providers/services/sessions.service.js');
-      await assert.rejects(
-        () => sessionsService.deleteOrArchiveSessionById('app-session-pending', { force: true, deletedFromDisk: true }),
-        /provider id/,
-      );
+      await sessionsService.deleteOrArchiveSessionById('app-session-pending', { force: true, deletedFromDisk: true });
 
-      // Nothing was removed on either side.
-      assert.equal(sessionsDb.getSessionById('app-session-pending')?.provider, 'opencode');
+      assert.equal(sessionsDb.getSessionById('app-session-pending'), null);
       const db = new Database(dbPath, { readonly: true });
       try {
         assert.equal(countRows(db, 'session', 'open-session-1'), 1);

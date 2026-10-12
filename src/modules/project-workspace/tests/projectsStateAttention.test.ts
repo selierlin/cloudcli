@@ -231,6 +231,31 @@ test('the poll flags the open session too, for its own row to hide', async () =>
   );
 });
 
+test('re-entering a session the poll flagged keeps its capsule until answered', async () => {
+  const { result, rerender } = await renderProjectsState();
+
+  // One stable set, as production hands it over: the poll only re-runs when its
+  // membership changes, so nothing re-flags the session on leaving and returning.
+  const pending = new Set([URL_SESSION_ID]);
+  await act(async () => {
+    rerender({ pending, sessionId: URL_SESSION_ID });
+  });
+  assert.equal(result.current.sidebarSharedProps.attentionSessions.get(URL_SESSION_ID), 'action');
+
+  await act(async () => {
+    rerender({ pending, sessionId: OTHER_SESSION_ID });
+  });
+  await act(async () => {
+    rerender({ pending, sessionId: URL_SESSION_ID });
+  });
+
+  assert.equal(
+    result.current.sidebarSharedProps.attentionSessions.get(URL_SESSION_ID),
+    'action',
+    'opening a still-blocked session must not clear a capsule the poll alone raised',
+  );
+});
+
 test('leaving a session blocked on an approval flags it at once, before any poll', async () => {
   const { result, rerender } = await renderProjectsState();
 
