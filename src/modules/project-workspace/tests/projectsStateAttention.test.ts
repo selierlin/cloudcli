@@ -21,6 +21,13 @@ const projectsResponse = vi.fn();
 const readStateResponse = vi.fn();
 const saveReadState = vi.fn();
 const deleteReadState = vi.fn();
+const clearTurnDurations = vi.fn();
+
+// The chat module owns the in-memory turn timings; the workspace only has to
+// signal the deletion. Mocking keeps this test about that wiring.
+vi.mock('@/modules/chat', () => ({
+  clearTurnDurations: (sessionId: string) => clearTurnDurations(sessionId),
+}));
 
 vi.mock('@/shared/api', () => ({
   api: {
@@ -81,6 +88,7 @@ beforeEach(() => {
   saveReadState.mockResolvedValue({ ok: true });
   deleteReadState.mockReset();
   deleteReadState.mockResolvedValue({ ok: true });
+  clearTurnDurations.mockReset();
   listeners.clear();
 });
 
@@ -532,7 +540,7 @@ test('leaving a session stores a watermark from its current content timestamp', 
   );
 });
 
-test('deleting a session drops its read watermark', async () => {
+test('deleting a session drops its read watermark and its turn timings', async () => {
   const { result } = await renderProjectsState();
   await act(async () => {
     await hydrateReadState([{ sessionId: OTHER_SESSION_ID, lastSeenAt: '2026-01-01T00:00:00.000Z' }]);
@@ -543,4 +551,7 @@ test('deleting a session drops its read watermark', async () => {
   });
 
   assert.deepEqual(deleteReadState.mock.calls, [[OTHER_SESSION_ID]]);
+  // The turn timings are client-side state keyed by session too, so a
+  // churned-through session must not keep them for the context's lifetime.
+  assert.deepEqual(clearTurnDurations.mock.calls, [[OTHER_SESSION_ID]]);
 });

@@ -205,6 +205,20 @@ export class AcpClient {
       return;
     }
 
+    // Any other frame carrying a `method` is a server→client request or
+    // notification the client does not implement. A notification (no id) is
+    // simply ignored, but a request MUST be answered: JSON-RPC 2.0 reserves
+    // -32601 for an unknown method, and staying silent leaves the child
+    // awaiting a reply to its request forever. This branch also keeps such a
+    // frame out of the response path below, where its id would otherwise be
+    // mistaken for the answer to a client request.
+    if (typeof message.method === 'string') {
+      if (message.id !== undefined && message.id !== null) {
+        this.respondMethodNotFound(message.id, message.method);
+      }
+      return;
+    }
+
     if (typeof message.id === 'number') {
       const request = this.pending.get(message.id);
       if (!request) {
@@ -240,6 +254,15 @@ export class AcpClient {
       return;
     }
     this.child.stdin!.write(`${JSON.stringify({ jsonrpc: '2.0', id, result })}\n`);
+  }
+
+  /** Answers a server→client request the client does not implement; JSON-RPC 2.0 requires this. */
+  private respondMethodNotFound(id: unknown, method: string): void {
+    if (!this.child.stdin!.writable) {
+      return;
+    }
+    const error = { code: -32601, message: `Method not found: ${method}` };
+    this.child.stdin!.write(`${JSON.stringify({ jsonrpc: '2.0', id, error })}\n`);
   }
 
   private request(method: string, params: AnyRecord, timeoutMs = this.requestTimeoutMs): Promise<any> {

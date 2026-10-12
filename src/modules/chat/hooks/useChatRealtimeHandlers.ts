@@ -10,7 +10,7 @@ import type { RevealPacer } from '@/modules/chat/utils/revealPacer';
 import { WHOLE_SEGMENT_PROVIDERS } from '@/modules/chat/utils/revealPacer';
 import { normalizedToChatMessages } from '@/modules/chat/hooks/useChatMessages';
 import { collectRunningBackgroundTasks } from '@/modules/chat/utils/backgroundTasks';
-import { recordTurnDuration } from '@/modules/chat/utils/turnDurationRegistry';
+import { endTurn } from '@/modules/chat/utils/turnDurationRegistry';
 
 const isActionablePermissionRequest = (request: { toolName?: unknown } | null | undefined): boolean => {
   return request?.toolName !== 'ExitPlanMode' && request?.toolName !== 'exit_plan_mode';
@@ -127,11 +127,11 @@ export function useChatRealtimeHandlers({
       onSessionBackground?.(sid, collectRunningBackgroundTasks(normalizedToChatMessages(sessionStore.getMessages(sid))));
     };
 
-    // Pairs the turn's start with its terminal `complete` and parks the elapsed
-    // time under the latest answer segment, so the reply's footer can report it.
-    // Bounded to the current turn (rows after the last user message): a run that
-    // produced no text of its own must never borrow a previous turn's duration.
-    const recordCompletedTurnDuration = (sid: string) => {
+    // The reply segment a finished turn's duration is parked under: the last
+    // answer row of the current turn (rows after the last user message), so a
+    // run that produced no text of its own neither borrows a previous turn's
+    // segment nor leaves the turn's start behind unconsumed.
+    const findTurnSegmentId = (sid: string): string | null => {
       const rows = sessionStore.getMessages(sid);
       let lastUserIndex = -1;
       for (let i = rows.length - 1; i >= 0; i -= 1) {
@@ -144,10 +144,10 @@ export function useChatRealtimeHandlers({
       for (let i = rows.length - 1; i > lastUserIndex; i -= 1) {
         const row = rows[i];
         if (row.kind === 'text' && row.role === 'assistant' && row.segmentId) {
-          recordTurnDuration(sid, row.segmentId, Date.now());
-          return;
+          return row.segmentId;
         }
       }
+      return null;
     };
 
     // Terminal/seal teardown shared by both streaming paths: converge the
@@ -239,6 +239,11 @@ export function useChatRealtimeHandlers({
             // flight on that session.
             if (msg.code !== 'NO_SUCH_TASK' && msg.code !== 'TASK_ID_REQUIRED') {
               onSessionIdle?.(sid);
+              // The send was rejected before its run began, so no `complete`
+              // follows; consume the turn's start here or it would time the
+              // next one. A refused stop (`NO_SUCH_TASK`) leaves a live run's
+              // start alone, which is why this is inside the guard.
+              endTurn(sid, null, Date.now());
             }
             sessionStore.appendRealtime(sid, {
               id: `protocol_error_${Date.now()}`,
@@ -345,9 +350,14 @@ export function useChatRealtimeHandlers({
           // open for them — and any other leaves it idle. An abort releases
           // the CLI and takes that work down with it.
           if (sid && !msg.aborted) {
-            recordCompletedTurnDuration(sid);
+            endTurn(sid, findTurnSegmentId(sid), Date.now());
             reportRemainingBackgroundWork(sid);
           } else {
+            if (sid) {
+              // An abort ends the turn too: consume its start so it cannot time
+              // a later turn, but record nothing — the run was cut off.
+              endTurn(sid, null, Date.now());
+            }
             onSessionIdle?.(sid);
           }
           if (sid === activeViewSessionId) {
