@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import type { AgentCategory, AgentContextByProvider, AgentProvider, AgentSettingsProject, ClaudePermissionsState, CodexPermissionMode, CursorPermissionsState, DshPermissionMode, PiPermissionMode, ProviderAuthStatus, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
+import type { AgentCategory, AgentContextByProvider, AgentProvider, AgentSettingsProject, ClaudePermissionsState, CodexPermissionMode, CursorPermissionsState, DshPermissionMode, OpenclawPermissionMode, OmpPermissionMode, PiPermissionMode, ProviderAuthStatus, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
 import AgentCategoryContentSection from '@/modules/settings/tabs/agents-settings/sections/AgentCategoryContentSection';
 import AgentCategoryTabsSection from '@/modules/settings/tabs/agents-settings/sections/AgentCategoryTabsSection';
 import AgentSelectorSection from '@/modules/settings/tabs/agents-settings/sections/AgentSelectorSection';
@@ -24,6 +24,10 @@ type AgentsSettingsTabProps = {
   onPiPermissionModeChange: (value: PiPermissionMode) => void;
   dshPermissionMode: DshPermissionMode;
   onDshPermissionModeChange: (value: DshPermissionMode) => void;
+  ompPermissionMode: OmpPermissionMode;
+  onOmpPermissionModeChange: (value: OmpPermissionMode) => void;
+  openclawPermissionMode: OpenclawPermissionMode;
+  onOpenclawPermissionModeChange: (value: OpenclawPermissionMode) => void;
   projects: AgentSettingsProject[];
   /** Opens the MCP matrix tab, which is where user-scope MCP servers are edited now. */
   onOpenMcpMatrix?: () => void;
@@ -47,6 +51,10 @@ export default function AgentsSettingsTab({
   onPiPermissionModeChange,
   dshPermissionMode,
   onDshPermissionModeChange,
+  ompPermissionMode,
+  onOmpPermissionModeChange,
+  openclawPermissionMode,
+  onOpenclawPermissionModeChange,
   projects,
   onOpenMcpMatrix,
 }: AgentsSettingsTabProps) {
@@ -158,6 +166,10 @@ export default function AgentsSettingsTab({
           onPiPermissionModeChange={onPiPermissionModeChange}
           dshPermissionMode={dshPermissionMode}
           onDshPermissionModeChange={onDshPermissionModeChange}
+          ompPermissionMode={ompPermissionMode}
+          onOmpPermissionModeChange={onOmpPermissionModeChange}
+          openclawPermissionMode={openclawPermissionMode}
+          onOpenclawPermissionModeChange={onOpenclawPermissionModeChange}
           projects={projects}
           onOpenMcpMatrix={onOpenMcpMatrix}
         />

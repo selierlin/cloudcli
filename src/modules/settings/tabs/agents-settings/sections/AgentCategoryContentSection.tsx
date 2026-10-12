@@ -1,4 +1,4 @@
-import type { AgentCategory, AgentContextByProvider, AgentProvider, AgentSettingsProject, ClaudePermissionsState, CodexPermissionMode, CursorPermissionsState, DshPermissionMode, McpProject, PiPermissionMode, SkillsProject, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
+import type { AgentCategory, AgentContextByProvider, AgentProvider, AgentSettingsProject, ClaudePermissionsState, CodexPermissionMode, CursorPermissionsState, DshPermissionMode, McpProject, OpenclawPermissionMode, OmpPermissionMode, PiPermissionMode, SkillsProject, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
 import { McpServers } from '@/modules/mcp';
 import { ProviderSkills } from '@/modules/skills';
 import AccountContent from '@/modules/settings/tabs/agents-settings/sections/content/AccountContent';
@@ -24,6 +24,10 @@ type AgentCategoryContentSectionProps = {
   onPiPermissionModeChange: (value: PiPermissionMode) => void;
   dshPermissionMode: DshPermissionMode;
   onDshPermissionModeChange: (value: DshPermissionMode) => void;
+  ompPermissionMode: OmpPermissionMode;
+  onOmpPermissionModeChange: (value: OmpPermissionMode) => void;
+  openclawPermissionMode: OpenclawPermissionMode;
+  onOpenclawPermissionModeChange: (value: OpenclawPermissionMode) => void;
   projects: AgentSettingsProject[];
   /** Opens the MCP matrix tab, which is where user-scope MCP servers are edited now. */
   onOpenMcpMatrix?: () => void;
@@ -48,6 +52,10 @@ export default function AgentCategoryContentSection({
   onPiPermissionModeChange,
   dshPermissionMode,
   onDshPermissionModeChange,
+  ompPermissionMode,
+  onOmpPermissionModeChange,
+  openclawPermissionMode,
+  onOpenclawPermissionModeChange,
   projects,
   onOpenMcpMatrix,
 }: AgentCategoryContentSectionProps) {
@@ -140,6 +148,22 @@ export default function AgentCategoryContentSection({
           agent="dsh"
           permissionMode={dshPermissionMode}
           onPermissionModeChange={onDshPermissionModeChange}
+        />
+      )}
+
+      {selectedCategory === 'permissions' && selectedAgent === 'omp' && (
+        <PermissionsContent
+          agent="omp"
+          permissionMode={ompPermissionMode}
+          onPermissionModeChange={onOmpPermissionModeChange}
+        />
+      )}
+
+      {selectedCategory === 'permissions' && selectedAgent === 'openclaw' && (
+        <PermissionsContent
+          agent="openclaw"
+          permissionMode={openclawPermissionMode}
+          onPermissionModeChange={onOpenclawPermissionModeChange}
         />
       )}
 

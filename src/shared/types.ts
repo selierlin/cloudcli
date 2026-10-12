@@ -1672,6 +1672,12 @@ export type ZcodePermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions
 /** Permission mode persisted for the Pi agent; Pi has no approval gate, so the only real safety option is read-only. */
 export type PiPermissionMode = 'default' | 'readonly';
 
+/** Permission mode persisted for the OMP agent; like Pi, OMP runs tools autonomously and only offers a read-only allowlist. */
+export type OmpPermissionMode = 'default' | 'readonly';
+
+/** Permission mode persisted for the OpenClaw ACP gateway: ask in chat or auto-answer allow-once. */
+export type OpenclawPermissionMode = 'default' | 'auto';
+
 /** A project as the settings dialog needs it - a required identifier in `name` plus optional display name and paths - passed down to the MCP and skills panels so they can scope configuration to a project. */
 export type AgentSettingsProject = {
   name: string;

@@ -860,6 +860,34 @@
         }
       }
     },
+    "omp": {
+      "permissionMode": "权限模式",
+      "description": "控制 OMP 如何运行工具与命令",
+      "modes": {
+        "default": {
+          "title": "自主执行",
+          "description": "OMP 自主运行工具，无审批关卡。"
+        },
+        "readonly": {
+          "title": "只读",
+          "description": "只允许只读工具（read、grep、glob），OMP 无法修改文件。"
+        }
+      }
+    },
+    "openclaw": {
+      "permissionMode": "权限模式",
+      "description": "控制 CloudCLI 如何响应 OpenClaw 的权限请求",
+      "modes": {
+        "default": {
+          "title": "在聊天中询问",
+          "description": "OpenClaw 发起权限请求时，在聊天输入区显示“允许一次 / 拒绝”。"
+        },
+        "auto": {
+          "title": "自动允许请求",
+          "description": "OpenClaw 发起权限请求时自动选择“允许一次”。这不会修改 OpenClaw 自身的审批策略。"
+        }
+      }
+    },
     "actions": {
       "add": "添加"
     }

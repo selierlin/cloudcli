@@ -71,6 +71,10 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
     setPiPermissionMode,
     dshPermissionMode,
     setDshPermissionMode,
+    ompPermissionMode,
+    setOmpPermissionMode,
+    openclawPermissionMode,
+    setOpenclawPermissionMode,
     providerAuthStatus,
     openLoginForProvider,
     showLoginModal,
@@ -285,6 +289,10 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
                   onPiPermissionModeChange={setPiPermissionMode}
                   dshPermissionMode={dshPermissionMode}
                   onDshPermissionModeChange={setDshPermissionMode}
+                  ompPermissionMode={ompPermissionMode}
+                  onOmpPermissionModeChange={setOmpPermissionMode}
+                  openclawPermissionMode={openclawPermissionMode}
+                  onOpenclawPermissionModeChange={setOpenclawPermissionMode}
                   projects={projects}
                   onOpenMcpMatrix={handleOpenMcpMatrix}
                 />

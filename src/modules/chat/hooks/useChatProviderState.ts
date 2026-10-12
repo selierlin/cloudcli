@@ -9,7 +9,7 @@ import type { PendingPermissionRequest, PermissionMode,
   ProviderModelActions,
   ProviderModelOption,
   ProviderModelsDefinition } from '@/shared/types';
-import { DEFAULT_EFFORT_VALUE, PROVIDER_MODELS_CHANGED_EVENT } from '@/shared/constants';
+import { DEFAULT_EFFORT_VALUE, PROVIDER_MODELS_CHANGED_EVENT, PROVIDER_PERMISSION_PREFERENCE_KEYS, WORKBUDDY_SETTINGS_STORAGE_KEY } from '@/shared/constants';
 import { readSelectedProvider, writeSelectedProvider } from '@/shared/selectedProvider';
 import { LLM_PROVIDERS } from '@/shared/providerModelSettings';
 import type { ProviderModelSettings } from '@/shared/providerModelSettings';
@@ -158,13 +158,36 @@ type SessionProviderSelection = {
   effort: string | null;
 };
 
-type DshSettingsStorage = {
-  permissionMode?: PermissionMode;
-};
+/**
+ * The permission mode the settings page recorded as this provider's default, or
+ * null when the provider has no permission panel or the user never picked one.
+ *
+ * It is the lowest-priority fallback when a chat opens — below any explicit pick
+ * made in the composer, per session or per provider — so the value is returned
+ * verbatim and the caller validates it against the provider's live capability
+ * list, ignoring a mode that no longer applies rather than applying it blindly.
+ *
+ * WorkBuddy keeps its pick in a browser-local blob rather than the synced
+ * preference store, so it is read from there.
+ */
+const readStoredPermissionMode = (targetProvider: LLMProvider): PermissionMode | null => {
+  let storedMode: unknown;
 
-const readStoredDshPermissionMode = (): PermissionMode | null => {
-  const stored = readUserPreference<DshSettingsStorage>('dshPermissions', {});
-  return stored.permissionMode === 'auto' ? 'auto' : stored.permissionMode === 'default' ? 'default' : null;
+  if (targetProvider === 'workbuddy') {
+    try {
+      const stored = JSON.parse(localStorage.getItem(WORKBUDDY_SETTINGS_STORAGE_KEY) || '{}') as { permissionMode?: unknown };
+      storedMode = stored.permissionMode;
+    } catch {
+      storedMode = undefined;
+    }
+  } else {
+    storedMode = readUserPreference<{ permissionMode?: unknown }>(
+      PROVIDER_PERMISSION_PREFERENCE_KEYS[targetProvider],
+      {},
+    ).permissionMode;
+  }
+
+  return typeof storedMode === 'string' ? (storedMode as PermissionMode) : null;
 };
 
 const getSessionSelectionKey = (provider: LLMProvider, sessionId: string): string => (
@@ -214,9 +237,10 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   const [providerCapabilities, setProviderCapabilities] = useState<
     Partial<Record<LLMProvider, ProviderCapabilities>> | null
   >(null);
-  // Re-runs DSH permission restoration when the settings dialog saves a new
-  // default; the preference payload itself is external state in userSettings.
-  const [dshPreferenceRevision, setDshPreferenceRevision] = useState(0);
+  // Re-runs permission-mode restoration when the settings dialog saves a new
+  // provider default; the preference payload itself is external state in
+  // userSettings.
+  const [permissionPreferenceRevision, setPermissionPreferenceRevision] = useState(0);
 
   const [providerModelCatalog, setProviderModelCatalog] = useState<
     Partial<Record<LLMProvider, ProviderModelsDefinition>>
@@ -519,7 +543,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
         }
         return changed ? next : previous;
       });
-      setDshPreferenceRevision((revision) => revision + 1);
+      setPermissionPreferenceRevision((revision) => revision + 1);
     };
     window.addEventListener(USER_PREFERENCES_CHANGED_EVENT, handlePreferencesChanged);
     return () => window.removeEventListener(USER_PREFERENCES_CHANGED_EVENT, handlePreferencesChanged);
@@ -533,17 +557,18 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     // Fall back to the last mode picked for this provider: a brand-new chat
     // only receives its session id after the first send, so without this the
     // mode chosen beforehand would snap back to the default as soon as the
-    // session id appears. For DSH, the settings default follows that override.
+    // session id appears. Below that sits the default the settings page stored
+    // for every provider that has a permission panel.
     const providerSavedMode = localStorage.getItem(`permissionMode-last-${provider}`) as PermissionMode | null;
-    const configuredDshMode = provider === 'dsh' ? readStoredDshPermissionMode() : null;
-    const savedMode = [sessionSavedMode, providerSavedMode, configuredDshMode].find(
+    const configuredMode = readStoredPermissionMode(provider);
+    const savedMode = [sessionSavedMode, providerSavedMode, configuredMode].find(
       (mode): mode is PermissionMode => Boolean(mode && validModes.includes(mode)),
     );
     setPermissionMode(savedMode ?? getDefaultPermissionModeForProvider(provider));
   }, [
     selectedSession?.id,
     provider,
-    dshPreferenceRevision,
+    permissionPreferenceRevision,
     getDefaultPermissionModeForProvider,
     getPermissionModesForProvider,
   ]);
