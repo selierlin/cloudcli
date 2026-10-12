@@ -51,6 +51,7 @@ const renderHandlers = () => {
       ops.push('append');
     },
     truncateAt: () => {},
+    getMessages: () => [],
   } as unknown as SessionStore;
 
   const streamBuffers = createStreamingBufferRegistry(() => {}, () => false);

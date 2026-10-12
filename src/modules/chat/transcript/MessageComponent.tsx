@@ -1,9 +1,10 @@
 import { memo, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { GitBranchIcon, PencilIcon } from 'lucide-react';
+import { GitBranchIcon, PencilIcon, Timer } from 'lucide-react';
 
 import type { ChatMessage, ClaudePermissionSuggestion, PermissionGrantResult, LLMProvider,DiffLine,Project,ReasoningDisclosureState,ReasoningPresentation } from '@/shared/types';
 import { formatUsageLimitText, stripProposedPlanEnvelope } from '@/modules/chat/utils/chatFormatting';
+import { formatTaskDuration } from '@/modules/chat/utils/backgroundTasks';
 import { ToolRenderer, ToolErrorDisplay, SubagentPanel, WorkflowPanel, shouldHideToolResult } from '@/modules/chat/tools';
 import { LLMProviderLogo } from '@/shared/ui';
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/modules/chat/transcript/Reasoning';
@@ -51,6 +52,12 @@ type MessageComponentProps = {
    * Absent when the provider cannot copy a transcript prefix.
    */
   onForkFromMessage?: (message: ChatMessage) => void;
+  /**
+   * Wall-clock time the reply's turn took, as this client measured it while the
+   * run streamed. Absent on rows with no measurement — every historical turn,
+   * and any turn a reload or another device ran.
+   */
+  turnDurationMs?: number;
 };
 
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
@@ -59,7 +66,7 @@ const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
  * Rendered by chat's ChatMessagesPane and ToolGroupContainer to draw one
  * transcript entry — user turn, assistant turn, or a tool call and its result.
  */
-const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, reasoningPresentation, reasoningDisclosureState, isProcessRunMember, hidesProcessIdentity, isReasoningSearchTarget, suppressReasoningAutoCollapse, onReasoningUserOpenChange, onReasoningProgramOpen, onReasoningProgramCollapse, onEditMessage, onForkFromMessage }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, reasoningPresentation, reasoningDisclosureState, isProcessRunMember, hidesProcessIdentity, isReasoningSearchTarget, suppressReasoningAutoCollapse, onReasoningUserOpenChange, onReasoningProgramOpen, onReasoningProgramCollapse, onEditMessage, onForkFromMessage, turnDurationMs }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -124,6 +131,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
       date.getDate() === now.getDate();
     return isToday ? date.toLocaleTimeString() : date.toLocaleString();
   }, [message.timestamp]);
+  const formattedTurnDuration = typeof turnDurationMs === 'number' ? formatTaskDuration(turnDurationMs) : null;
   const shouldHideThinkingMessage = Boolean(message.isThinking && !showThinking);
 
   if (shouldHideThinkingMessage) {
@@ -541,6 +549,19 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                     exported transcript keeps it wherever the footer renders. */}
                 <MessageModelLabel model={message.model} />
                 {(shouldShowAssistantCopyControl || !isGrouped) && <span>{formattedTime}</span>}
+                {/* Last on purpose: this entry disappears on a reload (the
+                    measurement is in memory only), and sitting at the tail
+                    keeps its absence from shifting the controls before it. */}
+                {formattedTurnDuration && (
+                  <span
+                    title={t('message.turnDuration', { duration: formattedTurnDuration, defaultValue: 'Took {{duration}}' })}
+                    aria-label={t('message.turnDuration', { duration: formattedTurnDuration, defaultValue: 'Took {{duration}}' })}
+                    className="inline-flex items-center gap-0.5 whitespace-nowrap"
+                  >
+                    <Timer className="h-3 w-3" aria-hidden="true" />
+                    {formattedTurnDuration}
+                  </span>
+                )}
               </div>
             )}
           </div>

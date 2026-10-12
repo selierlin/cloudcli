@@ -29,6 +29,7 @@ import {
 import { escapeRegExp } from '@/modules/chat/utils/chatFormatting';
 import { composeQuickReplyInput, isQuickReplyCommand } from '@/shared/quickReplies';
 import { describeBackgroundTask, ownBackgroundTasks } from '@/modules/chat/utils/backgroundTasks';
+import { markTurnStart } from '@/modules/chat/utils/turnDurationRegistry';
 import { useFileMentions } from '@/modules/chat/hooks/useFileMentions';
 import { useInputHistory } from '@/modules/chat/hooks/useInputHistory';
 import { useSlashCommands } from '@/modules/chat/hooks/useSlashCommands';
@@ -952,6 +953,9 @@ export function useChatComposerState({
       // One message shape for every provider. The backend resolves the
       // provider, project path, and provider-native resume id from the
       // session row; `options` only carries composer-level preferences.
+      // Stamp the turn's start here so the reply's footer can report how long
+      // it took once the run reaches its terminal `complete`.
+      markTurnStart(targetSessionId, Date.now());
       sendMessage({
         // Replacing an already-sent message is its own frame: it changes the
         // shape of the conversation, so it gets validated separately and can

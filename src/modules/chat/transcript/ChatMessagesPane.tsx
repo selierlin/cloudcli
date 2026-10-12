@@ -12,6 +12,7 @@ import type { BackgroundTaskSummary,
   ProviderModelsDefinition,
 } from '@/shared/types';
 import { getIntrinsicMessageKey } from '@/modules/chat/utils/messageKeys';
+import { getTurnDuration } from '@/modules/chat/utils/turnDurationRegistry';
 import {
   deriveExecutionProcessProjection,
 } from '@/modules/chat/utils/executionProcess';
@@ -681,6 +682,11 @@ function ChatMessagesPane({
                         )
                       : undefined;
                   const messageKey = getMessageKey(item);
+                  // Only the reply this client just measured carries a duration;
+                  // every other row looks up nothing and shows nothing.
+                  const turnDurationMs = sessionId && typeof item.id === 'string'
+                    ? getTurnDuration(sessionId, item.id)
+                    : undefined;
                   const executionDisclosureKey = executionProjection.memberDisclosureKeys.get(messageKey);
                   const executionGroup = executionDisclosureKey
                     ? executionProjection.groups.get(executionDisclosureKey)
@@ -742,6 +748,7 @@ function ChatMessagesPane({
                           onReasoningProgramCollapse={handleReasoningProgramCollapse}
                           onEditMessage={onEditMessage}
                           onForkFromMessage={onForkFromMessage}
+                          turnDurationMs={turnDurationMs}
                         />
                       </LazyMessageRow>
                       {executionGroup && [...executionGroup.memberKeys].at(-1) === messageKey && (

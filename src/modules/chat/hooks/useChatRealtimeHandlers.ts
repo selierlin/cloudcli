@@ -10,6 +10,7 @@ import type { RevealPacer } from '@/modules/chat/utils/revealPacer';
 import { WHOLE_SEGMENT_PROVIDERS } from '@/modules/chat/utils/revealPacer';
 import { normalizedToChatMessages } from '@/modules/chat/hooks/useChatMessages';
 import { collectRunningBackgroundTasks } from '@/modules/chat/utils/backgroundTasks';
+import { recordTurnDuration } from '@/modules/chat/utils/turnDurationRegistry';
 
 const isActionablePermissionRequest = (request: { toolName?: unknown } | null | undefined): boolean => {
   return request?.toolName !== 'ExitPlanMode' && request?.toolName !== 'exit_plan_mode';
@@ -124,6 +125,29 @@ export function useChatRealtimeHandlers({
     // from, so this reads the same answer they draw.
     const reportRemainingBackgroundWork = (sid: string) => {
       onSessionBackground?.(sid, collectRunningBackgroundTasks(normalizedToChatMessages(sessionStore.getMessages(sid))));
+    };
+
+    // Pairs the turn's start with its terminal `complete` and parks the elapsed
+    // time under the latest answer segment, so the reply's footer can report it.
+    // Bounded to the current turn (rows after the last user message): a run that
+    // produced no text of its own must never borrow a previous turn's duration.
+    const recordCompletedTurnDuration = (sid: string) => {
+      const rows = sessionStore.getMessages(sid);
+      let lastUserIndex = -1;
+      for (let i = rows.length - 1; i >= 0; i -= 1) {
+        const row = rows[i];
+        if (row.kind === 'text' && row.role === 'user') {
+          lastUserIndex = i;
+          break;
+        }
+      }
+      for (let i = rows.length - 1; i > lastUserIndex; i -= 1) {
+        const row = rows[i];
+        if (row.kind === 'text' && row.role === 'assistant' && row.segmentId) {
+          recordTurnDuration(sid, row.segmentId, Date.now());
+          return;
+        }
+      }
     };
 
     // Terminal/seal teardown shared by both streaming paths: converge the
@@ -321,6 +345,7 @@ export function useChatRealtimeHandlers({
           // open for them — and any other leaves it idle. An abort releases
           // the CLI and takes that work down with it.
           if (sid && !msg.aborted) {
+            recordCompletedTurnDuration(sid);
             reportRemainingBackgroundWork(sid);
           } else {
             onSessionIdle?.(sid);
