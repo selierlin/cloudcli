@@ -228,6 +228,83 @@ test('synchronizeFile derives the agent id and ignores other files', async () =>
   });
 });
 
+test('synchronizeFileDetailed reports no content change on the first index', async () => {
+  await withIsolatedEnvironment(async ({ homeDir, cwd }) => {
+    const sessionKey = 'agent:main:main';
+    await seedOpenclawSession(homeDir, {
+      sessionKey,
+      windowId: 'window-1',
+      updatedAt: 1_776_000_010_000,
+      lastInteractionAt: 1_776_000_010_000,
+      events: [
+        { json: openclawHeaderEntry(cwd) },
+        { json: user('u1', 'first message') },
+      ],
+    });
+
+    // No stored baseline yet, so a first index cannot claim the content moved.
+    const result = await new OpenclawSessionSynchronizer()
+      .synchronizeFileDetailed(getOpenclawAgentDbPath('main'));
+    assert.deepEqual(result, { sessionId: sessionKey, contentChanged: false });
+  });
+});
+
+test('synchronizeFileDetailed ignores a store write that does not advance the interaction stamp', async () => {
+  await withIsolatedEnvironment(async ({ homeDir, cwd }) => {
+    const sessionKey = 'agent:main:main';
+    const touchedAt = 1_776_000_010_000;
+    await seedOpenclawSession(homeDir, {
+      sessionKey,
+      windowId: 'window-1',
+      updatedAt: touchedAt,
+      lastInteractionAt: touchedAt,
+      events: [
+        { json: openclawHeaderEntry(cwd) },
+        { json: user('u1', 'first message') },
+      ],
+    });
+
+    const synchronizer = new OpenclawSessionSynchronizer();
+    await synchronizer.synchronize();
+
+    // OpenClaw is a shared store, so the watcher fires on unrelated writes. With
+    // `last_interaction_at` unchanged, the session must not be reported unread.
+    const result = await synchronizer.synchronizeFileDetailed(getOpenclawAgentDbPath('main'));
+    assert.deepEqual(result, { sessionId: sessionKey, contentChanged: false });
+  });
+});
+
+test('synchronizeFileDetailed reports a content change when the interaction stamp advances', async () => {
+  await withIsolatedEnvironment(async ({ homeDir, cwd }) => {
+    const sessionKey = 'agent:main:main';
+    await seedOpenclawSession(homeDir, {
+      sessionKey,
+      windowId: 'window-1',
+      updatedAt: 1_776_000_010_000,
+      lastInteractionAt: 1_776_000_010_000,
+      events: [
+        { json: openclawHeaderEntry(cwd) },
+        { json: user('u1', 'first message') },
+      ],
+    });
+
+    const synchronizer = new OpenclawSessionSynchronizer();
+    await synchronizer.synchronize();
+
+    // A new user message bumps `last_interaction_at`; that is the content signal.
+    const db = new Database(getOpenclawAgentDbPath('main'));
+    try {
+      db.prepare('UPDATE session_nodes SET last_interaction_at = ?, updated_at = ? WHERE session_key = ?')
+        .run(1_776_000_020_000, 1_776_000_020_000, sessionKey);
+    } finally {
+      db.close();
+    }
+
+    const result = await synchronizer.synchronizeFileDetailed(getOpenclawAgentDbPath('main'));
+    assert.deepEqual(result, { sessionId: sessionKey, contentChanged: true });
+  });
+});
+
 test('deleteProviderSession removes the node, windows and every transcript row', async () => {
   await withIsolatedEnvironment(async ({ homeDir, cwd }) => {
     const sessionKey = 'agent:main:main';

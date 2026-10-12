@@ -10,6 +10,13 @@ import type { ServerEvent,
   ProjectSession,IsSessionProcessing,SessionAttentionLevel } from '@/shared/types';
 import { mergeProjectSelectionMetadata } from '@/modules/project-workspace/utils/projectSelectionMetadata';
 import { readSelectedProvider } from '@/shared/selectedProvider';
+import {
+  clearSessionReadState,
+  getSessionLastSeenAt,
+  isSessionUnread,
+  markSessionSeen,
+  subscribeToSessionReadState,
+} from '@/shared/sessionReadState';
 
 type UseProjectsStateArgs = {
   sessionId?: string;
@@ -57,7 +64,12 @@ type SessionUpsertedEvent = ServerEvent & {
   sessionId: string;
   providerSessionId?: string | null;
   provider: LLMProvider;
-  session: ProjectSession;
+  /**
+   * `change` distinguishes a real content advance from a metadata-only refresh
+   * (title change, fork, a bare file `touch`). Absent is treated as content, so
+   * a server that predates the flag keeps working.
+   */
+  session: ProjectSession & { change?: 'content' | 'metadata' };
   project: {
     projectId: string;
     path: string;
@@ -175,6 +187,18 @@ const getProjectSessions = (project: Project): ProjectSession[] => {
 };
 
 const countLoadedProjectSessions = (project: Project): number => getProjectSessions(project).length;
+
+/** Locates one session across the project list, for the read-watermark writes. */
+const findSessionByIdInProjects = (projects: Project[], sessionId: string): ProjectSession | null => {
+  for (const project of projects) {
+    for (const session of getProjectSessions(project)) {
+      if (session.id === sessionId) {
+        return session;
+      }
+    }
+  }
+  return null;
+};
 
 const mergeSessionProviderLists = (baseSessions: ProjectSession[], additionalSessions: ProjectSession[]): ProjectSession[] => {
   const merged = [...baseSessions];
@@ -600,6 +624,60 @@ export function useProjectsState({
     });
   }, [pendingApprovalSessionIds]);
 
+  /**
+   * Rebuilds the persisted unread flags from the server's answer.
+   *
+   * This is the only channel that survives a reload: the websocket notice that
+   * originally raised a flag is not replayed, so on load the sidebar reads
+   * `isUnread` off each session — computed by the server from the session's
+   * content timestamp and this user's stored watermark — instead of re-deriving
+   * it. It only ever *raises* a notice and never clears one, so it cannot fight
+   * the other channels (see the channel-merge rules).
+   *
+   * One local correction is still needed: a watermark written on this device
+   * after the row was fetched makes the server's snapshot stale, so a session
+   * the user has just read must not be flagged from that stale `isUnread`.
+   */
+  const applyPersistedUnread = useCallback(() => {
+    const viewedSessionId = selectedSessionRef.current?.id ?? sessionIdRef.current ?? null;
+
+    setAttentionSessions((previous) => {
+      let next: Map<string, SessionAttentionLevel> | null = null;
+
+      for (const project of projectsRef.current) {
+        for (const session of project.sessions ?? []) {
+          if (session.isUnread !== true) {
+            continue;
+          }
+          // The user read it on this device after the row was fetched: the
+          // local watermark already covers the content, so the server's flag is
+          // stale until the next projection.
+          if (getSessionLastSeenAt(session.id) && !isSessionUnread(session.id, session.contentUpdatedAt)) {
+            continue;
+          }
+          // The row hides the indicator for the session on screen; a stronger
+          // `action` flag must never be downgraded.
+          if (session.id === viewedSessionId || previous.get(session.id)) {
+            continue;
+          }
+
+          next ??= new Map(previous);
+          next.set(session.id, 'notice');
+        }
+      }
+
+      return next ?? previous;
+    });
+  }, []);
+
+  // Fire after the project list lands, and again once the watermark hydration
+  // resolves, so the flags appear either way round.
+  useEffect(() => {
+    applyPersistedUnread();
+  }, [applyPersistedUnread, projects]);
+
+  useEffect(() => subscribeToSessionReadState(applyPersistedUnread), [applyPersistedUnread]);
+
   const fetchProjects = useCallback(async ({ showLoadingState = true }: FetchProjectsOptions = {}) => {
     // Claimed before the request starts and read again in `finally`, so the
     // loading flag is only ever cleared by the response that actually wrote
@@ -736,6 +814,7 @@ export function useProjectsState({
         ? { ...previousSession, ...optimisticSession }
         : optimisticSession
     ));
+
   }, []);
 
   // Hydrates TaskMaster details for the given `projectId`. The project
@@ -943,7 +1022,10 @@ export function useProjectsState({
         && !isSessionProcessing(upsert.sessionId)
       ) {
         setExternalMessageUpdate((prev) => prev + 1);
-      } else {
+      } else if (upsert.session.change !== 'metadata') {
+        // A metadata-only refresh — a title change, a fork, or a bare file
+        // `touch` — carries no new conversation, so it must not raise the
+        // unread capsule. That distinction is the whole point of the flag.
         markSessionAttention(upsert.sessionId, 'notice');
       }
 
@@ -1068,6 +1150,23 @@ export function useProjectsState({
         next.set(previousViewedSessionId, 'action');
         return next;
       });
+    }
+
+    // Persist the read watermark for both the session being left and the one
+    // being entered, using each one's *current* content timestamp (read from the
+    // freshest project list, not a snapshot taken on open). Writing on leave is
+    // what covers the main path — "a message arrived while I was watching, then
+    // I switched away" — and writing on enter covers an app closed while a
+    // session was on screen. The content timestamp, never the file mtime, is
+    // what makes a bare `touch` a no-op here.
+    for (const targetSessionId of [previousViewedSessionId, viewedSessionId]) {
+      if (!targetSessionId) {
+        continue;
+      }
+      const targetSession = findSessionByIdInProjects(projectsRef.current, targetSessionId);
+      if (targetSession) {
+        markSessionSeen(targetSessionId, targetSession.contentUpdatedAt);
+      }
     }
 
     clearSessionAttention(viewedSessionId);
@@ -1266,6 +1365,9 @@ export function useProjectsState({
   const handleSessionDelete = useCallback(
     (sessionIdToDelete: string) => {
       clearSessionAttention(sessionIdToDelete);
+      // The server drops every read-state row for a deleted session; mirror that
+      // here so a reused id cannot inherit the old watermark.
+      clearSessionReadState(sessionIdToDelete);
 
       if (selectedSession?.id === sessionIdToDelete) {
         setSelectedSession(null);

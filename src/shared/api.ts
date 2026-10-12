@@ -561,6 +561,13 @@ export const api = {
     saveDraft: (scope: string, draft: { text: string; queuedMessage?: unknown }) =>
       put('/api/user/drafts', { scope, ...draft }),
     deleteDraft: (scope: string) => del('/api/user/drafts', { scope }),
+    // Read watermarks: one row per (user, session), so they survive a reload
+    // and follow the user to another device. `lastSeenAt` is a content
+    // timestamp the client read from the server, never the local clock.
+    readState: () => get('/api/user/read-state'),
+    saveReadState: (sessionId: string, lastSeenAt: string) =>
+      put('/api/user/read-state', { sessionId, lastSeenAt }),
+    deleteReadState: (sessionId: string) => del('/api/user/read-state', { sessionId }),
   },
 
   // Server-side settings: API keys, stored credentials, notifications, web push

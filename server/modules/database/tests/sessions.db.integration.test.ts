@@ -4,9 +4,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { closeConnection } from '@/modules/database/connection.js';
+import { closeConnection, getConnection } from '@/modules/database/connection.js';
 import { initializeDatabase } from '@/modules/database/init-db.js';
 import { projectsDb } from '@/modules/database/repositories/projects.db.js';
+import { sessionReadStateDb } from '@/modules/database/repositories/session-read-state.db.js';
 import { sessionsDb } from '@/modules/database/repositories/sessions.db.js';
 
 async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promise<void> {
@@ -202,5 +203,68 @@ test('pinned sessions persist and precede newer unpinned conversations', async (
 
     sessionsDb.updateSessionIsPinned('pinned-session', false);
     assert.equal(sessionsDb.getSessionById('pinned-session')?.isPinned, 0);
+  });
+});
+
+test('createSession stores the content fingerprint and it reads back normalized', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createSession(
+      'session-fingerprint',
+      'claude',
+      '/workspace/demo-project',
+      'Fingerprinted',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '2026-01-01T10:00:05.000Z',
+    );
+
+    assert.equal(
+      sessionsDb.getSessionContentUpdatedAt('session-fingerprint', 'claude'),
+      '2026-01-01T10:00:05.000Z',
+    );
+  });
+});
+
+test('a later index without a fingerprint keeps the stored one', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createSession(
+      'session-keep',
+      'claude',
+      '/workspace/demo-project',
+      'Keep',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '2026-01-01T10:00:05.000Z',
+    );
+    // A rescan that cannot read a timestamp (null) must not erase the value a
+    // previous index recorded.
+    sessionsDb.createSession('session-keep', 'claude', '/workspace/demo-project', 'Keep');
+
+    assert.equal(
+      sessionsDb.getSessionContentUpdatedAt('session-keep', 'claude'),
+      '2026-01-01T10:00:05.000Z',
+    );
+  });
+});
+
+test('deleting a session also drops its read-state rows', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createSession('session-doomed', 'claude', '/workspace/demo-project', 'Doomed');
+    // `session_read_state` cascades from users(id), so the owner must exist.
+    getConnection()
+      .prepare('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)')
+      .run(7, 'reader', 'x');
+    sessionReadStateDb.saveReadState(7, 'session-doomed', '2026-01-01T10:00:05.000Z');
+    assert.equal(sessionReadStateDb.getReadState(7).length, 1);
+
+    sessionsDb.deleteSessionById('session-doomed');
+
+    // `session_read_state` has no FK into `sessions`, so the delete is what
+    // reclaims it; otherwise a reused id could inherit a stale watermark.
+    assert.deepEqual(sessionReadStateDb.getReadState(7), []);
   });
 });

@@ -9,6 +9,7 @@ import {
   PROVIDER_MODELS_TABLE_SCHEMA_SQL,
   PUSH_SUBSCRIPTIONS_TABLE_SCHEMA_SQL,
   SESSION_DRAFTS_TABLE_SCHEMA_SQL,
+  SESSION_READ_STATE_TABLE_SCHEMA_SQL,
   SUPERSEDED_PROVIDER_SESSIONS_TABLE_SCHEMA_SQL,
   SCHEDULED_MESSAGES_TABLE_SCHEMA_SQL,
   SESSIONS_TABLE_SCHEMA_SQL,
@@ -482,6 +483,19 @@ const addSessionEffortColumn = (db: Database): void => {
   addColumnToTableIfNotExists(db, 'sessions', columnNames, 'effort', 'TEXT');
 };
 
+/**
+ * Adds the transcript content timestamp column.
+ *
+ * Pre-existing rows are left NULL: their content timestamp was never recorded,
+ * and back-filling it would require re-reading every transcript. A NULL value
+ * means "unknown", which the watcher treats as a metadata-only change so an
+ * upgrade never raises a burst of false unread flags.
+ */
+const addSessionContentUpdatedAtColumn = (db: Database): void => {
+  const columnNames = getTableInfo(db, 'sessions').map((column) => column.name);
+  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'content_updated_at', 'DATETIME');
+};
+
 const ensureProjectsForSessionPaths = (db: Database): void => {
   if (!tableExists(db, 'sessions')) {
     return;
@@ -644,6 +658,7 @@ export const runMigrations = (db: Database) => {
     addMissingMcpEnabledProviderColumns(db);
     db.exec(USER_PREFERENCES_TABLE_SCHEMA_SQL);
     db.exec(SESSION_DRAFTS_TABLE_SCHEMA_SQL);
+    db.exec(SESSION_READ_STATE_TABLE_SCHEMA_SQL);
     db.exec(SUPERSEDED_PROVIDER_SESSIONS_TABLE_SCHEMA_SQL);
     addSupersededTranscriptPathColumn(db);
 
@@ -659,6 +674,7 @@ export const runMigrations = (db: Database) => {
     addSessionIsPinnedColumn(db);
     addForkedFromSessionIdColumn(db);
     addSessionNameSourceColumn(db);
+    addSessionContentUpdatedAtColumn(db);
     ensureProjectsForSessionPaths(db);
     db.exec(SCHEDULED_MESSAGES_TABLE_SCHEMA_SQL);
 

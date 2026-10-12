@@ -1,8 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { projectsDb, sessionReadStateDb, sessionsDb } from '@/modules/database/index.js';
 import { sessionSynchronizerService } from '@/modules/providers/index.js';
+import { isSessionContentUnread } from '@/shared/index.js';
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
 import type { RealtimeClientConnection } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
@@ -13,6 +14,22 @@ type SessionSummary = {
   summary: string;
   messageCount: number;
   lastActivity: string;
+  /**
+   * Timestamp of the session's newest main-line conversation event, or null
+   * when the provider cannot supply one. Distinct from `lastActivity` (the
+   * file's `updated_at`): this only moves when the conversation does, so the
+   * client compares it against a per-user read watermark to decide unread
+   * without a bare file `touch` raising a false flag.
+   */
+  contentUpdatedAt: string | null;
+  /**
+   * Whether the session has content the requesting user has not seen.
+   *
+   * Computed on the server from the same two values the client used to compare
+   * itself, so the sidebar shows one authoritative answer instead of a per-
+   * client approximation that a reload could lose.
+   */
+  isUnread: boolean;
   isPinned: boolean;
 };
 
@@ -22,6 +39,7 @@ type SessionRepositoryRow = {
   custom_name?: string | null;
   updated_at?: string | null;
   created_at?: string | null;
+  content_updated_at?: string | null;
   isPinned?: number;
 };
 
@@ -53,7 +71,28 @@ type GetProjectsWithSessionsOptions = {
   skipSynchronization?: boolean;
   sessionsLimit?: number;
   sessionsOffset?: number;
+  /**
+   * The requesting user, whose read watermarks decide `isUnread`. Omitted by
+   * archive lookups that do not need the flag, and by callers with no request
+   * context — those sessions simply read as not-unread.
+   */
+  userId?: number;
 };
+
+/** One user's watermarks, keyed by session id, for the whole-projection compare. */
+type ReadWatermarks = Map<string, string | null>;
+
+function loadReadWatermarks(userId: number | undefined): ReadWatermarks {
+  if (userId === undefined || !Number.isFinite(userId)) {
+    return new Map();
+  }
+
+  const watermarks: ReadWatermarks = new Map();
+  for (const record of sessionReadStateDb.getReadState(userId)) {
+    watermarks.set(record.sessionId, record.lastSeenAt);
+  }
+  return watermarks;
+}
 
 type SessionPaginationOptions = {
   limit?: number;
@@ -119,22 +158,25 @@ function normalizeSessionPagination(options: SessionPaginationOptions = {}): { l
   };
 }
 
-function mapSessionRowToSummary(row: SessionRepositoryRow): SessionSummary {
+function mapSessionRowToSummary(row: SessionRepositoryRow, watermarks: ReadWatermarks): SessionSummary {
+  const contentUpdatedAt = row.content_updated_at ?? null;
   return {
     id: row.session_id,
     provider: row.provider,
     summary: row.custom_name || '',
     messageCount: 0,
     lastActivity: row.updated_at ?? row.created_at ?? new Date().toISOString(),
+    contentUpdatedAt,
+    isUnread: isSessionContentUnread(contentUpdatedAt, watermarks.get(row.session_id) ?? null),
     isPinned: Boolean(row.isPinned),
   };
 }
 
-function readProjectSessionsIncludingArchived(projectPath: string): ProjectSessionsPageResult {
+function readProjectSessionsIncludingArchived(projectPath: string, watermarks: ReadWatermarks): ProjectSessionsPageResult {
   const rows = sessionsDb.getSessionsByProjectPathIncludingArchived(projectPath) as SessionRepositoryRow[];
 
   return {
-    sessions: rows.map(mapSessionRowToSummary),
+    sessions: rows.map((row) => mapSessionRowToSummary(row, watermarks)),
     total: rows.length,
     hasMore: false,
   };
@@ -145,6 +187,7 @@ function readProjectSessionsIncludingArchived(projectPath: string): ProjectSessi
  */
 function readProjectSessionsPageByPath(
   projectPath: string,
+  watermarks: ReadWatermarks,
   options: SessionPaginationOptions = {},
 ): ProjectSessionsPageResult {
   const pagination = normalizeSessionPagination(options);
@@ -156,7 +199,7 @@ function readProjectSessionsPageByPath(
   const total = sessionsDb.countSessionsByProjectPath(projectPath);
 
   return {
-    sessions: rows.map(mapSessionRowToSummary),
+    sessions: rows.map((row) => mapSessionRowToSummary(row, watermarks)),
     total,
     hasMore: pagination.offset + rows.length < total,
   };
@@ -187,6 +230,8 @@ export async function getProjectsWithSessions(
     await sessionSynchronizerService.synchronizeSessions();
   }
 
+  const watermarks = loadReadWatermarks(options.userId);
+
   const projectRows = projectsDb.getProjectPaths() as Array<{
     project_id: string;
     project_path: string;
@@ -215,7 +260,7 @@ export async function getProjectsWithSessions(
         ? row.custom_project_name
         : await generateDisplayName(path.basename(projectPath) || projectPath, projectPath);
 
-    const sessionsPage = readProjectSessionsPageByPath(projectPath, {
+    const sessionsPage = readProjectSessionsPageByPath(projectPath, watermarks, {
       limit: options.sessionsLimit,
       offset: options.sessionsOffset,
     });
@@ -249,11 +294,13 @@ export async function getProjectsWithSessions(
  * conversation history in the archive view regardless of each session's flag.
  */
 export async function getArchivedProjectsWithSessions(
-  options: Pick<GetProjectsWithSessionsOptions, 'skipSynchronization'> = {},
+  options: Pick<GetProjectsWithSessionsOptions, 'skipSynchronization' | 'userId'> = {},
 ): Promise<ArchivedProjectListItem[]> {
   if (!options.skipSynchronization) {
     await sessionSynchronizerService.synchronizeSessions();
   }
+
+  const watermarks = loadReadWatermarks(options.userId);
 
   const projectRows = projectsDb.getArchivedProjectPaths() as Array<{
     project_id: string;
@@ -270,7 +317,7 @@ export async function getArchivedProjectsWithSessions(
         ? row.custom_project_name
         : await generateDisplayName(path.basename(row.project_path) || row.project_path, row.project_path);
 
-    const sessionsPage = readProjectSessionsIncludingArchived(row.project_path);
+    const sessionsPage = readProjectSessionsIncludingArchived(row.project_path, watermarks);
 
     archivedProjects.push({
       projectId: row.project_id,
@@ -296,6 +343,7 @@ export async function getArchivedProjectsWithSessions(
 export async function getProjectSessionsPage(
   projectId: string,
   options: SessionPaginationOptions = {},
+  userId?: number,
 ): Promise<ProjectSessionsPageApiView> {
   const projectRow = projectsDb.getProjectById(projectId);
   if (!projectRow) {
@@ -305,7 +353,7 @@ export async function getProjectSessionsPage(
     });
   }
 
-  const sessionsPage = readProjectSessionsPageByPath(projectRow.project_path, options);
+  const sessionsPage = readProjectSessionsPageByPath(projectRow.project_path, loadReadWatermarks(userId), options);
   return {
     projectId: projectRow.project_id,
     sessions: sessionsPage.sessions,

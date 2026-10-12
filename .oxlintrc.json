@@ -74,7 +74,8 @@
           "server/shared/codex-config.ts",
           "server/shared/image-attachments.ts",
           "server/shared/message-unification.ts",
-          "server/shared/model-descriptions.ts"
+          "server/shared/model-descriptions.ts",
+          "server/shared/session-unread.ts"
         ],
         "mode": "file"
       },
@@ -111,6 +112,7 @@
           "src/shared/tmTheme.ts",
           "src/shared/themeReset.ts",
           "src/shared/chatDrafts.ts",
+          "src/shared/sessionReadState.ts",
           "src/shared/quickReplies.ts",
           "src/shared/syntaxHighlighter.ts",
           "src/shared/syntaxTheme.ts",

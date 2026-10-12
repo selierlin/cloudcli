@@ -13,6 +13,12 @@ type DraftRecord = {
   updatedAt: string;
 };
 
+/** One session's read watermark for the current user. */
+type ReadStateRecord = {
+  sessionId: string;
+  lastSeenAt: string | null;
+};
+
 type UserDependencies = {
   users: {
     getGitConfig(userId: number): GitConfig | undefined;
@@ -28,6 +34,11 @@ type UserDependencies = {
     getDrafts(userId: number): DraftRecord[];
     saveDraft(userId: number, scope: string, draft: { text: string; queuedMessage: unknown | null }): void;
     deleteDraft(userId: number, scope: string): void;
+  };
+  readState: {
+    getReadState(userId: number): ReadStateRecord[];
+    saveReadState(userId: number, sessionId: string, lastSeenAt: string | null): void;
+    deleteReadState(userId: number, sessionId: string): void;
   };
   readSystemGitConfig(): Promise<GitConfig>;
   applyGlobalGitConfig(gitName: string, gitEmail: string): Promise<void>;
@@ -56,6 +67,23 @@ const readDraftScope = (value: unknown): string => {
     });
   }
   return scope;
+};
+
+/**
+ * Reads and validates the session id a read-state write names.
+ *
+ * Session ids are UUIDs, so anything longer than the shared key bound is a
+ * client bug or an attempt to use the table as general storage.
+ */
+const readSessionId = (value: unknown): string => {
+  const sessionId = typeof value === 'string' ? value.trim() : '';
+  if (!sessionId || sessionId.length > MAX_KEY_LENGTH) {
+    throw new AppError('A session id of 1-200 characters is required', {
+      code: 'INVALID_READ_STATE_SESSION',
+      statusCode: 400,
+    });
+  }
+  return sessionId;
 };
 
 const readPreferenceUpdates = (body: unknown): Record<string, unknown> => {
@@ -184,6 +212,31 @@ export function createUserService(dependencies: UserDependencies) {
 
     deleteDraft(userId: number, scopeInput: unknown) {
       dependencies.drafts.deleteDraft(userId, readDraftScope(scopeInput));
+      return { success: true };
+    },
+
+    /** Every read watermark at once; the client compares them to the project list. */
+    getReadState(userId: number) {
+      return { success: true, readState: dependencies.readState.getReadState(userId) };
+    },
+
+    /**
+     * Records that the user has seen a session up to `lastSeenAt`, or clears the
+     * watermark when no timestamp is given.
+     *
+     * The timestamp is the session's content timestamp as of the moment the
+     * user left it — a server-derived snapshot, never the client clock — so the
+     * later comparison is free of clock skew.
+     */
+    saveReadState(userId: number, sessionIdInput: unknown, lastSeenAtInput: unknown) {
+      const sessionId = readSessionId(sessionIdInput);
+      const lastSeenAt = typeof lastSeenAtInput === 'string' ? lastSeenAtInput : null;
+      dependencies.readState.saveReadState(userId, sessionId, lastSeenAt);
+      return { success: true };
+    },
+
+    deleteReadState(userId: number, sessionIdInput: unknown) {
+      dependencies.readState.deleteReadState(userId, readSessionId(sessionIdInput));
       return { success: true };
     },
   };

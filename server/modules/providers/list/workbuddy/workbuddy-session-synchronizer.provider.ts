@@ -3,15 +3,17 @@ import path from 'node:path';
 import { createInterface } from 'node:readline';
 
 import { sessionsDb } from '@/modules/database/index.js';
-import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
+import type { IProviderSessionSynchronizer, SessionFileSyncResult } from '@/shared/interfaces.js';
 import type { AnyRecord } from '@/shared/types.js';
 import {
   extractFirstValidJsonlData,
   findFilesRecursivelyCreatedAfter,
+  normalizeContentTimestamp,
   normalizeSessionName,
   readFileTimestamps,
 } from '@/shared/utils.js';
 
+import { readEventTimestamp } from './workbuddy-sessions.provider.js';
 import { getWorkbuddySessionRoots } from './workbuddy-storage.provider.js';
 
 const FALLBACK_SESSION_NAME = 'Untitled WorkBuddy Session';
@@ -88,6 +90,8 @@ export class WorkbuddySessionSynchronizer implements IProviderSessionSynchronize
           timestamps.createdAt,
           timestamps.updatedAt,
           filePath,
+          'provider_title',
+          await this.readContentUpdatedAt(filePath),
         );
         processed += 1;
       }
@@ -101,13 +105,24 @@ export class WorkbuddySessionSynchronizer implements IProviderSessionSynchronize
    * Indexes one WorkBuddy transcript triggered by the filesystem watcher.
    */
   async synchronizeFile(filePath: string): Promise<string | null> {
+    return (await this.synchronizeFileDetailed(filePath)).sessionId;
+  }
+
+  /**
+   * Indexes one transcript and reports whether its own conversation advanced.
+   *
+   * The newest `message` timestamp is the content version; comparing it against
+   * the stored value before the upsert is what tells a real new message from a
+   * bare `touch`, which only moves the file's mtime and must not raise unread.
+   */
+  async synchronizeFileDetailed(filePath: string): Promise<SessionFileSyncResult> {
     if (!filePath.endsWith('.jsonl') || this.isSubagentTranscript(filePath)) {
-      return null;
+      return { sessionId: null, contentChanged: false };
     }
 
     const sessionId = path.basename(filePath, '.jsonl');
     if (sessionsDb.isProviderSessionSuperseded(sessionId, this.provider)) {
-      return null;
+      return { sessionId: null, contentChanged: false };
     }
     const existing = sessionsDb.getSessionByProviderSessionId(sessionId)
       ?? sessionsDb.getSessionById(sessionId);
@@ -116,15 +131,18 @@ export class WorkbuddySessionSynchronizer implements IProviderSessionSynchronize
       !existing?.custom_name || existing.custom_name === FALLBACK_SESSION_NAME,
     );
     if (!parsed) {
-      return null;
+      return { sessionId: null, contentChanged: false };
     }
     // Archive is the user's explicit "hide" choice; a watcher-triggered sync
     // must not resurrect an archived session while its transcript is on disk.
     if (existing?.isArchived) {
-      return null;
+      return { sessionId: null, contentChanged: false };
     }
+
     const timestamps = await readFileTimestamps(filePath);
-    return sessionsDb.createSession(
+    const previousContentAt = sessionsDb.getSessionContentUpdatedAt(sessionId, this.provider);
+    const contentUpdatedAt = await this.readContentUpdatedAt(filePath);
+    const indexedId = sessionsDb.createSession(
       parsed.sessionId,
       this.provider,
       parsed.projectPath,
@@ -132,7 +150,69 @@ export class WorkbuddySessionSynchronizer implements IProviderSessionSynchronize
       timestamps.createdAt,
       timestamps.updatedAt,
       filePath,
+      'provider_title',
+      contentUpdatedAt,
     );
+
+    const previousMs = previousContentAt ? Date.parse(previousContentAt) : Number.NaN;
+    const nextMs = contentUpdatedAt ? Date.parse(contentUpdatedAt) : Number.NaN;
+    const contentChanged = !Number.isNaN(previousMs) && !Number.isNaN(nextMs) && previousMs !== nextMs;
+
+    return { sessionId: indexedId, contentChanged };
+  }
+
+  /**
+   * Newest main-line conversation timestamp in a transcript, or null when it has
+   * no user/assistant message yet.
+   *
+   * Each `message` line carries its own `timestamp`; the newest one is the
+   * session's content version. Reading it — rather than the file mtime — is what
+   * keeps a bare `touch` from being read as a new message.
+   */
+  private async readContentUpdatedAt(filePath: string): Promise<string | null> {
+    let newest: string | null = null;
+    let newestMs: number | null = null;
+    const fileStream = createReadStream(filePath, { encoding: 'utf8' });
+    const lineReader = createInterface({ input: fileStream, crlfDelay: Infinity });
+    try {
+      for await (const rawLine of lineReader) {
+        const line = rawLine.trim();
+        if (!line) {
+          continue;
+        }
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        const data = parsed as AnyRecord;
+        if (data?.type !== 'message' || (data.role !== 'user' && data.role !== 'assistant')) {
+          continue;
+        }
+        const stamp = normalizeContentTimestamp(readEventTimestamp(data));
+        if (!stamp) {
+          continue;
+        }
+        const ms = Date.parse(stamp);
+        if (Number.isNaN(ms)) {
+          continue;
+        }
+        if (newestMs === null || ms > newestMs) {
+          newestMs = ms;
+          newest = stamp;
+        }
+      }
+    } catch {
+      // A concurrent writer can briefly make a transcript unreadable; the row
+      // keeps its previous content timestamp.
+      return null;
+    } finally {
+      lineReader.close();
+      fileStream.destroy();
+    }
+
+    return newest;
   }
 
   /**

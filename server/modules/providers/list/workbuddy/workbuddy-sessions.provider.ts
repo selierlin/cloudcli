@@ -224,7 +224,7 @@ function readNonEmptyString(...values: unknown[]): string | undefined {
  * different timestamp for the same row, which breaks the frontend's persisted
  * row comparison during scroll-up pagination.
  */
-function readEventTimestamp(event: AnyRecord): string | undefined {
+export function readEventTimestamp(event: AnyRecord): string | undefined {
   if (typeof event.timestamp === 'string' && event.timestamp.trim()) {
     return event.timestamp;
   }

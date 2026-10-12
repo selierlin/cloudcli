@@ -19,6 +19,13 @@ const PENDING_CLONE_REQUEST_TTL_MS = 60_000;
 
 const router = express.Router();
 
+type AuthenticatedRequest = express.Request & { user?: { id?: number | string } };
+
+/** The requesting user, whose read watermarks decide each session's `isUnread`. */
+function readUserId(request: express.Request): number {
+  return Number((request as AuthenticatedRequest).user?.id);
+}
+
 function readQueryStringValue(value: unknown): string {
   if (typeof value === 'string') {
     return value;
@@ -70,6 +77,7 @@ router.get(
       skipSynchronization,
       sessionsLimit,
       sessionsOffset,
+      userId: readUserId(req),
     });
     res.json(projects);
   }),
@@ -77,8 +85,8 @@ router.get(
 
 router.get(
   '/archived',
-  asyncHandler(async (_req, res) => {
-    const projects = await getArchivedProjectsWithSessions();
+  asyncHandler(async (req, res) => {
+    const projects = await getArchivedProjectsWithSessions({ userId: readUserId(req) });
     res.json(createApiSuccessResponse({ projects }));
   }),
 );
@@ -89,7 +97,7 @@ router.get(
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
     const limit = parseNonNegativeIntQuery(req.query.limit, 'limit', 20);
     const offset = parseNonNegativeIntQuery(req.query.offset, 'offset', 0);
-    const sessionsPage = await getProjectSessionsPage(projectId, { limit, offset });
+    const sessionsPage = await getProjectSessionsPage(projectId, { limit, offset }, readUserId(req));
     res.json(sessionsPage);
   }),
 );

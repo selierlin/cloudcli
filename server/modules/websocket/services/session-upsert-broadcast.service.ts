@@ -1,9 +1,10 @@
 import path from 'node:path';
 
-import { projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { projectsDb, sessionReadStateDb, sessionsDb, userDb } from '@/modules/database/index.js';
 import { generateDisplayName } from '@/modules/projects/index.js';
+import { isSessionContentUnread } from '@/shared/index.js';
 import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
-import type { SessionUpsertedEvent } from '@/shared/types.js';
+import type { SessionUpsertChange, SessionUpsertedEvent } from '@/shared/types.js';
 
 /**
  * The single producer of the `session_upserted` delta.
@@ -17,9 +18,14 @@ import type { SessionUpsertedEvent } from '@/shared/types.js';
  * That field is how the client notices a row it is showing has been merged
  * into its canonical app-session row, so a merge announced by any other path
  * left a stale duplicate in the sidebar. One builder, one shape.
+ *
+ * Every caller states, per session, whether it is announcing real content or
+ * only a metadata refresh — the builder never guesses. The flag is what lets
+ * the client keep a bare `touch` from lighting the sidebar's unread capsule.
  */
 async function buildSessionUpsertedEvent(
   sessionIdOrProviderSessionId: string,
+  change: SessionUpsertChange,
 ): Promise<SessionUpsertedEvent | null> {
   // Resolving by provider id first covers the watcher, which only ever sees
   // the id written in the transcript. For a row where the two ids are equal
@@ -37,6 +43,14 @@ async function buildSessionUpsertedEvent(
     ? project.custom_project_name
     : await generateDisplayName(path.basename(projectPath ?? '') || (projectPath ?? ''), projectPath);
 
+  // The delta is user-agnostic and this deployment is single-user, so the
+  // unread answer is computed for the sole user — the same rule the project
+  // list applies, so a row upserted in place never disagrees with a refetch.
+  const soleUserId = userDb.getFirstUser()?.id;
+  const lastSeenAt = soleUserId === undefined
+    ? null
+    : sessionReadStateDb.getReadStateForSession(soleUserId, row.session_id);
+
   return {
     kind: 'session_upserted',
     sessionId: row.session_id,
@@ -49,6 +63,9 @@ async function buildSessionUpsertedEvent(
       summary: row.custom_name || '',
       messageCount: 0,
       lastActivity: row.updated_at ?? row.created_at ?? new Date().toISOString(),
+      contentUpdatedAt: row.content_updated_at ?? null,
+      isUnread: isSessionContentUnread(row.content_updated_at ?? null, lastSeenAt),
+      change,
     },
     project: project
       ? {
@@ -77,9 +94,34 @@ function sendToConnectedClients(payloads: string[]): void {
   });
 }
 
+/**
+ * Stamps the centralized fallback content timestamp for a genuine content
+ * event whose provider supplied none.
+ *
+ * A provider that cannot tell its content timestamp leaves
+ * `sessions.content_updated_at` null, and a null version is never unread. Both
+ * content producers funnel their delta through this module, so the fallback —
+ * "a content event happened now, so the version is now" — belongs here rather
+ * than in every provider. Only `content` qualifies: a `metadata` refresh (a
+ * title change, a fork, a bare `touch`) must not move the version. The
+ * repository fills the column only when it is null, so a precise value from a
+ * provider that has one wins.
+ */
+function stampFallbackContentTimestamp(entry: { sessionId: string; change: SessionUpsertChange }): void {
+  if (entry.change !== 'content') {
+    return;
+  }
+
+  sessionsDb.backfillContentUpdatedAt(entry.sessionId, new Date().toISOString());
+}
+
 /** Announces one session. Used by the chat run registry when a run reports its provider-native id. */
-export async function broadcastSessionUpserted(sessionIdOrProviderSessionId: string): Promise<void> {
-  const event = await buildSessionUpsertedEvent(sessionIdOrProviderSessionId);
+export async function broadcastSessionUpserted(
+  sessionIdOrProviderSessionId: string,
+  change: SessionUpsertChange,
+): Promise<void> {
+  stampFallbackContentTimestamp({ sessionId: sessionIdOrProviderSessionId, change });
+  const event = await buildSessionUpsertedEvent(sessionIdOrProviderSessionId, change);
   if (event) {
     sendToConnectedClients([JSON.stringify(event)]);
   }
@@ -89,13 +131,17 @@ export async function broadcastSessionUpserted(sessionIdOrProviderSessionId: str
  * Announces a batch of sessions. Used by the providers module's sessions
  * watcher, whose debounced flush can carry dozens of ids at once — the client
  * set is walked once for the whole batch rather than once per session.
+ *
+ * Each entry carries its own change classification: one flush can mix a
+ * genuinely appended transcript with a file that was only touched.
  */
 export async function broadcastSessionUpsertedBatch(
-  sessionIds: Iterable<string>,
+  entries: Iterable<{ sessionId: string; change: SessionUpsertChange }>,
 ): Promise<void> {
   const payloads: string[] = [];
-  for (const sessionId of sessionIds) {
-    const event = await buildSessionUpsertedEvent(sessionId);
+  for (const { sessionId, change } of entries) {
+    stampFallbackContentTimestamp({ sessionId, change });
+    const event = await buildSessionUpsertedEvent(sessionId, change);
     if (event) {
       payloads.push(JSON.stringify(event));
     }

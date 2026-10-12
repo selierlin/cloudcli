@@ -10,7 +10,7 @@ import {
   normalizeSessionName,
   readFileTimestamps,
 } from '@/shared/utils.js';
-import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
+import type { IProviderSessionSynchronizer, SessionFileSyncResult } from '@/shared/interfaces.js';
 import type { SessionNameSource } from '@/shared/types.js';
 
 type ParsedSession = {
@@ -18,6 +18,12 @@ type ParsedSession = {
   projectPath: string;
   sessionName?: string;
   sessionNameSource?: SessionNameSource;
+  /**
+   * Timestamp of the newest main-line conversation event, or null when the
+   * transcript has none yet. Derived from the transcript content, unlike the
+   * file mtime `readFileTimestamps` reports.
+   */
+  contentUpdatedAt?: string | null;
 };
 
 type ClaudeTitleMetadata = {
@@ -96,7 +102,8 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
         timestamps.createdAt,
         timestamps.updatedAt,
         filePath,
-        parsed.sessionNameSource ?? 'provider_title'
+        parsed.sessionNameSource ?? 'provider_title',
+        parsed.contentUpdatedAt ?? null
       );
       processed += 1;
     }
@@ -108,21 +115,37 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
    * Parses and upserts one Claude session JSONL file.
    */
   async synchronizeFile(filePath: string): Promise<string | null> {
+    return (await this.synchronizeFileDetailed(filePath)).sessionId;
+  }
+
+  /**
+   * Parses and upserts one Claude session JSONL file, and reports whether its
+   * content advanced since it was last indexed.
+   *
+   * The input to the comparison is `content_updated_at`, the newest main-line
+   * conversation timestamp read from the transcript itself — never the file
+   * mtime, which advances on a bare `touch` and would otherwise raise a false
+   * unread flag. With no stored baseline there is nothing to compare against,
+   * so the change is reported as metadata-only (the conservative choice: an
+   * upgrade never floods the sidebar with unread flags for old sessions).
+   */
+  async synchronizeFileDetailed(filePath: string): Promise<SessionFileSyncResult> {
     if (!filePath.endsWith('.jsonl')) {
-      return null;
+      return { sessionId: null, contentChanged: false };
     }
     if (this.isSubagentTranscript(filePath)) {
-      return null;
+      return { sessionId: null, contentChanged: false };
     }
 
     const nameMap = await buildLookupMap(path.join(this.claudeHome, 'history.jsonl'), 'sessionId', 'display');
     const parsed = await this.processSessionFile(filePath, nameMap);
     if (!parsed) {
-      return null;
+      return { sessionId: null, contentChanged: false };
     }
 
+    const previousContentAt = sessionsDb.getSessionContentUpdatedAt(parsed.sessionId, this.provider);
     const timestamps = await readFileTimestamps(filePath);
-    return sessionsDb.createSession(
+    const sessionId = sessionsDb.createSession(
       parsed.sessionId,
       this.provider,
       parsed.projectPath,
@@ -130,8 +153,16 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
       timestamps.createdAt,
       timestamps.updatedAt,
       filePath,
-      parsed.sessionNameSource ?? 'provider_title'
+      parsed.sessionNameSource ?? 'provider_title',
+      parsed.contentUpdatedAt ?? null
     );
+
+    const previousMs = previousContentAt ? Date.parse(previousContentAt) : Number.NaN;
+    const nextMs = parsed.contentUpdatedAt ? Date.parse(parsed.contentUpdatedAt) : Number.NaN;
+    const contentChanged =
+      !Number.isNaN(previousMs) && !Number.isNaN(nextMs) && previousMs !== nextMs;
+
+    return { sessionId, contentChanged };
   }
 
   /**
@@ -194,6 +225,10 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
       return null;
     }
 
+    // Read the content timestamp once here, so every return path below (the
+    // preserved-name shortcut and the title-resolution tail) carries it.
+    const contentUpdatedAt = await this.extractContentUpdatedAt(filePath, parsed.sessionId);
+
     // A transcript a session was edited off is left on disk on purpose, but it
     // is nobody's conversation any more. Re-indexing it would add a sidebar
     // entry for the version the user edited away from — and for a session that
@@ -218,6 +253,7 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
         ...parsed,
         sessionName: normalizeSessionName(existingSessionName, 'Untitled Claude Session'),
         sessionNameSource: existingSource,
+        contentUpdatedAt,
       };
     }
 
@@ -245,6 +281,7 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
       ...parsed,
       sessionName: normalizeSessionName(sessionName, 'Untitled Claude Session'),
       sessionNameSource,
+      contentUpdatedAt,
     };
   }
 
@@ -341,6 +378,24 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
     } catch {
       // Ignore missing/unreadable files so sync can continue.
       return undefined;
+    }
+  }
+
+  /**
+   * Reads the newest main-line conversation timestamp out of a transcript, or
+   * null when it has no user/assistant turn yet.
+   *
+   * This is the content-level fingerprint that tells a real new message from a
+   * bare file touch. Subagent sidechain lines are skipped so a spawned agent's
+   * activity does not move the session's own watermark.
+   */
+  private async extractContentUpdatedAt(filePath: string, sessionId: string): Promise<string | null> {
+    try {
+      const content = await readFile(filePath, 'utf8');
+      return findContentUpdatedAt(content.split(/\r?\n/), sessionId);
+    } catch {
+      // Ignore missing/unreadable files so sync can continue.
+      return null;
     }
   }
 
@@ -493,6 +548,59 @@ function expandLocalCommandTitle(text: string): string | null {
   const name = /<command-name>([\s\S]*?)<\/command-name>/.exec(text)?.[1]?.trim()
     ?? /<command-message>([\s\S]*?)<\/command-message>/.exec(text)?.[1]?.trim();
   return name ? name : null;
+}
+
+/**
+ * Returns the newest `timestamp` among a transcript's main-line user/assistant
+ * lines for `sessionId`, or null when there is none.
+ *
+ * Pure helper for `ClaudeSessionSynchronizer#extractContentUpdatedAt`; kept
+ * side-effect free so the content fingerprint can be unit tested without file
+ * I/O. Sidechain lines (subagents) and any line belonging to another session
+ * are ignored, so the value only moves when the session's own conversation does.
+ */
+function findContentUpdatedAt(lines: string[], sessionId: string): string | null {
+  let newestMs: number | null = null;
+  let newestValue: string | null = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      continue;
+    }
+
+    const data = parsed as Record<string, unknown>;
+    if (data.sessionId !== sessionId || data.isSidechain === true) {
+      continue;
+    }
+    if (data.type !== 'user' && data.type !== 'assistant') {
+      continue;
+    }
+
+    const timestamp = typeof data.timestamp === 'string' ? data.timestamp : undefined;
+    if (!timestamp) {
+      continue;
+    }
+
+    const ms = Date.parse(timestamp);
+    if (Number.isNaN(ms)) {
+      continue;
+    }
+
+    if (newestMs === null || ms > newestMs) {
+      newestMs = ms;
+      newestValue = timestamp;
+    }
+  }
+
+  return newestValue;
 }
 
 function findFirstUserMessageText(lines: string[], sessionId: string): string | undefined {

@@ -1,6 +1,6 @@
 import spawn from 'cross-spawn';
 
-import { sessionDraftsDb, userDb, userPreferencesDb } from '@/modules/database/index.js';
+import { sessionDraftsDb, sessionReadStateDb, userDb, userPreferencesDb } from '@/modules/database/index.js';
 
 import { createUserRouter } from './user.routes.js';
 import { createUserService } from './user.service.js';
@@ -53,6 +53,12 @@ const userService = createUserService({
     getDrafts: (userId) => sessionDraftsDb.getDrafts(userId),
     saveDraft: (userId, scope, draft) => sessionDraftsDb.saveDraft(userId, scope, draft),
     deleteDraft: (userId, scope) => sessionDraftsDb.deleteDraft(userId, scope),
+  },
+  readState: {
+    getReadState: (userId) => sessionReadStateDb.getReadState(userId),
+    saveReadState: (userId, sessionId, lastSeenAt) =>
+      sessionReadStateDb.saveReadState(userId, sessionId, lastSeenAt),
+    deleteReadState: (userId, sessionId) => sessionReadStateDb.deleteReadState(userId, sessionId),
   },
   readSystemGitConfig,
   applyGlobalGitConfig: async (gitName, gitEmail) => {

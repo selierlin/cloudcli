@@ -149,6 +149,13 @@ CREATE TABLE IF NOT EXISTS sessions (
     isArchived BOOLEAN DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    -- Timestamp of the newest main-line conversation event in the transcript,
+    -- derived from the content itself rather than the file's mtime. NULL when
+    -- the provider cannot supply one. Two consumers: the sessions watcher uses
+    -- an unchanged value to tell a metadata-only touch from a real new message
+    -- (so a bare file touch does not raise a false unread flag), and the read-state
+    -- watermark compares against it to decide whether a session is unread.
+    content_updated_at DATETIME,
     PRIMARY KEY (session_id),
     FOREIGN KEY (project_path) REFERENCES projects(project_path)
     ON DELETE SET NULL
@@ -267,6 +274,28 @@ CREATE TABLE IF NOT EXISTS session_drafts (
     queued_message TEXT,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, draft_scope),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`;
+
+/**
+ * Per-user, per-session read watermark, so an unread indicator survives a
+ * reload and follows the user to another device.
+ *
+ * `last_seen_at` is the session's `content_updated_at` as of the moment the
+ * user left it — a content-level snapshot, not the local clock — so comparing
+ * it with the current value is what tells "a new message arrived" from "the
+ * file was touched". One row per (user, session) keeps writes conflict-free and
+ * the table bounded, mirroring `session_drafts`; a session delete must clear
+ * its rows explicitly (there is no foreign key into `sessions`).
+ */
+export const SESSION_READ_STATE_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS session_read_state (
+    user_id INTEGER NOT NULL,
+    session_id TEXT NOT NULL,
+    last_seen_at DATETIME,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, session_id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 `;
