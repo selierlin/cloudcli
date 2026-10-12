@@ -588,6 +588,13 @@ function summarizeOpenclawTokenUsage(activeEntries: AnyRecord[]): unknown {
     const cacheRead = readNumber(usage.cacheRead);
     const cacheWrite = readNumber(usage.cacheWrite);
     const totalTokens = readNumber(usage.totalTokens);
+    // Interrupt/error turns persist an all-zero usage block rather than none at
+    // all; skip them so a counter a live turn just set is not zeroed. Mirrors
+    // `readOpenclawTokenUsage`, which reads the same store for the token-usage
+    // endpoint — without this the two readers disagree on the newest turn.
+    if (input === 0 && output === 0 && cacheRead === 0 && cacheWrite === 0) {
+      continue;
+    }
     const cacheTokens = cacheRead + cacheWrite;
     return {
       used: input + output,
@@ -713,17 +720,22 @@ export class OpenclawSessionsProvider implements IProviderSessions {
   ): Promise<FetchHistoryResult> {
     const { limit = null, offset = 0 } = options;
     const providerSessionId = options.providerSessionId ?? sessionId;
-    const location = resolveOpenclawSessionLocation(providerSessionId);
-    if (!location) {
-      return EMPTY_HISTORY;
-    }
-
-    const db = openOpenclawAgentDatabase(location.agentId);
-    if (!db) {
-      return EMPTY_HISTORY;
-    }
+    // Resolution and opening the store live inside the try as well: a store
+    // whose tables are missing, is locked, or is corrupt must report an empty
+    // history like every other failure here, not surface as a route 500.
+    let db: Database.Database | null = null;
 
     try {
+      const location = resolveOpenclawSessionLocation(providerSessionId);
+      if (!location) {
+        return EMPTY_HISTORY;
+      }
+
+      db = openOpenclawAgentDatabase(location.agentId);
+      if (!db) {
+        return EMPTY_HISTORY;
+      }
+
       const activeEntries = this.readActiveEntries(db, location.sessionId);
       const messages = this.normalizeActiveEntries(activeEntries, sessionId);
       const tokenUsage = summarizeOpenclawTokenUsage(activeEntries);
@@ -746,7 +758,7 @@ export class OpenclawSessionsProvider implements IProviderSessions {
       console.warn(`[OpenclawProvider] Failed to load session ${sessionId}:`, message);
       return EMPTY_HISTORY;
     } finally {
-      db.close();
+      db?.close();
     }
   }
 

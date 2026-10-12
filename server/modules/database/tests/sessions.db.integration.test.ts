@@ -251,6 +251,28 @@ test('a later index without a fingerprint keeps the stored one', async () => {
   });
 });
 
+test('content timestamp lookup prefers the newest row when a provider session id is duplicated', async () => {
+  await withIsolatedDatabase(() => {
+    const db = getConnection();
+    projectsDb.createProjectPath('/workspace/demo-project');
+    // Two rows can briefly share `(provider_session_id, provider)` while a
+    // watcher-indexed row is merged into an app row. Without a tie-break,
+    // `LIMIT 1` may return the stale NULL row, which the synchronizer reads as
+    // "no new content" and silently drops the unread warning.
+    const insert = db.prepare(
+      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, name_source, project_path, isArchived, created_at, updated_at, content_updated_at)
+       VALUES (?, 'claude', ?, ?, 'provider_title', '/workspace/demo-project', 0, ?, ?, ?)`,
+    );
+    insert.run('stale-dup', 'session-dup', 'Stale', '2026-01-01T09:00:00.000Z', '2026-01-01T09:00:00.000Z', null);
+    insert.run('fresh-dup', 'session-dup', 'Fresh', '2026-01-01T10:00:00.000Z', '2026-01-01T10:00:00.000Z', '2026-01-01T10:00:05.000Z');
+
+    assert.equal(
+      sessionsDb.getSessionContentUpdatedAt('session-dup', 'claude'),
+      '2026-01-01T10:00:05.000Z',
+    );
+  });
+});
+
 test('deleting a session also drops its read-state rows', async () => {
   await withIsolatedDatabase(() => {
     sessionsDb.createSession('session-doomed', 'claude', '/workspace/demo-project', 'Doomed');

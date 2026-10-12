@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { afterEach } from 'node:test';
 import zlib from 'node:zlib';
+
+import Database from 'better-sqlite3';
 
 import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
 import { setOpenclawHomeDirForTests } from '@/modules/providers/list/openclaw/openclaw-models.provider.js';
@@ -368,6 +370,64 @@ test('fetchHistory is empty when the agent store does not exist', async () => {
     const result = await new OpenclawSessionsProvider().fetchHistory('app-1', { providerSessionId: 'agent:main:main' });
     assert.equal(result.total, 0);
     assert.deepEqual(result.messages, []);
+  });
+});
+
+test('fetchHistory reports empty instead of throwing when the agent store is unreadable', async () => {
+  await withIsolatedEnvironment(async ({ homeDir, cwd }) => {
+    const sessionKey = 'agent:main:main';
+    // A store that exists but lacks the tables the reader expects: opening and
+    // querying it fails, and the route contract is an empty history, not a 500.
+    const dbPath = path.join(homeDir, 'agents', 'main', 'agent', 'openclaw-agent.sqlite');
+    await mkdir(path.dirname(dbPath), { recursive: true });
+    const db = new Database(dbPath);
+    db.exec('CREATE TABLE unrelated (x INTEGER)');
+    db.close();
+
+    sessionsDb.createAppSession('app-1', 'openclaw', cwd, 'Broken store');
+    sessionsDb.assignProviderSessionId('app-1', sessionKey);
+
+    const result = await new OpenclawSessionsProvider().fetchHistory('app-1', { providerSessionId: sessionKey });
+    assert.equal(result.total, 0);
+    assert.deepEqual(result.messages, []);
+  });
+});
+
+test('fetchHistory keeps the last real token snapshot when the newest turn is all zero', async () => {
+  await withIsolatedEnvironment(async ({ homeDir, cwd }) => {
+    const sessionKey = 'agent:main:main';
+    await seedOpenclawSession(homeDir, {
+      sessionKey,
+      windowId: 'window-1',
+      events: [
+        { json: openclawHeaderEntry(cwd) },
+        { json: user('u1', 'First') },
+        { json: assistant('a1', [{ type: 'text', text: 'First answer' }], { usage: { input: 100, output: 20, cacheRead: 10, cacheWrite: 5, totalTokens: 200 } }) },
+        { json: user('u2', 'Second') },
+        // Interrupted turn: OpenClaw persists all-zero usage rather than none,
+        // and it must not clear the counter the previous turn set. The
+        // dedicated token-usage endpoint reads the same store and skips these,
+        // so the history reader has to agree with it.
+        { json: assistant('a2', [{ type: 'text', text: '' }], { usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 } }) },
+      ],
+    });
+
+    sessionsDb.createAppSession('app-1', 'openclaw', cwd, 'OpenClaw session');
+    sessionsDb.assignProviderSessionId('app-1', sessionKey);
+
+    const result = await new OpenclawSessionsProvider()
+      .fetchHistory('app-1', { providerSessionId: sessionKey });
+
+    assert.deepEqual(result.tokenUsage, {
+      used: 120,
+      total: 200,
+      inputTokens: 100,
+      outputTokens: 20,
+      cacheReadTokens: 10,
+      cacheCreationTokens: 5,
+      cacheTokens: 15,
+      breakdown: { input: 115, output: 20 },
+    });
   });
 });
 

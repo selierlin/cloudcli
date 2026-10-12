@@ -565,8 +565,9 @@ function readOpenclawTokenUsage(providerSessionId: string): TokenUsageResult {
     return empty;
   }
 
-  const database = new Database(databasePath, { readonly: true, fileMustExist: true });
+  let database: Database.Database | null = null;
   try {
+    database = new Database(databasePath, { readonly: true, fileMustExist: true });
     database.pragma('busy_timeout = 2000');
     const location = database
       .prepare('SELECT current_session_id AS sid FROM session_nodes WHERE session_key = ?')
@@ -625,8 +626,12 @@ function readOpenclawTokenUsage(providerSessionId: string): TokenUsageResult {
     }
 
     return empty;
+  } catch {
+    // The store can be mid-migration, locked past the busy timeout, or corrupt;
+    // the route contract is to report empty usage, not to fail with a 500.
+    return empty;
   } finally {
-    database.close();
+    database?.close();
   }
 }
 

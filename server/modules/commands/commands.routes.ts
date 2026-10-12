@@ -28,7 +28,7 @@ const providerModelsService = dependencies.models;
 const process = dependencies.runtime;
 const router = express.Router();
 
-const MODEL_PROVIDERS = ["claude", "cursor", "codex", "opencode", "dsh", "workbuddy", "pi", "zcode", "openclaw"];
+const MODEL_PROVIDERS = ["claude", "cursor", "codex", "opencode", "dsh", "workbuddy", "pi", "zcode", "omp", "openclaw"];
 
 const MODEL_PROVIDER_LABELS = {
   claude: "Claude",
@@ -39,6 +39,7 @@ const MODEL_PROVIDER_LABELS = {
   workbuddy: "WorkBuddy",
   pi: "Pi",
   zcode: "ZCode",
+  omp: "OMP",
   openclaw: "OpenClaw",
 };
 
