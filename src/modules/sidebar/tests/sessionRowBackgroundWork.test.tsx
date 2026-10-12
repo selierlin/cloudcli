@@ -13,8 +13,9 @@ import type { Project, SessionAttentionLevel, SessionWithProvider, SidebarProjec
  * The right edge only answers "is something waiting on me?" — an amber capsule
  * for a permission request, a blue dot for passive activity. They are drawn on
  * opposite ends so neither can displace the other; opening the session (it
- * becomes selected) silences both. The destructive-action lockout stays
- * reserved for a response in flight.
+ * becomes selected) clears only the unread channel, while the activity channel
+ * keeps spinning so an open-but-working session never reads as idle. The
+ * destructive-action lockout stays reserved for a response in flight.
  */
 
 const recordedOptionsProps: Record<string, unknown>[] = [];
@@ -103,7 +104,7 @@ test('a response in flight outranks background work on the single left slot', ()
   assert.equal(container.querySelectorAll('.animate-spin').length, 1);
 });
 
-test('a selected row shows neither channel — the content area already owns it', () => {
+test('a selected row keeps its left-edge activity marker but drops the unread one', () => {
   const { container } = renderRow({
     isProcessing: true,
     hasBackgroundWork: true,
@@ -111,9 +112,13 @@ test('a selected row shows neither channel — the content area already owns it'
     selected: true,
   });
 
-  // assert.equal(<jsdom node>, null) would try to describe the node on failure
-  // and kill the vitest worker — assert.ok keeps the failure a plain red.
-  assert.ok(container.querySelector('[role="status"]') === null, 'a selected row must not render a status marker');
+  // Opening a session clears the unread channel, but must not hide that the
+  // session is still working — the chat view's own ActivityIndicator lives
+  // inside the composer, so the left-edge spinner stays lit.
+  const markers = [...container.querySelectorAll('[role="status"]')];
+  assert.equal(markers.length, 1, 'exactly the activity marker remains');
+  assert.equal(markers[0].getAttribute('aria-label'), 'tooltips.processingSessionIndicator');
+  assert.ok(container.querySelector('[role="status"].bg-amber-500') === null, 'selection silences the unread capsule');
 });
 
 test('the activity and unread channels coexist on opposite edges', () => {

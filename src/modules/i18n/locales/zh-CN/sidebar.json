@@ -82,7 +82,11 @@
     "backgroundWorkIndicator": "后台任务运行中",
     "processingSessionIndicator": "会话处理中",
     "attentionActionIndicator": "会话需要你处理",
-    "attentionNoticeIndicator": "会话有新动态"
+    "attentionNoticeIndicator": "会话有新动态",
+    "projectAggregateAction": "该项目有 {{count}} 个会话需要你处理",
+    "projectAggregateNotice": "该项目有新动态",
+    "projectAggregateProcessing": "该项目有会话正在处理",
+    "projectAggregateBackground": "该项目有后台任务运行中"
   },
   "navigation": {
     "chat": "聊天",

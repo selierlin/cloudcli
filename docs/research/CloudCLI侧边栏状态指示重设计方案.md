@@ -1,6 +1,6 @@
 # CloudCLI 侧边栏状态指示重设计方案
 
-> 状态：**片 1 已实施并人工核验（2026-10-09）**，待提交。人工核验发现并修复一处真 bug：notice 蓝点是裸 `<span>`、`h-2 w-2` 对行内元素失效 ⇒ 不可见；已加 `block` + 守卫 `ownDisplay`（token 精确匹配）。刷新丢失 attention（含 `action`）经裁定为**既有设计**（`HEAD` 亦然）、二期处理，见 §10 / §13。片 2（项目聚合，前置 X-1）、片 3（TaskIndicator）、二期（D5）未动。D1–D4、D6、D7 已裁定，D5 二期；已过两轮 Claude / Codex 审阅，共 29 条批注，逐条处置见 §14 / §15
+> 状态：**一期片 1 已实施并人工核验（2026-10-09）、已提交（`a38128e6`）**。人工核验发现并修复一处真 bug：notice 蓝点是裸 `<span>`、`h-2 w-2` 对行内元素失效 ⇒ 不可见；已加 `block` + 守卫 `ownDisplay`（token 精确匹配）。刷新丢失 attention（含 `action`）经裁定为**既有设计**（`HEAD` 亦然）、移二期处理，见 §10 / §13。**一期片 2（项目聚合）已实施（2026-10-10）、片 3（TaskIndicator）仍未动**；**二期 4 条中 需求 A / B / D 已实施（批次 1 / 2-A / 2-B），需求 C 经裁定不做**（见二期文档 §6 / §7）。D1–D4、D6、D7 已裁定，D5 已随二期落地；已过两轮 Claude / Codex 审阅，共 29 条批注，逐条处置见 §14 / §15
 > 范围：侧边栏「项目」与「对话」两个页签中，会话行/项目行的所有状态指示（含 compact / 移动端变体，见 §A；**不含**侧栏整体折叠的图标栏）
 > 不在范围：会话内容区、pin（收藏）语义、会话排序规则、`SidebarCollapsed` 折叠图标栏（其指示为应用级版本状态）
 
@@ -68,7 +68,7 @@
 | 前台回合在跑 | 旋转环（spinner，从右缘移来，与"点"同族同位置） |
 | 后台 agent/workflow/命令在跑 | 呼吸圆点 |
 | **前台与后台同时命中** | **旋转环**（前台优先；后台在 tooltip 里补充说明） |
-| **当前选中** | **空**（内容区已可见 ⇒ 通道 A 静默；**现状选中行仍显示 spinner，此为有意变更**，见 §5） |
+| **当前选中** | **照常显示**（环/点不因选中而静默；**2026-10-11 拍板由「静默」反转为「保留」**，理由见 §5） |
 | 空闲 | 无 |
 
 - 单槽位规则：`activeSessions ∧ backgroundSessionIds` 可同时命中；本方案定 **环优先**。注意这与现状相反——现状是 `isProcessing = active && !background`（后台吞掉前台 spinner），本设计**有意改为环优先**，因为"前台正回合"是更当下的信号。
@@ -117,6 +117,12 @@
 - **n 的定义：待处理会话数**（该项目下 attention 为 `action` 的会话个数），**不是**项目总会话数；封顶显示 `9+`。数错会把胶囊变成近乎常亮，聚合信号退化为噪音（违背 §3 原则 2）。
 - **数据源与可得性（二审 Codex，重点）**：`Project.sessions` 只是已加载页（`sessionMeta.hasMore` 表明还有未加载会话）；而 `permission_request` 事件、`/api/providers/sessions/running` 返回**都不带 `projectId`**（`server/modules/providers/list/claude/claude-runtime.provider.js:1204` 只含 `{requestId,toolName,input,sessionId,provider}`；running 端点只含 `{sessionId,tasks}`）。因此**纯前端 `sessionId → projectId` 索引**只能从已加载 `Project.sessions` 或 `session_upserted`（后者带 `project.projectId`）学到映射，**覆盖不了深层链接 / 未加载分页 / 纯后台会话**——分页漏算只是从"遍历 sessions"转移到"索引查不到"，且"索引"本身是需生命周期管理的新增状态（upsert / 别名合并 / 删除 / 项目迁移）。**结论：片 2 的聚合正确性依赖源头补 `projectId`（事件或 API）或后端项目级 summary**；否则只能降级为"已感知会话"的不完整聚合，并在 UI 措辞上如实（§13）。
 - **D4 默认（已裁定）**：项目**展开后仍保留聚合**（表征"这个项目"而非"某一行"，与 Q5 一致）；仅在批量管理模式隐藏以降噪。
+- **实施回填（片 2，2026-10-10）——四处与上表/上文有出入，均属实现取值，非疏漏：**
+  1. **本表只列了"只有后台在跑"，实现把前台回合一并归入活动**（前台 spinner > 后台紫环）。一个会话正在回话与"在跑后台"是同一个"它在忙"信号，漏掉它反而制造新的"指示说谎"。
+  2. **单槽排序为 `action > notice > 前台 > 后台`**（"最高优先态"按此定义）。前台活动虽更"当下"，仍排在 notice 之后——与 §5 真值表把 background 排在 notice 之下同源。
+  3. **形状落地**＝`action` 复用会话行的琥珀胶囊 `⚠` 并加数字（封顶 `9+`）；`notice`＝蓝铃铛；`前台`＝中性转圈；`后台`＝紫色描边环（`Circle` + `strokeWidth=3` + 呼吸）。四种形状互不相同（§12.5 灰度可区分）。
+  4. **D4 的"隐藏"需要把 `isManaging` 从 `SidebarProjectSessions` 提升到 `SidebarProjectItem`**（原本是会话列表的局部状态，项目行看不到）。提升后项目行与列表共用同一真源；聚合的值在渲染期派生、不落 state。
+- **不完整聚合如实**：只对 `project.sessions`（已加载页）求值——未加载分页 / 纯后台会话若只在事件里出现过而没有对应行，不参与聚合。n 的措辞沿用"已感知待处理数"（§13）。
 
 ### 通道 E — 跨页签一致性
 
@@ -136,15 +142,15 @@
 | 后台在跑 | 呼吸点 | （若有事） | 常规 / 加粗 | 默认 |
 | **前台在跑 + 后台也在跑** | **旋转环**（环优先） | （若有事） | 常规 / 加粗 | 中性 live 底 |
 | 前台在跑 + 待操作 | 旋转环 | 琥珀胶囊 | **加粗** | 中性 live 底 |
-| **当前选中 + 前台在跑** | **空（有意变更）** | 空 | 常规 | 选中底 | 
+| **当前选中 + 前台在跑** | **旋转环**（2026-10-11 拍板保留，见下） | 空 | 常规 | 选中底 |
 | **当前选中 + 曾有未读** | 空 | 空 | 常规 | 选中底（主色 inset） |
-| 当前选中（其余组合） | 空 | 空 | 常规 | 选中底 |
+| 当前选中（其余组合） | 环/点照常 | 空 | 常规 | 选中底 |
 | 已 pin | — | — | + 📌 | — |
 
 要点：
 - 通道 A 与通道 B **正交、可并存**（两通道分居左右两端，不再互斥）。
 - 行背景**不再随"最近活跃"变绿**；"live"底改为中性色。
-- **通道 A 的选中规则**（二审 Claude）：选中会话的内容区已可见 ⇒ 通道 A 静默。**现状选中行的 spinner 仍显示**（右缘 `isProcessing` 分支不带 `!isSelected`，只有左缘点被抑制）；新真值表把选中行的活动指示一并归零，**属有意行为变更**，须在 §11"spinner 归位"同步测试，勿当遗漏。
+- **通道 A 的选中规则**（二审 Claude 提出，**2026-10-11 用户拍板反转**）：原裁定"选中 ⇒ 通道 A 静默（内容区已可见）"，实施后实测发现**内容区的 `ActivityIndicator` 埋在 composer 里、不够醒目**，选中一条正在回话的会话反而读不出"在忙"（用户反馈："选中会话后没有任何显示能看出它在 loading"）。故改为 **`ActivitySlot` 不再带 `isSelected` 抑制，选中行照常显示左缘环/点**。通道 B（未读胶囊）仍因"打开即清"保持选中态为空——两条通道的选中规则**不再一致**，这是有意的：活动是"它还在动"（选中也要知道），未读是"等你处理"（打开即消费）。
 - **通道 B 与选中——注意这是"丢弃"不是"挂起"**（二审 Claude）："选中行右缘必空"由① 打开即清（§6 `clearSessionAttention`）+ ② 置位时排除当前会话共同保证；但②的实现是**直接 `return`、事件被丢弃**（`useProjectsState.ts:489-492`），`websocket_reconnected` 也不重放补记。后果：你正看着 A 时 A 弹出权限请求 → 不置位 → 你切到 B（权限仍阻塞在 A）→ **A 行永远无胶囊**，直到 A 再产生下一个事件。这是 §1 第 5 条"指示说谎"的**反方向**（该亮不亮），列入 §13，一期可选在"切走"时对原当前会话的 pending 权限补记一次（数据在事件流里有据可查）。
 
 ---
@@ -166,6 +172,10 @@
 | 项目行聚合 | 渲染期派生（索引的**可得性与生命周期**见 §4 通道 D，需源头带 `projectId` 或后端 summary） |
 
 **二期收紧（二审 Claude，解决原 §6 与 §12.11 的先后矛盾）：** `session_upserted` 不能无条件点亮 notice（可能只是标题/路径/分页等元数据刷新）。定义唯一"有新内容"白名单、忽略 housekeeping、用事件 ID/序号去重——**这三项随二期落地**（§10），一期按现状；§12.11 的"重连重放去重"相应**移到二期**，避免"一期按现状实现却要求去重单测通过"的自相矛盾。
+
+> **二期实施回填（2026-10-10，批次 2-A）**：落地形态与原提法有两处出入。
+> ① **提法更正**：所谓"重连重放去重"实为**「假未读治理」**——实测网关事件**不会被重放**（重连是全量重取，依据见二期文档 §5.2），"重放去重"在当前架构下不是真实问题；真正的问题是假未读。
+> ② **判别位取代「白名单 + 序号去重」**：`session_upserted.session.change: 'content' | 'metadata'` 逐路径显式判定（fork＝metadata、run＝content、watcher 用内容指纹自算），前端只在 `change !== 'metadata'` 时置 notice。因此"用事件 ID/序号去重"**不需要另做**——`markSessionAttention` 按 `Map<id, level>` 构造天然幂等（`current === level` 早退），系统无计数/序号，重复投递不改任何状态。见二期文档 §5.4 / §5.5。
 
 ---
 
@@ -218,17 +228,17 @@
 
 ### 一期（本方案主体）：视觉与语义重构
 - 片 1：通道重构。删绿点；左缘只留活动（前台环 / 后台点）；右缘未读改胶囊 / 加粗；行背景去绿；抽取模块内共享指示器组件；两页签统一。
-- 片 2：项目行聚合（含折叠态与展开态）。**前置（二审 Codex）**：聚合正确性依赖 attention/background 状态在**源头携带 `projectId`**（事件或 API）或后端项目级 summary；否则只能做"已感知会话"的不完整聚合。可选：切走时补记 pending 权限（§5 缺口）。
+- 片 2：项目行聚合（含折叠态与展开态）。**前置（二审 Codex）**：聚合正确性依赖 attention/background 状态在**源头携带 `projectId`**（事件或 API）或后端项目级 summary；否则只能做"已感知会话"的不完整聚合。可选：切走时补记 pending 权限（§5 缺口）。**（2026-10-10 已实施：派生在 `SidebarProjectItem` 渲染期完成，单槽排序 `action > notice > 前台 > 后台`；形状冗余＝琥珀胶囊+⚠+n（封顶 9+）/ 铃铛 / 转圈 / 紫环；D4＝`isManaging` 提升到项目行后于批量管理模式隐藏。四处实施更正见 §4 通道 D。）**
 - 片 3：清视觉噪音。**`TaskIndicator` 定案**（见下行）＋补空态/图例文案。
 
 ### 二期（另立，已展开为独立需求文档：[`CloudCLI侧边栏状态指示重设计-二期需求.md`](CloudCLI侧边栏状态指示重设计-二期需求.md)）
 
 > 二期解决的是**「指示说的是真话」**（数据源与生命周期），一期解决的是「看得懂」。四条要点已在二期文档里展开为「问题 / 真源 / 缺口 / 选项 / 验收判据 / 前置」，并补出**共享前置 P-1**（runtime 枚举未决审批 + `/running` 补 `projectId`）与**一处提法更正**（「重连重放去重」实为「假未读治理」——网关事件不重放，重连是全量重取）。
 
-- **未读持久化**（D5）：现状内存态、刷新即空、跨设备不一致，需服务端 `last_seen` / unread 标记。**在视觉与语义理顺之前不做**。二期文档落点＝**B-4 同构新表 + REST**（形如 `session_drafts` 的 per-user-per-session 表；`user_preferences`／B-3 已被二审 T1 否），且**与「假未读治理」（D-1）同批**——共用 D-1 顺带产出的内容指纹（T2：批次 2 由三步压两步）。
+- **未读持久化**（D5）：现状内存态、刷新即空、跨设备不一致，需服务端 `last_seen` / unread 标记。**在视觉与语义理顺之前不做**。二期文档落点＝**B-4 同构新表 + REST**（形如 `session_drafts` 的 per-user-per-session 表；`user_preferences`／B-3 已被二审 T1 否），且**与「假未读治理」（D-1）同批**——共用 D-1 顺带产出的内容指纹（T2：批次 2 由三步压两步）。**（2026-10-10 已实施＝二期批次 2-B：`session_read_state` 表 + `GET/PUT/DELETE /api/user/read-state`，水位存内容指纹快照而非本地时钟，见二期文档 §3.6。）**
 - **`action` 态的加载时重建**（片 1 验收新发现，2026-10-09）：`attentionSessions` 是内存态、**刷新即空**（`HEAD` 亦然，非片 1 引入）。对 `notice` 只是少看一条动态；对 `action`（正阻塞的权限请求）会让"哪个会话卡着等我"彻底无痕——与 §1 第 5 条"指示说谎"同类。需在挂载/刷新时从服务端未决审批重建 `action`；**前置**：服务端只有 `getPendingApprovalsForSession(sessionId)`（经 `chat.subscribe` **按会话**下发，`claude-runtime.provider.js:1690`），**无"批量列出未决审批"端点**，故需新增端点或扩 `/running` API。与 D5 同批（都依赖服务端状态）。**同时收 C-3 缺口**：切走当前会话时对原会话补记 pending 权限（§5、§6）。**（2026-10-10 已实施＝二期批次 1：选定「扩 `/running` 旁挂 `pendingPermissions`」，C-3 两侧都落，见二期文档 §2.4。）**
-- **`messageCount` 计数链路**（二审 Codex）：补服务端真实计数与事件更新，否则消息数槽恒空（§4 通道 C）。
-- **`session_upserted` 白名单收紧 + 重连重放去重**（二审 Claude）：见 §6。
+- **`messageCount` 计数链路**（二审 Codex）：补服务端真实计数与事件更新，否则消息数槽恒空（§4 通道 C）。**（2026-10-10 裁定：不做——T4 证「行数」口径含非对话行、且仅 Claude 成立，不足以作通用信号；计数链路与两处恒假渲染槽均维持现状，属已知死槽。）**
+- **`session_upserted` 假未读治理**（二审 Claude；原提法"白名单收紧 + 重连重放去重"）：见 §6。**（2026-10-10 已实施＝二期批次 2-A：`session.change` 判别位 + 内容指纹 `sessions.content_updated_at`，见二期文档 §5.4 / §5.5。）**
 
 ---
 
@@ -236,7 +246,7 @@
 
 | 文件 | 改动 |
 |---|---|
-| `src/modules/sidebar/SidebarSessionItem.tsx` | 删绿点分支与 `isActive` 行底；左缘改"环/点"（环优先）；右缘未读改胶囊/加粗；spinner 从左/右缘归位（**含"选中行不再显示 spinner"的有意变更**）。**两处布局**：非 compact 桌面行 + `isCompact` 卡片分支 |
+| `src/modules/sidebar/SidebarSessionItem.tsx` | 删绿点分支与 `isActive` 行底；左缘改"环/点"（环优先）；右缘未读改胶囊/加粗；spinner 从左/右缘归位（原定"选中行不再显示 spinner"，**2026-10-11 拍板反转为"选中行照常显示左缘环/点"**）。**两处布局**：非 compact 桌面行 + `isCompact` 卡片分支 |
 | `src/modules/sidebar/SidebarRecentConversations.tsx` | 同上，接入共享指示器组件，消除与项目页签的分叉；**清理现存互斥 `hasBackgroundWork ? 紫点 : age`**（紫点左缘化后该槽位释放给 age）；含 `md:hidden` 移动分支 |
 | `src/modules/sidebar/SidebarCollapsed.tsx` | **不在本方案范围。** `:54` amber = `restartRequired`、`:67` blue = `updateAvailable`，均为**应用级版本状态**（非会话指示）；侧栏折叠成图标栏时列表根本不渲染、无会话聚合对象。**勿动。** |
 | `src/modules/sidebar/<新增>SessionStatusIndicators.tsx` | 模块内共享。**按插槽拆分**（左缘槽 `ActivitySlot` + 右缘槽 `AttentionSlot`），服务 ≥3 种宿主布局（项目桌面行 / 项目 compact 卡片 / 对话页签行），而非单块整体替换 |
@@ -245,7 +255,18 @@
 | `src/modules/sidebar/TaskIndicator.tsx`（片 3） | **修正 `error` 伪装**：`getIndicatorConfig` 无 `error` 分支（`:76-82` 落到 "No TaskMaster / not configured"），须补正确映射；文案从硬编码英文改 i18n key |
 | i18n | 按项目 i18n 策略：**只维护 `en` + `zh-CN`**，其余 11 套 fallback 到 `en`（不逐套补 key）；新增/调整胶囊 aria-label、项目聚合文案；**`TaskIndicator` 硬编码英文改 key**（二审 Codex）。可选：加 key 完整性测试 |
 | `src/modules/sidebar/tempIndicatorDemo.ts` | 扩展为覆盖新模型全部场景（含 compact / 移动视口），供人工核验；**提交前删除**：连同两个组件里的 `demoIndicatorFlags` import 与 `// TEMP indicator demo` 接线、相关测试改动一并删净，勿带入正式 commit |
-| 测试 | 更新受影响断言；新增"通道 A/B 可并存""选中行静默（有意变更）""项目行聚合""状态机分类/升级/清除（含 resolved/cancelled）"断言 |
+| 测试 | 更新受影响断言；新增"通道 A/B 可并存""选中行保留活动、只静默未读""项目行聚合""状态机分类/升级/清除（含 resolved/cancelled）"断言 |
+
+### 11.2 一期 片 2（项目行聚合，2026-10-10 已实施）
+
+| 文件 | 改动 |
+|---|---|
+| `src/modules/sidebar/utils/projectAggregate.ts`（新增） | 纯函数 `deriveProjectAggregate` + `ProjectAggregate` 类型：把项目已加载会话排成单一最高优先态（`action > notice > 前台 > 后台`），`action` 计待处理会话数。独立成文件而非并入 `SessionStatusIndicators.tsx`——组件文件再导出函数会触发 `only-export-components`（Fast Refresh）告警。 |
+| `src/modules/sidebar/SessionStatusIndicators.tsx` | 新增 `ProjectAggregateSlot`：琥珀胶囊（`⚠` + n，封顶 `9+`）/ 蓝铃铛 / 中性转圈 / 紫描边环，四种形状互不相同。 |
+| `src/modules/sidebar/SidebarProjectItem.tsx` | 渲染期派生聚合，桌面与 compact 两分支都画在右缘（chevron 之前）；`isManagingSessions` 提升到此，批量管理模式下聚合置空（D4）。 |
+| `src/modules/sidebar/SidebarProjectSessions.tsx` | `isManaging` / `onManagingChange` 改为受控 props（原为局部 state），使项目行能读同一真源。 |
+| i18n | `tooltips.projectAggregate{Action,Notice,Processing,Background}`（en + zh-CN；其余 11 套 fallback）。 |
+| 测试 | 新增 `tests/projectAggregate.test.tsx`（10 条）：优先级、n 只数 action、封顶 `9+`、四形状、空态、D4 隐藏；`tests/sidebarRowProps.test.tsx` 夹具补两个新 props。 |
 
 ---
 
@@ -253,7 +274,7 @@
 
 1. **零图例测试**：不读 tooltip，仅看一行，能判断"它有没有事等我 / 在不在动"。
 2. **并存测试**：一条会话可同时呈现"左缘活动 + 右缘未读"，互不遮蔽。
-3. **页签一致**：同一会话在「项目」「对话」两页签的状态呈现一致（对话页签可无"最近去过"，但有、也只因态而不同；**选中 + 前台在跑为有意变更**，见 §5）。
+3. **页签一致**：同一会话在「项目」「对话」两页签的状态呈现一致（对话页签可无"最近去过"，但有、也只因态而不同；**选中 + 前台在跑保留左缘环（2026-10-11 拍板）**，见 §5）。
 4. **折叠可见**：项目折叠 + 子会话有待操作时，项目行给出聚合提示。
 5. **色盲测试**：去色后四类信号仍可区分；**灰度去色后项目聚合（notice vs background）仍可区分**（形状冗余，二审 Codex）。
 6. **回归**：`vitest run src/modules/sidebar`、`npm run test:client`、`npm run typecheck`、`npm run lint`、`npm run build:client` 全绿。
@@ -261,7 +282,7 @@
 8. **布局变体**（一审 Claude）：桌面 / compact / 移动视口各过一遍 §5 真值表；重点核验左缘悬挂点（`-translate-x-1`）在卡片 `mx-3` 不被裁剪。（侧栏折叠图标栏不在范围。）
 9. **主题**：light / dark + 用户自定义主题各过一遍（状态色为固定色——验证中性部分与令牌一致、状态色不被主题穿透导致不可读）。
 10. **动效降级**：系统"减少动态效果"时环/点静态呈现、语义不丢（`motion-reduce`）。
-11. **状态机单测**：`markSessionAttention` 的事件分类、notice→action 升级且 action 不回退、打开/删除清除、当前会话抑制、**`permission_resolved`/`permission_cancelled` 清除（单/多 `requestId`）**。（**重连重放去重、upsert 白名单收紧、分页聚合不漏**依赖二期/源头 projectId，移至二期。）
+11. **状态机单测**：`markSessionAttention` 的事件分类、notice→action 升级且 action 不回退、打开/删除清除、当前会话抑制、**`permission_resolved`/`permission_cancelled` 清除（单/多 `requestId`）**。（**假未读治理（原写「重连重放去重」，经实测不成立——网关不重放）与「upsert 白名单收紧」**＝二期批次 2-A 已落地：`session_upserted` 不再无条件置位，改由 `change` 判别位决定；**分页聚合不漏**依赖源头 `projectId`，该前置已随二期批次 1 落到 `/running`，聚合本身属一期片 2。）
 12. **TaskIndicator 五态**（片 3）：配置正常 / 仅 TaskMaster / 仅 MCP / 未配置 / **error**（error 不得再伪装为"未配置"）。
 
 ---
@@ -274,13 +295,13 @@
 | 删绿点后"最近用过"的可发现性下降 | 依赖列表排序 + age 文本；若体感不足，回退为"极弱行底色"而非点 |
 | 项目行聚合被误读为"项目本身的状态" | 文案与图标复用会话语义，hover 显示"n 个会话待处理" |
 | 两页签再次分叉 | 强制走共享组件，禁止各自内联实现 |
-| **聚合漏算未加载会话**（二审 Codex） | `permission_request`/running API 无 `projectId` ⇒ 前端索引覆盖不全；**前置源头补 projectId 或后端 summary**（§4 通道 D）；n 口径记为"已感知待处理数" |
-| **"置位排除当前会话"=丢弃，切走后不补记**（二审 Claude） | 该亮不亮（权限仍阻塞但行无胶囊）；一期记为已知缺口，可选在切走时补记（§5、§6） |
-| **刷新/换设备即丢全部 attention，含 `action`**（片 1 验收，2026-10-09） | `attentionSessions` 内存态、刷新即空（`HEAD` 亦然，非片 1 引入）。`notice` 可接受；`action`（阻塞权限）丢失会让"哪个会话卡着等我"无痕。一期按 §1.5 已知局限接受（人工核验已裁定 a）；**二期随 D5** 从服务端未决审批重建（§10）。 |
-| **`session_upserted` 产生假未读**（一审 Codex） | 白名单收紧 + 事件 ID/序号去重——随二期（§6） |
+| **聚合漏算未加载会话**（二审 Codex） | `permission_request`/running API 无 `projectId` ⇒ 前端索引覆盖不全；**前置源头补 projectId 或后端 summary**（§4 通道 D）；n 口径记为"已感知待处理数"。**进展**：源头 `projectId` 前置已随二期批次 1 落到 `/running` 旁挂（`null`＝无项目行）。**一期片 2 已实施（2026-10-10）**：项目行聚合已落地（`deriveProjectAggregate` + `ProjectAggregateSlot`，D4 隐藏）；聚合只对 `project.sessions`（已加载页）求值 ⇒ **漏算未加载分页 / 仅存在于事件而无行的会话**这一口径**仍成立**，n 继续称"已感知待处理数"，未升级为后端 summary。 |
+| **"置位排除当前会话"=丢弃，切走后不补记**（二审 Claude） | **已修（二期批次 1，缺口 C-3）**：原会话被切走后，其阻塞权限由服务端 5s 轮询权威重建 ＋ 前端即时补记（`suppressedPendingRef`）两条腿共同兜住，约定时限内出胶囊（§5、§6；二期文档 §2.4）。 |
+| **刷新/换设备即丢全部 attention，含 `action`**（片 1 验收，2026-10-09） | `attentionSessions` 内存态、刷新即空（`HEAD` 亦然，非片 1 引入）。`notice` 可接受；`action`（阻塞权限）丢失会让"哪个会话卡着等我"无痕。一期按 §1.5 已知局限接受（人工核验已裁定 a）。**已修（二期）**：`action` 由批次 1 从服务端未决审批重建（`/running` 旁挂 `pendingPermissions`）；`notice` 由批次 2-B 持久化（`session_read_state` 水位，刷新后重建）。**残留口径**：① 服务端进程重启后原 pending 不重建（该亮不亮，属已知口径）；② 「换设备」实为"重连同一进程的另一次渲染"，审批入口只在发起设备。 |
+| **`session_upserted` 产生假未读**（一审 Codex） | **已修（二期批次 2-A）**：新增 `session_upserted.session.change: 'content' \| 'metadata'` 判别位（fork＝metadata、run＝content、watcher 用内容指纹 `sessions.content_updated_at` 自算），前端只在 `change !== 'metadata'` 时置 notice。原提法"事件 ID/序号去重"**不需要另做**——网关不重放，且 `markSessionAttention` 构造上天然幂等（§6、二期文档 §5.4/§5.5）。 |
 | **状态色不随主题** | 状态色固定是**本方案取舍立场**（依据见 §9：2026-10-02 权限三态裁定 + 主题体系文档豁免建议），**非泛指所有状态色**；可访问性由形状/图标冗余兜底（§7） |
 | **`error` 语义错位**（一审 Codex） | 一期以 D6 收敛为 notice；根治需 `requiresAction` 来源字段 |
-| **`messageCount` 恒为 0**（二审 Codex） | 一期不显示该槽；补计数链路随二期（§4 通道 C） |
+| **`messageCount` 恒为 0**（二审 Codex） | 一期不显示该槽。**二期裁定：不做**（T4：行数口径含非对话行、且仅 Claude 成立，不足以作通用信号）。计数链路与两处恒假渲染槽均**维持现状**，属已知死槽（§4 通道 C、二期文档 §4）。 |
 
 ---
 
@@ -288,7 +309,7 @@
 
 | 变体 | 宿主 | 需核验 |
 |---|---|---|
-| 项目 · 桌面行 | `SidebarSessionItem`（非 compact） | 基准；左缘环/点、右缘胶囊、spinner 归位（含选中行静默） |
+| 项目 · 桌面行 | `SidebarSessionItem`（非 compact） | 基准；左缘环/点、右缘胶囊、spinner 归位（原定选中行静默，2026-10-11 反转为选中行照常显示左缘活动） |
 | 项目 · compact 卡片 | `isCompact`；`mx-3` 卡片自带绿行底（**一并去绿**） | 左缘 `-translate-x-1` 悬挂点是否被卡片内边距裁剪 |
 | 对话 · 桌面行 | `RecentConversationRow` | 右缘 hover 重命名输入框与胶囊的排布（§4 通道 B 规则）；行尾**常驻 `ChevronRight`**（导航暗示）与"菜单槽固定预留"的排布须一并定义（二审 Claude） |
 | 对话 · 移动端 | `md:hidden` 分支 | 触屏无常驻 hover；紧凑右缘空间预算 |
@@ -330,7 +351,7 @@
 | C-2 | Claude · WARNING | §9 反驳条的引证不成立（该文档无此结论） | **采纳（引证错）** | §9 反驳条重写、§13 修正 |
 | C-3 | Claude · WARNING | "置位排除当前会话"=丢弃非挂起，是"该亮不亮"缺口 | **采纳** | §5 结语、§6、§13、§10 片 2 可选补记 |
 | C-4 | Claude · WARNING | §6"按现状"与 §12.11"重连去重"单测矛盾 | **采纳** | §6 改"随二期"、§12.11 移项、§10 |
-| C-5 | Claude · WARNING | 未裁定"当前选中 + 前台在跑"，且是未声明行为变更 | **采纳** | §4 通道 A、§5 补行 + 标注、§11、§12.3 |
+| C-5 | Claude · WARNING | 未裁定"当前选中 + 前台在跑"，且是未声明行为变更 | **采纳 → 2026-10-11 反转** | §4 通道 A、§5 补行 + 标注、§11、§12.3（结论反转为"选中行保留左缘活动"，未读通道仍静默） |
 | C-6 | Claude · NOTE | §4 头图与右缘栈顺序矛盾 + `ChevronRight` 未提 | **采纳** | §4 头图同步、附录 A |
 | C-7 | Claude · NOTE | D6 落地后 §2 Q1 示例未同步 | **采纳** | §2 Q1 |
 | X-1 | Codex · CAUTION | 全局 `sessionId → projectId` 索引仍覆盖不了未加载会话，且非"无需新增状态" | **采纳** | §4 通道 D、§6、§11、§13、§10 片 2 |

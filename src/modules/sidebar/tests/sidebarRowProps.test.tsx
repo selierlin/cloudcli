@@ -199,6 +199,8 @@ test('the fork callback reaches the rows that render the fork action', () => {
 const sessionsProps = (sessionRenameId: string | null, sessionRenameDraft: string) => ({
   project: PROJECT_A,
   isExpanded: true,
+  isManaging: false,
+  onManagingChange: noop,
   sessions: getAllSessions(PROJECT_A),
   selectedSession: null,
   initialSessionsLoaded: true,
