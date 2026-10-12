@@ -20,6 +20,7 @@ type ZcodeSessionRow = {
   title: string | null;
   time_created: number | null;
   time_updated: number | null;
+  content_time: number | null;
 };
 
 type SynchronizeRowsResult = {
@@ -146,7 +147,8 @@ export class ZcodeSessionSynchronizer implements IProviderSessionSynchronizer {
           s.directory AS directory,
           s.title AS title,
           s.time_created AS time_created,
-          s.time_updated AS time_updated
+          s.time_updated AS time_updated,
+          (SELECT MAX(m.time_created) FROM message m WHERE m.session_id = s.id) AS content_time
         FROM session s
         WHERE s.time_archived IS NULL
           AND (? IS NULL OR COALESCE(s.time_updated, s.time_created, 0) >= ?)
@@ -210,6 +212,10 @@ export class ZcodeSessionSynchronizer implements IProviderSessionSynchronizer {
 
     // ZCode keeps every session in one shared SQLite database, so jsonl_path
     // must stay null to avoid deleting the database when one session is removed.
+    //
+    // The content timestamp is the newest message's `time_created`, not the
+    // session's `time_updated`: the latter also moves on a rename, which would
+    // raise a false unread flag for a session whose conversation never changed.
     return sessionsDb.createSession(
       sessionId,
       this.provider,
@@ -218,6 +224,8 @@ export class ZcodeSessionSynchronizer implements IProviderSessionSynchronizer {
       normalizeProviderTimestamp(row.time_created),
       normalizeProviderTimestamp(row.time_updated ?? row.time_created),
       null,
+      'provider_title',
+      row.content_time,
     );
   }
 

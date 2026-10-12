@@ -9,7 +9,7 @@ import Database from 'better-sqlite3';
 import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
 import { ZcodeSessionSynchronizer } from '@/modules/providers/list/zcode/zcode-session-synchronizer.provider.js';
 
-import { seedZcodeSession } from './fixtures/zcode-session-db.js';
+import { seedZcodeRichSession, seedZcodeSession } from './fixtures/zcode-session-db.js';
 
 const patchHomeDir = (nextHomeDir: string) => {
   const original = os.homedir;
@@ -73,6 +73,32 @@ test('ZCode synchronizer indexes sqlite sessions without deletable transcript pa
       assert.equal(indexed?.project_path, await realpath(workspacePath));
       assert.equal(indexed?.custom_name, 'ZCode generated title');
       assert.equal(indexed?.jsonl_path, null);
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('ZCode synchronizer stamps the content timestamp from the newest message', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'zcode-session-content-ts-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    await seedZcodeRichSession(tempRoot, workspacePath);
+    await withIsolatedDatabase(async () => {
+      await new ZcodeSessionSynchronizer().synchronize();
+
+      // The store's newest message was created at 1_700_000_002_000, but the
+      // session's own `time_updated` is later (1_700_000_004_000) because a
+      // rename/title write moved it. The content timestamp must follow the
+      // message, so a rename cannot raise a false unread flag.
+      assert.equal(
+        sessionsDb.getSessionById('zcode-session-1')?.content_updated_at,
+        new Date(1_700_000_002_000).toISOString(),
+      );
     });
   } finally {
     restoreHomeDir();

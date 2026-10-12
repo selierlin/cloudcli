@@ -10,6 +10,8 @@ import {
   findFilesRecursivelyCreatedAfter,
   normalizeSessionName,
   readFileTimestamps,
+  readNewestContentTimestamp,
+  streamFileLines,
 } from '@/shared/utils.js';
 import { getPiSessionsRoot } from '@/modules/providers/list/pi/pi-models.provider.js';
 import { resolvePiTranscriptPath } from '@/modules/providers/list/pi/pi-sessions.provider.js';
@@ -117,6 +119,8 @@ export class PiSessionSynchronizer implements IProviderSessionSynchronizer {
       timestamps.createdAt,
       timestamps.updatedAt,
       filePath,
+      'provider_title',
+      await readNewestContentTimestamp(streamFileLines(filePath), isPiMainLineMessage, (entry) => entry.timestamp),
     );
     this.lastParsedSessionId = parsed.sessionId;
     return 1;
@@ -262,6 +266,21 @@ export class PiSessionSynchronizer implements IProviderSessionSynchronizer {
     }
     return normalizeSessionName(rawName, FALLBACK_SESSION_NAME);
   }
+}
+
+/**
+ * Whether a Pi entry is a main-line user prompt or assistant reply.
+ *
+ * Only these move a session's content timestamp: `session_info` renames and
+ * tool/compaction rows are not the conversation itself, so a bare rename or an
+ * internal row must not read as a new message.
+ */
+function isPiMainLineMessage(entry: AnyRecord): boolean {
+  if (entry.type !== 'message') {
+    return false;
+  }
+  const role = (entry.message as AnyRecord | null)?.role;
+  return role === 'user' || role === 'assistant';
 }
 
 /** Reads the first text content of a Pi user message (string or blocks). */
