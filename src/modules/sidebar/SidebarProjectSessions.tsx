@@ -12,6 +12,13 @@ import { useCompactSidebar } from '@/modules/sidebar/hooks/useCompactSidebar';
 type SidebarProjectSessionsProps = {
   project: Project;
   isExpanded: boolean;
+  /**
+   * Batch-manage mode, owned by `SidebarProjectItem` so the project row can
+   * hide its aggregate indicator while the list is being culled (§4 通道 D,
+   * D4). Lifting it is what keeps the row and the list in agreement.
+   */
+  isManaging: boolean;
+  onManagingChange: (managing: boolean) => void;
   sessions: SessionWithProvider[];
   selectedSession: ProjectSession | null;
   initialSessionsLoaded: boolean;
@@ -65,6 +72,8 @@ function SessionListSkeleton() {
 export default function SidebarProjectSessions({
   project,
   isExpanded,
+  isManaging,
+  onManagingChange,
   sessions,
   selectedSession,
   initialSessionsLoaded,
@@ -91,7 +100,6 @@ export default function SidebarProjectSessions({
   t,
 }: SidebarProjectSessionsProps) {
   const isCompact = useCompactSidebar();
-  const [isManaging, setIsManaging] = useState(false);
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
 
   // Sessions that started a response can no longer be archived in bulk, so
@@ -144,7 +152,7 @@ export default function SidebarProjectSessions({
   };
 
   const exitManaging = () => {
-    setIsManaging(false);
+    onManagingChange(false);
     setSelectedSessionIds(new Set());
   };
 
@@ -155,7 +163,7 @@ export default function SidebarProjectSessions({
         [...current].filter((sessionId) => !archivedSessionIdSet.has(sessionId)),
       ));
       if (archivedSessionIds.length === selectedSessionIds.size) {
-        setIsManaging(false);
+        onManagingChange(false);
       }
     });
   };
@@ -187,7 +195,7 @@ export default function SidebarProjectSessions({
             variant="outline"
             size="sm"
             className={isManaging ? 'col-span-2 h-8 text-xs' : 'h-8 text-xs'}
-            onClick={() => (isManaging ? exitManaging() : setIsManaging(true))}
+            onClick={() => (isManaging ? exitManaging() : onManagingChange(true))}
             disabled={!hasSessions && !isManaging}
           >
             {isManaging ? t('actions.cancel') : t('sessions.manageSessions')}
@@ -210,7 +218,7 @@ export default function SidebarProjectSessions({
             variant="outline"
             size="sm"
             className="h-8 text-xs"
-            onClick={() => (isManaging ? exitManaging() : setIsManaging(true))}
+            onClick={() => (isManaging ? exitManaging() : onManagingChange(true))}
             disabled={!hasSessions && !isManaging}
           >
             {isManaging ? t('actions.cancel') : t('sessions.manageSessions')}

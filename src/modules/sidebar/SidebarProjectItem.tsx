@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { Check, ChevronRight, Edit3, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
@@ -8,6 +8,8 @@ import type { LLMProvider, MCPServerStatus, Project, ProjectSession, SessionAtte
 import { getTaskIndicatorStatus } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import TaskIndicator from '@/modules/sidebar/TaskIndicator';
 import SidebarProjectSessions from '@/modules/sidebar/SidebarProjectSessions';
+import { ProjectAggregateSlot } from '@/modules/sidebar/SessionStatusIndicators';
+import { deriveProjectAggregate } from '@/modules/sidebar/utils/projectAggregate';
 import { useCompactSidebar } from '@/modules/sidebar/hooks/useCompactSidebar';
 import { useExpandScrollAnchor } from '@/modules/sidebar/hooks/useExpandScrollAnchor';
 
@@ -107,6 +109,15 @@ function SidebarProjectItem({
   const sessionCountDisplay = getSessionCountDisplay(project, sessions);
   const sessionCountLabel = `${sessionCountDisplay} session${totalSessionCount === 1 ? '' : 's'}`;
   const taskStatus = getTaskIndicatorStatus(project, mcpServerStatus);
+  // Batch-manage mode lives here rather than in the session list so the row's
+  // aggregate can hide alongside it (D4); the list reads and toggles it through
+  // props.
+  const [isManagingSessions, setIsManagingSessions] = useState(false);
+  // Derived at render, never stored (§6). Suppressed while the list is being
+  // culled — a project's status is noise next to the checkboxes.
+  const projectAggregate = isManagingSessions
+    ? null
+    : deriveProjectAggregate(sessions, activeSessions, backgroundSessionIds, attentionSessions);
   const mobileRenameInputRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   // Keeps this row pinned to its clicked viewport offset while the previously
@@ -254,6 +265,7 @@ function SidebarProjectItem({
               </div>
 
               <div className="flex flex-shrink-0 items-center gap-1">
+                <ProjectAggregateSlot aggregate={projectAggregate} t={t} />
                 {isEditing ? (
                   <>
                     <button
@@ -395,6 +407,7 @@ function SidebarProjectItem({
           </div>
 
           <div className="flex flex-shrink-0 items-center gap-1">
+            <ProjectAggregateSlot aggregate={projectAggregate} t={t} />
             {isEditing ? (
               <>
                 <div
@@ -452,6 +465,8 @@ function SidebarProjectItem({
       <SidebarProjectSessions
         project={project}
         isExpanded={isExpanded}
+        isManaging={isManagingSessions}
+        onManagingChange={setIsManagingSessions}
         sessions={sessions}
         selectedSession={selectedSession}
         initialSessionsLoaded={initialSessionsLoaded}

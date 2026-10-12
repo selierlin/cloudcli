@@ -232,7 +232,6 @@ function RecentConversationRow({
       <ActivitySlot
         isProcessing={isProcessing}
         hasBackgroundWork={hasBackgroundWork}
-        isSelected={isSelected}
         className="left-2.5 -translate-x-1"
         t={t}
       />

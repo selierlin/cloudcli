@@ -131,7 +131,6 @@ function SidebarSessionItem({
       <ActivitySlot
         isProcessing={isProcessing}
         hasBackgroundWork={hasBackgroundWork}
-        isSelected={isSelected}
         className="left-0 -translate-x-1"
         t={t}
       />

@@ -1,9 +1,10 @@
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle, Bell, Circle, Loader2 } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Tooltip } from '@/shared/ui';
 import { cn } from '@/shared/utils';
 import type { SessionAttentionLevel } from '@/shared/types';
+import type { ProjectAggregate } from '@/modules/sidebar/utils/projectAggregate';
 
 /**
  * The two independent state channels a session row draws, split into slots so
@@ -22,8 +23,6 @@ type ActivitySlotProps = {
   isProcessing: boolean;
   /** Only background agents, workflows or commands are still running. */
   hasBackgroundWork: boolean;
-  /** The row's session is open in the chat view, whose content already shows the activity. */
-  isSelected: boolean;
   /** The horizontal inset of the hanging dot; hosts differ only in their left padding. */
   className?: string;
   t: TFunction;
@@ -31,10 +30,12 @@ type ActivitySlotProps = {
 
 /**
  * The sidebar's left-edge activity indicator, drawn by the Projects and
- * Conversations session rows and their compact/mobile variants.
+ * Conversations session rows and their compact/mobile variants. It stays lit
+ * on the selected row too: the chat view's own ActivityIndicator sits inside
+ * the composer, so without this the open-but-working session reads as idle.
  */
-export function ActivitySlot({ isProcessing, hasBackgroundWork, isSelected, className, t }: ActivitySlotProps) {
-  if (isSelected || (!isProcessing && !hasBackgroundWork)) {
+export function ActivitySlot({ isProcessing, hasBackgroundWork, className, t }: ActivitySlotProps) {
+  if (!isProcessing && !hasBackgroundWork) {
     return null;
   }
 
@@ -105,6 +106,85 @@ export function AttentionSlot({ level, isSelected, t }: AttentionSlotProps) {
         className="flex h-4 flex-shrink-0 animate-pulse items-center justify-center rounded-full bg-amber-500 px-1.5 text-amber-950 motion-reduce:animate-none"
       >
         <AlertTriangle className="h-2.5 w-2.5" aria-hidden="true" />
+      </span>
+    </Tooltip>
+  );
+}
+
+/** Caps the amber capsule's count so a large project never stretches the row. */
+const AGGREGATE_COUNT_CAP = 9;
+
+type ProjectAggregateSlotProps = {
+  aggregate: ProjectAggregate | null;
+  t: TFunction;
+};
+
+/**
+ * The project row's aggregate indicator.
+ *
+ * Every state carries a distinct *shape* — capsule, bell, ring, spinner — not
+ * only a colour, because the row has no bold-title dimension to fall back on
+ * when colour is unavailable (§3 原则 6 / §12.5). The amber capsule reuses the
+ * session row's action shape and adds the count the row's own capsule must
+ * not show (D7).
+ */
+export function ProjectAggregateSlot({ aggregate, t }: ProjectAggregateSlotProps) {
+  if (!aggregate) {
+    return null;
+  }
+
+  if (aggregate.kind === 'action') {
+    const label = t('tooltips.projectAggregateAction', {
+      count: aggregate.count,
+      defaultValue: '{{count}} session(s) in this project need your action',
+    });
+    return (
+      <Tooltip content={label} position="top">
+        <span
+          role="status"
+          aria-label={label}
+          className="flex h-4 flex-shrink-0 animate-pulse items-center justify-center gap-0.5 rounded-full bg-amber-500 px-1.5 text-amber-950 motion-reduce:animate-none"
+        >
+          <AlertTriangle className="h-2.5 w-2.5" aria-hidden="true" />
+          <span className="text-[10px] font-semibold tabular-nums">
+            {aggregate.count > AGGREGATE_COUNT_CAP ? `${AGGREGATE_COUNT_CAP}+` : aggregate.count}
+          </span>
+        </span>
+      </Tooltip>
+    );
+  }
+
+  if (aggregate.kind === 'notice') {
+    const label = t('tooltips.projectAggregateNotice', { defaultValue: 'New activity in this project' });
+    return (
+      <Tooltip content={label} position="top">
+        <span role="status" aria-label={label} className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+          <Bell className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" aria-hidden="true" />
+        </span>
+      </Tooltip>
+    );
+  }
+
+  if (aggregate.kind === 'foreground') {
+    const label = t('tooltips.projectAggregateProcessing', { defaultValue: 'A session in this project is processing' });
+    return (
+      <Tooltip content={label} position="top">
+        <span role="status" aria-label={label} className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground motion-reduce:animate-none" aria-hidden="true" />
+        </span>
+      </Tooltip>
+    );
+  }
+
+  const backgroundLabel = t('tooltips.projectAggregateBackground', { defaultValue: 'Background work running in this project' });
+  return (
+    <Tooltip content={backgroundLabel} position="top">
+      <span role="status" aria-label={backgroundLabel} className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+        <Circle
+          className="h-2.5 w-2.5 animate-pulse text-purple-500 motion-reduce:animate-none dark:text-purple-400"
+          strokeWidth={3}
+          aria-hidden="true"
+        />
       </span>
     </Tooltip>
   );
