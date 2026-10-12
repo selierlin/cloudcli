@@ -41,7 +41,7 @@ function ThemeModeSelector({ ariaLabel }: ThemeModeSelectorProps) {
               'inline-flex h-6 w-8 cursor-pointer items-center justify-center rounded-full transition-colors duration-200',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
               isActive
-                ? 'bg-background text-foreground shadow-sm'
+                ? 'bg-card text-foreground shadow-sm ring-1 ring-border/50 dark:bg-accent dark:shadow-none dark:ring-foreground/[0.08]'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
