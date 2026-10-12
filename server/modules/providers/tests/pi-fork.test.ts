@@ -1,51 +1,273 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import test, { afterEach, beforeEach } from 'node:test';
+import test from 'node:test';
 
-import { resetPiCommandForTests } from '@/modules/providers/list/pi/pi-auth.provider.js';
-import { PiForkProvider } from '@/modules/providers/list/pi/pi-fork.provider.js';
+import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
+import {
+  PiForkProvider,
+  buildPiForkTranscript,
+  piTranscriptStamp,
+  selectPiForkBranch,
+} from '@/modules/providers/list/pi/pi-fork.provider.js';
+import { normalizePiAgentMessage } from '@/modules/providers/list/pi/pi-sessions.provider.js';
+import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
+import { sessionsService } from '@/modules/providers/services/sessions.service.js';
 
-const MOCK_CLI = path.resolve(
-  path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'pi-mock-cli.mjs'),
-);
+// ------------------------------------------------------------------ fixtures
 
-beforeEach(() => {
-  resetPiCommandForTests();
+function sessionHeader(id: string): string {
+  return JSON.stringify({ type: 'session', version: 3, id, timestamp: '2026-10-04T08:36:00.292Z', cwd: '/tmp/proj' });
+}
+
+function entry(id: string, parentId: string | null, role: string, text: string): string {
+  return JSON.stringify({
+    type: 'message',
+    id,
+    parentId,
+    timestamp: '2026-10-04T08:36:00.292Z',
+    message: { role, content: [{ type: 'text', text }], stopReason: role === 'assistant' ? 'stop' : undefined },
+  });
+}
+
+/**
+ * A two-exchange conversation plus an abandoned branch: `a2b` is an alternate
+ * answer to `u2`, so the file's tail is the active branch and `a2` is not.
+ */
+function transcript(): string {
+  return [
+    sessionHeader('old-id'),
+    JSON.stringify({ type: 'model_change', id: 'mc', parentId: null, modelId: 'x', provider: 'p' }),
+    entry('u1', 'mc', 'user', 'first'),
+    entry('a1', 'u1', 'assistant', 'one'),
+    entry('u2', 'a1', 'user', 'second'),
+    entry('a2b', 'u2', 'assistant', 'two-b'),
+    JSON.stringify({ type: 'custom', id: 'cs', parentId: 'a2b' }),
+  ].join('\n').concat('\n');
+}
+
+type Line = { raw: string; data: Record<string, unknown> };
+
+function body(value: string): Line[] {
+  return value
+    .split(/\r?\n/)
+    .filter((line) => line.trim())
+    .slice(1)
+    .map((raw) => ({ raw, data: JSON.parse(raw) as Record<string, unknown> }));
+}
+
+function ids(lines: Line[]): unknown[] {
+  return lines.map((line) => line.data.id);
+}
+
+// ------------------------------------------------------------- branch select
+
+test('the cut is inclusive of the anchor', () => {
+  const kept = ids(selectPiForkBranch(body(transcript()), 'a1'));
+  assert.deepEqual(kept, ['mc', 'u1', 'a1']);
 });
 
-afterEach(() => {
-  resetPiCommandForTests();
-  delete process.env.PI_COMMAND;
-  delete process.env.PI_CODING_AGENT_SESSION_DIR;
-  delete process.env.PI_MOCK_ARGS_FILE;
+test('omitting the anchor keeps the whole active branch', () => {
+  const kept = ids(selectPiForkBranch(body(transcript()), undefined));
+  assert.deepEqual(kept, ['mc', 'u1', 'a1', 'u2', 'a2b', 'cs']);
 });
 
-test('Pi forks a whole session through the native CLI and discovers its child transcript', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'pi-fork-test-'));
-  const projectPath = path.join(root, 'project');
-  const sourcePath = path.join(root, 'source.jsonl');
-  const argsPath = path.join(root, 'fork-args.json');
-  await mkdir(projectPath, { recursive: true });
-  await writeFile(sourcePath, '{"type":"session","id":"source"}\n');
-  process.env.PI_COMMAND = MOCK_CLI;
-  process.env.PI_CODING_AGENT_SESSION_DIR = path.join(root, 'sessions');
-  process.env.PI_MOCK_ARGS_FILE = argsPath;
-  resetPiCommandForTests();
+test('an anchor that is no longer in the session is refused rather than guessed', () => {
+  assert.throws(
+    () => selectPiForkBranch(body(transcript()), 'gone'),
+    (error: Error & { code?: string }) => error.code === 'FORK_ANCHOR_NOT_FOUND',
+  );
+});
 
+test('entries from an abandoned branch are not inherited', () => {
+  // `a2` is an alternate answer to `u2` that is no longer the tail, so the
+  // active branch runs through `a2b` and `a2` must not be copied.
+  const source = [
+    sessionHeader('old-id'),
+    JSON.stringify({ type: 'model_change', id: 'mc', parentId: null, modelId: 'x', provider: 'p' }),
+    entry('u1', 'mc', 'user', 'first'),
+    entry('a1', 'u1', 'assistant', 'one'),
+    entry('u2', 'a1', 'user', 'second'),
+    entry('a2', 'u2', 'assistant', 'two-a'),
+    entry('a2b', 'u2', 'assistant', 'two-b'),
+    JSON.stringify({ type: 'custom', id: 'cs', parentId: 'a2b' }),
+  ].join('\n').concat('\n');
+
+  const kept = ids(selectPiForkBranch(body(source), 'cs'));
+  assert.deepEqual(kept, ['mc', 'u1', 'a1', 'u2', 'a2b', 'cs']);
+  assert.ok(!kept.includes('a2'), 'the abandoned sibling must not be copied');
+});
+
+// --------------------------------------------------------------- transcript
+
+test('the fork rewrites only the header id and keeps the other header fields', () => {
+  const forked = buildPiForkTranscript(transcript(), { newSessionId: 'new-id', upToAnchorId: 'a1' });
+  const lines = forked.split('\n');
+  const header = JSON.parse(lines[0]) as Record<string, unknown>;
+  assert.equal(header.id, 'new-id');
+  assert.equal(header.version, 3);
+  assert.equal(header.cwd, '/tmp/proj');
+});
+
+test('the fork carries the anchor and drops everything after it', () => {
+  const forked = buildPiForkTranscript(transcript(), { newSessionId: 'new-id', upToAnchorId: 'u2' });
+  const lines = forked.trimEnd().split('\n');
+  const kept = lines.slice(1).map((line) => (JSON.parse(line) as { id: string }).id);
+  assert.deepEqual(kept, ['mc', 'u1', 'a1', 'u2']);
+  assert.ok(!lines.some((line) => line.includes('"id":"a2b"')));
+});
+
+test('forking without an anchor copies the whole active branch', () => {
+  const forked = buildPiForkTranscript(transcript(), { newSessionId: 'new-id' });
+  const lines = forked.trimEnd().split('\n');
+  const kept = lines.slice(1).map((line) => (JSON.parse(line) as { id: string }).id);
+  assert.deepEqual(kept, ['mc', 'u1', 'a1', 'u2', 'a2b', 'cs']);
+});
+
+test('a transcript with no session header is refused as unreadable', () => {
+  assert.throws(
+    () => buildPiForkTranscript(`${entry('u1', null, 'user', 'hi')}\n`, { newSessionId: 'new-id' }),
+    (error: Error & { code?: string }) => error.code === 'FORK_SOURCE_UNREADABLE',
+  );
+});
+
+test('the filename stamp matches Pi\'s own format', () => {
+  assert.equal(piTranscriptStamp(new Date('2026-10-04T08:36:26.427Z')), '2026-10-04T08-36-26-427Z');
+});
+
+// ------------------------------------------------------------------ provider
+
+test('the provider writes the fork beside the source under a fresh id', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'pi-fork-'));
   try {
+    const sourcePath = path.join(directory, '2026-10-04T08-36-00-292Z_aaaaaaaa-0000-0000-0000-000000000000.jsonl');
+    await writeFile(sourcePath, transcript(), 'utf8');
+
     const result = await new PiForkProvider().forkSession({
-      providerSessionId: 'source',
+      providerSessionId: 'aaaaaaaa-0000-0000-0000-000000000000',
       jsonlPath: sourcePath,
-      projectPath,
+      projectPath: '/tmp/proj',
+      upToAnchorId: 'a1',
     });
-    assert.equal(result.providerSessionId, 'mock-fork-session-uuid');
-    assert.match(result.jsonlPath, /mock-fork-session-uuid\.jsonl$/);
-    const args = JSON.parse(await readFile(argsPath, 'utf8')) as string[];
-    assert.deepEqual(args, ['--fork', sourcePath, '--mode', 'json']);
+
+    assert.equal(path.dirname(result.jsonlPath), directory);
+    assert.ok(path.basename(result.jsonlPath).endsWith(`_${result.providerSessionId}.jsonl`));
+
+    const forked = await readFile(result.jsonlPath, 'utf8');
+    const lines = forked.trimEnd().split('\n');
+    assert.equal((JSON.parse(lines[0]) as { id: string }).id, result.providerSessionId);
+    assert.deepEqual(
+      lines.slice(1).map((line) => (JSON.parse(line) as { id: string }).id),
+      ['mc', 'u1', 'a1'],
+    );
+
+    // The source is left completely untouched.
+    assert.equal(await readFile(sourcePath, 'utf8'), transcript());
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await rm(directory, { recursive: true, force: true });
   }
+});
+
+test('a missing transcript path is reported before anything is written', async () => {
+  await assert.rejects(
+    () => new PiForkProvider().forkSession({
+      providerSessionId: 'cccccccc-0000-0000-0000-000000000000',
+      jsonlPath: null,
+      projectPath: '/tmp/proj',
+    }),
+    (error: Error & { code?: string }) => error.code === 'FORK_SOURCE_NOT_READY',
+  );
+});
+
+// ------------------------------------------------------------------- anchors
+
+test('every row carries its entry id as the fork anchor', () => {
+  const rows = normalizePiAgentMessage(
+    { role: 'assistant', content: [{ type: 'thinking', thinking: 'hmm' }, { type: 'text', text: 'hi' }] },
+    'entry-1',
+    'session',
+  );
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.map((row) => row.forkAnchorId), ['entry-1', 'entry-1']);
+});
+
+test('only a user prompt row is stamped as an editable anchor', () => {
+  const user = normalizePiAgentMessage({ role: 'user', content: 'hello' }, 'entry-u', 'session');
+  assert.equal(user[0].forkAnchorId, 'entry-u');
+  assert.equal(user[0].transcriptAnchorId, 'entry-u');
+
+  // A tool result is a `user`-role row too, but it is not an editable prompt.
+  const toolResult = normalizePiAgentMessage(
+    { role: 'toolResult', toolCallId: 'c1', toolName: 'bash', content: [{ type: 'text', text: 'out' }] },
+    'entry-t',
+    'session',
+  );
+  assert.equal(toolResult[0].forkAnchorId, 'entry-t');
+  assert.equal(toolResult[0].transcriptAnchorId, undefined);
+});
+
+// ----------------------------------------------------------- service contract
+
+async function withDatabase(run: () => Promise<void>): Promise<void> {
+  const previousDatabasePath = process.env.DATABASE_PATH;
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'pi-fork-db-'));
+  closeConnection();
+  process.env.DATABASE_PATH = path.join(directory, 'app.db');
+  await initializeDatabase();
+  try {
+    await run();
+  } finally {
+    closeConnection();
+    if (previousDatabasePath === undefined) {
+      delete process.env.DATABASE_PATH;
+    } else {
+      process.env.DATABASE_PATH = previousDatabasePath;
+    }
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+test('a fork lands as an indexed session that keeps the source model and lineage', async () => {
+  await withDatabase(async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'pi-service-'));
+    try {
+      const sourcePath = path.join(directory, '2026-10-04T08-36-00-292Z_dddddddd-0000-0000-0000-000000000000.jsonl');
+      await writeFile(sourcePath, transcript(), 'utf8');
+      const now = new Date().toISOString();
+      sessionsDb.createSession(
+        'dddddddd-0000-0000-0000-000000000000',
+        'pi',
+        directory,
+        'Original',
+        now,
+        now,
+        sourcePath,
+      );
+
+      const result = await sessionsService.forkSessionById(
+        'dddddddd-0000-0000-0000-000000000000',
+        { upToAnchorId: 'a1' },
+      );
+
+      const forked = sessionsDb.getSessionById(result.sessionId);
+      assert.ok(forked);
+      assert.equal(forked?.provider, 'pi');
+      assert.equal(forked?.forked_from_session_id, 'dddddddd-0000-0000-0000-000000000000');
+      assert.equal(forked?.custom_name, 'Original (fork)');
+      assert.ok(forked?.jsonl_path?.endsWith(`_${forked.provider_session_id}.jsonl`));
+      assert.equal(
+        (JSON.parse((await readFile(forked?.jsonl_path as string, 'utf8')).split('\n')[0]) as { id: string }).id,
+        forked?.provider_session_id,
+      );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+test('Pi advertises session forking and message editing', () => {
+  const capabilities = providerCapabilitiesService.getProviderCapabilities('pi');
+  assert.equal(capabilities.supportsSessionForking, true);
+  assert.equal(capabilities.supportsMessageEditing, true);
 });

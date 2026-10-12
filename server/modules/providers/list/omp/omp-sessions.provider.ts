@@ -1,7 +1,7 @@
 import { existsSync, promises as fsp } from 'node:fs';
-import path from 'node:path';
 
-import { getOmpSessionsRoot } from '@/modules/providers/list/omp/omp-models.provider.js';
+import { resolveOmpTranscriptPath } from '@/modules/providers/list/omp/omp-transcript-path.js';
+import { forkOmpTranscriptPrefix } from '@/modules/providers/list/omp/omp-fork.provider.js';
 import { sessionsDb } from '@/modules/database/index.js';
 import type { IProviderSessions } from '@/shared/interfaces.js';
 import type {
@@ -10,65 +10,7 @@ import type {
   FetchHistoryResult,
   NormalizedMessage,
 } from '@/shared/types.js';
-import { createNormalizedMessage, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
-
-/** Mirrors OMP's directory encoding: strip leading slash, map `/\:` to `-`, wrap in `--…--`. */
-function encodeOmpCwd(cwd: string): string {
-  return `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`;
-}
-
-/**
- * Resolves the transcript path for one OMP session (header UUID). OMP names
- * files `<ISO时间戳>_<UUID>.jsonl`, so the encoded-cwd directory is scanned for
- * a matching suffix first; a full recursive search over the sessions root
- * covers cwd-encoding edge characters (spaces, unicode, dashes) and the flat
- * layout `PI_CODING_AGENT_SESSION_DIR` produces.
- *
- * The cwd is also encoded from the realpath on macOS: OMP stores a transcript
- * opened from `/tmp/...` under `--private-tmp-...--`, which only the recursive
- * fallback finds.
- */
-export async function resolveOmpTranscriptPath(
-  providerSessionId: string,
-  projectPath: string | undefined,
-  sessionsRoot = getOmpSessionsRoot(),
-): Promise<string | null> {
-  const suffix = `_${providerSessionId}.jsonl`;
-  const encoded = projectPath ? encodeOmpCwd(projectPath) : '';
-
-  const encodedDir = path.join(sessionsRoot, encoded);
-  try {
-    for (const name of await fsp.readdir(encodedDir)) {
-      if (name.endsWith(suffix)) {
-        return path.join(encodedDir, name);
-      }
-    }
-  } catch {
-    // Encoded directory may not exist yet; fall through to recursive search.
-  }
-
-  return findTranscriptBySuffix(sessionsRoot, suffix);
-}
-
-async function findTranscriptBySuffix(root: string, suffix: string): Promise<string | null> {
-  let entries;
-  try {
-    entries = await fsp.readdir(root, { withFileTypes: true });
-  } catch {
-    return null;
-  }
-  for (const entry of entries) {
-    if (entry.isDirectory()) {
-      const found = await findTranscriptBySuffix(path.join(root, entry.name), suffix);
-      if (found) {
-        return found;
-      }
-    } else if (entry.isFile() && entry.name.endsWith(suffix)) {
-      return path.join(root, entry.name);
-    }
-  }
-  return null;
-}
+import { AppError, createNormalizedMessage, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 
 /** Parses one JSONL line defensively, returning null for blank or malformed rows. */
 function parseLine(line: string): AnyRecord | null {
@@ -146,9 +88,11 @@ const readNonEmptyString = (...values: unknown[]): string | undefined => {
  * Normalizes one OMP AgentMessage into app messages, oldest-first, and stamps
  * every row with the entry id that owns it.
  *
- * The stamp is the fork anchor: OMP's fork cut is per entry, so a "fork from
- * here" on any row of an entry keeps the active branch up to and including that
- * entry. See {@link buildOmpAgentMessages} for the row mapping itself.
+ * The stamp is what the chat UI wires to its "fork from here" and "edit this
+ * message" actions: OMP's fork cut is per entry, so a fork from any row of an
+ * entry keeps the active branch up to and including that entry, and an edit of
+ * a user row replaces that entry and everything after it. See
+ * {@link buildOmpAgentMessages} for the row mapping itself.
  */
 export function normalizeOmpAgentMessage(
   message: OmpAgentMessage,
@@ -160,6 +104,11 @@ export function normalizeOmpAgentMessage(
   if (entryId) {
     for (const normalized of messages) {
       normalized.forkAnchorId = entryId;
+      // Only a user's own prompt is editable; a tool result is a `user`-role
+      // row too, so the anchor is gated on the text kind rather than the role.
+      if (normalized.kind === 'text' && normalized.role === 'user') {
+        normalized.transcriptAnchorId = entryId;
+      }
     }
   }
   return messages;
@@ -401,6 +350,59 @@ function dataUrlFromOmpImage(block: OmpContentBlock): string {
   return `data:${mime};base64,${block.data}`;
 }
 
+/** Parses an OMP transcript into its entries, in file order, minus the headers. */
+async function readOmpEntries(filePath: string): Promise<AnyRecord[]> {
+  let content: string;
+  try {
+    content = await fsp.readFile(filePath, 'utf8');
+  } catch {
+    return [];
+  }
+  const entries: AnyRecord[] = [];
+  for (const line of content.split(/\r?\n/)) {
+    const parsed = parseLine(line);
+    // The `title` header is rewritten in place and carries no id; like the
+    // `session` header it is not part of the entry chain.
+    if (parsed && parsed.type !== 'session' && parsed.type !== 'title') {
+      entries.push(parsed);
+    }
+  }
+  return entries;
+}
+
+/**
+ * Returns the active branch of an OMP transcript, oldest first: the file's last
+ * entry walked up its `parentId` chain to the root. Reached this way, entries
+ * from branches the conversation abandoned are left out.
+ */
+function ompActiveBranch(entries: AnyRecord[]): AnyRecord[] {
+  const byId = new Map<string, AnyRecord>();
+  for (const entry of entries) {
+    if (typeof entry.id === 'string') {
+      byId.set(entry.id, entry);
+    }
+  }
+  const branch: AnyRecord[] = [];
+  const seen = new Set<string>();
+  let cursor: unknown = entries[entries.length - 1]?.id;
+  while (typeof cursor === 'string' && !seen.has(cursor)) {
+    const entry = byId.get(cursor);
+    if (!entry) {
+      break;
+    }
+    seen.add(cursor);
+    branch.push(entry);
+    cursor = entry.parentId;
+  }
+  branch.reverse();
+  return branch;
+}
+
+/** Whether an OMP entry is a user's own prompt, the only kind an edit replaces. */
+function isOmpUserPromptEntry(entry: AnyRecord): boolean {
+  return entry.type === 'message' && readObjectRecord(entry.message)?.role === 'user';
+}
+
 type StoredHistoryMessage = {
   sequence: number;
   message: NormalizedMessage;
@@ -612,6 +614,120 @@ export class OmpSessionsProvider implements IProviderSessions {
       limit: normalizedLimit,
       tokenUsage,
     };
+  }
+
+  /**
+   * Resolves where an OMP conversation must resume from so that the message
+   * identified by `anchorId`, and everything after it, is replaced.
+   *
+   * OMP has no "truncate at an entry" resume flag, so an edit rides the same
+   * file copy a fork does: the entry right before the edited prompt is the one
+   * the copy must keep through. `null` means no turn precedes it — editing the
+   * first prompt starts the conversation over rather than resuming.
+   */
+  async resolveEditAnchor(
+    sessionId: string,
+    anchorId: string,
+  ): Promise<{ found: boolean; resumeThroughId: string | null }> {
+    const row = sessionsDb.getSessionById(sessionId);
+    const engineSessionId = row?.provider_session_id?.trim();
+    if (!row || !engineSessionId) {
+      return { found: false, resumeThroughId: null };
+    }
+    const filePath = await this.resolveTranscriptFile(row, engineSessionId);
+    if (!filePath) {
+      return { found: false, resumeThroughId: null };
+    }
+
+    const branch = ompActiveBranch(await readOmpEntries(filePath));
+    const index = branch.findIndex((entry) => entry.id === anchorId && isOmpUserPromptEntry(entry));
+    if (index < 0) {
+      return { found: false, resumeThroughId: null };
+    }
+
+    // Editing the first prompt has no completed turn to resume through, so the
+    // conversation starts over. OMP brackets a session with bookkeeping entries
+    // (`model_change`, `thinking_level_change`), but keeping only those would
+    // leave a degenerate conversation, so they do not count as a turn.
+    if (!branch.slice(0, index).some(isOmpUserPromptEntry)) {
+      return { found: true, resumeThroughId: null };
+    }
+
+    const predecessor = branch[index - 1];
+    return {
+      found: true,
+      resumeThroughId: typeof predecessor?.id === 'string' ? predecessor.id : null,
+    };
+  }
+
+  /**
+   * Rewinds an OMP session so `keepThroughId` is the last entry it holds.
+   *
+   * OMP transcripts are append-only — `--session` resumes one at its tip and
+   * nothing shortens it — so rewinding means copying the kept prefix into a new
+   * transcript file and moving the session onto it. The pre-edit file stays on
+   * disk and is recorded as superseded so the indexer does not hand it back.
+   */
+  async rewindSession(sessionId: string, keepThroughId: string | null): Promise<void> {
+    const row = sessionsDb.getSessionById(sessionId);
+    const providerSessionId = row?.provider_session_id;
+    if (!row || !providerSessionId) {
+      throw new AppError('This session has not produced a transcript yet.', {
+        code: 'EDIT_SOURCE_NOT_READY',
+        statusCode: 409,
+      });
+    }
+
+    if (keepThroughId === null) {
+      sessionsDb.markProviderSessionSuperseded({
+        providerSessionId,
+        provider: 'omp',
+        sessionId,
+        jsonlPath: row.jsonl_path ?? null,
+      });
+      sessionsDb.detachProviderSession(sessionId);
+      return;
+    }
+
+    const filePath = await this.resolveTranscriptFile(row, providerSessionId);
+    if (!filePath) {
+      throw new AppError('The OMP transcript is unavailable.', {
+        code: 'EDIT_SOURCE_UNREADABLE',
+        statusCode: 409,
+      });
+    }
+
+    const forked = await forkOmpTranscriptPrefix({
+      providerSessionId,
+      jsonlPath: filePath,
+      projectPath: row.project_path ?? '',
+      upToAnchorId: keepThroughId,
+    });
+    sessionsDb.markProviderSessionSuperseded({
+      providerSessionId,
+      provider: 'omp',
+      sessionId,
+      jsonlPath: filePath,
+    });
+    sessionsDb.repointSessionToProviderSession(sessionId, {
+      ...forked,
+      supersededProviderSessionId: providerSessionId,
+    });
+  }
+
+  /**
+   * Resolves the on-disk transcript backing one session row, preferring the
+   * indexed path and falling back to a suffix scan of the sessions root when
+   * the watcher has not recorded one.
+   */
+  private async resolveTranscriptFile(
+    row: { jsonl_path?: string | null; project_path?: string | null } | undefined,
+    engineSessionId: string,
+  ): Promise<string | null> {
+    if (row?.jsonl_path) {
+      return existsSync(row.jsonl_path) ? row.jsonl_path : null;
+    }
+    return resolveOmpTranscriptPath(engineSessionId, row?.project_path ?? undefined);
   }
 
   /**

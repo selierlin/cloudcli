@@ -91,6 +91,15 @@ export class PiSessionSynchronizer implements IProviderSessionSynchronizer {
       return 0;
     }
 
+    // A transcript a session was edited off is left on disk on purpose, but it
+    // is nobody's conversation any more. Re-indexing it would add a sidebar
+    // entry for the version the user edited away from — and for a session that
+    // was itself discovered from disk, whose app id is its original entry id,
+    // it would hand the row back to that transcript.
+    if (sessionsDb.isProviderSessionSuperseded(parsed.sessionId, this.provider)) {
+      return 0;
+    }
+
     const existing = sessionsDb.getSessionByProviderSessionId(parsed.sessionId)
       ?? sessionsDb.getSessionById(parsed.sessionId);
     // Archive is the user's explicit "hide" choice; a re-scan must not

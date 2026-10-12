@@ -162,7 +162,14 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsTokenUsage: true,
     // Effort maps onto Pi's `--thinking` levels for reasoning-capable models.
     supportsEffort: true,
-    supportsMessageEditing: false,
+    // Pi has no resume-at-an-entry flag, but a session is a self-contained
+    // JSONL file: editing copies the prefix before the replaced prompt into a
+    // new file and moves the session onto it, the same materialisation forking
+    // uses. See PiSessionsProvider.rewindSession.
+    supportsMessageEditing: true,
+    // Pi's native `--fork` copies a whole session only, so a message-level fork
+    // is materialised by copying the transcript prefix into a new file under a
+    // fresh id, which the next `--session` run picks up. See PiForkProvider.
     supportsSessionForking: true,
   },
   zcode: {
@@ -212,7 +219,11 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     // Effort maps onto OMP's `--thinking` levels, taken from the per-model
     // `thinking` array in `omp models --json`.
     supportsEffort: true,
-    supportsMessageEditing: false,
+    // OMP has no resume-at-an-entry flag, but a session is a self-contained
+    // JSONL file: editing copies the prefix before the replaced prompt into a
+    // new file and moves the session onto it, the same materialisation forking
+    // uses. See OmpSessionsProvider.rewindSession.
+    supportsMessageEditing: true,
     // OMP ships no `--fork`, but a session is a self-contained JSONL file the
     // CLI loads by id: the fork copies the transcript prefix into a new file
     // under a fresh id, which the next `--session` run picks up. See

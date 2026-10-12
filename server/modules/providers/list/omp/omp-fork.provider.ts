@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, promises as fsp } from 'node:fs';
 import path from 'node:path';
 
-import { resolveOmpTranscriptPath } from '@/modules/providers/list/omp/omp-sessions.provider.js';
+import { resolveOmpTranscriptPath } from '@/modules/providers/list/omp/omp-transcript-path.js';
 import type { IProviderFork } from '@/shared/interfaces.js';
 import type { AnyRecord } from '@/shared/types.js';
 import { AppError, readObjectRecord } from '@/shared/utils.js';
@@ -191,4 +191,18 @@ export class OmpForkProvider implements IProviderFork {
       });
     }
   }
+}
+
+/**
+ * Creates an OMP transcript prefix for the sessions adapter's edit-rewind path.
+ * The adapter owns deciding which entry is a safe boundary; this helper owns
+ * only the validated artifact materialisation shared with normal forks.
+ */
+export async function forkOmpTranscriptPrefix(input: {
+  providerSessionId: string;
+  jsonlPath: string;
+  projectPath: string;
+  upToAnchorId: string;
+}): Promise<{ providerSessionId: string; jsonlPath: string }> {
+  return new OmpForkProvider().forkSession(input);
 }

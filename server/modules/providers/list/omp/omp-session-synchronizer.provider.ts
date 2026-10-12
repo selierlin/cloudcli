@@ -3,7 +3,7 @@ import { createInterface } from 'node:readline';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import { getOmpSessionsRoot } from '@/modules/providers/list/omp/omp-models.provider.js';
-import { resolveOmpTranscriptPath } from '@/modules/providers/list/omp/omp-sessions.provider.js';
+import { resolveOmpTranscriptPath } from '@/modules/providers/list/omp/omp-transcript-path.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
 import type { AnyRecord } from '@/shared/types.js';
 import {
@@ -89,6 +89,15 @@ export class OmpSessionSynchronizer implements IProviderSessionSynchronizer {
   private async upsertFile(filePath: string): Promise<number> {
     const parsed = await this.processSessionFile(filePath);
     if (!parsed) {
+      return 0;
+    }
+
+    // A transcript a session was edited off is left on disk on purpose, but it
+    // is nobody's conversation any more. Re-indexing it would add a sidebar
+    // entry for the version the user edited away from — and for a session that
+    // was itself discovered from disk, whose app id is its original entry id,
+    // it would hand the row back to that transcript.
+    if (sessionsDb.isProviderSessionSuperseded(parsed.sessionId, this.provider)) {
       return 0;
     }
 
