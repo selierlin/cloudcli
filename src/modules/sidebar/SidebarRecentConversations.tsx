@@ -754,14 +754,16 @@ export default function SidebarRecentConversations({
         <div className="flex items-center gap-2">
           <span className="text-[10px] tabular-nums text-muted-foreground/70">{total}</span>
           {renderNewSessionControl()}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-[11px]"
-            onClick={() => (isManaging ? exitManaging() : setIsManaging(true))}
-          >
-            {isManaging ? t('actions.cancel') : t('sessions.manageSessions')}
-          </Button>
+          {!isManaging && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={() => setIsManaging(true)}
+            >
+              {t('sessions.manageSessions')}
+            </Button>
+          )}
         </div>
       </div>
 

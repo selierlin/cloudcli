@@ -191,15 +191,17 @@ export default function SidebarProjectSessions({
               {t('sessions.newSession')}
             </button>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            className={isManaging ? 'col-span-2 h-8 text-xs' : 'h-8 text-xs'}
-            onClick={() => (isManaging ? exitManaging() : onManagingChange(true))}
-            disabled={!hasSessions && !isManaging}
-          >
-            {isManaging ? t('actions.cancel') : t('sessions.manageSessions')}
-          </Button>
+          {!isManaging && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => onManagingChange(true)}
+              disabled={!hasSessions}
+            >
+              {t('sessions.manageSessions')}
+            </Button>
+          )}
         </div>
       ) : (
         <div className="flex gap-1">
@@ -214,15 +216,17 @@ export default function SidebarProjectSessions({
               {t('sessions.newSession')}
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 text-xs"
-            onClick={() => (isManaging ? exitManaging() : onManagingChange(true))}
-            disabled={!hasSessions && !isManaging}
-          >
-            {isManaging ? t('actions.cancel') : t('sessions.manageSessions')}
-          </Button>
+          {!isManaging && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => onManagingChange(true)}
+              disabled={!hasSessions}
+            >
+              {t('sessions.manageSessions')}
+            </Button>
+          )}
         </div>
       )}
 
