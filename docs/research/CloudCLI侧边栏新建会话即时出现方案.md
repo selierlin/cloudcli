@@ -2,7 +2,7 @@
 
 - 文档日期：2026-10-10
 - 适用仓库：`cloudcli`（React 前端 `src/` + Node 后端 `server/`）
-- 状态：**已评审 → v2 修订**（尚未实施；见文末「评审回应与方案修订（v2）」）
+- 状态：**已实施（方案 D / 验收范围①：本机新建即时）**——2026-10-10，见文末「实施记录」
 - 目标读者：独立评审者 / 其他 AI（本文自足，无需会话上下文）
 - ⚠️ **行号勘误**：本文写作期间工作区存在未提交改动（`useProjectsState.ts` / `types.ts` / `sessions.service.ts` 均已变动），文中所有行号已漂移。**实现前一律以符号/引文为准**。
 
@@ -432,6 +432,45 @@ LIMIT ? OFFSET ?
 > - **memo 引用稳定契约**：当无新增时 `merge` 原样返回入参引用（`merged === recentConversations`），`changed` 从 false 起，标题无变则整体返回原引用，`recentConversationTitleSync.test.ts:114` 的 `=== rowsBefore` 契约不受影响。`5.2` 的第 `//` 注释判据改法正确，也回应了 `10-质疑清单 #6`。
 > - **标题源一致性**：候选行 `sessionTitle` 取 `session.summary`（与服务端 `custom_name` 略有出入），但这与既有标题折叠 memo（`useSidebarController.ts:350-376`）同源，非新增风险；未命名会话回退 `session.id` 也与 `sessions.service.ts:260` 的 fallback 一致。
 
+#### 二审补充
+
+> [!CAUTION] **折叠行无法被既有的乐观置顶机制即时响应——方案 A 引入的新缺口，且当前方案只字未提**
+> 折叠行只存在于**派生层**，不在 `recentConversations` **state** 里。而乐观置顶链路 `updateSessionPinned`（`useSidebarController.ts:1319-1374`）是两路：
+> - `setOptimisticPinBySessionId`（`1327-1331`）→ 项目树侧应用；
+> - `setRecentConversations((prev) => reorderRecentConversationsForPin(prev, ...))`（`1332-1334`）→ 作用在 **state** 上。
+>
+> 对折叠行点置顶：`reorderRecentConversationsForPin` 在 `sidebarProjectFormatting.ts:284-286` 因找不到该行（`!conversations.some(...)`）**直接原样返回**；而 `mergeRecentConversationsWithProjects` 构造行时 `isPinned` 硬编码 `false`、也不读 `optimisticPinBySessionId`。结果：折叠行置顶的即时预览**完全不生效**（点了没反馈，既不重排也不变色），只有等 `updateSessionPinned` 成功路径里的 `reloadRecentConversations()`（`1350`）重取 feed、该行以置顶身份进入 loadedIds 后才纠正。最终一致（reload 兜底），但乐观预览静默失效。
+> **建议**：方案 4/5 需显式处理这一交互——要么在 `reorderRecentConversationsForPin` 调用处对"折叠行 + 派生结果"重排（把输入换成派生 `recentConversationsWithCurrentTitles`），要么 `merge` 构造行时读入 `optimisticPinBySessionId`。至少要在"已知边界"里声明这个退化。
+
+> [!WARNING] **一审对 `isPinned` 的透传建议与方案的折叠分区存在耦合，二选一才能自洽**
+> 我上一轮建议折叠行 `isPinned: Boolean(session.isPinned)`（对齐 server）。但这与 `4.3` 的 append 分区 `[pinned, additions, unpinned]` 冲突：一旦透传，`additions` 里的置顶折叠行会被塞进**未置顶块**，恰恰破坏置顶语义。所以两条路只能二选一：
+> - **维持硬编码 `isPinned:false`**（方案现状）→ 接受上述 CAUTION 的"已置顶折叠行错位/乐观置顶失效"，直到 reload；
+> - **透传 + 同步把 `additions` 按 `isPinned` 分区后再拼**（`[...pinned, ...pinnedAdditions, ...unpinnedAdditions, ...unpinned]`）。
+> 请牵头明确选定其一，别同时采纳两套建议。
+
+> [!NOTE] **折叠时机其实早于"发首条消息"——文档的因果表述可更精确**
+> `registerOptimisticSession` 挂在 `onSessionEstablished`（`ProjectMainRegion.tsx:45-48`），即 `POST /api/providers/sessions` **创建成功就触发**，早于"发送首条消息"。`useProjectsState.ts:615-636` 构造的乐观行 `lastActivity: new Date().toISOString()` 在创建瞬间就比 feed 最新新。所以方案 A 生效在创建即折入，不依赖首条消息。第 1 节复现步骤 3-4 与第 4 节数据流把现象表述成"发首条消息后才出现"，因果略偏——建议改为"新建即应即时出现"，避免误导评审以为折叠依赖"首个 message"。
+
+> [!TIP] **性能：memo 现为标题折叠 + merge 两遍全遍历 `projects × sessions`**
+> `5.2` 的 memo 在 `projects` 每次引用变化时，先跑 `mergeRecentConversationsWithProjects` 一遍 O(P×S)，再跑既有的标题折叠一遍 O(P×S)。而 `projects` 引用变化极频繁（乐观 pin `applyOptimisticSessionPinState`、summary 更新、ws `session_upserted` 都重建数组）。中小项目无所谓，大项目（几十 projects × 数百 sessions）每次无关输入变化都双倍全遍历。可接受，但若在意，`merge` 内部已收集了每个候选的 `summary`，可与标题折叠合并成单遍——前提是别破坏"无变化时引用不变"和 `loadedIds` 去重两条契约。低优先级，不改也可。
+
+#### 三审补充
+
+> [!IMPORTANT] **方案的健壮性依赖一个文档没写明的服务端前提：活跃项目 `sessions` 的归档过滤由 `AND isArchived = 0` 保证，且 `ProjectSession` 无 `isArchived` 字段供客户端兜底**
+> 我核验了"折叠行被**归档/删除**后会不会幽灵残留"：
+> - 活跃项目 `project.sessions` 来自 `getSessionsByProjectPathPage`（`sessions.db.ts:720`），SQL 带 `AND isArchived = 0`（`728`），**不含归档会话**；归档/删折叠行后 `projects` 重取即清除该项目该行，`merge` 不再折回 → 无残留。**这条是 OK 的。**
+> - 但同在 `sessions.db.ts` 的 `getSessionsByProjectPathIncludingArchived`（`706`，供归档项目取值）可返回含归档会话的集合。而客户端 `ProjectSession`（`types.ts:82-100`）**没有 `isArchived` 字段**（`mapSessionRowToSummary` 也未输出，`projects-with-sessions-fetch.service.ts:122-131`）——即 `mergeRecentConversationsWithProjects` **无法在客户端按归档状态过滤**。一旦未来有某条路径误让活跃项目携带归档会话（例如误复用 includingArchived、或项目归档/恢复的中间态把归档会话混进来），`merge` 会把这些**已归档会话当"新会话"折回对话列表**（`id∉loadedIds && lastActivity>newest` 对它们恰好成立）。
+> **建议**：在方案 4/6 里把"活跃项目 sessions 已由服务端保证 `isArchived=0`"写成明确前提（必要时在 `merge` 加一条注释注明此依赖），防止后续改动破坏该保证时静默回灌归档会话。
+
+> [!NOTE] **契约措辞修正：折叠行存在期间，6-4"无变化时引用不变"不再成立**
+> `5.2` 把 changed 初值设为 `merged !== recentConversations`。一旦有折叠行，`merged` 就是新引用 → changed 恒 true → 每次 `projects` 引用变化（乐观 pin 别的会话、summary 更新、ws 推送，`applyOptimisticSessionPinState`/`useProjectsState.ts` 都会重建数组）都会让 memo 重建列表数组并 re-render `conversations`。**行为上是合理的**（折叠行就是相对 feed 的附加内容，应 re-render），但文档 6-4 与 `recentConversationTitleSync.test.ts:114` 的"引用不变"承诺只在**无新增行**时成立。建议把 6-4 措辞收窄为"无新增行且无标题变化时引用不变"，以免实现者误以为常规输入变化会稳定引用。
+
+> [!NOTE] **时间闸前提要的是"同一时区解释"，不止"同机同钟"**
+> `5.1` 用 `Date.parse(lastActivity)`（ISO 若带 `Z` 按 UTC 解析）计算毫秒；而 `recent` feed 的 `lastActivity` 来自 DB `updated_at ?? created_at`（`sessions.service.ts:261`），服务端排序用 `julianday(COALESCE(updated_at, created_at))`（`sessions.db.ts:643`，按 UTC 解释）。若 DB 里时间是无时区后缀的本地串，`julianday` 按 UTC、`Date.parse` 按浏览器本地时区，会同时区偏置约 ±N 小时。文档已声明"同机同钟"收敛，但准确说**需要的是守护进程与浏览器处于同一时区解释**——同机通常满足，但措辞建议补"同时区"三字，避免被理解成仅"同一时钟"。
+
+> [!TIP] **候选行标题 fallback 与项目树不一致（无害，但可注一句防误判）**
+> `merge` 候选行 `sessionTitle: summary.trim() || session.id` 对齐服务端 recent 的 `custom_name || session_id`（`sessions.service.ts:260`）。但项目树里未命名会话的显示名是 `getSessionName` → `summary || name || t('projects.newSession')`（`sidebarProjectFormatting.ts:56-58`）。于是同一条新建未命名会话：**对话页显示 raw `session.id`，项目树显示"新会话"**。这是既有 recent 的现状（不是方案引入），但评审容易误判成不一致 bug——建议在 4.3 附近留一句,说明对话页故意沿用服务端 fallback，与项目树文案不同源。
+
 ### Codex
 
 > [!CAUTION] **空 feed 场景会直接漏掉首条新会话，当前设计并未满足“即时出现”**
@@ -465,6 +504,20 @@ LIMIT ? OFFSET ?
 
 > [!TIP] **同毫秒/同秒候选还缺少服务端的 `session_id DESC` 决胜键**
 > 5.1 的 `additions.sort` 只比较 `lastActivity`。服务端在时间相同时用 `session_id DESC`（`sessions.db.ts:642-653`）；两个同秒新会话可能在折叠态与刷新后交换位置。若暂不改成显式投影，至少应按 `(lastActivity, sessionId)` 复刻服务端排序，并测试同时间戳、不同 sessionId 的稳定顺序。该问题低于空 feed 和时间闸问题，但会影响“刷新后不跳行”的体验。
+
+**三审补充**
+
+> [!CAUTION] **“其他客户端建会话也能即时反映”不是当前方案 A 的能力，必须收窄范围或采用方案 C**
+> 文档 3 节一边把服务端创建即广播列为“未来多端增强”，一边在“为什么 A 能同时覆盖两条来源”中声称其他客户端建会话也会反映。实际 `POST /api/providers/sessions` 只创建 DB 行并返回（当前代码在 `provider.routes.ts:1097-1106`，没有 broadcast）；`session_upserted` 是 watcher / chat-run 后续产生的 delta，不是创建请求的即时事件。因此 A 的准确范围是“本机 `onSessionEstablished` 立即可见，其他客户端等到后续 upsert 才可见”。若验收包含另一浏览器/另一台机器在创建后立刻看到新行，方案 C（或创建成功后的专用广播）不是可选项，而是必需项；若只做本机修复，应删除多端承诺并把 C 明确排除在本期验收之外。
+
+> [!IMPORTANT] **三审建议把“新会话来源”提升为一等信号，避免跨模块靠 `projects` 反推**
+> 当前链路已经有精确来源：`ChatInterface.handleSessionEstablished` 调用 `ProjectMainRegion.handleSessionEstablished`，后者直接调用 `registerOptimisticSession`（`ProjectMainRegion.tsx:43-48`）；WebSocket 分支也能在 `setProjects` 中区分插入与更新（`useProjectsState.ts:316-328`）。建议让这两个入口共同维护“待投影的 sessionId/行”并经 `sidebarSharedProps` 传给 sidebar，再由 feed state 合并、去重和维护 total；这样空 feed、同秒时间、分页 offset、置顶/删除/重命名都能复用现有 reducer 语义。单纯扩展 `recentConversationsWithCurrentTitles` 会把状态来源、分页来源和交互来源拆在三个层次，后续每个操作都要再次补偿。
+
+> [!WARNING] **三审测试还缺“请求边界竞态”，不能只验证 rerender 后的纯函数结果**
+> `fetchRecentConversationsPage` 的 sequence 只防旧请求覆盖新请求（`useSidebarController.ts:238-287`），并不知道 `projects` 在请求开始后新增了 sessionId。至少补两条集成用例：一是 `/recent` 已成功返回空数组后再创建首条会话；二是 `/recent` 请求进行中创建会话，分别验证响应落地、`projects` upsert、后续 loadMore/刷新不会丢行或重复。当前 7.1 只覆盖“feed 已有两行、rerender 加第三行”，无法暴露前面两审指出的空 feed 和请求边界问题。
+
+> [!NOTE] **三审结论**
+> 在不引入显式新会话信号、不修改服务端广播的前提下，只能把本期目标限定为“本机新建会话即时出现”；多端即时、空 feed、同秒排序和派生行交互仍需额外设计。建议牵头评审先确认验收范围，再决定是收窄方案 A，还是直接升级到“本地投影 + 创建广播”的组合方案。
 
 ---
 
@@ -556,3 +609,188 @@ hook（`useSidebarController`，复用 `recentConversationTitleSync.test.ts` 骨
 - §1 现象/复现、§2 链路与根因（**行号需按符号重定位**）
 - §6 不变量 4/5/6/7（引用稳定、不额外请求、搜索态隔离、无渲染环）
 - §8 验证步骤（纯前端、无需重启守护进程）、§9 影响面（改动清单按 B 节更新）、附录 A 证据
+
+---
+
+## 评审回应与方案修订（v3）——二审裁定与待拍板
+
+> 本节在 v2 之后追加。**二审意见以「二审补充」形式署名在上文 §审阅批注 的 `### Claude` / `### Codex` 节内**：
+> - Claude 二审：折叠行无法被乐观置顶即时响应；`isPinned` 透传与 append 分区二选一；折入时机早于"发首条消息"；性能（memo 两遍全遍历）。
+> - Codex 二审：严格 `ms > newestLoadedMs` 撞 SQLite 秒级精度；折叠行"立即置顶"没走通；offset 未与服务端分页位置对齐（更正其自身上一轮 NOTE）；同秒候选缺 `session_id DESC` 决胜键。
+>
+> ⚠️ **必须先明确的事实（供三审定位靶子）**：**二审全部引用 v1 的编号与代码**——`§4.2` 的时间闸候选条件、`§5.1` 的 `ms <= newestLoadedMs` 与 `additions` 分区、`5.2` 的 memo。**v2 本身（显式信号 + pending overlay + 单向对账 + props 穿线）没有任何一条二审覆盖过**。v3 的任务是把二审裁定归位，并把「v2 vs 更小方案 D」的取舍摆上台面，供三审裁决。
+
+### A. 二审逐条裁定（含命中范围与复算）
+
+| # | 来源 | 条目 | 裁定 | 命中 v1 | 命中 v2 | 复算依据 |
+|---|---|---|---|---|---|---|
+| 1 | Claude | 折叠行无法被既有乐观置顶链路即时响应 | **成立** | ✔ | **✔** | 乐观置顶的即时预览作用于 **state**：`setRecentConversations(prev => reorderRecentConversationsForPin(prev, sessionId, isPinned))`（`useSidebarController.ts:1332-1334`）；而 `reorderRecentConversationsForPin` 找不到该行即 `return conversations`（`sidebarProjectFormatting.ts:284-286`）。v2 的 pending 行同样不在 state ⇒ 点置顶无即时预览，等 `reloadRecentConversations()`（`:1350`）兜底 |
+| 2 | Claude | 一审"`isPinned` 透传"建议与 append 分区耦合，须二选一 | **成立** | ✔ | ✖ | v2 只投影本地**新建**（必未置顶），不直接冲突；但**修 #1** 若走"merge/派生读 `optimisticPin`"就会重新引回该冲突 ⇒ 修 #1 时必须一并按 `isPinned` 分区 |
+| 3 | Claude | 折叠时机早于"发首条消息"（文档表述） | **部分接受** | ✔ | **✔** | 时机结论对：`onSessionEstablished` → `registerOptimisticSession`（`ProjectMainRegion.tsx:47`），在 `POST /providers/sessions` 成功即触发（`useChatComposerState.ts:892`）。但"早于发首条消息"措辞**也不精确**——首条消息是随创建请求一起提交的（`:856` `initialMessage`）。精确表述应为"**会话创建成功即折入**" |
+| 4 | Claude | 性能：memo 两遍全遍历 `projects × sessions` | **成立（仅 v1）** | ✔ | ✖ | v2 的叠加是对 `feed + pending` 的一次变换，不遍历全部 `projects` ⇒ 不适用 |
+| 5 | Codex | 严格 `ms > newestLoadedMs` 撞 SQLite 秒级精度 | **成立（仅 v1）** | ✔ | ✖ | `createAppSession` 用 `CURRENT_TIMESTAMP`（`sessions.db.ts:227`，秒级）；v2 无时间闸 ⇒ 已消除 |
+| 6 | Codex | 折叠行"立即置顶"没走通 | **成立** | ✔ | **✔** | 与 #1 同源，独立发现 |
+| 7 | Codex | offset 未与服务端分页位置对齐 | **成立** | ✔ | **✔** | `loadMoreRecentConversations` 传 `recentConversations.length` 作 offset（`useSidebarController.ts:293-303`）。v2 的 pending 不进 state ⇒ 新增 1 行后 offset 落后 1，会重取上一页末行（`existingIds` 去重避免重复展示，但不"对齐"） |
+| 8 | Codex | 同秒/同毫秒候选缺 `session_id DESC` 决胜键 | **成立（低优先）** | ✔ | ✔ | v2 的 `prependPendingConversations` 若仅按 `lastActivity` 排序，多个同刻 pending 顺序不定；服务端在时间相同用 `session_id DESC`（`sessions.db.ts:642-653`） |
+
+**收敛结论**：二审中真正"横向命中 v2"的是 **#1 / #6 / #7**。三者**同根**——新行留在**派生层**，于是所有作用于 `recentConversations` **state** 的机制（乐观置顶重排、分页 offset、total 维护）都要各自单独适配。这正好解释了为何**两轮评审各自都给出同一句建议**："让显式新会话进入可被现有 reducer/state 操作的同一列表"（Claude #1 建议、Codex 二审 TIP）。
+
+### B. 方案 D（v3 提议，取代 v2 的 pending overlay）
+
+**做法**：新建会话时把行**直接并入 feed state**（而非悬浮在派生层），并同步 `total`。它与 v2 共享同一条"显式信号"来源（`registerOptimisticSession` 仍要经 `sidebarSharedProps` 把 `createdConversation` 传给 `<Sidebar>` → `useSidebarController`，因为 controller 本身不知道新建），**但省去 pending state、对账 effect 与派生层改造**。
+
+```ts
+// useSidebarController.ts —— 新增 1 个 effect：把本地新建会话并入 feed state
+const insertedConversationIdsRef = useRef<Set<string>>(new Set());
+useEffect(() => {
+  if (!createdConversation) return;
+  const { row } = createdConversation;
+  if (insertedConversationIdsRef.current.has(row.sessionId)) return; // 去重：同一信号不重复并入
+  insertedConversationIdsRef.current.add(row.sessionId);
+
+  setRecentConversations((previous) => {
+    if (previous.some((c) => c.sessionId === row.sessionId)) return previous; // 重取已含该行
+    // 新会话必未置顶 ⇒ 插到置顶块之后、未置顶块之前（对齐服务端 `isPinned DESC`）
+    const pinned = previous.filter((c) => c.isPinned);
+    const unpinned = previous.filter((c) => !c.isPinned);
+    return [...pinned, row, ...unpinned];
+  });
+  setRecentConversationsTotal((total) => total + 1);
+}, [createdConversation]);
+```
+
+**为什么二审三条命中对 D 不成立**：
+
+- **#1/#6（乐观置顶）**：新行已在 `recentConversations` state ⇒ `reorderRecentConversationsForPin(recentConversations, ...)` **能找到它**，点置顶立即重排、无需等 reload。
+- **#7（offset）**：新行进 state ⇒ `recentConversations.length` 计入它。**且服务端也把它排在最前**（`isPinned DESC, julianday(updated_at) DESC`，`sessions.db.ts:642-653`；新行 `updated_at` 最新）——故客户端"state 含它 + offset 计入它"与"服务端把它排首位"**位置一致**，`loadMore` 不漏不重。反证：v2 的派生层方案（state 不含它）正是 Codex #7 的重叠来源。
+- **total**：`total + 1` 与 state 增量天然同步。
+
+**自洽性（为何不会丢 / 重复）**：
+
+1. `fetchRecentConversationsPage(0, false)` 重取是**整体替换**（非 append 分支 `return conversations`，`useSidebarController.ts:262-264`）。该会话已落库，服务端 `/recent` 必返回它 ⇒ 乐观行被**服务端版本替换**（顺带纠正 `lastActivity` 格式与 `projectDisplayName`），不丢不重。
+2. 切页签 effect（`searchMode==='conversations'` 且搜索词 <2）会 `reloadRecentConversations()`（`:335-341`），同上；append（loadMore）分支有 `existingIds` 去重（`:267-271`）。
+3. **搜索态隔离**不变：`recentConversations` 仅用于非搜索分支渲染（Claude 一审批注已核）。
+4. `rename`（`:1269-1273`）与删除/归档（`:984-990`）都是对 state 的原地 map/filter，乐观行一并受治。
+5. 既有 `recentConversationsWithCurrentTitles` memo（`:350-376`）会照常处理乐观行，无冲突。
+
+**D 的新增待确认点（请三审一并裁决）**：
+
+1. **竞态闪丢**：若 `POST /providers/sessions` 落库前有人触发重取，整体替换会短暂丢掉乐观行。窗口极小（`create` await 完成后才发信号）；且下一拍重取即恢复。
+2. **`total` 原子性**：去重分支（state 已含该 id）不应再 +1——上例用 `insertedConversationIdsRef` 兜住；实现时须确认该 ref 的清理时机（删除/归档时应移除对应 id，避免历史 id 永久占位）。
+3. **时间口径约束（不在二审、一审范围内，牵头复算新增）**：乐观行 `lastActivity` 用 `new Date().toISOString()`（UTC、毫秒、带 `Z`）；服务端行用 DB `CURRENT_TIMESTAMP`（UTC、秒级、**无时区后缀**），前端 `Date.parse` 对后者按**本地时区**解析 ⇒ 两者口径不同。**约束：D 只做"置顶块后、未置顶块前"的位置插入，不得用 `lastActivity` 跨源比较排序**（pending 内部同口径可排）。遵守此约束即无影响。
+
+**D 与 v2 取舍对比**
+
+| 维度 | v2（pending overlay） | D（并入 state） |
+|---|---|---|
+| 二审 #1/#6 乐观置顶 | ✖ 失效（等 reload） | ✔ 立即生效 |
+| 二审 #7 offset 对齐 | ✖ 落后 1（重取末行） | ✔ 对齐 |
+| `total` | 需 `+ pending.length` | 天然 `+1` |
+| 改动面 | props 穿线 + pending state + **2 个 effect（投影+对账）** + 派生 memo 改造 + 纯函数 | props 穿线 + **1 个 effect** + 纯函数 |
+| `recentConversations` 语义 | 纯服务端分页真值 | 混入乐观行（重取时被服务端版本替换） |
+| 主要新增风险 | 派生层与 state 侧机制持续失配 | 竞态闪丢（小）、`total` 原子性 |
+| 空 feed / 置顶 / `-Infinity` / 秒级精度 | 已解 | 已解 |
+
+### C. 待拍板项（请三审重点裁决）
+
+> 以下四项**尚未定论**，需要评审给出结论或牵头拍板；文档不预设答案。
+
+1. **方案选型：D 还是 v2？** 牵头的倾向是 **D**（二审三条命中对 D 均不成立，且改动更小），但 D 改变了 `recentConversations` "纯服务端真值"的语义假设——请评估该语义变化是否可接受、有无未预见的消费者。
+2. **范围收敛：只覆盖"本机新建"，放弃多端 / WebSocket 即时。** 依据：`session_upserted` 事件字段不足（仅 `id/summary/messageCount/lastActivity`，无 `isPinned/created_at/updated_at`）且语义是 upsert 非 insert（Codex 一审已核）。请确认这是否是可接受的范围。
+3. **并发丢信号：** 极端并发下可能丢一条新建信号 ⇒ 退化为"该条等下一次重取才出现"。请确认可接受，或要求改为可累积的队列信号。
+4. **D 的竞态闪丢（B 节新增点 1）与 `total` 原子性（点 2）** 是否可接受 / 需要更严的写法。
+
+### D. 三审质疑清单（请围绕以下点"读代码推演失败路径"）
+
+1. **D 的 offset 对齐论证**：`[...pinned, row, ...unpinned]` 的插入位置 + `recentConversations.length` 作 offset，在"首屏 40 行 + 新增 1 行 + 连续 loadMore"下是否真不漏不重？特别验证"存在置顶行"与"乐观行尚未被重取替换"两个时点。
+2. **D 的语义变化**：state 混入乐观行后，除 offset/`total`/置顶/rename/删除外，**是否还有消费者**把 `recentConversations` 当作"服务端权威分页"？请全量排查消费点。
+3. **竞态窗口**：`POST /providers/sessions` await 完成 → `onSessionEstablished` → props 穿线 → effect 落 state 之间，是否有任何路径触发 `fetchRecentConversationsPage(0,false)` 把乐观行冲掉？窗口内失败是否可恢复？
+4. **`insertedConversationIdsRef` 的生命周期**：删除 / 归档 / 重取后该 id 是否应从 ref 清除？不清除会否造成"同 id session 重建后不再并入"？
+5. **时间口径约束（B 节新增点 3）**：在实际数据（DB 秒级无时区 vs 本地 ISO-UTC）下，D 的"位置插入、不跨源比时间"是否足以规避？有无隐藏的排序路径仍会比较二者？
+6. **是否仍有比 D 更小的桥接点**：例如是否存在现成的"session 创建事件"订阅点，可直接在 controller 内落 state，省去 props 穿线？
+7. **二审对 v2 的"未覆盖"**：请确认 v2 的 side-channel props 穿线、overlay 对账、`nonce` 并发模型**确实未被任一轮覆盖**，以及这些点在选 D 后是否仍需保留（如信号穿线）。
+
+---
+
+## 附：三审阅读指引
+
+- **靶子**：`### C. 待拍板项` 与 `### B. 方案 D`（真正的新内容）。**不要**再对 §1/§2 现象链路、v1 §4/§5 时间闸方案做审——它们已被 v2 取代、且二审已覆盖。
+- **纪律**：审阅者给出的**数字与修法都要复算**（本轮已出现"勘误自身也不准"与"二审更正一审 NOTE"两例）；对失败路径请"读代码推演"，不要只做文档自洽性检查。
+- **行号**：全文行号已因工作区未提交改动漂移，**一律以符号/引文为准**（见文首勘误）。
+
+---
+
+## 三审裁定（v4）——意见收敛于方案 D
+
+> 三审意见以「三审补充」形式署名在上文 §审阅批注 的 `### Claude`（4 条）与 `### Codex`（4 条）节内。**与前两轮相同，三审引用的仍是 v1 的编号**（`§5.1/§5.2/§4.3/§6-4`、时间闸 `merge`）——它同样没读到 v2/v3。但三审**独立地**给出了方案 D 的逐字描述（Codex #6），这是决定性收敛信号。
+>
+> ⚠️ 三审写作期间工作区另有**未提交改动**（另一条线：侧栏 attention 二期，涉及 `server/modules/websocket/services/session-upsert-broadcast.service.ts` 等 14 个文件），已影响若干行号与 `session_upserted` 的 payload。本节复算**按当前工作区实码**核过（见 §C）。
+
+### A. 三审逐条裁定（含命中范围与复算）
+
+| # | 来源 | 条目 | 裁定 | 对方案 D | 复算依据（当前工作区） |
+|---|---|---|---|---|---|
+| 1 | Claude | 归档过滤前提：活跃项目 `sessions` 由服务端保证 `isArchived=0`；客户端 `ProjectSession` 无 `isArchived`，无法兜底 | **成立（前提级）** | 本机乐观行必活跃、不直接命中；**但若把信号源扩到 ws 插入分支（#6）则必须** | `getSessionsByProjectPathPage` 带 `AND isArchived = 0`（`sessions.db.ts:750,758`）；`ProjectSession`（`src/shared/types.ts:82-104`）**无 `isArchived`**；`getSessionsByProjectPathIncludingArchived`（`:736`）存在 |
+| 2 | Claude | 折叠行存在期间，`§6-4`"无变化时引用不变"不再成立 | **成立（仅 v1）** | **对 D 不适用**：D 不改 `recentConversationsWithCurrentTitles` 的 `changed` 初值，该契约在 D 下继续成立 | v1 §5.2 把 `changed` 初值设为 `merged !== recentConversations`（v1 专有）；D 的插入发生在 state 层，不触碰该 memo |
+| 3 | Claude | 时间闸前提要的是"**同时区解释**"，不止"同机同钟" | **成立（仅 v1）** | **与 v3 §B 新增点 3 是同一点**——三审独立命中 | v1 `Date.parse(lastActivity)` vs 服务端 `julianday(...)`（UTC）的口径差；D 用"位置插入、不跨源比时间"规避 |
+| 4 | Claude | 候选行标题 fallback 与项目树不同源（对话页显示 raw `id`，项目树显示"新会话"） | **成立（既有现状，无害）** | 适用（D 的乐观行同样取 `summary\|\|id`） | 对话页 `custom_name?.trim() \|\| session_id`（`sessions.service.ts:332`）vs 项目树 `getSessionName`（`sidebarProjectFormatting.ts:56`） |
+| 5 | Codex | "其他客户端建会话即时反映"不是方案 A 的能力；`POST /sessions` 无 broadcast | **成立（= v3 待拍板项 2）** | 同 | 已核 `provider.routes.ts:1097-1107`：`createAppSession` 后仅 `res(201).json(...)`，**无 `broadcastSessionUpserted`** |
+| 6 | Codex | 把"新会话来源"提为一等信号：`registerOptimisticSession` **与** ws `setProjects` 插入分支两入口共同维护"待投影行"，经 `sidebarSharedProps` → sidebar → feed **state** 合并/去重/维护 total | **成立（= 方案 D 的精确描述）** | **核心** | `upsertSessionIntoProject` **已区分插入 vs 更新**（`inserted` 标志，`useProjectsState.ts:291-330`）⇒ 插入分支天然是信号命中点 |
+| 7 | Codex | 测试还缺"请求边界竞态"：①`/recent` 成功返回空后再创建；②`/recent` 请求进行中创建 | **成立（= v3 待确认点 1）** | 同 | `fetchRecentConversationsPage` 的 sequence 只防"旧响应覆盖新响应"（`useSidebarController.ts:238-260`），不知道请求期间 `projects` 新增 |
+| 8 | Codex | 结论：不引入显式信号、不改服务端广播 ⇒ 只能限定"本机新建"；**先定验收范围** | **成立** | 拍板项 | — |
+
+### B. 决定性事实：四个独立来源收敛到方案 D，无对立意见
+
+- **三审 Codex #6 逐字即方案 D**（"经 `sidebarSharedProps` 传给 sidebar，再由 feed **state** 合并、去重和维护 total"）——与 v3 §B 的伪代码同构。
+- 收敛路径：① 一审 Codex TIP「收窄为显式新会话投影」→ ② 二审 Claude #1 / Codex #2「更简单的是让显式新会话进入可被现有 reducer/state 操作的同一列表」→ ③ **三审 Codex #6** 逐字给出 D → ④ v3 §B 调和为 D。
+- **三审无一条反对 D**；三条"对 v1 的命中"（#2/#3/#4）在 D 下或消失、或降级为"前提/无害"。**分歧已收敛。**
+
+### C. 工作区时效性核对（本轮新查，防判据过期）
+
+1. **`session_upserted` 正在被另一条线加字段**：`SessionUpsertedEvent` 新增 `change: SessionUpsertChange`（`'content' | 'metadata'`，`server/shared/types.ts:291,307`），用于区分"真实追加 vs bare touch"（侧栏未读胶囊）。**但 session 对象仍只有 `id/summary/messageCount/lastActivity/change`——仍无 `isPinned/created_at/updated_at`** ⇒ "事件字段不足"判据**仍成立**。
+2. **`POST /sessions` 仍无 broadcast**（`provider.routes.ts:1097-1107`）⇒ "创建不广播"判据成立。
+3. **行号继续漂移**：三审引的归档 SQL 行（`720/728`）现值 `750/758` ⇒ 再次印证实现**一律按符号定位**。
+
+### D. 唯一实质待拍板项：本期验收范围（其余均已收敛）
+
+| 选项 | 做法 | 代价 |
+|---|---|---|
+| **① 本机新建即时**（推荐为本期） | 方案 D：仅 `registerOptimisticSession` 喂信号，纯前端 | 多端（另一浏览器/机器）**不**即时，等 `session_upserted` 后续 delta |
+| **② 含多端即时** | 需**方案 C**：`POST /providers/sessions` 成功后广播专用事件（或把信号源扩到 ws 插入分支 `useProjectsState.ts:327-330`，但须先补 `RecentConversationListItem` 所需字段） | 触及协议层/服务端；须补字段 |
+
+**建议**：① 为本期（用户报告的就是本机路径），② 另立项。若选 ②，需回到"方案 C"重新设计。
+
+次要/接受项（不阻塞）：
+- 并发丢信号 ⇒ 退化为"等下次重取"（可接受）；
+- D 的竞态闪丢（v3 §B 新增点 1）与 `total` 原子性（点 2）⇒ 实现时用 ref 集合兜住；
+- 候选行 fallback 文案差异（三审 #4）⇒ 注一句即可，非缺陷。
+
+---
+
+## 实施记录（2026-10-10）
+
+**验收范围**：① 本机新建即时（方案 D）。多端即时仍不在范围内。
+
+**改动（符号级：4 源文件 + 1 类型 + 2 测试文件）**：
+
+| 文件 | 改动 |
+|---|---|
+| `src/shared/types.ts` | 新增 `CreatedConversationSignal = { row: RecentConversationListItem; nonce: number }` |
+| `src/modules/project-workspace/hooks/useProjectsState.ts` | 新增 state `createdConversation`；`registerOptimisticSession` 末尾 `setCreatedConversation`（row = sessionId / provider / projectId / projectDisplayName / `summary.trim() \|\| sessionId` / now / `isPinned:false`，nonce 递增）；`sidebarSharedProps` 带出 |
+| `src/modules/sidebar/Sidebar.tsx` | props 类型加 `createdConversation`，透传给 `useSidebarController` |
+| `src/modules/sidebar/hooks/useSidebarController.ts` | args 加 `createdConversation`；新增 `insertedConversationIdsRef` 与 1 个 effect：去重后把 row 插到置顶块之后、未置顶块之前，并 `total + 1` |
+| `src/modules/sidebar/tests/recentConversationNewSession.test.ts` | 新增 5 测试（即时出现+total / unnamed 用 id / 置顶后插 / 已含不重复 / 掉出不顶回） |
+| `src/modules/project-workspace/tests/projectsStateAttention.test.ts` | 新增 2 测试（信号生产端 row 字段；unnamed fallback） |
+
+**实现期对 D 伪代码的两处收紧**（`v3 §B` 伪代码本身带此坑）：
+1. **去重分支不得再加 `total`**：伪代码在"feed 已含该行"时仍 `total + 1`（其点 2 已预警）。实际实现改为"先判 feed 是否已含该 id，含则早退不加 total"，与 `insertedConversationIdsRef` 构成双层去重。
+2. **effect 依赖 `[createdConversation, recentConversations]`**：`insertedConversationIdsRef` 保证"每个 id 只并入一次"，故 `recentConversations` 变化触发重跑时早退，不会把已掉出 feed 的行顶回。
+
+**验证**：
+- `tsc --noEmit -p tsconfig.json` 通过；`oxlint` 0 error。
+- `vitest run src/modules/sidebar src/modules/project-workspace`：23 文件 / 122 测试全绿。
+- **反向验证**：变异 A（effect 完全不动作）→ 4 红；变异 B（禁用去重）→ 3 红。测试可证伪。
+- `npm run build:client` 成功（产物 `index-BWOTqyzm.js`，HTML 已引用）。
+- **真机验证未完成**：本地 3011 守护进程需登录凭证，未取得。请刷新页面后（纯前端改动，无需重启守护进程）切到「对话」页签，对某项目新建会话并发送首条消息，确认新行即时出现在顶部、无重复、total 正确。
+
+**环境提示（与本次改动无关，但影响本地跑测）**：本机 Node 已迁 v26，其原生 WebStorage 与 jsdom 冲突，`localStorage` 为 undefined ⇒ 所有依赖 `localStorage` 的 client 测试在 Node 26 下必红。此套件须在 **Node 20** 下跑（v22 已卸载）：`PATH="$HOME/.nvm/versions/node/v20.19.6/bin:$PATH" npx vitest run`。项目 `.nvmrc` 仍写 `v22`（已过期）。

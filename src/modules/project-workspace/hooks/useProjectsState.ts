@@ -4,6 +4,7 @@ import type { NavigateFunction } from 'react-router-dom';
 import { api } from '@/shared/api';
 import type { ServerEvent,
   AppTab,
+  CreatedConversationSignal,
   LLMProvider,
   LoadingProgress,
   Project,
@@ -438,6 +439,10 @@ export function useProjectsState({
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedSession, setSelectedSession] = useState<ProjectSession | null>(null);
+  // The most recently created local session, surfaced to the sidebar so its
+  // Conversations feed can show the row without waiting for a refetch. Reuses
+  // the workspace's own optimistic row, so both lists agree on identity.
+  const [createdConversation, setCreatedConversation] = useState<CreatedConversationSignal | null>(null);
   // Sessions flagged as waiting on the user, each with how strongly to flag it.
   // Sticky until the session is opened or deleted — see markSessionAttention.
   const [attentionSessions, setAttentionSessions] = useState<Map<string, SessionAttentionLevel>>(new Map());
@@ -815,6 +820,21 @@ export function useProjectsState({
         : optimisticSession
     ));
 
+    // Hand the sidebar the same row so its separate Conversations feed can show
+    // it immediately. Title falls back to the id, matching how the server
+    // derives `sessionTitle` for a session that has no custom name yet.
+    setCreatedConversation((previous) => ({
+      row: {
+        sessionId: newSessionId,
+        provider,
+        projectId: project.projectId,
+        projectDisplayName: project.displayName,
+        sessionTitle: (summary ?? '').trim() || newSessionId,
+        lastActivity: now,
+        isPinned: false,
+      },
+      nonce: (previous?.nonce ?? 0) + 1,
+    }));
   }, []);
 
   // Hydrates TaskMaster details for the given `projectId`. The project
@@ -1547,6 +1567,7 @@ export function useProjectsState({
       selectedProject,
       selectedSession,
       attentionSessions,
+      createdConversation,
       onProjectSelect: handleProjectSelect,
       onSessionSelect: handleSessionSelect,
       onNewSession: handleNewSession,
@@ -1564,6 +1585,7 @@ export function useProjectsState({
     }),
     [
       attentionSessions,
+      createdConversation,
       handleNewSession,
       handleProjectDelete,
       handleProjectSelect,
