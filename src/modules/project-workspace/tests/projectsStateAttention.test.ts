@@ -344,6 +344,46 @@ const buildProject = (): Project => ({
   sessionMeta: { hasMore: false, total: 0 },
 });
 
+test('registerOptimisticSession hands the sidebar a Conversations row for the new session', async () => {
+  const { result } = await renderProjectsState();
+
+  await act(async () => {
+    result.current.registerOptimisticSession({
+      sessionId: 'new-session',
+      provider: 'claude',
+      project: buildProject(),
+      summary: 'Hello world',
+    });
+  });
+
+  const row = result.current.sidebarSharedProps.createdConversation?.row;
+  assert.equal(row?.sessionId, 'new-session');
+  assert.equal(row?.provider, 'claude');
+  assert.equal(row?.projectId, 'project-1');
+  assert.equal(row?.projectDisplayName, 'My Repo');
+  assert.equal(row?.sessionTitle, 'Hello world');
+  assert.equal(row?.isPinned, false);
+  assert.equal(typeof row?.lastActivity, 'string');
+});
+
+test('an unnamed new session signs its sidebar row with the id, matching the server fallback', async () => {
+  const { result } = await renderProjectsState();
+
+  await act(async () => {
+    result.current.registerOptimisticSession({
+      sessionId: 'new-session',
+      provider: 'claude',
+      project: buildProject(),
+      summary: '',
+    });
+  });
+
+  assert.equal(
+    result.current.sidebarSharedProps.createdConversation?.row.sessionTitle,
+    'new-session',
+  );
+});
+
 /**
  * Read-state persistence (需求 B). The watermark is what makes an unread flag
  * survive a reload, so two rules are load-bearing: only a session that has a

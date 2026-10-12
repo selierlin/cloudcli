@@ -4,7 +4,7 @@ import type { TFunction } from 'i18next';
 import { api } from '@/shared/api';
 import { subscribeToUserPreferences } from '@/shared/userSettings';
 import { usePaletteOps } from '@/modules/command-palette';
-import type { ArchivedProjectListItem, ArchivedSessionListItem, BatchArchivedSessionDeleteConfirmation, BatchSessionArchiveConfirmation, ConversationProjectResult, ConversationSearchResults, LLMProvider, Project, ProjectSession, ProjectSortOrder, RecentConversationListItem, SearchProgress, ActiveSidebarRename, PendingSidebarDeletion, SessionTitleSearchResult, SessionWithProvider, SidebarSearchMode } from '@/shared/types';
+import type { ArchivedProjectListItem, ArchivedSessionListItem, BatchArchivedSessionDeleteConfirmation, BatchSessionArchiveConfirmation, ConversationProjectResult, ConversationSearchResults, CreatedConversationSignal, LLMProvider, Project, ProjectSession, ProjectSortOrder, RecentConversationListItem, SearchProgress, ActiveSidebarRename, PendingSidebarDeletion, SessionTitleSearchResult, SessionWithProvider, SidebarSearchMode } from '@/shared/types';
 import {
   applyOptimisticSessionPinState,
   filterProjects,
@@ -53,6 +53,7 @@ type UseSidebarControllerArgs = {
   projects: Project[];
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
+  createdConversation: CreatedConversationSignal | null;
   activeSessions: ReadonlySet<string>;
   isLoading: boolean;
   isMobile: boolean;
@@ -73,6 +74,7 @@ export function useSidebarController({
   projects,
   selectedProject,
   selectedSession: _selectedSession,
+  createdConversation,
   activeSessions,
   isLoading,
   isMobile,
@@ -135,6 +137,10 @@ export function useSidebarController({
   const starToggleSequenceByProjectRef = useRef<Map<string, number>>(new Map());
   const pinToggleSequenceBySessionRef = useRef<Map<string, number>>(new Map());
   const migrationStartedRef = useRef(false);
+  // Session ids already folded into the Conversations feed from a local-create
+  // signal, so a row that later leaves the feed (archived/deleted) is not
+  // pushed back in by a re-run of the effect below.
+  const insertedConversationIdsRef = useRef<Set<string>>(new Set());
   const onRefreshRef = useRef(onRefresh);
 
   const isSidebarCollapsed = !isMobile && !sidebarVisible;
@@ -374,6 +380,41 @@ export function useSidebarController({
     });
     return changed ? next : recentConversations;
   }, [projects, recentConversations]);
+
+  // A locally created session is patched straight into `projects`, but the
+  // Conversations feed is a separate paginated list fetched only on demand, so
+  // the new row would otherwise wait for a refetch to appear. Fold it into the
+  // feed state itself (not a derived overlay) so every state-backed affordance
+  // — optimistic pin reorder, load-more offset, the total — sees it too. The
+  // row goes after the pinned block, mirroring the server's `isPinned DESC`
+  // ordering, because a brand-new session is always unpinned.
+  useEffect(() => {
+    if (!createdConversation) {
+      return;
+    }
+    const { row } = createdConversation;
+    // One insert per session: the signal is already the "latest" one, and a row
+    // that fell out of the feed (archived/deleted) must not be pushed back.
+    if (insertedConversationIdsRef.current.has(row.sessionId)) {
+      return;
+    }
+    insertedConversationIdsRef.current.add(row.sessionId);
+    // A refetch may have raced ahead of the signal and already carry the row;
+    // bumping the total again would overcount it.
+    if (recentConversations.some((conversation) => conversation.sessionId === row.sessionId)) {
+      return;
+    }
+
+    setRecentConversations((previous) => {
+      if (previous.some((conversation) => conversation.sessionId === row.sessionId)) {
+        return previous;
+      }
+      const pinned = previous.filter((conversation) => conversation.isPinned);
+      const unpinned = previous.filter((conversation) => !conversation.isPinned);
+      return [...pinned, row, ...unpinned];
+    });
+    setRecentConversationsTotal((total) => total + 1);
+  }, [createdConversation, recentConversations]);
 
   useEffect(() => {
     if (searchMode !== 'archived') {

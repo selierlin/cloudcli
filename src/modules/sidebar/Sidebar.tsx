@@ -9,7 +9,7 @@ import { useTaskMaster, useTasksSettings } from '@/modules/task-master';
 import { usePaletteOps } from '@/modules/command-palette';
 import { useBackgroundSessionIdSet, useBusySessionIdSet } from '@/shared/context/SessionProtectionContext';
 import { getPageTitle } from '@/shared/utils';
-import type { LLMProvider, LoadingProgress, MCPServerStatus, Project, ProjectSession, SessionAttentionLevel, SidebarProjectListProps } from '@/shared/types';
+import type { CreatedConversationSignal, LLMProvider, LoadingProgress, MCPServerStatus, Project, ProjectSession, SessionAttentionLevel, SidebarProjectListProps } from '@/shared/types';
 import SidebarCollapsed from '@/modules/sidebar/SidebarCollapsed';
 import SidebarContent from '@/modules/sidebar/SidebarContent';
 import SidebarModals from '@/modules/sidebar/SidebarModals';
@@ -19,6 +19,7 @@ type SidebarProps = {
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
   attentionSessions: ReadonlyMap<string, SessionAttentionLevel>;
+  createdConversation: CreatedConversationSignal | null;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: ProjectSession) => void;
   onNewSession: (project: Project) => void;
@@ -48,6 +49,7 @@ function Sidebar({
   selectedProject,
   selectedSession,
   attentionSessions,
+  createdConversation,
   onProjectSelect,
   onSessionSelect,
   onNewSession,
@@ -155,6 +157,7 @@ function Sidebar({
     projects,
     selectedProject,
     selectedSession,
+    createdConversation,
     activeSessions,
     isLoading,
     isMobile,

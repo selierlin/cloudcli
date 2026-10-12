@@ -1924,6 +1924,19 @@ export type RecentConversationListItem = Pick<
 };
 
 /**
+ * A "a session was just created here" signal the workspace hands the sidebar.
+ *
+ * The Conversations list is a separate paginated feed fetched on demand, so a
+ * locally created session (which the workspace already knows in full) would
+ * otherwise not appear in it until the next refetch. The row travels alongside
+ * a `nonce` so an identical row still counts as a fresh signal.
+ */
+export type CreatedConversationSignal = {
+  row: RecentConversationListItem;
+  nonce: number;
+};
+
+/**
  * The rename the sidebar currently has open, if any.
  *
  * One value rather than two id/draft pairs, so a project and a session cannot
