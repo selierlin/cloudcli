@@ -7,7 +7,8 @@ import test from 'node:test';
 
 import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
 import { resetOmpModelsForTests } from '@/modules/providers/list/omp/omp-models.provider.js';
-import { OmpSessionsProvider, resolveOmpTranscriptPath } from '@/modules/providers/list/omp/omp-sessions.provider.js';
+import { OmpSessionsProvider } from '@/modules/providers/list/omp/omp-sessions.provider.js';
+import { resolveOmpTranscriptPath } from '@/modules/providers/list/omp/omp-transcript-path.js';
 
 const FIXTURES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 

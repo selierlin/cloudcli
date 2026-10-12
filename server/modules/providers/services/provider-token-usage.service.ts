@@ -9,7 +9,7 @@ import { sessionsDb } from '@/modules/database/index.js';
 import type { AnyRecord } from '@/shared/types.js';
 import { AppError, getOpenCodeDatabasePath, readJsonRecord, readObjectRecord, readOptionalString } from '@/shared/utils.js';
 import { resolvePiTranscriptPath } from '@/modules/providers/list/pi/pi-sessions.provider.js';
-import { resolveOmpTranscriptPath } from '@/modules/providers/list/omp/omp-sessions.provider.js';
+import { resolveOmpTranscriptPath } from '@/modules/providers/list/omp/omp-transcript-path.js';
 import {
   getOpenclawAgentDbPath,
   getOpenclawAgentIdFromSessionKey,

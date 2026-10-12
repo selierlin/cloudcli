@@ -138,7 +138,7 @@ Pi 0.85.1 已公开 RPC `fork` / `clone` 及 SDK 的 SessionManager fork 能力�
 2. 使用与 `pi-runtime.provider.ts` 一致的命令解析和 child-process 生命周期规范；不得把 fork 逻辑塞进 runtime。
 3. 启动 `pi --fork <源 JSONL 绝对路径> --mode json`，显式设置 `cwd = source.project_path`，逐行解析 JSON mode 的 session header。stdin 必须在 spawn 后立即 `end()`；未关闭 stdin 会使无 prompt fork 挂起。
 4. 获取 child provider session id 后，通过 `resolvePiTranscriptPath()` 找到新 JSONL 文件，验证 header id、cwd 和 `parentSession`。不新增 watcher 竞争处理：现有 `sessionsDb.createForkedSession()` 已在事务中替换 watcher 先建的同 provider-session 临时行；只补回归测试证明 Pi 路径同样成立。
-5. `PiProvider` 注册 `readonly fork`；能力矩阵仅将 `supportsSessionForking` 改为 `true`，`supportsMessageEditing` 保持 `false`。
+5. `PiProvider` 注册 `readonly fork`；能力矩阵仅将 `supportsSessionForking` 改为 `true`，`supportsMessageEditing` 保持 `false`。（**2026-10-11 已改判**：消息级 Fork 与编辑均已实施，见 §5.8。）
 6. Pi provider 在自身验证 source `jsonlPath` 和 child artifact；本期保持现有公共 `forkSessionById()` 的 JSONL 前置校验，不为 OpenCode 预先改造。
 
 ### 5.4 第二阶段的明确门槛（不在本方案实施）
@@ -146,6 +146,8 @@ Pi 0.85.1 已公开 RPC `fork` / `clone` 及 SDK 的 SessionManager fork 能力�
 聊天内 Fork/编辑仅在完成下列架构决策后再立项：选择常驻 Pi RPC 通道，或引入并管理 `@earendil-works/pi-coding-agent` SDK。实现前仍须用含 v3 compaction、branch summary、模型和 thinking 设置的真实会话验证所选路径。
 
 届时的推荐语义是：聊天 Fork 创建独立 JSONL；编辑从被编辑用户 entry 的父 entry 创建独立分支/会话后发送替换 prompt。绝不截断原文件或手写 Pi entry。
+
+> **2026-10-11 改判**：第二阶段门槛不再需要常驻 RPC / SDK —— 实测手写 JSONL 副本可被 `pi --session` 加载并续跑（见 §5.8.1），故消息级 Fork 与编辑均走**纯文件复制**落地。本节原列的两条前置路径作废。
 
 ### 5.5 测试与验收
 
@@ -177,7 +179,7 @@ OMP（oh-my-pi）是 Pi 的硬分叉、共用同一套会话 JSONL 格式，故�
 
 ### 5.6.4 仍未做
 
-- **消息编辑**（`supportsMessageEditing`）：需要 `resolveEditAnchor` / rewind 语义，未做。
+- ~~**消息编辑**（`supportsMessageEditing`）~~：已于 2026-10-11 实施，见 §5.9。
 - compaction / branch_summary 行不盖 `forkAnchorId`：其渲染分支没有 Fork 按钮，盖章是死数据。
 
 ### 5.7 ZCode：消息级 Fork 已实施（2026-10-04）
@@ -214,6 +216,60 @@ OMP（oh-my-pi）是 Pi 的硬分叉、共用同一套会话 JSONL 格式，故�
 - **守卫的更细判定**：当前按时间戳保守判定；`runtime/workspace_checkpoint` 的 `payload.turnId` 可给出更细的轮次归属，若将来误拦过多可据此收紧，本期不引入。
 - **拒绝提示的浏览器实测**：错误码→文案映射有单测覆盖，但"点按钮看到 alert"这一整链没有渲染级/真机测试（`ChatInterface` 依赖大量 context，仓库无其渲染级测试先例）；侧边栏整会话 Fork 的 `alert` 同样只有通用文案、无错误码分派（整会话 Fork 恒以末条为锚点，故 zcode 守卫在那里永不触发）。
 
+### 5.8 Pi：消息级 Fork 与消息编辑已实施（2026-10-11）
+
+#### 5.8.1 实测的底座事实（Pi 1.0.0）
+
+- 会话文件是 `<sessions>/--<编码 cwd>--/<ISO时间戳>_<uuid>.jsonl`，**首行即普通 `session` header**（`{type,version,id,timestamp,cwd}`），**没有 OMP 的 255 字节定宽 title 槽**，也**不校验 `parentSession`** —— 故复制比 OMP 更简单：只有 header 需要重写，其余条目可逐字节原样保留。
+- 条目是单父 `parentId` 链，`message` 条目的 `id` 是 8 位十六进制；`model_change` / `thinking_level_change` / `custom` / `session_info` / `compaction` / `branch_summary` 也在链上。首个条目 `parentId=null`（**不指向 header**），故排除 header 后从末条上溯即得活动分支。
+- `findById` 只按 header 的 `id` 匹配，**文件名格式无关**（`session-manager.js`），自造文件名不影响加载。
+- 手写副本（仅重写 header 的 `id`）能被 `pi --session <副本>` 直接加载：RPC `get_state` 的 sessionId / messageCount / leafId 全对；**截断到锚点后 `leafId` 正是锚点（inclusive）**，与 Claude/Codex/WorkBuddy 契约一致，无需 OpenCode 那种后继映射。
+- 在副本上续跑（`pi --session <副本> -p … --mode json`），新 user 行的 `parentId` 即锚点 —— 这既是消息级 Fork 的机制，也是「编辑=在锚点处接续」的机制。
+- **Pi 无「从某 entry 截断续跑」的 flag**，故编辑不能走 Claude 的内存续跑，只能走 Codex/WorkBuddy 的「fork + rewind」。
+- 切在助手条目（含 `stopReason=toolUse` 的悬空工具调用）实测 Pi **不报错、不重跑、不悬挂**，直接正常回应；而前端 Fork 按钮本就只出现在 user 文本行与 assistant 文本行（排除 thinking / tool_use 行），实际切点绝大多数落在完整文本行上。
+
+#### 5.8.2 交付内容
+
+- `pi-fork.provider.ts` 重写为**纯文件复制**（弃用原生 `pi --fork`，它只能整份复制、不能按消息切）：`selectPiForkBranch()` 走出活动分支并做含锚点截断；`buildPiForkTranscript()` 仅重写 header 的 `id`、其余条目按原字节输出；新文件写在源文件同目录。**整会话 Fork 也统一走此路**（放弃原生 `parentSession` 血统记录）。
+- `pi-sessions.provider.ts`：每个 entry 产出的行盖 `forkAnchorId = entryId`；**user 文本行**另盖 `transcriptAnchorId = entryId`（`tool_result` 也是 `user` role，故按 `kind` 收窄、不按 role）。新增 `resolveEditAnchor()`（返回锚点前一个 entry；锚点是首个 user prompt 时返回 null 以「重新开始」）与 `rewindSession()`（null→supersede + detach；否则复制前缀 + `repointSessionToProviderSession`）。
+- `pi-session-synchronizer.provider.ts`：`upsertFile` 增加 `isProviderSessionSuperseded` 守卫 —— 新增编辑能力后必需，否则全量重扫会把被编辑掉的旧 transcript 复活成独立会话（镜像 Codex/WorkBuddy/Claude 的既有守卫）。
+- 能力矩阵 `pi.supportsMessageEditing` 与 `pi.supportsSessionForking` 均为 `true`。
+- 删除随之成为死代码的 `supportsPiFork` 探测（`pi-auth.provider.ts`）与 mock CLI 的 `--fork`/`--help` 分支。
+- **前端零改动**：按钮由能力位 + 该行的 `forkAnchorId`/`transcriptAnchorId` 自动点亮。
+
+#### 5.8.3 验收
+
+- 单测（`pi-fork.test.ts` / `pi-message-editing.test.ts`）：分支选择（含锚点、弃支不继承）、header 重写、锚点盖章（user 文本盖编辑锚、`tool_result` 不盖）、`resolveEditAnchor`（含首条→null、assistant 锚→not found）、`rewindSession`（分支复制 + 源文件保留 + superseded；首条→detach）、重扫不复活、能力矩阵。
+- 与 §5.6 OMP 同源：Pi 与 OMP 共用会话格式，OMP「切在工具调用轮不悬挂」的结论在 Pi 上同构适用（见 §5.8.1 实测）。
+
+#### 5.8.4 取舍
+
+- **编辑=分叉**：Pi 编辑会产出一个新会话文件，原会话保留在侧边栏（与 Codex 编辑行为一致），不是 Pi 独有的代价。
+- **整会话 Fork 弃用 `pi --fork`**：统一手动复制换来「一套逻辑」，代价是丢失 header 的 `parentSession` 回指（该字段无消费者）。
+
+### 5.9 OMP：消息编辑已实施（2026-10-11）
+
+OMP 是 Pi 的硬分叉、共用同一套会话 JSONL 格式，故 Pi 的 §5.8 落地手法几乎原样适用；本节只记录 OMP 侧的差异点。
+
+#### 5.9.1 底座依据
+
+- **OMP 无「从某 entry 截断续跑」的 flag**（运行时是 `omp --mode json -p --session <uuid>`，`omp-runtime.provider.ts`），故编辑与 Pi 同构：走「fork + rewind」，不能走 Claude 的内存续跑。
+- §5.6.1 的底座事实全部复用：会话文件自足、`--session <id>` 按 `_<id>.jsonl` 后缀找到并续写、首行 255 字节定宽 title 槽须逐字节保留。
+- 编辑会产出一个新会话文件、原会话保留在侧边栏（**编辑=分叉**，与 Codex/Pi 行为一致）。
+
+#### 5.9.2 交付内容
+
+- `omp-fork.provider.ts`：新增 `forkOmpTranscriptPrefix()`——编辑 rewind 复用的入口，薄封装 `OmpForkProvider.forkSession`，复用既有的分支截断与 title 槽逐字节保留。
+- `omp-sessions.provider.ts`：每个 entry 产出的行盖 `forkAnchorId = entryId`（既有）；**user 文本行**另盖 `transcriptAnchorId = entryId`（`tool_result` 也是 `user` role，故按 `kind` 收窄、不按 role）。新增 `resolveEditAnchor()`（返回锚点前一个 entry；锚点是首个 user prompt 时返回 null 以「重新开始」）与 `rewindSession()`（null→supersede + detach；否则复制前缀 + `repointSessionToProviderSession`）；`readOmpEntries()` 同时排除 `session` 与 `title` 两种 header。
+- `omp-session-synchronizer.provider.ts`：`upsertFile` 增加 `isProviderSessionSuperseded` 守卫（镜像 Pi/Codex/WorkBuddy/Claude 的既有守卫）——不补则全量重扫会把被编辑掉的旧 transcript 复活成独立会话。
+- 能力矩阵 `omp.supportsMessageEditing` 由 `false` 改为 `true`（`supportsSessionForking` 已于 §5.6 为 `true`）。
+- **前端零改动**：按钮由能力位 + 该行的 `transcriptAnchorId` 自动点亮。
+
+#### 5.9.3 验收
+
+- 单测（`omp-message-editing.test.ts`）：锚点盖章（user 文本盖编辑锚、assistant 不盖）、`resolveEditAnchor`（含首条→null、assistant 锚→not found、已消失锚→not found）、`rewindSession`（分支复制 + **title 槽逐字节保留、仅 header id 改写** + 源文件保留 + superseded；首条→detach）、重扫不复活。
+- `npm run typecheck` / `oxlint` / `build:server` 全绿；完整 server 测试红集与改动前逐名一致（均为既有环境项）。
+
 ## 6. 实施顺序与提交边界
 
 为便于回滚和审阅，按独立变更交付：
@@ -223,6 +279,8 @@ OMP（oh-my-pi）是 Pi 的硬分叉、共用同一套会话 JSONL 格式，故�
 3. **OpenCode 消息级 Fork**（2026-10-04 已完成）：见 §4；与 WorkBuddy/Pi 相互独立，任一验证失败不阻塞其它两条。
 4. **OMP 消息级 Fork**（2026-10-04 已完成）：见 §5.6；纯文件复制路线，不依赖任何常驻通道或新增依赖。
 5. **ZCode 消息级 Fork**（2026-10-04 已完成）：见 §5.7；走内置 `app-server` 通道，并带工作区回退守卫（拒绝会回退共享工作区的分支）。
+6. **Pi 消息级 Fork 与编辑**（2026-10-11 已完成）：见 §5.8；纯文件复制（弃用原生 `pi --fork`），并补 `pi-session-synchronizer` 的 superseded 守卫。
+7. **OMP 消息编辑**（2026-10-11 已完成）：见 §5.9；与 Pi 同构（fork + rewind，复用既有文件复制），并补 `omp-session-synchronizer` 的 superseded 守卫。
 
 ## 7. 非目标与回退策略
 

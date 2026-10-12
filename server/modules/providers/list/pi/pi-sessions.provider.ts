@@ -9,8 +9,9 @@ import type {
   FetchHistoryResult,
   NormalizedMessage,
 } from '@/shared/types.js';
-import { createNormalizedMessage, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
+import { AppError, createNormalizedMessage, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 import { getPiSessionsRoot } from '@/modules/providers/list/pi/pi-models.provider.js';
+import { forkPiTranscriptPrefix } from '@/modules/providers/list/pi/pi-fork.provider.js';
 
 /** Mirrors Pi's directory encoding (session-manager.js): strip leading slash, map `/\:` to `-`, wrap in `--…--`. */
 function encodePiCwd(cwd: string): string {
@@ -139,6 +140,37 @@ const readNonEmptyString = (...values: unknown[]): string | undefined => {
 
 /**
  * Normalizes one Pi AgentMessage (history entry or live `message_end`) into
+ * app messages, oldest-first, and stamps every row with the entry id that owns
+ * it.
+ *
+ * The stamp is what the chat UI wires to its "fork from here" and "edit this
+ * message" actions: Pi's fork cut is per entry, so a fork from any row of an
+ * entry keeps the active branch up to and including that entry, and an edit of
+ * a user row replaces that entry and everything after it. See
+ * {@link buildPiAgentMessages} for the row mapping itself.
+ */
+export function normalizePiAgentMessage(
+  message: PiAgentMessage,
+  entryId: string | undefined,
+  sessionId: string | null,
+  timestamp?: string,
+): NormalizedMessage[] {
+  const messages = buildPiAgentMessages(message, entryId, sessionId, timestamp);
+  if (entryId) {
+    for (const normalized of messages) {
+      normalized.forkAnchorId = entryId;
+      // Only a user's own prompt is editable; a tool result is a `user`-role
+      // row too, so the anchor is gated on the text kind rather than the role.
+      if (normalized.kind === 'text' && normalized.role === 'user') {
+        normalized.transcriptAnchorId = entryId;
+      }
+    }
+  }
+  return messages;
+}
+
+/**
+ * Normalizes one Pi AgentMessage (history entry or live `message_end`) into
  * app messages, oldest-first. Content blocks map one-to-one (thinking/text/tool
  * call), image blocks become inline data URLs (Pi stores base64 in the
  * transcript), tool results stay visible as tool events, and a terminal error
@@ -148,7 +180,7 @@ const readNonEmptyString = (...values: unknown[]): string | undefined => {
  * `pi-<entryId>` with a `-<blockIndex>` discriminator when one entry produces
  * multiple rows.
  */
-export function normalizePiAgentMessage(
+function buildPiAgentMessages(
   message: PiAgentMessage,
   entryId: string | undefined,
   sessionId: string | null,
@@ -373,6 +405,57 @@ function dataUrlFromPiImage(block: PiContentBlock): string {
   return `data:${mime};base64,${block.data}`;
 }
 
+/** Parses a Pi transcript into its non-header entries, in file order. */
+async function readPiEntries(filePath: string): Promise<AnyRecord[]> {
+  let content: string;
+  try {
+    content = await fsp.readFile(filePath, 'utf8');
+  } catch {
+    return [];
+  }
+  const entries: AnyRecord[] = [];
+  for (const line of content.split(/\r?\n/)) {
+    const parsed = parseLine(line);
+    if (parsed && parsed.type !== 'session') {
+      entries.push(parsed);
+    }
+  }
+  return entries;
+}
+
+/**
+ * Returns the active branch of a Pi transcript, oldest first: the file's last
+ * entry walked up its `parentId` chain to the root. Reached this way, entries
+ * from branches the conversation abandoned are left out.
+ */
+function piActiveBranch(entries: AnyRecord[]): AnyRecord[] {
+  const byId = new Map<string, AnyRecord>();
+  for (const entry of entries) {
+    if (typeof entry.id === 'string') {
+      byId.set(entry.id, entry);
+    }
+  }
+  const branch: AnyRecord[] = [];
+  const seen = new Set<string>();
+  let cursor: unknown = entries[entries.length - 1]?.id;
+  while (typeof cursor === 'string' && !seen.has(cursor)) {
+    const entry = byId.get(cursor);
+    if (!entry) {
+      break;
+    }
+    seen.add(cursor);
+    branch.push(entry);
+    cursor = entry.parentId;
+  }
+  branch.reverse();
+  return branch;
+}
+
+/** Whether a Pi entry is a user's own prompt, the only kind an edit replaces. */
+function isPiUserPromptEntry(entry: AnyRecord): boolean {
+  return entry.type === 'message' && readObjectRecord(entry.message)?.role === 'user';
+}
+
 type StoredHistoryMessage = {
   sequence: number;
   message: NormalizedMessage;
@@ -580,6 +663,120 @@ export class PiSessionsProvider implements IProviderSessions {
       limit: normalizedLimit,
       tokenUsage,
     };
+  }
+
+  /**
+   * Resolves where a Pi conversation must resume from so that the message
+   * identified by `anchorId`, and everything after it, is replaced.
+   *
+   * Pi has no "truncate at an entry" resume flag, so an edit rides the same
+   * file copy a fork does: the entry right before the edited prompt is the one
+   * the copy must keep through. `null` means no turn precedes it — editing the
+   * first prompt starts the conversation over rather than resuming.
+   */
+  async resolveEditAnchor(
+    sessionId: string,
+    anchorId: string,
+  ): Promise<{ found: boolean; resumeThroughId: string | null }> {
+    const row = sessionsDb.getSessionById(sessionId);
+    const engineSessionId = row?.provider_session_id?.trim();
+    if (!row || !engineSessionId) {
+      return { found: false, resumeThroughId: null };
+    }
+    const filePath = await this.resolveTranscriptFile(row, engineSessionId);
+    if (!filePath) {
+      return { found: false, resumeThroughId: null };
+    }
+
+    const branch = piActiveBranch(await readPiEntries(filePath));
+    const index = branch.findIndex((entry) => entry.id === anchorId && isPiUserPromptEntry(entry));
+    if (index < 0) {
+      return { found: false, resumeThroughId: null };
+    }
+
+    // Editing the first prompt has no completed turn to resume through, so the
+    // conversation starts over. Pi brackets a session with bookkeeping entries
+    // (`model_change`, `thinking_level_change`), but keeping only those would
+    // leave a degenerate conversation, so they do not count as a turn.
+    if (!branch.slice(0, index).some(isPiUserPromptEntry)) {
+      return { found: true, resumeThroughId: null };
+    }
+
+    const predecessor = branch[index - 1];
+    return {
+      found: true,
+      resumeThroughId: typeof predecessor?.id === 'string' ? predecessor.id : null,
+    };
+  }
+
+  /**
+   * Rewinds a Pi session so `keepThroughId` is the last entry it holds.
+   *
+   * Pi transcripts are append-only — `--session` resumes one at its tip and
+   * nothing shortens it — so rewinding means copying the kept prefix into a new
+   * transcript file and moving the session onto it. The pre-edit file stays on
+   * disk and is recorded as superseded so the indexer does not hand it back.
+   */
+  async rewindSession(sessionId: string, keepThroughId: string | null): Promise<void> {
+    const row = sessionsDb.getSessionById(sessionId);
+    const providerSessionId = row?.provider_session_id;
+    if (!row || !providerSessionId) {
+      throw new AppError('This session has not produced a transcript yet.', {
+        code: 'EDIT_SOURCE_NOT_READY',
+        statusCode: 409,
+      });
+    }
+
+    if (keepThroughId === null) {
+      sessionsDb.markProviderSessionSuperseded({
+        providerSessionId,
+        provider: 'pi',
+        sessionId,
+        jsonlPath: row.jsonl_path ?? null,
+      });
+      sessionsDb.detachProviderSession(sessionId);
+      return;
+    }
+
+    const filePath = await this.resolveTranscriptFile(row, providerSessionId);
+    if (!filePath) {
+      throw new AppError('The Pi transcript is unavailable.', {
+        code: 'EDIT_SOURCE_UNREADABLE',
+        statusCode: 409,
+      });
+    }
+
+    const forked = await forkPiTranscriptPrefix({
+      providerSessionId,
+      jsonlPath: filePath,
+      projectPath: row.project_path ?? '',
+      upToAnchorId: keepThroughId,
+    });
+    sessionsDb.markProviderSessionSuperseded({
+      providerSessionId,
+      provider: 'pi',
+      sessionId,
+      jsonlPath: filePath,
+    });
+    sessionsDb.repointSessionToProviderSession(sessionId, {
+      ...forked,
+      supersededProviderSessionId: providerSessionId,
+    });
+  }
+
+  /**
+   * Resolves the on-disk transcript backing one session row, preferring the
+   * indexed path and falling back to a suffix scan of the sessions root when
+   * the watcher has not recorded one.
+   */
+  private async resolveTranscriptFile(
+    row: { jsonl_path?: string | null; project_path?: string | null } | undefined,
+    engineSessionId: string,
+  ): Promise<string | null> {
+    if (row?.jsonl_path) {
+      return existsSync(row.jsonl_path) ? row.jsonl_path : null;
+    }
+    return resolvePiTranscriptPath(engineSessionId, row?.project_path ?? undefined);
   }
 
   /**
