@@ -396,7 +396,10 @@
     "maintainedByCloudCLI": "Maintained by CloudCLI and read-only",
     "cancelEditingAria": "Cancel editing",
     "editAria": "Edit {{model}}",
-    "deleteAria": "Delete {{model}}"
+    "deleteAria": "Delete {{model}}",
+    "effortLevels": "Reasoning levels",
+    "effortLevelsHint": "Select the reasoning-effort levels this model accepts. If none are selected, no effort level can be chosen for this model in the composer.",
+    "effortSummary": "Reasoning: {{levels}}"
   },
   "session": {
     "continue": {
@@ -620,10 +623,5 @@
         "text": "How do I try out what you changed?"
       }
     }
-  },
-  "modelLibrary": {
-    "effortLevels": "Reasoning levels",
-    "effortLevelsHint": "Select the reasoning-effort levels this model accepts. If none are selected, no effort level can be chosen for this model in the composer.",
-    "effortSummary": "Reasoning: {{levels}}"
   }
 }

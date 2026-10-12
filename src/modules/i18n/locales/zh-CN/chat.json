@@ -381,7 +381,10 @@
     "maintainedByCloudCLI": "由 CloudCLI 维护，只读",
     "cancelEditingAria": "取消编辑",
     "editAria": "编辑 {{model}}",
-    "deleteAria": "删除 {{model}}"
+    "deleteAria": "删除 {{model}}",
+    "effortLevels": "推理级别",
+    "effortLevelsHint": "选择此模型支持的推理强度级别。若未选择任何级别，将无法在输入框中为此模型选择级别。",
+    "effortSummary": "推理：{{levels}}"
   },
   "session": {
     "continue": {
@@ -592,10 +595,5 @@
     "agentTimelineEmpty": "暂无记录",
     "taskOfAgent": "由本会话的某个子代理启动",
     "taskRowNotLoaded": "在此会话较早前启动，点击加载"
-  },
-  "modelLibrary": {
-    "effortLevels": "推理级别",
-    "effortLevelsHint": "选择此模型支持的推理强度级别。若未选择任何级别，将无法在输入框中为此模型选择级别。",
-    "effortSummary": "推理：{{levels}}"
   }
 }
