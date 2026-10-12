@@ -194,7 +194,7 @@ OpenClaw 把大量**注入上下文**写成 `role:'user'` 的 message，CloudCLI
 - `jsonl_path = null`（共享库，避免删一个会话毁整库）。
 - `synchronizeFile(filePath)`：仅匹配 basename `openclaw-agent.sqlite`（不匹配 `-wal`/`-shm`）。
 - **首次扫描全量回填（`hasCompletedInitialScan`）**：`scan_state.last_scanned_at` 是**全局单调游标**，共享同一个游标的所有 provider 都按它做增量。openclaw 接入较晚，其存量会话可早于该游标 ⇒ 只用增量会**永不回填**（实测：源 28 条非归档会话只索引到 3 条）。故照 **pi/omp/workbuddy 的既有范式**：**进程内首次 `synchronize` 忽略游标做全量**，成功后置位，后续才守游标。`synchronizeAgent` 吞掉每库读错误并以 `failed` 上报，**只有干净通过才置位**（部分失败留待下次全量重试）。测试：`openclaw-session-synchronizer.test.ts` 的「backfills a store older than the cursor on the first scan only」。
-- **`deleteProviderSession(providerSessionId)`**：删 `transcript_events` / `session_transcript_active_events` / `session_index_state` / `session_windows` / `session_nodes` 中该会话的行（按 `session_id`，逐表 try/catch 跳过缺表）。**共享库 provider 必做，否则删除后下次扫描复活**（见记忆「共享库 provider 的单侧删除必然复活」）。
+- **`deleteProviderSession(providerSessionId)`**：删 `transcript_events` / `session_transcript_active_events` / `session_transcript_index_state` / `session_windows` / `session_nodes` 中该会话的行（按 `session_id`，逐表 try/catch 跳过缺表）。**共享库 provider 必做，否则删除后下次扫描复活**（见记忆「共享库 provider 的单侧删除必然复活」）。
 
 ### 2.3 CloudCLI 侧 id 与 project 映射
 
