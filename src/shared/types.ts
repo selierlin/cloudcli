@@ -1820,8 +1820,8 @@ export type GithubCredentialItem = {
 
 //----------------- SETTINGS AUTH AUDIT ------------
 
-/** The kinds of login/session events the audit trail records; mirrors the server's `auth_events.event_type`. */
-export type AuthEventType = 'login_success' | 'login_failure' | 'logout' | 'register';
+/** The kinds of login/session and agent-auth events the audit trail records; mirrors the server's `auth_events.event_type`. */
+export type AuthEventType = 'login_success' | 'login_failure' | 'logout' | 'register' | 'agent_auth_failure';
 
 /** One login-audit row as the server returns it, in snake_case; `user_id` is null for failed logins and `created_at` is UTC (format it locally for display). */
 export type AuthEventRow = {

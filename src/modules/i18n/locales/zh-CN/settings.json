@@ -1209,7 +1209,8 @@
       "login_success": "登录成功",
       "login_failure": "登录失败",
       "logout": "退出",
-      "register": "注册"
+      "register": "注册",
+      "agent_auth_failure": "API key 校验失败"
     }
   }
 }
