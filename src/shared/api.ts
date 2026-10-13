@@ -313,6 +313,10 @@ export const api = {
   // Pins or unpins a session so it sorts ahead of unpinned ones in the sidebar.
   setSessionPinned: (sessionId: string, isPinned: boolean) =>
     put(`/api/providers/sessions/${encodeURIComponent(sessionId)}/pinned`, { isPinned }),
+  // Files a session under another (or clears the link with null) so the
+  // sidebar can nest it. Server-enforced: same project, one level deep.
+  setSessionParent: (sessionId: string, parentSessionId: string | null) =>
+    put(`/api/providers/sessions/${encodeURIComponent(sessionId)}/parent`, { parentSessionId }),
   // Permanently removes a whole batch of archived sessions at once.
   permanentlyDeleteArchivedSessions: (sessionIds: string[]) =>
     del('/api/providers/sessions/archived', { sessionIds }),

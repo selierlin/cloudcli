@@ -120,6 +120,14 @@ export type ProjectSession = {
   messageCount?: number;
   /** True when the user pinned the session so it sorts above unpinned ones. */
   isPinned?: boolean;
+  /**
+   * App session this one is filed under, or null/absent when it is top-level.
+   *
+   * The sidebar renders children indented under their parent in the projects
+   * view. A child whose parent is not in the loaded list renders as a root, so
+   * the value may point at a session the current page did not return.
+   */
+  parentSessionId?: string | null;
   provider?: LLMProvider;
   __provider?: LLMProvider;
   // Tags the session with the owning project's DB `projectId` so UI handlers
@@ -1976,6 +1984,18 @@ export type RecentConversationListItem = Pick<
   'sessionId' | 'provider' | 'projectId' | 'projectDisplayName' | 'sessionTitle' | 'lastActivity'
 > & {
   isPinned: boolean;
+  /**
+   * App session this one is filed under, or null when it is top-level. The
+   * conversations view shows a "filed under …" reference line for a non-null
+   * value; it does not build a tree, so the parent may be off the current page.
+   */
+  parentSessionId?: string | null;
+  /**
+   * Title of the session named by `parentSessionId`, resolved by the server so
+   * the reference line works even when the parent is not in the loaded page.
+   * Falls back to a generic label when absent.
+   */
+  parentTitle?: string | null;
 };
 
 /**

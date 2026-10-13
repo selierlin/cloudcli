@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
@@ -8,6 +8,7 @@ import type { LLMProvider, Project, ProjectSession, SessionAttentionLevel, Sessi
 import SidebarSessionItem from '@/modules/sidebar/SidebarSessionItem';
 import SidebarBatchSessionActions from '@/modules/sidebar/SidebarBatchSessionActions';
 import { useCompactSidebar } from '@/modules/sidebar/hooks/useCompactSidebar';
+import { groupSessionsByParent } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 
 type SidebarProjectSessionsProps = {
   project: Project;
@@ -151,6 +152,40 @@ export default function SidebarProjectSessions({
     );
   };
 
+  // Lays the flat list out as one level of parent/child rows. Memoized on the
+  // session list so the grouping does not re-run on every sidebar render (the
+  // time tick, attention changes); the row identities inside it are stable, so
+  // each row's memo still bails.
+  const sessionTree = useMemo(() => groupSessionsByParent(sessions), [sessions]);
+
+  const renderSessionRow = (session: SessionWithProvider) => (
+    <SidebarSessionItem
+      key={session.id}
+      project={project}
+      session={session}
+      selectedSession={selectedSession}
+      isProcessing={activeSessions.has(session.id) && !backgroundSessionIds.has(session.id)}
+      isManaging={isManaging}
+      isBatchSelected={selectedSessionIds.has(session.id)}
+      hasBackgroundWork={backgroundSessionIds.has(session.id)}
+      attentionLevel={attentionSessions.get(session.id)}
+      currentTime={currentTime}
+      onRenameDraftChange={onRenameDraftChange}
+      isEditing={session.id === sessionRenameId}
+      renameDraft={session.id === sessionRenameId ? sessionRenameDraft : ''}
+      onStartEditingSession={onStartEditingSession}
+      onCancelEditingSession={onCancelEditingSession}
+      onSaveEditingSession={onSaveEditingSession}
+      onProjectSelect={onProjectSelect}
+      onSessionSelect={onSessionSelect}
+      onTogglePinned={onTogglePinned ?? NOOP_TOGGLE_PINNED}
+      onToggleBatchSelection={toggleBatchSelection}
+      onDeleteSession={onDeleteSession}
+      onForkSession={onForkSession}
+      t={t}
+    />
+  );
+
   const exitManaging = () => {
     onManagingChange(false);
     setSelectedSessionIds(new Set());
@@ -240,32 +275,18 @@ export default function SidebarProjectSessions({
         </div>
       ) : (
         <>
-          {sessions.map((session) => (
-            <SidebarSessionItem
-              key={session.id}
-              project={project}
-              session={session}
-              selectedSession={selectedSession}
-              isProcessing={activeSessions.has(session.id) && !backgroundSessionIds.has(session.id)}
-              isManaging={isManaging}
-              isBatchSelected={selectedSessionIds.has(session.id)}
-              hasBackgroundWork={backgroundSessionIds.has(session.id)}
-              attentionLevel={attentionSessions.get(session.id)}
-              currentTime={currentTime}
-              onRenameDraftChange={onRenameDraftChange}
-              isEditing={session.id === sessionRenameId}
-              renameDraft={session.id === sessionRenameId ? sessionRenameDraft : ''}
-              onStartEditingSession={onStartEditingSession}
-              onCancelEditingSession={onCancelEditingSession}
-              onSaveEditingSession={onSaveEditingSession}
-              onProjectSelect={onProjectSelect}
-              onSessionSelect={onSessionSelect}
-              onTogglePinned={onTogglePinned ?? NOOP_TOGGLE_PINNED}
-              onToggleBatchSelection={toggleBatchSelection}
-              onDeleteSession={onDeleteSession}
-              onForkSession={onForkSession}
-              t={t}
-            />
+          {sessionTree.map(({ session, children }) => (
+            <Fragment key={session.id}>
+              {renderSessionRow(session)}
+              {children.length > 0 && (
+                // Child rows hang off a short connector line and are indented
+                // one level. The wrapper is per-parent so the project-level
+                // container above stays the indentation baseline for roots.
+                <div className="ml-4 space-y-1 border-l border-border pl-2">
+                  {children.map((child) => renderSessionRow(child))}
+                </div>
+              )}
+            </Fragment>
           ))}
 
           {hasMoreSessions && (
