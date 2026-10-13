@@ -121,3 +121,22 @@ test('applyOptimisticSessionParentState keeps a session object when the server a
   assert.equal(result[0], project, 'agreed project keeps its identity');
   assert.equal(result[0].sessions?.[0], originalSession, 'agreed session keeps its identity');
 });
+
+test('applyOptimisticSessionParentState reverts a failed move once its entry is dropped', () => {
+  // Mirrors the controller's rollback after a rejected write: the optimistic
+  // entry for the failed session is removed, so the next application reads the
+  // server's value again while untouched overrides still apply.
+  const project = makeProject('a', [makeSession('s1', null), makeSession('s2', null)]);
+
+  const previewed = applyOptimisticSessionParentState([project], new Map([['s1', 's9']]));
+  assert.equal(previewed[0].sessions?.[0].parentSessionId, 's9', 'the move previews first');
+
+  const rolledBack = applyOptimisticSessionParentState([project], new Map([['s2', 's9']]));
+  assert.equal(
+    rolledBack[0].sessions?.[0].parentSessionId,
+    null,
+    'the failed session falls back to its server value',
+  );
+  assert.equal(rolledBack[0].sessions?.[1].parentSessionId, 's9', 'an unrelated override still applies');
+});
+

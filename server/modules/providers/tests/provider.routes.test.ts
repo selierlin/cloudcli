@@ -133,6 +133,57 @@ test('session pin route persists the requested state and validates its body', as
   });
 });
 
+test('session parent route links, clears, and validates its body', async () => {
+  await withProviderServer(async (baseUrl, workspacePath) => {
+    sessionsDb.createAppSession('parent-session', 'codex', workspacePath, 'Parent');
+    sessionsDb.createAppSession('child-session', 'codex', workspacePath, 'Child');
+
+    const linkResponse = await fetch(`${baseUrl}/api/providers/sessions/child-session/parent`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ parentSessionId: 'parent-session' }),
+    });
+    const linkPayload = await linkResponse.json() as {
+      data: { sessionId: string; parentSessionId: string | null };
+    };
+
+    assert.equal(linkResponse.status, 200);
+    assert.deepEqual(linkPayload.data, {
+      sessionId: 'child-session',
+      parentSessionId: 'parent-session',
+    });
+    assert.equal(sessionsDb.getSessionById('child-session')?.parent_session_id, 'parent-session');
+
+    // An explicit null is the "move back to top level" request, not a no-op.
+    const clearResponse = await fetch(`${baseUrl}/api/providers/sessions/child-session/parent`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ parentSessionId: null }),
+    });
+    const clearPayload = await clearResponse.json() as {
+      data: { sessionId: string; parentSessionId: string | null };
+    };
+
+    assert.equal(clearResponse.status, 200);
+    assert.deepEqual(clearPayload.data, { sessionId: 'child-session', parentSessionId: null });
+    assert.equal(sessionsDb.getSessionById('child-session')?.parent_session_id, null);
+
+    // A missing field is a client bug and must not be read as a clear; a
+    // non-string, non-null value is rejected by the same strict parse.
+    for (const body of [{}, { parentSessionId: 42 }]) {
+      const invalidResponse = await fetch(`${baseUrl}/api/providers/sessions/child-session/parent`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const invalidPayload = await invalidResponse.json() as { error: { code: string } };
+
+      assert.equal(invalidResponse.status, 400);
+      assert.equal(invalidPayload.error.code, 'INVALID_SESSION_PARENT');
+    }
+  });
+});
+
 test('archived session batch delete permanently removes only archived sessions', async () => {
   await withProviderServer(async (baseUrl, workspacePath) => {
     sessionsDb.createAppSession('archived-first', 'codex', workspacePath, 'First archived');
