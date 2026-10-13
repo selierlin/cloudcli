@@ -49,10 +49,6 @@ const AUTH_EVENT_TYPES: readonly AuthEventType[] = [
 ];
 const AUTH_EVENTS_DEFAULT_LIMIT = 50;
 const AUTH_EVENTS_MAX_LIMIT = 200;
-const AUTH_EVENTS_USERNAME_MAX = 128;
-// Mirrors the write side's IP_MAX — a stored ip is already truncated to this,
-// so a longer filter value could never match anything.
-const AUTH_EVENTS_IP_MAX = 64;
 // Bounds the paging query: without it a hand-crafted `offset` makes SQLite
 // sort and then discard an unbounded number of rows. The UI derives its pages
 // from `total`, so it never asks past this in practice.
@@ -217,9 +213,12 @@ export function createSettingsService(dependencies: SettingsDependencies) {
       return { success: true };
     },
     /**
-     * Lists the auth audit trail. Query values are validated and clamped here —
-     * the route only forwards them — because a negative LIMIT means "no limit"
-     * in SQLite and an unknown event type would otherwise reach the repository.
+     * Lists the auth audit trail. Paging and the event type are validated and
+     * clamped here — the route only forwards them — because a negative LIMIT
+     * means "no limit" in SQLite and an unknown event type would otherwise
+     * reach the repository. Username/ip are only trimmed: the repository
+     * truncates them to the writer's budgets so the filter matches the stored
+     * value (C4).
      */
     listAuthEvents(query: Record<string, unknown>) {
       const eventType = typeof query.eventType === 'string'
@@ -227,10 +226,10 @@ export function createSettingsService(dependencies: SettingsDependencies) {
           ? (query.eventType as AuthEventType)
           : null;
       const username = typeof query.username === 'string' && query.username.trim()
-        ? query.username.trim().slice(0, AUTH_EVENTS_USERNAME_MAX)
+        ? query.username.trim()
         : null;
       const ip = typeof query.ip === 'string' && query.ip.trim()
-        ? query.ip.trim().slice(0, AUTH_EVENTS_IP_MAX)
+        ? query.ip.trim()
         : null;
 
       return dependencies.authEvents.list({

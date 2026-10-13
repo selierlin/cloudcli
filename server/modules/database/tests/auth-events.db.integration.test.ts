@@ -142,6 +142,49 @@ test('the capacity gate stops new login_failure rows and leaves other kinds alon
   });
 });
 
+test('the capacity gate counts failure rows only, not the whole table', async () => {
+  await withDatabase(() => {
+    const warn = console.warn;
+    console.warn = () => undefined;
+    try {
+      // A normal account's non-failure history must not consume the budget.
+      for (let index = 0; index < 3; index += 1) {
+        authEventsDb.record({ type: 'login_success', userId: 1, username: 'alice' });
+      }
+
+      const repository = createAuthEventsDb(3);
+      repository.record({ type: 'login_failure', username: 'ghost' });
+
+      // The budget (3) counts failures only, so the first failure is recorded
+      // even though the table already holds three success rows (N11).
+      assert.equal(repository.list({ ...ALL, eventType: 'login_failure' }).total, 1);
+    } finally {
+      console.warn = warn;
+    }
+  });
+});
+
+test('a filter matches the value the writer stored, including multi-byte names', async () => {
+  await withDatabase(() => {
+    // 127 ASCII code points + one emoji + 50 more: 178 code points, 179 code
+    // units. The writer stores the first 128 *code points*; a filter that cut
+    // by code unit would split the emoji and never match its own row (C4).
+    const longName = `${'a'.repeat(127)}😀${'b'.repeat(50)}`;
+    const longIp = 'i'.repeat(70);
+
+    authEventsDb.record({ type: 'login_failure', username: longName, ip: longIp });
+
+    assert.equal(authEventsDb.list({ ...ALL, username: longName }).total, 1);
+    assert.equal(authEventsDb.list({ ...ALL, ip: longIp }).total, 1);
+
+    // The match above is because both sides apply the same code-point budget,
+    // not because the stored value happens to be untruncated.
+    const stored = authEventsDb.list(ALL).events[0];
+    assert.equal(stored?.username, `${'a'.repeat(127)}😀`);
+    assert.equal(stored?.ip, 'i'.repeat(64));
+  });
+});
+
 test('pruneOlderThan removes only rows past the retention window', async () => {
   await withDatabase(() => {
     authEventsDb.record({ type: 'login_success', userId: 1, username: 'alice' });

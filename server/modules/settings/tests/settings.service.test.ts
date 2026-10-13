@@ -85,7 +85,7 @@ test('listAuthEvents falls back to the default limit when paging is not a number
   assert.equal(received.limit, 50);
 });
 
-test('listAuthEvents bounds the offset and truncates the ip filter like the write side', () => {
+test('listAuthEvents bounds the offset and leaves username/ip truncation to the repository', () => {
   let received: { offset?: number; ip?: string | null } = {};
   const service = createSettingsService(dependencies({
     authEvents: {
@@ -97,7 +97,8 @@ test('listAuthEvents bounds the offset and truncates the ip filter like the writ
 
   // A huge offset would otherwise make SQLite sort and discard unbounded rows.
   assert.equal(received.offset, 100_000);
-  // Stored ips are already capped at 64 characters, so a longer filter can
-  // never match anything — truncating keeps it aligned with the write side.
-  assert.equal(received.ip?.length, 64);
+  // Only trimmed here — the repository truncates to the writer's budget, so a
+  // filter matches the value that was stored (see the repository integration
+  // test). The service must not re-implement that rule and drift from it (C4).
+  assert.equal(received.ip, '9'.repeat(80));
 });
