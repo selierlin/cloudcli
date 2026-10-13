@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Check, Edit2, GitBranch, MoreHorizontal, Pin, PinOff, Trash2, X } from 'lucide-react';
+import { Check, CornerDownRight, CornerUpLeft, Edit2, GitBranch, MoreHorizontal, Pin, PinOff, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { ActionMenu } from '@/shared/ui';
@@ -33,6 +33,18 @@ type SessionOptionsProps = {
   isPinned?: boolean;
   /** Pins or unpins this session; absent where the row does not offer pinning. */
   onTogglePinned?: (sessionId: string, isPinned: boolean) => void;
+  /**
+   * The session's current parent, or null when it is top-level. `undefined`
+   * hides the ownership items, which is what a call site without a mounted
+   * parent picker wants.
+   */
+  parentSessionId?: string | null;
+  /** Offers "file under…"; withheld when the session owns children or no picker is mounted. */
+  canAssignParent?: boolean;
+  /** Opens the parent picker for this session. */
+  onRequestAssignParent?: () => void;
+  /** Moves this session back to the top level; offered only when it has a parent. */
+  onClearParent?: () => void;
   /** Withheld where the row has nowhere to send a delete. */
   canDelete?: boolean;
   className?: string;
@@ -64,6 +76,10 @@ export default function SessionOptions({
   onFork,
   isPinned = false,
   onTogglePinned,
+  parentSessionId,
+  canAssignParent = false,
+  onRequestAssignParent,
+  onClearParent,
   canDelete = true,
   className,
   t,
@@ -195,6 +211,19 @@ export default function SessionOptions({
               description: t('sessions.forkSessionDescription'),
               icon: GitBranch,
               onSelect: onFork,
+            }] : []),
+            ...(canAssignParent && onRequestAssignParent ? [{
+              key: 'assign-parent',
+              label: t('sessions.fileUnderSession'),
+              description: t('sessions.fileUnderSessionDescription'),
+              icon: CornerDownRight,
+              onSelect: onRequestAssignParent,
+            }] : []),
+            ...(parentSessionId && onClearParent ? [{
+              key: 'clear-parent',
+              label: t('sessions.moveSessionToTopLevel'),
+              icon: CornerUpLeft,
+              onSelect: onClearParent,
             }] : []),
             ...(canDelete && !isProcessing ? [{
               key: 'delete',

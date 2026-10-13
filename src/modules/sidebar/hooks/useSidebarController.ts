@@ -6,6 +6,7 @@ import { subscribeToUserPreferences } from '@/shared/userSettings';
 import { usePaletteOps } from '@/modules/command-palette';
 import type { ArchivedProjectListItem, ArchivedSessionListItem, BatchArchivedSessionDeleteConfirmation, BatchSessionArchiveConfirmation, ConversationProjectResult, ConversationSearchResults, CreatedConversationSignal, LLMProvider, Project, ProjectSession, ProjectSortOrder, RecentConversationListItem, SearchProgress, ActiveSidebarRename, PendingSidebarDeletion, SessionTitleSearchResult, SessionWithProvider, SidebarSearchMode } from '@/shared/types';
 import {
+  applyOptimisticSessionParentState,
   applyOptimisticSessionPinState,
   filterProjects,
   filterSessionsForProject,
@@ -130,12 +131,18 @@ export function useSidebarController({
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [optimisticStarByProjectId, setOptimisticStarByProjectId] = useState<Map<string, boolean>>(new Map());
   const [optimisticPinBySessionId, setOptimisticPinBySessionId] = useState<Map<string, boolean>>(new Map());
+  // Optimistic ownership links, keyed by the moved session. Each entry holds the
+  // requested parent id (or null for "make it a root") until a refreshed payload
+  // agrees, so a move previews instantly without rebuilding `project.sessions`.
+  const [optimisticParentBySessionId, setOptimisticParentBySessionId] =
+    useState<Map<string, string | null>>(new Map());
   const [loadingMoreProjects, setLoadingMoreProjects] = useState<Set<string>>(new Set());
   const searchSeqRef = useRef(0);
   const recentConversationsSeqRef = useRef(0);
   const eventSourceRef = useRef<EventSource | null>(null);
   const starToggleSequenceByProjectRef = useRef<Map<string, number>>(new Map());
   const pinToggleSequenceBySessionRef = useRef<Map<string, number>>(new Map());
+  const parentAssignSequenceBySessionRef = useRef<Map<string, number>>(new Map());
   const migrationStartedRef = useRef(false);
   // Session ids already folded into the Conversations feed from a local-create
   // signal, so a row that later leaves the feed (archived/deleted) is not
@@ -803,9 +810,14 @@ export function useSidebarController({
     [optimisticPinBySessionId, projectsWithResolvedStarState],
   );
 
+  const projectsWithResolvedParentState = useMemo(
+    () => applyOptimisticSessionParentState(projectsWithResolvedPinState, optimisticParentBySessionId),
+    [optimisticParentBySessionId, projectsWithResolvedPinState],
+  );
+
   const sortedProjects = useMemo(
-    () => sortProjects(projectsWithResolvedPinState, projectSortOrder),
-    [projectSortOrder, projectsWithResolvedPinState],
+    () => sortProjects(projectsWithResolvedParentState, projectSortOrder),
+    [projectSortOrder, projectsWithResolvedParentState],
   );
 
   const runningProjects = useMemo(() => {
@@ -1414,6 +1426,68 @@ export function useSidebarController({
     [onRefresh, reloadRecentConversations, t],
   );
 
+  const updateSessionParent = useCallback(
+    async (sessionId: string, parentSessionId: string | null) => {
+      const latestSequence = (parentAssignSequenceBySessionRef.current.get(sessionId) ?? 0) + 1;
+      parentAssignSequenceBySessionRef.current.set(sessionId, latestSequence);
+
+      // Preview the move in the tree before the round trip; the follow-up
+      // skip-sync refresh reconciles and then clears the overlay once the
+      // server payload agrees.
+      setOptimisticParentBySessionId((previous) => {
+        const next = new Map(previous);
+        next.set(sessionId, parentSessionId);
+        return next;
+      });
+
+      try {
+        const response = await api.setSessionParent(sessionId, parentSessionId);
+        if (!response.ok) {
+          throw new Error(`Failed to update session parent: ${response.status}`);
+        }
+
+        if (parentAssignSequenceBySessionRef.current.get(sessionId) !== latestSequence) {
+          return;
+        }
+
+        // Filing a session writes only its ownership column — no transcript
+        // changes — so the refresh can skip the on-disk session rescan. The
+        // refreshed payload now carries the server's answer, so the preview is
+        // dropped instead of being reconciled against it.
+        await Promise.resolve(onRefresh({ skipSynchronization: true }));
+        if (parentAssignSequenceBySessionRef.current.get(sessionId) === latestSequence) {
+          setOptimisticParentBySessionId((previous) => {
+            if (!previous.has(sessionId)) {
+              return previous;
+            }
+            const next = new Map(previous);
+            next.delete(sessionId);
+            return next;
+          });
+        }
+      } catch (error) {
+        if (parentAssignSequenceBySessionRef.current.get(sessionId) !== latestSequence) {
+          return;
+        }
+
+        // Drop the optimistic preview and let a quiet refresh restore whatever
+        // the server actually persisted (a rejected move never took effect).
+        setOptimisticParentBySessionId((previous) => {
+          if (!previous.has(sessionId)) {
+            return previous;
+          }
+          const next = new Map(previous);
+          next.delete(sessionId);
+          return next;
+        });
+        void onRefresh({ skipSynchronization: true });
+        console.error('[Sidebar] Error updating session parent:', error);
+        alert(t('messages.updateSessionParentError'));
+      }
+    },
+    [onRefresh, t],
+  );
+
   const collapseSidebar = useCallback(() => {
     setSidebarVisible(false);
   }, [setSidebarVisible]);
@@ -1459,6 +1533,7 @@ export function useSidebarController({
     handleSessionClick,
     forkSession,
     updateSessionPinned,
+    updateSessionParent,
     toggleStarProject,
     isProjectStarred,
     getProjectSessions,

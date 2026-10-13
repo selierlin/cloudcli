@@ -320,6 +320,48 @@ export const applyOptimisticSessionPinState = (
 };
 
 /**
+ * Overlays optimistic per-session parent links on the fetched project list.
+ *
+ * The tree is derived from `parentSessionId`, so previewing a move means
+ * rewriting that field on the row before the refetch lands. Mirrors
+ * `applyOptimisticSessionPinState`: only projects that actually contain an
+ * overridden session are rebuilt, preserving the identity of every other
+ * project (and the session-row memoization that depends on it). A `null` value
+ * is a real override — it means "make this a root" — so presence in the map, not
+ * truthiness, decides whether a row is touched.
+ */
+export const applyOptimisticSessionParentState = (
+  projects: Project[],
+  optimisticParents: ReadonlyMap<string, string | null>,
+): Project[] => {
+  if (optimisticParents.size === 0) {
+    return projects;
+  }
+
+  return projects.map((project) => {
+    const sessions = project.sessions;
+    if (!sessions || sessions.length === 0) {
+      return project;
+    }
+
+    let changed = false;
+    const nextSessions = sessions.map((session) => {
+      const optimisticParent = optimisticParents.get(session.id);
+      if (optimisticParent === undefined) {
+        return session;
+      }
+      if ((session.parentSessionId ?? null) === optimisticParent) {
+        return session;
+      }
+      changed = true;
+      return { ...session, parentSessionId: optimisticParent };
+    });
+
+    return changed ? { ...project, sessions: nextSessions } : project;
+  });
+};
+
+/**
  * Flips one conversation to the requested pin state and stable-partitions the
  * list so pinned rows render above unpinned ones, mirroring the server's
  * recent-conversations ordering. Used to preview a pin before the refetch lands.
