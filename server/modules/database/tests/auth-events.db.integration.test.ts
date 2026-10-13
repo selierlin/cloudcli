@@ -92,25 +92,30 @@ test('list filters by event type, username and ip, and total follows the filters
   });
 });
 
-test('record truncates username and user agent without breaking a multi-byte boundary', async () => {
+test('record truncates to a code-point budget without splitting or dropping multi-byte characters', async () => {
   await withDatabase(() => {
-    // 128 code units whose last unit is a lone high surrogate, so a plain slice
-    // would leave an orphan that better-sqlite3 rewrites to U+FFFD.
-    const boundaryName = `${'a'.repeat(127)}\uD83D`;
-    const plainName = 'a'.repeat(200);
+    const emoji = '😀'; // one code point, two UTF-16 code units
+    const shortWithEmoji = `agent ${emoji} test`;
+    // 127 ASCII code points + one emoji: exactly 128 code points, 129 code units.
+    const boundaryWithEmoji = `${'a'.repeat(127)}${emoji}`;
 
-    authEventsDb.record({ type: 'login_failure', username: boundaryName, userAgent: 'u'.repeat(600) });
-    authEventsDb.record({ type: 'login_failure', username: plainName });
+    authEventsDb.record({ type: 'login_failure', username: shortWithEmoji, userAgent: 'u'.repeat(600) });
+    authEventsDb.record({ type: 'login_failure', username: boundaryWithEmoji });
+    authEventsDb.record({ type: 'login_failure', username: 'a'.repeat(200) });
 
     const rows = authEventsDb.list(ALL).events;
-    const surrogateRow = rows.find((row) => row.user_agent !== null);
-    const plainRow = rows.find((row) => row.user_agent === null);
 
-    assert.ok(surrogateRow && plainRow);
-    assert.ok((surrogateRow.username ?? '').length <= 128);
-    assert.ok(!(surrogateRow.username ?? '').includes('\uFFFD'));
-    assert.ok((surrogateRow.user_agent ?? '').length <= 512);
-    assert.equal((plainRow.username ?? '').length, 128);
+    // Astral characters are preserved verbatim — truncation must never delete
+    // them (a code-unit "repair" pass would strip both halves of the pair).
+    assert.equal(rows.filter((row) => row.username === shortWithEmoji).length, 1);
+    // The cut lands on a code-point boundary, so the trailing emoji survives whole.
+    assert.equal(rows.filter((row) => row.username === boundaryWithEmoji).length, 1);
+    // Plain ASCII is still bounded by the limit (the budget is code points).
+    assert.equal(rows.filter((row) => row.username === 'a'.repeat(128)).length, 1);
+    assert.equal(rows.filter((row) => Array.from(row.username ?? '').length > 128).length, 0);
+    // The user agent is bounded too, and no row gained a replacement character.
+    assert.ok((rows.find((row) => row.user_agent !== null)?.user_agent ?? '').length <= 512);
+    assert.ok(!rows.some((row) => (row.username ?? '').includes('\uFFFD')));
   });
 });
 

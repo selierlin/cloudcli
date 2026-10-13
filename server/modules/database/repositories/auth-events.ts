@@ -49,16 +49,24 @@ const USER_AGENT_MAX = 512;
 const IP_MAX = 64;
 
 /**
- * Truncates to `max` UTF-16 code units without leaving a lone surrogate.
- * A plain `slice` can split a surrogate pair; better-sqlite3 silently rewrites
- * the orphan to U+FFFD (three extra code units), which would break the
- * "never longer than max" invariant this truncation exists to guarantee.
+ * Truncates to `max` Unicode code points.
+ *
+ * Slicing by code point — rather than by UTF-16 code unit — is what keeps a
+ * surrogate pair whole. A code-unit `slice` can cut an emoji in half, and a
+ * "repair" pass that strips surrogate code units is worse: `[\uD800-\uDFFF]`
+ * matches *both halves of valid pairs*, so it deletes every emoji and astral
+ * character (CJK extensions, 𝕳, …) instead of just the orphan. Slicing the
+ * code-point array never splits a pair and never drops content, and still
+ * bounds storage (a code point is at most two code units).
+ *
+ * A lone surrogate that the caller already passed in survives here and is
+ * stored as U+FFFD by better-sqlite3 — acceptable for a display-only field.
  */
 const truncate = (value: string | null | undefined, max: number): string | null => {
   if (typeof value !== 'string') {
     return null;
   }
-  return value.slice(0, max).replace(/[\uD800-\uDFFF]/g, '');
+  return Array.from(value).slice(0, max).join('');
 };
 
 /**
