@@ -164,6 +164,84 @@ test('the capacity gate counts failure rows only, not the whole table', async ()
   });
 });
 
+test('the capacity gate is shared: login_failure rows gate out an agent_auth_failure', async () => {
+  await withDatabase(() => {
+    const warn = console.warn;
+    console.warn = () => undefined;
+    try {
+      const repository = createAuthEventsDb(2);
+      repository.record({ type: 'login_failure', username: 'ghost' });
+      repository.record({ type: 'login_failure', username: 'ghost' });
+      // Shared budget already spent on login failures, so the agent surface is
+      // gated too — a flood on one failure type must not leave the other open.
+      repository.record({ type: 'agent_auth_failure', ip: '203.0.113.9' });
+
+      assert.equal(repository.list(ALL).total, 2);
+      assert.equal(repository.list({ ...ALL, eventType: 'agent_auth_failure' }).total, 0);
+    } finally {
+      console.warn = warn;
+    }
+  });
+});
+
+test('the capacity gate is shared: agent_auth_failure rows gate out a login_failure', async () => {
+  await withDatabase(() => {
+    const warn = console.warn;
+    console.warn = () => undefined;
+    try {
+      const repository = createAuthEventsDb(2);
+      repository.record({ type: 'agent_auth_failure', ip: '203.0.113.9' });
+      repository.record({ type: 'agent_auth_failure', ip: '203.0.113.9' });
+      repository.record({ type: 'login_failure', username: 'ghost' }); // gated out
+
+      assert.equal(repository.list(ALL).total, 2);
+      assert.equal(repository.list({ ...ALL, eventType: 'login_failure' }).total, 0);
+      assert.equal(repository.list({ ...ALL, eventType: 'agent_auth_failure' }).total, 2);
+    } finally {
+      console.warn = warn;
+    }
+  });
+});
+
+test('the gate baseline counts agent_auth_failure rows already stored', async () => {
+  await withDatabase(() => {
+    const warn = console.warn;
+    console.warn = () => undefined;
+    try {
+      // A pre-existing agent failure must count toward the budget, or a restart
+      // would restart the agent surface from a zero baseline while the table is
+      // already full.
+      getConnection()
+        .prepare("INSERT INTO auth_events (event_type, ip) VALUES ('agent_auth_failure', '203.0.113.9')")
+        .run();
+
+      const repository = createAuthEventsDb(1);
+      repository.record({ type: 'login_failure', username: 'ghost' }); // gated out
+
+      assert.equal(repository.list(ALL).total, 1);
+      assert.equal(repository.list({ ...ALL, eventType: 'login_failure' }).total, 0);
+    } finally {
+      console.warn = warn;
+    }
+  });
+});
+
+test('agent_auth_failure rows carry no user identity but keep the source and are filterable', async () => {
+  await withDatabase(() => {
+    authEventsDb.record({ type: 'agent_auth_failure', ip: '203.0.113.9', userAgent: 'probe/1.0' });
+    authEventsDb.record({ type: 'login_success', userId: 1, username: 'alice' });
+
+    const { events, total } = authEventsDb.list({ ...ALL, eventType: 'agent_auth_failure' });
+
+    assert.equal(total, 1);
+    // A rejected key discloses nothing about a user, so identity stays null (D8/D19).
+    assert.equal(events[0]?.user_id, null);
+    assert.equal(events[0]?.username, null);
+    assert.equal(events[0]?.ip, '203.0.113.9');
+    assert.equal(events[0]?.user_agent, 'probe/1.0');
+  });
+});
+
 test('a filter matches the value the writer stored, including multi-byte names', async () => {
   await withDatabase(() => {
     // 127 ASCII code points + one emoji + 50 more: 178 code points, 179 code
