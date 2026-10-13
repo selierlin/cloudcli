@@ -1,6 +1,6 @@
 import { memo, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { GitBranchIcon, PencilIcon, Timer } from 'lucide-react';
+import { GitBranchIcon, PencilIcon, Timer, UserRoundIcon } from 'lucide-react';
 
 import type { ChatMessage, ClaudePermissionSuggestion, PermissionGrantResult, LLMProvider,DiffLine,Project,ReasoningDisclosureState,ReasoningPresentation } from '@/shared/types';
 import { formatUsageLimitText, stripProposedPlanEnvelope } from '@/modules/chat/utils/chatFormatting';
@@ -204,8 +204,8 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
             )}
           </div>
           {!isGrouped && (
-            <div className="hidden h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm text-n-white sm:flex">
-              U
+            <div className="hidden h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-border/60 bg-muted text-muted-foreground sm:flex">
+              <UserRoundIcon className="h-4 w-4" />
             </div>
           )}
         </div>
