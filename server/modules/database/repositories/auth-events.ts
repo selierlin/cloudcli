@@ -61,98 +61,109 @@ const truncate = (value: string | null | undefined, max: number): string | null 
   return value.slice(0, max).replace(/[\uD800-\uDFFF]/g, '');
 };
 
-// Capacity gate state. `baseline` is read lazily on the first login_failure
-// write so it lands after the boot-time prune and never touches the DB at
-// import time (which would run before the table exists). `inserted` counts the
-// login_failure rows written since, so the check stays O(1) and needs no query.
-let baseline: number | null = null;
-let inserted = 0;
-let capacityWarned = false;
+/**
+ * Creates an auth event repository. `maxLoginFailureRows` is injectable so tests
+ * can exercise the capacity gate without writing a hundred thousand rows.
+ */
+export function createAuthEventsDb(maxLoginFailureRows: number = MAX_LOGIN_FAILURE_ROWS) {
+  // Capacity gate state, kept per instance so a test repository cannot leak its
+  // counts into the shared one. `baseline` is read lazily on the first
+  // login_failure write so it lands after the boot-time prune and never touches
+  // the DB at import time (which would run before the table exists); `inserted`
+  // counts the login_failure rows written since, keeping the check O(1) and
+  // query-free on the hot path.
+  let baseline: number | null = null;
+  let inserted = 0;
+  let capacityWarned = false;
 
-const countAll = (): number =>
-  (getConnection().prepare('SELECT COUNT(*) AS n FROM auth_events').get() as { n: number }).n;
+  const countAll = (): number =>
+    (getConnection().prepare('SELECT COUNT(*) AS n FROM auth_events').get() as { n: number }).n;
 
-export const authEventsDb = {
-  /**
-   * Records one auth event. Best-effort: any failure — including opening the
-   * connection — is logged and swallowed so it never affects the login result.
-   */
-  record(input: AuthEventInput): void {
-    try {
-      if (input.type === 'login_failure') {
-        if (baseline === null) {
-          baseline = countAll();
-        }
-        if (baseline + inserted >= MAX_LOGIN_FAILURE_ROWS) {
-          if (!capacityWarned) {
-            capacityWarned = true;
-            console.warn(
-              `auth_events capacity (${MAX_LOGIN_FAILURE_ROWS}) reached — `
-              + 'login_failure recording paused until restart or manual prune',
-            );
+  return {
+    /**
+     * Records one auth event. Best-effort: any failure — including opening the
+     * connection — is logged and swallowed so it never affects the login result.
+     */
+    record(input: AuthEventInput): void {
+      try {
+        if (input.type === 'login_failure') {
+          if (baseline === null) {
+            baseline = countAll();
           }
-          return;
+          if (baseline + inserted >= maxLoginFailureRows) {
+            if (!capacityWarned) {
+              capacityWarned = true;
+              console.warn(
+                `auth_events capacity (${maxLoginFailureRows}) reached — `
+                + 'login_failure recording paused until restart or manual prune',
+              );
+            }
+            return;
+          }
         }
-      }
 
+        const db = getConnection();
+        db.prepare(
+          'INSERT INTO auth_events (event_type, user_id, username, ip, user_agent) VALUES (?, ?, ?, ?, ?)',
+        ).run(
+          input.type,
+          input.userId ?? null,
+          truncate(input.username, USERNAME_MAX),
+          truncate(input.ip, IP_MAX),
+          truncate(input.userAgent, USER_AGENT_MAX),
+        );
+
+        if (input.type === 'login_failure') {
+          inserted += 1;
+        }
+      } catch (err) {
+        console.error('Failed to record auth event', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    },
+
+    /** Returns one page plus the total count under the same filters. */
+    list(params: AuthEventListParams): { events: AuthEventRow[]; total: number } {
       const db = getConnection();
-      db.prepare(
-        'INSERT INTO auth_events (event_type, user_id, username, ip, user_agent) VALUES (?, ?, ?, ?, ?)',
-      ).run(
-        input.type,
-        input.userId ?? null,
-        truncate(input.username, USERNAME_MAX),
-        truncate(input.ip, IP_MAX),
-        truncate(input.userAgent, USER_AGENT_MAX),
-      );
-
-      if (input.type === 'login_failure') {
-        inserted += 1;
+      const conditions: string[] = [];
+      const filters: unknown[] = [];
+      if (params.eventType) {
+        conditions.push('event_type = ?');
+        filters.push(params.eventType);
       }
-    } catch (err) {
-      console.error('Failed to record auth event', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  },
+      if (params.username) {
+        conditions.push('username = ?');
+        filters.push(params.username);
+      }
+      if (params.ip) {
+        conditions.push('ip = ?');
+        filters.push(params.ip);
+      }
+      const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-  /** Returns one page plus the total count under the same filters. */
-  list(params: AuthEventListParams): { events: AuthEventRow[]; total: number } {
-    const db = getConnection();
-    const conditions: string[] = [];
-    const filters: unknown[] = [];
-    if (params.eventType) {
-      conditions.push('event_type = ?');
-      filters.push(params.eventType);
-    }
-    if (params.username) {
-      conditions.push('username = ?');
-      filters.push(params.username);
-    }
-    if (params.ip) {
-      conditions.push('ip = ?');
-      filters.push(params.ip);
-    }
-    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+      const { n: total } = db
+        .prepare(`SELECT COUNT(*) AS n FROM auth_events ${where}`)
+        .get(...filters) as { n: number };
 
-    const { n: total } = db
-      .prepare(`SELECT COUNT(*) AS n FROM auth_events ${where}`)
-      .get(...filters) as { n: number };
+      // ORDER BY id DESC breaks ties within the same second so paging never
+      // duplicates or skips rows when the planner picks the event-type index.
+      const events = db.prepare(
+        `SELECT * FROM auth_events ${where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`,
+      ).all(...filters, params.limit, params.offset) as AuthEventRow[];
 
-    // ORDER BY id DESC breaks ties within the same second so paging never
-    // duplicates or skips rows when the planner picks the event-type index.
-    const events = db.prepare(
-      `SELECT * FROM auth_events ${where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`,
-    ).all(...filters, params.limit, params.offset) as AuthEventRow[];
+      return { events, total };
+    },
 
-    return { events, total };
-  },
+    /** Deletes rows older than `days`. Returns the number removed. */
+    pruneOlderThan(days: number): number {
+      const db = getConnection();
+      return db
+        .prepare("DELETE FROM auth_events WHERE created_at < datetime('now', ?)")
+        .run(`-${days} days`).changes;
+    },
+  };
+}
 
-  /** Deletes rows older than `days`. Returns the number removed. */
-  pruneOlderThan(days: number): number {
-    const db = getConnection();
-    return db
-      .prepare("DELETE FROM auth_events WHERE created_at < datetime('now', ?)")
-      .run(`-${days} days`).changes;
-  },
-};
+/** Shared instance used by Auth to record login/logout events and Settings to read them back. */
+export const authEventsDb = createAuthEventsDb();
