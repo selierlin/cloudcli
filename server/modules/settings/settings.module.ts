@@ -1,5 +1,6 @@
 import {
   apiKeysDb,
+  authEventsDb,
   credentialsDb,
   notificationPreferencesDb,
   pushSubscriptionsDb,
@@ -42,6 +43,9 @@ const settingsService = createSettingsService({
     save: (userId, endpoint, p256dh, auth) =>
       pushSubscriptionsDb.saveSubscription(userId, endpoint, p256dh, auth),
     remove: (endpoint) => pushSubscriptionsDb.removeSubscription(endpoint),
+  },
+  authEvents: {
+    list: (params) => authEventsDb.list(params),
   },
   getVapidPublicKey: getPublicKey,
 });

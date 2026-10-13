@@ -47,5 +47,12 @@ export function createSettingsRouter(
   router.post('/push/unsubscribe', respond((req) => service.unsubscribeFromPush(
     userId(req), req.body?.endpoint,
   )));
+  router.get('/auth-events', respond((req) => service.listAuthEvents({
+    limit: req.query.limit,
+    offset: req.query.offset,
+    eventType: req.query.eventType,
+    username: req.query.username,
+    ip: req.query.ip,
+  })));
   return router;
 }

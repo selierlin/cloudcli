@@ -16,6 +16,7 @@ function dependencies(overrides: Partial<Dependencies> = {}): Dependencies {
       notifyUser: () => undefined,
     },
     pushSubscriptions: { save: () => undefined, remove: () => undefined },
+    authEvents: { list: () => ({ events: [], total: 0 }) },
     getVapidPublicKey: () => null,
     ...overrides,
   };
@@ -51,4 +52,35 @@ test('subscribeToPush persists the subscription and enables Web Push', () => {
     keys: { p256dh: 'key', auth: 'auth' },
   });
   assert.deepEqual(operations, ['save:https://push.example.test', 'preferences', 'notify']);
+});
+
+test('listAuthEvents clamps paging, whitelists the event type and trims filters', () => {
+  let received: unknown;
+  const service = createSettingsService(dependencies({
+    authEvents: {
+      list: (params) => { received = params; return { events: [], total: 0 }; },
+    },
+  }));
+
+  service.listAuthEvents({
+    limit: '-1', offset: '5', eventType: 'bogus', username: '  bob  ', ip: ' 1.2.3.4 ',
+  });
+
+  // -1 clamps up to 1 (a negative LIMIT would otherwise mean "no limit").
+  assert.deepEqual(received, {
+    limit: 1, offset: 5, eventType: null, username: 'bob', ip: '1.2.3.4',
+  });
+});
+
+test('listAuthEvents falls back to the default limit when paging is not a number', () => {
+  let received: { limit?: number } = {};
+  const service = createSettingsService(dependencies({
+    authEvents: {
+      list: (params) => { received = params; return { events: [], total: 0 }; },
+    },
+  }));
+
+  service.listAuthEvents({ limit: 'abc' });
+
+  assert.equal(received.limit, 50);
 });

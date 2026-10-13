@@ -1,4 +1,5 @@
 import { AppError } from '@/shared/utils.js';
+import type { AuthEventListParams, AuthEventRow, AuthEventType } from '@/modules/database/index.js';
 
 type ApiKeyRow = Record<string, unknown> & { api_key: string };
 type NotificationPreferences = Record<string, unknown> & {
@@ -34,8 +35,34 @@ type SettingsDependencies = {
     save(userId: number, endpoint: string, p256dh: string, auth: string): void;
     remove(endpoint: string): void;
   };
+  authEvents: {
+    list(params: AuthEventListParams): { events: AuthEventRow[]; total: number };
+  };
   getVapidPublicKey(): string | null;
 };
+
+const AUTH_EVENT_TYPES: readonly AuthEventType[] = [
+  'login_success',
+  'login_failure',
+  'logout',
+  'register',
+];
+const AUTH_EVENTS_DEFAULT_LIMIT = 50;
+const AUTH_EVENTS_MAX_LIMIT = 200;
+const AUTH_EVENTS_USERNAME_MAX = 128;
+
+/**
+ * Clamps an untrusted numeric query value into [lo, hi], falling back to
+ * `fallback` when it is not a finite number. Required because SQLite treats a
+ * negative LIMIT as "no limit" and rejects NaN.
+ */
+function clampInt(value: unknown, fallback: number, lo: number, hi: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.min(hi, Math.max(lo, Math.trunc(parsed)));
+}
 
 function requiredString(value: unknown, fieldName: string, code: string): string {
   const normalizedValue = typeof value === 'string' ? value.trim() : '';
@@ -181,6 +208,29 @@ export function createSettingsService(dependencies: SettingsDependencies) {
         });
       }
       return { success: true };
+    },
+    /**
+     * Lists the auth audit trail. Query values are validated and clamped here —
+     * the route only forwards them — because a negative LIMIT means "no limit"
+     * in SQLite and an unknown event type would otherwise reach the repository.
+     */
+    listAuthEvents(query: Record<string, unknown>) {
+      const eventType = typeof query.eventType === 'string'
+        && (AUTH_EVENT_TYPES as readonly string[]).includes(query.eventType)
+          ? (query.eventType as AuthEventType)
+          : null;
+      const username = typeof query.username === 'string' && query.username.trim()
+        ? query.username.trim().slice(0, AUTH_EVENTS_USERNAME_MAX)
+        : null;
+      const ip = typeof query.ip === 'string' && query.ip.trim() ? query.ip.trim() : null;
+
+      return dependencies.authEvents.list({
+        limit: clampInt(query.limit, AUTH_EVENTS_DEFAULT_LIMIT, 1, AUTH_EVENTS_MAX_LIMIT),
+        offset: clampInt(query.offset, 0, 0, Number.MAX_SAFE_INTEGER),
+        eventType,
+        username,
+        ip,
+      });
     },
   };
 }
