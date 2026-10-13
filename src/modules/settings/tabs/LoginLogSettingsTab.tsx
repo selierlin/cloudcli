@@ -99,11 +99,11 @@ export default function LoginLogSettingsTab() {
           <table className="w-full text-left text-sm">
             <thead className="text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
-                <th className="px-4 py-2 font-medium">{t('loginLog.column.time', { defaultValue: 'Time' })}</th>
-                <th className="px-4 py-2 font-medium">{t('loginLog.column.event', { defaultValue: 'Event' })}</th>
-                <th className="px-4 py-2 font-medium">{t('loginLog.column.username', { defaultValue: 'Username' })}</th>
-                <th className="px-4 py-2 font-medium">{t('loginLog.column.ip', { defaultValue: 'IP' })}</th>
-                <th className="px-4 py-2 font-medium">{t('loginLog.column.userAgent', { defaultValue: 'User agent' })}</th>
+                <th className="whitespace-nowrap px-4 py-2 font-medium">{t('loginLog.column.time', { defaultValue: 'Time' })}</th>
+                <th className="whitespace-nowrap px-4 py-2 font-medium">{t('loginLog.column.event', { defaultValue: 'Event' })}</th>
+                <th className="whitespace-nowrap px-4 py-2 font-medium">{t('loginLog.column.username', { defaultValue: 'Username' })}</th>
+                <th className="whitespace-nowrap px-4 py-2 font-medium">{t('loginLog.column.ip', { defaultValue: 'IP' })}</th>
+                <th className="w-full px-4 py-2 font-medium">{t('loginLog.column.userAgent', { defaultValue: 'User agent' })}</th>
               </tr>
             </thead>
             <tbody>
@@ -123,10 +123,10 @@ export default function LoginLogSettingsTab() {
                 events.map((row) => (
                   <tr key={row.id} className="border-t border-border/40">
                     <td className="whitespace-nowrap px-4 py-2 text-muted-foreground">{formatLocalTime(row.created_at)}</td>
-                    <td className="px-4 py-2">{t(`loginLog.event.${row.event_type}`)}</td>
-                    <td className="px-4 py-2">{row.username ?? '—'}</td>
-                    <td className="px-4 py-2">{row.ip ?? '—'}</td>
-                    <td className="max-w-96 truncate px-4 py-2 text-muted-foreground" title={row.user_agent ?? undefined}>
+                    <td className="whitespace-nowrap px-4 py-2">{t(`loginLog.event.${row.event_type}`)}</td>
+                    <td className="whitespace-nowrap px-4 py-2">{row.username ?? '—'}</td>
+                    <td className="whitespace-nowrap px-4 py-2">{row.ip ?? '—'}</td>
+                    <td className="w-full max-w-96 truncate px-4 py-2 text-muted-foreground" title={row.user_agent ?? undefined}>
                       {row.user_agent ?? '—'}
                     </td>
                   </tr>
