@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Check, CornerDownRight, CornerUpLeft, Edit2, GitBranch, MoreHorizontal, Pin, PinOff, Trash2, X } from 'lucide-react';
+import { Check, Edit2, GitBranch, MoreHorizontal, Pin, PinOff, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { ActionMenu } from '@/shared/ui';
@@ -8,6 +8,7 @@ import type { LLMProvider } from '@/shared/types';
 import { useSessionForkingProviders } from '@/shared/hooks/useProviderCapabilities';
 import { useProviderSessionIdCopy } from '@/modules/sidebar/hooks/useProviderSessionIdCopy';
 import { PROVIDER_LABELS } from '@/modules/sidebar/utils/sidebarProjectFormatting';
+import { buildSessionOwnershipMenuItems } from '@/modules/sidebar/utils/sessionOwnershipMenuItems';
 
 type SessionOptionsProps = {
   sessionId: string;
@@ -212,19 +213,13 @@ export default function SessionOptions({
               icon: GitBranch,
               onSelect: onFork,
             }] : []),
-            ...(canAssignParent && onRequestAssignParent ? [{
-              key: 'assign-parent',
-              label: t('sessions.fileUnderSession'),
-              description: t('sessions.fileUnderSessionDescription'),
-              icon: CornerDownRight,
-              onSelect: onRequestAssignParent,
-            }] : []),
-            ...(parentSessionId && onClearParent ? [{
-              key: 'clear-parent',
-              label: t('sessions.moveSessionToTopLevel'),
-              icon: CornerUpLeft,
-              onSelect: onClearParent,
-            }] : []),
+            ...buildSessionOwnershipMenuItems({
+              parentSessionId: parentSessionId ?? null,
+              canAssignParent,
+              onRequestAssignParent,
+              onClearParent,
+              t,
+            }),
             ...(canDelete && !isProcessing ? [{
               key: 'delete',
               label: t('sessions.archiveOrDeleteSession'),

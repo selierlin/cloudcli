@@ -1,5 +1,5 @@
 import { memo, useState } from 'react';
-import { Check, CornerDownRight, CornerUpLeft, Edit2, Loader2, MoreHorizontal, Pin, PinOff, Trash2, X } from 'lucide-react';
+import { Check, Edit2, Loader2, MoreHorizontal, Pin, PinOff, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Badge, Dialog, DialogContent, DialogTitle, LLMProviderLogo, Tooltip, buttonVariants } from '@/shared/ui';
@@ -10,6 +10,7 @@ import { ActivitySlot, AttentionSlot } from '@/modules/sidebar/SessionStatusIndi
 import { useCompactSidebar } from '@/modules/sidebar/hooks/useCompactSidebar';
 import { useProviderSessionIdCopy } from '@/modules/sidebar/hooks/useProviderSessionIdCopy';
 import { useSessionParentPicker } from '@/modules/sidebar/context/SessionParentPickerContext';
+import SessionOwnershipSheetActions from '@/modules/sidebar/SessionOwnershipSheetActions';
 import SessionOptions from '@/modules/sidebar/SessionOptions';
 
 type SidebarSessionItemProps = {
@@ -128,7 +129,12 @@ function SidebarSessionItem({
   );
   const canAssignParent = Boolean(parentPicker) && !ownsChildSessions;
   const requestAssignParent = parentPicker
-    ? () => parentPicker.requestAssignParent(session)
+    ? () => parentPicker.requestAssignParent({
+        sessionId: session.id,
+        projectId: project.projectId,
+        name: sessionView.sessionName,
+        parentSessionId,
+      })
     : undefined;
   const clearParent = parentPicker && parentSessionId
     ? () => parentPicker.clearParent(session.id)
@@ -351,33 +357,14 @@ function SidebarSessionItem({
                   </span>
                 </button>
 
-                {canAssignParent && requestAssignParent && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileOptionsOpen(false);
-                      requestAssignParent();
-                    }}
-                    className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-border bg-muted/35 px-4 py-3 text-left text-foreground transition-colors active:bg-muted"
-                  >
-                    <CornerDownRight className="h-5 w-5 flex-shrink-0" />
-                    <span className="text-sm font-medium">{t('sessions.fileUnderSession')}</span>
-                  </button>
-                )}
-
-                {clearParent && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileOptionsOpen(false);
-                      clearParent();
-                    }}
-                    className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-border bg-muted/35 px-4 py-3 text-left text-foreground transition-colors active:bg-muted"
-                  >
-                    <CornerUpLeft className="h-5 w-5 flex-shrink-0" />
-                    <span className="text-sm font-medium">{t('sessions.moveSessionToTopLevel')}</span>
-                  </button>
-                )}
+                <SessionOwnershipSheetActions
+                  parentSessionId={parentSessionId}
+                  canAssignParent={canAssignParent}
+                  onRequestAssignParent={requestAssignParent}
+                  onClearParent={clearParent}
+                  onBeforeAction={() => setMobileOptionsOpen(false)}
+                  t={t}
+                />
 
                 {!isProcessing && (
                   <button

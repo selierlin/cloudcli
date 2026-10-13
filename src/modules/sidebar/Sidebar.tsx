@@ -304,7 +304,7 @@ function Sidebar({
       ) : (
         <>
         <SessionParentPickerProvider
-          projects={filteredProjects}
+          projects={projects}
           onAssignParent={updateSessionParent}
           t={t}
         >
