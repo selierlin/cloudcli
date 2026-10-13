@@ -1,6 +1,14 @@
 export { initializeDatabase } from '@/modules/database/init-db.js';
 export { closeConnection, getConnection, getDatabasePath } from '@/modules/database/connection.js';
 export { apiKeysDb } from '@/modules/database/repositories/api-keys.js';
+// authEventsDb: used by Auth to record login/logout events and Settings to read them back.
+export { authEventsDb } from '@/modules/database/repositories/auth-events.js';
+export type {
+  AuthEventInput,
+  AuthEventListParams,
+  AuthEventRow,
+  AuthEventType,
+} from '@/modules/database/repositories/auth-events.js';
 export { appConfigDb } from '@/modules/database/repositories/app-config.js';
 export { credentialsDb } from '@/modules/database/repositories/credentials.js';
 export { githubTokensDb } from '@/modules/database/repositories/github-tokens.js';

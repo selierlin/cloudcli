@@ -331,6 +331,30 @@ CREATE TABLE IF NOT EXISTS superseded_provider_sessions (
 );
 `;
 
+/**
+ * Login/session audit trail, one row per auth event.
+ *
+ * Records `login_success` / `login_failure` / `logout` / `register` with the
+ * source address and user agent so brute-force and credential-stuffing attempts
+ * stay visible after the fact. `user_id` is NULL for `login_failure`: the
+ * attempted username may not exist, and a failure row must not disclose whether
+ * it did. `ip` is the transport source address, not proof of identity. Rows are
+ * pruned on boot by the repository (90-day retention) and `login_failure`
+ * insertion is capacity-gated there so the public login endpoint cannot grow the
+ * table without bound.
+ */
+export const AUTH_EVENTS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS auth_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,          -- 'login_success' | 'login_failure' | 'logout' | 'register'
+    user_id INTEGER,                   -- subject user; NULL for login_failure
+    username TEXT,                     -- attempted username on failure (<=128 code units)
+    ip TEXT,                           -- transport source address, not identity (<=64)
+    user_agent TEXT,                   -- truncated to <=512 code units
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+`;
+
 export const INIT_SCHEMA_SQL = `
 -- Initialize authentication database
 PRAGMA foreign_keys = ON;
@@ -386,4 +410,9 @@ ${USER_PREFERENCES_TABLE_SCHEMA_SQL}
 ${SESSION_DRAFTS_TABLE_SCHEMA_SQL}
 
 ${SUPERSEDED_PROVIDER_SESSIONS_TABLE_SCHEMA_SQL}
+
+${AUTH_EVENTS_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_auth_events_created_at ON auth_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_auth_events_type ON auth_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_auth_events_username ON auth_events(username);
 `;
