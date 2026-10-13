@@ -8,7 +8,7 @@ import SettingsSection from '@/modules/settings/SettingsSection';
 import { useLoginLogSettings } from '@/modules/settings/hooks/useLoginLogSettings';
 import type { AuthEventType } from '@/shared/types';
 
-const EVENT_TYPES: AuthEventType[] = ['login_success', 'login_failure', 'logout', 'register'];
+const EVENT_TYPES: AuthEventType[] = ['login_success', 'login_failure', 'logout', 'register', 'agent_auth_failure'];
 
 /**
  * Formats a UTC `created_at` (SQLite `CURRENT_TIMESTAMP`, `YYYY-MM-DD HH:MM:SS`)

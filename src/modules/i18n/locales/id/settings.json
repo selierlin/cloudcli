@@ -855,7 +855,8 @@
       "login_success": "Login success",
       "login_failure": "Login failure",
       "logout": "Logout",
-      "register": "Register"
+      "register": "Register",
+      "agent_auth_failure": "API key rejected"
     }
   }
 }
