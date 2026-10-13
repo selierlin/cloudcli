@@ -31,6 +31,14 @@ type SessionSummary = {
    */
   isUnread: boolean;
   isPinned: boolean;
+  /**
+   * App session this one is filed under, or null when it is top-level.
+   *
+   * The sidebar derives the parent/child tree from these ids alone; a child
+   * whose parent is absent from the loaded slice renders as a root, so no
+   * server-side ordering guarantee is needed here.
+   */
+  parentSessionId: string | null;
 };
 
 type SessionRepositoryRow = {
@@ -41,6 +49,7 @@ type SessionRepositoryRow = {
   created_at?: string | null;
   content_updated_at?: string | null;
   isPinned?: number;
+  parent_session_id?: string | null;
 };
 
 export type ProjectListItem = {
@@ -169,6 +178,7 @@ function mapSessionRowToSummary(row: SessionRepositoryRow, watermarks: ReadWater
     contentUpdatedAt,
     isUnread: isSessionContentUnread(contentUpdatedAt, watermarks.get(row.session_id) ?? null),
     isPinned: Boolean(row.isPinned),
+    parentSessionId: row.parent_session_id ?? null,
   };
 }
 

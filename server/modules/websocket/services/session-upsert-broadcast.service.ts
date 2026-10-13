@@ -66,6 +66,7 @@ async function buildSessionUpsertedEvent(
       contentUpdatedAt: row.content_updated_at ?? null,
       isUnread: isSessionContentUnread(row.content_updated_at ?? null, lastSeenAt),
       change,
+      parentSessionId: row.parent_session_id ?? null,
     },
     project: project
       ? {

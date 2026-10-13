@@ -352,6 +352,12 @@ export type SessionUpsertedEvent = {
      * producer; a client that does not know the field treats it as `content`.
      */
     change: SessionUpsertChange;
+    /**
+     * App session this one is filed under, or null when it is top-level. The
+     * client re-derives the sidebar tree from these ids, so a move announces
+     * itself by carrying the new value here.
+     */
+    parentSessionId: string | null;
   };
   project: SessionUpsertedProject | null;
   timestamp: string;

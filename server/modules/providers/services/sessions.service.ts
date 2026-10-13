@@ -89,7 +89,10 @@ type ArchivedSessionListItem = {
 type RecentSessionListItem = Pick<
   ArchivedSessionListItem,
   'sessionId' | 'provider' | 'projectId' | 'projectDisplayName' | 'sessionTitle' | 'lastActivity'
->;
+> & {
+  /** App session this one is filed under, or null when it is top-level. */
+  parentSessionId: string | null;
+};
 
 type RecentSessionsPage = {
   conversations: RecentSessionListItem[];
@@ -106,6 +109,8 @@ type SessionDetails = {
   updatedAt: string | null;
   lastActivity: string | null;
   isArchived: boolean;
+  /** App session this one is filed under, or null when it is top-level. */
+  parentSessionId: string | null;
   project: {
     projectId: string;
     path: string;
@@ -332,6 +337,7 @@ export const sessionsService = {
         sessionTitle: session.custom_name?.trim() || session.session_id,
         lastActivity: session.updated_at ?? session.created_at ?? null,
         isPinned: Boolean(session.isPinned),
+        parentSessionId: session.parent_session_id ?? null,
       };
     });
 
@@ -354,6 +360,66 @@ export const sessionsService = {
 
     sessionsDb.updateSessionIsPinned(sessionId, isPinned);
     return { sessionId, isPinned };
+  },
+
+  /**
+   * Files one session under another, or clears the link when `null` is given.
+   *
+   * The ownership tree is one level deep and confined to one project; the
+   * service enforces both because the column is not a foreign key (see
+   * schema.ts). Validation and write are one synchronous block on purpose:
+   * `better-sqlite3` is synchronous and Node is single-threaded, so no other
+   * request can slip in between the checks and the write and, for instance, let
+   * two sessions each become the other's parent.
+   *
+   * Broadcasts the moved session afterwards so other clients re-derive the
+   * tree; the parent's "has children" state is derived from the same field, so
+   * one event is enough.
+   */
+  async setSessionParent(
+    sessionId: string,
+    parentSessionId: string | null,
+  ): Promise<{ sessionId: string; parentSessionId: string | null }> {
+    const session = sessionsDb.getSessionById(sessionId);
+    if (!session) {
+      throw new AppError(`Session "${sessionId}" was not found.`, {
+        code: 'SESSION_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+
+    const invalidParent = (message: string): never => {
+      throw new AppError(message, { code: 'INVALID_SESSION_PARENT', statusCode: 400 });
+    };
+
+    if (parentSessionId !== null) {
+      const parent = sessionsDb.getSessionById(parentSessionId);
+      if (!parent) {
+        throw new AppError(`Session "${parentSessionId}" was not found.`, {
+          code: 'SESSION_NOT_FOUND',
+          statusCode: 404,
+        });
+      }
+
+      if (parentSessionId === sessionId) {
+        invalidParent('A session cannot be filed under itself.');
+      }
+      // Both paths must exist and match: `null === null` would otherwise let
+      // two project-less sessions be nested together.
+      if (!session.project_path || session.project_path !== parent.project_path) {
+        invalidParent('A session can only be filed under a session of the same project.');
+      }
+      if (parent.parent_session_id) {
+        invalidParent('A session that is already filed under another one cannot own children.');
+      }
+      if (sessionsDb.countChildrenOf(sessionId) > 0) {
+        invalidParent('A session that already owns child sessions cannot be filed under another one.');
+      }
+    }
+
+    sessionsDb.updateSessionParent(sessionId, parentSessionId);
+    await broadcastSessionUpserted(sessionId, 'metadata');
+    return { sessionId, parentSessionId };
   },
 
   /**
@@ -858,6 +924,7 @@ export const sessionsService = {
       updatedAt: session.updated_at ?? null,
       lastActivity: session.updated_at ?? session.created_at ?? null,
       isArchived: Boolean(session.isArchived),
+      parentSessionId: session.parent_session_id ?? null,
       project: project && projectPath
         ? {
             projectId: project.project_id,
