@@ -974,6 +974,14 @@ export type QuickReply = {
   text: string;
 };
 
+/** Why parsing an imported quick-replies file produced nothing usable; with JSON falling back to the line format, the only cause is "no usable row at all". */
+export type QuickReplyImportError = 'empty';
+
+/** What parsing an imported quick-replies file yields: the normalized list plus how many source rows were dropped, or why nothing could be read. */
+export type QuickReplyImportResult =
+  | { replies: QuickReply[]; skipped: number }
+  | { error: QuickReplyImportError };
+
 /** One selectable slash command — built-in, user-defined or skill-backed — as listed in the chat composer's command menu and executed when the user picks it. */
 export type SlashCommand = {
   name: string;

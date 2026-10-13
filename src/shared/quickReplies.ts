@@ -1,5 +1,5 @@
 import { readUserPreference, writeUserPreference } from '@/shared/userSettings';
-import type { QuickReply } from '@/shared/types';
+import type { QuickReply, QuickReplyImportResult } from '@/shared/types';
 
 /**
  * The user's reusable composer snippets: a short name and the text it inserts
@@ -111,6 +111,60 @@ export const readStoredQuickReplies = (): QuickReply[] | null => {
  */
 export const writeQuickReplies = (replies: QuickReply[]): void => {
   writeUserPreference('quickReplies', normalizeQuickReplies(replies));
+};
+
+/**
+ * Serializes the list for sharing: the stored shape, pretty-printed, so the
+ * file survives a round-trip through `parseQuickRepliesImport` losslessly.
+ */
+export const serializeQuickRepliesExport = (replies: QuickReply[]): string => (
+  JSON.stringify(replies, null, 2)
+);
+
+/** Normalizes what was read and reports how much of the source never made it in. */
+const finishQuickRepliesImport = (candidates: unknown[], sourceCount: number): QuickReplyImportResult => {
+  const replies = normalizeQuickReplies(candidates);
+  if (replies.length === 0) {
+    return { error: 'empty' };
+  }
+
+  return { replies, skipped: sourceCount - replies.length };
+};
+
+/**
+ * Reads one snippet file, accepting both share formats.
+ *
+ * Text that looks like JSON (leading `[` or `{`) is parsed first — an object
+ * is read through its `quickReplies` envelope — but any failure there falls
+ * back to the line format rather than erroring, because a line-format snippet
+ * may legitimately start with `[`. Lines each become one label-less snippet,
+ * with interior blank lines counted as skipped; trimming the whole text first
+ * keeps a file's trailing newline from reporting a phantom skip. Reading zero
+ * snippets from either format is an `empty` error, so an accidental empty file
+ * never wipes the current list.
+ */
+export const parseQuickRepliesImport = (raw: string): QuickReplyImportResult => {
+  const text = raw.trim();
+
+  if (text.startsWith('[') || text.startsWith('{')) {
+    try {
+      const value: unknown = JSON.parse(text);
+      if (Array.isArray(value)) {
+        return finishQuickRepliesImport(value, value.length);
+      }
+      if (isRecord(value) && Array.isArray(value.quickReplies)) {
+        return finishQuickRepliesImport(value.quickReplies, value.quickReplies.length);
+      }
+    } catch {
+      // Not valid JSON after all — fall through to the line format.
+    }
+  }
+
+  const lines = text.split('\n');
+  const candidates = lines
+    .filter((line) => line.trim() !== '')
+    .map((line) => ({ text: line.trim() }));
+  return finishQuickRepliesImport(candidates, lines.length);
 };
 
 /** Resolves the shipped snippets through i18n; used wherever the stored list is unset. */

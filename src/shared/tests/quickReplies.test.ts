@@ -9,10 +9,12 @@ import {
   isQuickReplyCommand,
   moveQuickReply,
   normalizeQuickReplies,
+  parseQuickRepliesImport,
   quickReplyLabel,
   readStoredQuickReplies,
   removeQuickReplyAt,
   resolveDefaultQuickReplies,
+  serializeQuickRepliesExport,
   setQuickReplyAt,
   writeQuickReplies,
 } from '@/shared/quickReplies';
@@ -134,4 +136,65 @@ test('a snippet counts as a command only when the slash leads, which is what gat
   assert.equal(isQuickReplyCommand('继续'), false);
   // A slash further in is just a path, and the send path treats it as prose.
   assert.equal(isQuickReplyCommand('看看 src/foo.ts'), false);
+});
+
+test('an export file imports back to the exact same list, labels included', () => {
+  const list = [reply('继续'), reply('你评估下影响面，先不要改', '先评估影响面')];
+
+  const parsed = parseQuickRepliesImport(serializeQuickRepliesExport(list));
+
+  assert.deepEqual(parsed, { replies: list, skipped: 0 });
+});
+
+test('an envelope object is read through its quickReplies field', () => {
+  const parsed = parseQuickRepliesImport(JSON.stringify({
+    version: 1,
+    quickReplies: [{ label: '继续', text: '继续' }],
+  }));
+
+  assert.deepEqual(parsed, { replies: [reply('继续', '继续')], skipped: 0 });
+});
+
+test('line format turns every non-blank line into a label-less snippet', () => {
+  const parsed = parseQuickRepliesImport('继续\n\n先评估影响面：你评估下影响面\n');
+
+  assert.deepEqual(parsed, {
+    replies: [reply('继续'), reply('先评估影响面：你评估下影响面')],
+    skipped: 1,
+  });
+});
+
+test('a line-format first row starting with [ falls back to lines instead of JSON', () => {
+  const parsed = parseQuickRepliesImport('[DEBUG] 检查日志\n继续');
+
+  assert.deepEqual(parsed, {
+    replies: [reply('[DEBUG] 检查日志'), reply('继续')],
+    skipped: 0,
+  });
+});
+
+test('broken JSON degrades to the line format rather than erroring', () => {
+  const parsed = parseQuickRepliesImport('[{"label": "继续",\n{"text": "重试"}');
+
+  assert.deepEqual(parsed, {
+    replies: [reply('[{"label": "继续",'), reply('{"text": "重试"}')],
+    skipped: 0,
+  });
+});
+
+test('importing past the limit keeps the first rows and reports the rest as skipped', () => {
+  const many = Array.from({ length: MAX_QUICK_REPLIES + 5 }, (_, index) => reply(`n${index}`));
+
+  const parsed = parseQuickRepliesImport(serializeQuickRepliesExport(many));
+
+  assert.ok(!('error' in parsed));
+  assert.equal(parsed.replies.length, MAX_QUICK_REPLIES);
+  assert.equal(parsed.skipped, 5);
+});
+
+test('text with no usable row is an empty error, never a wipe of the current list', () => {
+  assert.deepEqual(parseQuickRepliesImport('   \n  \n'), { error: 'empty' });
+  assert.deepEqual(parseQuickRepliesImport('[]'), { error: 'empty' });
+  assert.deepEqual(parseQuickRepliesImport(''), { error: 'empty' });
+  assert.deepEqual(parseQuickRepliesImport('[null, 7, "   "]'), { error: 'empty' });
 });
