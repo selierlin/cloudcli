@@ -334,20 +334,21 @@ CREATE TABLE IF NOT EXISTS superseded_provider_sessions (
 /**
  * Login/session audit trail, one row per auth event.
  *
- * Records `login_success` / `login_failure` / `logout` / `register` with the
- * source address and user agent so brute-force and credential-stuffing attempts
- * stay visible after the fact. `user_id` is NULL for `login_failure`: the
- * attempted username may not exist, and a failure row must not disclose whether
+ * Records `login_success` / `login_failure` / `logout` / `register` /
+ * `agent_auth_failure` with the source address and user agent so brute-force
+ * and credential-stuffing attempts stay visible after the fact. `user_id` is
+ * NULL for the failure kinds (`login_failure` / `agent_auth_failure`): the
+ * attempted identity may not exist, and a failure row must not disclose whether
  * it did. `ip` is the transport source address, not proof of identity. Rows are
- * pruned on boot by the repository (90-day retention) and `login_failure`
- * insertion is capacity-gated there so the public login endpoint cannot grow the
- * table without bound.
+ * pruned on boot by the repository (90-day retention) and the gated failure
+ * kinds are capacity-gated there so the public login endpoint and the machine
+ * `/api/agent` endpoint cannot grow the table without bound.
  */
 export const AUTH_EVENTS_TABLE_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS auth_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     event_type TEXT NOT NULL,          -- 'login_success' | 'login_failure' | 'logout' | 'register' | 'agent_auth_failure'
-    user_id INTEGER,                   -- subject user; NULL for login_failure
+    user_id INTEGER,                   -- subject user; NULL for login_failure / agent_auth_failure
     username TEXT,                     -- attempted username on failure (<=128 code points)
     ip TEXT,                           -- transport source address, not identity (<=64)
     user_agent TEXT,                   -- truncated to <=512 code points

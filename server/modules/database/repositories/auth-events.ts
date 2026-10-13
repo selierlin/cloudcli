@@ -16,7 +16,7 @@ import { getConnection } from '@/modules/database/connection.js';
 /** The audited auth events; used by Auth/Agent (writes) and Settings (reads) through this module's barrel. */
 export type AuthEventType = 'login_success' | 'login_failure' | 'logout' | 'register' | 'agent_auth_failure';
 
-/** A single event to record; `userId` stays null for `login_failure` so a failed attempt never discloses whether the username exists. */
+/** A single event to record; `userId` stays null for the failure kinds (`login_failure` / `agent_auth_failure`) so a failed attempt never discloses whether the identity exists. */
 export type AuthEventInput = {
   type: AuthEventType;
   userId?: number | null;
