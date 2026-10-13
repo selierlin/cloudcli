@@ -220,7 +220,7 @@
 10. `src/modules/sidebar/utils/sidebarProjectFormatting.ts` — 新增分组派生**独立纯函数**（不改 `getAllSessions` 返回结构；缓存按 project+搜索词组合键）（第 1 轮 W2）。
 11. `src/modules/sidebar/SidebarProjectSessions.tsx` — 渲染循环改「根 + 子」，缩进 + 连接线（`:180`、`:243-269`）。
 12. `src/modules/sidebar/SidebarSessionItem.tsx` — 子行缩进样式，compact/desktop 两分支。
-13. 菜单入口（**共 5 处**，第 1 轮 P2）：`SessionOptions.tsx:168-207`（桌面）、`SidebarSessionItem.tsx:207-360`（compact bottom sheet）、`SidebarRecentConversations.tsx:466-517` 与 `:328-390`、`SidebarContent.tsx:114-172`/`:516+`。建议**先抽一个共享菜单项构造器**再加「归到…/移出」；选择器放 `src/modules/sidebar/modals/SessionParentPicker.tsx`（第 1 轮 P11：按前端规范 `modals/` 存放，不沿用 `SidebarModals.tsx` 的既有反例，也不顺带重构存量）。**实现结果：落地 4 处（前 4 个），第 5 处有意延后 —— 见文末「作者动作：P1 实现落地」与 §6。**
+13. 菜单入口（**共 5 处**，第 1 轮 P2）：`SessionOptions.tsx:168-207`（桌面）、`SidebarSessionItem.tsx:207-360`（compact bottom sheet）、`SidebarRecentConversations.tsx:466-517` 与 `:328-390`、`SidebarContent.tsx:114-172`/`:516+`。建议**先抽一个共享菜单项构造器**再加「归到…/移出」；选择器放 `src/modules/sidebar/modals/SessionParentPicker.tsx`（第 1 轮 P11：按前端规范 `modals/` 存放，不沿用 `SidebarModals.tsx` 的既有反例，也不顺带重构存量）。**实现结果：落地 4 处（前 4 个），第 5 处收敛为后续可选增强（需求方 2026-10-14 拍板）—— 见文末「作者动作：P1 实现落地」与 §6。**
 14. `src/modules/project-workspace/hooks/useProjectsState.ts` — **overlay 乐观态** `optimisticParents`（不重建 `project.sessions`）；websocket 事件消费 `parentSessionId`；400 时回滚 overlay + 可见错误（第 1 轮 P7、W10）。
 15. i18n：只补 **`src/modules/i18n/locales/en/sidebar.json` 的 `sessions.*`**（其余语言自动回落 en，`config.ts:361`）；zh-CN 可选（第 1 轮 P4，修正原「仅 en + zh-CN 全量维护」的错误依据与落点——实测 en 为超集）。
 
@@ -259,7 +259,8 @@
 - [x] websocket：一端改父子关系，另一端在**不刷新**的情况下树随之更新。（`session_upserted` 事件带 `parentSessionId`，`upsertSessionIntoProject` 展开整行 + `serialize` 比对，无需额外改动）
 - [x] 多端不出现重复行或错位（`upsertSessionIntoProject` 正常合并）。
 - [d] conversations 视图：子会话显示「↳ 派生自 …」引用行（父已删时不可点），时间序与分页不受影响。**P2，本轮未做**（依赖服务端 `listRecentSessions` 补 `parentTitle`）。
-- [d] 移动端：**5 处菜单入口**（含 compact bottom sheet 与 conversations 移动 sheet）均提供「归到…/移出」，无拖拽不报错（第 1 轮 P2）。**本轮落地 4 处**：项目视图桌面 `SessionOptions` + 移动 compact bottom sheet、conversations 桌面 `ActionMenu` + 移动 bottom sheet。第 5 处（`SidebarContent` 搜索命中行）**有意延后**，理由见「作者动作」一节；归档变体按上一项本就不该显示归属。
+- [x] 移动端：**4 处稳定会话行**（项目视图桌面 `SessionOptions` + 移动 compact bottom sheet、conversations 桌面 `ActionMenu` + 移动 bottom sheet）均提供「归到…/移出」，无拖拽不报错（第 1 轮 P2）。（需求方 2026-10-14 拍板：入口范围由「5 处」收敛为「4 处稳定会话行」，覆盖审阅 P2「移动端一个入口都没有」的实际担忧）
+- [d] 【后续可选增强，未纳入 P1】活跃搜索命中行（`SidebarContent.tsx`）加「归到…/移出」：归档变体按「归档父」一项的定义本就不显示归属；活跃命中行属**临时搜索面**，且不持有所属 project 的会话数组，须先由服务端 `findSessionTitleResults` 补 `parentSessionId`（外加客户端类型与传参）才能判定「是否拥有子会话」。
 - [x] 校验：`npm run typecheck`、`npm run build`、改动文件 lint 无新增告警、相关单测通过（全量测试的既存基线失败需以改动前提交对照归因）。
 
 ## 7. 风险与回滚
@@ -416,15 +417,16 @@ P1（字段 + 接口 + 项目视图树 + 菜单）和后端测试已实现并**�
 
 1. **乐观 overlay 落在 `useSidebarController`，不在 §5.14 写的 `useProjectsState`**。它做成独立纯函数 `applyOptimisticSessionParentState`，与既有 `optimisticPinBySessionId` **同址同型**（`null` 是真实覆盖，按 `has()` 而非真值判定），只重建承载该会话的那个 project 对象。改 `useProjectsState` 会牵动 websocket 合并路径，收益为零，故不动。
 2. **回滚改为「丢弃 overlay + 静默刷新 + 可见错误」，未新增 websocket 事件消费**。`upsertSessionIntoProject` 展开整行 `...event.session`，`parentSessionId` 随 `SessionUpsertedEvent` 自动生效，无需改前端合并逻辑（§6 的 websocket 项即由此达成）。
-3. **菜单入口落地 4 处，第 5 处有意延后**（详见下条）。
+3. **菜单入口落地 4 处，第 5 处收敛为后续可选增强**（需求方 2026-10-14 拍板，详见下条）。
 4. **共享菜单项构造器只覆盖新增的两行**：抽了 `buildSessionOwnershipMenuItems`（`ActionMenu` 项）与 `SessionOwnershipSheetActions`（移动 sheet 按钮），**不顺带重构**存量 5 处菜单的 pin/rename/copy/delete。审阅 P2 的诉求是「别把新行复制 5 份」，这个做法满足该诉求且把回归面压到最小。
 
-**第 5 处入口（`SidebarContent.tsx` 搜索命中行）延后，请需求方拍板**
+**第 5 处入口（`SidebarContent.tsx` 搜索命中行）：已由需求方拍板，收敛为后续可选增强（2026-10-14）**
 
 - 归档变体**本就不该有归属入口**（§6「归档区不显示归属」），所以真正待定的是**活跃**搜索命中行的变体。
 - 活跃命中行是**临时搜索面**，不是侧边栏的稳定会话列表；且它不持有所属 project 的会话数组，要再穿一层「是否拥有子会话」才能决定是否显示入口。
 - 成本不在 UI（共享构造器已在，约 4 行），而在服务端 `findSessionTitleResults` 的投影要补 `parentSessionId` + 客户端类型 + 传参。
-- 审阅 P2 的实际担忧是「**移动端一个入口都没有**」，本轮已由项目视图 compact sheet 与 conversations 移动 sheet 覆盖。**建议**：把 §6 该项的「5 处」收敛为「4 处稳定会话行」，活跃搜索命中行单列为后续可选增强。
+- 审阅 P2 的实际担忧是「**移动端一个入口都没有**」，本轮已由项目视图 compact sheet 与 conversations 移动 sheet 覆盖。
+- **结论（需求方已采纳）**：§6 该项由「5 处」收敛为「**4 处稳定会话行**」（`[x]`），活跃搜索命中行单列为**后续可选增强**（`[d]`）。若将来要做，最小改动 = 服务端 `findSessionTitleResults` 补 `parentSessionId` 投影，其余复用现有共享构造器。
 
 **验证（同环境对照，非跨 worktree）**
 
