@@ -59,7 +59,7 @@ import { fileTreeRoutes } from './modules/file-tree/index.js';
 import { worktreesRoutes } from './modules/worktrees/index.js';
 import browserUseMcpRoutes from './modules/browser-use/browser-use-mcp.routes.js';
 import { browserUseService } from './modules/browser-use/browser-use.service.js';
-import { initializeDatabase, sessionsDb } from './modules/database/index.js';
+import { authEventsDb, initializeDatabase, sessionsDb } from './modules/database/index.js';
 import { applyProxyToProcessEnv, networkRoutes } from './modules/network/index.js';
 import { configureWebPush } from './modules/notifications/index.js';
 
@@ -388,6 +388,15 @@ async function startServer() {
     try {
         // Initialize authentication database
         await initializeDatabase();
+
+        // Best-effort auth audit retention: drop rows older than 90 days. Runs
+        // once per boot (there is no background timer); a failure only skips
+        // this boot's cleanup.
+        try {
+            authEventsDb.pruneOlderThan(90);
+        } catch (error) {
+            console.warn('[WARN] Could not prune auth_events:', getErrorMessage(error));
+        }
 
         // Seed the app-side MCP catalog from the harnesses' existing user-scope
         // servers. The service guards this with an app_config flag, so it runs
