@@ -25,18 +25,86 @@ type MarkdownProps = {
   breaks?: boolean;
 };
 
-const MarkdownTable = ({ children, scrollHint }: { children?: React.ReactNode; scrollHint: string }) => {
+type CopyButtonProps = {
+  /** Returns the text to place on the clipboard at click time. */
+  getText: () => string;
+  copyLabel: string;
+  copiedLabel: string;
+  className?: string;
+};
+
+// Hover-revealed clipboard button shared by code blocks and tables. The parent
+// must carry the Tailwind `group` class for the reveal-on-hover to work.
+const CopyButton = ({ getText, copyLabel, copiedLabel, className = '' }: CopyButtonProps) => {
+  // Marks a recent successful copy so the icon and title can flip to a check.
+  const [copied, setCopied] = useState(false);
   return (
-    <div className="markdown-table-wrapper my-3 overflow-x-auto rounded-lg border border-border">
-      {/* my-0 cancels Tailwind Typography's table margin, which would show as blank bands inside the border */}
-      <table className="markdown-table my-0 min-w-full border-collapse text-sm">{children}</table>
-      <div className="markdown-table-scroll-hint" aria-hidden="true">
-        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M7 8l-4 4 4 4" />
-          <path d="M17 8l4 4-4 4" />
-          <path d="M3 12h18" />
+    <button
+      type="button"
+      onClick={() =>
+        copyTextToClipboard(getText()).then((success) => {
+          if (success) {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          }
+        })
+      }
+      className={`rounded-md p-1 transition-opacity focus-visible:opacity-100 ${copied
+        ? 'text-green-600 opacity-100 dark:text-green-500'
+        : 'text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100'
+        } ${className}`}
+      title={copied ? copiedLabel : copyLabel}
+      aria-label={copied ? copiedLabel : copyLabel}
+    >
+      {copied ? (
+        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+          <path
+            fillRule="evenodd"
+            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+            clipRule="evenodd"
+          />
         </svg>
-        <span>{scrollHint}</span>
+      ) : (
+        <svg
+          className="h-4 w-4"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path>
+        </svg>
+      )}
+    </button>
+  );
+};
+
+const MarkdownTable = ({ children, scrollHint }: { children?: React.ReactNode; scrollHint: string }) => {
+  const { t } = useTranslation('chat');
+  return (
+    // The outer wrapper owns `relative` + `group` so the copy button stays
+    // pinned to the visible top-right corner while the table scrolls beneath it.
+    <div className="group relative my-3">
+      <CopyButton
+        getText={() => childrenToTSV(children)}
+        copyLabel={t('codeBlock.copy', { defaultValue: 'Copy' })}
+        copiedLabel={t('codeBlock.copied', { defaultValue: 'Copied' })}
+        className="absolute right-2 top-2 z-10 bg-muted/80 backdrop-blur-sm"
+      />
+      <div className="markdown-table-wrapper overflow-x-auto rounded-lg border border-border">
+        {/* my-0 cancels Tailwind Typography's table margin, which would show as blank bands inside the border */}
+        <table className="markdown-table my-0 min-w-full border-collapse text-sm">{children}</table>
+        <div className="markdown-table-scroll-hint" aria-hidden="true">
+          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M7 8l-4 4 4 4" />
+            <path d="M17 8l4 4-4 4" />
+            <path d="M3 12h18" />
+          </svg>
+          <span>{scrollHint}</span>
+        </div>
       </div>
     </div>
   );
@@ -85,6 +153,29 @@ const childrenToText = (children: React.ReactNode): string => {
   return '';
 };
 
+// Flatten a table's React subtree (thead/tbody > tr > th/td) into TSV so the
+// copied text pastes into spreadsheets with rows and columns intact: cells are
+// separated by tabs and rows by newlines. Cell contents go through
+// childrenToText to survive inline elements like links or code spans; embedded
+// whitespace is collapsed so a multi-line cell cannot break the row structure.
+const childrenToTSV = (children: React.ReactNode): string => {
+  const rows: string[] = [];
+  React.Children.forEach(children, (section) => {
+    if (!React.isValidElement(section)) {
+      return;
+    }
+    const sectionChildren = (section.props as { children?: React.ReactNode }).children;
+    React.Children.forEach(sectionChildren, (row) => {
+      if (!React.isValidElement(row)) {
+        return;
+      }
+      const cells = React.Children.toArray((row.props as { children?: React.ReactNode }).children);
+      rows.push(cells.map((cell) => childrenToText(cell).replace(/\s+/g, ' ').trim()).join('\t'));
+    });
+  });
+  return rows.join('\n');
+};
+
 // The only delimiter `remark-math` recognizes with `singleDollarTextMath` off.
 // `\(…\)` and `\[…\]` are already rewritten to `$$` by normalizeLatexDelimiters,
 // so this one probe covers both notations.
@@ -103,7 +194,6 @@ type CodeBlockProps = {
 // `node` is destructured out so react-markdown's hast node never reaches the DOM.
 const CodeBlock = ({ node: _node, className, children, forceBlock, ...props }: CodeBlockProps) => {
   const { t } = useTranslation('chat');
-  const [copied, setCopied] = useState(false);
   // Fenced blocks carry a trailing newline in the tree; trim it so the
   // highlighter doesn't render an empty final line.
   const raw = (Array.isArray(children) ? children.join('') : String(children ?? '')).replace(/\n$/, '');
@@ -141,46 +231,7 @@ const CodeBlock = ({ node: _node, className, children, forceBlock, ...props }: C
       {/* Label row shares the block's background — no divider, ChatGPT-style */}
       <div className="flex items-center justify-between px-4 pt-2">
         <span className="select-none text-xs text-muted-foreground">{languageLabel}</span>
-        <button
-          type="button"
-          onClick={() =>
-            copyTextToClipboard(raw).then((success) => {
-              if (success) {
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
-              }
-            })
-          }
-          className={`rounded-md p-1 transition-opacity focus-visible:opacity-100 ${copied
-            ? 'text-green-600 opacity-100 dark:text-green-500'
-            : 'text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100'
-            }`}
-          title={copied ? t('codeBlock.copied') : t('codeBlock.copyCode')}
-          aria-label={copied ? t('codeBlock.copied') : t('codeBlock.copyCode')}
-        >
-          {copied ? (
-            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-              <path
-                fillRule="evenodd"
-                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                clipRule="evenodd"
-              />
-            </svg>
-          ) : (
-            <svg
-              className="h-4 w-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path>
-            </svg>
-          )}
-        </button>
+        <CopyButton getText={() => raw} copyLabel={t('codeBlock.copyCode')} copiedLabel={t('codeBlock.copied')} />
       </div>
 
       <SyntaxHighlighter
