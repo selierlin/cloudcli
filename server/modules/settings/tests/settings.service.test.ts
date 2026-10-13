@@ -70,6 +70,13 @@ test('listAuthEvents clamps paging, whitelists the event type and trims filters'
   assert.deepEqual(received, {
     limit: 1, offset: 5, eventType: null, username: 'bob', ip: '1.2.3.4',
   });
+
+  // The agent-failure type must be whitelisted, or the read endpoint would drop
+  // the filter and the setting page could never list those rows (phase 2).
+  service.listAuthEvents({ eventType: 'agent_auth_failure' });
+  assert.deepEqual(received, {
+    limit: 50, offset: 0, eventType: 'agent_auth_failure', username: null, ip: null,
+  });
 });
 
 test('listAuthEvents falls back to the default limit when paging is not a number', () => {

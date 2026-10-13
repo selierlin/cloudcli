@@ -346,7 +346,7 @@ CREATE TABLE IF NOT EXISTS superseded_provider_sessions (
 export const AUTH_EVENTS_TABLE_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS auth_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    event_type TEXT NOT NULL,          -- 'login_success' | 'login_failure' | 'logout' | 'register'
+    event_type TEXT NOT NULL,          -- 'login_success' | 'login_failure' | 'logout' | 'register' | 'agent_auth_failure'
     user_id INTEGER,                   -- subject user; NULL for login_failure
     username TEXT,                     -- attempted username on failure (<=128 code points)
     ip TEXT,                           -- transport source address, not identity (<=64)

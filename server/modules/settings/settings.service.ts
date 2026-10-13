@@ -46,6 +46,7 @@ const AUTH_EVENT_TYPES: readonly AuthEventType[] = [
   'login_failure',
   'logout',
   'register',
+  'agent_auth_failure',
 ];
 const AUTH_EVENTS_DEFAULT_LIMIT = 50;
 const AUTH_EVENTS_MAX_LIMIT = 200;
