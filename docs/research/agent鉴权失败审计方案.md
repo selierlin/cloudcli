@@ -12,8 +12,8 @@
 | 已有 | 位置 |
 |---|---|
 | `auth_events` 表（`event_type TEXT`，**无 CHECK 约束**） | `schema.ts:346-356` |
-| 写仓储 `authEventsDb.record(input)`（best-effort，异常自吞） | `auth-events.ts:95-132` |
-| 容量闸（当前**只护 `login_failure`**），阈值 `MAX_LOGIN_FAILURE_ROWS = 100_000` | `auth-events.ts:97-111`、`:46` |
+| 写仓储 `authEventsDb.record(input)`（best-effort，异常自吞） | `auth-events.ts:107-144` |
+| 容量闸（当前**只护 `login_failure`**），阈值 `MAX_LOGIN_FAILURE_ROWS = 100_000` | `auth-events.ts:109-123`、`:50` |
 | 读端点 `GET /api/settings/auth-events`（JWT 保护） | `settings.routes.ts:50-56` |
 | 设置页「登录日志」Tab（分页 / 按类型过滤 / 本地时区） | `LoginLogSettingsTab.tsx` |
 
@@ -98,7 +98,7 @@ agent 接口（`/api/agent`，`index.ts:257` 挂载，**无 JWT**）是给外部
 
 ### 3.3 容量闸泛化：从「只护 login_failure」到「护所有外部可写的失败类型」
 
-**现状**：闸门判定写死 `input.type === 'login_failure'`（`auth-events.ts:97`），计数器 `inserted` 也只对 `login_failure` 递增（`:124`）。
+**现状**：闸门判定写死 `input.type === 'login_failure'`（`auth-events.ts:109`），计数器 `inserted` 也只对 `login_failure` 递增（`:136`）；基线计数 `countFailures()`（`:97-100`）同样写死 `WHERE event_type = 'login_failure'`（第 5 轮 N11 收紧后的形态）。
 
 **问题**：`agent_auth_failure` **同样**是外部零成本可写（`/api/agent` 无 JWT）。若不纳入闸门，等于**新开一个存储 DoS 口**，违背 phase 1 C1 的结论。
 
@@ -160,7 +160,7 @@ agent 接口（`/api/agent`，`index.ts:257` 挂载，**无 JWT**）是给外部
 - [ ] 无效 key / 缺 key 请求 → 设置页「登录日志」出现 `agent_auth_failure` 行，IP 与 UA 正确、用户名列为 `—`。
 - [ ] 事件类型过滤下拉含该类型，且能筛出对应记录。
 - [ ] 让 `audit.record` 抛错 → 请求仍返回 401（认证结果不变）。
-- [ ] 容量闸：`agent_auth_failure` 与 `login_failure` 共享计数，触顶后两者都停写（不查库）。
+- [ ] 容量闸：`agent_auth_failure` 与 `login_failure` 共享计数（**基线也只数受闸类型**），触顶后两者都停写（不查库）。
 - [ ] 平台模式下不产生该行。
 - [ ] 15 个 locale 均含新键（en / zh-CN / zh-TW 有译文，其余英文占位，与 phase 1 一致）。
 - [ ] `npm run typecheck`（server + client）、lint、相关测试通过。
@@ -221,7 +221,7 @@ agent 接口（`/api/agent`，`index.ts:257` 挂载，**无 JWT**）是给外部
 export type AuthEventType = 'login_success' | 'login_failure' | 'logout' | 'register' | 'agent_auth_failure';
 ```
 
-**② 抽受闸集合 + 更名**（`:46`、`:76`、闸门判定 `:97`、计数 `:124`）——**判定与计数都改用它**，否则 `agent_auth_failure` 就是新开的一个外部零成本存储口（§3.3）：
+**② 抽受闸集合 + 更名**（`:50`、`:82`、闸门判定 `:109`、计数 `:136`、基线计数 `:97-100`）——**判定、计数、基线三处都改用它**，否则 `agent_auth_failure` 就是新开的一个外部零成本存储口（§3.3）：
 
 ```ts
 /** Failure types an unauthenticated caller can trigger for free; both share one cap + counter (D21). */
@@ -232,6 +232,8 @@ export function createAuthEventsDb(maxFailureRows: number = MAX_FAILURE_ROWS) { 
 ```
 
 `record` 内两处 `input.type === 'login_failure'` 改为 `GATED_FAILURE_TYPES.has(input.type)`（闸门判定与 `inserted += 1` 各一处）。
+
+> **基线计数也要跟着泛化（第 5 轮 N11 的后续）**：`countFailures()` 现为 `WHERE event_type = 'login_failure'`（只数失败行，这是 N11 的定稿口径）。本方案加入 `agent_auth_failure` 后，它必须同步改成 `WHERE event_type IN ('login_failure', 'agent_auth_failure')`（**即 `GATED_FAILURE_TYPES` 的成员**），否则新增的 agent 失败行不计入基线、闸门对它们是「零基线」起步。实现时最好让 `countFailures` 由同一个 `GATED_FAILURE_TYPES` 拼 `IN (...)`，避免第三处硬编码。
 
 **③ 文案与文件头注释**——告警当前写死 "`login_failure` recording paused"，改为类型无关：
 
@@ -360,6 +362,7 @@ const EVENT_TYPES: AuthEventType[] = ['login_success', 'login_failure', 'logout'
 
 - `createAuthEventsDb(2)`：先写 2 条 `login_failure` → 再写 `agent_auth_failure` **被闸住不落库**（证明共享同一上限）；
 - 另一实例：先写 2 条 `agent_auth_failure` → `login_failure` 亦被闸住（方向对称）；
+- 基线口径：`countFailures` 覆盖**受闸类型**——先写若干 `login_success` 不消耗闸门预算（第 5 轮 N11 的回归守卫）；
 - `agent_auth_failure` 落库后 `user_id` / `username` 均为 NULL；按 `eventType: 'agent_auth_failure'` 过滤能取回该行。
 
 ### 9.6 验收映射（§6 DoD → 测试）
