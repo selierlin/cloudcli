@@ -212,7 +212,7 @@ const MessageCopyControl = ({
         title={copyTitle}
         aria-label={copyTitle}
         aria-haspopup={canSelectCopyFormat ? 'menu' : undefined}
-        className={`inline-flex items-center rounded px-1 py-0.5 transition-colors ${toneClass}`}
+        className={`inline-flex items-center rounded px-1 py-0.5 transition-[color,transform] duration-150 active:scale-90 active:opacity-60 ${toneClass}`}
       >
         {copied ? (
           <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">

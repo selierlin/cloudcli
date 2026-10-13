@@ -174,7 +174,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                       onClick={() => onEditMessage?.(message)}
                       title={t('message.editAndResend')}
                       aria-label={t('message.editAndResend')}
-                      className="rounded p-1 opacity-0 transition-opacity hover:bg-muted focus-visible:opacity-100 group-hover:opacity-100"
+                      className="rounded p-1 opacity-0 transition-[opacity,transform] duration-150 active:scale-90 hover:bg-muted focus-visible:opacity-100 group-hover:opacity-100"
                     >
                       <PencilIcon className="h-3.5 w-3.5" />
                     </button>
@@ -185,7 +185,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                       onClick={() => onForkFromMessage(message)}
                       title={t('message.forkFromHere')}
                       aria-label={t('message.forkFromHere')}
-                      className="rounded p-1 opacity-0 transition-opacity hover:bg-muted focus-visible:opacity-100 group-hover:opacity-100"
+                      className="rounded p-1 opacity-0 transition-[opacity,transform] duration-150 active:scale-90 hover:bg-muted focus-visible:opacity-100 group-hover:opacity-100"
                     >
                       <GitBranchIcon className="h-3.5 w-3.5" />
                     </button>
@@ -522,7 +522,19 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
             )}
 
             {!message.isThinking && (shouldShowAssistantCopyControl || !isGrouped) && (
-              <div className="mt-1 flex w-full items-center gap-2 text-[11px] text-n-gray-400 dark:text-n-gray-500">
+              /* The footer scrolls horizontally (hidden scrollbar) instead of
+                 wrapping or squeezing: with speak + model + time + duration it
+                 can exceed one line on narrow screens. A constant right-edge
+                 fade mask hints at more content; it fades only empty space
+                 when nothing overflows. */
+              <div
+                className="mt-1 w-full min-w-0 overflow-x-auto overscroll-x-contain scrollbar-hide [-webkit-overflow-scrolling:touch]"
+                style={{
+                  maskImage: 'linear-gradient(to right, black calc(100% - 20px), transparent)',
+                  WebkitMaskImage: 'linear-gradient(to right, black calc(100% - 20px), transparent)',
+                }}
+              >
+                <div className="flex w-max max-w-full items-center gap-2 text-[11px] text-n-gray-400 dark:text-n-gray-500">
                 {onForkFromMessage &&
                   message.forkAnchorId &&
                   message.type === 'assistant' &&
@@ -532,7 +544,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                       onClick={() => onForkFromMessage(message)}
                       title={t('message.forkFromHere')}
                       aria-label={t('message.forkFromHere')}
-                      className="inline-flex items-center rounded px-1 py-0.5 text-n-gray-400 transition-colors hover:text-foreground dark:text-n-gray-500"
+                      className="inline-flex items-center rounded px-1 py-0.5 text-n-gray-400 transition-[color,transform] duration-150 active:scale-90 active:opacity-60 hover:text-foreground dark:text-n-gray-500"
                     >
                       <GitBranchIcon className="h-3.5 w-3.5" />
                     </button>
@@ -562,6 +574,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                     {formattedTurnDuration}
                   </span>
                 )}
+                </div>
               </div>
             )}
           </div>
