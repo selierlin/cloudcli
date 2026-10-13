@@ -1,8 +1,8 @@
 # agent 鉴权失败审计方案（登录审计 phase 2）
 
-> 状态：**草案 v1，待审阅批注**（尚未动任何代码）
+> 状态：**草案 v2，待审阅批注**（§9 执行细则已补，尚未动任何代码）
 > 日期：2026-10-13
-> 用途：审阅时请重点核验 ① §3.1 事件类型的同步点清单是否还有遗漏；② §3.3 容量闸「共享单一计数器」的取舍；③ §1 现状表述是否与当前代码一致（`file:line` 已按工作区核过）；④ §8 五个开放问题的作者倾向是否成立
+> 用途：审阅时请重点核验 ① §3.1 事件类型的同步点清单是否还有遗漏；② §3.3 容量闸「共享单一计数器」的取舍；③ §1 现状表述与 §9 骨架是否与当前代码一致（`file:line` 已按工作区核过）；④ §8 五个开放问题的作者倾向是否成立；⑤ §9 的 commit 切分与代码骨架是否可直接落库
 > 参考规范：`.agents/skills/backend-module-standards/SKILL.md`（后端）、`.agents/skills/frontend-module-standards/SKILL.md`（前端）；上游 `docs/research/登录审计功能方案.md`（phase 1，三轮审阅闭环，已实现并本地提交 C1–C6）
 
 ---
@@ -12,8 +12,8 @@
 | 已有 | 位置 |
 |---|---|
 | `auth_events` 表（`event_type TEXT`，**无 CHECK 约束**） | `schema.ts:346-356` |
-| 写仓储 `authEventsDb.record(input)`（best-effort，异常自吞） | `auth-events.ts:87-124` |
-| 容量闸（当前**只护 `login_failure`**），阈值 `MAX_LOGIN_FAILURE_ROWS = 100_000` | `auth-events.ts:89-103`、`:46` |
+| 写仓储 `authEventsDb.record(input)`（best-effort，异常自吞） | `auth-events.ts:95-132` |
+| 容量闸（当前**只护 `login_failure`**），阈值 `MAX_LOGIN_FAILURE_ROWS = 100_000` | `auth-events.ts:97-111`、`:46` |
 | 读端点 `GET /api/settings/auth-events`（JWT 保护） | `settings.routes.ts:50-56` |
 | 设置页「登录日志」Tab（分页 / 按类型过滤 / 本地时区） | `LoginLogSettingsTab.tsx` |
 
@@ -72,7 +72,7 @@ agent 接口（`/api/agent`，`index.ts:257` 挂载，**无 JWT**）是给外部
 | 4 | `LoginLogSettingsTab.tsx:11` `EVENT_TYPES` | 加，否则过滤下拉里没有该选项 |
 | 5 | 15 个 locale 的 `loginLog.event.*` | 加 `agent_auth_failure` 标签 |
 
-**无需改** `auth.service.ts:20` 的 `AuthAuditEvent.type`——它只描述 **auth service 会发出**的事件，agent 不走 auth service。保持它窄，反而收窄了误用面（是否合并两份同形类型见 §8-Q3）。
+**无需改** `auth.service.ts:17` 的 `AuthAuditEvent.type`——它只描述 **auth service 会发出**的事件，agent 不走 auth service。保持它窄，反而收窄了误用面（是否合并两份同形类型见 §8-Q3）。
 
 `schema.ts:349` 的列注释（列举四个值）应同步追加新值，仅为文档准确性，不影响运行。
 
@@ -80,7 +80,7 @@ agent 接口（`/api/agent`，`index.ts:257` 挂载，**无 JWT**）是给外部
 
 **落点**：`agent.routes.ts` 的 `validateExternalApiKey`（`:91-123`），两个 401 出口（`:111-113` 缺 key、`:117-119` 无效 key）各写一条，**然后照常** `return res.status(401)...`。
 
-**依赖注入**：`AgentRouterDependencies`（`:18-41`）加 `audit: { record(event: AuthEventInput): void }`；由 `agent.module.ts`（`:31-61`）注入 `authEventsDb.record`，平台模式注入 no-op（与 `auth.module.ts:23-25` 同型）。
+**依赖注入**：`AgentRouterDependencies`（`:18-48`）加 `audit: { record(event: AuthEventInput): void }`；由 `agent.module.ts`（`:31-62`）注入 `authEventsDb.record`，平台模式注入 no-op（与 `auth.module.ts:23-25` 同型）。
 
 **上下文**：`req.ip`（Express，`trust proxy` 已生效）+ `req.headers['user-agent']`——与 auth 路由的 `requestContext()`（`auth.routes.ts:9-12`）同源、可信。**不像 WS**（裸 socket 地址）那样有反代后失真问题。
 
@@ -98,14 +98,14 @@ agent 接口（`/api/agent`，`index.ts:257` 挂载，**无 JWT**）是给外部
 
 ### 3.3 容量闸泛化：从「只护 login_failure」到「护所有外部可写的失败类型」
 
-**现状**：闸门判定写死 `input.type === 'login_failure'`（`auth-events.ts:89`），计数器 `inserted` 也只对 `login_failure` 递增（`:116`）。
+**现状**：闸门判定写死 `input.type === 'login_failure'`（`auth-events.ts:97`），计数器 `inserted` 也只对 `login_failure` 递增（`:124`）。
 
 **问题**：`agent_auth_failure` **同样**是外部零成本可写（`/api/agent` 无 JWT）。若不纳入闸门，等于**新开一个存储 DoS 口**，违背 phase 1 C1 的结论。
 
 **改法**：
 
 - 抽出受闸集合常量，例如 `GATED_FAILURE_TYPES = new Set(['login_failure', 'agent_auth_failure'])`；判定与计数都改用它。
-- `MAX_LOGIN_FAILURE_ROWS`（`:46`）与工厂参数名（`:68`）**更名去掉 "login"**（如 `maxFailureRows`），告警文案同步（当前文案写死 "login_failure recording paused"）。
+- `MAX_LOGIN_FAILURE_ROWS`（`:46`）与工厂参数名（`:76`）**更名去掉 "login"**（如 `maxFailureRows`），告警文案同步（当前文案写死 "login_failure recording paused"）。
 
 **语义保留**：单一计数器 = 两类失败**共享**同一上限（先到先占），保持 O(1) 且不查库。不拆成两个计数器——拆了要维护两套状态与两套告警，YAGNI。触顶仍**粘滞至重启 / 手动清理**（phase 1 D11 / N4 的已知限制）。
 
@@ -150,7 +150,7 @@ agent 接口（`/api/agent`，`index.ts:257` 挂载，**无 JWT**）是给外部
 
 **测试**
 
-9. `server/modules/agent/tests/`（若已有则扩展，否则新建）：缺 key / 无效 key → `audit.record` 被调用且字段正确；`audit.record` 抛错 → 仍返回 401。
+9. `server/modules/agent/tests/agent.routes.test.ts`（**扩展既有文件**，`:14-63` 的 `createDependencies` 需补 `audit`）：缺 key / 无效 key → `audit.record` 被调用且字段正确；`audit.record` 抛错 → 仍返回 401。
 10. `server/modules/database/tests/auth-events.db.integration.test.ts`：`agent_auth_failure` 纳入容量闸（与 `login_failure` 共享计数）。
 
 ---
@@ -188,6 +188,191 @@ agent 接口（`/api/agent`，`index.ts:257` 挂载，**无 JWT**）是给外部
 | Q3 | `auth.service.ts` 的 `AuthAuditEvent` 与 repo 的 `AuthEventInput` 是同形两份 union，是否趁机合并？ | **不合并**。auth 侧保持窄 union（只列它自己会发的值）可收窄误用面；合并要动已完成并测试过的 phase 1 代码，收益低 |
 | Q4 | 缺 key 是否要单独一个类型（如 `agent_auth_missing`）？ | **不拆**。都用 `agent_auth_failure`，避免枚举膨胀；区分价值低 |
 | Q5 | 容量闸共享一个计数器，还是两类各一个？ | **共享**（D21）。实现最简、语义即「失败事件总量有界」 |
+
+---
+
+## 9. 技术执行方案（文件级顺序 + 代码骨架）
+
+> 本节是 §0–§8 的**落地细则**，所有 `file:line` 均在当前工作区（`cloudcli-dev`，HEAD 已含登录审计 C1–C6）核对过。骨架是「实现契约」而非最终代码——命名/风格以落库时同目录既有文件为准（后端 `$backend-module-standards`、前端同模块惯例）。
+
+### 9.0 执行顺序与提交切分
+
+依赖自底向上：**DB 层（类型 + 闸门泛化）→ agent 写路径 → 读侧 surface → 前端 → 集成测试**。
+
+按逻辑拆 **5 个本地 commit（只 commit、不 push）**，每阶段收尾跑一次该阶段相关测试再提交，便于单独回退：
+
+| 提交 | 范围 | 文件 |
+| --- | --- | --- |
+| **C1** | DB 层：事件类型 + 容量闸泛化 | `repositories/auth-events.ts` |
+| **C2** | agent 写路径 | `agent.routes.ts`、`agent.module.ts`、`agent/tests/agent.routes.test.ts` |
+| **C3** | 读侧 surface | `settings.service.ts`、`database/schema.ts`（列注释） |
+| **C4** | 前端 | `src/shared/types.ts`、`LoginLogSettingsTab.tsx`、15 个 locale `settings.json` |
+| **C5** | 集成测试 | `auth-events.db.integration.test.ts` |
+
+> barrel `database/index.ts` 无需改：它已 `export type { AuthEventType }`（`:10`），union 加值自动传播。
+
+### 9.1 C1 · DB 层（`server/modules/database/repositories/auth-events.ts`）
+
+三处改动都在本文件内，**无 schema / DDL 变更**（列已存在，`event_type` 无 CHECK 约束）：
+
+**① union 加值**（`:14`）：
+
+```ts
+export type AuthEventType = 'login_success' | 'login_failure' | 'logout' | 'register' | 'agent_auth_failure';
+```
+
+**② 抽受闸集合 + 更名**（`:46`、`:76`、闸门判定 `:97`、计数 `:124`）——**判定与计数都改用它**，否则 `agent_auth_failure` 就是新开的一个外部零成本存储口（§3.3）：
+
+```ts
+/** Failure types an unauthenticated caller can trigger for free; both share one cap + counter (D21). */
+const GATED_FAILURE_TYPES: ReadonlySet<AuthEventType> = new Set(['login_failure', 'agent_auth_failure']);
+
+const MAX_FAILURE_ROWS = 100_000;                                  // 原 MAX_LOGIN_FAILURE_ROWS
+export function createAuthEventsDb(maxFailureRows: number = MAX_FAILURE_ROWS) { … }  // 原 maxLoginFailureRows
+```
+
+`record` 内两处 `input.type === 'login_failure'` 改为 `GATED_FAILURE_TYPES.has(input.type)`（闸门判定与 `inserted += 1` 各一处）。
+
+**③ 文案与文件头注释**——告警当前写死 "`login_failure` recording paused"，改为类型无关：
+
+```ts
+`auth_events capacity (${maxFailureRows}) reached — failure recording paused until restart or manual prune`
+```
+
+文件头 docblock（`:1-9`）与 `baseline` 上方注释（`:77-82`）中那句「`login_failure` 是唯一外部可写的公开面」须同步为「网页登录 + agent 两个公开失败面」。
+
+> **语义不变**：单计数器 = 两类失败**共享**同一上限（先到先占），保持 O(1) 且热路径不查库（D21）。触顶仍**粘滞至重启 / 手动清理**（phase 1 D11/N4 的已知限制）。
+
+### 9.2 C2 · agent 写路径
+
+**④ `server/modules/agent/agent.routes.ts`**（首行 `// @ts-nocheck`，`:1`）：
+
+- `AgentRouterDependencies`（`:18-48`）加一项，类型取自 DB barrel：
+
+  ```ts
+  audit: { record(event: import('@/modules/database/index.js').AuthEventInput): void };
+  ```
+
+  > 用 repo 的 `AuthEventInput`，**不**复用 auth 的 `AuthAuditEvent`——agent 不走 auth service，§8-Q3 已决定不合并两份同形 union。
+
+- 在 `createAgentRouter` 顶部（guard 就近写）加**受保护写入**，形状对齐 `auth.service.ts:81` 的 `recordAudit`（硬约束 1 / G4）：
+
+  ```ts
+  // Best-effort: a failing sink must never change the 401 (G4 / §3.2 硬约束 1).
+  const recordAuthFailure = (req) => {
+    try {
+      const userAgent = req.headers['user-agent'];
+      dependencies.audit.record({
+        type: 'agent_auth_failure',
+        userId: null, username: null,          // key 无效时无从得知归属（§3.2）
+        ip: req.ip ?? null,
+        userAgent: typeof userAgent === 'string' ? userAgent : null,
+      });
+    } catch (err) {
+      console.error('Agent auth audit recording failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+  ```
+
+- 两个 401 出口**先记后拒**（`:111-113` 缺 key、`:117-119` 无效 key）：
+
+  ```ts
+  if (!apiKey) {
+    recordAuthFailure(req);
+    return res.status(401).json({ error: 'API key required' });
+  }
+
+  const user = apiKeysDb.validateApiKey(apiKey);
+
+  if (!user) {
+    recordAuthFailure(req);
+    return res.status(401).json({ error: 'Invalid or inactive API key' });
+  }
+  ```
+
+**⑤ `server/modules/agent/agent.module.ts`**（`:31-62`）——组合根注入，平台模式 no-op（与 `auth.module.ts:23-25` 同型；平台模式在 `agent.routes.ts:94` 已先短路，两侧一致，§3.4）：
+
+```ts
+import { apiKeysDb, authEventsDb, githubTokensDb, projectsDb, sessionsDb, userDb } from '@/modules/database/index.js';
+/* … */
+const audit = IS_PLATFORM
+  ? { record: () => {} }                                   // 平台模式无 key 校验，不写审计
+  : { record: (event) => authEventsDb.record(event) };
+
+return createAgentRouter({ /* …既有… */, audit, ...externalDependencies });
+```
+
+**⑥ `server/modules/agent/tests/agent.routes.test.ts`**——`createDependencies()`（`:14-63`）补默认 `audit: { record: () => undefined }`（`audit` 为必填依赖，缺了 `npm run typecheck` 会红）；新增用例（**因 `@ts-nocheck` 必须显式断言内容**，否则字段写错也无声——§7 风险 1）：
+
+- 缺 key：`platformMode: false`、不带头 → 断言 401 且 `events[0]` 为 `{ type: 'agent_auth_failure', userId: null, username: null, ip, userAgent }`；
+- 无效 key：`platformMode: false` + `apiKeys.validateApiKey: () => undefined`（`createDependencies` 默认即返回 `undefined`）→ 同样断到一条事件；
+- 平台模式：`platformMode: true` → 断言 `events.length === 0`（不写）；
+- sink 抛错：`audit: { record: () => { throw new Error('x') } }` → 断言仍返回 401（认证结果不变）。
+  > 依赖 `createDependencies(overrides)` 的 `...overrides`（`:61`）能替换 `audit`——已确认。
+
+### 9.3 C3 · 读侧 surface（后端）
+
+**⑦ `server/modules/settings/settings.service.ts`**——`AUTH_EVENT_TYPES` 白名单（`:44-49`）加值，否则读端点会**拒绝**该过滤值（§3.1-2 / §3.5）：
+
+```ts
+const AUTH_EVENT_TYPES: readonly AuthEventType[] = [
+  'login_success',
+  'login_failure',
+  'logout',
+  'register',
+  'agent_auth_failure',
+];
+```
+
+其余**无需改**：`listAuthEvents` 的 clamp（`:224`）与薄路由 `settings.routes.ts:50` 都已按 `eventType` 泛化。
+
+**⑧ `server/modules/database/schema.ts`**（`:349`）——列注释追加新值，**纯文档，DDL 不变**：
+
+```sql
+event_type TEXT NOT NULL,          -- 'login_success' | 'login_failure' | 'logout' | 'register' | 'agent_auth_failure'
+```
+
+### 9.4 C4 · 前端
+
+**⑨ `src/shared/types.ts:1824`**——union 加值：
+
+```ts
+export type AuthEventType = 'login_success' | 'login_failure' | 'logout' | 'register' | 'agent_auth_failure';
+```
+
+**⑩ `src/modules/settings/tabs/LoginLogSettingsTab.tsx:11`**——`EVENT_TYPES` 加值（过滤下拉）：
+
+```ts
+const EVENT_TYPES: AuthEventType[] = ['login_success', 'login_failure', 'logout', 'register', 'agent_auth_failure'];
+```
+
+**⑪ 15 个 locale**——`src/modules/i18n/locales/*/settings.json` 的 `loginLog.event` 各加一个键（当前均只有 4 键）；en / zh-CN / zh-TW 给译文，其余 12 个可先补键后翻译（英文占位，fallback = en，与 phase 1 一致）：
+
+```json
+"agent_auth_failure": "API key rejected"
+```
+
+### 9.5 C5 · 集成测试
+
+**⑫ `server/modules/database/tests/auth-events.db.integration.test.ts`**——**扩展既有文件**（phase 1 已建）：验证 `agent_auth_failure` 纳入容量闸、与 `login_failure` **共享**同一计数：
+
+- `createAuthEventsDb(2)`：先写 2 条 `login_failure` → 再写 `agent_auth_failure` **被闸住不落库**（证明共享同一上限）；
+- 另一实例：先写 2 条 `agent_auth_failure` → `login_failure` 亦被闸住（方向对称）；
+- `agent_auth_failure` 落库后 `user_id` / `username` 均为 NULL；按 `eventType: 'agent_auth_failure'` 过滤能取回该行。
+
+### 9.6 验收映射（§6 DoD → 测试）
+
+| DoD 条目 | 覆盖 |
+| --- | --- |
+| 无效 / 缺 key → 出现 `agent_auth_failure` 行，IP 与 UA 正确、用户名列为 `—` | ⑥ 路由测试 + ⑫ 集成测试 |
+| 过滤下拉含该类型，且能筛出对应记录 | ⑩ + ⑫ |
+| `audit.record` 抛错 → 请求仍返回 401 | ⑥ |
+| 容量闸两类共享计数、触顶后都停写（不查库） | ⑫ |
+| 平台模式下不产生该行 | ⑥ |
+| 15 个 locale 均含新键 | ⑪（DoD 校验） |
+| `npm run typecheck` / lint / 相关测试通过 | CI |
 
 ---
 
