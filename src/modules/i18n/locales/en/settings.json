@@ -1382,7 +1382,13 @@
     "moveDown": "Move down",
     "remove": "Remove",
     "limit": "{{used}} of {{max}} used",
-    "limitReached": "The limit of {{max}} quick replies is reached"
+    "limitReached": "The limit of {{max}} quick replies is reached",
+    "export": "Export",
+    "import": "Import",
+    "importFile": "Import quick replies file",
+    "importConfirm": "Replace the current {{current}} quick replies with the {{incoming}} from this file?",
+    "importEmpty": "No quick replies could be read from that file.",
+    "importSkipped": "Skipped {{count}} unusable item(s)."
   },
   "loginLog": {
     "description": "Recent sign-in, sign-out and registration events for this account.",

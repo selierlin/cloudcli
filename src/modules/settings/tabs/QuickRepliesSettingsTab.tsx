@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Download, Plus, Trash2, Upload } from 'lucide-react';
 
 import SettingsCard from '@/modules/settings/SettingsCard';
 import SettingsSection from '@/modules/settings/SettingsSection';
@@ -12,11 +12,17 @@ import {
   MAX_QUICK_REPLY_TEXT_LENGTH,
   addQuickReply,
   moveQuickReply,
+  parseQuickRepliesImport,
   quickReplyLabel,
   removeQuickReplyAt,
+  serializeQuickRepliesExport,
   setQuickReplyAt,
   writeQuickReplies,
 } from '@/shared/quickReplies';
+import type { QuickReplyImportError } from '@/shared/types';
+
+/** Name of the file the export button downloads, matching the app so a pile of share files stays identifiable. */
+const EXPORT_FILE_NAME = 'cloudcli-quick-replies.json';
 
 /** Rendered by Settings for the "quickReplies" tab, which edits the snippets the composer offers above its input. */
 export default function QuickRepliesSettingsTab() {
@@ -28,6 +34,14 @@ export default function QuickRepliesSettingsTab() {
   // snippet never reaches the composer or the server.
   const [newLabel, setNewLabel] = useState('');
   const [newText, setNewText] = useState('');
+  // One-shot feedback from the last import attempt: why nothing could be read,
+  // how many source rows were dropped, or null after a clean import. The next
+  // attempt clears it, so a stale notice never outlives its file.
+  const [importFeedback, setImportFeedback] = useState<
+    { kind: 'error'; code: QuickReplyImportError } | { kind: 'skipped'; count: number } | null
+  >(null);
+  // Points at the hidden file input the import button clicks on the user's behalf.
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const atLimit = quickReplies.length >= MAX_QUICK_REPLIES;
   const canAdd = newText.trim() !== '' && !atLimit;
@@ -42,6 +56,42 @@ export default function QuickRepliesSettingsTab() {
     writeQuickReplies(addQuickReply(quickReplies, label ? { label, text } : { text }));
     setNewLabel('');
     setNewText('');
+  };
+
+  const handleExport = () => {
+    const url = URL.createObjectURL(new Blob([serializeQuickRepliesExport(quickReplies)], {
+      type: 'application/json',
+    }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = EXPORT_FILE_NAME;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportFile = (file: File) => {
+    setImportFeedback(null);
+    const reader = new FileReader();
+    // Parsing (and the overwrite confirm) has to wait until the text is in,
+    // which is why it lives in the load callback rather than the change handler.
+    reader.onload = () => {
+      const result = parseQuickRepliesImport(typeof reader.result === 'string' ? reader.result : '');
+      if ('error' in result) {
+        setImportFeedback({ kind: 'error', code: result.error });
+        return;
+      }
+
+      if (!window.confirm(t('quickRepliesSettings.importConfirm', {
+        current: quickReplies.length,
+        incoming: result.replies.length,
+      }))) {
+        return;
+      }
+
+      writeQuickReplies(result.replies);
+      setImportFeedback(result.skipped > 0 ? { kind: 'skipped', count: result.skipped } : null);
+    };
+    reader.readAsText(file);
   };
 
   return (
@@ -158,14 +208,63 @@ export default function QuickRepliesSettingsTab() {
           </div>
         </SettingsCard>
 
-        <p className="text-xs text-muted-foreground">
-          {atLimit
-            ? t('quickRepliesSettings.limitReached', { max: MAX_QUICK_REPLIES })
-            : t('quickRepliesSettings.limit', {
-              used: quickReplies.length,
-              max: MAX_QUICK_REPLIES,
-            })}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+            {atLimit
+              ? t('quickRepliesSettings.limitReached', { max: MAX_QUICK_REPLIES })
+              : t('quickRepliesSettings.limit', {
+                used: quickReplies.length,
+                max: MAX_QUICK_REPLIES,
+              })}
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-muted-foreground hover:text-foreground"
+            onClick={handleExport}
+          >
+            <Download className="h-4 w-4" />
+            {t('quickRepliesSettings.export')}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-muted-foreground hover:text-foreground"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="h-4 w-4" />
+            {t('quickRepliesSettings.import')}
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,.txt,application/json,text/plain"
+            className="hidden"
+            aria-label={t('quickRepliesSettings.importFile')}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              // Cleared before reading so picking the same file twice still fires.
+              event.target.value = '';
+              if (file) {
+                handleImportFile(file);
+              }
+            }}
+          />
+        </div>
+        {importFeedback && (
+          <p
+            role="status"
+            className={
+              importFeedback.kind === 'error'
+                ? 'text-xs text-destructive'
+                : 'text-xs text-muted-foreground'
+            }
+          >
+            {importFeedback.kind === 'error'
+              ? t('quickRepliesSettings.importEmpty')
+              : t('quickRepliesSettings.importSkipped', { count: importFeedback.count })}
+          </p>
+        )}
       </SettingsSection>
     </div>
   );
