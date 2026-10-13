@@ -50,6 +50,13 @@ const AUTH_EVENT_TYPES: readonly AuthEventType[] = [
 const AUTH_EVENTS_DEFAULT_LIMIT = 50;
 const AUTH_EVENTS_MAX_LIMIT = 200;
 const AUTH_EVENTS_USERNAME_MAX = 128;
+// Mirrors the write side's IP_MAX — a stored ip is already truncated to this,
+// so a longer filter value could never match anything.
+const AUTH_EVENTS_IP_MAX = 64;
+// Bounds the paging query: without it a hand-crafted `offset` makes SQLite
+// sort and then discard an unbounded number of rows. The UI derives its pages
+// from `total`, so it never asks past this in practice.
+const AUTH_EVENTS_MAX_OFFSET = 100_000;
 
 /**
  * Clamps an untrusted numeric query value into [lo, hi], falling back to
@@ -222,11 +229,13 @@ export function createSettingsService(dependencies: SettingsDependencies) {
       const username = typeof query.username === 'string' && query.username.trim()
         ? query.username.trim().slice(0, AUTH_EVENTS_USERNAME_MAX)
         : null;
-      const ip = typeof query.ip === 'string' && query.ip.trim() ? query.ip.trim() : null;
+      const ip = typeof query.ip === 'string' && query.ip.trim()
+        ? query.ip.trim().slice(0, AUTH_EVENTS_IP_MAX)
+        : null;
 
       return dependencies.authEvents.list({
         limit: clampInt(query.limit, AUTH_EVENTS_DEFAULT_LIMIT, 1, AUTH_EVENTS_MAX_LIMIT),
-        offset: clampInt(query.offset, 0, 0, Number.MAX_SAFE_INTEGER),
+        offset: clampInt(query.offset, 0, 0, AUTH_EVENTS_MAX_OFFSET),
         eventType,
         username,
         ip,

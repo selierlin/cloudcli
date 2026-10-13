@@ -84,3 +84,20 @@ test('listAuthEvents falls back to the default limit when paging is not a number
 
   assert.equal(received.limit, 50);
 });
+
+test('listAuthEvents bounds the offset and truncates the ip filter like the write side', () => {
+  let received: { offset?: number; ip?: string | null } = {};
+  const service = createSettingsService(dependencies({
+    authEvents: {
+      list: (params) => { received = params; return { events: [], total: 0 }; },
+    },
+  }));
+
+  service.listAuthEvents({ offset: '999999999999', ip: '9'.repeat(80) });
+
+  // A huge offset would otherwise make SQLite sort and discard unbounded rows.
+  assert.equal(received.offset, 100_000);
+  // Stored ips are already capped at 64 characters, so a longer filter can
+  // never match anything — truncating keeps it aligned with the write side.
+  assert.equal(received.ip?.length, 64);
+});
