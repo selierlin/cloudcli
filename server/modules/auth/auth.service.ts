@@ -7,6 +7,21 @@ type AuthUser = {
 
 type AuthLoginUser = AuthUser & { password_hash: string };
 
+/**
+ * Transport context captured for the audit trail. Optional because existing
+ * two-argument callers (e.g. `service.login('alice', 'wrong')`) must keep working.
+ */
+export type AuthRequestContext = { ip?: string; userAgent?: string };
+
+/** One audit event handed to the injected sink; `userId` is omitted for `login_failure` so a failure never reveals whether the username exists. */
+export type AuthAuditEvent = {
+  type: 'login_success' | 'login_failure' | 'logout' | 'register';
+  userId?: number | null;
+  username?: string | null;
+  ip?: string | null;
+  userAgent?: string | null;
+};
+
 type AuthDependencies = {
   users: {
     hasUsers(): boolean;
@@ -22,10 +37,31 @@ type AuthDependencies = {
   hashPassword(password: string): Promise<string>;
   comparePassword(password: string, passwordHash: string): Promise<boolean>;
   generateToken(user: AuthUser): string;
+  /** Best-effort audit sink; recording must never change the auth outcome. */
+  audit: { record(event: AuthAuditEvent): void };
 };
 
 function numericUserId(userId: number | bigint): number {
   return Number(userId);
+}
+
+/**
+ * Narrows an `unknown` authenticated principal to the `{ id, username }` the
+ * token and audit paths need, or null when it is not a valid principal.
+ * Shared by `refreshSession` and `logout`.
+ */
+function narrowAuthUser(user: unknown): AuthUser | null {
+  if (
+    typeof user !== 'object'
+    || user === null
+    || !('id' in user)
+    || !('username' in user)
+    || (typeof user.id !== 'number' && typeof user.id !== 'bigint')
+    || typeof user.username !== 'string'
+  ) {
+    return null;
+  }
+  return { id: user.id, username: user.username };
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
@@ -40,6 +76,18 @@ function isUniqueConstraintError(error: unknown): boolean {
  * transaction, and token dependencies.
  */
 export function createAuthService(dependencies: AuthDependencies) {
+  // Auditing is best-effort: a failing audit sink must never change the auth
+  // outcome, so every audit write goes through this guard (hard constraint G4).
+  const recordAudit = (event: AuthAuditEvent): void => {
+    try {
+      dependencies.audit.record(event);
+    } catch (err) {
+      console.error('Auth audit recording failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
   return {
     getStatus() {
       return {
@@ -48,7 +96,7 @@ export function createAuthService(dependencies: AuthDependencies) {
       };
     },
 
-    async register(usernameInput: unknown, passwordInput: unknown) {
+    async register(usernameInput: unknown, passwordInput: unknown, context: AuthRequestContext = {}) {
       const username = typeof usernameInput === 'string' ? usernameInput : '';
       const password = typeof passwordInput === 'string' ? passwordInput : '';
 
@@ -79,6 +127,15 @@ export function createAuthService(dependencies: AuthDependencies) {
         const token = dependencies.generateToken(user);
         dependencies.transaction.commit();
         dependencies.users.updateLastLogin(numericUserId(user.id));
+        // Recorded after commit: an audit write before the commit would be
+        // caught by the rollback path below and silently discarded.
+        recordAudit({
+          type: 'register',
+          userId: numericUserId(user.id),
+          username: user.username,
+          ip: context.ip ?? null,
+          userAgent: context.userAgent ?? null,
+        });
 
         return {
           success: true,
@@ -97,7 +154,7 @@ export function createAuthService(dependencies: AuthDependencies) {
       }
     },
 
-    async login(usernameInput: unknown, passwordInput: unknown) {
+    async login(usernameInput: unknown, passwordInput: unknown, context: AuthRequestContext = {}) {
       const username = typeof usernameInput === 'string' ? usernameInput : '';
       const password = typeof passwordInput === 'string' ? passwordInput : '';
       if (!username || !password) {
@@ -112,6 +169,14 @@ export function createAuthService(dependencies: AuthDependencies) {
         ? await dependencies.comparePassword(password, user.password_hash)
         : false;
       if (!user || !validPassword) {
+        // Recorded before throwing so the failed attempt is always persisted;
+        // no userId — a failure must not disclose whether the username exists.
+        recordAudit({
+          type: 'login_failure',
+          username,
+          ip: context.ip ?? null,
+          userAgent: context.userAgent ?? null,
+        });
         throw new AppError('Invalid username or password', {
           code: 'AUTH_INVALID_CREDENTIALS',
           statusCode: 401,
@@ -119,6 +184,13 @@ export function createAuthService(dependencies: AuthDependencies) {
       }
 
       dependencies.users.updateLastLogin(numericUserId(user.id));
+      recordAudit({
+        type: 'login_success',
+        userId: numericUserId(user.id),
+        username: user.username,
+        ip: context.ip ?? null,
+        userAgent: context.userAgent ?? null,
+      });
       return {
         success: true,
         user: { id: user.id, username: user.username },
@@ -131,24 +203,30 @@ export function createAuthService(dependencies: AuthDependencies) {
     },
 
     refreshSession(user: unknown) {
-      if (
-        typeof user !== 'object'
-        || user === null
-        || !('id' in user)
-        || !('username' in user)
-        || (typeof user.id !== 'number' && typeof user.id !== 'bigint')
-        || typeof user.username !== 'string'
-      ) {
+      const current = narrowAuthUser(user);
+      if (!current) {
         throw new AppError('Authenticated user is required', {
           code: 'AUTH_USER_REQUIRED',
           statusCode: 401,
         });
       }
 
-      return { token: dependencies.generateToken(user as AuthUser) };
+      return { token: dependencies.generateToken(current) };
     },
 
-    logout() {
+    logout(user: unknown, context: AuthRequestContext = {}) {
+      // The stored `logout` event means "the client cleared its token", not
+      // "the server-side session ended" — JWTs stay valid until they expire.
+      const current = narrowAuthUser(user);
+      if (current) {
+        recordAudit({
+          type: 'logout',
+          userId: numericUserId(current.id),
+          username: current.username,
+          ip: context.ip ?? null,
+          userAgent: context.userAgent ?? null,
+        });
+      }
       return { success: true, message: 'Logged out successfully' };
     },
   };
