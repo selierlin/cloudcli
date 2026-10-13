@@ -10,6 +10,7 @@ import express from 'express';
 import { createAgentRouter } from '../agent.routes.js';
 
 type AgentDependencies = Parameters<typeof createAgentRouter>[0];
+type AuditEvent = Parameters<AgentDependencies['audit']['record']>[0];
 
 function createDependencies(
   overrides: Partial<AgentDependencies> = {},
@@ -58,6 +59,7 @@ function createDependencies(
     queryOmp: unexpectedProviderCall as AgentDependencies['queryOmp'],
     queryOpenclaw: unexpectedProviderCall as AgentDependencies['queryOpenclaw'],
     GithubClient: class {} as unknown as AgentDependencies['GithubClient'],
+    audit: { record: () => undefined },
     ...overrides,
   };
 }
@@ -383,5 +385,84 @@ test('Non-streaming response finalizes one reply per stream_end and keeps full t
 
     assert.equal(response.status, 200);
     assert.deepEqual(body.messages.map((message) => message.content), ['first', 'second', 'third']);
+  });
+});
+
+// This file is checked by tsc (unlike agent.routes.ts, which is @ts-nocheck), so
+// these cases are the only compile-time proof that the recorded event shape is
+// right; they also assert the fields explicitly, since a silent typo in the
+// route would otherwise be invisible.
+test('Agent route audits a missing API key without recording the request as a user', async () => {
+  const events: AuditEvent[] = [];
+  await withAgentServer(createDependencies({
+    platformMode: false,
+    audit: { record: (event) => { events.push(event); } },
+  }), async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/agent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'user-agent': 'probe/1.0' },
+      body: JSON.stringify({ projectPath: '/workspace/project', message: 'Run' }),
+    });
+    assert.equal(response.status, 401);
+  });
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, 'agent_auth_failure');
+  assert.equal(events[0].userId, null);
+  assert.equal(events[0].username, null);
+  assert.equal(typeof events[0].ip, 'string');
+  assert.equal(events[0].userAgent, 'probe/1.0');
+});
+
+test('Agent route audits an invalid API key without leaking the key', async () => {
+  const events: AuditEvent[] = [];
+  await withAgentServer(createDependencies({
+    platformMode: false,
+    audit: { record: (event) => { events.push(event); } },
+  }), async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/agent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': 'invalid-key', 'user-agent': 'probe/1.0' },
+      body: JSON.stringify({ projectPath: '/workspace/project', message: 'Run' }),
+    });
+    assert.equal(response.status, 401);
+  });
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, 'agent_auth_failure');
+  assert.equal(events[0].userAgent, 'probe/1.0');
+  // The attempted key is a secret; no fragment of it may reach the audit trail (D20).
+  assert.equal(JSON.stringify(events[0]).includes('invalid-key'), false);
+});
+
+test('Agent route does not audit in platform mode', async () => {
+  const events: AuditEvent[] = [];
+  await withAgentServer(createDependencies({
+    platformMode: true,
+    audit: { record: (event) => { events.push(event); } },
+  }), async (baseUrl) => {
+    // No project/github input: rejected before any provider work, after auth.
+    const response = await fetch(`${baseUrl}/api/agent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: 'Inspect this project', stream: false }),
+    });
+    assert.notEqual(response.status, 401);
+  });
+
+  assert.equal(events.length, 0);
+});
+
+test('Agent route still returns 401 when the audit sink throws', async () => {
+  await withAgentServer(createDependencies({
+    platformMode: false,
+    audit: { record: () => { throw new Error('sink unavailable'); } },
+  }), async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/agent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ projectPath: '/workspace/project', message: 'Run' }),
+    });
+    assert.equal(response.status, 401);
   });
 });
