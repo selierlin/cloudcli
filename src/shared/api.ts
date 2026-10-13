@@ -219,6 +219,18 @@ export const api = {
     }),
     refresh: () => post('/api/auth/refresh'),
     user: () => get('/api/auth/user'),
+    // Deliberately bypasses authenticatedFetch: its first line reads the stored
+    // token through getStoredAuthToken(), which fires the session-expired side
+    // effect when the token has already lapsed — that would pop a bogus
+    // "session expired" banner for a user who just chose to log out. Reading
+    // localStorage directly and skipping response-side handling avoids both.
+    logout: () => {
+      const token = localStorage.getItem('auth-token');
+      return fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+    },
   },
 
   // Protected endpoints
@@ -629,6 +641,15 @@ export const api = {
         post('/api/settings/push/subscribe', subscription),
       unsubscribe: (endpoint: string) => post('/api/settings/push/unsubscribe', { endpoint }),
     },
+
+    // Login audit trail (login/logout/register events).
+    authEvents: (params: {
+      limit?: number;
+      offset?: number;
+      eventType?: string;
+      username?: string;
+      ip?: string;
+    }) => get(`/api/settings/auth-events${query(params)}`),
   },
 
   plugins: {
