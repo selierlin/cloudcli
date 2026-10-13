@@ -1,17 +1,20 @@
 /**
  * Auth event repository.
  *
- * Persists the login/session audit trail (`auth_events`): the four auth event
- * kinds with their source address and user agent. Writes are best-effort —
- * `record` never throws, so a logging failure cannot break authentication.
- * `login_failure` insertion is capacity-gated because the login endpoint is
- * public and unauthenticated, so it is the only externally-free write path.
+ * Persists the auth audit trail (`auth_events`): the audited event kinds with
+ * their source address and user agent. Writes are best-effort — `record` never
+ * throws, so a logging failure cannot break authentication.
+ *
+ * The gated failure kinds (`GATED_FAILURE_TYPES`) are capacity-gated because
+ * they are the externally-free write paths: the login endpoint is public and
+ * unauthenticated, and `/api/agent` is a machine endpoint reachable with a
+ * wrong or missing API key. Both share one cap and one counter (D21).
  */
 
 import { getConnection } from '@/modules/database/connection.js';
 
-/** The audited auth events; used by Auth (writes) and Settings (reads) through this module's barrel. */
-export type AuthEventType = 'login_success' | 'login_failure' | 'logout' | 'register';
+/** The audited auth events; used by Auth/Agent (writes) and Settings (reads) through this module's barrel. */
+export type AuthEventType = 'login_success' | 'login_failure' | 'logout' | 'register' | 'agent_auth_failure';
 
 /** A single event to record; `userId` stays null for `login_failure` so a failed attempt never discloses whether the username exists. */
 export type AuthEventInput = {
@@ -46,8 +49,17 @@ export type AuthEventListParams = {
   ip: string | null;
 };
 
-// Maximum login_failure rows before the write-side capacity gate closes.
-const MAX_LOGIN_FAILURE_ROWS = 100_000;
+/**
+ * Failure types a caller with no credentials can trigger for free. They share
+ * one capacity cap and counter (D21), so a flood on either surface bounds the
+ * combined failure-row storage. Gating `agent_auth_failure` here matters: the
+ * `/api/agent` endpoint has no JWT and would otherwise be a new free storage
+ * sink. Used by the write gate, the row counter and the baseline count.
+ */
+const GATED_FAILURE_TYPES: ReadonlySet<AuthEventType> = new Set(['login_failure', 'agent_auth_failure']);
+
+// Maximum gated failure rows before the write-side capacity gate closes.
+const MAX_FAILURE_ROWS = 100_000;
 const USERNAME_MAX = 128;
 const USER_AGENT_MAX = 512;
 const IP_MAX = 64;
@@ -76,16 +88,16 @@ const truncate = (value: string | null | undefined, max: number): string | null 
 };
 
 /**
- * Creates an auth event repository. `maxLoginFailureRows` is injectable so tests
- * can exercise the capacity gate without writing a hundred thousand rows.
+ * Creates an auth event repository. `maxFailureRows` is injectable so tests can
+ * exercise the capacity gate without writing a hundred thousand rows.
  */
-export function createAuthEventsDb(maxLoginFailureRows: number = MAX_LOGIN_FAILURE_ROWS) {
+export function createAuthEventsDb(maxFailureRows: number = MAX_FAILURE_ROWS) {
   // Capacity gate state, kept per instance so a test repository cannot leak its
-  // counts into the shared one. `baseline` is read lazily on the first
-  // login_failure write so it lands after the boot-time prune and never touches
-  // the DB at import time (which would run before the table exists); `inserted`
-  // counts the login_failure rows written since, keeping the check O(1) and
-  // query-free on the hot path.
+  // counts into the shared one. `baseline` is read lazily on the first gated
+  // failure write so it lands after the boot-time prune and never touches the
+  // DB at import time (which would run before the table exists); `inserted`
+  // counts the gated rows written since, keeping the check O(1) and query-free
+  // on the hot path.
   let baseline: number | null = null;
   let inserted = 0;
   let capacityWarned = false;
@@ -93,11 +105,15 @@ export function createAuthEventsDb(maxLoginFailureRows: number = MAX_LOGIN_FAILU
   // Counts only the gated failure rows, not the whole table: successes, logouts
   // and registrations are not externally free and must not consume the gate's
   // budget, or a normal account's own history would close the gate early (N11).
-  // Uses idx_auth_events_type, so it stays a single index scan.
-  const countFailures = (): number =>
-    (getConnection()
-      .prepare("SELECT COUNT(*) AS n FROM auth_events WHERE event_type = 'login_failure'")
-      .get() as { n: number }).n;
+  // The `IN` list is built from the same set the gate uses, so a newly gated
+  // type cannot be counted by one and missed by the other. Uses
+  // idx_auth_events_type, so it stays a single index scan.
+  const countFailures = (): number => {
+    const placeholders = [...GATED_FAILURE_TYPES].map(() => '?').join(', ');
+    return (getConnection()
+      .prepare(`SELECT COUNT(*) AS n FROM auth_events WHERE event_type IN (${placeholders})`)
+      .get(...GATED_FAILURE_TYPES) as { n: number }).n;
+  };
 
   return {
     /**
@@ -106,16 +122,16 @@ export function createAuthEventsDb(maxLoginFailureRows: number = MAX_LOGIN_FAILU
      */
     record(input: AuthEventInput): void {
       try {
-        if (input.type === 'login_failure') {
+        if (GATED_FAILURE_TYPES.has(input.type)) {
           if (baseline === null) {
             baseline = countFailures();
           }
-          if (baseline + inserted >= maxLoginFailureRows) {
+          if (baseline + inserted >= maxFailureRows) {
             if (!capacityWarned) {
               capacityWarned = true;
               console.warn(
-                `auth_events capacity (${maxLoginFailureRows}) reached — `
-                + 'login_failure recording paused until restart or manual prune',
+                `auth_events capacity (${maxFailureRows}) reached — `
+                + 'failure recording paused until restart or manual prune',
               );
             }
             return;
@@ -133,7 +149,7 @@ export function createAuthEventsDb(maxLoginFailureRows: number = MAX_LOGIN_FAILU
           truncate(input.userAgent, USER_AGENT_MAX),
         );
 
-        if (input.type === 'login_failure') {
+        if (GATED_FAILURE_TYPES.has(input.type)) {
           inserted += 1;
         }
       } catch (err) {
