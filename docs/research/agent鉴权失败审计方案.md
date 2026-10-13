@@ -1,6 +1,6 @@
 # agent 鉴权失败审计方案（登录审计 phase 2）
 
-> 状态：**草案 v2，待审阅批注**（§9 执行细则已补，尚未动任何代码）
+> 状态：**已实现（C1–C5，本地提交未 push）**；§9 执行细则即实现契约，落库与骨架一致（差异见 §9.7）。`### 审阅者` 仍待批注
 > 日期：2026-10-13
 > 用途：审阅时请重点核验 ① §3.1 事件类型的同步点清单是否还有遗漏；② §3.3 容量闸「共享单一计数器」的取舍；③ §1 现状表述与 §9 骨架是否与当前代码一致（`file:line` 已按工作区核过）；④ §8 五个开放问题的作者倾向是否成立；⑤ §9 的 commit 切分与代码骨架是否可直接落库
 > 参考规范：`.agents/skills/backend-module-standards/SKILL.md`（后端）、`.agents/skills/frontend-module-standards/SKILL.md`（前端）；上游 `docs/research/登录审计功能方案.md`（phase 1，三轮审阅闭环，已实现并本地提交 C1–C6）
@@ -376,6 +376,24 @@ const EVENT_TYPES: AuthEventType[] = ['login_success', 'login_failure', 'logout'
 | 平台模式下不产生该行 | ⑥ |
 | 15 个 locale 均含新键 | ⑪（DoD 校验） |
 | `npm run typecheck` / lint / 相关测试通过 | CI |
+
+### 9.7 实现记录（提交表）
+
+均本地提交、未 push，按 §9.0 的逻辑切分：
+
+| commit | 内容 |
+| --- | --- |
+| `15ed3db9` | **C1** feat(db)：`AuthEventType` 加 `agent_auth_failure`；抽 `GATED_FAILURE_TYPES` 集合并用于**判定 / 计数 / 基线**三处（`countFailures` 由同一集合拼 `IN (...)`）；`MAX_LOGIN_FAILURE_ROWS → MAX_FAILURE_ROWS`、工厂参数 `maxLoginFailureRows → maxFailureRows`；告警文案类型无关；文件头 docblock 同步 |
+| `11b09dfe` | **C2** feat(agent)：`validateExternalApiKey` 两个 401 出口先记后拒，写入走 `recordAuthFailure` 守卫（sink 异常只 log，401 不变）；`agent.module.ts` 注入 `audit`（平台 no-op）；测试覆盖缺 key / 无效 key（且不含 key 内容）/ 平台模式不记 / sink 抛错仍 401 |
+| `ba4227b6` | **C3** feat(settings)：读端点 `AUTH_EVENT_TYPES` 白名单加值 + `schema.ts` 列注释同步；补一条白名单回归断言 |
+| `13b139b3` | **C4** feat(settings-ui)：前端 `AuthEventType` union 与 `EVENT_TYPES` 加值；15 个 locale 的 `loginLog.event.agent_auth_failure` 补键（en/zh-CN/zh-TW 译文，其余英文占位） |
+| `7ee2438c` | **C5** test(db)：两类失败**双向**共享闸门；基线计入已存的 `agent_auth_failure` 行；落库 `user_id`/`username` 为 NULL、保留 ip/ua 且可按类型过滤 |
+
+**与骨架的差异**（不改变语义，均为落库时的实际约束）：
+
+- §9.2 ⑥ 之外，`server/modules/agent/tests/agent-run-registration.test.ts` 的依赖构造点也补了 `audit`（`audit` 为必填依赖，否则 `npm run typecheck` 红）。该文件 `platformMode: true`，注入的是 no-op。
+- §9.3 ⑦ 额外补了一条白名单回归断言（`settings.service.test.ts` 已有一个「未知类型 → null」用例，追加一条「新类型原样透传」，防止漏加白名单回潮）。
+- `agent.module.ts` 的 `audit` 在 `createAgentModule` 内构造（而非模块顶层），并沿用 `auth.module.ts` 的 `Parameters<typeof authEventsDb.record>[0]` 标注方式，避免 `@ts-nocheck` 之外出现隐式 `any`。
 
 ---
 
