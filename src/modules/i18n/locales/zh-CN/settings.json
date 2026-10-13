@@ -1183,7 +1183,13 @@
     "moveDown": "下移",
     "remove": "删除",
     "limit": "已用 {{used}} / {{max}} 条",
-    "limitReached": "已达到 {{max}} 条上限"
+    "limitReached": "已达到 {{max}} 条上限",
+    "export": "导出",
+    "import": "导入",
+    "importFile": "导入快捷回复文件",
+    "importConfirm": "将用文件中的 {{incoming}} 条替换现有 {{current}} 条快捷回复，确定继续吗？",
+    "importEmpty": "未能从该文件读取到任何快捷回复。",
+    "importSkipped": "已跳过 {{count}} 条无法识别的内容。"
   },
   "loginLog": {
     "description": "此账户近期的登录、退出与注册事件。",
