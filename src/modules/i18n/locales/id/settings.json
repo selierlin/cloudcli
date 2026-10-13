@@ -133,7 +133,8 @@
     "browser": "Browser",
     "notifications": "Notifikasi",
     "plugins": "Plugin",
-    "about": "Tentang"
+    "about": "Tentang",
+    "loginLog": "Login Log"
   },
   "notifications": {
     "title": "Notifikasi",
@@ -829,5 +830,32 @@
     "teamManagementDescription": "Banyak pengguna, akses berbasis peran, dan proyek bersama untuk tim.",
     "licensed": "Dilisensikan di bawah AGPL-3.0",
     "proCta": "Tersedia dengan CloudCLI Pro"
+  },
+  "loginLog": {
+    "description": "Recent sign-in, sign-out and registration events for this account.",
+    "eventType": "Event",
+    "allEvents": "All events",
+    "username": "Username",
+    "ip": "IP address",
+    "refresh": "Refresh",
+    "column": {
+      "time": "Time",
+      "event": "Event",
+      "username": "Username",
+      "ip": "IP",
+      "userAgent": "User agent"
+    },
+    "empty": "No events match these filters.",
+    "pageInfo": "Page {{page}} of {{pages}} · {{total}} events",
+    "previous": "Previous",
+    "next": "Next",
+    "logoutNote": "A \"logout\" row only means the client cleared its token. Closing the tab or letting the token expire records nothing, and an already-issued JWT stays valid until it expires.",
+    "platformUnavailable": "No login log exists in this deployment mode.",
+    "event": {
+      "login_success": "Login success",
+      "login_failure": "Login failure",
+      "logout": "Logout",
+      "register": "Register"
+    }
   }
 }

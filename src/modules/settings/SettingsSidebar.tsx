@@ -1,4 +1,4 @@
-import { Bell, Bot, GitBranch, Globe, Info, Key, ListChecks, MessageSquare, Mic, MonitorPlay, Palette, Puzzle, Server, Zap } from 'lucide-react';
+import { Bell, Bot, GitBranch, Globe, Info, Key, ListChecks, MessageSquare, Mic, MonitorPlay, Palette, Puzzle, ScrollText, Server, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { cn } from '@/shared/utils';
@@ -22,6 +22,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'chat', labelKey: 'mainTabs.chat', icon: MessageSquare },
   { id: 'git', labelKey: 'mainTabs.git', icon: GitBranch },
   { id: 'api', labelKey: 'mainTabs.apiTokens', icon: Key },
+  { id: 'loginLog', labelKey: 'mainTabs.loginLog', icon: ScrollText },
   { id: 'voice', labelKey: 'mainTabs.voice', icon: Mic },
   { id: 'quickReplies', labelKey: 'mainTabs.quickReplies', icon: Zap },
   { id: 'tasks', labelKey: 'mainTabs.tasks', icon: ListChecks },

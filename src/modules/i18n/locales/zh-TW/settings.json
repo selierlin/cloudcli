@@ -124,7 +124,8 @@
     "computer": "電腦使用",
     "notifications": "通知",
     "plugins": "外掛",
-    "about": "關於"
+    "about": "關於",
+    "loginLog": "登入日誌"
   },
   "browser": {
     "title": "瀏覽器",
@@ -647,5 +648,32 @@
     "installAriaLabel": "外掛 git 儲存庫 URL",
     "tab": "分頁",
     "runningStatus": "執行中"
+  },
+  "loginLog": {
+    "description": "此帳戶近期的登入、登出與註冊事件。",
+    "eventType": "事件",
+    "allEvents": "全部事件",
+    "username": "使用者名稱",
+    "ip": "IP 位址",
+    "refresh": "重新整理",
+    "column": {
+      "time": "時間",
+      "event": "事件",
+      "username": "使用者名稱",
+      "ip": "IP",
+      "userAgent": "User-Agent"
+    },
+    "empty": "沒有符合篩選條件的事件。",
+    "pageInfo": "第 {{page}} / {{pages}} 頁 · 共 {{total}} 筆",
+    "previous": "上一頁",
+    "next": "下一頁",
+    "logoutNote": "「登出」記錄只表示用戶端清除了 token。關閉分頁或 token 過期都不會留下記錄，且已簿發的 JWT 在到期前始終有效。",
+    "platformUnavailable": "目前部署模式沒有登入日誌。",
+    "event": {
+      "login_success": "登入成功",
+      "login_failure": "登入失敗",
+      "logout": "登出",
+      "register": "註冊"
+    }
   }
 }
