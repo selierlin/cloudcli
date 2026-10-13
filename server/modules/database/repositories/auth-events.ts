@@ -33,7 +33,11 @@ export type AuthEventRow = {
   created_at: string;
 };
 
-/** Already-validated list filters; the caller (settings service) clamps and whitelists them. */
+/**
+ * List filters: the caller (settings service) validates and clamps paging, and
+ * `list` truncates `username`/`ip` to the writer's budgets so a filter matches
+ * the value that was actually stored.
+ */
 export type AuthEventListParams = {
   limit: number;
   offset: number;
@@ -49,7 +53,9 @@ const USER_AGENT_MAX = 512;
 const IP_MAX = 64;
 
 /**
- * Truncates to `max` Unicode code points.
+ * Truncates to `max` Unicode code points. Used by both the writer and the
+ * `list` filters, so a stored value and the filter that looks it up are cut by
+ * the same rule.
  *
  * Slicing by code point — rather than by UTF-16 code unit — is what keeps a
  * surrogate pair whole. A code-unit `slice` can cut an emoji in half, and a
@@ -84,8 +90,14 @@ export function createAuthEventsDb(maxLoginFailureRows: number = MAX_LOGIN_FAILU
   let inserted = 0;
   let capacityWarned = false;
 
-  const countAll = (): number =>
-    (getConnection().prepare('SELECT COUNT(*) AS n FROM auth_events').get() as { n: number }).n;
+  // Counts only the gated failure rows, not the whole table: successes, logouts
+  // and registrations are not externally free and must not consume the gate's
+  // budget, or a normal account's own history would close the gate early (N11).
+  // Uses idx_auth_events_type, so it stays a single index scan.
+  const countFailures = (): number =>
+    (getConnection()
+      .prepare("SELECT COUNT(*) AS n FROM auth_events WHERE event_type = 'login_failure'")
+      .get() as { n: number }).n;
 
   return {
     /**
@@ -96,7 +108,7 @@ export function createAuthEventsDb(maxLoginFailureRows: number = MAX_LOGIN_FAILU
       try {
         if (input.type === 'login_failure') {
           if (baseline === null) {
-            baseline = countAll();
+            baseline = countFailures();
           }
           if (baseline + inserted >= maxLoginFailureRows) {
             if (!capacityWarned) {
@@ -131,22 +143,32 @@ export function createAuthEventsDb(maxLoginFailureRows: number = MAX_LOGIN_FAILU
       }
     },
 
-    /** Returns one page plus the total count under the same filters. */
+    /**
+     * Returns one page plus the total count under the same filters.
+     *
+     * The username/ip filters are truncated with the writer's own code-point
+     * budgets first: a stored value was cut by that rule, so a filter that is
+     * longer — or cut by a different rule, such as UTF-16 code units — could
+     * never match its own row (C4). Normalizing here keeps the rule in the one
+     * place that owns the stored format, instead of having every caller mirror it.
+     */
     list(params: AuthEventListParams): { events: AuthEventRow[]; total: number } {
       const db = getConnection();
+      const username = truncate(params.username, USERNAME_MAX);
+      const ip = truncate(params.ip, IP_MAX);
       const conditions: string[] = [];
       const filters: unknown[] = [];
       if (params.eventType) {
         conditions.push('event_type = ?');
         filters.push(params.eventType);
       }
-      if (params.username) {
+      if (username) {
         conditions.push('username = ?');
-        filters.push(params.username);
+        filters.push(username);
       }
-      if (params.ip) {
+      if (ip) {
         conditions.push('ip = ?');
-        filters.push(params.ip);
+        filters.push(ip);
       }
       const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
