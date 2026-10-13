@@ -123,7 +123,8 @@
     "tasks": "Aufgaben",
     "notifications": "Benachrichtigungen",
     "plugins": "Plugins",
-    "about": "Info"
+    "about": "Info",
+    "loginLog": "Login Log"
   },
   "browser": {
     "title": "Browser",
@@ -597,5 +598,32 @@
     "installAriaLabel": "Git-Repository-URL des Plugins",
     "tab": "Tab",
     "runningStatus": "läuft"
+  },
+  "loginLog": {
+    "description": "Recent sign-in, sign-out and registration events for this account.",
+    "eventType": "Event",
+    "allEvents": "All events",
+    "username": "Username",
+    "ip": "IP address",
+    "refresh": "Refresh",
+    "column": {
+      "time": "Time",
+      "event": "Event",
+      "username": "Username",
+      "ip": "IP",
+      "userAgent": "User agent"
+    },
+    "empty": "No events match these filters.",
+    "pageInfo": "Page {{page}} of {{pages}} · {{total}} events",
+    "previous": "Previous",
+    "next": "Next",
+    "logoutNote": "A \"logout\" row only means the client cleared its token. Closing the tab or letting the token expire records nothing, and an already-issued JWT stays valid until it expires.",
+    "platformUnavailable": "No login log exists in this deployment mode.",
+    "event": {
+      "login_success": "Login success",
+      "login_failure": "Login failure",
+      "logout": "Logout",
+      "register": "Register"
+    }
   }
 }

@@ -1662,7 +1662,7 @@ export type AgentContext = {
 };
 
 /** Identifier of a top-level section in the settings dialog; use it whenever a tab is stored, compared or requested so deep links, the sidebar and the command palette all agree on the same set of names. */
-export type SettingsMainTab = 'agents' | 'appearance' | 'chat' | 'git' | 'api' | 'voice' | 'quickReplies' | 'tasks' | 'browser' | 'mcp' | 'notifications' | 'plugins' | 'network' | 'about';
+export type SettingsMainTab = 'agents' | 'appearance' | 'chat' | 'git' | 'api' | 'voice' | 'quickReplies' | 'tasks' | 'browser' | 'mcp' | 'notifications' | 'plugins' | 'network' | 'loginLog' | 'about';
 
 /** The coding-agent CLI a settings screen is configuring, aliasing LLMProvider so agent-scoped settings read as being about an agent rather than a chat model. */
 export type AgentProvider = LLMProvider;
@@ -1814,6 +1814,24 @@ export type GithubCredentialItem = {
   description?: string | null;
   created_at: string;
   is_active: boolean;
+};
+
+// ---------------------------
+
+//----------------- SETTINGS AUTH AUDIT ------------
+
+/** The kinds of login/session events the audit trail records; mirrors the server's `auth_events.event_type`. */
+export type AuthEventType = 'login_success' | 'login_failure' | 'logout' | 'register';
+
+/** One login-audit row as the server returns it, in snake_case; `user_id` is null for failed logins and `created_at` is UTC (format it locally for display). */
+export type AuthEventRow = {
+  id: number;
+  event_type: AuthEventType;
+  user_id: number | null;
+  username: string | null;
+  ip: string | null;
+  user_agent: string | null;
+  created_at: string;
 };
 
 // ---------------------------

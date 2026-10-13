@@ -19,6 +19,7 @@ import NotificationsSettingsTab from '@/modules/settings/tabs/NotificationsSetti
 import TasksSettingsTab from '@/modules/settings/tabs/tasks-settings/TasksSettingsTab';
 import { PluginSettingsTab } from '@/modules/plugins';
 import AboutTab from '@/modules/settings/tabs/AboutTab';
+import LoginLogSettingsTab from '@/modules/settings/tabs/LoginLogSettingsTab';
 import { useSettingsController } from '@/modules/settings/hooks/useSettingsController';
 import { useWebPush } from '@/modules/settings/hooks/useWebPush';
 import type { AgentSettingsProject } from '@/shared/types';
@@ -321,6 +322,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
               )}
 
               {activeTab === 'api' && <CredentialsSettingsTab />}
+
+              {activeTab === 'loginLog' && <LoginLogSettingsTab />}
 
               {activeTab === 'voice' && <VoiceSettingsTab />}
 
