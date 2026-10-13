@@ -13,6 +13,7 @@ import type { CreatedConversationSignal, LLMProvider, LoadingProgress, MCPServer
 import SidebarCollapsed from '@/modules/sidebar/SidebarCollapsed';
 import SidebarContent from '@/modules/sidebar/SidebarContent';
 import SidebarModals from '@/modules/sidebar/SidebarModals';
+import { SessionParentPickerProvider } from '@/modules/sidebar/context/SessionParentPickerContext';
 
 type SidebarProps = {
   projects: Project[];
@@ -139,6 +140,7 @@ function Sidebar({
     updateSessionSummary,
     forkSession,
     updateSessionPinned,
+    updateSessionParent,
     batchSessionArchiveConfirmation,
     batchArchivedSessionDeleteConfirmation,
     showBatchSessionArchiveConfirmation,
@@ -301,6 +303,11 @@ function Sidebar({
         />
       ) : (
         <>
+        <SessionParentPickerProvider
+          projects={filteredProjects}
+          onAssignParent={updateSessionParent}
+          t={t}
+        >
         <SidebarContent
             isPWA={isPWA}
             isMobile={isMobile}
@@ -396,6 +403,7 @@ function Sidebar({
             projectListProps={projectListProps}
             t={t}
           />
+        </SessionParentPickerProvider>
         </>
       )}
 
