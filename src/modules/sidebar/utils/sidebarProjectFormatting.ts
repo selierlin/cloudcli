@@ -209,6 +209,55 @@ export const filterSessionsForProject = (
   return getAllSessions(project).filter((session) => sessionMatchesSearchFilter(session, normalizedSearch));
 };
 
+// One top-level row of the sidebar's project tree: the session itself plus the
+// sessions filed directly under it. Kept private — the row component reads it
+// structurally and never needs to name the type.
+type SessionTreeRow = {
+  session: SessionWithProvider;
+  children: SessionWithProvider[];
+};
+
+/**
+ * Lays a flat, already-sorted session list out as one level of parent/child rows.
+ *
+ * Input order is preserved for both the roots and each sibling group, so the
+ * existing pin-then-recency comparator (which produced the input) decides the
+ * order within every level; pin never lifts a child out from under its parent.
+ *
+ * A session is nested only when its `parentSessionId` names a session that is
+ * present in this list *and* is itself top-level. That single rule covers every
+ * case where the parent is not shown — an unloaded page, an archived or deleted
+ * parent, or a parent removed by the active search — by rendering the child as a
+ * root instead. A session whose parent is itself a child is also shown at the
+ * top level, matching the server's one-level rule.
+ */
+export const groupSessionsByParent = (sessions: SessionWithProvider[]): SessionTreeRow[] => {
+  const byId = new Map(sessions.map((session) => [session.id, session]));
+  const childrenByParentId = new Map<string, SessionWithProvider[]>();
+  const roots: SessionWithProvider[] = [];
+
+  for (const session of sessions) {
+    const parentId = session.parentSessionId;
+    const parent = parentId ? byId.get(parentId) : undefined;
+
+    if (parent && !parent.parentSessionId) {
+      const siblings = childrenByParentId.get(parent.id);
+      if (siblings) {
+        siblings.push(session);
+      } else {
+        childrenByParentId.set(parent.id, [session]);
+      }
+    } else {
+      roots.push(session);
+    }
+  }
+
+  return roots.map((session) => ({
+    session,
+    children: childrenByParentId.get(session.id) ?? [],
+  }));
+};
+
 export const getTaskIndicatorStatus = (
   project: Project,
   mcpServerStatus: { hasMCPServer?: boolean; isConfigured?: boolean } | null,
