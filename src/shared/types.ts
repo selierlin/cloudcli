@@ -974,7 +974,7 @@ export type QuickReply = {
   text: string;
 };
 
-/** Why parsing an imported quick-replies file produced nothing usable; with JSON falling back to the line format, the only cause is "no usable row at all". */
+/** Why parsing an imported quick-replies file produced nothing usable: it yielded no recognizable snippet rows — an empty list, or JSON in a shape this app does not write. */
 export type QuickReplyImportError = 'empty';
 
 /** What parsing an imported quick-replies file yields: the normalized list plus how many source rows were dropped, or why nothing could be read. */

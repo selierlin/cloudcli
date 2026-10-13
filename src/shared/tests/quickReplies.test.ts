@@ -182,6 +182,10 @@ test('broken JSON degrades to the line format rather than erroring', () => {
   });
 });
 
+test('valid JSON in another shape is an empty error, not a line import of its punctuation', () => {
+  assert.deepEqual(parseQuickRepliesImport('{\n  "version": 1,\n  "items": []\n}'), { error: 'empty' });
+});
+
 test('importing past the limit keeps the first rows and reports the rest as skipped', () => {
   const many = Array.from({ length: MAX_QUICK_REPLIES + 5 }, (_, index) => reply(`n${index}`));
 

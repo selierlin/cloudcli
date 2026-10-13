@@ -132,39 +132,55 @@ const finishQuickRepliesImport = (candidates: unknown[], sourceCount: number): Q
 };
 
 /**
- * Reads one snippet file, accepting both share formats.
- *
- * Text that looks like JSON (leading `[` or `{`) is parsed first — an object
- * is read through its `quickReplies` envelope — but any failure there falls
- * back to the line format rather than erroring, because a line-format snippet
- * may legitimately start with `[`. Lines each become one label-less snippet,
- * with interior blank lines counted as skipped; trimming the whole text first
- * keeps a file's trailing newline from reporting a phantom skip. Reading zero
- * snippets from either format is an `empty` error, so an accidental empty file
- * never wipes the current list.
+ * Reads the line format: one label-less snippet per non-blank line, with
+ * interior blank lines counted as skipped. Trimming the whole text first keeps
+ * a file's trailing newline from reporting a phantom skip.
  */
-export const parseQuickRepliesImport = (raw: string): QuickReplyImportResult => {
-  const text = raw.trim();
-
-  if (text.startsWith('[') || text.startsWith('{')) {
-    try {
-      const value: unknown = JSON.parse(text);
-      if (Array.isArray(value)) {
-        return finishQuickRepliesImport(value, value.length);
-      }
-      if (isRecord(value) && Array.isArray(value.quickReplies)) {
-        return finishQuickRepliesImport(value.quickReplies, value.quickReplies.length);
-      }
-    } catch {
-      // Not valid JSON after all — fall through to the line format.
-    }
-  }
-
+const importQuickRepliesFromLines = (text: string): QuickReplyImportResult => {
   const lines = text.split('\n');
   const candidates = lines
     .filter((line) => line.trim() !== '')
     .map((line) => ({ text: line.trim() }));
   return finishQuickRepliesImport(candidates, lines.length);
+};
+
+/**
+ * Reads one snippet file, accepting both share formats.
+ *
+ * Text that looks like JSON (leading `[` or `{`) is parsed first — an object
+ * is read through its `quickReplies` envelope — and text that fails to parse
+ * falls back to the line format rather than erroring, because a line-format
+ * snippet may legitimately start with `[`. But text that really does parse as
+ * JSON in some other shape is a file this app does not write, so it errors
+ * instead of line-importing the JSON's own punctuation as snippets. Reading
+ * zero snippets from any format is an `empty` error, so an accidental empty
+ * file never wipes the current list.
+ */
+export const parseQuickRepliesImport = (raw: string): QuickReplyImportResult => {
+  const text = raw.trim();
+
+  if (text.startsWith('[') || text.startsWith('{')) {
+    let value: unknown;
+    try {
+      value = JSON.parse(text);
+    } catch {
+      // Not valid JSON after all — a line-format snippet can start with `[`, so
+      // read it as lines rather than reporting a broken file.
+      return importQuickRepliesFromLines(text);
+    }
+
+    if (Array.isArray(value)) {
+      return finishQuickRepliesImport(value, value.length);
+    }
+    if (isRecord(value) && Array.isArray(value.quickReplies)) {
+      return finishQuickRepliesImport(value.quickReplies, value.quickReplies.length);
+    }
+    // JSON, but neither the bare array nor the envelope this app writes; its
+    // lines are structural, not snippets, so nothing usable could be read.
+    return { error: 'empty' };
+  }
+
+  return importQuickRepliesFromLines(text);
 };
 
 /** Resolves the shipped snippets through i18n; used wherever the stored list is unset. */
