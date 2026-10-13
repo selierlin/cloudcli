@@ -348,9 +348,9 @@ CREATE TABLE IF NOT EXISTS auth_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     event_type TEXT NOT NULL,          -- 'login_success' | 'login_failure' | 'logout' | 'register'
     user_id INTEGER,                   -- subject user; NULL for login_failure
-    username TEXT,                     -- attempted username on failure (<=128 code units)
+    username TEXT,                     -- attempted username on failure (<=128 code points)
     ip TEXT,                           -- transport source address, not identity (<=64)
-    user_agent TEXT,                   -- truncated to <=512 code units
+    user_agent TEXT,                   -- truncated to <=512 code points
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 `;
