@@ -2,14 +2,29 @@ import { createContext, useCallback, useContext, useMemo, useState } from 'react
 import type { ReactNode } from 'react';
 import type { TFunction } from 'i18next';
 
-import type { Project, SessionWithProvider } from '@/shared/types';
+import type { Project } from '@/shared/types';
 import { createSessionViewModel, getAllSessions } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import SessionParentPicker from '@/modules/sidebar/modals/SessionParentPicker';
 import type { SessionParentCandidate } from '@/modules/sidebar/modals/SessionParentPicker';
 
+/**
+ * One session the picker can be opened for. Deliberately a plain descriptor
+ * rather than a `SessionWithProvider`: the conversations feed renders rows that
+ * never hold a full session, and both call sites already know these four fields.
+ */
+export type SessionParentTarget = {
+  sessionId: string;
+  /** Owning project, used to resolve same-project candidates. */
+  projectId: string | null;
+  /** Display name shown in the picker heading. */
+  name: string;
+  /** Current parent, so the picker can offer "move to top level". */
+  parentSessionId: string | null;
+};
+
 type SessionParentPickerContextValue = {
   /** Opens the parent picker for one session. */
-  requestAssignParent: (session: SessionWithProvider) => void;
+  requestAssignParent: (target: SessionParentTarget) => void;
   /** Moves one session back to the top level without opening the picker. */
   clearParent: (sessionId: string) => void;
 };
@@ -48,10 +63,10 @@ export function SessionParentPickerProvider({
   children,
   t,
 }: SessionParentPickerProviderProps) {
-  const [pendingSession, setPendingSession] = useState<SessionWithProvider | null>(null);
+  const [pendingTarget, setPendingTarget] = useState<SessionParentTarget | null>(null);
 
-  const requestAssignParent = useCallback((session: SessionWithProvider) => {
-    setPendingSession(session);
+  const requestAssignParent = useCallback((target: SessionParentTarget) => {
+    setPendingTarget(target);
   }, []);
 
   const clearParent = useCallback((sessionId: string) => {
@@ -63,20 +78,20 @@ export function SessionParentPickerProvider({
   // the one-level rule — it also rules out the target's own children, so a
   // session that owns children simply gets an empty list.
   const candidates = useMemo<SessionParentCandidate[]>(() => {
-    if (!pendingSession) {
+    if (!pendingTarget) {
       return [];
     }
 
-    const project = projects.find((candidate) => candidate.projectId === pendingSession.__projectId)
-      ?? projects.find((candidate) => (candidate.sessions ?? []).some((session) => session.id === pendingSession.id));
+    const project = projects.find((candidate) => candidate.projectId === pendingTarget.projectId)
+      ?? projects.find((candidate) => (candidate.sessions ?? []).some((session) => session.id === pendingTarget.sessionId));
     if (!project) {
       return [];
     }
 
     return getAllSessions(project)
-      .filter((session) => session.id !== pendingSession.id && !session.parentSessionId)
+      .filter((session) => session.id !== pendingTarget.sessionId && !session.parentSessionId)
       .map((session) => ({ id: session.id, name: createSessionViewModel(session, t).sessionName }));
-  }, [pendingSession, projects, t]);
+  }, [pendingTarget, projects, t]);
 
   const value = useMemo(
     () => ({ requestAssignParent, clearParent }),
@@ -86,16 +101,16 @@ export function SessionParentPickerProvider({
   return (
     <SessionParentPickerContext.Provider value={value}>
       {children}
-      {pendingSession && (
+      {pendingTarget && (
         <SessionParentPicker
-          sessionName={createSessionViewModel(pendingSession, t).sessionName}
+          sessionName={pendingTarget.name}
           candidates={candidates}
-          currentParentId={pendingSession.parentSessionId ?? null}
+          currentParentId={pendingTarget.parentSessionId}
           onSelect={(parentSessionId) => {
-            onAssignParent(pendingSession.id, parentSessionId);
-            setPendingSession(null);
+            onAssignParent(pendingTarget.sessionId, parentSessionId);
+            setPendingTarget(null);
           }}
-          onClose={() => setPendingSession(null)}
+          onClose={() => setPendingTarget(null)}
           t={t}
         />
       )}

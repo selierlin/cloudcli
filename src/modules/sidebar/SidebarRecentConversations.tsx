@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Check, ChevronRight, Edit2, Folder, Loader2, MessageSquare, MoreHorizontal, Pin, PinOff, Plus, Trash2, X } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import type { TFunction } from 'i18next';
@@ -7,8 +7,11 @@ import { ActionMenu, Button, Dialog, DialogContent, DialogTitle, LLMProviderLogo
 import { cn } from '@/shared/utils';
 import type { LLMProvider, Project, ProjectSession, RecentConversationListItem, SessionAttentionLevel } from '@/shared/types';
 import { formatCompactAge } from '@/modules/sidebar/utils/sidebarProjectFormatting';
+import { buildSessionOwnershipMenuItems } from '@/modules/sidebar/utils/sessionOwnershipMenuItems';
 import { ActivitySlot, AttentionSlot } from '@/modules/sidebar/SessionStatusIndicators';
 import { useCopyProviderSessionId } from '@/modules/sidebar/hooks/useCopyProviderSessionId';
+import { useSessionParentPicker } from '@/modules/sidebar/context/SessionParentPickerContext';
+import SessionOwnershipSheetActions from '@/modules/sidebar/SessionOwnershipSheetActions';
 import SidebarBatchSessionActions from '@/modules/sidebar/SidebarBatchSessionActions';
 
 type SidebarRecentConversationsProps = {
@@ -65,6 +68,8 @@ type RecentConversationRowProps = {
   hasBackgroundWork: boolean;
   /** The unread level to flag beside the title, or undefined when nothing awaits the user. */
   attentionLevel?: SessionAttentionLevel;
+  /** True when this session owns children, which withholds "file under…" (one-level rule). */
+  sessionOwnsChildren: boolean;
   isManaging: boolean;
   isBatchSelected: boolean;
   currentTime: Date;
@@ -91,6 +96,7 @@ function RecentConversationRow({
   isProcessing,
   hasBackgroundWork,
   attentionLevel,
+  sessionOwnsChildren,
   isManaging,
   isBatchSelected,
   currentTime,
@@ -171,6 +177,25 @@ function RecentConversationRow({
       onCancelEditingSession();
     }
   };
+
+  // Ownership controls come from the sidebar's picker provider, exactly as the
+  // project rows use them. The conversations feed is cross-project, so whether
+  // this session owns children is resolved by the list above (from the full
+  // project payloads) rather than from a single project's session array.
+  const parentPicker = useSessionParentPicker();
+  const parentSessionId = conversation.parentSessionId ?? null;
+  const canAssignParent = Boolean(parentPicker) && !sessionOwnsChildren;
+  const requestAssignParent = parentPicker
+    ? () => parentPicker.requestAssignParent({
+        sessionId: conversation.sessionId,
+        projectId: conversation.projectId,
+        name: conversation.sessionTitle,
+        parentSessionId,
+      })
+    : undefined;
+  const clearParent = parentPicker && parentSessionId
+    ? () => parentPicker.clearParent(conversation.sessionId)
+    : undefined;
 
   const rowBody = (
     <>
@@ -375,6 +400,15 @@ function RecentConversationRow({
                   </span>
                 </button>
 
+                <SessionOwnershipSheetActions
+                  parentSessionId={parentSessionId}
+                  canAssignParent={canAssignParent}
+                  onRequestAssignParent={requestAssignParent}
+                  onClearParent={clearParent}
+                  onBeforeAction={() => setMobileOptionsOpen(false)}
+                  t={t}
+                />
+
                 {!isProcessing && (
                   <button
                     type="button"
@@ -507,6 +541,13 @@ function RecentConversationRow({
                   closeOnSelect: false,
                   onSelect: handleCopyAction,
                 },
+                ...buildSessionOwnershipMenuItems({
+                  parentSessionId,
+                  canAssignParent,
+                  onRequestAssignParent: requestAssignParent,
+                  onClearParent: clearParent,
+                  t,
+                }),
                 {
                   key: 'delete',
                   label: t('sessions.archiveOrDeleteSession'),
@@ -569,6 +610,21 @@ export default function SidebarRecentConversations({
   const [editingSessionName, setEditingSessionName] = useState('');
   const [isManaging, setIsManaging] = useState(false);
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
+
+  // Sessions that already own a child, so their row withholds "file under…"
+  // (the tree is one level deep). Derived from the loaded project payloads
+  // because a conversations row holds no session list of its own.
+  const sessionsOwningChildren = useMemo(() => {
+    const ids = new Set<string>();
+    for (const project of projects) {
+      for (const session of project.sessions ?? []) {
+        if (session.parentSessionId) {
+          ids.add(session.parentSessionId);
+        }
+      }
+    }
+    return ids;
+  }, [projects]);
 
   // Running sessions can never be archived in bulk, so prune the selection as
   // sessions come and go (e.g. a session starts while manage mode is open).
@@ -694,6 +750,7 @@ export default function SidebarRecentConversations({
         isProcessing={activeSessions.has(conversation.sessionId) && !hasBackgroundWork}
         hasBackgroundWork={hasBackgroundWork}
         attentionLevel={attentionSessions.get(conversation.sessionId)}
+        sessionOwnsChildren={sessionsOwningChildren.has(conversation.sessionId)}
         isManaging={isManaging}
         isBatchSelected={selectedSessionIds.has(conversation.sessionId)}
         currentTime={currentTime}
