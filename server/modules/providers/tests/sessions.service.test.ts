@@ -574,3 +574,119 @@ test('permanently deleting archived sessions does not abort on a session that ne
     });
   });
 });
+
+test('setSessionParent files a same-project session and clears it again', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('parent-session', 'claude', '/tmp/parent-project');
+    sessionsDb.createAppSession('child-session', 'claude', '/tmp/parent-project');
+    const updatedAtBefore = sessionsDb.getSessionById('child-session')?.updated_at;
+
+    await sessionsService.setSessionParent('child-session', 'parent-session');
+    assert.equal(sessionsDb.getSessionById('child-session')?.parent_session_id, 'parent-session');
+
+    await sessionsService.setSessionParent('child-session', null);
+    assert.equal(sessionsDb.getSessionById('child-session')?.parent_session_id, null);
+
+    // Filing is pure organization: the row must not jump the project's recency
+    // ordering by having its activity timestamp rewritten.
+    assert.equal(sessionsDb.getSessionById('child-session')?.updated_at, updatedAtBefore);
+  });
+});
+
+test('setSessionParent rejects a session filed under itself', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('alone', 'claude', '/tmp/parent-project');
+
+    await assert.rejects(
+      () => sessionsService.setSessionParent('alone', 'alone'),
+      (error: unknown) => {
+        const typedError = error as { code?: string; statusCode?: number };
+        return typedError.code === 'INVALID_SESSION_PARENT' && typedError.statusCode === 400;
+      },
+    );
+  });
+});
+
+test('setSessionParent rejects a parent outside the session project', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('session-a', 'claude', '/tmp/project-a');
+    sessionsDb.createAppSession('session-b', 'claude', '/tmp/project-b');
+
+    await assert.rejects(
+      () => sessionsService.setSessionParent('session-a', 'session-b'),
+      (error: unknown) => {
+        const typedError = error as { code?: string; statusCode?: number };
+        return typedError.code === 'INVALID_SESSION_PARENT' && typedError.statusCode === 400;
+      },
+    );
+  });
+});
+
+test('setSessionParent keeps the tree one level deep in both directions', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('root-session', 'claude', '/tmp/depth-project');
+    sessionsDb.createAppSession('mid-session', 'claude', '/tmp/depth-project');
+    sessionsDb.createAppSession('leaf-session', 'claude', '/tmp/depth-project');
+
+    await sessionsService.setSessionParent('mid-session', 'root-session');
+
+    // A session that already has a parent cannot host children...
+    await assert.rejects(
+      () => sessionsService.setSessionParent('leaf-session', 'mid-session'),
+      (error: unknown) => (error as { code?: string }).code === 'INVALID_SESSION_PARENT',
+    );
+
+    // ...and a session that already owns children cannot be filed under another.
+    await assert.rejects(
+      () => sessionsService.setSessionParent('root-session', 'leaf-session'),
+      (error: unknown) => (error as { code?: string }).code === 'INVALID_SESSION_PARENT',
+    );
+  });
+});
+
+test('setSessionParent reports a missing target and a missing parent', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('known-session', 'claude', '/tmp/missing-project');
+
+    await assert.rejects(
+      () => sessionsService.setSessionParent('unknown-session', 'known-session'),
+      (error: unknown) => {
+        const typedError = error as { code?: string; statusCode?: number };
+        return typedError.code === 'SESSION_NOT_FOUND' && typedError.statusCode === 404;
+      },
+    );
+
+    await assert.rejects(
+      () => sessionsService.setSessionParent('known-session', 'unknown-session'),
+      (error: unknown) => {
+        const typedError = error as { code?: string; statusCode?: number };
+        return typedError.code === 'SESSION_NOT_FOUND' && typedError.statusCode === 404;
+      },
+    );
+  });
+});
+
+test('concurrent opposite setSessionParent calls never leave a cycle', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('session-x', 'claude', '/tmp/race-project');
+    sessionsDb.createAppSession('session-y', 'claude', '/tmp/race-project');
+
+    const results = await Promise.allSettled([
+      sessionsService.setSessionParent('session-x', 'session-y'),
+      sessionsService.setSessionParent('session-y', 'session-x'),
+    ]);
+
+    const fulfilled = results.filter((result) => result.status === 'fulfilled').length;
+    const rejected = results.filter((result) => result.status === 'rejected').length;
+    assert.equal(fulfilled, 1, 'exactly one move wins');
+    assert.equal(rejected, 1, 'the other is rejected by the one-level rule');
+
+    // `x filed under y` and `y filed under x` must never both hold.
+    const parentOfX = sessionsDb.getSessionById('session-x')?.parent_session_id;
+    const parentOfY = sessionsDb.getSessionById('session-y')?.parent_session_id;
+    assert.ok(
+      !(parentOfX === 'session-y' && parentOfY === 'session-x'),
+      'no two-session cycle may be persisted',
+    );
+  });
+});

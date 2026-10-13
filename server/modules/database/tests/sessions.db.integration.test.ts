@@ -291,6 +291,35 @@ test('deleting a session also drops its read-state rows', async () => {
   });
 });
 
+test('deleting a parent session releases the sessions filed under it', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createSession('parent-row', 'claude', '/workspace/demo-project', 'Parent');
+    sessionsDb.createSession('child-row', 'claude', '/workspace/demo-project', 'Child');
+    sessionsDb.updateSessionParent('child-row', 'parent-row');
+    assert.equal(sessionsDb.getSessionById('child-row')?.parent_session_id, 'parent-row');
+
+    sessionsDb.deleteSessionById('parent-row');
+
+    // The ownership link is not a foreign key, so the delete itself has to
+    // clear it; otherwise the child would point at a row that no longer exists.
+    assert.equal(sessionsDb.getSessionById('parent-row'), null);
+    assert.equal(sessionsDb.getSessionById('child-row')?.parent_session_id, null);
+  });
+});
+
+test('deleting a session by provider id releases the sessions filed under it', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createSession('parent-native', 'opencode', '/workspace/demo-project', 'Parent');
+    sessionsDb.createSession('child-native', 'opencode', '/workspace/demo-project', 'Child');
+    sessionsDb.updateSessionParent('child-native', 'parent-native');
+
+    sessionsDb.deleteSessionByProviderSessionId('parent-native', 'opencode');
+
+    assert.equal(sessionsDb.getSessionById('parent-native'), null);
+    assert.equal(sessionsDb.getSessionById('child-native')?.parent_session_id, null);
+  });
+});
+
 test('deleting every session in a project also drops their read-state rows', async () => {
   await withIsolatedDatabase(() => {
     sessionsDb.createSession('project-a-1', 'claude', '/workspace/a', 'A1');

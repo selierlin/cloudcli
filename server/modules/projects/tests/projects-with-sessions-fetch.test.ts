@@ -183,3 +183,23 @@ test('without a requesting user every session reads as not-unread', async () => 
     assert.equal(page.sessions.find((s) => s.id === 'anonymous-session')?.isUnread, false);
   });
 });
+
+test('the session page projects the ownership link for the sidebar tree', async () => {
+  await withIsolatedDatabase(async () => {
+    const projectPath = '/workspace/parented';
+    projectsDb.createProjectPath(projectPath);
+    const projectId = projectsDb.getProjectPath(projectPath)?.project_id;
+    assert.ok(projectId);
+
+    sessionsDb.createSession('tree-parent', 'claude', projectPath, 'Parent');
+    sessionsDb.createSession('tree-child', 'claude', projectPath, 'Child');
+    sessionsDb.updateSessionParent('tree-child', 'tree-parent');
+
+    const page = await getProjectSessionsPage(String(projectId));
+
+    // The sidebar derives the tree from these ids alone, so a page that dropped
+    // the field would silently render every session flat.
+    assert.equal(page.sessions.find((session) => session.id === 'tree-child')?.parentSessionId, 'tree-parent');
+    assert.equal(page.sessions.find((session) => session.id === 'tree-parent')?.parentSessionId, null);
+  });
+});
