@@ -7,6 +7,7 @@ import spawn from 'cross-spawn';
 
 import {
   apiKeysDb,
+  authEventsDb,
   githubTokensDb,
   projectsDb,
   sessionsDb,
@@ -29,6 +30,13 @@ type AgentExternalDependencies = Pick<
  * the centralized provider runtime service.
  */
 export function createAgentModule(externalDependencies: AgentExternalDependencies) {
+  // Rejected agent handshakes are audited like login failures. Platform mode does
+  // no key check (agent.routes.ts short-circuits before validation), so the sink
+  // is a no-op there — mirroring how Auth injects its audit dependency.
+  const audit = IS_PLATFORM
+    ? { record: () => {} }
+    : { record: (event: Parameters<typeof authEventsDb.record>[0]) => authEventsDb.record(event) };
+
   return createAgentRouter({
     fileSystem: fs,
     crypto,
@@ -57,6 +65,7 @@ export function createAgentModule(externalDependencies: AgentExternalDependencie
     },
     runs: chatRunRegistry,
     GithubClient: Octokit,
+    audit,
     ...externalDependencies,
   });
 }

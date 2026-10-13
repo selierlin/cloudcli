@@ -34,6 +34,12 @@ type AgentRouterDependencies = {
   };
   /** The live-run registry the chat socket uses; registering here is what puts an API run on the running-sessions list. */
   runs: Pick<typeof import('../websocket/index.js').chatRunRegistry, 'startRun' | 'completeRunIfCurrent' | 'isProcessing'>;
+  /**
+   * Auth audit sink: rejected agent handshakes are recorded here. Injected by the
+   * module (a no-op in platform mode). Typed from the database barrel rather than
+   * the auth service's narrower union — agent does not go through Auth (§8-Q3).
+   */
+  audit: { record(event: import('@/modules/database/index.js').AuthEventInput): void };
   queryClaude: ProviderRunFunction;
   queryCursor: ProviderRunFunction;
   queryCodex: ProviderRunFunction;
@@ -78,6 +84,29 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
   const router = express.Router();
 
   /**
+   * Records a rejected agent authentication attempt. Best-effort: a failing sink
+   * must never change the 401, so any error is logged and swallowed here
+   * (hard constraint G4). The attempted key is deliberately not recorded — it is
+   * a secret, and any fragment of it would be a disclosure surface (D20).
+   */
+  const recordAuthFailure = (req) => {
+    try {
+      const userAgent = req.headers['user-agent'];
+      dependencies.audit.record({
+        type: 'agent_auth_failure',
+        userId: null,
+        username: null,
+        ip: req.ip ?? null,
+        userAgent: typeof userAgent === 'string' ? userAgent : null,
+      });
+    } catch (err) {
+      console.error('Agent auth audit recording failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  /**
    * Middleware to authenticate agent API requests.
    *
    * Supports two authentication modes:
@@ -109,12 +138,14 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
     const apiKey = req.headers['x-api-key'] || req.query.apiKey;
 
     if (!apiKey) {
+      recordAuthFailure(req);
       return res.status(401).json({ error: 'API key required' });
     }
 
     const user = apiKeysDb.validateApiKey(apiKey);
 
     if (!user) {
+      recordAuthFailure(req);
       return res.status(401).json({ error: 'Invalid or inactive API key' });
     }
 

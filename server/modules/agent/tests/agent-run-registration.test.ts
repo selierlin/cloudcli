@@ -83,6 +83,8 @@ function createDependencies(queryClaude: RunFunction): AgentDependencies {
     queryOmp: unexpected as RunFunction,
     queryOpenclaw: unexpected as RunFunction,
     GithubClient: class {} as unknown as AgentDependencies['GithubClient'],
+    // Platform mode, so the route never audits; provided to satisfy the contract.
+    audit: { record: () => undefined },
   };
 }
 
