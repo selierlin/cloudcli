@@ -20,6 +20,8 @@ type SessionRow = {
   isPinned: number;
   /** The app session this one was branched from; NULL unless it is a fork. */
   forked_from_session_id: string | null;
+  /** The session this one is filed under (user-owned link); NULL if top-level. */
+  parent_session_id: string | null;
   isArchived: number;
   created_at: string;
   updated_at: string;
@@ -33,7 +35,7 @@ type RecentSessionsPage = {
 };
 
 const SESSION_ROW_COLUMNS =
-  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, name_source, model, effort, isPinned, forked_from_session_id, isArchived, created_at, updated_at, content_updated_at';
+  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, name_source, model, effort, isPinned, forked_from_session_id, parent_session_id, isArchived, created_at, updated_at, content_updated_at';
 
 /**
  * Canonical ISO shape for every timestamp read out of the DB.
@@ -88,6 +90,36 @@ function reclaimReadStateFor(
     `DELETE FROM session_read_state
      WHERE session_id IN (SELECT session_id FROM sessions WHERE ${whereClause})`
   ).run(...params);
+}
+
+/**
+ * Deletes every session row matched by `whereClause`, keeping both side effects
+ * of a session delete in one place.
+ *
+ * `session_read_state` has no foreign key into `sessions`, so its rows are
+ * reclaimed explicitly (see `reclaimReadStateFor`). Child sessions filed under
+ * a deleted session are released first: `parent_session_id` is deliberately not
+ * a foreign key, so nothing else would clear it and a child would otherwise
+ * keep pointing at a row that no longer exists. Runs as one transaction so the
+ * release, the watermark reclaim, and the delete cannot be seen half-applied.
+ *
+ * Shared by `deleteSessionById` and `deleteSessionByProviderSessionId` so every
+ * delete path stays consistent instead of drifting apart.
+ */
+function deleteSessionRowsWhere(
+  db: ReturnType<typeof getConnection>,
+  whereClause: string,
+  ...params: Array<string | number>
+): number {
+  return db.transaction(() => {
+    db.prepare(
+      `UPDATE sessions
+       SET parent_session_id = NULL
+       WHERE parent_session_id IN (SELECT session_id FROM sessions WHERE ${whereClause})`
+    ).run(...params);
+    reclaimReadStateFor(db, whereClause, ...params);
+    return db.prepare(`DELETE FROM sessions WHERE ${whereClause}`).run(...params).changes;
+  })();
 }
 
 export const sessionsDb = {
@@ -885,27 +917,55 @@ export const sessionsDb = {
     ).run(isPinned ? 1 : 0, sessionId);
   },
 
+  /**
+   * Files a session under another session, or clears the link with `null`.
+   *
+   * Used by the Providers module's `setSessionParent`. Touches only the
+   * ownership column: like `updateSessionIsPinned`, it must not modify
+   * `updated_at`/`content_updated_at`. The sidebar sort key is `updated_at`, so
+   * writing it here would jump the session to the top of its project and skew
+   * last-activity ordering just because the user reorganized the tree.
+   */
+  updateSessionParent(sessionId: string, parentSessionId: string | null): void {
+    const db = getConnection();
+    db.prepare(
+      `UPDATE sessions
+       SET parent_session_id = ?
+       WHERE session_id = ?`
+    ).run(parentSessionId, sessionId);
+  },
+
+  /**
+   * Counts the sessions currently filed under `parentId`.
+   *
+   * Used by the Providers module's `setSessionParent` to enforce the one-level
+   * rule: a session that already owns children may not itself be filed under
+   * another session.
+   */
+  countChildrenOf(parentId: string): number {
+    const db = getConnection();
+    const row = db
+      .prepare('SELECT COUNT(*) AS count FROM sessions WHERE parent_session_id = ?')
+      .get(parentId) as { count: number } | undefined;
+    return Number(row?.count ?? 0);
+  },
+
   deleteSessionById(sessionId: string): boolean {
     const db = getConnection();
-    // `session_read_state` has no foreign key into `sessions`, so its rows for
-    // this session would otherwise linger and could resurrect an unread flag if
-    // a session ever reused the id.
-    db.prepare('DELETE FROM session_read_state WHERE session_id = ?').run(sessionId);
-    return db.prepare('DELETE FROM sessions WHERE session_id = ?').run(sessionId).changes > 0;
+    return deleteSessionRowsWhere(db, 'session_id = ?', sessionId) > 0;
   },
 
   /** Used by the OpenCode synchronizer to remove indexed child sessions by their native id. */
   deleteSessionByProviderSessionId(providerSessionId: string, provider: string): boolean {
     const db = getConnection();
-    db.prepare(
-      `DELETE FROM session_read_state
-       WHERE session_id IN (
-         SELECT session_id FROM sessions WHERE provider_session_id = ? AND provider = ?
-       )`
-    ).run(providerSessionId, provider);
-    return db
-      .prepare('DELETE FROM sessions WHERE provider_session_id = ? AND provider = ?')
-      .run(providerSessionId, provider).changes > 0;
+    return (
+      deleteSessionRowsWhere(
+        db,
+        'provider_session_id = ? AND provider = ?',
+        providerSessionId,
+        provider
+      ) > 0
+    );
   },
 
   /**

@@ -146,6 +146,12 @@ CREATE TABLE IF NOT EXISTS sessions (
     -- normally. Informational only: a fork is a fully independent provider
     -- session, and deleting the source does not affect it.
     forked_from_session_id TEXT,
+    -- User-maintained ownership link: the session this one is filed under, or
+    -- NULL for a top-level session. Deliberately NOT a foreign key (a self
+    -- reference would force a table rebuild on SQLite); the delete paths clear
+    -- it explicitly so children survive their parent (see sessions.db.ts).
+    -- Constrained by the service, not the DB: same project, one level deep.
+    parent_session_id TEXT,
     isArchived BOOLEAN DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,

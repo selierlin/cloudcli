@@ -439,6 +439,17 @@ const addForkedFromSessionIdColumn = (db: Database): void => {
 };
 
 /**
+ * Adds the `parent_session_id` column that files one session under another.
+ *
+ * Nothing is backfilled: a session that predates the feature belongs to no
+ * parent. The column is intentionally not a foreign key — see schema.ts.
+ */
+const addSessionParentColumn = (db: Database): void => {
+  const columnNames = getTableInfo(db, 'sessions').map((column) => column.name);
+  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'parent_session_id', 'TEXT');
+};
+
+/**
  * Adds the session title provenance column.
  *
  * Pre-existing rows default to `legacy_unknown` because their title source was
@@ -690,6 +701,7 @@ export const runMigrations = (db: Database) => {
     addSessionEffortColumn(db);
     addSessionIsPinnedColumn(db);
     addForkedFromSessionIdColumn(db);
+    addSessionParentColumn(db);
     addSessionNameSourceColumn(db);
     addSessionContentUpdatedAtColumn(db);
     ensureProjectsForSessionPaths(db);
@@ -699,6 +711,9 @@ export const runMigrations = (db: Database) => {
     db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_provider_session_id ON sessions(provider_session_id)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_project_path ON sessions(project_path)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_forked_from ON sessions(forked_from_session_id)');
+    // Serves the two parent-keyed lookups: counting/validating a parent's
+    // children and orphaning them on delete.
+    db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_parent ON sessions(parent_session_id)');
     // The due-message poll runs on a timer; without this it table-scans.
     db.exec('CREATE INDEX IF NOT EXISTS idx_scheduled_messages_due ON scheduled_messages(status, scheduled_for)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_scheduled_messages_session ON scheduled_messages(session_id)');

@@ -550,6 +550,43 @@ const parseSessionPinned = (payload: unknown): boolean => {
   return isPinned;
 };
 
+/**
+ * Reads the target parent id from an ownership-update body.
+ *
+ * `null` is a valid, meaningful value ("remove from its parent"), so the field
+ * must be present and explicitly null to clear the link — a missing field is a
+ * client bug and rejected, rather than silently read as a clear.
+ */
+const parseSessionParent = (payload: unknown): string | null => {
+  if (!payload || typeof payload !== 'object') {
+    throw new AppError('Request body must be an object.', {
+      code: 'INVALID_REQUEST_BODY',
+      statusCode: 400,
+    });
+  }
+
+  const record = payload as Record<string, unknown>;
+  if (!('parentSessionId' in record)) {
+    throw new AppError('parentSessionId is required (use null to clear).', {
+      code: 'INVALID_SESSION_PARENT',
+      statusCode: 400,
+    });
+  }
+
+  const parentSessionId = record.parentSessionId;
+  if (parentSessionId === null) {
+    return null;
+  }
+  if (typeof parentSessionId !== 'string') {
+    throw new AppError('parentSessionId must be a string or null.', {
+      code: 'INVALID_SESSION_PARENT',
+      statusCode: 400,
+    });
+  }
+
+  return parseSessionId(parentSessionId);
+};
+
 const parseArchivedSessionIds = (payload: unknown): string[] => {
   if (!payload || typeof payload !== 'object') {
     throw new AppError('Request body must be an object.', {
@@ -1293,6 +1330,16 @@ router.put(
     const sessionId = parseSessionId(req.params.sessionId);
     const isPinned = parseSessionPinned(req.body);
     const result = sessionsService.setSessionPinned(sessionId, isPinned);
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
+router.put(
+  '/sessions/:sessionId/parent',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    const parentSessionId = parseSessionParent(req.body);
+    const result = await sessionsService.setSessionParent(sessionId, parentSessionId);
     res.json(createApiSuccessResponse(result));
   }),
 );
