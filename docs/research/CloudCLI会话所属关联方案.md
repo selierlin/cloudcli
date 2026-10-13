@@ -1,6 +1,6 @@
 # CloudCLI 会话所属关联方案
 
-> - 状态：**设计稿（第 1 轮审阅已响应，待复审）**，尚未动工
+> - 状态：**设计稿（第 1 轮审阅已响应；V1 已探针点验并据此改判 Q1，待复审）**，尚未动工
 > - 日期：2026-10-13
 > - 用途：评审「会话之间建立所属/派生关系，并在侧边栏以缩进/引用体现」的方案。审阅重点：**§4 开放问题的取舍（尤其分页父行带出、pin 语义、conversations 的表达方式）、§3.4 拖拽与菜单入口的取舍、§3.5 归档/删除的边界规则**。
 > - 参考规范：`.agents/skills/backend-module-standards/SKILL.md`（`server/`）、`.agents/skills/frontend-module-standards/SKILL.md`（`src/`）
@@ -9,7 +9,7 @@
 
 ## 0. 一句话结论
 
-会话之间加一个用户手动维护的**自引用归属字段**（`parent_session_id`，限一层、限同项目），后端补字段的写/读/投影与一个设置接口，前端在 **projects 视图**渲染缩进树、在 **conversations 视图**渲染「派生自」引用行。存储层已有一个同形的先例（`forked_from_session_id`）可直接照抄，**渲染缩进本身很便宜，真正的成本集中在两个入口（菜单/拖拽）与两条边界规则（父会话不在已加载页、父会话被归档）**。这两条边界一旦不处理，树会在最显眼的位置显示为「孤儿」或让活着的会话凭空消失。
+会话之间加一个用户手动维护的**自引用归属字段**（`parent_session_id`，限一层、限同项目），后端补字段的写/读/投影与一个设置接口，前端在 **projects 视图**渲染缩进树、在 **conversations 视图**渲染「派生自」引用行。存储层已有一个同形的先例（`forked_from_session_id`）可直接照抄，**渲染缩进本身很便宜，真正的成本集中在两个入口（菜单/拖拽）与两条边界规则（父会话不在已加载页、父会话被归档）**。两条边界都靠同一条客户端降级规则兜住（**父不可见 → 子按根渲染**），无正确性代价；其中「分页父行带出」经 V1 探针点验后确认当前规模不可达，**已从 P1 延后**（§1 V1、§4 Q1）。
 
 ---
 
@@ -58,9 +58,15 @@
 - **会话操作菜单有 5 处手写**：`SessionOptions.tsx:168-207` 只服务 `SidebarSessionItem` 的**桌面**分支（`SidebarSessionItem.tsx:457`，`{!isCompact && …}`）；另有 `SidebarSessionItem.tsx:207-360` 的 compact bottom sheet、`SidebarRecentConversations.tsx:466-517` 桌面 `ActionMenu` 与 `:328-390` 移动 bottom sheet、`SidebarContent.tsx:114-172`/`:516+` 的 `menuItems` 各自维护。
 - **i18n**：15 个语言包，`fallbackLng: 'en'`（`src/modules/i18n/config.ts:361`），**en 是超集**（扁平 key 实测：common.json en 321 / zh-CN 212，缺 109；chat.json en 469 / zh-CN 439）；会话文案住在 **`sidebar.json` 的 `sessions.*`**（`sessionOptions` 在此文件，common.json 无 `sessions` 段）。
 
-**设计假设（待验证，非实测）**
+**设计假设 V1（已用真实数据点验 → 结论：不可证，且其唯一消费者在当前规模不可达）**
 
-- 假设「派生/审阅会话通常比其父会话新」。若成立，则在时间倒序 + 分页下，子会话排在上方、父会话常在未加载页——这正是 §3.5 边界规则①要处理的场景。该假设需在实现前用真实数据点验（V1）。
+- 原假设「派生/审阅会话通常比其父会话新」。若成立，则在时间倒序 + 分页下子排在上方、父常在未加载页——这是 §3.5① 与 §4 Q1 的前提。
+- **探针实测（只读连接 `~/.cloudcli/auth.db` 及其 4 个备份）**：
+  - 库内唯一的关系先例是 `forked_from_session_id`；**当前库 + 全部备份合计只有 1 条 fork 记录**（当前库 6 会话/0 fork；最大备份 20 会话/0 fork；含 fork 的那个 14 会话/1 fork）。n=1，无统计效力。
+  - 更根本：fork 行插入时以 `CURRENT_TIMESTAMP` 写 `created_at/updated_at`（`sessions.db.ts:344-345`），子必然「更新」——它量的是 **fork 机制**，不是用户「把已有会话挂到父下」的行为。故**即使 fork 很多也测不了 V1**。
+  - V1 可归约为「B 最后一次活跃是否晚于 A」。因 `updateSessionParent` 设计上不动时间戳（§3.1），这是纯用户行为事实，**库里没有任何列可回溯挖掘 → 实现前不可证**。
+- **探针的次要发现（更关键）**：V1 一旦成立才会触发的分页孤儿（§4 Q1 / R1），**在当前数据规模不可达**——项目页大小 20（`projects-with-sessions-fetch.service.ts:117`）、最近流 40（`provider.routes.ts:1205`），而各快照中最大的活跃项目仅 **7** 个会话、全局活跃 ≤ **20**。即全部历史都落在第 1 页内，父不可能「在未加载页」。
+- **处置**：§4 Q1 由「P1 做」**下调为延后（P3）**，并设定显式再触发条件（见 §4 Q1）；§3.5① 保留（其「父不可见 → 子按根」的降级路径本就无成本，是不做 Q1 时的安全网）。
 
 ---
 
@@ -165,7 +171,7 @@
 
 | # | 场景 | 规则 |
 |---|------|------|
-| ① | **父不在当前已加载页**（分页） | 子按根渲染。服务端「带出父行」须用**独立字段**返回（见 §4 开放问题 1）——**不能塞进 `sessions` 数组**，否则污染 `hasMore` 与客户端 offset 推进（`projects-with-sessions-fetch.service.ts:199-204`、`useProjectsState.ts:1537-1546`）。（第 1 轮 W1） |
+| ① | **父不在当前已加载页**（分页） | 子按根渲染。**P1 不「带出父行」**（Q1 已延后，V1 探针改判，见 §1/§4 Q1）——此降级路径即是安全网，无正确性代价。若将来采纳，「带出父行」须用**独立字段**返回——**不能塞进 `sessions` 数组**，否则污染 `hasMore` 与客户端 offset 推进（`projects-with-sessions-fetch.service.ts:199-204`、`useProjectsState.ts:1537-1546`）。（第 1 轮 W1） |
 | ② | **父被归档**（软删） | 父不再出现在活跃列表（现有查询已过滤 `isArchived=0`），子按根渲染；**关系保留**，恢复父后树自动复原（D3 + A3）。**但父子可能落在不同视图**：归档区有两条独立数据源（`getArchivedSessions` / `readProjectSessionsIncludingArchived`），都不经 `SidebarProjectSessions`、也没有 `SessionOptions`，故**归档区不显示归属**、「恢复父后树复原」**只在活跃区成立**。另：「归档父 + 活跃子」时，活跃子暂无入口挂回（选择器候选是活跃根会话）——见 §4 开放问题 8。（第 1 轮 P6） |
 | ③ | **父被永久删除** | 由**仓储层删行点**收口（§3.2.1）：`deleteSessionById` / `deleteSessionByProviderSessionId` 内先孤儿化再删；service 无需额外处理。`deleteSessionsByProjectPath` 无需（D6 父子同项目一起删）。**删除不广播**，其他客户端的子行 `parentSessionId` 短暂陈旧 → 靠本表①/②规则兜住，下次 refetch 自愈。（第 1 轮 P1、W5） |
 | ④ | **pin 与树** | pin 只在同级生效：根之间按 pinned+时间；兄弟之间同一比较器。pin 永不把子拎出父下（A2）。 |
@@ -180,7 +186,7 @@
 
 | # | 问题 | 选项 | 倾向 |
 |---|------|------|------|
-| 1 | 项目视图是否「带出被引用的父行」，以及怎么带？ | ① 做，且用**独立字段** `referencedParents: SessionSummary[]` 返回（不塞进 `sessions`，客户端按 id 去重后并入） ② 不做：子按根渲染即可 | **①（用独立字段）**。假设 V1 成立时子常在上、父常在未加载页，「看起来是坏的」恰好发生在最显眼处。**处方已按第 1 轮 W1 修正**：塞进 `sessions` 会破坏 `hasMore`/offset 算术并导致跨页重复出图，必须独立字段。是否值得仍待 V1 验证。 |
+| 1 | 项目视图是否「带出被引用的父行」（`referencedParents`）？ | ① P1 做 ② **延后到 P3，仅按需做** | **②延后（V1 探针改判）**。原倾向①的全部依据是「V1 成立时子常在上、父常在未加载页」。探针实测：V1 **不可证**（唯一先例 fork 合计 1 条，且原理上测不了，见 §1 V1）；且其触发场景**在当前规模不可达**（项目页 20 / 最近流 40 vs 最大活跃项目 7、全局活跃 ≤20）。**再触发条件**：一旦出现「单项目活跃会话 > 20（项目页装不下）」或真实观察到根级孤儿子，「带出父行」再上。届时仍**必须用独立字段** `referencedParents`（不塞进 `sessions`，否则破坏 `hasMore`/offset 算术并跨页重复，第 1 轮 W1）。不做时的降级路径 = §3.5①（父不可见 → 子按根），无正确性代价。 |
 | 2 | conversations 引用行是否需要父标题？ | ① 需要 ② 不需要（退化显示「派生会话」） | **①（第 1 轮 W6 + P8 使处方落地）**：`getSessionById` 不过滤 `isArchived`（`sessions.db.ts:631-644`），按去重后的父 id **批量**解析即可覆盖「父已归档」，不再是必然退化场景。P1 可先只显示「派生会话」，P2 补 `parentTitle`。 |
 | 3 | 子会话的 pin 语义？ | ① 同级排序（复用比较器）② 隐藏 pin 入口 | **①**（A2）。零特判、语义自洽。②更省代码但少功能，二选一。 |
 | 4 | 是否要区分关系种类（派生 / 审阅）？ | ① 不做，字段只表达「归属」 ② 加 `relation_kind` | **①**。用户未要求区分；加枚举属过度设计（YAGNI）。将来确有需要再加列。 |
@@ -203,7 +209,7 @@
 2. `server/modules/database/migrations.ts` — 加列 + `idx_sessions_parent`。
 3. `server/modules/database/repositories/sessions.db.ts` — `SessionRow`、`SESSION_ROW_COLUMNS` 加列；新增 `updateSessionParent`（**不动时间戳**）、`orphanChildSessions`（+ 若需 `countChildrenOf`）；**把孤儿化下沉到 `deleteSessionById` 与 `deleteSessionByProviderSessionId` 共用的删行 helper（同一事务，先 UPDATE 再 DELETE）**（第 1 轮 P1）。
 4. `server/modules/providers/services/sessions.service.ts` — 新增 `setSessionParent`（**同步、无 await**，含全部校验）；`getSessionDetailsById` / `listRecentSessions` 投影补 `parentSessionId`；最近流补 `parentTitle`（批量用 `getSessionById`）。永久删除分支**无需改**（已在仓储层收口）。
-5. `server/modules/projects/services/projects-with-sessions-fetch.service.ts` — `SessionSummary` / `SessionRepositoryRow` / `mapSessionRowToSummary` 补 `parentSessionId`；**开放问题 1 若采纳**，加**独立字段** `referencedParents`（不并入 `sessions`）。
+5. `server/modules/projects/services/projects-with-sessions-fetch.service.ts` — `SessionSummary` / `SessionRepositoryRow` / `mapSessionRowToSummary` 补 `parentSessionId`。（`referencedParents` **不在 P1**——Q1 已延后，见 §4 Q1 / P3。）
 6. `server/modules/providers/provider.routes.ts` — `parseSessionParent` + `PUT /sessions/:sessionId/parent`。
 7. `server/modules/websocket/services/session-upsert-broadcast.service.ts` + `server/shared/types.ts` — 事件 `session` 加 `parentSessionId`；`setSessionParent` 后广播 `metadata`。
 
@@ -221,16 +227,17 @@
 测试（与实现同步）：
 
 16. `server/modules/providers/tests/` — `setSessionParent` 校验矩阵（自引用/跨项目/父已有父/自己已有子/成功/移出/**并发双写不落环**，第 1 轮 W4）；路由解析用例（严格类型、`null` vs 缺字段）；**删行路径的孤儿化断言**（覆盖 `deleteSessionById`、`deleteSessionByProviderSessionId`、`pruneOrphanedSessions`，第 1 轮 P1）。
-17. `server/modules/projects/tests/` — 项目会话投影带 `parentSessionId`；若采纳 `referencedParents`，断言其**不改变** `sessions/total/hasMore`（第 1 轮 W1）。
+17. `server/modules/projects/tests/` — 项目会话投影带 `parentSessionId`。
 18. `src/modules/sidebar/tests/`（或 `src/shared/tests/` 视落点）— 分组派生：正常父子、父缺失→根、父是子→不嵌套、pin 同级、搜索过滤后分组、**引用行点击三态**；乐观 overlay 的**回滚**用例（第 1 轮 W10）。
 
 **P2 — conversations 引用行 + 父标题**
 
 19. `sessions.service.ts` `listRecentSessions` 补 `parentTitle`；前端 `SidebarRecentConversations.tsx` 渲染「↳ 派生自 …」；`RecentConversationListItem` 类型补字段。
 
-**P3 — 桌面拖拽**
+**P3 — 桌面拖拽 + 按需的 `referencedParents`**
 
 20. 侧边栏 DnD（draggable 手柄、drop 落点、manage 模式禁用）；移动端继续用菜单。
+21. **仅当出现「单项目活跃会话 > 20」或观察到根级孤儿子**时：项目视图加**独立字段** `referencedParents: SessionSummary[]`（不并入 `sessions`）+ 客户端按 id 去重并入渲染集合，配套断言 `sessions/total/hasMore` 不变（§4 Q1、§1 V1）。
 
 ---
 
@@ -241,7 +248,7 @@
 - [ ] 同项目约束：跨项目设父被服务端拒绝（400），且前端乐观态回滚 + 可见错误（第 1 轮 W10）。
 - [ ] **「归到/移出」后子会话的时间序位置不变**（未被顶到项目顶部，`lastActivity` 未变，第 1 轮 P3）。
 - [ ] 「移出」后 B 回到根级，位置按时间序。
-- [ ] 分页边界：父未加载时，子按根渲染且不报错；若采纳开放问题 1，父行随**独立字段**带出、树正确，且**「加载更多」不重复出图、offset 推进不受额外行影响**（第 1 轮 W1）。
+- [ ] 分页边界：父未加载时，子按根渲染且不报错（P1 不做「带出父行」，此为预期行为；若 P3 采纳 Q1，则须补「父行随**独立字段**带出、树正确、『加载更多』不重复出图、offset 推进不受额外行影响」，第 1 轮 W1）。
 - [ ] 归档父 → 子仍在活跃列表（按根）；恢复父 → 树复原；归档区不显示归属（第 1 轮 P6）。
 - [ ] 永久删除父 → 子成为根（DB `parent_session_id` 为 NULL）；**父被 `pruneOrphanedSessions` 自动清理时同样不悬垂**（第 1 轮 P1）。
 - [ ] pin 子会话 → 只在 A 的子列表内上移，不脱离 A。
@@ -255,7 +262,7 @@
 
 ## 7. 风险与回滚
 
-- **R1 分页孤儿**（高影响）：父不在已加载页 → 树在最显眼处显示为孤儿。缓解 = §4 开放问题 1 采纳「带出父行」，且**必须用独立字段** `referencedParents`（并入 `sessions` 会破坏分页算术并跨页重复，第 1 轮 W1）。
+- **R1 分页孤儿**（**已由 V1 探针降级为低风险/当前不可达**）：父不在已加载页 → 子树显示为根。实测当前最大活跃项目 7 会话 < 项目页 20（最近流 40 > 全局活跃 ≤20），该场景**当前不可能发生**。缓解 = §3.5①（父不可见 → 子按根，无正确性代价）；若将来项目超过一页且出现孤儿，再上「带出父行」，且**必须用独立字段** `referencedParents`（并入 `sessions` 会破坏分页算术并跨页重复，第 1 轮 W1）。
 - **R2 memo 击穿**：分组缓存若与搜索链路冲突（`filterSessionsForProject` 返回不进缓存的新数组），或乐观更新重建 `project.sessions`，都会每帧重建数组 → 全树重渲。缓解 = 分组做**独立纯函数**、缓存按 project+搜索词组合键；乐观态走 **overlay**（第 1 轮 W2、P7）。
 - **R3 两套布局漂移**：compact/desktop 需同步改；缩进落点是**子行变体**而非 `:180` 容器，compact 卡片是 `mx-3` 内边距形态（第 1 轮 P10）。
 - **R4 pin / 搜索交互**：扁平假设散落在 `applyOptimisticSessionPinState` / `reorderRecentConversationsForPin` 等处，需逐一确认与分组后的语义一致。
@@ -386,6 +393,16 @@
 **核验方法（可复核）**：回源码逐条对照——分页算术与 offset（`projects-with-sessions-fetch.service.ts:199-204`、`useProjectsState.ts:1537-1546`）；删行路径与 prune（`sessions.db.ts:842/888/898`、`session-synchronizer.service.ts:56`）；广播先例（`sessions.service.ts:346-357` vs `:506`）；时间戳（`sessions.db.ts:875-886`）；`getSessionById`（`:631-644`）；i18n 用 `node -e` 实测扁平 key 计数。
 
 **本轮成套修订**：§1（新增「审阅轮补充事实」块）、§2（D7、A3 校准）、§3.1/§3.2/§3.3/§3.4/§3.5（多条目 + 新增⑧）、§4（Q1/Q2/Q6 改判 + 新增 Q8）、§5（项 3/4/5/13/14/15/16/17/18）、§6（新增 7 项、改写 2 项）、§7（R1/R2/R6 改写 + 新增 R8/R9）、状态行。原 §3.5③ 与 §4 Q1 的具体表述已按本轮结论重写，以本节为准。
+
+### 作者动作：作者（2026-10-13，V1 探针 → Q1 改判）
+
+对 §1 唯一未决的设计假设 V1（「派生/审阅会话通常比父新」）用真实数据点验，并据结果改判 §4 Q1。
+
+- **探针**：只读连接 `~/.cloudcli/auth.db` 及同目录 4 个时间点备份（脚本用 `better-sqlite3` readonly，未写任何数据）。以 `forked_from_session_id` 作为「派生」的现成信号，按仓库真实排序键（`updated_at`，`sessions.db.ts:813-818`/`:738-741`）对比子/父次序与「子在第 1 页、父在第 2 页」的比例。
+- **结果**：当前库 6 会话/0 fork；最大备份 20 会话/0 fork；唯一含 fork 的备份 14 会话/**1 fork**（且该 fork 因插入时 `CURRENT_TIMESTAMP` 必然「更新」，`sessions.db.ts:344-345`）。**合计 n=1 → V1 不可证**；且 fork 机制在原理上就测不了 V1（详见 §1）。
+- **次要发现（决策相关）**：V1 成立的场景（分页孤儿）**当前不可达**——项目页 20 / 最近流 40 vs 最大活跃项目 7 / 全局活跃 ≤20。故全部历史都在第 1 页内。
+- **改判**：§4 Q1 从「P1 做（独立字段 `referencedParents`）」**下调为 P3、仅按需做**，并写明显式再触发条件（单项目活跃会话 > 20 或观察到孤儿子）。§1（V1 块重写）、§3.5①、§4 Q1、§5.5/17（移出 P1、P3 新增项 21）、§6（分页边界项）、§7 R1（高影响 → 当前不可达/低风险）已成套改。
+- **未采纳**：不引入「链接时埋点采集 V1」——V1 的唯一消费者是 Q1，而 Q1 的再触发条件（项目超过页面大小）可直接观察，埋点属额外代码（YAGNI）。若将来需要数据，最小做法是在 `setSessionParent` 成功分支加一行结构化日志（子/父 `updated_at`、各自在项目内的 rank、项目总数），不落库。
 
 ---
 
