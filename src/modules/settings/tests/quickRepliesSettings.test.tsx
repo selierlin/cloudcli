@@ -82,3 +82,44 @@ test('removing the last row leaves an empty list that stays empty', () => {
   assert.equal(removeButtons(container).length, 0);
   assert.ok(getByText('quickRepliesSettings.empty'), 'the empty state must replace the rows');
 });
+
+const pickFile = (container: HTMLElement, file: File) => {
+  const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+  Object.defineProperty(input, 'files', { value: [file], configurable: true });
+  fireEvent.change(input);
+};
+
+test('an import whose file holds nothing usable reports it and leaves the list alone', async () => {
+  writeQuickReplies([{ text: '原有' }]);
+  const { container, findByRole } = render(<QuickRepliesSettingsTab />);
+
+  pickFile(container, new File(['   \n \n'], 'empty.txt', { type: 'text/plain' }));
+
+  const status = await findByRole('status');
+  assert.equal(status.textContent, 'quickRepliesSettings.importEmpty');
+  assert.deepEqual(readStoredQuickReplies(), [{ text: '原有' }]);
+});
+
+test('a confirmed import replaces the list and reports the rows it skipped', async () => {
+  const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+  const { container, findByRole } = render(<QuickRepliesSettingsTab />);
+
+  pickFile(container, new File(['继续\n\n重试\n'], 'snippets.txt', { type: 'text/plain' }));
+
+  const status = await findByRole('status');
+  assert.equal(status.textContent, 'quickRepliesSettings.importSkipped:{"count":1}');
+  assert.deepEqual(readStoredQuickReplies(), [{ text: '继续' }, { text: '重试' }]);
+  confirmSpy.mockRestore();
+});
+
+test('declining the confirm leaves the current list untouched', async () => {
+  const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  writeQuickReplies([{ text: '原有' }]);
+  const { container } = render(<QuickRepliesSettingsTab />);
+
+  pickFile(container, new File(['新的一条'], 'snippets.txt', { type: 'text/plain' }));
+
+  await vi.waitFor(() => assert.equal(confirmSpy.mock.calls.length, 1));
+  assert.deepEqual(readStoredQuickReplies(), [{ text: '原有' }]);
+  confirmSpy.mockRestore();
+});

@@ -65,13 +65,21 @@ export default function QuickRepliesSettingsTab() {
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = EXPORT_FILE_NAME;
+    // The anchor has to be in the document for the click to start the download
+    // in every browser, and the object URL must outlive that download: revoking
+    // it synchronously can cancel the transfer before the blob is read.
+    document.body.appendChild(anchor);
     anchor.click();
-    URL.revokeObjectURL(url);
+    document.body.removeChild(anchor);
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
   const handleImportFile = (file: File) => {
     setImportFeedback(null);
     const reader = new FileReader();
+    // A file that cannot be read at all reports the same "nothing usable" the
+    // parser does, so a failed pick is never a silent no-op.
+    reader.onerror = () => setImportFeedback({ kind: 'error', code: 'empty' });
     // Parsing (and the overwrite confirm) has to wait until the text is in,
     // which is why it lives in the load callback rather than the change handler.
     reader.onload = () => {
