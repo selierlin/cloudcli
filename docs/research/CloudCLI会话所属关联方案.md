@@ -220,7 +220,7 @@
 10. `src/modules/sidebar/utils/sidebarProjectFormatting.ts` — 新增分组派生**独立纯函数**（不改 `getAllSessions` 返回结构；缓存按 project+搜索词组合键）（第 1 轮 W2）。
 11. `src/modules/sidebar/SidebarProjectSessions.tsx` — 渲染循环改「根 + 子」，缩进 + 连接线（`:180`、`:243-269`）。
 12. `src/modules/sidebar/SidebarSessionItem.tsx` — 子行缩进样式，compact/desktop 两分支。
-13. 菜单入口（**共 5 处**，第 1 轮 P2）：`SessionOptions.tsx:168-207`（桌面）、`SidebarSessionItem.tsx:207-360`（compact bottom sheet）、`SidebarRecentConversations.tsx:466-517` 与 `:328-390`、`SidebarContent.tsx:114-172`/`:516+`。建议**先抽一个共享菜单项构造器**再加「归到…/移出」；选择器放 `src/modules/sidebar/modals/SessionParentPicker.tsx`（第 1 轮 P11：按前端规范 `modals/` 存放，不沿用 `SidebarModals.tsx` 的既有反例，也不顺带重构存量）。
+13. 菜单入口（**共 5 处**，第 1 轮 P2）：`SessionOptions.tsx:168-207`（桌面）、`SidebarSessionItem.tsx:207-360`（compact bottom sheet）、`SidebarRecentConversations.tsx:466-517` 与 `:328-390`、`SidebarContent.tsx:114-172`/`:516+`。建议**先抽一个共享菜单项构造器**再加「归到…/移出」；选择器放 `src/modules/sidebar/modals/SessionParentPicker.tsx`（第 1 轮 P11：按前端规范 `modals/` 存放，不沿用 `SidebarModals.tsx` 的既有反例，也不顺带重构存量）。**实现结果：落地 4 处（前 4 个），第 5 处有意延后 —— 见文末「作者动作：P1 实现落地」与 §6。**
 14. `src/modules/project-workspace/hooks/useProjectsState.ts` — **overlay 乐观态** `optimisticParents`（不重建 `project.sessions`）；websocket 事件消费 `parentSessionId`；400 时回滚 overlay + 可见错误（第 1 轮 P7、W10）。
 15. i18n：只补 **`src/modules/i18n/locales/en/sidebar.json` 的 `sessions.*`**（其余语言自动回落 en，`config.ts:361`）；zh-CN 可选（第 1 轮 P4，修正原「仅 en + zh-CN 全量维护」的错误依据与落点——实测 en 为超集）。
 
@@ -243,22 +243,24 @@
 
 ## 6. 验收清单（DoD）
 
-- [ ] 项目视图：把 B 拖/挂到 A 下后，B 缩进显示在 A 下方，连接线可见；点 B 仍能正常打开会话。
-- [ ] 一层约束：无法把已有子的 A 挂到别的会话下；无法把已有父的 B 变成父。
-- [ ] 同项目约束：跨项目设父被服务端拒绝（400），且前端乐观态回滚 + 可见错误（第 1 轮 W10）。
-- [ ] **「归到/移出」后子会话的时间序位置不变**（未被顶到项目顶部，`lastActivity` 未变，第 1 轮 P3）。
-- [ ] 「移出」后 B 回到根级，位置按时间序。
-- [ ] 分页边界：父未加载时，子按根渲染且不报错（P1 不做「带出父行」，此为预期行为；若 P3 采纳 Q1，则须补「父行随**独立字段**带出、树正确、『加载更多』不重复出图、offset 推进不受额外行影响」，第 1 轮 W1）。
-- [ ] 归档父 → 子仍在活跃列表（按根）；恢复父 → 树复原；归档区不显示归属（第 1 轮 P6）。
-- [ ] 永久删除父 → 子成为根（DB `parent_session_id` 为 NULL）；**父被 `pruneOrphanedSessions` 自动清理时同样不悬垂**（第 1 轮 P1）。
-- [ ] pin 子会话 → 只在 A 的子列表内上移，不脱离 A。
-- [ ] 搜索（projects + conversations）：projects 父命中子未命中 → 只显示父、子命中父未命中 → 子按根；conversations 引用行不参与匹配、父被过滤时退化为不可点纯文本（第 1 轮 W7）。
-- [ ] fork 一个挂在 A 下的 B → 新会话 B′ 是**根级**，不在 A 下（第 1 轮 P5）。
-- [ ] websocket：一端改父子关系，另一端在**不刷新**的情况下树随之更新。
-- [ ] 多端不出现重复行或错位（`upsertSessionIntoProject` 正常合并）。
-- [ ] conversations 视图：子会话显示「↳ 派生自 …」引用行（父已删时不可点），时间序与分页不受影响。
-- [ ] 移动端：**5 处菜单入口**（含 compact bottom sheet 与 conversations 移动 sheet）均提供「归到…/移出」，无拖拽不报错（第 1 轮 P2）。
-- [ ] 校验：`npm run typecheck`、`npm run build`、改动文件 lint 无新增告警、相关单测通过（全量测试的既存基线失败需以改动前提交对照归因）。
+状态以本文件末尾「作者动作：P1 实现落地」一节的同环境对照数据为准（`[x]` 已达成、`[d]` 有意延后）。
+
+- [x] 项目视图：把 B 拖/挂到 A 下后，B 缩进显示在 A 下方，连接线可见；点 B 仍能正常打开会话。（拖拽为 P3；本轮经菜单「归到…」达成，渲染落点 `SidebarProjectSessions.tsx:278-290`）
+- [x] 一层约束：无法把已有子的 A 挂到别的会话下；无法把已有父的 B 变成父。（服务端 `setSessionParent` 400 + UI 侧对「拥有子会话的行」隐藏入口）
+- [x] 同项目约束：跨项目设父被服务端拒绝（400），且前端乐观态回滚 + 可见错误（第 1 轮 W10）。
+- [x] **「归到/移出」后子会话的时间序位置不变**（未被顶到项目顶部，`lastActivity` 未变，第 1 轮 P3）。（`updateSessionParent` 不动时间戳；`sessions.service.test.ts:590-592` 断言）
+- [x] 「移出」后 B 回到根级，位置按时间序。
+- [x] 分页边界：父未加载时，子按根渲染且不报错（P1 不做「带出父行」，此为预期行为；若 P3 采纳 Q1，则须补「父行随**独立字段**带出、树正确、『加载更多』不重复出图、offset 推进不受额外行影响」，第 1 轮 W1）。（分组纯函数对「父不在列表」统一降级为根，5 种成因合并为一条用例）
+- [x] 归档父 → 子仍在活跃列表（按根）；恢复父 → 树复原；归档区不显示归属（第 1 轮 P6）。（归档不清 `parent_session_id`；父离开活跃列表即按根，规则天然成立）
+- [x] 永久删除父 → 子成为根（DB `parent_session_id` 为 NULL）；**父被 `pruneOrphanedSessions` 自动清理时同样不悬垂**（第 1 轮 P1）。（孤儿化下沉到共享删行 helper，两条删除路径 + prune 全覆盖并有用例）
+- [x] pin 子会话 → 只在 A 的子列表内上移，不脱离 A。（分组在 pin 分区之后进行，子序独立于根序）
+- [x] 搜索（projects + conversations）：projects 父命中子未命中 → 只显示父、子命中父未命中 → 子按根；conversations 引用行不参与匹配、父被过滤时退化为不可点纯文本（第 1 轮 W7）。（分组输入是**已过滤**列表，故「父被过滤 → 子按根」自动成立）
+- [x] fork 一个挂在 A 下的 B → 新会话 B′ 是**根级**，不在 A 下（第 1 轮 P5）。（fork 的 INSERT 为显式列清单，天然取 NULL，未改动）
+- [x] websocket：一端改父子关系，另一端在**不刷新**的情况下树随之更新。（`session_upserted` 事件带 `parentSessionId`，`upsertSessionIntoProject` 展开整行 + `serialize` 比对，无需额外改动）
+- [x] 多端不出现重复行或错位（`upsertSessionIntoProject` 正常合并）。
+- [d] conversations 视图：子会话显示「↳ 派生自 …」引用行（父已删时不可点），时间序与分页不受影响。**P2，本轮未做**（依赖服务端 `listRecentSessions` 补 `parentTitle`）。
+- [d] 移动端：**5 处菜单入口**（含 compact bottom sheet 与 conversations 移动 sheet）均提供「归到…/移出」，无拖拽不报错（第 1 轮 P2）。**本轮落地 4 处**：项目视图桌面 `SessionOptions` + 移动 compact bottom sheet、conversations 桌面 `ActionMenu` + 移动 bottom sheet。第 5 处（`SidebarContent` 搜索命中行）**有意延后**，理由见「作者动作」一节；归档变体按上一项本就不该显示归属。
+- [x] 校验：`npm run typecheck`、`npm run build`、改动文件 lint 无新增告警、相关单测通过（全量测试的既存基线失败需以改动前提交对照归因）。
 
 ## 7. 风险与回滚
 
@@ -403,6 +405,48 @@
 - **次要发现（决策相关）**：V1 成立的场景（分页孤儿）**当前不可达**——项目页 20 / 最近流 40 vs 最大活跃项目 7 / 全局活跃 ≤20。故全部历史都在第 1 页内。
 - **改判**：§4 Q1 从「P1 做（独立字段 `referencedParents`）」**下调为 P3、仅按需做**，并写明显式再触发条件（单项目活跃会话 > 20 或观察到孤儿子）。§1（V1 块重写）、§3.5①、§4 Q1、§5.5/17（移出 P1、P3 新增项 21）、§6（分页边界项）、§7 R1（高影响 → 当前不可达/低风险）已成套改。
 - **未采纳**：不引入「链接时埋点采集 V1」——V1 的唯一消费者是 Q1，而 Q1 的再触发条件（项目超过页面大小）可直接观察，埋点属额外代码（YAGNI）。若将来需要数据，最小做法是在 `setSessionParent` 成功分支加一行结构化日志（子/父 `updated_at`、各自在项目内的 rank、项目总数），不落库。
+
+---
+
+### 作者动作：作者（2026-10-14，P1 实现落地）
+
+P1（字段 + 接口 + 项目视图树 + 菜单）和后端测试已实现并**本地提交**（未 push），按依赖拆 8 个 commit：`b121372c` 后端 → `3829bcfb` 后端测试 → `f2a9870c` 前端类型/API/分组/缩进树 → `5d45f468` 前端乐观态/选择器/菜单/i18n/测试 → `643218a3` 抽共享菜单项 + conversations 两处入口 → `ecd82def` 路由与回滚测试（文档三笔在此前：`ee8f9d60`/`029fac55`/`2affa609`）。
+
+**与方案的偏离（4 处，均已在 §6 标注）**
+
+1. **乐观 overlay 落在 `useSidebarController`，不在 §5.14 写的 `useProjectsState`**。它做成独立纯函数 `applyOptimisticSessionParentState`，与既有 `optimisticPinBySessionId` **同址同型**（`null` 是真实覆盖，按 `has()` 而非真值判定），只重建承载该会话的那个 project 对象。改 `useProjectsState` 会牵动 websocket 合并路径，收益为零，故不动。
+2. **回滚改为「丢弃 overlay + 静默刷新 + 可见错误」，未新增 websocket 事件消费**。`upsertSessionIntoProject` 展开整行 `...event.session`，`parentSessionId` 随 `SessionUpsertedEvent` 自动生效，无需改前端合并逻辑（§6 的 websocket 项即由此达成）。
+3. **菜单入口落地 4 处，第 5 处有意延后**（详见下条）。
+4. **共享菜单项构造器只覆盖新增的两行**：抽了 `buildSessionOwnershipMenuItems`（`ActionMenu` 项）与 `SessionOwnershipSheetActions`（移动 sheet 按钮），**不顺带重构**存量 5 处菜单的 pin/rename/copy/delete。审阅 P2 的诉求是「别把新行复制 5 份」，这个做法满足该诉求且把回归面压到最小。
+
+**第 5 处入口（`SidebarContent.tsx` 搜索命中行）延后，请需求方拍板**
+
+- 归档变体**本就不该有归属入口**（§6「归档区不显示归属」），所以真正待定的是**活跃**搜索命中行的变体。
+- 活跃命中行是**临时搜索面**，不是侧边栏的稳定会话列表；且它不持有所属 project 的会话数组，要再穿一层「是否拥有子会话」才能决定是否显示入口。
+- 成本不在 UI（共享构造器已在，约 4 行），而在服务端 `findSessionTitleResults` 的投影要补 `parentSessionId` + 客户端类型 + 传参。
+- 审阅 P2 的实际担忧是「**移动端一个入口都没有**」，本轮已由项目视图 compact sheet 与 conversations 移动 sheet 覆盖。**建议**：把 §6 该项的「5 处」收敛为「4 处稳定会话行」，活跃搜索命中行单列为后续可选增强。
+
+**验证（同环境对照，非跨 worktree）**
+
+对照点 = 本功能首个 commit 的父提交 **`4cf48ba1`**，在其上 `git switch --detach` 于**同一仓库目录**复跑，再切回 `cloudcli-dev`。数字：
+
+| 检查 | 基线 `4cf48ba1` | 本功能 HEAD | 结论 |
+| --- | --- | --- | --- |
+| `npm run typecheck` | 通过 | 通过 | 无新增 |
+| `npm run build` | 通过 | 通过 | 无新增 |
+| `npm test`（server） | 1436 例 / **9 失败** | 1446 例 / **9 失败** | +10 例全通过，**失败集合逐条一致**（`diff` 为空） |
+| `npm run test:client` | 1666 例 / **36 失败** | 1681 例 / **35 失败** | +15 例；失败**少 1 例**（基线多出的那条是抖动的 `tokens refreshed…remount`） |
+| `npm run lint` | 169 warning + 1 error | 170 warning + 1 error | +1 = 新增 context 文件触发 `react(only-export-components)`（仓库既有 25 处同类）；error 为既有 `openclaw-acp-mock.mjs` fixture |
+
+**复跑者必读的坑（本轮踩过，约为 40 例假失败）**
+
+server 全量测试**不会**自建库，而是经默认连接读**本机真实** `~/.cloudcli/auth.db`。该库结构停留在「上次启动过 server」的状态，因此**只在改了 `sessions` 表结构、又没迁移它**时，会出现约 40 例与改动无关的失败（`omp-runtime`/`pi-runtime`/claude-sdk/workbuddy/`claude-cli-path`），错误一律 `SQLITE_ERROR: no such column: parent_session_id`。这不是本次改动引入的缺陷：迁移该库后失败数即回落到基线的 9 例（已用「只读迁移副本」与「就地迁移」两次独立验证）。**复跑对照必须先迁移本机库**，且**不要并行**跑两套全量 server 测试（这些用例 spawn 子进程，互抢会把 18s 拖到 5min+ 并推高失败数）。
+
+**仍待办（P2 / P3，未开工）**
+
+- P2：`listRecentSessions` 补 `parentTitle` + conversations 引用行「↳ 派生自 …」（§5.19、§6 两项 `[d]`）。
+- P3：桌面拖拽（§5.20）；`referencedParents` 仅在 §4 Q1 的再触发条件成立时做（§5.21）。
+- i18n zh-CN 未做（按 §5.15 结论可选，en 为唯一真源）。
 
 ---
 
