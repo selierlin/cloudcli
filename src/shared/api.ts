@@ -704,9 +704,172 @@ export const api = {
 
 //----------------- VOICE TRANSCRIPTION AND SPEECH ------------
 
+// MiMo (Xiaomi) serves speech through the OpenAI *chat* surface
+// (`POST {baseUrl}/chat/completions`) instead of the OpenAI *audio* endpoints this
+// module otherwise targets, so a MiMo base URL needs a different request and
+// response shape on both paths. MiMo also accepts only wav/mp3 audio while
+// browsers record webm/opus (Chrome) or mp4/aac (iOS), so recordings must be
+// transcoded to wav before transcription.
+const MIMO_VOICE_HOST = 'xiaomimimo.com';
+const MIMO_STT_MODEL = 'mimo-v2.5-asr';
+const MIMO_TTS_MODEL = 'mimo-v2.5-tts';
+const MIMO_TTS_VOICE = 'mimo_default';
+// The MiMo output formats an <audio> element can play back directly.
+const MIMO_TTS_FORMATS = new Set(['wav', 'mp3']);
+
 /**
- * Builds a URL against the user's own OpenAI-compatible voice endpoint. Private to the
- * voice helpers below, which bypass the CloudCLI proxy when a base URL is configured.
+ * True when the configured voice endpoint is Xiaomi MiMo, whose audio API is
+ * chat-shaped rather than OpenAI-audio-shaped. Private to the voice helpers below.
+ */
+function isMimoVoiceBackend(baseUrl: string): boolean {
+  try {
+    const host = new URL(baseUrl).hostname;
+    return host === MIMO_VOICE_HOST || host.endsWith(`.${MIMO_VOICE_HOST}`);
+  } catch {
+    return false;
+  }
+}
+
+/** Encodes PCM channels as 16-bit little-endian WAV bytes. Private to {@link toWavBytes}. */
+function encodeWav(channels: Float32Array[], sampleRate: number): Uint8Array {
+  const frameCount = channels[0]?.length ?? 0;
+  const channelCount = channels.length || 1;
+  const blockAlign = channelCount * 2;
+  const dataSize = frameCount * blockAlign;
+  const view = new DataView(new ArrayBuffer(44 + dataSize));
+
+  const writeAscii = (offset: number, text: string) => {
+    for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i));
+  };
+
+  writeAscii(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeAscii(8, 'WAVE');
+  writeAscii(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // linear PCM
+  view.setUint16(22, channelCount, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true);
+  writeAscii(36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  let offset = 44;
+  for (let frame = 0; frame < frameCount; frame++) {
+    for (let channel = 0; channel < channelCount; channel++) {
+      const sample = Math.max(-1, Math.min(1, channels[channel]?.[frame] ?? 0));
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+      offset += 2;
+    }
+  }
+
+  return new Uint8Array(view.buffer);
+}
+
+/**
+ * Decodes a browser recording (webm/opus, mp4/aac, ogg) into WAV bytes, because
+ * MiMo's transcription endpoint rejects those containers. Private to
+ * {@link transcribeVoice}, which invokes it only on the MiMo path.
+ */
+async function toWavBytes(recording: Blob): Promise<Uint8Array> {
+  const AudioContextCtor =
+    window.AudioContext ??
+    (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  const context = new AudioContextCtor();
+  try {
+    const decoded = await context.decodeAudioData(await recording.arrayBuffer());
+    const channels: Float32Array[] = [];
+    for (let channel = 0; channel < decoded.numberOfChannels; channel++) {
+      channels.push(decoded.getChannelData(channel));
+    }
+    return encodeWav(channels, decoded.sampleRate);
+  } finally {
+    void context.close();
+  }
+}
+
+/** Base64-encodes bytes without assuming a browser Buffer polyfill. */
+function bytesToBase64(bytes: Uint8Array): string {
+  const chunkSize = 0x8000;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+/** Decodes the base64 audio MiMo returns in its chat response into raw bytes. */
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+/**
+ * Reshapes MiMo's chat transcription response into the `{ text }` JSON body the
+ * dictation caller reads. Private to {@link transcribeVoice}.
+ */
+async function readMimoTranscript(upstream: Response): Promise<Response> {
+  const raw = await upstream.text();
+  if (!upstream.ok) {
+    return new Response(raw, {
+      status: upstream.status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  let text = '';
+  try {
+    const content = JSON.parse(raw)?.choices?.[0]?.message?.content;
+    if (typeof content === 'string') text = content;
+  } catch {
+    /* Non-JSON body: return an empty transcript and let the caller report it. */
+  }
+  return new Response(JSON.stringify({ text }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+/**
+ * Unwraps the base64 audio in MiMo's chat response into an audio Response the
+ * player reads as a blob. Private to {@link synthesizeVoice}.
+ */
+async function readMimoSpeech(upstream: Response, format: string): Promise<Response> {
+  const raw = await upstream.text();
+  if (!upstream.ok) {
+    return new Response(raw, {
+      status: upstream.status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  let encoded = '';
+  try {
+    const data = JSON.parse(raw)?.choices?.[0]?.message?.audio?.data;
+    if (typeof data === 'string') encoded = data;
+  } catch {
+    /* handled by the empty-audio branch below */
+  }
+  if (!encoded) {
+    return new Response(JSON.stringify({ error: 'Voice backend returned no audio.' }), {
+      status: 502,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  return new Response(base64ToArrayBuffer(encoded), {
+    status: 200,
+    headers: { 'Content-Type': format === 'wav' ? 'audio/wav' : 'audio/mpeg' },
+  });
+}
+
+/**
+ * Builds a URL against the user's own voice endpoint. Private to the voice
+ * helpers below, which bypass the CloudCLI proxy when a base URL is configured.
  */
 function voiceDirectUrl(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/$/, '')}${path}`;
@@ -721,17 +884,44 @@ export function voiceConfigSignature(): string {
 }
 
 /**
- * Transcribes recorded audio, posting directly to the user's configured OpenAI-compatible
- * endpoint when one is set and otherwise going through the CloudCLI voice proxy.
+ * Transcribes recorded audio, posting directly to the user's configured endpoint when one
+ * is set and otherwise going through the CloudCLI voice proxy. A MiMo endpoint is
+ * addressed through its chat API with the recording converted to wav.
  */
-export function transcribeVoice(blob: Blob, filename: string): Promise<Response> {
+export async function transcribeVoice(blob: Blob, filename: string): Promise<Response> {
   const config = readVoiceConfig();
-  const body = new FormData();
+  const baseUrl = config.baseUrl.trim();
 
-  if (config.baseUrl.trim()) {
+  if (baseUrl && isMimoVoiceBackend(baseUrl)) {
+    const audio = bytesToBase64(await toWavBytes(blob));
+    return readMimoTranscript(
+      await fetch(voiceDirectUrl(baseUrl, '/chat/completions'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
+        },
+        body: JSON.stringify({
+          model: config.sttModel || MIMO_STT_MODEL,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'input_audio', input_audio: { data: `data:audio/wav;base64,${audio}` } },
+              ],
+            },
+          ],
+          asr_options: { language: 'auto' },
+        }),
+      }),
+    );
+  }
+
+  const body = new FormData();
+  if (baseUrl) {
     body.append('file', blob, filename);
     body.append('model', config.sttModel || 'whisper-1');
-    return fetch(voiceDirectUrl(config.baseUrl.trim(), '/audio/transcriptions'), {
+    return fetch(voiceDirectUrl(baseUrl, '/audio/transcriptions'), {
       method: 'POST',
       headers: config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {},
       body,
@@ -743,14 +933,37 @@ export function transcribeVoice(blob: Blob, filename: string): Promise<Response>
 }
 
 /**
- * Synthesizes speech for the given text, using the user's configured OpenAI-compatible
- * endpoint when one is set and otherwise the CloudCLI voice proxy.
+ * Synthesizes speech for the given text, using the user's configured endpoint when one is
+ * set and otherwise the CloudCLI voice proxy. A MiMo endpoint is addressed through its
+ * chat API and its base64 audio response is unwrapped into an audio stream.
  */
-export function synthesizeVoice(text: string, signal: AbortSignal): Promise<Response> {
+export async function synthesizeVoice(text: string, signal: AbortSignal): Promise<Response> {
   const config = readVoiceConfig();
+  const baseUrl = config.baseUrl.trim();
 
-  if (config.baseUrl.trim()) {
-    return fetch(voiceDirectUrl(config.baseUrl.trim(), '/audio/speech'), {
+  if (baseUrl && isMimoVoiceBackend(baseUrl)) {
+    const requested = config.ttsFormat.trim().toLowerCase();
+    const format = MIMO_TTS_FORMATS.has(requested) ? requested : 'mp3';
+    return readMimoSpeech(
+      await fetch(voiceDirectUrl(baseUrl, '/chat/completions'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
+        },
+        body: JSON.stringify({
+          model: config.ttsModel || MIMO_TTS_MODEL,
+          messages: [{ role: 'assistant', content: text }],
+          audio: { format, voice: config.ttsVoice || MIMO_TTS_VOICE },
+        }),
+        signal,
+      }),
+      format,
+    );
+  }
+
+  if (baseUrl) {
+    return fetch(voiceDirectUrl(baseUrl, '/audio/speech'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
