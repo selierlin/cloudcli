@@ -1453,8 +1453,11 @@ export function useSidebarController({
         // Filing a session writes only its ownership column — no transcript
         // changes — so the refresh can skip the on-disk session rescan. The
         // refreshed payload now carries the server's answer, so the preview is
-        // dropped instead of being reconciled against it.
+        // dropped instead of being reconciled against it. onRefresh reloads
+        // projects but not the recents feed, whose rows also show the
+        // parent reference line — reload it to match.
         await Promise.resolve(onRefresh({ skipSynchronization: true }));
+        reloadRecentConversations();
         if (parentAssignSequenceBySessionRef.current.get(sessionId) === latestSequence) {
           setOptimisticParentBySessionId((previous) => {
             if (!previous.has(sessionId)) {
@@ -1481,11 +1484,12 @@ export function useSidebarController({
           return next;
         });
         void onRefresh({ skipSynchronization: true });
+        reloadRecentConversations();
         console.error('[Sidebar] Error updating session parent:', error);
         alert(t('messages.updateSessionParentError'));
       }
     },
-    [onRefresh, t],
+    [onRefresh, reloadRecentConversations, t],
   );
 
   const collapseSidebar = useCallback(() => {
