@@ -232,7 +232,7 @@
 
 **P2 — conversations 引用行 + 父标题**
 
-19. `sessions.service.ts` `listRecentSessions` 补 `parentTitle`；前端 `SidebarRecentConversations.tsx` 渲染「↳ 派生自 …」；`RecentConversationListItem` 类型补字段。
+19. `sessions.service.ts` `listRecentSessions` 补 `parentTitle`；前端 `SidebarRecentConversations.tsx` 渲染「↳ 派生自 …」；`RecentConversationListItem` 类型补字段。**实现结果：已完成（commit `88e0777c`）**——见文末「作者动作：P2 实现落地」与 §6。
 
 **P3 — 桌面拖拽 + 按需的 `referencedParents`**
 
@@ -258,7 +258,7 @@
 - [x] fork 一个挂在 A 下的 B → 新会话 B′ 是**根级**，不在 A 下（第 1 轮 P5）。（fork 的 INSERT 为显式列清单，天然取 NULL，未改动）
 - [x] websocket：一端改父子关系，另一端在**不刷新**的情况下树随之更新。（`session_upserted` 事件带 `parentSessionId`，`upsertSessionIntoProject` 展开整行 + `serialize` 比对，无需额外改动）
 - [x] 多端不出现重复行或错位（`upsertSessionIntoProject` 正常合并）。
-- [d] conversations 视图：子会话显示「↳ 派生自 …」引用行（父已删时不可点），时间序与分页不受影响。**P2，本轮未做**（依赖服务端 `listRecentSessions` 补 `parentTitle`）。
+- [x] conversations 视图：子会话显示「↳ 派生自 …」引用行（父已删时不可点），时间序与分页不受影响。（P2 已完成：服务端 `listRecentSessions` 补 `parentTitle`，前端在标题下渲染引用行；父存在→可点开该父会话，父标题解析不到（已删）→纯文本「派生会话」。详见「作者动作：P2 实现落地」）
 - [x] 移动端：**4 处稳定会话行**（项目视图桌面 `SessionOptions` + 移动 compact bottom sheet、conversations 桌面 `ActionMenu` + 移动 bottom sheet）均提供「归到…/移出」，无拖拽不报错（第 1 轮 P2）。（需求方 2026-10-14 拍板：入口范围由「5 处」收敛为「4 处稳定会话行」，覆盖审阅 P2「移动端一个入口都没有」的实际担忧）
 - [d] 【后续可选增强，未纳入 P1】活跃搜索命中行（`SidebarContent.tsx`）加「归到…/移出」：归档变体按「归档父」一项的定义本就不显示归属；活跃命中行属**临时搜索面**，且不持有所属 project 的会话数组，须先由服务端 `findSessionTitleResults` 补 `parentSessionId`（外加客户端类型与传参）才能判定「是否拥有子会话」。
 - [x] 校验：`npm run typecheck`、`npm run build`、改动文件 lint 无新增告警、相关单测通过（全量测试的既存基线失败需以改动前提交对照归因）。
@@ -444,11 +444,45 @@ P1（字段 + 接口 + 项目视图树 + 菜单）和后端测试已实现并**�
 
 server 全量测试**不会**自建库，而是经默认连接读**本机真实** `~/.cloudcli/auth.db`。该库结构停留在「上次启动过 server」的状态，因此**只在改了 `sessions` 表结构、又没迁移它**时，会出现约 40 例与改动无关的失败（`omp-runtime`/`pi-runtime`/claude-sdk/workbuddy/`claude-cli-path`），错误一律 `SQLITE_ERROR: no such column: parent_session_id`。这不是本次改动引入的缺陷：迁移该库后失败数即回落到基线的 9 例（已用「只读迁移副本」与「就地迁移」两次独立验证）。**复跑对照必须先迁移本机库**，且**不要并行**跑两套全量 server 测试（这些用例 spawn 子进程，互抢会把 18s 拖到 5min+ 并推高失败数）。
 
-**仍待办（P2 / P3，未开工）**
+**仍待办（P3，未开工）**
 
-- P2：`listRecentSessions` 补 `parentTitle` + conversations 引用行「↳ 派生自 …」（§5.19、§6 两项 `[d]`）。
 - P3：桌面拖拽（§5.20）；`referencedParents` 仅在 §4 Q1 的再触发条件成立时做（§5.21）。
 - i18n zh-CN 未做（按 §5.15 结论可选，en 为唯一真源）。
+
+---
+
+### 作者动作：作者（2026-10-14，P2 实现落地）
+
+P2（conversations 引用行 + 父标题）已实现并**本地提交**（未 push）：`88e0777c`。
+
+**做了什么**
+
+1. **服务端**：`listRecentSessions` 在既有 `parentSessionId` 之外补 `parentTitle`。按**去重后的父 id** 走 `getSessionById` 解析（该查询不过滤 `isArchived`，故归档父也能解析），避免按行 N+1（一页 40 条）；父已永久删除时返回 `null`。`RecentSessionListItem` 补字段。路由 `/sessions/recent` 原样转发 `page`，无需改。
+2. **前端**：`RecentConversationRow` 在标题下挂一行「↳ 派生自 `<parentTitle>`」。父存在（本页、离页或已归档）→ **可点**，跳到该父会话；父标题解析不到（已删）→ **纯文本「派生会话」**，不留死入口。点击优先用**本页父行自身**的 `projectId`/`provider`（父在本页时身份最准），父离页时回落到本行的 `projectId`/`provider`，由 workspace 按 id 从服务端解析真实元数据。
+3. **i18n**：`en/sidebar.json` 补 `sessions.derivedFrom` / `sessions.derivedSessionFallback`（其余语言回落 en）。
+
+**与方案 §3.3「点击三态」的偏离（1 处，已收敛）**
+
+方案写的是三态：① 父在本页 →「滚动高亮并可打开」；② 父离页但存在 → 直接打开；③ 父已删 → 纯文本。实现把 ①/② **统一为「打开该父会话」**，理由：打开父会话后它即成为当前选中行，本页的行会自然显示选中态（选中样式本就绑 `selectedSession`），故「高亮」不需要额外 ref 埋点；「滚动」若父不在视口内也意义有限。③ 保持不变。这是**有意收简**，不是遗漏。
+
+**已知边界（未做，与方案一致）**
+
+- 搜索态：conversations 搜索（`searchFilter` ≥2 字符）走的是服务端会话标题/内容检索的独立结果面（`SidebarContent` 的 `showConversationSearch` 分支），**不是** recents 行；`SidebarRecentConversations` 自身不做标题过滤，故「父被搜索过滤掉 → 引用行退化纯文本」在当前实现下不存在需要特判的路径。`parentTitle` 也**未**并入标题检索索引，引用行不参与匹配（§3.5⑤ 的要求天然成立）。
+- 不同 provider 的父：离页时前端只能给本行的 provider，交给 workspace 的 URL 解析路径（`useProjectsState` 按 `getSessionDetailsById` 回填 `__provider`）自愈。若将来实测出现可见闪烁，再考虑让服务端多带一个 `parentProvider`（当前不做，YAGNI）。
+
+**验证（同环境对照）**
+
+对照点 = P2 之前的提交 **`da7625cf`**（P1 收尾）。本轮改动只碰 `listRecentSessions` 与其测试、`SidebarRecentConversations.tsx` 与其新测试、`en/sidebar.json`。数字：
+
+| 检查 | 基线 | 本功能 HEAD | 结论 |
+| --- | --- | --- | --- |
+| `npm run typecheck` | 通过 | 通过 | 无新增 |
+| `npm run build` | 通过 | 通过 | 无新增 |
+| `npm test`（server） | 1446 例 / **9 失败** | 1447 例 / **9 失败** | +1 例通过，**失败集合逐条一致**（`diff` 为空） |
+| `npm run test:client` | 1681 例 / **35 失败** | 1686 例 / **35 失败** | +5 例通过，失败集合**是基线的子集**（基线多出的那条 `tokens refreshed…remount` 为抖动，本轮已通过） |
+| `npm run lint` | 170 warning + 1 error | 170 warning + 1 error | **P2 新增 0 条**（相对最初基线 169 的 +1 仍只来自 P1 的新 context 文件） |
+
+（server 全量测试读本机真实库的坑见上一节；本轮已迁移该库，故失败数落在基线 9 例。）
 
 ---
 
