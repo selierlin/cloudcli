@@ -61,7 +61,21 @@ const parseBoolean = (value: unknown, fallback: boolean): boolean => {
 export const readStoredUiPreferences = (): UiPreferences => {
   const stored = readUserPreference<Record<string, unknown>>('uiPreferences', {});
 
+  // The single `voiceEnabled` switch predates its split into input and output
+  // toggles. Inherit it for both new switches only when the user has never
+  // toggled either of them, so an upgrade does not silently drop the feature.
+  const isVoiceToggleSplitInherited =
+    typeof stored === 'object' &&
+    stored !== null &&
+    !('voiceInputEnabled' in stored) &&
+    !('voiceOutputEnabled' in stored) &&
+    'voiceEnabled' in stored;
+
   return PREFERENCE_KEYS.reduce((acc, key) => {
+    if (isVoiceToggleSplitInherited && (key === 'voiceInputEnabled' || key === 'voiceOutputEnabled')) {
+      acc[key] = parseBoolean(stored.voiceEnabled, DEFAULTS[key]);
+      return acc;
+    }
     acc[key] = parseBoolean(stored[key], DEFAULTS[key]);
     return acc;
   }, { ...DEFAULTS });

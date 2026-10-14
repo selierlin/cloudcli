@@ -64,6 +64,30 @@ test('a stored value of the wrong type falls back instead of throwing', () => {
   assert.equal(readStoredUiPreferences().showThinking, true);
 });
 
+test('the legacy voiceEnabled switch is inherited by both new toggles', () => {
+  storeUiPreferences({ voiceEnabled: true });
+
+  const preferences = readStoredUiPreferences();
+  assert.equal(preferences.voiceInputEnabled, true);
+  assert.equal(preferences.voiceOutputEnabled, true);
+});
+
+test('a legacy voiceEnabled: false keeps both new toggles off', () => {
+  storeUiPreferences({ voiceEnabled: false });
+
+  const preferences = readStoredUiPreferences();
+  assert.equal(preferences.voiceInputEnabled, false);
+  assert.equal(preferences.voiceOutputEnabled, false);
+});
+
+test('once either new toggle has its own stored value the legacy switch is ignored', () => {
+  storeUiPreferences({ voiceEnabled: true, voiceOutputEnabled: false });
+
+  const preferences = readStoredUiPreferences();
+  assert.equal(preferences.voiceInputEnabled, false, 'the untoggled toggle keeps its default');
+  assert.equal(preferences.voiceOutputEnabled, false, 'the toggled toggle keeps its own value');
+});
+
 test('setting a preference changes only that key', () => {
   const state = baseline();
   const next = uiPreferencesReducer(state, { type: 'set', key: 'showThinking', value: false });
