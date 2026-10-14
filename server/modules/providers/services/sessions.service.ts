@@ -327,8 +327,9 @@ export const sessionsService = {
     // Parent titles are resolved once per distinct id, so a page holding many
     // children of one parent costs a single lookup instead of one per row.
     // `getSessionById` does not filter on `isArchived`, so an archived parent
-    // still resolves. A miss means the parent is gone (deletes are not
-    // broadcast, so a stale `parent_session_id` can outlive it until refetch).
+    // still resolves. A miss means the parent is gone; every delete path
+    // releases its children, so the dangling window only spans a row delete
+    // that has not been refetched yet.
     const parentTitleCache = new Map<string, string | null>();
     const conversations = page.sessions.map((session) => {
       const projectPath = session.project_path?.trim() ? session.project_path : null;
@@ -400,7 +401,10 @@ export const sessionsService = {
    *
    * Broadcasts the moved session afterwards so other clients re-derive the
    * tree; the parent's "has children" state is derived from the same field, so
-   * one event is enough.
+   * one event is enough. Note that the broadcast pipeline drops events for
+   * archived sessions, so moving an archived session notifies no one until the
+   * next refetch; filing under an archived parent is allowed on purpose (its
+   * title still resolves for the reference line).
    */
   async setSessionParent(
     sessionId: string,

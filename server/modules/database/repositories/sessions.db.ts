@@ -122,6 +122,33 @@ function deleteSessionRowsWhere(
   })();
 }
 
+/**
+ * Repoints sessions filed under rows that are about to be deleted onto the row
+ * that survives them, so a duplicate-row cleanup (watcher-row replacement,
+ * provider-id merge) cannot leave children pointing at a row that no longer
+ * exists. The surviving session itself is detached instead of being pointed at
+ * itself, which can happen when it was filed under the duplicate being merged
+ * away. Runs inside the caller's transaction. Like `updateSessionParent`, this
+ * deliberately leaves `updated_at` untouched so reorganization does not bump a
+ * session in the sidebar's recents ordering.
+ *
+ * `whereClause`/`params` select the rows being deleted; pass the same pair the
+ * accompanying DELETE uses. Must only be given code-literal clauses — user
+ * input may only travel through `params`.
+ */
+function repointChildrenToSurvivor(
+  db: ReturnType<typeof getConnection>,
+  whereClause: string,
+  survivorSessionId: string,
+  ...params: Array<string | number>
+): void {
+  db.prepare(
+    `UPDATE sessions
+     SET parent_session_id = CASE WHEN session_id = ? THEN NULL ELSE ? END
+     WHERE parent_session_id IN (SELECT session_id FROM sessions WHERE ${whereClause})`
+  ).run(survivorSessionId, survivorSessionId, ...params);
+}
+
 export const sessionsDb = {
   /**
    * Upserts one session row discovered on disk by a provider synchronizer.
@@ -367,8 +394,16 @@ export const sessionsDb = {
 
     // The watcher may already have created a row for the new transcript. Its
     // id is the provider-native one, which is what this row claims, so replace
-    // it rather than leaving two sidebar entries for one conversation.
+    // it rather than leaving two sidebar entries for one conversation. Sessions
+    // filed under the replaced row follow it onto the new one.
     db.transaction(() => {
+      repointChildrenToSurvivor(
+        db,
+        'session_id = ? AND session_id <> ?',
+        input.sessionId,
+        input.providerSessionId,
+        input.sessionId,
+      );
       reclaimReadStateFor(db, 'session_id = ? AND session_id <> ?', input.providerSessionId, input.sessionId);
       db.prepare('DELETE FROM sessions WHERE session_id = ? AND session_id <> ?')
         .run(input.providerSessionId, input.sessionId);
@@ -415,6 +450,9 @@ export const sessionsDb = {
         .get(providerSessionId, providerSessionId, sessionId) as SessionRow | undefined;
 
       if (duplicate) {
+        // The duplicate row is merged into the app row, so sessions filed
+        // under it follow onto the surviving row.
+        repointChildrenToSurvivor(db, 'session_id = ?', sessionId, duplicate.session_id);
         reclaimReadStateFor(db, 'session_id = ?', duplicate.session_id);
         db.prepare('DELETE FROM sessions WHERE session_id = ?').run(duplicate.session_id);
         db.prepare(
@@ -470,6 +508,16 @@ export const sessionsDb = {
     const db = getConnection();
 
     db.transaction(() => {
+      // Both deleted rows are artifacts of the same app conversation this
+      // session survives as, so sessions filed under them follow onto it.
+      repointChildrenToSurvivor(
+        db,
+        '(session_id = ? OR provider_session_id = ?) AND session_id <> ?',
+        sessionId,
+        input.providerSessionId,
+        input.providerSessionId,
+        sessionId,
+      );
       reclaimReadStateFor(
         db,
         '(session_id = ? OR provider_session_id = ?) AND session_id <> ?',
@@ -483,6 +531,14 @@ export const sessionsDb = {
            AND session_id <> ?`,
       ).run(input.providerSessionId, input.providerSessionId, sessionId);
       if (input.supersededProviderSessionId) {
+        repointChildrenToSurvivor(
+          db,
+          '(session_id = ? OR provider_session_id = ?) AND session_id <> ?',
+          sessionId,
+          input.supersededProviderSessionId,
+          input.supersededProviderSessionId,
+          sessionId,
+        );
         reclaimReadStateFor(
           db,
           '(session_id = ? OR provider_session_id = ?) AND session_id <> ?',
