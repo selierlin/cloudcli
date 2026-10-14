@@ -222,7 +222,7 @@
 12. `src/modules/sidebar/SidebarSessionItem.tsx` — 子行缩进样式，compact/desktop 两分支。
 13. 菜单入口（**共 5 处**，第 1 轮 P2）：`SessionOptions.tsx:168-207`（桌面）、`SidebarSessionItem.tsx:207-360`（compact bottom sheet）、`SidebarRecentConversations.tsx:466-517` 与 `:328-390`、`SidebarContent.tsx:114-172`/`:516+`。建议**先抽一个共享菜单项构造器**再加「归到…/移出」；选择器放 `src/modules/sidebar/modals/SessionParentPicker.tsx`（第 1 轮 P11：按前端规范 `modals/` 存放，不沿用 `SidebarModals.tsx` 的既有反例，也不顺带重构存量）。**实现结果：先落地 4 处（前 4 个），第 5 处收敛为后续可选增强（需求方 2026-10-14 拍板）；第 5 处已于同日补齐（见文末「作者动作：搜索命中行入口」）—— 见文末「作者动作：P1 实现落地」与 §6。**
 14. `src/modules/project-workspace/hooks/useProjectsState.ts` — **overlay 乐观态** `optimisticParents`（不重建 `project.sessions`）；websocket 事件消费 `parentSessionId`；400 时回滚 overlay + 可见错误（第 1 轮 P7、W10）。
-15. i18n：只补 **`src/modules/i18n/locales/en/sidebar.json` 的 `sessions.*`**（其余语言自动回落 en，`config.ts:361`）；zh-CN 可选（第 1 轮 P4，修正原「仅 en + zh-CN 全量维护」的错误依据与落点——实测 en 为超集）。
+15. i18n：只补 **`src/modules/i18n/locales/en/sidebar.json` 的 `sessions.*`**（其余语言自动回落 en，`config.ts:361`）；zh-CN 可选（第 1 轮 P4，修正原「仅 en + zh-CN 全量维护」的错误依据与落点——实测 en 为超集）。**实现结果：en 已补；zh-CN 亦已补齐（2026-10-14，10 条，见文末「作者动作：i18n zh-CN 补齐」）；其余 13 语言回落 en。**
 
 测试（与实现同步）：
 
@@ -449,7 +449,7 @@ server 全量测试**不会**自建库，而是经默认连接读**本机真实*
 - ~~P3：桌面拖拽（§5.20）~~ → **已完成**（见下方「作者动作：P3 实现落地」）。
 - ~~活跃搜索命中行入口（§6 原 `[d]`）~~ → **已完成**（见下方「作者动作：搜索命中行入口」）。
 - `referencedParents`（§5.21）仅在 §4 Q1 的再触发条件成立时做。
-- i18n zh-CN 未做（按 §5.15 结论可选，en 为唯一真源）。
+- ~~i18n zh-CN~~ → **已完成**（见下方「作者动作：i18n zh-CN 补齐」）。其余 13 个语言仍回落 en（按 §5.15 结论可选）。
 
 ---
 
@@ -563,6 +563,30 @@ P3（桌面原生 HTML5 拖拽）已实现并**本地提交**（未 push），�
 （**口径说明**：同一工作区里还并行进行着**与本功能无关的**语音开关改动（`chat/*`、`settings/tabs/VoiceSettingsTab.tsx`、`src/shared/uiPreferences.ts` 等，随后提交为 `227d68ca`），故 client 总例数 1708 里含它的用例；上表按「失败集合是否为基线子集 + 新用例是否全通过」判断，未把这条并行工作线的噪声算作本功能回归。）
 
 （server 全量测试读本机真实库的坑见 P1 一节；本轮未改表结构，未触发假失败。另：一次全量 server 跑曾在 `codex-app-server-client.test.ts` 上挂死 >15min，杀进程重跑即恢复 1m32s，该文件单独复跑 2.5s 通过——属环境抖动，与本轮无关。）
+
+---
+
+### 作者动作：作者（2026-10-14，i18n zh-CN 补齐）
+
+补上「会话所属关联」在 zh-CN 语言包里缺失的 10 个 key。§5.15 的结论是「只补 en，其余语言回落 en，zh-CN 可选」——**en 为唯一真源**这条依然成立；本轮只是把默认语言（`zh-CN`，见 `config.ts` 的 `lng`）补齐，不再有「切到中文看到英文」的缺口。
+
+**做了什么**
+
+1. **范围**：只有本功能新增到 `en/sidebar.json` 的 key 缺 zh-CN——P1 的 `sessions.fileUnder*`（6）/`moveSessionToTopLevel`、P2 的 `sessions.derivedFrom`/`derivedSessionFallback`、P1 的 `messages.updateSessionParentError`，共 **10 条**（P3 的 `dragToFileUnder` 已随整行拖拽移除，净零，不在列）。这是对四个功能提交（`5d45f468`/`88e0777c`/`55b3b406`/`d094b25b`）改 `en/sidebar.json` 的增删做并集后得到的，非人工枚举。
+2. **落点**：`src/modules/i18n/locales/zh-CN/sidebar.json`；`sessions.*` 段按 en 的同位插入（`forkSessionDescription` 之后），`messages.updateSessionParentError` 紧随 `updateSessionPinError`。用词与方案正文一致（「归到…」「移到顶层」「派生自」，全角引号“{{name}}”）。
+3. **核验**：`node` 扁平化对照 `en` vs `zh-CN` 的 `sidebar.json`，两侧 key 集合**完全相等**（此前 zh-CN 只差这 10 条，补齐后无剩余缺口）。
+
+**与方案的偏离：无**（§5.15 把 zh-CN 定为可选，本轮按需求方要求把可选项做掉）。
+
+**验证（同环境对照）**
+
+| 检查 | 基线 | 本次 | 结论 |
+| --- | --- | --- | --- |
+| `npm run typecheck` | 通过 | 通过 | 无新增 |
+| `npx vitest run src/modules/sidebar` | 101 例通过 | 101 例通过 | 无回归 |
+| `npm run lint` | 170 warning + 1 error | 170 warning + 1 error | **新增 0 条**（纯 JSON 改动） |
+
+（只改 JSON 文案，未触及 server / 逻辑，未跑全量 server 与 client；缺口由「key 集合相等」这一结构性检查兜住。）
 
 ---
 
