@@ -14,7 +14,9 @@ import type { Project, SessionAttentionLevel, SidebarProjectListProps } from '@/
  * dragged row itself, a child row (only a top-level row can adopt), or a drag
  * that is not a session at all (a file from the desktop).
  *
- * The list owns the drag state; the rows own the drop targets.
+ * There is no drag handle: the row *is* the drag source, so pressing the left
+ * button and moving picks it up and nothing about the row changes on hover. The
+ * list owns the drag state; the rows own the drop targets.
  */
 
 const { SessionParentPickerProvider } = await import('@/modules/sidebar/context/SessionParentPickerContext');
@@ -42,12 +44,16 @@ const PROJECT = {
 } as unknown as Project;
 
 /** The DataTransfer jsdom does not implement; only what the handlers read. */
-const dragData = (types: string[] = [SESSION_OWNERSHIP_DRAG_MIME]) => ({
-  types,
-  setData: () => {},
-  effectAllowed: '',
-  dropEffect: '',
-});
+const dragData = (types: string[] = [SESSION_OWNERSHIP_DRAG_MIME]) => {
+  const setDataCalls: Array<[string, string]> = [];
+  return {
+    types,
+    setData: (format: string, value: string) => setDataCalls.push([format, value]),
+    setDataCalls,
+    effectAllowed: '',
+    dropEffect: '',
+  };
+};
 
 const renderList = (
   setSessionParent: (sessionId: string, parentSessionId: string | null) => void,
@@ -94,8 +100,6 @@ const renderList = (
 
 const rowOf = (container: HTMLElement, sessionId: string) =>
   container.querySelector(`a[href="/session/${sessionId}"]`) as HTMLAnchorElement;
-const handleOf = (container: HTMLElement, sessionId: string) =>
-  rowOf(container, sessionId).querySelector('[data-testid="session-drag-handle"]') as HTMLElement | null;
 const listZoneOf = (container: HTMLElement) =>
   container.querySelector('[data-testid="project-session-list"]') as HTMLElement;
 
@@ -104,7 +108,13 @@ test('dropping a dragged session on a top-level row files it under that row', ()
   const { container } = renderList(setSessionParent);
   const data = dragData();
 
-  fireEvent.dragStart(handleOf(container, 'b') as HTMLElement, { dataTransfer: data });
+  const source = rowOf(container, 'b');
+  fireEvent.dragStart(source, { dataTransfer: data });
+  assert.deepEqual(
+    data.setDataCalls,
+    [[SESSION_OWNERSHIP_DRAG_MIME, 'b']],
+    'the drag carries a session payload so Firefox will start it',
+  );
 
   const target = rowOf(container, 'a');
   fireEvent.dragOver(target, { dataTransfer: data });
@@ -115,12 +125,31 @@ test('dropping a dragged session on a top-level row files it under that row', ()
   assert.deepEqual(setSessionParent.mock.calls, [['b', 'a']]);
 });
 
+test('the row being dragged fades, and stops fading once the drag ends', () => {
+  const setSessionParent = vi.fn();
+  const { container } = renderList(setSessionParent);
+  const data = dragData();
+  // `opacity-50` is also part of the button variant's `disabled:` utilities, so
+  // the check has to be an exact class token, not a substring.
+  const fades = (sessionId: string) => rowOf(container, sessionId).className.split(/\s+/).includes('opacity-50');
+
+  fireEvent.dragStart(rowOf(container, 'b'), { dataTransfer: data });
+  assert.ok(
+    fades('b'),
+    'the source row is the only in-flight signal, so it has to stand out from its siblings',
+  );
+  assert.ok(!fades('a'), 'a sibling that is not being dragged stays at full opacity');
+
+  fireEvent.dragEnd(rowOf(container, 'b'), { dataTransfer: data });
+  assert.ok(!fades('b'), 'the fade is dropped with the drag');
+});
+
 test('dropping a dragged session on the list blank space moves it back to the top level', () => {
   const setSessionParent = vi.fn();
   const { container } = renderList(setSessionParent);
   const data = dragData();
 
-  fireEvent.dragStart(handleOf(container, 'c') as HTMLElement, { dataTransfer: data });
+  fireEvent.dragStart(rowOf(container, 'c'), { dataTransfer: data });
   fireEvent.drop(listZoneOf(container), { dataTransfer: data });
 
   assert.deepEqual(setSessionParent.mock.calls, [['c', null]]);
@@ -131,7 +160,7 @@ test('a child row is inert: dropping onto it neither files nor moves the session
   const { container } = renderList(setSessionParent);
   const data = dragData();
 
-  fireEvent.dragStart(handleOf(container, 'b') as HTMLElement, { dataTransfer: data });
+  fireEvent.dragStart(rowOf(container, 'b'), { dataTransfer: data });
 
   const child = rowOf(container, 'c');
   fireEvent.dragOver(child, { dataTransfer: data });
@@ -150,7 +179,7 @@ test('a row is not a drop target for its own drag', () => {
   const data = dragData();
 
   const self = rowOf(container, 'b');
-  fireEvent.dragStart(handleOf(container, 'b') as HTMLElement, { dataTransfer: data });
+  fireEvent.dragStart(self, { dataTransfer: data });
   fireEvent.dragOver(self, { dataTransfer: data });
   fireEvent.drop(self, { dataTransfer: data });
 
@@ -175,7 +204,7 @@ test('moving off a row onto the blank space drops the highlight without filing a
   const { container } = renderList(setSessionParent);
   const data = dragData();
 
-  fireEvent.dragStart(handleOf(container, 'b') as HTMLElement, { dataTransfer: data });
+  fireEvent.dragStart(rowOf(container, 'b'), { dataTransfer: data });
   const target = rowOf(container, 'a');
   fireEvent.dragOver(target, { dataTransfer: data });
   assert.match(String(target.className), /ring-2/);
@@ -193,41 +222,59 @@ test('a cancelled drag clears the highlight instead of stranding it', () => {
   const setSessionParent = vi.fn();
   const { container } = renderList(setSessionParent);
   const data = dragData();
-  const handle = handleOf(container, 'b') as HTMLElement;
 
-  fireEvent.dragStart(handle, { dataTransfer: data });
+  fireEvent.dragStart(rowOf(container, 'b'), { dataTransfer: data });
   const target = rowOf(container, 'a');
   fireEvent.dragOver(target, { dataTransfer: data });
   assert.match(String(target.className), /ring-2/);
 
   // Escape (and any drop outside a target) ends the drag with no dragleave at
   // all, so the highlight cannot be owned by the row.
-  fireEvent.dragEnd(handle, { dataTransfer: data });
+  fireEvent.dragEnd(rowOf(container, 'b'), { dataTransfer: data });
 
   assert.doesNotMatch(String(target.className), /ring-2/, 'an abandoned drag must not leave a ring behind');
   assert.equal(setSessionParent.mock.calls.length, 0);
 });
 
-test('a session that owns children offers no drag handle', () => {
+test('a session that owns children is not a drag source', () => {
   const { container } = renderList(vi.fn());
 
-  assert.ok(handleOf(container, 'b'), 'a plain top-level row is draggable');
-  assert.ok(handleOf(container, 'c'), 'a child row can be dragged out from under its parent');
+  assert.equal(rowOf(container, 'b').getAttribute('draggable'), 'true', 'a plain top-level row drags');
+  assert.equal(rowOf(container, 'c').getAttribute('draggable'), 'true', 'a child row can be dragged out from under its parent');
   assert.equal(
-    handleOf(container, 'a'),
-    null,
+    rowOf(container, 'a').getAttribute('draggable'),
+    'false',
     'a session that owns children cannot be filed under another — the tree is one level deep',
   );
 });
 
-test('manage mode withholds every drag handle', () => {
+test('manage mode makes no row a drag source', () => {
   const { container } = renderList(vi.fn(), { isManaging: true });
 
-  assert.equal(container.querySelectorAll('[data-testid="session-drag-handle"]').length, 0);
+  for (const id of ['a', 'b', 'c']) {
+    assert.equal(rowOf(container, id).getAttribute('draggable'), 'false');
+  }
 });
 
 test('without the picker provider there is nothing to drag with', () => {
   const { container } = renderList(vi.fn(), { withProvider: false });
 
-  assert.equal(container.querySelectorAll('[data-testid="session-drag-handle"]').length, 0);
+  for (const id of ['a', 'b', 'c']) {
+    assert.equal(rowOf(container, id).getAttribute('draggable'), 'false');
+  }
+});
+
+test('a row carries no drag affordance of its own: no handle and no hover layout shift', () => {
+  const { container } = renderList(vi.fn());
+
+  assert.equal(
+    container.querySelectorAll('[data-testid="session-drag-handle"]').length,
+    0,
+    'the handle is gone — the row is the drag source',
+  );
+  assert.doesNotMatch(
+    String(rowOf(container, 'b').className),
+    /group-hover:pl-7/,
+    'nothing about the row shifts on hover any more',
+  );
 });
