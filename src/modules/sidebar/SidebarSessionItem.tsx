@@ -45,14 +45,18 @@ type SidebarSessionItemProps = {
   onForkSession?: (session: SessionWithProvider) => void;
   /**
    * The session currently being dragged within this project, or null. Supplied
-   * by the owning list so a row can highlight itself as a drop target and can
-   * tell a drag of its own row apart from one of a sibling.
+   * by the owning list so a row can tell a drag of its own row apart from one of
+   * a sibling, and can refuse a foreign drag.
    */
   draggingSessionId: string | null;
+  /** True while this row is the drop target the pointer is over. */
+  isDropHighlighted: boolean;
   /** Starts a drag of this row; the list owns the drag state. */
   onSessionDragStart: (sessionId: string) => void;
   /** Ends the drag without a drop (Escape, or a drop outside any target). */
   onSessionDragEnd: () => void;
+  /** Reports that the pointer is over this row, so the list can highlight it. */
+  onSessionDragOver: (targetSessionId: string) => void;
   /** Files the dragged session under this row. */
   onSessionDropOnRow: (targetSessionId: string) => void;
   t: TFunction;
@@ -82,8 +86,10 @@ function SidebarSessionItem({
   onDeleteSession,
   onForkSession,
   draggingSessionId,
+  isDropHighlighted,
   onSessionDragStart,
   onSessionDragEnd,
+  onSessionDragOver,
   onSessionDropOnRow,
   t,
 }: SidebarSessionItemProps) {
@@ -165,9 +171,6 @@ function SidebarSessionItem({
   // Only a top-level row can adopt a child: the tree is one level deep, so a row
   // that already has a parent is not a drop target.
   const isSessionDropTarget = Boolean(draggingSessionId) && !parentSessionId;
-  // ! Possibly unnecessary - mirrors the DOM's transient drag-hover state, which
-  // is not derivable from props or state; it only colours the row under the pointer.
-  const [isDropHovered, setIsDropHovered] = useState(false);
 
   const startSessionDrag = (event: DragEvent<HTMLSpanElement>) => {
     // Firefox only starts a drag once a payload is set. The id is never read
@@ -180,8 +183,7 @@ function SidebarSessionItem({
 
   const acceptSessionDrag = (event: DragEvent<HTMLAnchorElement>) => {
     const dataTransfer = event.dataTransfer;
-    // Ignore anything that is not one of our own drags (a desktop file, a link)
-    // and a drag of the row itself.
+    // Ignore anything that is not one of our own drags (a desktop file, a link).
     if (!draggingSessionId || !dataTransfer?.types.includes(SESSION_OWNERSHIP_DRAG_MIME)) {
       return;
     }
@@ -193,16 +195,10 @@ function SidebarSessionItem({
     }
     event.preventDefault();
     dataTransfer.dropEffect = 'move';
-    setIsDropHovered(true);
-  };
-
-  const leaveSessionDrag = (event: DragEvent<HTMLAnchorElement>) => {
-    // dragleave also fires while the pointer moves between the row's own child
-    // elements, which would flicker the highlight; only a real exit clears it.
-    if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
-      return;
-    }
-    setIsDropHovered(false);
+    // The highlight is the list's state, not this row's: a drag can end without
+    // any dragleave reaching the row (Chromium fires none when Escape cancels a
+    // drag), so a row that owned the flag could leave a ring behind for good.
+    onSessionDragOver(session.id);
   };
 
   const completeSessionDrag = (event: DragEvent<HTMLAnchorElement>) => {
@@ -211,7 +207,6 @@ function SidebarSessionItem({
       return;
     }
     event.stopPropagation();
-    setIsDropHovered(false);
     if (!isSessionDropTarget || draggingSessionId === session.id) {
       return;
     }
@@ -494,10 +489,9 @@ function SidebarSessionItem({
             canDragSession && 'group-hover:pl-7',
             // A ring, not a border or a background, so it can mark the row under
             // a drag without colliding with the selected/running border above.
-            isDropHovered && 'ring-2 ring-inset ring-primary/60',
+            isDropHighlighted && 'ring-2 ring-inset ring-primary/60',
           )}
           onDragOver={acceptSessionDrag}
-          onDragLeave={leaveSessionDrag}
           onDrop={completeSessionDrag}
           // Left-click keeps in-app navigation; Ctrl/Cmd/middle-click and the
           // native right-click menu use the href to open a new tab/window.
