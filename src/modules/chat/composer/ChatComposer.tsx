@@ -235,7 +235,7 @@ export default function ChatComposer({
 
   // Voice state is hosted here (not in the mic button) so the main Send button can stop
   // recording and send the transcript in one tap, the way the mic button drops it in the box.
-  const voiceAvailable = useVoiceAvailable();
+  const { canDictate } = useVoiceAvailable();
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const voiceErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleVoiceError = useCallback((msg: string) => {
@@ -453,7 +453,7 @@ export default function ChatComposer({
               </PromptInputButton>
             )}
 
-            {onVoiceTranscript && voiceAvailable && (
+            {onVoiceTranscript && canDictate && (
               <VoiceInputButton state={voiceState} onToggle={voiceToggle} errorMsg={voiceError} />
             )}
 

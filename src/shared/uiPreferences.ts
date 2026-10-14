@@ -14,7 +14,10 @@ export type UiPreferences = {
   showThinking: boolean;
   sendByCtrlEnter: boolean;
   sidebarVisible: boolean;
-  voiceEnabled: boolean;
+  /** Mic / dictation ("push-to-talk") is offered in the composer. */
+  voiceInputEnabled: boolean;
+  /** Read-aloud (text-to-speech) is offered on assistant replies. */
+  voiceOutputEnabled: boolean;
 };
 
 export type UiPreferenceKey = keyof UiPreferences;
@@ -28,7 +31,8 @@ const DEFAULTS: UiPreferences = {
   showThinking: true,
   sendByCtrlEnter: false,
   sidebarVisible: true,
-  voiceEnabled: false,
+  voiceInputEnabled: false,
+  voiceOutputEnabled: false,
 };
 
 const PREFERENCE_KEYS = Object.keys(DEFAULTS) as UiPreferenceKey[];

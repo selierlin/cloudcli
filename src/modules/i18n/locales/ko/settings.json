@@ -53,8 +53,10 @@
   "voiceSettings": {
     "title": "음성",
     "description": "OpenAI 호환 오디오 백엔드를 통한 음성-텍스트 입력 및 소리 내어 읽기 기능입니다.",
-    "enable": "음성 활성화",
-    "enableDescription": "메시지에 마이크 버튼과 소리 내어 읽기 버튼을 표시합니다.",
+    "inputEnabled": "음성 입력",
+    "inputEnabledDescription": "메시지 입력창에 받아쓰기용 마이크 버튼을 표시합니다.",
+    "outputEnabled": "소리 내어 읽기",
+    "outputEnabledDescription": "어시스턴트 답변에 읽어주기 버튼을 표시합니다.",
     "backendTitle": "백엔드",
     "backendDescription": "OpenAI, Groq 또는 로컬 서버(LocalAI, Speaches, Kokoro-FastAPI)를 지정하세요. 비워두면 서버 기본값을 사용합니다.",
     "baseUrl": "기본 URL",

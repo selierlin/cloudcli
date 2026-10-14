@@ -53,8 +53,10 @@
   "voiceSettings": {
     "title": "Voz",
     "description": "Entrada de fala-para-texto e leitura em voz alta, via backend de áudio compatível com OpenAI.",
-    "enable": "Ativar voz",
-    "enableDescription": "Mostrar o botão do microfone e o botão de leitura em voz alta nas mensagens.",
+    "inputEnabled": "Entrada de voz",
+    "inputEnabledDescription": "Mostra um botão de microfone na caixa de mensagem para ditado.",
+    "outputEnabled": "Ler em voz alta",
+    "outputEnabledDescription": "Mostra um botão de leitura nas respostas do assistente.",
     "backendTitle": "Backend",
     "backendDescription": "Aponte para OpenAI, Groq ou um servidor local (LocalAI, Speaches, Kokoro-FastAPI). Deixe em branco para usar o backend padrão do servidor.",
     "baseUrl": "URL base",

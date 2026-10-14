@@ -45,11 +45,11 @@ test('a toggle persists to the single stored blob', () => {
   const { result } = renderHook(() => useSetUiPreference(), { wrapper });
 
   act(() => {
-    result.current('voiceEnabled', true);
+    result.current('voiceInputEnabled', true);
   });
 
   const stored = readUserPreference<Record<string, unknown>>('uiPreferences', {});
-  assert.equal(stored.voiceEnabled, true);
+  assert.equal(stored.voiceInputEnabled, true);
 });
 
 test('a change made elsewhere is picked up', () => {
@@ -82,7 +82,7 @@ test('a value arriving from the store is not echoed straight back to it', () => 
   const { result } = renderHook(() => useUiPreferences(), { wrapper });
 
   act(() => {
-    writeUserPreference('uiPreferences', { showThinking: false, voiceEnabled: true });
+    writeUserPreference('uiPreferences', { showThinking: false, voiceInputEnabled: true });
   });
 
   assert.equal(result.current.showThinking, false);
@@ -91,7 +91,7 @@ test('a value arriving from the store is not echoed straight back to it', () => 
   // five keys spelled out. The tell is that the stored value is untouched.
   assert.deepEqual(
     readUserPreference<Record<string, unknown>>('uiPreferences', {}),
-    { showThinking: false, voiceEnabled: true },
+    { showThinking: false, voiceInputEnabled: true },
   );
 });
 

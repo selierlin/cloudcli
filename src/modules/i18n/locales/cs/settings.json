@@ -53,8 +53,10 @@
   "voiceSettings": {
     "title": "Hlas",
     "description": "Převod řeči na text a předčítání přes zvukový backend kompatibilní s OpenAI.",
-    "enable": "Zapnout hlas",
-    "enableDescription": "Zobrazí tlačítko mikrofonu a u zpráv tlačítko pro předčítání.",
+    "inputEnabled": "Hlasový vstup",
+    "inputEnabledDescription": "Zobrazí v poli zprávy tlačítko mikrofonu pro diktování.",
+    "outputEnabled": "Číst nahlas",
+    "outputEnabledDescription": "Zobrazí u odpovědí asistenta tlačítko pro čtení.",
     "backendTitle": "Backend",
     "backendDescription": "Nasměrujte na OpenAI, Groq nebo lokální server (LocalAI, Speaches, Kokoro-FastAPI). Ponechte prázdné, chcete-li použít výchozí nastavení serveru.",
     "baseUrl": "Základní URL",
