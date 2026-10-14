@@ -65,6 +65,7 @@
     "fileUnderNoCandidates": "No other top-level session in this project to file under.",
     "fileUnderNoMatches": "No sessions match your search.",
     "moveSessionToTopLevel": "Move to top level",
+    "dragToFileUnder": "Drag to file under another session",
     "derivedFrom": "Derived from {{title}}",
     "derivedSessionFallback": "Derived session",
     "select": "Select",

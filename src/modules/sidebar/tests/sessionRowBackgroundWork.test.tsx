@@ -66,6 +66,11 @@ const renderRow = (state: { isProcessing: boolean; hasBackgroundWork: boolean; a
     onTogglePinned: noop,
     onToggleBatchSelection: noop,
     onDeleteSession: noop,
+    // No provider is mounted in this harness, so the row offers no drag handle.
+    draggingSessionId: null,
+    onSessionDragStart: noop,
+    onSessionDragEnd: noop,
+    onSessionDropOnRow: noop,
     t,
     ...state,
   }),

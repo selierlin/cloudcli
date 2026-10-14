@@ -459,3 +459,15 @@ export const BUILTIN_THEMES: ThemeManifest[] = [
 ];
 
 // ---------------------------
+
+//----------------- SESSION OWNERSHIP DRAG ------------
+
+/**
+ * Drag payload type for the sidebar's session-ownership drag & drop. Both the
+ * drag source and the drop targets read it, so a drop can be told apart from an
+ * unrelated drag that happens to pass over a row (a file from the desktop, a
+ * link): only a drag carrying this type is treated as a session being filed.
+ */
+export const SESSION_OWNERSHIP_DRAG_MIME = 'application/x-cloudcli-session';
+
+// ---------------------------

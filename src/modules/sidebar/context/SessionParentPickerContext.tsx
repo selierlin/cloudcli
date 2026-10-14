@@ -25,16 +25,20 @@ export type SessionParentTarget = {
 type SessionParentPickerContextValue = {
   /** Opens the parent picker for one session. */
   requestAssignParent: (target: SessionParentTarget) => void;
-  /** Moves one session back to the top level without opening the picker. */
-  clearParent: (sessionId: string) => void;
+  /**
+   * Persists one session's parent, or detaches it with null. Backs both the
+   * picker's choice and the sidebar's drag & drop, which is why it is exposed
+   * rather than kept behind `requestAssignParent`.
+   */
+  setSessionParent: (sessionId: string, parentSessionId: string | null) => void;
 };
 
 const SessionParentPickerContext = createContext<SessionParentPickerContextValue | null>(null);
 
 /**
- * Reads the sidebar's parent picker. Returns null where no provider is mounted,
- * which is how a row knows to hide the ownership menu items instead of showing
- * ones that cannot work.
+ * Reads the sidebar's ownership controls. Returns null where no provider is
+ * mounted, which is how a row knows to hide the ownership menu items (and to
+ * refuse to start a drag) instead of offering something that cannot work.
  */
 export function useSessionParentPicker(): SessionParentPickerContextValue | null {
   return useContext(SessionParentPickerContext);
@@ -43,14 +47,15 @@ export function useSessionParentPicker(): SessionParentPickerContextValue | null
 type SessionParentPickerProviderProps = {
   /** The loaded project list, used to resolve a session's same-project siblings. */
   projects: Project[];
-  /** Persists one ownership change; the provider closes the picker once it is called. */
-  onAssignParent: (sessionId: string, parentSessionId: string | null) => void;
+  /** Persists one ownership change. */
+  setSessionParent: (sessionId: string, parentSessionId: string | null) => void;
   children: ReactNode;
   t: TFunction;
 };
 
 /**
- * Owns the "file this session under…" picker for the whole sidebar.
+ * Owns the sidebar's session-ownership interactions: the "file this session
+ * under…" picker and the callback that persists a relationship.
  *
  * Mounted once by the Sidebar so a deeply nested session row can open the
  * picker without threading a callback down through SidebarContent → project
@@ -59,7 +64,7 @@ type SessionParentPickerProviderProps = {
  */
 export function SessionParentPickerProvider({
   projects,
-  onAssignParent,
+  setSessionParent,
   children,
   t,
 }: SessionParentPickerProviderProps) {
@@ -68,10 +73,6 @@ export function SessionParentPickerProvider({
   const requestAssignParent = useCallback((target: SessionParentTarget) => {
     setPendingTarget(target);
   }, []);
-
-  const clearParent = useCallback((sessionId: string) => {
-    onAssignParent(sessionId, null);
-  }, [onAssignParent]);
 
   // Candidates are same-project, loaded, top-level sessions other than the
   // target itself. Excluding sessions that already have a parent follows from
@@ -94,8 +95,8 @@ export function SessionParentPickerProvider({
   }, [pendingTarget, projects, t]);
 
   const value = useMemo(
-    () => ({ requestAssignParent, clearParent }),
-    [requestAssignParent, clearParent],
+    () => ({ requestAssignParent, setSessionParent }),
+    [requestAssignParent, setSessionParent],
   );
 
   return (
@@ -107,7 +108,7 @@ export function SessionParentPickerProvider({
           candidates={candidates}
           currentParentId={pendingTarget.parentSessionId}
           onSelect={(parentSessionId) => {
-            onAssignParent(pendingTarget.sessionId, parentSessionId);
+            setSessionParent(pendingTarget.sessionId, parentSessionId);
             setPendingTarget(null);
           }}
           onClose={() => setPendingTarget(null)}

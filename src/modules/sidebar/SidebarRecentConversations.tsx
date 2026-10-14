@@ -204,7 +204,7 @@ function RecentConversationRow({
       })
     : undefined;
   const clearParent = parentPicker && parentSessionId
-    ? () => parentPicker.clearParent(conversation.sessionId)
+    ? () => parentPicker.setSessionParent(conversation.sessionId, null)
     : undefined;
   // The reference line jumps to the session this one is filed under. The row
   // only knows the id, so the list above supplies the fallback project/provider
