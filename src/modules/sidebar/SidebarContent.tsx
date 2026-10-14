@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { Activity, Archive, Check, ChevronDown, ChevronRight, Edit2, Folder, Loader2, MessageSquare, MoreHorizontal, Pin, PinOff, RotateCcw, Search, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
@@ -6,12 +6,15 @@ import { ActionMenu, Dialog, DialogContent, DialogTitle, LLMProviderLogo, Scroll
 import { cn } from '@/shared/utils';
 import type { ArchivedProjectListItem, ArchivedSessionListItem, ConversationProjectResult, ConversationSearchResults, LLMProvider, Project, RecentConversationListItem, ReleaseInfo, SearchProgress, SessionTitleSearchResult, SidebarProjectListProps, SidebarSearchMode } from '@/shared/types';
 import { formatCompactAge, getAllSessions } from '@/modules/sidebar/utils/sidebarProjectFormatting';
+import { buildSessionOwnershipMenuItems } from '@/modules/sidebar/utils/sessionOwnershipMenuItems';
 import { useCopyProviderSessionId } from '@/modules/sidebar/hooks/useCopyProviderSessionId';
+import { useSessionParentPicker } from '@/modules/sidebar/context/SessionParentPickerContext';
 import SidebarBatchSessionActions from '@/modules/sidebar/SidebarBatchSessionActions';
 import SidebarFooter from '@/modules/sidebar/SidebarFooter';
 import SidebarHeader from '@/modules/sidebar/SidebarHeader';
 import SidebarProjectList from '@/modules/sidebar/SidebarProjectList';
 import SidebarRecentConversations from '@/modules/sidebar/SidebarRecentConversations';
+import SessionOwnershipSheetActions from '@/modules/sidebar/SessionOwnershipSheetActions';
 
 function HighlightedSnippet({ snippet, highlights }: { snippet: string; highlights: { start: number; end: number }[] }) {
   const parts: ReactNode[] = [];
@@ -56,6 +59,7 @@ const SEARCH_PROVIDER_LABELS: Record<string, string> = {
  */
 function ConversationTitleResultRow({
   session,
+  sessionOwnsChildren,
   currentTime,
   t,
   onOpen,
@@ -65,6 +69,8 @@ function ConversationTitleResultRow({
   onDelete,
 }: {
   session: SessionTitleSearchResult;
+  /** Resolved by the content above from the loaded projects: a hit owns no session list of its own. */
+  sessionOwnsChildren: boolean;
   currentTime: Date;
   t: TFunction;
   onOpen: (projectId: string | null, sessionId: string, provider: string, isArchived?: boolean) => void;
@@ -85,6 +91,24 @@ function ConversationTitleResultRow({
     handleCopyAction,
     onOptionsOpen,
   } = useCopyProviderSessionId({ sessionId: session.sessionId, providerLabel, t });
+
+  // Ownership controls come from the sidebar's picker provider, exactly as the
+  // project and conversations rows use them. A search hit is a temporary view of
+  // a session, not a place to nest anything, so only active hits are offered it.
+  const parentPicker = useSessionParentPicker();
+  const parentSessionId = session.parentSessionId ?? null;
+  const canAssignParent = Boolean(parentPicker) && !sessionOwnsChildren;
+  const requestAssignParent = parentPicker
+    ? () => parentPicker.requestAssignParent({
+        sessionId: session.sessionId,
+        projectId: session.projectId,
+        name: session.sessionTitle,
+        parentSessionId,
+      })
+    : undefined;
+  const clearParent = parentPicker && parentSessionId
+    ? () => parentPicker.setSessionParent(session.sessionId, null)
+    : undefined;
 
   const startRename = () => {
     setIsEditing(true);
@@ -163,6 +187,13 @@ function ConversationTitleResultRow({
           closeOnSelect: false,
           onSelect: handleCopyAction,
         },
+        ...buildSessionOwnershipMenuItems({
+          parentSessionId,
+          canAssignParent,
+          onRequestAssignParent: requestAssignParent,
+          onClearParent: clearParent,
+          t,
+        }),
         ...(onDelete
           ? [{
               key: 'delete',
@@ -311,6 +342,14 @@ function ConversationTitleResultRow({
                         <span className="text-sm font-medium">{t('sessions.renameSession')}</span>
                       </button>
                     )}
+                    <SessionOwnershipSheetActions
+                      parentSessionId={parentSessionId}
+                      canAssignParent={canAssignParent}
+                      onRequestAssignParent={requestAssignParent}
+                      onClearParent={clearParent}
+                      onBeforeAction={() => setMobileOpen(false)}
+                      t={t}
+                    />
                   </>
                 )}
 
@@ -905,6 +944,20 @@ export default function SidebarContent({
   const visibleTitleResults = conversationResults
     ? conversationResults.titleResults.filter((session) => !restoredSearchSessionIds.has(session.sessionId))
     : [];
+  // Sessions that already own a child, so their hit row withholds "file under…"
+  // (the tree is one level deep). Derived from the loaded project payloads
+  // because a search hit holds no session list of its own.
+  const sessionsOwningChildren = useMemo(() => {
+    const ids = new Set<string>();
+    for (const project of projects) {
+      for (const session of project.sessions ?? []) {
+        if (session.parentSessionId) {
+          ids.add(session.parentSessionId);
+        }
+      }
+    }
+    return ids;
+  }, [projects]);
   // Restored hits drop out of both search-hit sections (conversation titles
   // and content groups) locally; the restore callback refreshes the active and
   // archived lists behind the scenes.
@@ -1131,6 +1184,7 @@ export default function SidebarContent({
                     <ConversationTitleResultRow
                       key={`${session.provider}-${session.sessionId}`}
                       session={session}
+                      sessionOwnsChildren={sessionsOwningChildren.has(session.sessionId)}
                       currentTime={projectListProps.currentTime}
                       t={t}
                       onOpen={(projectId, sessionId, provider, isArchived) =>

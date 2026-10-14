@@ -50,6 +50,8 @@ type SessionTitleSearchResult = {
   /** True when the hit comes from the archived sessions table. */
   isArchived: boolean;
   isPinned: boolean;
+  /** The session this hit is filed under, or null when it is top-level. Lets the hit row offer "move to top level". */
+  parentSessionId: string | null;
 };
 
 export type SessionConversationSearchProgressUpdate = {
@@ -233,6 +235,7 @@ function findSessionTitleResults(
         lastActivity: session.updated_at || session.created_at || null,
         isArchived: isArchived || Boolean(project?.isArchived),
         isPinned: Boolean(session.isPinned),
+        parentSessionId: session.parent_session_id ?? null,
         matchIndex,
       }];
     })
