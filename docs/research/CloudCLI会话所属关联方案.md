@@ -236,7 +236,7 @@
 
 **P3 — 桌面拖拽 + 按需的 `referencedParents`**
 
-20. 侧边栏 DnD（draggable 手柄、drop 落点、manage 模式禁用）；移动端继续用菜单。**实现结果：已完成**——源码落点见「作者动作：P3 实现落地」与 §6。
+20. 侧边栏 DnD（draggable 手柄、drop 落点、manage 模式禁用）；移动端继续用菜单。**实现结果：已完成**——源码落点见「作者动作：P3 实现落地」与 §6。**落地时改了两点**：拖拽源不用独立手柄，改为**按住整行拖动**（原设计的手柄会在 hover 时让内容右移，且拖拽快照太小看不出拖成功）；反馈改为**源行变淡 + 目标行高亮环**，hover 无任何变化。
 21. **仅当出现「单项目活跃会话 > 20」或观察到根级孤儿子**时：项目视图加**独立字段** `referencedParents: SessionSummary[]`（不并入 `sessions`）+ 客户端按 id 去重并入渲染集合，配套断言 `sessions/total/hasMore` 不变（§4 Q1、§1 V1）。
 
 ---
@@ -245,7 +245,7 @@
 
 状态以本文件末尾「作者动作：P1 实现落地」一节的同环境对照数据为准（`[x]` 已达成、`[d]` 有意延后）。
 
-- [x] 项目视图：把 B 拖/挂到 A 下后，B 缩进显示在 A 下方，连接线可见；点 B 仍能正常打开会话。（菜单「归到…」与桌面拖拽两条路径均已达成：拖拽落点 `SidebarProjectSessions.tsx:190-226`、拖拽手柄 `SidebarSessionItem.tsx:512-527`，渲染落点 `SidebarProjectSessions.tsx:278-290`）
+- [x] 项目视图：把 B 拖/挂到 A 下后，B 缩进显示在 A 下方，连接线可见；点 B 仍能正常打开会话。（菜单「归到…」与桌面拖拽两条路径均已达成：拖拽源 = **整行** `SidebarSessionItem.tsx:183-195`（`draggable` 见 `:502`），拖拽落点 `SidebarProjectSessions.tsx:190-226`，渲染落点 `SidebarProjectSessions.tsx:278-290`）
 - [x] 一层约束：无法把已有子的 A 挂到别的会话下；无法把已有父的 B 变成父。（服务端 `setSessionParent` 400 + UI 侧对「拥有子会话的行」隐藏入口）
 - [x] 同项目约束：跨项目设父被服务端拒绝（400），且前端乐观态回滚 + 可见错误（第 1 轮 W10）。
 - [x] **「归到/移出」后子会话的时间序位置不变**（未被顶到项目顶部，`lastActivity` 未变，第 1 轮 P3）。（`updateSessionParent` 不动时间戳；`sessions.service.test.ts:590-592` 断言）
@@ -269,7 +269,7 @@
 - **R2 memo 击穿**：分组缓存若与搜索链路冲突（`filterSessionsForProject` 返回不进缓存的新数组），或乐观更新重建 `project.sessions`，都会每帧重建数组 → 全树重渲。缓解 = 分组做**独立纯函数**、缓存按 project+搜索词组合键；乐观态走 **overlay**（第 1 轮 W2、P7）。
 - **R3 两套布局漂移**：compact/desktop 需同步改；缩进落点是**子行变体**而非 `:180` 容器，compact 卡片是 `mx-3` 内边距形态（第 1 轮 P10）。
 - **R4 pin / 搜索交互**：扁平假设散落在 `applyOptimisticSessionPinState` / `reorderRecentConversationsForPin` 等处，需逐一确认与分组后的语义一致。
-- **R5 拖拽体验**：HTML5 DnD 在触屏基本不可用、可发现性低、与行链接冲突。缓解 = 菜单为基线入口、拖拽只作桌面增强、加显式手柄（仅 hover 显形，不挤压常驻布局）。**2026-10-14 用真实 Chromium 点验**：`<a href>` 内嵌 `draggable` 手柄时拖拽源确为手柄、载荷为自定义 MIME（未退化成链接 URL 拖拽）；`dragleave` 的 `relatedTarget` 在 Chromium 可用，故「行内移动不闪高亮」的守卫有效。R5 的剩余部分（触屏不可用、可发现性）由「菜单为基线」承担。
+- **R5 拖拽体验**：HTML5 DnD 在触屏基本不可用、可发现性低、与行链接冲突。缓解 = 菜单为基线入口、拖拽只作桌面增强。**落地时未加显式手柄**（手柄会让内容 hover 时右移，且 16px 的拖拽快照看不出拖成功），改为**整行即拖拽源**：拖拽快照是整张卡片、随光标移动，反馈为源行变淡 + 目标行亮环，hover 零变化。**2026-10-14 用真实 Chromium 点验**：按下整行 + 移动即触发行拖拽（未退化成链接 URL 拖拽），纯点击仍打开会话，⋯ 菜单按钮只触发菜单；`dragleave` 的 `relatedTarget` 可用，故「行内移动不闪高亮」的守卫成立。R5 的剩余部分（触屏不可用、可发现性）由「菜单为基线」承担。
 - **R6 实时一致性**：只广播被移动会话的前提是「客户端从全量 `parentSessionId` 重新派生分组」。若实现时改成增量维护树，则需同时广播父子两行——实现时须明确走前者。**另：删除（含自动 prune）全程不广播**，其他客户端的子行会带陈旧 `parentSessionId` 直到下次 refetch，靠 A3 兜住（第 1 轮 W5/P1）。
 - **R7 并发**：last-write-wins；删除×设置交错窗口内可能产生悬垂引用，靠 A3 兜住（第 1 轮 W4/P9）。
 - **R8 删行路径收口不全**（第 1 轮 P1，高影响）：`parent_session_id` 悬垂不止发生在 service 永久删除——`pruneOrphanedSessions`、`assignProviderSessionId` 合并等路径都绕过它，且父被 prune 是每次刷新侧边栏都可能复现的自动行为。缓解 = §3.2.1 把孤儿化下沉到仓储删行 helper。
@@ -489,21 +489,32 @@ P2（conversations 引用行 + 父标题）已实现并**本地提交**（未 pu
 
 ### 作者动作：作者（2026-10-14，P3 实现落地）
 
-P3（桌面原生 HTML5 拖拽）已实现并**本地提交**（未 push），分两笔：`55b3b406`（feat 拖拽）→ `d984eccc`（fix 高亮所有权）。
+P3（桌面原生 HTML5 拖拽）已实现并**本地提交**（未 push），分三笔：`55b3b406`（feat 拖拽）→ `d984eccc`（fix 高亮所有权）→ `d094b25b`（feat 改「按住整行拖动」、去手柄）。
 
 **做了什么**
 
-1. **拖拽源 = 显式手柄，不是行本身**。行是 `<a href>` 链接，直接 `draggable` 会与「点击打开会话」/「拖出链接」冲突，故在行内加一个 `GripVertical` 手柄（仅 `group-hover` 显形、不挤压常驻布局）作为唯一拖拽源（`SidebarSessionItem.tsx:512-527`）。`startSessionDrag` 置 `effectAllowed='move'` 并写入**自定义 MIME**（`src/shared/constants.ts:471` `application/x-cloudcli-session` = 会话 id），Firefox 要求拖拽必须带 payload 才启动（`:175-185`）。
+1. **拖拽源 = 整行本身**。行 `<a href>` 加 `draggable={canDragSession}` 与 `onDragStart`/`onDragEnd`（`SidebarSessionItem.tsx:183-195`、`:502`），`startSessionDrag` 置 `effectAllowed='move'` 并写入**自定义 MIME**（`src/shared/constants.ts:471` `application/x-cloudcli-session` = 会话 id），Firefox 要求拖拽必须带 payload 才启动。按下左键 + 移动即起拖（原生 DnD 有移动阈值，纯点击不触发），拖拽快照就是整张卡片、随光标移动。**最初的实现用了独立 `GripVertical` 手柄，已废弃**，理由见下方「拖拽交互的二次调整」。
 2. **落点规则两条**（§4 Q5 拍板「不支持拖到子行上换父」）：拖到**根级行**=收为它的子（`SidebarProjectSessions.tsx:190` `dropSessionOnRow`）；拖到列表**空白/头部**=移出（`:221` `handleListDrop`）。判定一律先验 `dataTransfer.types` 含自定义 MIME，外来拖拽（桌面文件、外链）被忽略；目标行自身不落（`:193`）。子行不是落点（`isSessionDropTarget = !parentSessionId`，`SidebarSessionItem.tsx:173`）。
 3. **跨项目不可落 = 结构性保证**：拖拽态 `draggingSessionId` 持在**列表组件本地**（`SidebarProjectSessions.tsx:174`），不是全局，故另一个项目的列表根本看不到「有会话在拖」，无需额外校验。
-4. **禁用面与菜单一致**：`canDragSession = canAssignParent && !isCompact && !isManaging`（`SidebarSessionItem.tsx:170`）；manage/batch 与 compact 下不出现手柄，移动端继续走菜单（§5.20）。
+4. **禁用面与菜单一致**：`canDragSession = canAssignParent && !isCompact && !isManaging`（`SidebarSessionItem.tsx:170`）同时决定 `draggable`；manage/batch 与 compact（以及无 picker provider）下整行不可拖，移动端继续走菜单（§5.20）。
 5. **持久化复用既有路径**：落点最终调 `SessionParentPickerContext` 的 `setSessionParent`，与「归到…/移出」菜单同一写路径（`clearParent` 收敛为 `setSessionParent(id, null)`），乐观态/回滚/websocket 全部沿用，无新增后端面。
 
 **真实浏览器点验发现的 bug 与修复（`d984eccc`）**
 
-用真实 Chromium（Playwright，`channel: 'chrome'`）点验时发现：**Esc 取消拖拽时浏览器不派发 `dragleave`**，导致「行内瞬态高亮」残留（原实现把高亮记在目标行的局部 state，靠该行的 `dragleave` 清除）。修复 = 把高亮**所有权上移到列表**：行只上报 `onSessionDragOver(targetId)`，列表持 `dropTargetSessionId`，由 `dragend`（Esc 时确实触发，已用探针验证）、`drop`、以及容器 `dragleave`（`relatedTarget` 仍在内→不清，避免行间移动闪烁）统一清除。附带确认：`<a href>` 内嵌 `draggable` 手柄时拖拽源确为手柄、载荷是自定义 MIME（未退化成链接 URL 拖拽），`dragleave.relatedTarget` 在 Chromium 可用，R5 的「不闪高亮」守卫成立。
+用真实 Chromium（Playwright，`channel: 'chrome'`）点验时发现：**Esc 取消拖拽时浏览器不派发 `dragleave`**，导致「行内瞬态高亮」残留（原实现把高亮记在目标行的局部 state，靠该行的 `dragleave` 清除）。修复 = 把高亮**所有权上移到列表**：行只上报 `onSessionDragOver(targetId)`，列表持 `dropTargetSessionId`，由 `dragend`（Esc 时确实触发，已用探针验证）、`drop`、以及容器 `dragleave`（`relatedTarget` 仍在内→不清，避免行间移动闪烁）统一清除。附带确认：载荷是自定义 MIME（未退化成链接 URL 拖拽），`dragleave.relatedTarget` 在 Chromium 可用，R5 的「不闪高亮」守卫成立。
 
-**与方案的偏离：无**。落点维持方案的两条（未采纳「拖到子行换父」，与 §4 Q5 一致）；手柄用 hover 显形属实现细节。
+**拖拽交互的二次调整（`d094b25b`，需求方 2026-10-14 反馈）**
+
+初版把拖拽源做成 hover 才显形的 `GripVertical` 手柄，需求方实测提了两点：①**看不出是否拖成功**（拖拽源只有 16px，原生拖拽快照就是个小图标，几乎没有「跟随光标」的反馈）；②**为这个小功能改动了整个行的原始体验**（手柄显形靠 `group-hover`，同时给行预留了 `pl-7`，hover 时整行内容右移）。
+
+调整 = **去掉手柄，整行即拖拽源**：
+
+- 行 `<a>` 加 `draggable={canDragSession}` 与 `onDragStart`/`onDragEnd`，删掉手柄 `span` 与 `group-hover:pl-7`，行的外观与 hover 行为**回到从前**。
+- 反馈来自「拖拽中」而非「hover」：**源行 `opacity-50` + 目标行 ring 高亮**；原生拖拽快照 = 整张卡片，跟随光标，这才回答了「是否拖成功」。
+- 顺带移除了随手柄一起弃用的 i18n key `sessions.dragToFileUnder`。
+- **真实 Chromium 复验**（探针 `dnd_probe5`）：按下整行 + 移动即触发行拖拽且 `dragstart` 在 `<a>` 上（快照为整行）、松手落位正常；**纯点击仍打开会话**（点击不产生 dragstart）；**⋯ 菜单按钮**（行右缘的绝对定位兄弟节点）只收到 `mousedown`/`click`，不触发行拖拽。
+
+**与方案的偏离（1 处）**：落点维持方案的两条（未采纳「拖到子行换父」，与 §4 Q5 一致）；但**拖拽源由「显式手柄」改为「整行」**，与 §5.20 的初版措辞不同，理由见上。
 
 **验证（同环境对照，非跨 worktree）**
 
@@ -516,6 +527,8 @@ P3（桌面原生 HTML5 拖拽）已实现并**本地提交**（未 push），�
 | `npm test`（server） | 1447 例 / **9 失败** | 1447 例 / **9 失败** | 用例数不变，**失败集合逐条一致**（`diff` 为空） |
 | `npm run test:client` | 1686 例 / **35 失败** | 1696 例 / **35 失败** | +10 例通过；失败集合**是基线的子集**（基线多出的那条仍是抖动的 `tokens refreshed…remount`），**无新增** |
 | `npm run lint` | 170 warning + 1 error | 170 warning + 1 error | **P3 新增 0 条** |
+
+（`d094b25b` 二次调整后复验：client 为 **1698 例 / 35 失败**，失败集合与上表 P3 完全一致；server 1447 例 / 9 失败、lint 170 warning + 1 error 均不变。）
 
 （server 全量测试读本机真实库的坑见 P1 一节；本轮未改表结构，未触发假失败。）
 
