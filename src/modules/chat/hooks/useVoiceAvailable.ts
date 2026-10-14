@@ -4,8 +4,8 @@ import { api } from '@/shared/api';
 import { useUiPreferences } from '@/shared/context/UiPreferencesContext';
 import { readVoiceConfig, VOICE_CONFIG_SYNC_EVENT } from '@/shared/voiceConfig';
 
-// Voice UI is gated on the `voiceEnabled` UI preference (toggled in Quick Settings /
-// the Settings modal) and a configured voice backend.
+// Voice UI is gated by two independent preferences (voice input / read aloud) plus a
+// reachable voice backend. Each caller reads only the flag it needs.
 let healthRequest: Promise<boolean> | null = null;
 
 function checkVoiceHealth(): Promise<boolean> {
@@ -23,32 +23,41 @@ function checkVoiceHealth(): Promise<boolean> {
   return request;
 }
 
-export function useVoiceAvailable(): boolean {
-  // Read through the shared preferences owner. This used to re-parse the
-  // preferences blob and register its own storage + sync listeners, once per
-  // assistant message row.
-  const { voiceEnabled: enabled } = useUiPreferences();
-  const [available, setAvailable] = useState(false);
+/** Which voice affordances should render. Local to this hook, its only definer. */
+type VoiceAvailability = {
+  /** Mic/dictation: `voiceInputEnabled` set and a backend reachable. */
+  canDictate: boolean;
+  /** Read-aloud: `voiceOutputEnabled` set and a backend reachable. */
+  canSpeak: boolean;
+};
+
+export function useVoiceAvailable(): VoiceAvailability {
+  const { voiceInputEnabled, voiceOutputEnabled } = useUiPreferences();
+  // Whether a voice backend is actually reachable — either the user configured a base
+  // URL or the server reports one. Independent of the two on/off preferences, so a
+  // toggle flip reuses the last result instead of re-probing.
+  const [backendReady, setBackendReady] = useState(false);
 
   useEffect(() => {
     let active = true;
     let requestId = 0;
 
     const check = async () => {
-      if (!enabled) {
-        setAvailable(false);
+      // Nothing to probe while both affordances are off.
+      if (!voiceInputEnabled && !voiceOutputEnabled) {
+        setBackendReady(false);
         return;
       }
       if (readVoiceConfig().baseUrl.trim()) {
-        setAvailable(true);
+        setBackendReady(true);
         return;
       }
       const id = ++requestId;
       try {
         const result = await checkVoiceHealth();
-        if (active && id === requestId) setAvailable(result);
+        if (active && id === requestId) setBackendReady(result);
       } catch {
-        if (active && id === requestId) setAvailable(false);
+        if (active && id === requestId) setBackendReady(false);
       }
     };
 
@@ -58,7 +67,10 @@ export function useVoiceAvailable(): boolean {
       active = false;
       window.removeEventListener(VOICE_CONFIG_SYNC_EVENT, check);
     };
-  }, [enabled]);
+  }, [voiceInputEnabled, voiceOutputEnabled]);
 
-  return enabled && available;
+  return {
+    canDictate: voiceInputEnabled && backendReady,
+    canSpeak: voiceOutputEnabled && backendReady,
+  };
 }

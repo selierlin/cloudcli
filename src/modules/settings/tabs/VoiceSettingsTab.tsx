@@ -18,31 +18,62 @@ function Field({ label, ...props }: { label: string } & InputHTMLAttributes<HTML
   );
 }
 
-/** Rendered by Settings for the "voice" tab, covering speech-to-text provider credentials. */
+/** One "enable this voice affordance" row: label and description on the left, toggle on the right. */
+function VoiceToggleRow({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-border p-3">
+      <div className="pr-3">
+        <div className="text-sm font-medium text-foreground">{label}</div>
+        <div className="text-xs text-muted-foreground">{description}</div>
+      </div>
+      <SettingsToggle checked={checked} onChange={onChange} ariaLabel={label} />
+    </div>
+  );
+}
+
+/**
+ * Rendered by Settings for the "voice" tab. Exposes two independent switches — voice
+ * input (mic) and read aloud — so either affordance can be hidden without disabling the
+ * other, plus the shared OpenAI-compatible backend credentials both use.
+ */
 export default function VoiceSettingsTab() {
   const { t } = useTranslation('settings');
   const preferences = useUiPreferences();
   const setPreference = useSetUiPreference();
   const { config, update } = useVoiceConfig();
-  const voiceEnabled = preferences.voiceEnabled;
+  const voiceInputEnabled = preferences.voiceInputEnabled;
+  const voiceOutputEnabled = preferences.voiceOutputEnabled;
 
   return (
     <div className="space-y-8">
       <SettingsSection title={t('voiceSettings.title')} description={t('voiceSettings.description')}>
-        <div className="flex items-center justify-between rounded-lg border border-border p-3">
-          <div className="pr-3">
-            <div className="text-sm font-medium text-foreground">{t('voiceSettings.enable')}</div>
-            <div className="text-xs text-muted-foreground">{t('voiceSettings.enableDescription')}</div>
-          </div>
-          <SettingsToggle
-            checked={voiceEnabled}
-            onChange={(v) => setPreference('voiceEnabled', v)}
-            ariaLabel={t('voiceSettings.enable')}
+        <div className="space-y-3">
+          <VoiceToggleRow
+            label={t('voiceSettings.inputEnabled')}
+            description={t('voiceSettings.inputEnabledDescription')}
+            checked={voiceInputEnabled}
+            onChange={(v) => setPreference('voiceInputEnabled', v)}
+          />
+          <VoiceToggleRow
+            label={t('voiceSettings.outputEnabled')}
+            description={t('voiceSettings.outputEnabledDescription')}
+            checked={voiceOutputEnabled}
+            onChange={(v) => setPreference('voiceOutputEnabled', v)}
           />
         </div>
       </SettingsSection>
 
-      {voiceEnabled && (
+      {(voiceInputEnabled || voiceOutputEnabled) && (
         <SettingsSection title={t('voiceSettings.backendTitle')} description={t('voiceSettings.backendDescription')}>
           <div className="space-y-4">
             <Field

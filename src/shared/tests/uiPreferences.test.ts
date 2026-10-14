@@ -36,25 +36,26 @@ test('a fresh install gets the documented defaults', () => {
     showThinking: true,
     sendByCtrlEnter: false,
     sidebarVisible: true,
-    voiceEnabled: false,
+    voiceInputEnabled: false,
+    voiceOutputEnabled: false,
   });
 });
 
 test('the stored blob is read back', () => {
-  storeUiPreferences({ showThinking: false, voiceEnabled: true });
+  storeUiPreferences({ showThinking: false, voiceInputEnabled: true });
 
   const preferences = readStoredUiPreferences();
   assert.equal(preferences.showThinking, false);
-  assert.equal(preferences.voiceEnabled, true);
+  assert.equal(preferences.voiceInputEnabled, true);
   assert.equal(preferences.sidebarVisible, true, 'unlisted keys keep their default');
 });
 
 test('values stored as strings are coerced, as older versions wrote them', () => {
-  storeUiPreferences({ showThinking: 'false', voiceEnabled: 'true' });
+  storeUiPreferences({ showThinking: 'false', voiceInputEnabled: 'true' });
 
   const preferences = readStoredUiPreferences();
   assert.equal(preferences.showThinking, false);
-  assert.equal(preferences.voiceEnabled, true);
+  assert.equal(preferences.voiceInputEnabled, true);
 });
 
 test('a stored value of the wrong type falls back instead of throwing', () => {
@@ -93,11 +94,11 @@ test('a cross-tab update applies every changed key at once', () => {
   const state = baseline();
   const next = uiPreferencesReducer(state, {
     type: 'set_many',
-    value: { showThinking: false, voiceEnabled: true },
+    value: { showThinking: false, voiceInputEnabled: true },
   });
 
   assert.equal(next.showThinking, false);
-  assert.equal(next.voiceEnabled, true);
+  assert.equal(next.voiceInputEnabled, true);
 });
 
 test('a cross-tab update with nothing new keeps the same object', () => {

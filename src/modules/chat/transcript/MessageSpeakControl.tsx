@@ -12,10 +12,10 @@ import { useVoiceAvailable } from '@/modules/chat/hooks/useVoiceAvailable';
  */
 const MessageSpeakControl = ({ content }: { content: string }) => {
   const { t } = useTranslation('chat');
-  const available = useVoiceAvailable();
+  const { canSpeak } = useVoiceAvailable();
   const { state, toggle, error } = useTts(() => content);
 
-  if (!available) return null;
+  if (!canSpeak) return null;
 
   const title =
     state === 'playing' ? t('voice.stopSpeaking') : state === 'loading' ? t('voice.loading') : t('voice.speak');

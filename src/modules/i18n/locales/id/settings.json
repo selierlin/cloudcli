@@ -53,8 +53,10 @@
   "voiceSettings": {
     "title": "Suara",
     "description": "Input speech-to-text dan fitur bacakan melalui backend audio yang kompatibel dengan OpenAI.",
-    "enable": "Aktifkan suara",
-    "enableDescription": "Tampilkan tombol mikrofon dan tombol bacakan pada pesan.",
+    "inputEnabled": "Masukan suara",
+    "inputEnabledDescription": "Tampilkan tombol mikrofon di kotak pesan untuk dikte.",
+    "outputEnabled": "Bacakan",
+    "outputEnabledDescription": "Tampilkan tombol bacakan pada balasan asisten.",
     "backendTitle": "Backend",
     "backendDescription": "Arahkan ke OpenAI, Groq, atau server lokal (LocalAI, Speaches, Kokoro-FastAPI). Kosongkan untuk menggunakan default server.",
     "baseUrl": "URL Dasar",

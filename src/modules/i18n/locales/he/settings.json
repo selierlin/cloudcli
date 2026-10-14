@@ -53,8 +53,10 @@
   "voiceSettings": {
     "title": "קול",
     "description": "הקלטת דיבור לטקסט והקראה בקול, דרך שרת אודיו תואם OpenAI.",
-    "enable": "הפעלת קול",
-    "enableDescription": "הצגת כפתור המיקרופון וכפתור ההקראה בהודעות.",
+    "inputEnabled": "קלט קולי",
+    "inputEnabledDescription": "הצג כפתור מיקרופון בתיבת ההודעה להכתבה.",
+    "outputEnabled": "הקראה בקול",
+    "outputEnabledDescription": "הצג כפתור הקראה בתשובות העוזר.",
     "backendTitle": "שרת",
     "backendDescription": "אפשר להפנות ל-OpenAI, ל-Groq או לשרת מקומי (LocalAI, Speaches, Kokoro-FastAPI). אפשר להשאיר ריק כדי להשתמש בברירת המחדל של השרת.",
     "baseUrl": "כתובת בסיס",
