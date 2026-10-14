@@ -33,11 +33,10 @@ type CapacitorWindow = {
 };
 
 type SidebarServerMenuProps = {
-  serverName: string | null;
   onShowSettings: () => void;
 };
 
-export default function SidebarServerMenu({ serverName, onShowSettings }: SidebarServerMenuProps) {
+export default function SidebarServerMenu({ onShowSettings }: SidebarServerMenuProps) {
   const { t } = useTranslation(['sidebar', 'auth']);
   const { user, logout } = useAuth();
   const [pickerUrl, setPickerUrl] = useState<string | null>(null);
@@ -49,9 +48,12 @@ export default function SidebarServerMenu({ serverName, onShowSettings }: Sideba
 
   const capacitor = (window as unknown as CapacitorWindow).Capacitor;
   const isNativeShell = isCapacitorNativeShell();
-  const menuLabel = serverName ?? t('app.title');
   // 当前 webview 所在的服务器 origin，用于在快速切换列表中标记当前服务器。
   const currentServerUrl = typeof window !== 'undefined' ? window.location.origin : '';
+  // 标题按当前 origin 在已保存服务器列表里反查，而不是读跨 origin 共享的
+  // `cloudcli.serverName` 标量——后者会被其它存活的 WebView 覆写，导致标题被锁死在旧值。
+  const currentServer = servers.find((server) => server.url === currentServerUrl);
+  const menuLabel = currentServer?.name || currentServer?.url || t('app.title');
 
   useEffect(() => {
     if (!isNativeShell) {

@@ -1,5 +1,3 @@
-import { useEffect, useState } from 'react';
-import { Preferences } from '@capacitor/preferences';
 import { Activity, Archive, Folder, FolderPlus, MessageSquare, Plus, RefreshCw, Search, X, PanelLeftClose } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
@@ -37,11 +35,9 @@ type SidebarHeaderProps = {
 /** Module-level, not a nested render function, so the wordmark menu is not remounted on every SidebarHeader render. */
 function LogoBlock({
   t,
-  serverName,
   onShowSettings,
 }: {
   t: TFunction;
-  serverName: string | null;
   onShowSettings: () => void;
 }) {
   // 自制的品牌终端图（/cloud-terminal-mark-flat.svg），平台端外包 dashboard 链接。
@@ -61,7 +57,7 @@ function LogoBlock({
         mark
       )}
       <div className="min-w-0" style={{ fontFamily: CLOUDCLI_WORDMARK_FONT_FAMILY }}>
-        <SidebarServerMenu serverName={serverName} onShowSettings={onShowSettings} />
+        <SidebarServerMenu onShowSettings={onShowSettings} />
       </div>
     </div>
   );
@@ -88,32 +84,6 @@ export default function SidebarHeader({
   onShowSettings,
   t,
 }: SidebarHeaderProps) {
-  // 移动端由服务器选择页跳转而来时，头部 Logo 旁显示当前服务器名称。
-  // 名称由选择页（mobile/www/picker.js）写入 Preferences，跨 origin 共享；
-  // 非 Capacitor 原生壳（桌面浏览器 / PWA）读取不到，回退显示 CloudCLI。
-  const [serverName, setServerName] = useState<string | null>(null);
-
-  useEffect(() => {
-    const isCapacitorShell = Boolean(
-      (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.(),
-    );
-    if (!isCapacitorShell) return;
-
-    let disposed = false;
-    void Preferences.get({ key: 'cloudcli.serverName' })
-      .then((res) => {
-        const value = res?.value?.trim();
-        if (!disposed && value) setServerName(value);
-      })
-      .catch(() => {
-        // 读取失败时保持默认标题（CloudCLI）
-      });
-
-    return () => {
-      disposed = true;
-    };
-  }, []);
-
   const showSearchTools = (projectsCount > 0 || runningSessionsCount > 0 || archivedSessionsCount > 0 || isArchivedSessionsLoading) && !isLoading;
   const searchPlaceholder = searchMode === 'conversations'
     ? t('search.conversationsPlaceholder')
@@ -131,7 +101,7 @@ export default function SidebarHeader({
         style={{}}
       >
         <div className="flex items-center justify-between gap-2">
-          <LogoBlock t={t} serverName={serverName} onShowSettings={onShowSettings} />
+          <LogoBlock t={t} onShowSettings={onShowSettings} />
 
           <div className="flex flex-shrink-0 items-center gap-0.5">
             <Button
@@ -220,7 +190,7 @@ export default function SidebarHeader({
         style={isPWA && isMobile ? { paddingTop: '16px' } : {}}
       >
         <div className="flex items-center justify-between">
-          <LogoBlock t={t} serverName={serverName} onShowSettings={onShowSettings} />
+          <LogoBlock t={t} onShowSettings={onShowSettings} />
 
           <div className="flex flex-shrink-0 gap-1.5">
             <button
