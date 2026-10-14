@@ -50,7 +50,13 @@ const readPathParam = (value: unknown, name: string): string => {
 const normalizeProviderParam = (value: unknown): string =>
   readPathParam(value, 'provider').trim().toLowerCase();
 
-const SESSION_ID_PATTERN = /^[a-zA-Z0-9._-]{1,120}$/;
+// A session indexed from a harness's own store before the app saw it keeps the
+// provider-native id as its primary key (`createSession`), and some harnesses
+// mint ids outside the app's UUID shape — OpenClaw keys sessions as
+// `agent:<agentId>:<key>`. `:` therefore has to be addressable here, or such a
+// row can never be reached by any `:sessionId` route (open, rename, delete).
+// Matches the `SAFE_SESSION_ID_PATTERN` the shell websocket already uses.
+const SESSION_ID_PATTERN = /^[a-zA-Z0-9._:-]{1,120}$/;
 
 const parseSessionId = (value: unknown): string => {
   const sessionId = readPathParam(value, 'sessionId').trim();
