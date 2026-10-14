@@ -409,3 +409,84 @@ test('creating a forked session drops the watcher rows watermark', async () => {
     assert.deepEqual(sessionReadStateDb.getReadState(7), []);
   });
 });
+
+test('creating a forked session repoints sessions filed under the watcher row', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createSession('fork-provider-session', 'claude', '/workspace/demo-project', 'Fork');
+    sessionsDb.createSession('child-row', 'claude', '/workspace/demo-project', 'Child');
+    sessionsDb.updateSessionParent('child-row', 'fork-provider-session');
+
+    sessionsDb.createForkedSession({
+      sessionId: 'app-fork',
+      provider: 'claude',
+      projectPath: '/workspace/demo-project',
+      customName: 'Fork',
+      providerSessionId: 'fork-provider-session',
+      jsonlPath: '/workspace/demo-project/fork.jsonl',
+      forkedFromSessionId: 'app-source',
+      nameSource: 'fork',
+      model: null,
+      effort: null,
+    });
+
+    // The watcher row is replaced by the app row, so a child filed under it
+    // follows onto the surviving row instead of dangling.
+    assert.equal(sessionsDb.getSessionById('fork-provider-session'), null);
+    assert.equal(sessionsDb.getSessionById('child-row')?.parent_session_id, 'app-fork');
+  });
+});
+
+test('merging a duplicate on provider-id assignment repoints filed sessions to the surviving row', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-session', 'claude', '/workspace/demo-project');
+    sessionsDb.createSession('provider-session', 'claude', '/workspace/demo-project', 'From disk');
+    sessionsDb.createSession('child-row', 'claude', '/workspace/demo-project', 'Child');
+    sessionsDb.updateSessionParent('child-row', 'provider-session');
+
+    sessionsDb.assignProviderSessionId('app-session', 'provider-session');
+
+    // The duplicate is merged into the app row, so a child filed under the
+    // duplicate must follow onto the surviving row, not dangle.
+    assert.equal(sessionsDb.getSessionById('provider-session'), null);
+    assert.equal(sessionsDb.getSessionById('child-row')?.parent_session_id, 'app-session');
+  });
+});
+
+test('merging a duplicate detaches the surviving row instead of pointing it at itself', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-session', 'claude', '/workspace/demo-project');
+    sessionsDb.createSession('provider-session', 'claude', '/workspace/demo-project', 'From disk');
+    // The app row was filed under the duplicate; repointing it onto itself
+    // would be a self-cycle, so the link is detached instead.
+    sessionsDb.updateSessionParent('app-session', 'provider-session');
+
+    sessionsDb.assignProviderSessionId('app-session', 'provider-session');
+
+    assert.equal(sessionsDb.getSessionById('app-session')?.parent_session_id, null);
+  });
+});
+
+test('repointing a session repoints filed sessions onto the surviving row', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-session', 'codex', '/workspace/demo-project');
+    sessionsDb.createSession('new-provider-session', 'codex', '/workspace/demo-project', 'New');
+    sessionsDb.createSession('old-provider-session', 'codex', '/workspace/demo-project', 'Old');
+    sessionsDb.createSession('child-of-new', 'codex', '/workspace/demo-project', 'Child A');
+    sessionsDb.createSession('child-of-old', 'codex', '/workspace/demo-project', 'Child B');
+    sessionsDb.updateSessionParent('child-of-new', 'new-provider-session');
+    sessionsDb.updateSessionParent('child-of-old', 'old-provider-session');
+
+    sessionsDb.repointSessionToProviderSession('app-session', {
+      providerSessionId: 'new-provider-session',
+      jsonlPath: '/workspace/demo-project/new.jsonl',
+      supersededProviderSessionId: 'old-provider-session',
+    });
+
+    // Both discarded rows were artifacts of the same app conversation, so
+    // children filed under either follow onto the surviving row.
+    assert.equal(sessionsDb.getSessionById('new-provider-session'), null);
+    assert.equal(sessionsDb.getSessionById('old-provider-session'), null);
+    assert.equal(sessionsDb.getSessionById('child-of-new')?.parent_session_id, 'app-session');
+    assert.equal(sessionsDb.getSessionById('child-of-old')?.parent_session_id, 'app-session');
+  });
+});
