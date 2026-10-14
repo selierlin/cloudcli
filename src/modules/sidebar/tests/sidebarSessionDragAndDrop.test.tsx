@@ -1,0 +1,195 @@
+import assert from 'node:assert/strict';
+
+import { fireEvent, render } from '@testing-library/react';
+import React from 'react';
+import { test, vi } from 'vitest';
+
+import { SESSION_OWNERSHIP_DRAG_MIME } from '@/shared/constants';
+import type { Project, SessionAttentionLevel, SidebarProjectListProps } from '@/shared/types';
+
+/**
+ * Desktop drag & drop is the mouse shortcut for what the row menu's "file
+ * under…" and "move to top level" do, so it has to reach the same callback with
+ * the same arguments — and it must not fire for anything the menu cannot do: the
+ * dragged row itself, a child row (only a top-level row can adopt), or a drag
+ * that is not a session at all (a file from the desktop).
+ *
+ * The list owns the drag state; the rows own the drop targets.
+ */
+
+const { SessionParentPickerProvider } = await import('@/modules/sidebar/context/SessionParentPickerContext');
+const { default: SidebarProjectSessions } = await import('@/modules/sidebar/SidebarProjectSessions');
+const { getAllSessions } = await import('@/modules/sidebar/utils/sidebarProjectFormatting');
+
+const NOW = new Date('2026-08-21T10:00:00.000Z');
+const noop = () => {};
+const t = ((key: string) => key) as unknown as SidebarProjectListProps['t'];
+const NO_SESSION_IDS: ReadonlySet<string> = new Set<string>();
+const NO_ATTENTION: ReadonlyMap<string, SessionAttentionLevel> = new Map();
+
+// `a` owns `c`, so `a` can adopt a session but cannot itself be dragged; `b` is
+// a plain top-level row and `c` is a child, which can only be moved out.
+const PROJECT = {
+  projectId: 'project-1',
+  name: 'project-1',
+  displayName: 'project one',
+  fullPath: '/tmp/project-1',
+  sessions: [
+    { id: 'a', summary: 'session a', lastActivity: '2026-08-21T09:59:00.000Z' },
+    { id: 'b', summary: 'session b', lastActivity: '2026-08-21T09:58:00.000Z' },
+    { id: 'c', summary: 'session c', lastActivity: '2026-08-21T09:57:00.000Z', parentSessionId: 'a' },
+  ],
+} as unknown as Project;
+
+/** The DataTransfer jsdom does not implement; only what the handlers read. */
+const dragData = (types: string[] = [SESSION_OWNERSHIP_DRAG_MIME]) => ({
+  types,
+  setData: () => {},
+  effectAllowed: '',
+  dropEffect: '',
+});
+
+const renderList = (
+  setSessionParent: (sessionId: string, parentSessionId: string | null) => void,
+  { isManaging = false, withProvider = true }: { isManaging?: boolean; withProvider?: boolean } = {},
+) => {
+  const list = (
+    <SidebarProjectSessions
+      project={PROJECT}
+      isExpanded
+      isManaging={isManaging}
+      onManagingChange={noop}
+      sessions={getAllSessions(PROJECT)}
+      selectedSession={null}
+      initialSessionsLoaded
+      hasMoreSessions={false}
+      isLoadingMoreSessions={false}
+      activeSessions={NO_SESSION_IDS}
+      backgroundSessionIds={NO_SESSION_IDS}
+      attentionSessions={NO_ATTENTION}
+      currentTime={NOW}
+      sessionRenameId={null}
+      sessionRenameDraft=""
+      onRenameDraftChange={noop}
+      onStartEditingSession={noop}
+      onCancelEditingSession={noop}
+      onSaveEditingSession={noop}
+      onProjectSelect={noop}
+      onSessionSelect={noop}
+      onDeleteSession={noop}
+      onLoadMoreSessions={noop}
+      onNewSession={noop}
+      t={t}
+    />
+  );
+
+  return render(withProvider
+    ? (
+      <SessionParentPickerProvider projects={[PROJECT]} setSessionParent={setSessionParent} t={t}>
+        {list}
+      </SessionParentPickerProvider>
+    )
+    : list);
+};
+
+const rowOf = (container: HTMLElement, sessionId: string) =>
+  container.querySelector(`a[href="/session/${sessionId}"]`) as HTMLAnchorElement;
+const handleOf = (container: HTMLElement, sessionId: string) =>
+  rowOf(container, sessionId).querySelector('[data-testid="session-drag-handle"]') as HTMLElement | null;
+const listZoneOf = (container: HTMLElement) =>
+  container.querySelector('[data-testid="project-session-list"]') as HTMLElement;
+
+test('dropping a dragged session on a top-level row files it under that row', () => {
+  const setSessionParent = vi.fn();
+  const { container } = renderList(setSessionParent);
+  const data = dragData();
+
+  fireEvent.dragStart(handleOf(container, 'b') as HTMLElement, { dataTransfer: data });
+
+  const target = rowOf(container, 'a');
+  fireEvent.dragOver(target, { dataTransfer: data });
+  assert.match(String(target.className), /ring-2/, 'the row under the drag marks itself as the drop target');
+
+  fireEvent.drop(target, { dataTransfer: data });
+
+  assert.deepEqual(setSessionParent.mock.calls, [['b', 'a']]);
+});
+
+test('dropping a dragged session on the list blank space moves it back to the top level', () => {
+  const setSessionParent = vi.fn();
+  const { container } = renderList(setSessionParent);
+  const data = dragData();
+
+  fireEvent.dragStart(handleOf(container, 'c') as HTMLElement, { dataTransfer: data });
+  fireEvent.drop(listZoneOf(container), { dataTransfer: data });
+
+  assert.deepEqual(setSessionParent.mock.calls, [['c', null]]);
+});
+
+test('a child row is inert: dropping onto it neither files nor moves the session out', () => {
+  const setSessionParent = vi.fn();
+  const { container } = renderList(setSessionParent);
+  const data = dragData();
+
+  fireEvent.dragStart(handleOf(container, 'b') as HTMLElement, { dataTransfer: data });
+
+  const child = rowOf(container, 'c');
+  fireEvent.dragOver(child, { dataTransfer: data });
+  fireEvent.drop(child, { dataTransfer: data });
+
+  assert.equal(
+    setSessionParent.mock.calls.length,
+    0,
+    'the drag stops at the child row instead of reaching the list\'s move-out zone',
+  );
+});
+
+test('a row is not a drop target for its own drag', () => {
+  const setSessionParent = vi.fn();
+  const { container } = renderList(setSessionParent);
+  const data = dragData();
+
+  const self = rowOf(container, 'b');
+  fireEvent.dragStart(handleOf(container, 'b') as HTMLElement, { dataTransfer: data });
+  fireEvent.dragOver(self, { dataTransfer: data });
+  fireEvent.drop(self, { dataTransfer: data });
+
+  assert.equal(setSessionParent.mock.calls.length, 0, 'a session is never filed under itself');
+});
+
+test('a drag that carries no session payload is ignored', () => {
+  const setSessionParent = vi.fn();
+  const { container } = renderList(setSessionParent);
+  const files = dragData(['Files']);
+
+  const target = rowOf(container, 'b');
+  fireEvent.dragOver(target, { dataTransfer: files });
+  fireEvent.drop(target, { dataTransfer: files });
+  fireEvent.drop(listZoneOf(container), { dataTransfer: files });
+
+  assert.equal(setSessionParent.mock.calls.length, 0, 'a desktop file drop must not re-parent a session');
+});
+
+test('a session that owns children offers no drag handle', () => {
+  const { container } = renderList(vi.fn());
+
+  assert.ok(handleOf(container, 'b'), 'a plain top-level row is draggable');
+  assert.ok(handleOf(container, 'c'), 'a child row can be dragged out from under its parent');
+  assert.equal(
+    handleOf(container, 'a'),
+    null,
+    'a session that owns children cannot be filed under another — the tree is one level deep',
+  );
+});
+
+test('manage mode withholds every drag handle', () => {
+  const { container } = renderList(vi.fn(), { isManaging: true });
+
+  assert.equal(container.querySelectorAll('[data-testid="session-drag-handle"]').length, 0);
+});
+
+test('without the picker provider there is nothing to drag with', () => {
+  const { container } = renderList(vi.fn(), { withProvider: false });
+
+  assert.equal(container.querySelectorAll('[data-testid="session-drag-handle"]').length, 0);
+});

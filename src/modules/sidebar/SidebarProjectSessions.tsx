@@ -1,13 +1,16 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import type { DragEvent } from 'react';
 import { Plus } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button } from '@/shared/ui';
 import { cn } from '@/shared/utils';
+import { SESSION_OWNERSHIP_DRAG_MIME } from '@/shared/constants';
 import type { LLMProvider, Project, ProjectSession, SessionAttentionLevel, SessionWithProvider } from '@/shared/types';
 import SidebarSessionItem from '@/modules/sidebar/SidebarSessionItem';
 import SidebarBatchSessionActions from '@/modules/sidebar/SidebarBatchSessionActions';
 import { useCompactSidebar } from '@/modules/sidebar/hooks/useCompactSidebar';
+import { useSessionParentPicker } from '@/modules/sidebar/context/SessionParentPickerContext';
 import { groupSessionsByParent } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 
 type SidebarProjectSessionsProps = {
@@ -158,6 +161,53 @@ export default function SidebarProjectSessions({
   // each row's memo still bails.
   const sessionTree = useMemo(() => groupSessionsByParent(sessions), [sessions]);
 
+  // The parent picker provider owns the persistence; a drag here is only another
+  // way to trigger the same move. Absent outside the sidebar (and in tests that
+  // render this list bare), in which case rows offer no drag handle.
+  const parentPicker = useSessionParentPicker();
+  const setSessionParent = parentPicker?.setSessionParent;
+
+  // Which session of this project is being dragged. Deliberately local to the
+  // list rather than global: a drag can then never be picked up by another
+  // project's rows, which is the same-project rule enforced structurally instead
+  // of by a check that could be forgotten.
+  const [draggingSessionId, setDraggingSessionId] = useState<string | null>(null);
+
+  const beginSessionDrag = useCallback((sessionId: string) => {
+    setDraggingSessionId(sessionId);
+  }, []);
+
+  const endSessionDrag = useCallback(() => {
+    setDraggingSessionId(null);
+  }, []);
+
+  const dropSessionOnRow = useCallback((targetSessionId: string) => {
+    if (draggingSessionId && draggingSessionId !== targetSessionId) {
+      setSessionParent?.(draggingSessionId, targetSessionId);
+    }
+    setDraggingSessionId(null);
+  }, [draggingSessionId, setSessionParent]);
+
+  // Blank space and the header buttons are the "move out" drop zone: a row stops
+  // the event on its way down (it is either a target itself or deliberately
+  // inert), so whatever reaches here is not over a session.
+  const handleListDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!draggingSessionId || !event.dataTransfer?.types.includes(SESSION_OWNERSHIP_DRAG_MIME)) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleListDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!draggingSessionId || !event.dataTransfer?.types.includes(SESSION_OWNERSHIP_DRAG_MIME)) {
+      return;
+    }
+    event.preventDefault();
+    setSessionParent?.(draggingSessionId, null);
+    setDraggingSessionId(null);
+  };
+
   const renderSessionRow = (session: SessionWithProvider) => (
     <SidebarSessionItem
       key={session.id}
@@ -182,6 +232,10 @@ export default function SidebarProjectSessions({
       onToggleBatchSelection={toggleBatchSelection}
       onDeleteSession={onDeleteSession}
       onForkSession={onForkSession}
+      draggingSessionId={draggingSessionId}
+      onSessionDragStart={beginSessionDrag}
+      onSessionDragEnd={endSessionDrag}
+      onSessionDropOnRow={dropSessionOnRow}
       t={t}
     />
   );
@@ -212,7 +266,12 @@ export default function SidebarProjectSessions({
       )}
     >
     <div className="overflow-hidden">
-    <div className="ml-3 space-y-1 border-l border-border pl-3">
+    <div
+      className="ml-3 space-y-1 border-l border-border pl-3"
+      data-testid="project-session-list"
+      onDragOver={handleListDragOver}
+      onDrop={handleListDrop}
+    >
       {isCompact ? (
         <div className="grid grid-cols-2 gap-1 px-3 pb-1 pt-1">
           {!isManaging && (

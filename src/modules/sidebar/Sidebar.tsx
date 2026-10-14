@@ -305,7 +305,7 @@ function Sidebar({
         <>
         <SessionParentPickerProvider
           projects={projects}
-          onAssignParent={updateSessionParent}
+          setSessionParent={updateSessionParent}
           t={t}
         >
         <SidebarContent

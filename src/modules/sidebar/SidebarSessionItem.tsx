@@ -1,9 +1,11 @@
 import { memo, useState } from 'react';
-import { Check, Edit2, Loader2, MoreHorizontal, Pin, PinOff, Trash2, X } from 'lucide-react';
+import type { DragEvent } from 'react';
+import { Check, Edit2, GripVertical, Loader2, MoreHorizontal, Pin, PinOff, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Badge, Dialog, DialogContent, DialogTitle, LLMProviderLogo, Tooltip, buttonVariants } from '@/shared/ui';
 import { cn } from '@/shared/utils';
+import { SESSION_OWNERSHIP_DRAG_MIME } from '@/shared/constants';
 import type { LLMProvider, Project, ProjectSession, SessionAttentionLevel, SessionWithProvider } from '@/shared/types';
 import { PROVIDER_LABELS, createSessionViewModel, formatCompactAge } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import { ActivitySlot, AttentionSlot } from '@/modules/sidebar/SessionStatusIndicators';
@@ -41,6 +43,18 @@ type SidebarSessionItemProps = {
   onDeleteSession: (sessionId: string, sessionTitle: string) => void;
   /** Branches this session into an independent one; absent when its provider cannot. */
   onForkSession?: (session: SessionWithProvider) => void;
+  /**
+   * The session currently being dragged within this project, or null. Supplied
+   * by the owning list so a row can highlight itself as a drop target and can
+   * tell a drag of its own row apart from one of a sibling.
+   */
+  draggingSessionId: string | null;
+  /** Starts a drag of this row; the list owns the drag state. */
+  onSessionDragStart: (sessionId: string) => void;
+  /** Ends the drag without a drop (Escape, or a drop outside any target). */
+  onSessionDragEnd: () => void;
+  /** Files the dragged session under this row. */
+  onSessionDropOnRow: (targetSessionId: string) => void;
   t: TFunction;
 };
 
@@ -67,6 +81,10 @@ function SidebarSessionItem({
   onToggleBatchSelection,
   onDeleteSession,
   onForkSession,
+  draggingSessionId,
+  onSessionDragStart,
+  onSessionDragEnd,
+  onSessionDropOnRow,
   t,
 }: SidebarSessionItemProps) {
   const isCompact = useCompactSidebar();
@@ -137,8 +155,69 @@ function SidebarSessionItem({
       })
     : undefined;
   const clearParent = parentPicker && parentSessionId
-    ? () => parentPicker.clearParent(session.id)
+    ? () => parentPicker.setSessionParent(session.id, null)
     : undefined;
+
+  // Desktop drag is the mouse shortcut for the same move the menu offers, so it
+  // is offered in exactly the same cases — minus manage mode (a drag would fight
+  // the batch selection) and the compact layout (touch has no hover or drag).
+  const canDragSession = canAssignParent && !isCompact && !isManaging;
+  // Only a top-level row can adopt a child: the tree is one level deep, so a row
+  // that already has a parent is not a drop target.
+  const isSessionDropTarget = Boolean(draggingSessionId) && !parentSessionId;
+  // ! Possibly unnecessary - mirrors the DOM's transient drag-hover state, which
+  // is not derivable from props or state; it only colours the row under the pointer.
+  const [isDropHovered, setIsDropHovered] = useState(false);
+
+  const startSessionDrag = (event: DragEvent<HTMLSpanElement>) => {
+    // Firefox only starts a drag once a payload is set. The id is never read
+    // back out of the payload (the owning list holds the source), so the value
+    // only has to exist.
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData(SESSION_OWNERSHIP_DRAG_MIME, session.id);
+    onSessionDragStart(session.id);
+  };
+
+  const acceptSessionDrag = (event: DragEvent<HTMLAnchorElement>) => {
+    const dataTransfer = event.dataTransfer;
+    // Ignore anything that is not one of our own drags (a desktop file, a link)
+    // and a drag of the row itself.
+    if (!draggingSessionId || !dataTransfer?.types.includes(SESSION_OWNERSHIP_DRAG_MIME)) {
+      return;
+    }
+    // Claim the event so the list's "drop here to move out" zone does not also
+    // handle it: this row, not the blank space around it, is under the pointer.
+    event.stopPropagation();
+    if (!isSessionDropTarget || draggingSessionId === session.id) {
+      return;
+    }
+    event.preventDefault();
+    dataTransfer.dropEffect = 'move';
+    setIsDropHovered(true);
+  };
+
+  const leaveSessionDrag = (event: DragEvent<HTMLAnchorElement>) => {
+    // dragleave also fires while the pointer moves between the row's own child
+    // elements, which would flicker the highlight; only a real exit clears it.
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      return;
+    }
+    setIsDropHovered(false);
+  };
+
+  const completeSessionDrag = (event: DragEvent<HTMLAnchorElement>) => {
+    const dataTransfer = event.dataTransfer;
+    if (!draggingSessionId || !dataTransfer?.types.includes(SESSION_OWNERSHIP_DRAG_MIME)) {
+      return;
+    }
+    event.stopPropagation();
+    setIsDropHovered(false);
+    if (!isSessionDropTarget || draggingSessionId === session.id) {
+      return;
+    }
+    event.preventDefault();
+    onSessionDropOnRow(session.id);
+  };
 
   const startMobileRename = () => {
     onStartEditingSession(project.projectId, session.id, sessionView.sessionName);
@@ -410,7 +489,16 @@ function SidebarSessionItem({
               ? 'border-border/60 bg-muted/20 hover:bg-muted/25'
               : 'hover:bg-accent',
             isManaging && isProcessing && 'cursor-not-allowed opacity-60',
+            // The drag handle appears on hover; the extra padding reserves the
+            // strip it occupies so it never sits on top of the provider logo.
+            canDragSession && 'group-hover:pl-7',
+            // A ring, not a border or a background, so it can mark the row under
+            // a drag without colliding with the selected/running border above.
+            isDropHovered && 'ring-2 ring-inset ring-primary/60',
           )}
+          onDragOver={acceptSessionDrag}
+          onDragLeave={leaveSessionDrag}
+          onDrop={completeSessionDrag}
           // Left-click keeps in-app navigation; Ctrl/Cmd/middle-click and the
           // native right-click menu use the href to open a new tab/window.
           onClick={(event) => {
@@ -427,6 +515,22 @@ function SidebarSessionItem({
             onSessionSelect(session, project.projectId);
           }}
         >
+          {canDragSession && (
+            // A mouse-only affordance: the row itself is a link, so dragging the
+            // whole row would fight both navigation and text selection. The menu
+            // is the accessible path, so the handle stays out of the a11y tree.
+            <span
+              draggable
+              aria-hidden="true"
+              title={t('sessions.dragToFileUnder')}
+              data-testid="session-drag-handle"
+              onDragStart={startSessionDrag}
+              onDragEnd={onSessionDragEnd}
+              className="pointer-events-none absolute left-1 top-1/2 flex h-6 w-5 -translate-y-1/2 cursor-grab items-center justify-center text-muted-foreground opacity-0 transition-opacity active:cursor-grabbing group-hover:pointer-events-auto group-hover:opacity-100"
+            >
+              <GripVertical className="h-4 w-4" aria-hidden="true" />
+            </span>
+          )}
           <div className="flex w-full min-w-0 items-center gap-2">
             {isManaging && (
               <span
