@@ -255,6 +255,10 @@ test('conversation search streams title matches before transcript results', asyn
       workspacePath,
       'Release planning notes',
     );
+    // A filed hit carries its parent, so the hit row can offer "move to top
+    // level"; the parent's own name must not match the query.
+    sessionsDb.createAppSession('search-parent-session', 'codex', workspacePath, 'Opaque parent');
+    sessionsDb.updateSessionParent('title-only-session', 'search-parent-session');
     const transcriptPath = path.join(path.dirname(workspacePath), 'codex-search.jsonl');
     await writeFile(transcriptPath, `${JSON.stringify({
       type: 'event_msg',
@@ -299,12 +303,18 @@ test('conversation search streams title matches before transcript results', asyn
         sessionId: string;
         sessionTitle: string;
         provider: string;
+        parentSessionId: string | null;
       }>;
     };
     assert.equal(titlePayload.titleResults.length, 1);
     assert.equal(titlePayload.titleResults[0]?.sessionId, 'title-only-session');
     assert.equal(titlePayload.titleResults[0]?.sessionTitle, 'Release planning notes');
     assert.equal(titlePayload.titleResults[0]?.provider, 'codex');
+    assert.equal(
+      titlePayload.titleResults[0]?.parentSessionId,
+      'search-parent-session',
+      'a filed hit reports its parent so the row can offer "move to top level"',
+    );
   });
 });
 

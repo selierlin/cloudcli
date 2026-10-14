@@ -2092,6 +2092,8 @@ export type SessionTitleSearchResult = {
   /** True when the hit is an archived session; the sidebar renders an archived badge for it. */
   isArchived?: boolean;
   isPinned?: boolean;
+  /** The session this hit is filed under, or null when it is top-level. Drives the hit row's "move to top level" action. */
+  parentSessionId?: string | null;
 };
 
 /** All conversation matches found inside a single project during a search, grouped so the results can be rendered under one project heading. */

@@ -220,7 +220,7 @@
 10. `src/modules/sidebar/utils/sidebarProjectFormatting.ts` — 新增分组派生**独立纯函数**（不改 `getAllSessions` 返回结构；缓存按 project+搜索词组合键）（第 1 轮 W2）。
 11. `src/modules/sidebar/SidebarProjectSessions.tsx` — 渲染循环改「根 + 子」，缩进 + 连接线（`:180`、`:243-269`）。
 12. `src/modules/sidebar/SidebarSessionItem.tsx` — 子行缩进样式，compact/desktop 两分支。
-13. 菜单入口（**共 5 处**，第 1 轮 P2）：`SessionOptions.tsx:168-207`（桌面）、`SidebarSessionItem.tsx:207-360`（compact bottom sheet）、`SidebarRecentConversations.tsx:466-517` 与 `:328-390`、`SidebarContent.tsx:114-172`/`:516+`。建议**先抽一个共享菜单项构造器**再加「归到…/移出」；选择器放 `src/modules/sidebar/modals/SessionParentPicker.tsx`（第 1 轮 P11：按前端规范 `modals/` 存放，不沿用 `SidebarModals.tsx` 的既有反例，也不顺带重构存量）。**实现结果：落地 4 处（前 4 个），第 5 处收敛为后续可选增强（需求方 2026-10-14 拍板）—— 见文末「作者动作：P1 实现落地」与 §6。**
+13. 菜单入口（**共 5 处**，第 1 轮 P2）：`SessionOptions.tsx:168-207`（桌面）、`SidebarSessionItem.tsx:207-360`（compact bottom sheet）、`SidebarRecentConversations.tsx:466-517` 与 `:328-390`、`SidebarContent.tsx:114-172`/`:516+`。建议**先抽一个共享菜单项构造器**再加「归到…/移出」；选择器放 `src/modules/sidebar/modals/SessionParentPicker.tsx`（第 1 轮 P11：按前端规范 `modals/` 存放，不沿用 `SidebarModals.tsx` 的既有反例，也不顺带重构存量）。**实现结果：先落地 4 处（前 4 个），第 5 处收敛为后续可选增强（需求方 2026-10-14 拍板）；第 5 处已于同日补齐（见文末「作者动作：搜索命中行入口」）—— 见文末「作者动作：P1 实现落地」与 §6。**
 14. `src/modules/project-workspace/hooks/useProjectsState.ts` — **overlay 乐观态** `optimisticParents`（不重建 `project.sessions`）；websocket 事件消费 `parentSessionId`；400 时回滚 overlay + 可见错误（第 1 轮 P7、W10）。
 15. i18n：只补 **`src/modules/i18n/locales/en/sidebar.json` 的 `sessions.*`**（其余语言自动回落 en，`config.ts:361`）；zh-CN 可选（第 1 轮 P4，修正原「仅 en + zh-CN 全量维护」的错误依据与落点——实测 en 为超集）。
 
@@ -260,7 +260,7 @@
 - [x] 多端不出现重复行或错位（`upsertSessionIntoProject` 正常合并）。
 - [x] conversations 视图：子会话显示「↳ 派生自 …」引用行（父已删时不可点），时间序与分页不受影响。（P2 已完成：服务端 `listRecentSessions` 补 `parentTitle`，前端在标题下渲染引用行；父存在→可点开该父会话，父标题解析不到（已删）→纯文本「派生会话」。详见「作者动作：P2 实现落地」）
 - [x] 移动端：**4 处稳定会话行**（项目视图桌面 `SessionOptions` + 移动 compact bottom sheet、conversations 桌面 `ActionMenu` + 移动 bottom sheet）均提供「归到…/移出」，无拖拽不报错（第 1 轮 P2）。（需求方 2026-10-14 拍板：入口范围由「5 处」收敛为「4 处稳定会话行」，覆盖审阅 P2「移动端一个入口都没有」的实际担忧）
-- [d] 【后续可选增强，未纳入 P1】活跃搜索命中行（`SidebarContent.tsx`）加「归到…/移出」：归档变体按「归档父」一项的定义本就不显示归属；活跃命中行属**临时搜索面**，且不持有所属 project 的会话数组，须先由服务端 `findSessionTitleResults` 补 `parentSessionId`（外加客户端类型与传参）才能判定「是否拥有子会话」。
+- [x] 活跃搜索命中行（`SidebarContent.tsx` 的 `ConversationTitleResultRow`）加「归到…/移出」：服务端 `findSessionTitleResults` 补 `parentSessionId` 投影（含类型与传参），前端据加载到的 project payload 派生「是否拥有子会话」；**归档命中行不显示归属**（按「归档父」的定义），拥有子会话的命中行不显示「归到…」。（2026-10-14 补齐，见「作者动作：搜索命中行入口」一节）
 - [x] 校验：`npm run typecheck`、`npm run build`、改动文件 lint 无新增告警、相关单测通过（全量测试的既存基线失败需以改动前提交对照归因）。
 
 ## 7. 风险与回滚
@@ -426,7 +426,7 @@ P1（字段 + 接口 + 项目视图树 + 菜单）和后端测试已实现并**�
 - 活跃命中行是**临时搜索面**，不是侧边栏的稳定会话列表；且它不持有所属 project 的会话数组，要再穿一层「是否拥有子会话」才能决定是否显示入口。
 - 成本不在 UI（共享构造器已在，约 4 行），而在服务端 `findSessionTitleResults` 的投影要补 `parentSessionId` + 客户端类型 + 传参。
 - 审阅 P2 的实际担忧是「**移动端一个入口都没有**」，本轮已由项目视图 compact sheet 与 conversations 移动 sheet 覆盖。
-- **结论（需求方已采纳）**：§6 该项由「5 处」收敛为「**4 处稳定会话行**」（`[x]`），活跃搜索命中行单列为**后续可选增强**（`[d]`）。若将来要做，最小改动 = 服务端 `findSessionTitleResults` 补 `parentSessionId` 投影，其余复用现有共享构造器。
+- **结论（需求方已采纳）**：§6 该项由「5 处」收敛为「**4 处稳定会话行**」（`[x]`），活跃搜索命中行单列为**后续可选增强**（`[d]`）。若将来要做，最小改动 = 服务端 `findSessionTitleResults` 补 `parentSessionId` 投影，其余复用现有共享构造器。**（2026-10-14 更新：该「后续可选增强」已按上述最小改动完成，见文末「作者动作：搜索命中行入口」；§6 该项已由 `[d]` 置为 `[x]`。）**
 
 **验证（同环境对照，非跨 worktree）**
 
@@ -447,6 +447,7 @@ server 全量测试**不会**自建库，而是经默认连接读**本机真实*
 **仍待办**
 
 - ~~P3：桌面拖拽（§5.20）~~ → **已完成**（见下方「作者动作：P3 实现落地」）。
+- ~~活跃搜索命中行入口（§6 原 `[d]`）~~ → **已完成**（见下方「作者动作：搜索命中行入口」）。
 - `referencedParents`（§5.21）仅在 §4 Q1 的再触发条件成立时做。
 - i18n zh-CN 未做（按 §5.15 结论可选，en 为唯一真源）。
 
@@ -531,6 +532,37 @@ P3（桌面原生 HTML5 拖拽）已实现并**本地提交**（未 push），�
 （`d094b25b` 二次调整后复验：client 为 **1698 例 / 35 失败**，失败集合与上表 P3 完全一致；server 1447 例 / 9 失败、lint 170 warning + 1 error 均不变。）
 
 （server 全量测试读本机真实库的坑见 P1 一节；本轮未改表结构，未触发假失败。）
+
+---
+
+### 作者动作：作者（2026-10-14，搜索命中行入口）
+
+补齐 §6 里最后一个未做项（原 `[d]`「后续可选增强」）：**活跃搜索命中行**也能「归到…/移出」。上一节 P3 收尾后，方案里只剩这一项具体未做，本轮把它做掉。
+
+**做了什么**
+
+1. **服务端投影补 `parentSessionId`**：`SessionTitleSearchResult` 加字段（`session-conversations-search.service.ts:54`），`findSessionTitleResults` 从仓储行的 `parent_session_id` 取值（`:238`）。仓储行本就 `SELECT` 该列，无需改查询、无额外查询开销。客户端类型同步（`src/shared/types.ts:2096`）。
+2. **命中行接入共享入口**：`ConversationTitleResultRow` 复用既有的 `buildSessionOwnershipMenuItems`（桌面 `ActionMenu`，`SidebarContent.tsx:190`）与 `SessionOwnershipSheetActions`（移动 bottom sheet，`:345`），与项目行 / conversations 行的写路径完全一致（`SessionParentPickerContext.setSessionParent`），无新增后端面。
+3. **两条边界**：① **归档命中行不显示归属**（`SessionOwnershipSheetActions` 与菜单项都只在 `!session.isArchived` 分支渲染），与「归档区不显示归属」一致；② **拥有子会话的命中行不显示「归到…」**（`canAssignParent = Boolean(picker) && !sessionOwnsChildren`），与一层规则一致。「是否拥有子会话」由加载到的 project payload 派生（`SidebarContent.tsx:950` 的 `sessionsOwningChildren`），与 conversations 行同一套做法——命中行自身不持有会话数组。
+4. **跨项目 / 未加载项目**：命中行的 `projectId` 直接交给 picker，候选由 provider 从已加载项目解析；项目未加载时候选为空（picker 显示空列表），不产生错误写。已知的**服务端 400**（一层 / 同项目违规）仍由乐观回滚 + 可见错误兜住，与既有入口一致。
+
+**与方案的偏离：无**。完全按 §6 该项「最小改动 = 服务端补 `parentSessionId` 投影 + 复用共享构造器」的预设执行。
+
+**验证（同环境对照）**
+
+对照点 = 本轮之前的提交 **`76748c19`**（P3 文档收尾）。改动面：服务端 2 个文件（服务 + 其测试）、客户端 2 个文件（`SidebarContent.tsx`、`src/shared/types.ts`）+ 1 个新测试。数字：
+
+| 检查 | 基线 `76748c19` | 本次 | 结论 |
+| --- | --- | --- | --- |
+| `npm run typecheck` | 通过 | 通过 | 无新增 |
+| `npm run build` | 通过 | 通过 | 无新增 |
+| `npm test`（server） | 1447 例 / **9 失败** | 1447 例 / **9 失败** | 用例数不变（只改断言、不加用例），**失败集合逐条一致**（`diff` 为空） |
+| `npm run test:client` | 1698 例 / **35 失败** | 1708 例 / **37 失败** | 新增 6 例（本功能的搜索命中行测试）全通过；报出的 37 失败 = 基线 35 + **2 例 `projectsStateSelectionSync` 超时抖动**（单独复跑该文件 6/6 通过），**本功能无新增失败** |
+| `npm run lint` | 170 warning + 1 error | 170 warning + 1 error | **新增 0 条** |
+
+（**口径说明**：同一工作区里还并行进行着**与本功能无关的**语音开关改动（`chat/*`、`settings/tabs/VoiceSettingsTab.tsx`、`src/shared/uiPreferences.ts` 等，随后提交为 `227d68ca`），故 client 总例数 1708 里含它的用例；上表按「失败集合是否为基线子集 + 新用例是否全通过」判断，未把这条并行工作线的噪声算作本功能回归。）
+
+（server 全量测试读本机真实库的坑见 P1 一节；本轮未改表结构，未触发假失败。另：一次全量 server 跑曾在 `codex-app-server-client.test.ts` 上挂死 >15min，杀进程重跑即恢复 1m32s，该文件单独复跑 2.5s 通过——属环境抖动，与本轮无关。）
 
 ---
 
