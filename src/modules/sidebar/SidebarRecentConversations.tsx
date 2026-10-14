@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, ChevronRight, Edit2, Folder, Loader2, MessageSquare, MoreHorizontal, Pin, PinOff, Plus, Trash2, X } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import type { TFunction } from 'i18next';
@@ -85,6 +85,15 @@ type RecentConversationRowProps = {
     sessionId: string,
     provider: string,
   ) => void;
+  /**
+   * Opens the session this one is filed under. The row cannot resolve the
+   * parent's own project/provider, so the list passes its best-known values.
+   */
+  onOpenParentSession: (
+    parentSessionId: string,
+    fallbackProjectId: string | null,
+    fallbackProvider: string,
+  ) => void;
   onDeleteSession: (sessionId: string, sessionTitle: string) => void;
   onToggleBatchSelection: (sessionId: string) => void;
   t: TFunction;
@@ -108,6 +117,7 @@ function RecentConversationRow({
   onSaveEditingSession,
   onTogglePinned,
   onConversationSelect,
+  onOpenParentSession,
   onDeleteSession,
   onToggleBatchSelection,
   t,
@@ -196,6 +206,12 @@ function RecentConversationRow({
   const clearParent = parentPicker && parentSessionId
     ? () => parentPicker.clearParent(conversation.sessionId)
     : undefined;
+  // The reference line jumps to the session this one is filed under. The row
+  // only knows the id, so the list above supplies the fallback project/provider
+  // it should hand the workspace when the parent is off the current page.
+  const openParentSession = parentSessionId
+    ? () => onOpenParentSession(parentSessionId, conversation.projectId, conversation.provider)
+    : undefined;
 
   const rowBody = (
     <>
@@ -235,6 +251,42 @@ function RecentConversationRow({
             <AttentionSlot level={attentionLevel} isSelected={isSelected} t={t} />
           </span>
         </span>
+        {parentSessionId && (
+          <span
+            className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] leading-3"
+            data-testid="conversation-parent-reference"
+          >
+            <span aria-hidden="true" className="flex-shrink-0 text-muted-foreground/50">↳</span>
+            {conversation.parentTitle && openParentSession ? (
+              // The parent is off the page or archived but still exists, so the
+              // line opens it. A deleted parent (no title) degrades to plain text.
+              <span
+                role="button"
+                tabIndex={0}
+                className="truncate text-primary/80 transition-colors hover:text-primary hover:underline"
+                title={t('sessions.derivedFrom', { title: conversation.parentTitle })}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  openParentSession();
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    openParentSession();
+                  }
+                }}
+              >
+                {t('sessions.derivedFrom', { title: conversation.parentTitle })}
+              </span>
+            ) : (
+              <span className="truncate text-muted-foreground/60">
+                {t('sessions.derivedSessionFallback')}
+              </span>
+            )}
+          </span>
+        )}
         <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] leading-3 text-muted-foreground">
           <span className="truncate">{conversation.projectDisplayName}</span>
           {/* The background dot moved to the row's left edge, leaving this
@@ -738,6 +790,23 @@ export default function SidebarRecentConversations({
     });
   };
 
+  // Opens the session a row is filed under. When the parent is on the current
+  // page its own row wins, so its real project/provider travel with the open;
+  // otherwise the workspace resolves the metadata from the server by id.
+  const openParentSession = useCallback(
+    (parentSessionId: string, fallbackProjectId: string | null, fallbackProvider: string) => {
+      const parent = conversations.find(
+        (candidate) => candidate.sessionId === parentSessionId,
+      );
+      if (parent) {
+        onConversationSelect(parent.projectId, parent.sessionId, parent.provider);
+        return;
+      }
+      onConversationSelect(fallbackProjectId, parentSessionId, fallbackProvider);
+    },
+    [conversations, onConversationSelect],
+  );
+
   const renderConversationRow = (conversation: RecentConversationListItem) => {
     const isSelected = String(selectedSession?.id ?? '') === conversation.sessionId;
     const hasBackgroundWork = backgroundSessionIds.has(conversation.sessionId);
@@ -762,6 +831,7 @@ export default function SidebarRecentConversations({
         onSaveEditingSession={saveEditingSession}
         onTogglePinned={onTogglePinned}
         onConversationSelect={onConversationSelect}
+        onOpenParentSession={openParentSession}
         onDeleteSession={onDeleteSession}
         onToggleBatchSelection={toggleBatchSelection}
         t={t}
