@@ -1,6 +1,6 @@
 import { memo, useState } from 'react';
 import type { DragEvent } from 'react';
-import { Check, Edit2, GripVertical, Loader2, MoreHorizontal, Pin, PinOff, Trash2, X } from 'lucide-react';
+import { Check, Edit2, Loader2, MoreHorizontal, Pin, PinOff, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Badge, Dialog, DialogContent, DialogTitle, LLMProviderLogo, Tooltip, buttonVariants } from '@/shared/ui';
@@ -171,8 +171,16 @@ function SidebarSessionItem({
   // Only a top-level row can adopt a child: the tree is one level deep, so a row
   // that already has a parent is not a drop target.
   const isSessionDropTarget = Boolean(draggingSessionId) && !parentSessionId;
+  // The row the pointer picked up. Fading it is the only visual that tells the
+  // user a drag is in flight and which row is moving.
+  const isDragging = draggingSessionId === session.id;
 
-  const startSessionDrag = (event: DragEvent<HTMLSpanElement>) => {
+  // The row itself is the drag source, not a handle: pressing the left button on
+  // the card and moving starts the drag, so there is no affordance to discover
+  // and no layout that shifts on hover. Only the built-in drag ghost shows that
+  // a drag is live, plus the source row fading (see `isDragging`). A row that
+  // cannot be filed never gets here — it is not draggable at all.
+  const startSessionDrag = (event: DragEvent<HTMLAnchorElement>) => {
     // Firefox only starts a drag once a payload is set. The id is never read
     // back out of the payload (the owning list holds the source), so the value
     // only has to exist.
@@ -484,13 +492,16 @@ function SidebarSessionItem({
               ? 'border-border/60 bg-muted/20 hover:bg-muted/25'
               : 'hover:bg-accent',
             isManaging && isProcessing && 'cursor-not-allowed opacity-60',
-            // The drag handle appears on hover; the extra padding reserves the
-            // strip it occupies so it never sits on top of the provider logo.
-            canDragSession && 'group-hover:pl-7',
+            // The row is the drag source, so the pointer carries the move; the
+            // fade is the only affordance, and only while a drag is live.
+            isDragging && 'opacity-50',
             // A ring, not a border or a background, so it can mark the row under
             // a drag without colliding with the selected/running border above.
             isDropHighlighted && 'ring-2 ring-inset ring-primary/60',
           )}
+          draggable={canDragSession}
+          onDragStart={startSessionDrag}
+          onDragEnd={onSessionDragEnd}
           onDragOver={acceptSessionDrag}
           onDrop={completeSessionDrag}
           // Left-click keeps in-app navigation; Ctrl/Cmd/middle-click and the
@@ -509,22 +520,6 @@ function SidebarSessionItem({
             onSessionSelect(session, project.projectId);
           }}
         >
-          {canDragSession && (
-            // A mouse-only affordance: the row itself is a link, so dragging the
-            // whole row would fight both navigation and text selection. The menu
-            // is the accessible path, so the handle stays out of the a11y tree.
-            <span
-              draggable
-              aria-hidden="true"
-              title={t('sessions.dragToFileUnder')}
-              data-testid="session-drag-handle"
-              onDragStart={startSessionDrag}
-              onDragEnd={onSessionDragEnd}
-              className="pointer-events-none absolute left-1 top-1/2 flex h-6 w-5 -translate-y-1/2 cursor-grab items-center justify-center text-muted-foreground opacity-0 transition-opacity active:cursor-grabbing group-hover:pointer-events-auto group-hover:opacity-100"
-            >
-              <GripVertical className="h-4 w-4" aria-hidden="true" />
-            </span>
-          )}
           <div className="flex w-full min-w-0 items-center gap-2">
             {isManaging && (
               <span
