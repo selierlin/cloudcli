@@ -125,10 +125,40 @@ test('recent sessions map project metadata and preserve database pagination', { 
         lastActivity: '2026-08-01T11:00:00.000Z',
         isPinned: false,
         parentSessionId: null,
+        parentTitle: null,
       }],
       total: 2,
       hasMore: true,
     });
+  });
+});
+
+test('recent sessions resolve the parent title, including an archived parent', { concurrency: false }, async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createSession('parent-active', 'claude', '/tmp/title-project', 'Active parent', '2026-08-02T08:00:00.000Z', '2026-08-02T08:00:00.000Z');
+    sessionsDb.createSession('child-of-active', 'claude', '/tmp/title-project', 'Child of active', '2026-08-02T09:00:00.000Z', '2026-08-02T09:00:00.000Z');
+    sessionsDb.createSession('parent-archived', 'claude', '/tmp/title-project', 'Archived parent', '2026-08-02T10:00:00.000Z', '2026-08-02T10:00:00.000Z');
+    sessionsDb.createSession('child-of-archived', 'claude', '/tmp/title-project', 'Child of archived', '2026-08-02T11:00:00.000Z', '2026-08-02T11:00:00.000Z');
+    sessionsDb.createSession('child-of-gone', 'claude', '/tmp/title-project', 'Child of gone', '2026-08-02T12:00:00.000Z', '2026-08-02T12:00:00.000Z');
+
+    sessionsDb.updateSessionParent('child-of-active', 'parent-active');
+    sessionsDb.updateSessionParent('child-of-archived', 'parent-archived');
+    // Deletes are not broadcast, so a child can keep pointing at a parent that
+    // is gone — the one case the title cannot resolve.
+    sessionsDb.updateSessionParent('child-of-gone', 'ghost-parent');
+    sessionsDb.updateSessionIsArchived('parent-archived', true);
+
+    const byId = new Map(
+      sessionsService.listRecentSessions(40, 0).conversations.map((row) => [row.sessionId, row]),
+    );
+
+    assert.equal(byId.get('child-of-active')?.parentTitle, 'Active parent');
+    assert.equal(byId.has('parent-archived'), false, 'an archived parent leaves the active feed');
+    assert.equal(byId.get('child-of-archived')?.parentTitle, 'Archived parent');
+    assert.equal(byId.get('child-of-gone')?.parentSessionId, 'ghost-parent');
+    assert.equal(byId.get('child-of-gone')?.parentTitle, null);
+    assert.equal(byId.get('parent-active')?.parentSessionId, null);
+    assert.equal(byId.get('parent-active')?.parentTitle, null);
   });
 });
 

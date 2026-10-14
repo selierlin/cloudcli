@@ -65,6 +65,8 @@
     "fileUnderNoCandidates": "No other top-level session in this project to file under.",
     "fileUnderNoMatches": "No sessions match your search.",
     "moveSessionToTopLevel": "Move to top level",
+    "derivedFrom": "Derived from {{title}}",
+    "derivedSessionFallback": "Derived session",
     "select": "Select",
     "selectAllLoaded": "Select all loaded",
     "clearSelection": "Clear",

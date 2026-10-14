@@ -92,6 +92,12 @@ type RecentSessionListItem = Pick<
 > & {
   /** App session this one is filed under, or null when it is top-level. */
   parentSessionId: string | null;
+  /**
+   * Title of the session named by `parentSessionId`, resolved so the reference
+   * line keeps working when the parent is not on the loaded page (or is
+   * archived). Null when the parent no longer exists (permanently deleted).
+   */
+  parentTitle: string | null;
 };
 
 type RecentSessionsPage = {
@@ -318,6 +324,12 @@ export const sessionsService = {
   listRecentSessions(limit: number, offset: number): RecentSessionsPage {
     const page = sessionsDb.getRecentSessionsPage(limit, offset);
     const projectCache = new Map<string, ReturnType<typeof projectsDb.getProjectPath>>();
+    // Parent titles are resolved once per distinct id, so a page holding many
+    // children of one parent costs a single lookup instead of one per row.
+    // `getSessionById` does not filter on `isArchived`, so an archived parent
+    // still resolves. A miss means the parent is gone (deletes are not
+    // broadcast, so a stale `parent_session_id` can outlive it until refetch).
+    const parentTitleCache = new Map<string, string | null>();
     const conversations = page.sessions.map((session) => {
       const projectPath = session.project_path?.trim() ? session.project_path : null;
       let project = null;
@@ -329,6 +341,19 @@ export const sessionsService = {
         project = projectCache.get(projectPath) ?? null;
       }
 
+      const parentSessionId = session.parent_session_id ?? null;
+      let parentTitle: string | null = null;
+      if (parentSessionId) {
+        if (!parentTitleCache.has(parentSessionId)) {
+          const parent = sessionsDb.getSessionById(parentSessionId);
+          parentTitleCache.set(
+            parentSessionId,
+            parent ? parent.custom_name?.trim() || parent.session_id : null,
+          );
+        }
+        parentTitle = parentTitleCache.get(parentSessionId) ?? null;
+      }
+
       return {
         sessionId: session.session_id,
         provider: session.provider as LLMProvider,
@@ -337,7 +362,8 @@ export const sessionsService = {
         sessionTitle: session.custom_name?.trim() || session.session_id,
         lastActivity: session.updated_at ?? session.created_at ?? null,
         isPinned: Boolean(session.isPinned),
-        parentSessionId: session.parent_session_id ?? null,
+        parentSessionId,
+        parentTitle,
       };
     });
 
