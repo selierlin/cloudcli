@@ -172,13 +172,19 @@ export default function SidebarProjectSessions({
   // project's rows, which is the same-project rule enforced structurally instead
   // of by a check that could be forgotten.
   const [draggingSessionId, setDraggingSessionId] = useState<string | null>(null);
+  // The row under the pointer, highlighted as the drop target. Also the list's
+  // state rather than the row's: a cancelled drag fires no dragleave, so a row
+  // that owned the flag could keep a ring forever (see the row's drag handler).
+  const [dropTargetSessionId, setDropTargetSessionId] = useState<string | null>(null);
 
   const beginSessionDrag = useCallback((sessionId: string) => {
     setDraggingSessionId(sessionId);
+    setDropTargetSessionId(null);
   }, []);
 
   const endSessionDrag = useCallback(() => {
     setDraggingSessionId(null);
+    setDropTargetSessionId(null);
   }, []);
 
   const dropSessionOnRow = useCallback((targetSessionId: string) => {
@@ -186,17 +192,30 @@ export default function SidebarProjectSessions({
       setSessionParent?.(draggingSessionId, targetSessionId);
     }
     setDraggingSessionId(null);
+    setDropTargetSessionId(null);
   }, [draggingSessionId, setSessionParent]);
 
   // Blank space and the header buttons are the "move out" drop zone: a row stops
   // the event on its way down (it is either a target itself or deliberately
-  // inert), so whatever reaches here is not over a session.
+  // inert), so whatever reaches here is not over a session — which also means
+  // no row should be highlighted.
   const handleListDragOver = (event: DragEvent<HTMLDivElement>) => {
     if (!draggingSessionId || !event.dataTransfer?.types.includes(SESSION_OWNERSHIP_DRAG_MIME)) {
       return;
     }
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
+    setDropTargetSessionId(null);
+  };
+
+  // Leaving the list entirely (for the project header above it, say) stops the
+  // dragover stream, so this is what drops the highlight. Moves inside the list
+  // reach this too and are ignored, so the highlight does not flicker.
+  const handleListDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      return;
+    }
+    setDropTargetSessionId(null);
   };
 
   const handleListDrop = (event: DragEvent<HTMLDivElement>) => {
@@ -206,6 +225,7 @@ export default function SidebarProjectSessions({
     event.preventDefault();
     setSessionParent?.(draggingSessionId, null);
     setDraggingSessionId(null);
+    setDropTargetSessionId(null);
   };
 
   const renderSessionRow = (session: SessionWithProvider) => (
@@ -233,8 +253,10 @@ export default function SidebarProjectSessions({
       onDeleteSession={onDeleteSession}
       onForkSession={onForkSession}
       draggingSessionId={draggingSessionId}
+      isDropHighlighted={dropTargetSessionId === session.id}
       onSessionDragStart={beginSessionDrag}
       onSessionDragEnd={endSessionDrag}
+      onSessionDragOver={setDropTargetSessionId}
       onSessionDropOnRow={dropSessionOnRow}
       t={t}
     />
@@ -270,6 +292,7 @@ export default function SidebarProjectSessions({
       className="ml-3 space-y-1 border-l border-border pl-3"
       data-testid="project-session-list"
       onDragOver={handleListDragOver}
+      onDragLeave={handleListDragLeave}
       onDrop={handleListDrop}
     >
       {isCompact ? (

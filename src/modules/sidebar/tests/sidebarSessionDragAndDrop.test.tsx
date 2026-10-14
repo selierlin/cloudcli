@@ -170,6 +170,44 @@ test('a drag that carries no session payload is ignored', () => {
   assert.equal(setSessionParent.mock.calls.length, 0, 'a desktop file drop must not re-parent a session');
 });
 
+test('moving off a row onto the blank space drops the highlight without filing anything', () => {
+  const setSessionParent = vi.fn();
+  const { container } = renderList(setSessionParent);
+  const data = dragData();
+
+  fireEvent.dragStart(handleOf(container, 'b') as HTMLElement, { dataTransfer: data });
+  const target = rowOf(container, 'a');
+  fireEvent.dragOver(target, { dataTransfer: data });
+  assert.match(String(target.className), /ring-2/);
+
+  fireEvent.dragOver(listZoneOf(container), { dataTransfer: data });
+  assert.doesNotMatch(
+    String(target.className),
+    /ring-2/,
+    'only the row under the pointer stays highlighted, so the blank space has to clear the previous one',
+  );
+  assert.equal(setSessionParent.mock.calls.length, 0);
+});
+
+test('a cancelled drag clears the highlight instead of stranding it', () => {
+  const setSessionParent = vi.fn();
+  const { container } = renderList(setSessionParent);
+  const data = dragData();
+  const handle = handleOf(container, 'b') as HTMLElement;
+
+  fireEvent.dragStart(handle, { dataTransfer: data });
+  const target = rowOf(container, 'a');
+  fireEvent.dragOver(target, { dataTransfer: data });
+  assert.match(String(target.className), /ring-2/);
+
+  // Escape (and any drop outside a target) ends the drag with no dragleave at
+  // all, so the highlight cannot be owned by the row.
+  fireEvent.dragEnd(handle, { dataTransfer: data });
+
+  assert.doesNotMatch(String(target.className), /ring-2/, 'an abandoned drag must not leave a ring behind');
+  assert.equal(setSessionParent.mock.calls.length, 0);
+});
+
 test('a session that owns children offers no drag handle', () => {
   const { container } = renderList(vi.fn());
 

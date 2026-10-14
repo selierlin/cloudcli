@@ -68,8 +68,10 @@ const renderRow = (state: { isProcessing: boolean; hasBackgroundWork: boolean; a
     onDeleteSession: noop,
     // No provider is mounted in this harness, so the row offers no drag handle.
     draggingSessionId: null,
+    isDropHighlighted: false,
     onSessionDragStart: noop,
     onSessionDragEnd: noop,
+    onSessionDragOver: noop,
     onSessionDropOnRow: noop,
     t,
     ...state,
