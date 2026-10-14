@@ -84,5 +84,10 @@
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>CloudCLI 需要访问本地网络，以连接您自托管的 CloudCLI 服务器（例如局域网内的开发机）。</string>
+	<!-- 声明麦克风用途：WKWebView 仅在 App 声明本键时才会向网页暴露
+	     navigator.mediaDevices；缺失时网页里该对象为 undefined，语音输入（听写）不可用。
+	     Capacitor 已在 WebViewDelegationHandler 中 grant 媒体捕获权限，故此处声明即可。 -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>CloudCLI 需要访问麦克风，用于语音输入（把您的语音转写为文字）。</string>
 </dict>
 </plist>
