@@ -1,6 +1,6 @@
 # CloudCLI 会话所属关联方案
 
-> - 状态：**设计稿（第 1 轮审阅已响应；V1 已探针点验并据此改判 Q1，待复审）**，尚未动工
+> - 状态：**已实现（P1+P2+P3 + 搜索命中行 + i18n zh-CN 全部落地，本地提交未 push）**。§6 DoD 全部 `[x]`；仅剩 `referencedParents`（§5.21）为**条件触发**项，见文末「仍待办」。
 > - 日期：2026-10-13
 > - 用途：评审「会话之间建立所属/派生关系，并在侧边栏以缩进/引用体现」的方案。审阅重点：**§4 开放问题的取舍（尤其分页父行带出、pin 语义、conversations 的表达方式）、§3.4 拖拽与菜单入口的取舍、§3.5 归档/删除的边界规则**。
 > - 参考规范：`.agents/skills/backend-module-standards/SKILL.md`（`server/`）、`.agents/skills/frontend-module-standards/SKILL.md`（`src/`）
