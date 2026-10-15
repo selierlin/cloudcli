@@ -628,7 +628,16 @@ export function useProjectsState({
     sessionLookupRef.current = null;
   }, [sessionId]);
 
-  const markSessionAttention = useCallback((targetSessionId: string | null | undefined, level: SessionAttentionLevel) => {
+  const markSessionAttention = useCallback((
+    targetSessionId: string | null | undefined,
+    level: SessionAttentionLevel,
+    /**
+     * The content timestamp the signal itself carries, when it knows one. An
+     * upsert does; a bare transcript frame does not and falls back to the
+     * project list (see the guard below).
+     */
+    contentUpdatedAt?: string | null,
+  ) => {
     if (!targetSessionId) {
       return;
     }
@@ -643,6 +652,24 @@ export function useProjectsState({
       // Never downgrade an unread permission/error back to a passive notice.
       if (current?.level === 'action') {
         return previous;
+      }
+
+      // A notice the user has already read must not be knocked back to unseen by
+      // a signal that carries no newer content — a replayed transcript frame
+      // when the session is re-opened, or a late upsert for the reply that was
+      // on screen when they left. The read watermark is the same arbiter
+      // `applyPersistedUnread` uses: a signal only counts as new when its
+      // content actually moved past it.
+      if (level === 'notice' && current && current.seenAt !== null) {
+        const signalContent = contentUpdatedAt
+          ?? findSessionByIdInProjects(projectsRef.current, targetSessionId)?.contentUpdatedAt;
+        if (
+          signalContent
+          && getSessionLastSeenAt(targetSessionId)
+          && !isSessionUnread(targetSessionId, signalContent)
+        ) {
+          return previous;
+        }
       }
 
       // A fresh signal is newer than anything the user has looked at, so it
@@ -1252,7 +1279,9 @@ export function useProjectsState({
         // A metadata-only refresh — a title change, a fork, or a bare file
         // `touch` — carries no new conversation, so it must not raise the
         // unread capsule. That distinction is the whole point of the flag.
-        markSessionAttention(upsert.sessionId, 'notice');
+        // The upsert names the content it advances to, which is what tells a
+        // genuinely new reply apart from a re-announcement of one already read.
+        markSessionAttention(upsert.sessionId, 'notice', upsert.session.contentUpdatedAt);
       }
 
       setProjects((previousProjects) => {
