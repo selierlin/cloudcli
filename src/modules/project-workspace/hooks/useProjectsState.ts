@@ -19,6 +19,7 @@ import {
   markSessionSeen,
   subscribeToSessionReadState,
 } from '@/shared/sessionReadState';
+import { getDraftScopesSnapshot, subscribeToChatDrafts } from '@/shared/chatDrafts';
 
 type UseProjectsStateArgs = {
   sessionId?: string;
@@ -46,6 +47,39 @@ type UseProjectsStateArgs = {
  */
 const getAttentionLevel = (kind: string | undefined): SessionAttentionLevel =>
   kind === 'permission_request' ? 'action' : 'notice';
+
+/**
+ * How long an unread notice keeps flagging its row after the user has opened
+ * it without handling it.
+ *
+ * Opening a session does not answer it, so the flag survives being looked at —
+ * that is the whole point of the grace period. It covers "I glanced at this,
+ * meant to reply, and got distracted": the row is still marked the next time
+ * the sidebar is read. It is deliberately *not* a decay on being raised: a
+ * notice nobody has opened never expires, so a flag the user has not seen can
+ * never quietly disappear.
+ */
+export const ATTENTION_GRACE_MS = 10 * 60 * 1000;
+
+/**
+ * How often the grace period is re-checked. Coarse on purpose: the deadline is
+ * minutes away, so one shared sweep is enough and no row needs a timer of its
+ * own. A row therefore clears within one tick of its deadline, never before it.
+ */
+export const ATTENTION_SWEEP_MS = 30 * 1000;
+
+/**
+ * What the sidebar keeps per flagged session.
+ *
+ * `seenAt` is the wall-clock ms of the last time the row was on screen, or
+ * `null` while it has never been opened. Only a `notice` reads it: looking at a
+ * blocked session must not age out its capsule, which waits for its approval
+ * no matter how often the user stares at it.
+ */
+type SessionAttentionState = {
+  level: SessionAttentionLevel;
+  seenAt: number | null;
+};
 
 /** The `requestId` a permission event names, or null when the wire omits it. */
 const readPermissionRequestId = (event: ServerEvent): string | null => {
@@ -444,9 +478,22 @@ export function useProjectsState({
   // Conversations feed can show the row without waiting for a refetch. Reuses
   // the workspace's own optimistic row, so both lists agree on identity.
   const [createdConversation, setCreatedConversation] = useState<CreatedConversationSignal | null>(null);
-  // Sessions flagged as waiting on the user, each with how strongly to flag it.
-  // Sticky until the session is opened or deleted — see markSessionAttention.
-  const [attentionSessions, setAttentionSessions] = useState<Map<string, SessionAttentionLevel>>(new Map());
+  // Sessions flagged as waiting on the user, each with how strongly to flag it
+  // and when the user last had its row on screen. A flag survives being opened
+  // and is cleared by handling the session or by the grace period — see
+  // markSessionAttention, noteSessionViewed and ATTENTION_GRACE_MS.
+  const [attentionStates, setAttentionStates] = useState<Map<string, SessionAttentionState>>(new Map());
+  /**
+   * The levels alone, which is all a row draws. `seenAt` stays internal: the
+   * grace period is a rule of this hook, not something the sidebar renders.
+   */
+  const attentionSessions = useMemo<ReadonlyMap<string, SessionAttentionLevel>>(() => {
+    const levels = new Map<string, SessionAttentionLevel>();
+    for (const [targetSessionId, state] of attentionStates) {
+      levels.set(targetSessionId, state.level);
+    }
+    return levels;
+  }, [attentionStates]);
   const [activeTab, setActiveTab] = useState<AppTab>(readPersistedTab);
 
   useEffect(() => {
@@ -560,15 +607,21 @@ export function useProjectsState({
       return;
     }
 
-    setAttentionSessions((previous) => {
+    setAttentionStates((previous) => {
       const current = previous.get(targetSessionId);
       // Never downgrade an unread permission/error back to a passive notice.
-      if (current === 'action' || current === level) {
+      if (current?.level === 'action') {
+        return previous;
+      }
+
+      // A fresh signal is newer than anything the user has looked at, so it
+      // re-raises the flag even on a row that was opened a moment ago.
+      if (current?.level === level && current.seenAt === null) {
         return previous;
       }
 
       const next = new Map(previous);
-      next.set(targetSessionId, level);
+      next.set(targetSessionId, { level, seenAt: null });
       return next;
     });
   }, [sessionId]);
@@ -578,7 +631,7 @@ export function useProjectsState({
       return;
     }
 
-    setAttentionSessions((previous) => {
+    setAttentionStates((previous) => {
       if (!previous.has(targetSessionId)) {
         return previous;
       }
@@ -587,6 +640,96 @@ export function useProjectsState({
       next.delete(targetSessionId);
       return next;
     });
+  }, []);
+
+  /**
+   * Starts — or restarts — the grace period for a row the user just had on
+   * screen.
+   *
+   * This replaces the old "opening clears the flag" rule. Opening a session
+   * only proves it was read, not that it was dealt with, and the whole point of
+   * the grace period is the session the user looked at and did not answer. Only
+   * a `notice` is touched: a blocked session's capsule is not cleared by
+   * looking at it, the answer is what clears it.
+   */
+  const noteSessionViewed = useCallback((targetSessionId?: string | null) => {
+    if (!targetSessionId) {
+      return;
+    }
+
+    const seenAt = Date.now();
+    setAttentionStates((previous) => {
+      const current = previous.get(targetSessionId);
+      if (!current || current.level !== 'notice') {
+        return previous;
+      }
+
+      const next = new Map(previous);
+      next.set(targetSessionId, { level: current.level, seenAt });
+      return next;
+    });
+  }, []);
+
+  /**
+   * An unsent draft answers the session just as well as a sent message does.
+   *
+   * Replying always passes through this state — the composer persists every
+   * keystroke as a draft — so the two rules together mean "you dealt with it".
+   * The pen the row then draws is a louder and more specific claim than the
+   * unread dot, which would only repeat it.
+   *
+   * A blocked session keeps its capsule: an approval still needs answering,
+   * whatever is half-written in the composer.
+   */
+  useEffect(() => {
+    const clearSessionsWithDrafts = () => {
+      const draftScopes = getDraftScopesSnapshot();
+      if (draftScopes.size === 0) {
+        return;
+      }
+
+      setAttentionStates((previous) => {
+        let next: Map<string, SessionAttentionState> | null = null;
+        for (const scope of draftScopes) {
+          if (previous.get(scope)?.level === 'notice') {
+            next ??= new Map(previous);
+            next.delete(scope);
+          }
+        }
+        return next ?? previous;
+      });
+    };
+
+    clearSessionsWithDrafts();
+    return subscribeToChatDrafts(clearSessionsWithDrafts);
+  }, []);
+
+  /**
+   * Ages out notices the user has already seen.
+   *
+   * A `notice` is raised by an event and cleared by the user acting on it; this
+   * is the backstop for the ones they only looked at, so a session they meant
+   * to come back to stops nagging after the grace period. A notice nobody has
+   * opened carries no `seenAt` and is left alone, and a blocked `action` waits
+   * for its approval however long that takes.
+   */
+  useEffect(() => {
+    const sweep = () => {
+      const deadline = Date.now() - ATTENTION_GRACE_MS;
+      setAttentionStates((previous) => {
+        let next: Map<string, SessionAttentionState> | null = null;
+        for (const [targetSessionId, state] of previous) {
+          if (state.level === 'notice' && state.seenAt !== null && state.seenAt <= deadline) {
+            next ??= new Map(previous);
+            next.delete(targetSessionId);
+          }
+        }
+        return next ?? previous;
+      });
+    };
+
+    const timer = setInterval(sweep, ATTENTION_SWEEP_MS);
+    return () => clearInterval(timer);
   }, []);
 
   /**
@@ -604,15 +747,15 @@ export function useProjectsState({
     const answeredSessionIds = previousPendingApprovalSessionIdsRef.current;
     previousPendingApprovalSessionIdsRef.current = pendingApprovalSessionIds;
 
-    setAttentionSessions((previous) => {
+    setAttentionStates((previous) => {
       const next = new Map(previous);
       let changed = false;
 
       // Rebuild: the poll is authoritative even for the session on screen — the
       // row hides the indicator for the selected session on its own.
       for (const targetSessionId of pendingApprovalSessionIds) {
-        if (next.get(targetSessionId) !== 'action') {
-          next.set(targetSessionId, 'action');
+        if (next.get(targetSessionId)?.level !== 'action') {
+          next.set(targetSessionId, { level: 'action', seenAt: null });
           changed = true;
         }
       }
@@ -620,7 +763,7 @@ export function useProjectsState({
       // Clear: a session this channel had flagged and the poll no longer lists
       // has had its approval answered.
       for (const targetSessionId of answeredSessionIds) {
-        if (!pendingApprovalSessionIds.has(targetSessionId) && next.get(targetSessionId) === 'action') {
+        if (!pendingApprovalSessionIds.has(targetSessionId) && next.get(targetSessionId)?.level === 'action') {
           next.delete(targetSessionId);
           changed = true;
         }
@@ -660,8 +803,8 @@ export function useProjectsState({
   const applyPersistedUnread = useCallback(() => {
     const viewedSessionId = selectedSessionRef.current?.id ?? sessionIdRef.current ?? null;
 
-    setAttentionSessions((previous) => {
-      let next: Map<string, SessionAttentionLevel> | null = null;
+    setAttentionStates((previous) => {
+      let next: Map<string, SessionAttentionState> | null = null;
 
       for (const project of projectsRef.current) {
         for (const session of project.sessions ?? []) {
@@ -681,7 +824,7 @@ export function useProjectsState({
           }
 
           next ??= new Map(previous);
-          next.set(session.id, 'notice');
+          next.set(session.id, { level: 'notice', seenAt: null });
         }
       }
 
@@ -1175,13 +1318,13 @@ export function useProjectsState({
       && previousViewedSessionId !== viewedSessionId
       && suppressedPendingRef.current.has(previousViewedSessionId)
     ) {
-      setAttentionSessions((previous) => {
-        if (previous.get(previousViewedSessionId) === 'action') {
+      setAttentionStates((previous) => {
+        if (previous.get(previousViewedSessionId)?.level === 'action') {
           return previous;
         }
 
         const next = new Map(previous);
-        next.set(previousViewedSessionId, 'action');
+        next.set(previousViewedSessionId, { level: 'action', seenAt: null });
         return next;
       });
     }
@@ -1203,14 +1346,13 @@ export function useProjectsState({
       }
     }
 
-    // Drop the flag for the session being watched, unless it is still blocked on
-    // an approval. The leave path re-flags a session the websocket saw a request
-    // for, but a session the poll alone flagged would lose its capsule here and
-    // the poll would not raise it again while the same set stays unchanged.
-    if (!viewedSessionId || !pendingApprovalSessionIdsRef.current.has(viewedSessionId)) {
-      clearSessionAttention(viewedSessionId);
-    }
-  }, [clearSessionAttention, selectedSession?.id, sessionId]);
+    // Looking at a session does not answer it. This used to drop the flag for
+    // the session being watched; now it only starts the grace period, so a
+    // session the user glanced at and did not deal with is still flagged when
+    // they look back at the sidebar. Handling it — sending, or leaving a draft
+    // — is what clears the flag, plus the grace period as the backstop.
+    noteSessionViewed(viewedSessionId);
+  }, [noteSessionViewed, selectedSession?.id, sessionId]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -1362,7 +1504,9 @@ export function useProjectsState({
 
   const handleSessionSelect = useCallback(
     (session: ProjectSession) => {
-      clearSessionAttention(session.id);
+      // Selecting deliberately no longer clears the session's flag: the view
+      // effect below starts its grace period instead, so leaving without
+      // replying keeps the row marked.
       setSelectedSession(session);
 
       if (activeTab === 'tasks' || activeTab === 'browser') {
@@ -1384,7 +1528,7 @@ export function useProjectsState({
 
       navigate(`/session/${session.id}`);
     },
-    [activeTab, clearSessionAttention, isMobile, navigate, selectedProject?.projectId],
+    [activeTab, isMobile, navigate, selectedProject?.projectId],
   );
 
   const handleNewSession = useCallback(

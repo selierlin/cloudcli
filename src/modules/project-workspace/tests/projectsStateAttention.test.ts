@@ -39,9 +39,25 @@ vi.mock('@/shared/api', () => ({
       readState: () => readStateResponse(),
       saveReadState: (sessionId: string, lastSeenAt: string) => saveReadState(sessionId, lastSeenAt),
       deleteReadState: (sessionId: string) => deleteReadState(sessionId),
+      drafts: async () => new Response(JSON.stringify({ success: true, drafts: [] }), { status: 200 }),
+      saveDraft: async () => new Response('{}', { status: 200 }),
+      deleteDraft: async () => new Response('{}', { status: 200 }),
     },
   },
 }));
+
+// The grace period is read from the module under test so the two can never
+// drift; these are plain numbers, so the per-test `resetModules` cannot skew
+// them. Anything stateful (the draft store) is imported inside the test.
+const { ATTENTION_GRACE_MS, ATTENTION_SWEEP_MS } = await import(
+  '@/modules/project-workspace/hooks/useProjectsState'
+);
+
+/** Writes a draft through the same store instance the hook under test holds. */
+const writeDraft = async (scope: string, text: string): Promise<void> => {
+  const store = await import('@/shared/chatDrafts');
+  store.writeDraftText(scope, text);
+};
 
 const URL_SESSION_ID = 'url-session';
 const OTHER_SESSION_ID = 'other-session';
@@ -554,4 +570,158 @@ test('deleting a session drops its read watermark and its turn timings', async (
   // The turn timings are client-side state keyed by session too, so a
   // churned-through session must not keep them for the context's lifetime.
   assert.deepEqual(clearTurnDurations.mock.calls, [[OTHER_SESSION_ID]]);
+});
+
+/**
+ * The grace period. Looking at a session is not answering it, so opening one no
+ * longer clears its notice: the flag follows the user back to the sidebar and
+ * only goes away when they deal with it — send, which always passes through a
+ * draft, or leave one — or when the grace period runs out. A notice nobody has
+ * opened carries no `seenAt` and never ages out, and a blocked `action` is not
+ * the grace period's business at all.
+ */
+
+test('opening a session no longer clears its unread notice', async () => {
+  const { result, rerender } = await renderProjectsState();
+
+  await act(async () => {
+    emit({ kind: 'complete', sessionId: OTHER_SESSION_ID });
+  });
+  assert.equal(result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID), 'notice');
+
+  await act(async () => {
+    rerender({ pending: new Set(), sessionId: OTHER_SESSION_ID });
+  });
+
+  assert.equal(
+    result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID),
+    'notice',
+    'a glance is not an answer, so the row is still marked once the user looks back',
+  );
+});
+
+test('a notice the user only looked at clears when the grace period runs out', async () => {
+  vi.useFakeTimers();
+  try {
+    const { result, rerender } = await renderProjectsState();
+
+    await act(async () => {
+      emit({ kind: 'complete', sessionId: OTHER_SESSION_ID });
+    });
+    await act(async () => {
+      rerender({ pending: new Set(), sessionId: OTHER_SESSION_ID });
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(ATTENTION_GRACE_MS - ATTENTION_SWEEP_MS);
+    });
+    assert.equal(
+      result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID),
+      'notice',
+      'opening starts the clock rather than clearing the flag',
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(2 * ATTENTION_SWEEP_MS);
+    });
+    assert.equal(
+      result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID),
+      undefined,
+      'the shared sweep is what ages it out',
+    );
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('a notice nobody opened never ages out', async () => {
+  vi.useFakeTimers();
+  try {
+    const { result } = await renderProjectsState();
+
+    await act(async () => {
+      emit({ kind: 'complete', sessionId: OTHER_SESSION_ID });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(10 * ATTENTION_GRACE_MS);
+    });
+
+    assert.equal(
+      result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID),
+      'notice',
+      'a flag the user has not seen must not quietly disappear',
+    );
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('a new signal after a glance makes the row unread again, with a fresh wait', async () => {
+  vi.useFakeTimers();
+  try {
+    const { result, rerender } = await renderProjectsState();
+
+    await act(async () => {
+      emit({ kind: 'complete', sessionId: OTHER_SESSION_ID });
+    });
+    await act(async () => {
+      rerender({ pending: new Set(), sessionId: OTHER_SESSION_ID });
+    });
+    // Back off the session, so the next event is not dropped by the
+    // viewed-session gate, and let it arrive.
+    await act(async () => {
+      rerender({ pending: new Set(), sessionId: URL_SESSION_ID });
+    });
+    await act(async () => {
+      emit({ kind: 'complete', sessionId: OTHER_SESSION_ID });
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(3 * ATTENTION_GRACE_MS);
+    });
+
+    assert.equal(
+      result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID),
+      'notice',
+      'the row is unread again, and an unread row carries no expiry',
+    );
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('leaving a draft answers the session, clearing its notice', async () => {
+  const { result } = await renderProjectsState();
+
+  await act(async () => {
+    emit({ kind: 'complete', sessionId: OTHER_SESSION_ID });
+  });
+  assert.equal(result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID), 'notice');
+
+  await act(async () => {
+    await writeDraft(OTHER_SESSION_ID, 'half a reply');
+  });
+
+  assert.equal(
+    result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID),
+    undefined,
+    'unsent input is the user dealing with it; the row shows its pen instead',
+  );
+});
+
+test('a draft does not clear a blocked session, whose approval still needs an answer', async () => {
+  const { result } = await renderProjectsState();
+
+  await act(async () => {
+    emit({ kind: 'permission_request', sessionId: OTHER_SESSION_ID, requestId: 'r1' });
+  });
+  await act(async () => {
+    await writeDraft(OTHER_SESSION_ID, 'half a reply');
+  });
+
+  assert.equal(
+    result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID),
+    'action',
+    'the capsule is not the unread channel to clear',
+  );
 });
