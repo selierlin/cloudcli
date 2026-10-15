@@ -8,8 +8,9 @@ import { cn } from '@/shared/utils';
 import type { LLMProvider, Project, ProjectSession, RecentConversationListItem, SessionAttentionLevel } from '@/shared/types';
 import { formatCompactAge } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import { buildSessionOwnershipMenuItems } from '@/modules/sidebar/utils/sessionOwnershipMenuItems';
-import { ActivitySlot, AttentionSlot } from '@/modules/sidebar/SessionStatusIndicators';
+import { ActivitySlot, AttentionSlot, DraftSlot } from '@/modules/sidebar/SessionStatusIndicators';
 import { useCopyProviderSessionId } from '@/modules/sidebar/hooks/useCopyProviderSessionId';
+import { useDraftScopes } from '@/modules/sidebar/hooks/useDraftScopes';
 import { useSessionParentPicker } from '@/modules/sidebar/context/SessionParentPickerContext';
 import SessionOwnershipSheetActions from '@/modules/sidebar/SessionOwnershipSheetActions';
 import SidebarBatchSessionActions from '@/modules/sidebar/SidebarBatchSessionActions';
@@ -129,6 +130,9 @@ function RecentConversationRow({
   // Unread is a channel of its own, drawn on the right edge while the row's
   // own activity stays on the left and its age inline below.
   const isUnread = Boolean(attentionLevel) && !isSelected;
+  // A pen beside the unread dot: input the user wrote but never sent. Survives
+  // opening the session, unlike the dot.
+  const hasDraft = useDraftScopes().has(conversation.sessionId);
   const {
     copyState,
     copyLabel,
@@ -247,7 +251,8 @@ function RecentConversationRow({
               <Pin className="h-3 w-3 fill-current" aria-hidden="true" />
             </span>
           )}
-          <span className="ml-auto flex flex-shrink-0 items-center">
+          <span className="ml-auto flex flex-shrink-0 items-center gap-1.5">
+            <DraftSlot hasDraft={hasDraft} isSelected={isSelected} t={t} />
             <AttentionSlot level={attentionLevel} isSelected={isSelected} t={t} />
           </span>
         </span>

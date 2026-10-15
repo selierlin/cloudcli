@@ -1,4 +1,4 @@
-import { AlertTriangle, Bell, Circle, Loader2 } from 'lucide-react';
+import { AlertTriangle, Bell, Circle, Loader2, Pencil } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Tooltip } from '@/shared/ui';
@@ -7,15 +7,18 @@ import type { SessionAttentionLevel } from '@/shared/types';
 import type { ProjectAggregate } from '@/modules/sidebar/utils/projectAggregate';
 
 /**
- * The two independent state channels a session row draws, split into slots so
- * every host layout — the Projects desktop row, its compact card and the
- * Conversations row — composes one implementation instead of forking it.
+ * The independent state channels a session row draws, split into slots so every
+ * host layout — the Projects desktop row, its compact card and the Conversations
+ * row — composes one implementation instead of forking it.
  *
  * `ActivitySlot` owns the left edge and only ever answers "is it doing
  * something?" (transient, disappears on its own). `AttentionSlot` owns the
  * right edge and only ever answers "is something waiting on me?" (sticky,
- * survives until the user opens or resolves it). The two are orthogonal: a row
- * can carry both at once, which is the whole reason they are separate slots.
+ * survives until the user opens or resolves it). `DraftSlot` sits beside it and
+ * only answers "did I leave something unsent here?" (sticky, survives until the
+ * draft is sent or cleared). Each is orthogonal: a row can carry any of them at
+ * once, which is the whole reason they are separate slots — and why the draft
+ * marker is a pen, not another dot.
  */
 
 type ActivitySlotProps = {
@@ -106,6 +109,43 @@ export function AttentionSlot({ level, isSelected, t }: AttentionSlotProps) {
         className="flex h-4 flex-shrink-0 animate-pulse items-center justify-center rounded-full bg-amber-500 px-1.5 text-amber-950 motion-reduce:animate-none"
       >
         <AlertTriangle className="h-2.5 w-2.5" aria-hidden="true" />
+      </span>
+    </Tooltip>
+  );
+}
+
+type DraftSlotProps = {
+  /** True when the scope holds unsent input (composer text or a queued message). */
+  hasDraft: boolean;
+  /** The row's session is open, where the composer itself shows the draft. */
+  isSelected: boolean;
+  t: TFunction;
+};
+
+/**
+ * The sidebar's "you left something half written here" marker, drawn on the
+ * right edge just inside the unread indicator.
+ *
+ * It is a pen rather than a dot because it answers a different question than the
+ * blue dot does: the dot means "something new arrived for you" and clears the
+ * instant you open the session, whereas this means "there is an unsent draft"
+ * and stays exactly as long as the draft does — opening the session does not
+ * consume it, since the composer is where you would finish it.
+ */
+export function DraftSlot({ hasDraft, isSelected, t }: DraftSlotProps) {
+  if (!hasDraft || isSelected) {
+    return null;
+  }
+
+  const label = t('tooltips.draftIndicator', { defaultValue: 'Unsent draft in this session' });
+  return (
+    <Tooltip content={label} position="top">
+      <span
+        role="status"
+        aria-label={label}
+        className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-muted-foreground"
+      >
+        <Pencil className="h-3 w-3" aria-hidden="true" />
       </span>
     </Tooltip>
   );

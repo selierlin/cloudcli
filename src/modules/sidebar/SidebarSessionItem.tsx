@@ -8,8 +8,10 @@ import { cn } from '@/shared/utils';
 import { SESSION_OWNERSHIP_DRAG_MIME } from '@/shared/constants';
 import type { LLMProvider, Project, ProjectSession, SessionAttentionLevel, SessionWithProvider } from '@/shared/types';
 import { PROVIDER_LABELS, createSessionViewModel, formatCompactAge } from '@/modules/sidebar/utils/sidebarProjectFormatting';
-import { ActivitySlot, AttentionSlot } from '@/modules/sidebar/SessionStatusIndicators';
+import { ActivitySlot, AttentionSlot, DraftSlot } from '@/modules/sidebar/SessionStatusIndicators';
 import { useCompactSidebar } from '@/modules/sidebar/hooks/useCompactSidebar';
+import { useDraftScopes } from '@/modules/sidebar/hooks/useDraftScopes';
+import { isRecentlyActive } from '@/modules/sidebar/utils/recentActivity';
 import { useProviderSessionIdCopy } from '@/modules/sidebar/hooks/useProviderSessionIdCopy';
 import { useSessionParentPicker } from '@/modules/sidebar/context/SessionParentPickerContext';
 import SessionOwnershipSheetActions from '@/modules/sidebar/SessionOwnershipSheetActions';
@@ -101,6 +103,12 @@ function SidebarSessionItem({
   // Unread is a channel of its own on the row's right edge; bolding the title
   // echoes it there so the left edge stays free for the activity indicator.
   const isUnread = Boolean(attentionLevel) && !isSelected;
+  // A pen beside the unread dot: the scope holds input the user wrote but never
+  // sent. Survives opening the session, unlike the dot.
+  const hasDraft = useDraftScopes().has(session.id);
+  // A faint tint, not a marker: "this row had new content very recently", kept
+  // so a session you glanced at and did not answer stays findable for a while.
+  const showRecentTint = !isSelected && isRecentlyActive(session.contentUpdatedAt, currentTime);
   const providerLabel = PROVIDER_LABELS[session.__provider];
 
   // The desktop controls live in SessionOptions, which owns the rename panel and
@@ -248,6 +256,7 @@ function SidebarSessionItem({
             isSelected
               ? 'border-primary/40 shadow-[inset_3px_0_0_0_hsl(var(--primary))]'
               : '',
+            showRecentTint ? 'bg-primary/5' : '',
             !isSelected && isProcessing
               ? 'border-border/60 bg-muted/20'
               : 'border-border/30',
@@ -296,7 +305,8 @@ function SidebarSessionItem({
                   {compactSessionAge && (
                     <span className="text-[11px] text-muted-foreground">{compactSessionAge}</span>
                   )}
-                  {compactSessionAge && isUnread && <span className="text-[11px] text-muted-foreground/40">·</span>}
+                  {compactSessionAge && (isUnread || hasDraft) && <span className="text-[11px] text-muted-foreground/40">·</span>}
+                  <DraftSlot hasDraft={hasDraft} isSelected={isSelected} t={t} />
                   <AttentionSlot level={attentionLevel} isSelected={isSelected} t={t} />
                 </span>
               </div>
@@ -488,6 +498,7 @@ function SidebarSessionItem({
             isSelected
               ? 'border-primary/40 shadow-[inset_3px_0_0_0_hsl(var(--primary))]'
               : 'border-border/30',
+            showRecentTint ? 'bg-primary/5' : '',
             !isSelected && isProcessing
               ? 'border-border/60 bg-muted/20 hover:bg-muted/25'
               : 'hover:bg-accent',
@@ -568,7 +579,8 @@ function SidebarSessionItem({
                       {compactSessionAge}
                     </span>
                   )}
-                  {compactSessionAge && isUnread && <span className="text-[11px] text-muted-foreground/40">·</span>}
+                  {compactSessionAge && (isUnread || hasDraft) && <span className="text-[11px] text-muted-foreground/40">·</span>}
+                  <DraftSlot hasDraft={hasDraft} isSelected={isSelected} t={t} />
                   <AttentionSlot level={attentionLevel} isSelected={isSelected} t={t} />
                 </span>
               </div>
