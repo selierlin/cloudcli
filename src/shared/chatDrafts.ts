@@ -62,6 +62,36 @@ const isEmptyDraft = (draft: DraftRecord): boolean => (
   draft.text === '' && draft.queuedMessage === null
 );
 
+/** A queued message's attachments, normalized to the one field that survives a device switch. */
+const queuedAttachments = (queued: StoredQueuedMessage): unknown[] => (
+  Array.isArray(queued.attachments)
+    ? queued.attachments
+    : Array.isArray(queued.images)
+      ? queued.images
+      : []
+);
+
+/** A queued message with neither text nor attachments has nothing to send. */
+const hasQueuedContent = (queued: StoredQueuedMessage | null): boolean => {
+  if (!queued) {
+    return false;
+  }
+
+  return queued.content.trim() !== '' || queuedAttachments(queued).length > 0;
+};
+
+/**
+ * Whether a scope holds anything the user wrote but has not sent: composer text
+ * (ignoring whitespace) or a queued message.
+ *
+ * This is the sidebar's "there is a draft here" signal. It is deliberately
+ * unrelated to the read state — opening a session clears its unread flag but
+ * must never clear this, because the draft is still unsent.
+ */
+const draftHasContent = (draft: DraftRecord): boolean => (
+  draft.text.trim() !== '' || hasQueuedContent(draft.queuedMessage)
+);
+
 function readMirror(): Map<string, DraftRecord> {
   try {
     const raw = localStorage.getItem(MIRROR_STORAGE_KEY);
@@ -194,14 +224,10 @@ export function readQueuedMessage(scope: string): StoredQueuedMessage | null {
     return null;
   }
 
-  const attachments = Array.isArray(queued.attachments)
-    ? queued.attachments
-    : Array.isArray(queued.images)
-      ? queued.images
-      : [];
+  const attachments = queuedAttachments(queued);
 
   // A queued message with neither text nor attachments has nothing to send.
-  return queued.content.trim() || attachments.length > 0
+  return hasQueuedContent(queued)
     ? { ...queued, attachments }
     : null;
 }
@@ -224,6 +250,46 @@ export function subscribeToChatDrafts(listener: () => void): () => void {
   return () => {
     listeners.delete(listener);
   };
+}
+
+/** The scopes currently holding an unsent draft — see `getDraftScopesSnapshot`. */
+let draftScopesSnapshot: ReadonlySet<string> = new Set();
+
+const sameScopes = (a: ReadonlySet<string>, b: ReadonlySet<string>): boolean => {
+  if (a.size !== b.size) {
+    return false;
+  }
+  for (const scope of a) {
+    if (!b.has(scope)) {
+      return false;
+    }
+  }
+  return true;
+};
+
+/**
+ * The scopes holding unsent input, as a snapshot whose *reference* only changes
+ * when the set of scopes does.
+ *
+ * `useSyncExternalStore` compares snapshots by reference, and `notifyListeners`
+ * fires on every keystroke, so returning a freshly built set each call would
+ * re-render every subscribed session row once per character typed. Caching
+ * until the membership actually differs keeps typing local to the composer.
+ */
+export function getDraftScopesSnapshot(): ReadonlySet<string> {
+  const next = new Set<string>();
+  for (const [scope, draft] of drafts) {
+    if (draftHasContent(draft)) {
+      next.add(scope);
+    }
+  }
+
+  if (sameScopes(draftScopesSnapshot, next)) {
+    return draftScopesSnapshot;
+  }
+
+  draftScopesSnapshot = next;
+  return next;
 }
 
 /**

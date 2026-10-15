@@ -229,3 +229,49 @@ test('reset clears the drafts so the next user does not see them', async () => {
   assert.equal(store.readDraftText('session-a'), '');
   assert.equal(localStorage.getItem('chat-drafts'), null);
 });
+
+test('a queued message counts as a draft, whitespace-only text does not', async () => {
+  const store = await loadStore();
+
+  store.writeDraftText('session-a', '   ');
+  assert.deepEqual([...store.getDraftScopesSnapshot()], [], 'blank input is not a draft');
+
+  store.writeQueuedMessage('session-a', { content: 'queued' });
+  assert.deepEqual([...store.getDraftScopesSnapshot()], ['session-a']);
+
+  store.clearQueuedMessage('session-a');
+  assert.deepEqual([...store.getDraftScopesSnapshot()], []);
+});
+
+test('the scope snapshot keeps its reference while its membership is unchanged', async () => {
+  const store = await loadStore();
+
+  const empty = store.getDraftScopesSnapshot();
+  assert.equal(empty.size, 0);
+
+  store.writeDraftText('session-a', 'hello');
+  const withA = store.getDraftScopesSnapshot();
+  assert.notStrictEqual(withA, empty);
+  assert.deepEqual([...withA], ['session-a']);
+
+  // Typing more changes the text, not who is in the set: the reference must stay
+  // put, or every session row re-renders once per keystroke.
+  store.writeDraftText('session-a', 'hello world');
+  assert.strictEqual(store.getDraftScopesSnapshot(), withA);
+
+  // A blank draft in another scope is still not content.
+  store.writeDraftText('session-b', '   ');
+  assert.strictEqual(store.getDraftScopesSnapshot(), withA);
+
+  // A second scope with real content does move it.
+  store.writeDraftText('session-b', 'x');
+  const withBoth = store.getDraftScopesSnapshot();
+  assert.notStrictEqual(withBoth, withA);
+  assert.deepEqual([...withBoth].sort(), ['session-a', 'session-b']);
+
+  // Clearing a scope returns it to the previous membership, and the reference
+  // moves again rather than being reused.
+  store.writeDraftText('session-b', '');
+  const backToA = store.getDraftScopesSnapshot();
+  assert.deepEqual([...backToA], ['session-a']);
+});
