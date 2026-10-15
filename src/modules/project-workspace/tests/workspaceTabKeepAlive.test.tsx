@@ -89,6 +89,7 @@ function Harness({ initialTab }: { initialTab: AppTab }) {
         isLoading={false}
         onNavigateToSession={() => {}}
         onSessionEstablished={() => {}}
+        onSessionForked={() => {}}
         onShowSettings={() => {}}
         onRenameSession={async () => false}
         externalMessageUpdate={0}

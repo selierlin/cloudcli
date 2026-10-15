@@ -10,6 +10,7 @@ import {
   applyOptimisticSessionPinState,
   filterProjects,
   filterSessionsForProject,
+  foldConversationRow,
   getAllSessions,
   projectMatchesNameOrPath,
   reorderRecentConversationsForPin,
@@ -393,35 +394,36 @@ export function useSidebarController({
   // the new row would otherwise wait for a refetch to appear. Fold it into the
   // feed state itself (not a derived overlay) so every state-backed affordance
   // — optimistic pin reorder, load-more offset, the total — sees it too. The
-  // row goes after the pinned block, mirroring the server's `isPinned DESC`
-  // ordering, because a brand-new session is always unpinned.
+  // same fold is reused for a forked session, whose row the server's
+  // `session_upserted` broadcast never delivers to this feed.
+  const applyCreatedConversationRow = useCallback(
+    (row: RecentConversationListItem, conversations: RecentConversationListItem[]) => {
+      // One insert per session: the signal is already the "latest" one, and a
+      // row that fell out of the feed (archived/deleted) must not be pushed
+      // back. The id is claimed before the "already present" bail so a later
+      // signal for a row a refetch already carried is still ignored.
+      if (insertedConversationIdsRef.current.has(row.sessionId)) {
+        return;
+      }
+      insertedConversationIdsRef.current.add(row.sessionId);
+      // A refetch may have raced ahead of the signal and already carry the row;
+      // bumping the total again would overcount it.
+      if (conversations.some((conversation) => conversation.sessionId === row.sessionId)) {
+        return;
+      }
+
+      setRecentConversations((previous) => foldConversationRow(previous, row));
+      setRecentConversationsTotal((total) => total + 1);
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!createdConversation) {
       return;
     }
-    const { row } = createdConversation;
-    // One insert per session: the signal is already the "latest" one, and a row
-    // that fell out of the feed (archived/deleted) must not be pushed back.
-    if (insertedConversationIdsRef.current.has(row.sessionId)) {
-      return;
-    }
-    insertedConversationIdsRef.current.add(row.sessionId);
-    // A refetch may have raced ahead of the signal and already carry the row;
-    // bumping the total again would overcount it.
-    if (recentConversations.some((conversation) => conversation.sessionId === row.sessionId)) {
-      return;
-    }
-
-    setRecentConversations((previous) => {
-      if (previous.some((conversation) => conversation.sessionId === row.sessionId)) {
-        return previous;
-      }
-      const pinned = previous.filter((conversation) => conversation.isPinned);
-      const unpinned = previous.filter((conversation) => !conversation.isPinned);
-      return [...pinned, row, ...unpinned];
-    });
-    setRecentConversationsTotal((total) => total + 1);
-  }, [createdConversation, recentConversations]);
+    applyCreatedConversationRow(createdConversation.row, recentConversations);
+  }, [applyCreatedConversationRow, createdConversation, recentConversations]);
 
   useEffect(() => {
     if (searchMode !== 'archived') {
@@ -1355,6 +1357,25 @@ export function useSidebarController({
           throw new Error(payload?.message || `HTTP ${response.status}`);
         }
 
+        // The fork's tree row arrives over the websocket, but that broadcast
+        // never reaches the separate Conversations feed, so fold the new row in
+        // here. Its owning project is resolved from the tree session, falling
+        // back to the id the row was rendered with.
+        const owner = projects.find((project) =>
+          (project.sessions ?? []).some((candidate) => candidate.id === session.id))
+          ?? projects.find((project) => project.projectId === session.__projectId);
+        if (owner) {
+          applyCreatedConversationRow({
+            sessionId: forkedSessionId,
+            provider: session.__provider,
+            projectId: owner.projectId,
+            projectDisplayName: owner.displayName,
+            sessionTitle: (payload?.data?.sessionName ?? '').trim() || forkedSessionId,
+            lastActivity: new Date().toISOString(),
+            isPinned: false,
+          }, recentConversations);
+        }
+
         onSessionSelect({
           id: forkedSessionId,
           summary: payload.data.sessionName,
@@ -1366,7 +1387,7 @@ export function useSidebarController({
         alert(t('messages.forkSessionError'));
       }
     },
-    [onSessionSelect, t],
+    [applyCreatedConversationRow, onSessionSelect, projects, recentConversations, t],
   );
 
   const updateSessionPinned = useCallback(

@@ -386,6 +386,29 @@ export const reorderRecentConversationsForPin = (
   ];
 };
 
+/**
+ * Folds a just-created conversation into the feed, after the pinned block and
+ * before the unpinned one, mirroring the server's `isPinned DESC` ordering — a
+ * brand-new session is always unpinned. Used when a locally created or forked
+ * session must appear without waiting for a refetch. Returns the input
+ * unchanged when the row is already present, so a raced refetch cannot
+ * duplicate it.
+ */
+export const foldConversationRow = (
+  conversations: RecentConversationListItem[],
+  row: RecentConversationListItem,
+): RecentConversationListItem[] => {
+  if (conversations.some((conversation) => conversation.sessionId === row.sessionId)) {
+    return conversations;
+  }
+
+  return [
+    ...conversations.filter((conversation) => conversation.isPinned),
+    row,
+    ...conversations.filter((conversation) => !conversation.isPinned),
+  ];
+};
+
 export const normalizeProjectForSettings = (project: Project): SettingsProject => {
   const fallbackPath =
     typeof project.fullPath === 'string' && project.fullPath.length > 0

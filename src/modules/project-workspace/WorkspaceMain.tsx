@@ -29,6 +29,7 @@ type WorkspaceMainProps = {
   isLoading: boolean;
   onNavigateToSession: (targetSessionId: string, options?: SessionNavigationOptions) => void;
   onSessionEstablished: (sessionId: string, context: SessionEstablishedContext) => void;
+  onSessionForked: (sessionId: string, context: SessionEstablishedContext) => void;
   onShowSettings: (tab?: SettingsMainTab) => void;
   externalMessageUpdate: number;
   newSessionTrigger: number;
@@ -54,6 +55,7 @@ function WorkspaceMain({
   isLoading,
   onNavigateToSession,
   onSessionEstablished,
+  onSessionForked,
   onShowSettings,
   externalMessageUpdate,
   newSessionTrigger,
@@ -198,6 +200,7 @@ function WorkspaceMain({
                 onFileOpen={handleFileOpen}
                 onNavigateToSession={onNavigateToSession}
                 onSessionEstablished={onSessionEstablished}
+                onSessionForked={onSessionForked}
                 onShowSettings={onShowSettings}
                 showRawParameters={showRawParameters}
                 showThinking={showThinking}
