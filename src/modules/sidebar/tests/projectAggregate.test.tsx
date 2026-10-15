@@ -4,7 +4,7 @@ import { fireEvent, render } from '@testing-library/react';
 import React from 'react';
 import { test, vi } from 'vitest';
 
-import type { Project, SessionWithProvider, SidebarProjectListProps } from '@/shared/types';
+import type { Project, SessionAttentionLevel, SessionWithProvider, SidebarProjectListProps } from '@/shared/types';
 import { deriveProjectAggregate, type ProjectAggregate } from '@/modules/sidebar/utils/projectAggregate';
 import { ProjectAggregateSlot } from '@/modules/sidebar/SessionStatusIndicators';
 
@@ -29,7 +29,7 @@ const { default: SidebarProjectItem } = await import('@/modules/sidebar/SidebarP
 const t = ((key: string) => key) as unknown as SidebarProjectListProps['t'];
 const NO_IDS: ReadonlySet<string> = new Set();
 const sessions = (...ids: string[]) => ids.map((id) => ({ id }));
-const levels = (entries: Array<[string, 'action' | 'notice']>) => new Map(entries);
+const levels = (entries: Array<[string, SessionAttentionLevel]>) => new Map(entries);
 
 const renderAggregate = (aggregate: ProjectAggregate | null) =>
   render(React.createElement(ProjectAggregateSlot, { aggregate, t }));
@@ -55,6 +55,19 @@ test('notice outranks activity when nothing needs the user', () => {
     new Set(['a', 'b']),
     NO_IDS,
     levels([['a', 'notice']]),
+  );
+
+  assert.deepEqual(aggregate, { kind: 'notice' });
+});
+
+test('a notice the user has already seen still bells the project', () => {
+  // The project row has no room to draw the filled/hollow distinction and does
+  // not need to: both fills claim the same "there is unread output here".
+  const aggregate = deriveProjectAggregate(
+    sessions('a'),
+    NO_IDS,
+    NO_IDS,
+    levels([['a', 'notice-seen']]),
   );
 
   assert.deepEqual(aggregate, { kind: 'notice' });
@@ -143,7 +156,7 @@ const PROJECT = {
 const noop = () => {};
 const NOW = new Date('2026-08-21T10:00:00.000Z');
 
-const projectRow = (attentionSessions: ReadonlyMap<string, 'action' | 'notice'>) => ({
+const projectRow = (attentionSessions: ReadonlyMap<string, SessionAttentionLevel>) => ({
   project: PROJECT,
   selectedProject: null,
   selectedSession: null,

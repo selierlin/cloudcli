@@ -484,13 +484,19 @@ export function useProjectsState({
   // markSessionAttention, noteSessionViewed and ATTENTION_GRACE_MS.
   const [attentionStates, setAttentionStates] = useState<Map<string, SessionAttentionState>>(new Map());
   /**
-   * The levels alone, which is all a row draws. `seenAt` stays internal: the
-   * grace period is a rule of this hook, not something the sidebar renders.
+   * The levels alone, which is all a row draws. `seenAt` stays internal, but it
+   * is what splits a notice in two for the row: never opened reads as a solid
+   * dot, and one that has been on screen — the grace period's whole subject —
+   * reads as a hollow one. The row still draws a marker either way; only "have
+   * you looked at this yet" differs, which is exactly what the shape encodes.
    */
   const attentionSessions = useMemo<ReadonlyMap<string, SessionAttentionLevel>>(() => {
     const levels = new Map<string, SessionAttentionLevel>();
     for (const [targetSessionId, state] of attentionStates) {
-      levels.set(targetSessionId, state.level);
+      levels.set(
+        targetSessionId,
+        state.level === 'notice' && state.seenAt !== null ? 'notice-seen' : state.level,
+      );
     }
     return levels;
   }, [attentionStates]);

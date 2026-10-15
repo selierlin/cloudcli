@@ -1867,9 +1867,12 @@ export type MobileTerminalSelectionManager = {
 /**
  * Why a session is flagged as waiting on the user, drawn as a marker beside its
  * title. `action` blocks the run until the user responds (a permission prompt
- * or an error); `notice` is passive output the user has not seen yet.
+ * or an error); `notice` is passive output the user has not seen yet; and
+ * `notice-seen` is that same output once the row has been on screen but is still
+ * unhandled — the row keeps it only for the grace period, drawn as a hollow dot
+ * so "new" and "looked at, not dealt with" are told apart by shape, not colour.
  */
-export type SessionAttentionLevel = 'action' | 'notice';
+export type SessionAttentionLevel = 'action' | 'notice' | 'notice-seen';
 
 /** The complete project-list state and callback bundle the sidebar assembles once and threads down through its project list, project rows and session rows. */
 /**

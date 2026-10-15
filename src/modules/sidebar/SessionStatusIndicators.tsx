@@ -77,15 +77,21 @@ type AttentionSlotProps = {
  * The sidebar's right-edge unread indicator, drawn by the Projects and
  * Conversations session rows and their compact/mobile variants. The amber
  * capsule (needs you) and the blue dot (new activity) differ in shape, not
- * only in colour, so they stay apart without relying on the palette.
+ * only in colour, so they stay apart without relying on the palette. The dot
+ * itself comes in two fills: solid while the output is still unseen, hollow
+ * once the row has been on screen but the session is still unhandled — the
+ * same flag, only no longer new.
  */
 export function AttentionSlot({ level, isSelected, t }: AttentionSlotProps) {
   if (!level || isSelected) {
     return null;
   }
 
-  if (level === 'notice') {
-    const noticeLabel = t('tooltips.attentionNoticeIndicator', { defaultValue: 'New activity in this session' });
+  if (level === 'notice' || level === 'notice-seen') {
+    const isSeen = level === 'notice-seen';
+    const noticeLabel = isSeen
+      ? t('tooltips.attentionSeenIndicator', { defaultValue: 'Opened but not yet handled' })
+      : t('tooltips.attentionNoticeIndicator', { defaultValue: 'New activity in this session' });
     return (
       <Tooltip content={noticeLabel} position="top">
         <span
@@ -94,7 +100,12 @@ export function AttentionSlot({ level, isSelected, t }: AttentionSlotProps) {
           // `block` is load-bearing: Tooltip wraps this in an inline-block div
           // that does not blockify it, so a bare inline span would ignore
           // `h-2 w-2` and collapse to nothing.
-          className="block h-2 w-2 flex-shrink-0 rounded-full bg-blue-500 dark:bg-blue-400"
+          className={cn(
+            'block h-2 w-2 flex-shrink-0 rounded-full',
+            isSeen
+              ? 'border-2 border-blue-500/60 bg-transparent dark:border-blue-400/60'
+              : 'bg-blue-500 dark:bg-blue-400',
+          )}
         />
       </Tooltip>
     );

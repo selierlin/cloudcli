@@ -92,6 +92,7 @@
     "processingSessionIndicator": "Processing session",
     "attentionActionIndicator": "Session needs your action",
     "attentionNoticeIndicator": "New activity in this session",
+    "attentionSeenIndicator": "Opened but not yet handled",
     "draftIndicator": "Unsent draft in this session",
     "projectAggregateAction": "{{count}} session(s) in this project need your action",
     "projectAggregateNotice": "New activity in this project",
