@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { TFunction } from 'i18next';
+import React from 'react';
 import { beforeEach, test, vi } from 'vitest';
 
 import type { Project, RecentConversationListItem, SessionWithProvider } from '@/shared/types';
@@ -54,7 +55,10 @@ const buildProject = (summaries: Record<string, string>): Project => ({
   sessionMeta: { hasMore: false, total: Object.keys(summaries).length },
 });
 
-const renderController = (projects: Project[]) => {
+const renderController = (
+  projects: Project[],
+  wrapper?: React.JSXElementConstructor<{ children: React.ReactNode }>,
+) => {
   const onSessionSelect = vi.fn();
   const rendered = renderHook(
     ({ projects: currentProjects }: { projects: Project[] }) => useSidebarController({
@@ -73,13 +77,16 @@ const renderController = (projects: Project[]) => {
       setSidebarVisible: vi.fn(),
       sidebarVisible: true,
     }),
-    { initialProps: { projects } },
+    { initialProps: { projects }, ...(wrapper ? { wrapper } : {}) },
   );
   return { ...rendered, onSessionSelect };
 };
 
-const openConversationsTab = async (projects: Project[]) => {
-  const rendered = renderController(projects);
+const openConversationsTab = async (
+  projects: Project[],
+  wrapper?: React.JSXElementConstructor<{ children: React.ReactNode }>,
+) => {
+  const rendered = renderController(projects, wrapper);
   act(() => {
     rendered.result.current.setSearchMode('conversations');
   });
@@ -164,4 +171,28 @@ test('a fork whose owning project cannot be resolved is not inserted, but still 
   );
   assert.equal(result.current.recentConversationsTotal, 2);
   assert.equal(onSessionSelect.mock.calls.length, 1);
+});
+
+test('a forked session bumps the total once when the sidebar renders in StrictMode', async () => {
+  // `setRecentConversationsTotal` used to be called from inside the list's own
+  // state updater. React's development double-invoke runs an updater twice, so
+  // the row was counted twice — a 3-row feed reported a total of 4 — while the
+  // list itself stayed correct. The decision now reads the mirrored list
+  // outside the updater, where the extra invocation cannot reach it.
+  const projects = [buildProject({ 'session-1': 'Original title', 'session-2': '' })];
+  const { result } = await openConversationsTab(projects, React.StrictMode);
+  forkSessionResponse.mockResolvedValue({
+    ok: true,
+    json: async () => ({ data: { sessionId: 'session-fork', sessionName: 'Original title (fork)' } }),
+  });
+
+  await act(async () => {
+    await result.current.forkSession({ id: 'session-1', __provider: 'claude' } as SessionWithProvider);
+  });
+
+  assert.deepEqual(
+    result.current.recentConversations.map((row) => row.sessionId),
+    ['session-fork', 'session-1', 'session-2'],
+  );
+  assert.equal(result.current.recentConversationsTotal, 3);
 });

@@ -149,6 +149,14 @@ export function useSidebarController({
   // signal, so a row that later leaves the feed (archived/deleted) is not
   // pushed back in by a re-run of the effect below.
   const insertedConversationIdsRef = useRef<Set<string>>(new Set());
+  // A mirror of the feed's latest list, refreshed on every commit. Asking "is
+  // this row already in the feed?" needs the *current* list rather than the one
+  // captured when the caller was created: `forkSession` awaits a round trip
+  // before folding, so its closure snapshot is stale by the time it runs.
+  const recentConversationsRef = useRef(recentConversations);
+  useEffect(() => {
+    recentConversationsRef.current = recentConversations;
+  }, [recentConversations]);
   const onRefreshRef = useRef(onRefresh);
 
   const isSidebarCollapsed = !isMobile && !sidebarVisible;
@@ -397,7 +405,7 @@ export function useSidebarController({
   // same fold is reused for a forked session, whose row the server's
   // `session_upserted` broadcast never delivers to this feed.
   const applyCreatedConversationRow = useCallback(
-    (row: RecentConversationListItem, conversations: RecentConversationListItem[]) => {
+    (row: RecentConversationListItem) => {
       // One insert per session: the signal is already the "latest" one, and a
       // row that fell out of the feed (archived/deleted) must not be pushed
       // back. The id is claimed before the "already present" bail so a later
@@ -407,8 +415,13 @@ export function useSidebarController({
       }
       insertedConversationIdsRef.current.add(row.sessionId);
       // A refetch may have raced ahead of the signal and already carry the row;
-      // bumping the total again would overcount it.
-      if (conversations.some((conversation) => conversation.sessionId === row.sessionId)) {
+      // bumping the total again would overcount it. The check reads the mirrored
+      // list rather than a caller-supplied snapshot. Both updates then stay
+      // outside any state updater: a `setState` nested in one is a side effect
+      // the updater re-runs under React's development double-invoke, and the
+      // total — a plain `total + 1`, with no bail of its own — would be counted
+      // twice.
+      if (recentConversationsRef.current.some((conversation) => conversation.sessionId === row.sessionId)) {
         return;
       }
 
@@ -422,8 +435,8 @@ export function useSidebarController({
     if (!createdConversation) {
       return;
     }
-    applyCreatedConversationRow(createdConversation.row, recentConversations);
-  }, [applyCreatedConversationRow, createdConversation, recentConversations]);
+    applyCreatedConversationRow(createdConversation.row);
+  }, [applyCreatedConversationRow, createdConversation]);
 
   useEffect(() => {
     if (searchMode !== 'archived') {
@@ -1373,7 +1386,7 @@ export function useSidebarController({
             sessionTitle: (payload?.data?.sessionName ?? '').trim() || forkedSessionId,
             lastActivity: new Date().toISOString(),
             isPinned: false,
-          }, recentConversations);
+          });
         }
 
         onSessionSelect({
@@ -1387,7 +1400,7 @@ export function useSidebarController({
         alert(t('messages.forkSessionError'));
       }
     },
-    [applyCreatedConversationRow, onSessionSelect, projects, recentConversations, t],
+    [applyCreatedConversationRow, onSessionSelect, projects, t],
   );
 
   const updateSessionPinned = useCallback(
