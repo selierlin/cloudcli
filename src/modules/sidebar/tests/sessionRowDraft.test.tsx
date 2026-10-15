@@ -7,12 +7,13 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 import type { Project, SessionAttentionLevel, SessionWithProvider, SidebarProjectListProps } from '@/shared/types';
 
 /**
- * The pen the session row's right edge draws for unsent input.
+ * The markers the session row's right edge draws.
  *
- * It shares that edge with the unread dot and must not be read as one: the dot
- * reports something that arrived and is consumed by opening the session, while
- * the pen reports something the user wrote and left, and stays exactly as long
- * as the draft does.
+ * The pen reports unsent input; it shares that edge with the unread dot and must
+ * not be read as one (the dot reports something that arrived, the pen something
+ * the user wrote). The dot itself has two fills — solid while the output is
+ * still unseen, hollow once the row has been on screen but is still unhandled —
+ * so "new" and "looked at, not dealt with" are told apart by shape, not colour.
  */
 
 vi.mock('@/shared/api', () => ({
@@ -132,4 +133,34 @@ test('a queued message counts as an unsent draft', () => {
   const { container } = renderRow();
 
   assert.ok(container.querySelector('[aria-label="tooltips.draftIndicator"]'));
+});
+
+test('an unseen notice draws the solid dot', () => {
+  const { container } = renderRow({ attentionLevel: 'notice' });
+
+  const dot = container.querySelector('[role="status"][aria-label="tooltips.attentionNoticeIndicator"]');
+  assert.ok(dot, 'the never-opened notice is marked');
+  assert.ok(String(dot.className).includes('bg-blue-500'), 'and it is solid');
+});
+
+test('a notice the row has shown draws a hollow dot instead', () => {
+  const { container } = renderRow({ attentionLevel: 'notice-seen' });
+
+  const dot = container.querySelector('[role="status"][aria-label="tooltips.attentionSeenIndicator"]');
+  assert.ok(dot, 'the seen-but-unhandled notice is still marked');
+  assert.ok(String(dot.className).includes('border-blue-500/60'), 'drawn as a ring');
+  assert.ok(String(dot.className).includes('bg-transparent'), 'with a hollow centre');
+  assert.ok(
+    !String(dot.className).includes('bg-blue-500'),
+    'so the filled and hollow dots never read as the same marker',
+  );
+});
+
+test('both dot fills are withheld on the open row', () => {
+  const solid = renderRow({ attentionLevel: 'notice', selected: true });
+  assert.equal(solid.container.querySelectorAll('[role="status"]').length, 0);
+  solid.unmount();
+
+  const hollow = renderRow({ attentionLevel: 'notice-seen', selected: true });
+  assert.equal(hollow.container.querySelectorAll('[role="status"]').length, 0);
 });

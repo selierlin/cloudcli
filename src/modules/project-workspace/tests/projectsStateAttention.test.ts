@@ -595,8 +595,30 @@ test('opening a session no longer clears its unread notice', async () => {
 
   assert.equal(
     result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID),
+    'notice-seen',
+    'a glance is not an answer, so the row is still marked once the user looks back — now as the seen variant',
+  );
+});
+
+test('a notice nobody opened reads solid until the row is first on screen', async () => {
+  const { result, rerender } = await renderProjectsState();
+
+  await act(async () => {
+    emit({ kind: 'complete', sessionId: OTHER_SESSION_ID });
+  });
+  assert.equal(
+    result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID),
     'notice',
-    'a glance is not an answer, so the row is still marked once the user looks back',
+    'never opened reads as the solid dot',
+  );
+
+  await act(async () => {
+    rerender({ pending: new Set(), sessionId: OTHER_SESSION_ID });
+  });
+  assert.equal(
+    result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID),
+    'notice-seen',
+    'once it has been on screen the row draws the hollow dot instead',
   );
 });
 
@@ -617,7 +639,7 @@ test('a notice the user only looked at clears when the grace period runs out', a
     });
     assert.equal(
       result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID),
-      'notice',
+      'notice-seen',
       'opening starts the clock rather than clearing the flag',
     );
 

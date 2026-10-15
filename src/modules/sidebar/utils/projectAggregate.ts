@@ -44,7 +44,10 @@ export function deriveProjectAggregate(
     const level = attentionSessions.get(session.id);
     if (level === 'action') {
       actionCount += 1;
-    } else if (level === 'notice') {
+    } else if (level === 'notice' || level === 'notice-seen') {
+      // Both fills of the dot are the same "there is unread output" claim; the
+      // project row has no room to draw the seen distinction and does not need
+      // to, so it keeps belling for either.
       hasNotice = true;
     }
 
