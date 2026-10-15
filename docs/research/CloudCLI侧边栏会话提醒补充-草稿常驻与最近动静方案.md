@@ -1,6 +1,6 @@
 # CloudCLI 侧边栏会话提醒补充：草稿常驻 + 最近动静弱提示
 
-> - **状态**：方案草案 v1（2026-10-15），**待审阅**。尚无实现。
+> - **状态**：**已实现（2026-10-15，`6e971568`，未 push）**。需求 1 全量落地；需求 2 按 §3.2 落地于 Projects 页签，Conversations 页签**暂缓**（见 §8）。类型检查通过、前端全量测试与既存基线一致（8 文件 / 35 例环境相关失败，均在无关模块）；lint 0 error。§4 的 Q1–Q7 已在 §8 逐条落定。未走多 AI 审阅（见 §8 首段理由）。
 > - **用途**：评审「在侧边栏会话行补充两类提醒」的方案 —— ① 输入框有草稿未发送 → 常驻标记；② AI 刚回复、我打开看过又切走 → 还想找得回去。审阅重点：**§4 开放问题的取舍（尤其需求 2 是否该新增弱底色而非给蓝点续命、弱底色的触发与时长、需求 1 的草稿标记是否复用蓝点）、§3.1 的订阅与重渲染边界、§3.2 的「零新增状态」推导是否成立**。
 > - **关联文档**（**务必先读**，本方案建立在其不变量之上）：
 >   - `docs/research/CloudCLI侧边栏状态指示重设计方案.md`（一期：左右双通道、删绿点）
@@ -236,6 +236,37 @@ weakRecent(session) =
 | 需求 1 扩展到项目行聚合 / 新会话草稿 | 范围膨胀 | §4 Q4 明确 v1 不做，单列后续 |
 
 **回滚粒度**：阶段 1 与阶段 2 无依赖，可分别独立上线/回退。
+
+---
+
+## 8. 实施记录（2026-10-15）
+
+**为什么未走多 AI 审阅**：本方案的既往审阅价值来自服务端风险（DB 迁移 / 删行孤儿化 / 分页算术 / 并发 / 时间戳污染排序），此需求**一条都不沾**（纯前端、无 `server/` 改动、无迁移、无并发）。唯一的事实不确定点（`contentUpdatedAt` 客户端可得性）已实地复算：它已被 `applyPersistedUnread` 消费（`useProjectsState.ts:674`），`null` 是显式处理分支（`sessionReadState.ts:47-49`）。
+
+**落地内容**
+
+- 需求 1：`DraftSlot`（`SessionStatusIndicators.tsx`，右缘钢笔，独立形状）；数据面 `getDraftScopesSnapshot` + `hasQueuedContent`/`draftHasContent`（`src/shared/chatDrafts.ts`）、`useDraftScopes`（`src/modules/sidebar/hooks/useDraftScopes.ts`，`useSyncExternalStore`）；三个宿主行接入；i18n `tooltips.draftIndicator`（en + zh-CN）。
+- 需求 2：`isRecentlyActive` + `RECENT_ACTIVITY_TTL_MS`（`src/modules/sidebar/utils/recentActivity.ts`）；`SidebarSessionItem` 两种布局（桌面 `<a>` / compact 卡片）挂 `bg-primary/5`。
+
+**§4 开放问题的落定（实现即答案）**
+
+| 问题 | 落定 | 说明 |
+|---|---|---|
+| Q1 弱底色 vs 蓝点续命 | **弱底色** | 蓝点生命周期未改，仍「打开即清」 |
+| Q2 含自己发的消息 | **含** | 直接读 `contentUpdatedAt`，不区分发言方 |
+| Q3 队列消息算草稿 | **算** | `hasQueuedContent`（content 或 attachments 非空） |
+| Q4 新会话草稿 | **不做** | 未触及项目行聚合 |
+| Q5 `contentUpdatedAt` 为 null | **不显示底色** | `isRecentlyActive` 对 null/NaN 返回 false |
+| Q6 TTL | **10 分钟** | 常量 `RECENT_ACTIVITY_TTL_MS`，可调 |
+| Q7 形状 | **钢笔（`Pencil`）** | 与蓝点（实心圆）、琥珀胶囊（实心+警告）形状可区分 |
+
+**偏离方案的唯一一处**：弱底色强度选 `bg-primary/5`（而非文档举例的「极低透明度 tint」的泛指）。此为待人工目视的取值，若偏显眼或看不出，直接调这个 class。
+
+**暂缓项（明确未做）**：Conversations 页签的弱底色。该行数据来自服务端 `api.recentConversations`（`useSidebarController.ts:261`），`RecentConversationListItem`（`src/shared/types.ts:1982`）不含 `contentUpdatedAt`，需改服务端投影（`sessions.service.ts:324` → `provider.routes.ts:1244`）。且对话页签本就按时间排序，Q3 类信号边际收益低（一期 §130 同结论）。**若后续要补**：给 `RecentConversationListItem` 加 `contentUpdatedAt` 即可复用同一谓词。
+
+**测试**：`src/shared/tests/chatDrafts.test.ts`（快照口径 + 引用稳定性）、`src/modules/sidebar/tests/recentActivity.test.ts`（TTL 边界 / null / 未来时间戳）、`src/modules/sidebar/tests/sessionRowDraftAndRecency.test.tsx`（并存 / 选中隐藏 / 空白不计 / 队列计入 / 底色只有背景不画标记）。
+
+**未验证项（需人工目视或真机）**：`bg-primary/5` 在亮/暗主题下的可辨识度与是否与「非选中且处理中」的 `bg-muted/20`、hover 态混淆；移动端 compact 卡片的观感。
 
 ---
 
