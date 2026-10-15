@@ -247,6 +247,51 @@ test('archived session batch delete leaves archived projects and their sessions 
   });
 });
 
+test('a harness-native session id containing a colon stays addressable and deletable', async () => {
+  // OpenClaw keys sessions as `agent:<agentId>:<key>`, and a session indexed
+  // from its store keeps that key as the row's primary key, so `:sessionId`
+  // routes must accept it. Point OpenClaw's state root at an empty directory so
+  // the provider-side prune is a no-op and the test never touches a real store.
+  const previousStateDir = process.env.OPENCLAW_STATE_DIR;
+  const absentStateDir = await mkdtemp(path.join(os.tmpdir(), 'openclaw-absent-'));
+  process.env.OPENCLAW_STATE_DIR = absentStateDir;
+  try {
+    await withProviderServer(async (baseUrl, workspacePath) => {
+      const nativeId = 'agent:main:cron:c27e553d-f297-445e-803f-ad9d14cd7ebe';
+      sessionsDb.createSession(nativeId, 'openclaw', workspacePath, 'Automation: Memory Dreaming Promotion');
+
+      const response = await fetch(
+        `${baseUrl}/api/providers/sessions/${nativeId}?force=true`,
+        { method: 'DELETE' },
+      );
+      const payload = await response.json() as { data: { sessionId: string } };
+
+      assert.equal(response.status, 200);
+      assert.equal(payload.data.sessionId, nativeId);
+      assert.equal(sessionsDb.getSessionById(nativeId), null);
+    });
+  } finally {
+    if (previousStateDir === undefined) {
+      delete process.env.OPENCLAW_STATE_DIR;
+    } else {
+      process.env.OPENCLAW_STATE_DIR = previousStateDir;
+    }
+    await rm(absentStateDir, { recursive: true, force: true });
+  }
+});
+
+test('a session id outside the safe character set is still rejected', async () => {
+  await withProviderServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/providers/sessions/bad%20id?force=true`, {
+      method: 'DELETE',
+    });
+    const payload = await response.json() as { error: { code: string } };
+
+    assert.equal(response.status, 400);
+    assert.equal(payload.error.code, 'INVALID_SESSION_ID');
+  });
+});
+
 test('conversation search streams title matches before transcript results', async () => {
   await withProviderServer(async (baseUrl, workspacePath) => {
     sessionsDb.createAppSession(
