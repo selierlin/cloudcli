@@ -867,19 +867,6 @@ export function useProjectsState({
   }, [pendingApprovalSessionIds]);
 
   /**
-   * The poll's current blocked set, kept in a ref so the leave/enter effect can
-   * tell whether a session it is about to stop watching is still blocked.
-   *
-   * The poll effect above only re-runs when the set's membership changes. A
-   * session that is still waiting keeps the same set, so clearing its attention
-   * on leaving would never be undone while the approval stays unanswered.
-   */
-  const pendingApprovalSessionIdsRef = useRef(pendingApprovalSessionIds);
-  useEffect(() => {
-    pendingApprovalSessionIdsRef.current = pendingApprovalSessionIds;
-  }, [pendingApprovalSessionIds]);
-
-  /**
    * Rebuilds the persisted unread flags from the server's answer, and restores
    * the hollow dot for a row this device looked at just before the reload.
    *
