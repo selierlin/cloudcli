@@ -433,6 +433,30 @@ test('an unnamed new session signs its sidebar row with the id, matching the ser
   );
 });
 
+test('registerForkedSession bridges only the Conversations feed, leaving the project list alone', async () => {
+  const { result } = await renderProjectsState();
+
+  await act(async () => {
+    result.current.registerForkedSession({
+      sessionId: 'fork-session',
+      provider: 'claude',
+      project: buildProject(),
+      summary: 'My Repo (fork)',
+    });
+  });
+
+  const row = result.current.sidebarSharedProps.createdConversation?.row;
+  assert.equal(row?.sessionId, 'fork-session');
+  assert.equal(row?.provider, 'claude');
+  assert.equal(row?.projectId, 'project-1');
+  assert.equal(row?.projectDisplayName, 'My Repo');
+  assert.equal(row?.sessionTitle, 'My Repo (fork)');
+  assert.equal(row?.isPinned, false);
+  // The fork's tree row arrives over the server's `session_upserted`
+  // broadcast, so this path must not add a project session of its own.
+  assert.equal(result.current.projects.length, 0);
+});
+
 /**
  * Read-state persistence (需求 B). The watermark is what makes an unread flag
  * survive a reload, so two rules are load-bearing: only a session that has a

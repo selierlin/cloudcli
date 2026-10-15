@@ -45,6 +45,7 @@ type ChatInterfaceProps = {
   onFileOpen?: (filePath: string, diffInfo?: any) => void;
   onNavigateToSession?: (targetSessionId: string, options?: SessionNavigationOptions) => void;
   onSessionEstablished?: (sessionId: string, context: SessionEstablishedContext) => void;
+  onSessionForked?: (sessionId: string, context: SessionEstablishedContext) => void;
   onShowSettings?: () => void;
   showRawParameters?: boolean;
   showThinking?: boolean;
@@ -72,6 +73,7 @@ function ChatInterface({
   onFileOpen,
   onNavigateToSession,
   onSessionEstablished,
+  onSessionForked,
   onShowSettings,
   showRawParameters,
   showThinking,
@@ -422,12 +424,23 @@ function ChatInterface({
         alert(t(forkFailureMessageKey(payload?.error?.code)));
         return;
       }
+      // Bridge the new session into the sidebar's Conversations feed, which the
+      // server's `session_upserted` broadcast never reaches, so the forked row
+      // shows there without a refetch.
+      const provider = selectedSession?.__provider;
+      if (provider && selectedProject) {
+        onSessionForked?.(forkedSessionId, {
+          provider,
+          project: selectedProject,
+          summary: payload?.data?.sessionName,
+        });
+      }
       onNavigateToSession?.(forkedSessionId);
     } catch (error) {
       console.error('Error forking session:', error);
       alert(t('message.forkFailed'));
     }
-  }, [onNavigateToSession, selectedSession?.id, t]);
+  }, [onNavigateToSession, onSessionForked, selectedProject, selectedSession?.__provider, selectedSession?.id, t]);
 
   const { scheduledMessages, schedule: scheduleMessage, cancel: cancelScheduledMessage } =
     useScheduledMessages(currentSessionId || selectedSession?.id || null);

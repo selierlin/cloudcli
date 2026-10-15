@@ -8,6 +8,7 @@ import type { ServerEvent,
   LLMProvider,
   LoadingProgress,
   Project,
+  RecentConversationListItem,
   ProjectSession,IsSessionProcessing,SessionAttentionLevel } from '@/shared/types';
 import { mergeProjectSelectionMetadata } from '@/modules/project-workspace/utils/projectSelectionMetadata';
 import { readSelectedProvider } from '@/shared/selectedProvider';
@@ -119,7 +120,8 @@ type FetchProjectsOptions = {
   showLoadingState?: boolean;
 };
 
-type RegisterOptimisticSessionArgs = {
+/** Arguments naming a session this client just created, shared by the optimistic new-chat path and the fork path. */
+type RegisterSessionArgs = {
   sessionId: string;
   provider: LLMProvider;
   project: Project;
@@ -406,6 +408,29 @@ const projectFromRegistration = (project: Project): Project => ({
   sessions: project.sessions ?? [],
   sessionMeta: project.sessionMeta ?? { hasMore: false, total: countLoadedProjectSessions(project) },
   taskmaster: project.taskmaster,
+});
+
+/**
+ * Builds the Conversations-feed row for a session this client just created, so
+ * the sidebar's separate paginated feed can show it without a refetch. The
+ * title falls back to the id, matching how the server derives `sessionTitle`
+ * for a session that has no custom name yet, and a brand-new session is never
+ * pinned.
+ */
+const buildCreatedConversationRow = (
+  sessionId: string,
+  provider: LLMProvider,
+  project: Project,
+  summary: string | null | undefined,
+  lastActivity: string,
+): RecentConversationListItem => ({
+  sessionId,
+  provider,
+  projectId: project.projectId,
+  projectDisplayName: project.displayName,
+  sessionTitle: (summary ?? '').trim() || sessionId,
+  lastActivity,
+  isPinned: false,
 });
 
 const removeSessionFromProject = (project: Project, sessionIdToDelete: string): Project => {
@@ -924,7 +949,7 @@ export function useProjectsState({
     provider,
     project,
     summary,
-  }: RegisterOptimisticSessionArgs) => {
+  }: RegisterSessionArgs) => {
     if (!newSessionId || !project?.projectId) {
       return;
     }
@@ -984,18 +1009,36 @@ export function useProjectsState({
     ));
 
     // Hand the sidebar the same row so its separate Conversations feed can show
-    // it immediately. Title falls back to the id, matching how the server
-    // derives `sessionTitle` for a session that has no custom name yet.
+    // it immediately.
     setCreatedConversation((previous) => ({
-      row: {
-        sessionId: newSessionId,
-        provider,
-        projectId: project.projectId,
-        projectDisplayName: project.displayName,
-        sessionTitle: (summary ?? '').trim() || newSessionId,
-        lastActivity: now,
-        isPinned: false,
-      },
+      row: buildCreatedConversationRow(newSessionId, provider, project, summary, now),
+      nonce: (previous?.nonce ?? 0) + 1,
+    }));
+  }, []);
+
+  /**
+   * Hands the sidebar a Conversations row for a session created by a fork.
+   *
+   * The fork's tree row already reaches `projects` through the server's
+   * `session_upserted` broadcast, but that broadcast never feeds the separate
+   * paginated Conversations list, so without this the new row would wait for a
+   * refetch. Unlike `registerOptimisticSession` this deliberately touches
+   * neither `projects` nor the selected session — it only bridges the feed, so
+   * it cannot overwrite the fields the broadcast already delivered.
+   */
+  const registerForkedSession = useCallback(({
+    sessionId: forkedSessionId,
+    provider,
+    project,
+    summary,
+  }: RegisterSessionArgs) => {
+    if (!forkedSessionId || !project?.projectId) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    setCreatedConversation((previous) => ({
+      row: buildCreatedConversationRow(forkedSessionId, provider, project, summary, now),
       nonce: (previous?.nonce ?? 0) + 1,
     }));
   }, []);
@@ -1798,6 +1841,7 @@ export function useProjectsState({
     fetchProjects,
     refreshProjectsSilently,
     registerOptimisticSession,
+    registerForkedSession,
     sidebarSharedProps,
     handleProjectSelect,
     handleSessionSelect,

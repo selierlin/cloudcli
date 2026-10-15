@@ -24,6 +24,7 @@ function ProjectMainRegion({
     externalMessageUpdate,
     newSessionTrigger,
     registerOptimisticSession,
+    registerForkedSession,
     handleProjectSelect,
     refreshProjectsSilently,
     renameSession,
@@ -46,6 +47,15 @@ function ProjectMainRegion({
   ) => {
     registerOptimisticSession({ sessionId: targetSessionId, ...context });
   }, [registerOptimisticSession]);
+
+  // A fork's tree row arrives over the websocket; this only bridges the
+  // separate Conversations feed so the new session shows there immediately.
+  const handleSessionForked = useCallback((
+    targetSessionId: string,
+    context: SessionEstablishedContext,
+  ) => {
+    registerForkedSession({ sessionId: targetSessionId, ...context });
+  }, [registerForkedSession]);
 
   const handleProjectsRefresh = useCallback(() => {
     void refreshProjectsSilently();
@@ -74,6 +84,7 @@ function ProjectMainRegion({
       isLoading={isLoadingProjects}
       onNavigateToSession={handleNavigateToSession}
       onSessionEstablished={handleSessionEstablished}
+      onSessionForked={handleSessionForked}
       onShowSettings={openSettings}
       externalMessageUpdate={externalMessageUpdate}
       newSessionTrigger={newSessionTrigger}
