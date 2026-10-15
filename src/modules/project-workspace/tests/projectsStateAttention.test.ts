@@ -736,6 +736,87 @@ test('a new signal after a glance makes the row unread again, with a fresh wait'
   }
 });
 
+test('a replayed frame for content the user already saw does not unsee the row', async () => {
+  // Opening a session re-subscribes the chat socket, which replays the run's
+  // buffered frames. Those carry old content the user is looking at, so they
+  // must not re-raise the row as unseen — the watermark already covers them.
+  const content = '2026-01-02T00:00:00.000Z';
+  projectsResponse.mockResolvedValue({
+    ok: true,
+    json: async () => projectsWithSessions([sessionWithContent(OTHER_SESSION_ID, content, true)]),
+  });
+
+  const { result, rerender } = await renderProjectsState();
+  await act(async () => {
+    await hydrateReadState([{ sessionId: OTHER_SESSION_ID, lastSeenAt: '2026-01-01T00:00:00.000Z' }]);
+  });
+  assert.equal(result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID), 'notice');
+
+  await act(async () => {
+    rerender({ pending: new Set(), sessionId: OTHER_SESSION_ID });
+  });
+  assert.equal(result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID), 'notice-seen');
+
+  await act(async () => {
+    rerender({ pending: new Set(), sessionId: URL_SESSION_ID });
+  });
+  await act(async () => {
+    emit({ kind: 'text', sessionId: OTHER_SESSION_ID });
+  });
+
+  assert.equal(
+    result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID),
+    'notice-seen',
+    'a signal for content the watermark already covers must not undo the glance',
+  );
+});
+
+test('a genuinely newer reply still re-raises a seen row', async () => {
+  const seenContent = '2026-01-02T00:00:00.000Z';
+  const newerContent = '2026-01-03T00:00:00.000Z';
+  projectsResponse.mockResolvedValue({
+    ok: true,
+    json: async () => projectsWithSessions([sessionWithContent(OTHER_SESSION_ID, seenContent, true)]),
+  });
+
+  const { result, rerender } = await renderProjectsState();
+  await act(async () => {
+    await hydrateReadState([{ sessionId: OTHER_SESSION_ID, lastSeenAt: '2026-01-01T00:00:00.000Z' }]);
+  });
+  await act(async () => {
+    rerender({ pending: new Set(), sessionId: OTHER_SESSION_ID });
+  });
+  await act(async () => {
+    rerender({ pending: new Set(), sessionId: URL_SESSION_ID });
+  });
+  assert.equal(result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID), 'notice-seen');
+
+  await act(async () => {
+    emit({
+      kind: 'session_upserted',
+      sessionId: OTHER_SESSION_ID,
+      providerSessionId: OTHER_SESSION_ID,
+      provider: 'claude',
+      session: {
+        id: OTHER_SESSION_ID,
+        summary: 'a session',
+        messageCount: 1,
+        lastActivity: newerContent,
+        contentUpdatedAt: newerContent,
+        change: 'content',
+      },
+      project: null,
+      timestamp: newerContent,
+    });
+  });
+
+  assert.equal(
+    result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID),
+    'notice',
+    'a reply the user has not seen drops the row back to the solid dot',
+  );
+});
+
 test('leaving a draft answers the session, clearing its notice', async () => {
   const { result } = await renderProjectsState();
 
