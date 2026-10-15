@@ -65,6 +65,26 @@ export function ActivitySlot({ isProcessing, hasBackgroundWork, className, t }: 
   );
 }
 
+/**
+ * The row's left-edge "you were just here" rail, drawn by the same hosts as the
+ * slots above.
+ *
+ * It answers a third question — "which session did I just glance at?" — so it
+ * must not reuse either edge's shape: it is a full-height capsule *inside* the
+ * left edge, where `ActivitySlot` hangs a dot *outside* it, and it stays off the
+ * right edge that the unread dot and the draft pen own. Decoration only: the
+ * recency it encodes is already carried by the age text and the list order, so
+ * it is `aria-hidden` rather than another status marker.
+ */
+export function RecentActivityRail() {
+  return (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-y-1 left-0 w-[3px] rounded-full bg-primary/50"
+    />
+  );
+}
+
 type AttentionSlotProps = {
   /** How strongly to flag the unread event, or undefined when nothing awaits the user. */
   level?: SessionAttentionLevel;
