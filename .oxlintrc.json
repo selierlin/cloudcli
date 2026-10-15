@@ -113,6 +113,7 @@
           "src/shared/themeReset.ts",
           "src/shared/chatDrafts.ts",
           "src/shared/sessionReadState.ts",
+          "src/shared/sessionLastViewed.ts",
           "src/shared/quickReplies.ts",
           "src/shared/syntaxHighlighter.ts",
           "src/shared/syntaxTheme.ts",

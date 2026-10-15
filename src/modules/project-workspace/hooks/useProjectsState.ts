@@ -21,6 +21,11 @@ import {
   subscribeToSessionReadState,
 } from '@/shared/sessionReadState';
 import { getDraftScopesSnapshot, subscribeToChatDrafts } from '@/shared/chatDrafts';
+import {
+  clearSessionLastViewed,
+  getSessionLastViewedAt,
+  noteSessionLastViewed,
+} from '@/shared/sessionLastViewed';
 
 type UseProjectsStateArgs = {
   sessionId?: string;
@@ -588,6 +593,15 @@ export function useProjectsState({
   selectedProjectRef.current = selectedProject;
   const projectsRef = useRef(projects);
   projectsRef.current = projects;
+  // Read inside `noteSessionViewed`, which runs from an effect and must know
+  // whether the session it is looking at actually carries a dot before it
+  // remembers the view — seeing an unflagged session must not invent one.
+  // Synced from an effect rather than during render so the read always sees the
+  // committed map, and declared before its only reader.
+  const attentionStatesRef = useRef(attentionStates);
+  useEffect(() => {
+    attentionStatesRef.current = attentionStates;
+  }, [attentionStates]);
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
   /** URL session id whose backend lookup already ran (or is in flight) — one attempt per id. */
@@ -689,6 +703,10 @@ export function useProjectsState({
       return;
     }
 
+    // The mirrored view goes with the flag: a row the user has dealt with, or
+    // that no longer exists, must not come back hollow after a reload.
+    clearSessionLastViewed(targetSessionId);
+
     setAttentionStates((previous) => {
       if (!previous.has(targetSessionId)) {
         return previous;
@@ -709,6 +727,10 @@ export function useProjectsState({
    * the grace period is the session the user looked at and did not answer. Only
    * a `notice` is touched: a blocked session's capsule is not cleared by
    * looking at it, the answer is what clears it.
+   *
+   * The moment is also mirrored to localStorage, so a reload restores the
+   * hollow dot the grace period had drawn instead of losing it to a refreshed
+   * tab — the case the grace period is most likely to be interrupted by.
    */
   const noteSessionViewed = useCallback((targetSessionId?: string | null) => {
     if (!targetSessionId) {
@@ -716,6 +738,13 @@ export function useProjectsState({
     }
 
     const seenAt = Date.now();
+    // A view is persisted only when it is what makes the row's dot hollow. A
+    // session opened while it carried no dot must not gain one on the next
+    // reload, so the mirror tracks the flagged rows, not everything opened.
+    if (attentionStatesRef.current.get(targetSessionId)?.level === 'notice') {
+      noteSessionLastViewed(targetSessionId, seenAt);
+    }
+
     setAttentionStates((previous) => {
       const current = previous.get(targetSessionId);
       if (!current || current.level !== 'notice') {
@@ -744,6 +773,12 @@ export function useProjectsState({
       const draftScopes = getDraftScopesSnapshot();
       if (draftScopes.size === 0) {
         return;
+      }
+
+      // The pen answers the session, so the mirrored view is dropped with the
+      // dot — otherwise a reload would restore the dot beside the pen.
+      for (const scope of draftScopes) {
+        clearSessionLastViewed(scope);
       }
 
       setAttentionStates((previous) => {
@@ -845,44 +880,58 @@ export function useProjectsState({
   }, [pendingApprovalSessionIds]);
 
   /**
-   * Rebuilds the persisted unread flags from the server's answer.
+   * Rebuilds the persisted unread flags from the server's answer, and restores
+   * the hollow dot for a row this device looked at just before the reload.
    *
    * This is the only channel that survives a reload: the websocket notice that
    * originally raised a flag is not replayed, so on load the sidebar reads
    * `isUnread` off each session — computed by the server from the session's
    * content timestamp and this user's stored watermark — instead of re-deriving
-   * it. It only ever *raises* a notice and never clears one, so it cannot fight
+   * it. It only ever *raises* a flag and never clears one, so it cannot fight
    * the other channels (see the channel-merge rules).
    *
-   * One local correction is still needed: a watermark written on this device
+   * Two local corrections are still needed. A watermark written on this device
    * after the row was fetched makes the server's snapshot stale, so a session
-   * the user has just read must not be flagged from that stale `isUnread`.
+   * the user has just read must not be flagged from that stale `isUnread`. And
+   * a session the server reports as read may still have been on screen moments
+   * before the reload, so the mirrored view restores the dot the grace period
+   * had drawn — hollow, since the user has looked at it.
    */
   const applyPersistedUnread = useCallback(() => {
     const viewedSessionId = selectedSessionRef.current?.id ?? sessionIdRef.current ?? null;
+    const now = Date.now();
 
     setAttentionStates((previous) => {
       let next: Map<string, SessionAttentionState> | null = null;
 
       for (const project of projectsRef.current) {
         for (const session of project.sessions ?? []) {
-          if (session.isUnread !== true) {
-            continue;
-          }
-          // The user read it on this device after the row was fetched: the
-          // local watermark already covers the content, so the server's flag is
-          // stale until the next projection.
-          if (getSessionLastSeenAt(session.id) && !isSessionUnread(session.id, session.contentUpdatedAt)) {
-            continue;
-          }
-          // The row hides the indicator for the session on screen; a stronger
-          // `action` flag must never be downgraded.
+          // The row hides the indicator for the session on screen, and a flag
+          // already in the map is this channel's own work rather than news.
           if (session.id === viewedSessionId || previous.get(session.id)) {
             continue;
           }
 
-          next ??= new Map(previous);
-          next.set(session.id, { level: 'notice', seenAt: null });
+          if (session.isUnread === true) {
+            // The user read it on this device after the row was fetched: the
+            // local watermark already covers the content, so the server's flag
+            // is stale until the next projection.
+            if (getSessionLastSeenAt(session.id) && !isSessionUnread(session.id, session.contentUpdatedAt)) {
+              continue;
+            }
+            next ??= new Map(previous);
+            next.set(session.id, { level: 'notice', seenAt: null });
+            continue;
+          }
+
+          // Not unread on the server, but this device had the row on screen
+          // within the grace period before the reload: restore it hollow. A
+          // null `seenAt` would wrongly claim it had never been opened.
+          const viewedAt = getSessionLastViewedAt(session.id);
+          if (viewedAt !== null && now - viewedAt <= ATTENTION_GRACE_MS) {
+            next ??= new Map(previous);
+            next.set(session.id, { level: 'notice', seenAt: viewedAt });
+          }
         }
       }
 
