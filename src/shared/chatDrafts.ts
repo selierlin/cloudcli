@@ -77,7 +77,13 @@ const hasQueuedContent = (queued: StoredQueuedMessage | null): boolean => {
     return false;
   }
 
-  return queued.content.trim() !== '' || queuedAttachments(queued).length > 0;
+  // `queued` is read back from localStorage or the server and only ever
+  // shape-checked as an object, so `content` can be absent on a legacy or
+  // malformed record (an attachments-only one, say). Read it defensively: this
+  // runs while every session row renders, so a throw here would take out the
+  // sidebar rather than one composer.
+  const content = typeof queued.content === 'string' ? queued.content : '';
+  return content.trim() !== '' || queuedAttachments(queued).length > 0;
 };
 
 /**

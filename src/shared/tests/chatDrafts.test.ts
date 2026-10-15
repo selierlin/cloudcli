@@ -275,3 +275,24 @@ test('the scope snapshot keeps its reference while its membership is unchanged',
   const backToA = store.getDraftScopesSnapshot();
   assert.deepEqual([...backToA], ['session-a']);
 });
+
+test('a queued message with no text is read without throwing', async () => {
+  // The mirror is JSON the store only shape-checks, so a legacy or malformed
+  // record can arrive without `content`. It is read while every session row
+  // renders (the snapshot drives the draft pen), so a missing field must not
+  // throw — and attachments alone are still something to send.
+  localStorage.setItem('chat-drafts', JSON.stringify({
+    'with-attachments': { text: '', queuedMessage: { attachments: [{ name: 'a.png' }] } },
+    'with-nothing': { text: '', queuedMessage: { options: {} } },
+  }));
+
+  const store = await loadStore();
+
+  assert.deepEqual(
+    [...store.getDraftScopesSnapshot()],
+    ['with-attachments'],
+    'a text-less record is judged by its attachments, not by a throw',
+  );
+  assert.deepEqual(store.readQueuedMessage('with-attachments')?.attachments, [{ name: 'a.png' }]);
+  assert.equal(store.readQueuedMessage('with-nothing'), null, 'no text and no attachments is nothing to send');
+});
