@@ -8,7 +8,7 @@ import { cn } from '@/shared/utils';
 import { SESSION_OWNERSHIP_DRAG_MIME } from '@/shared/constants';
 import type { LLMProvider, Project, ProjectSession, SessionAttentionLevel, SessionWithProvider } from '@/shared/types';
 import { PROVIDER_LABELS, createSessionViewModel, formatCompactAge } from '@/modules/sidebar/utils/sidebarProjectFormatting';
-import { ActivitySlot, AttentionSlot, DraftSlot } from '@/modules/sidebar/SessionStatusIndicators';
+import { ActivitySlot, AttentionSlot, DraftSlot, RecentActivityRail } from '@/modules/sidebar/SessionStatusIndicators';
 import { useCompactSidebar } from '@/modules/sidebar/hooks/useCompactSidebar';
 import { useDraftScopes } from '@/modules/sidebar/hooks/useDraftScopes';
 import { isRecentlyActive } from '@/modules/sidebar/utils/recentActivity';
@@ -106,9 +106,10 @@ function SidebarSessionItem({
   // A pen beside the unread dot: the scope holds input the user wrote but never
   // sent. Survives opening the session, unlike the dot.
   const hasDraft = useDraftScopes().has(session.id);
-  // A faint tint, not a marker: "this row had new content very recently", kept
-  // so a session you glanced at and did not answer stays findable for a while.
-  const showRecentTint = !isSelected && isRecentlyActive(session.contentUpdatedAt, currentTime);
+  // A left-edge rail, not a status marker: "this row had new content very
+  // recently", kept so a session you glanced at and did not answer stays
+  // findable for a while.
+  const showRecencyRail = !isSelected && isRecentlyActive(session.contentUpdatedAt, currentTime);
   const providerLabel = PROVIDER_LABELS[session.__provider];
 
   // The desktop controls live in SessionOptions, which owns the rename panel and
@@ -256,13 +257,13 @@ function SidebarSessionItem({
             isSelected
               ? 'border-primary/40 shadow-[inset_3px_0_0_0_hsl(var(--primary))]'
               : '',
-            showRecentTint ? 'bg-primary/5' : '',
             !isSelected && isProcessing
               ? 'border-border/60 bg-muted/20'
               : 'border-border/30',
           )}
           onClick={selectMobileSession}
         >
+          {showRecencyRail && <RecentActivityRail />}
           <div className={cn('flex items-center gap-2', isManaging && isProcessing && 'cursor-not-allowed opacity-60')}>
             {isManaging && (
               <span
@@ -494,11 +495,10 @@ function SidebarSessionItem({
           href={`/session/${session.id}`}
           className={cn(
             buttonVariants({ variant: 'ghost' }),
-            'h-auto w-full justify-start rounded-md border bg-card p-2 pr-11 text-left font-normal transition-all duration-150',
+            'relative h-auto w-full justify-start rounded-md border bg-card p-2 pr-11 text-left font-normal transition-all duration-150',
             isSelected
               ? 'border-primary/40 shadow-[inset_3px_0_0_0_hsl(var(--primary))]'
               : 'border-border/30',
-            showRecentTint ? 'bg-primary/5' : '',
             !isSelected && isProcessing
               ? 'border-border/60 bg-muted/20 hover:bg-muted/25'
               : 'hover:bg-accent',
@@ -531,6 +531,7 @@ function SidebarSessionItem({
             onSessionSelect(session, project.projectId);
           }}
         >
+          {showRecencyRail && <RecentActivityRail />}
           <div className="flex w-full min-w-0 items-center gap-2">
             {isManaging && (
               <span

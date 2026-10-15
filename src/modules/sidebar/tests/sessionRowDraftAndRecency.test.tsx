@@ -12,11 +12,12 @@ import type { Project, SessionAttentionLevel, SessionWithProvider, SidebarProjec
  *
  * A pen marks a scope that holds input the user wrote but never sent; it is
  * sticky and, unlike the unread dot, is not consumed by opening the session —
- * only sending or clearing the draft removes it. A faint background tint marks
- * a row whose content changed very recently, so a session glanced at but not
- * answered stays findable; it decays on its own and never touches the dot.
- * Neither may be confused with the blue notice dot or the amber action capsule,
- * which is why the draft marker is a distinct shape on the right edge.
+ * only sending or clearing the draft removes it. A left-edge rail marks a row
+ * whose content changed very recently, so a session glanced at but not answered
+ * stays findable; it decays on its own and never touches the dot. Neither may be
+ * confused with the blue notice dot or the amber action capsule, which is why
+ * the draft marker is a distinct shape on the right edge and the recency marker
+ * a bar on the left one.
  */
 
 vi.mock('@/shared/api', () => ({
@@ -67,6 +68,8 @@ const renderRow = (state: {
       selectedSession: state.selected ? session : null,
       isManaging: false,
       isBatchSelected: false,
+      isProcessing: false,
+      hasBackgroundWork: false,
       attentionLevel: state.attentionLevel,
       currentTime: NOW,
       isEditing: false,
@@ -96,6 +99,13 @@ const rowElement = (container: HTMLElement): Element => {
   assert.ok(row, 'the desktop row is rendered');
   return row;
 };
+
+/**
+ * The recency rail is a class-only decoration with no role, so it is found by
+ * its own colour token rather than a status query.
+ */
+const recencyRail = (container: HTMLElement): Element | null =>
+  container.querySelector('[class*="bg-primary/50"]');
 
 beforeEach(() => {
   resetChatDrafts();
@@ -144,32 +154,34 @@ test('a queued message counts as an unsent draft', () => {
   assert.ok(container.querySelector('[aria-label="tooltips.draftIndicator"]'));
 });
 
-test('a session whose content just changed carries the faint recency tint', () => {
+test('a session whose content just changed carries the left-edge recency rail', () => {
   const recent = renderRow({ contentUpdatedAt: new Date(NOW.getTime() - 5 * 60 * 1000).toISOString() });
-  assert.ok(rowElement(recent.container).className.includes('bg-primary/5'));
+  const rail = recencyRail(recent.container);
+  assert.ok(rail, 'the rail is drawn');
+  assert.ok(rowElement(recent.container).contains(rail), 'the rail lives inside the row it marks');
   recent.unmount();
 
   const stale = renderRow({ contentUpdatedAt: new Date(NOW.getTime() - 15 * 60 * 1000).toISOString() });
-  assert.ok(!rowElement(stale.container).className.includes('bg-primary/5'));
+  assert.equal(recencyRail(stale.container), null);
 });
 
-test('a session with no content timestamp never tints', () => {
+test('a session with no content timestamp never draws the rail', () => {
   const { container } = renderRow({ contentUpdatedAt: null });
 
-  assert.ok(!rowElement(container).className.includes('bg-primary/5'));
+  assert.equal(recencyRail(container), null);
 });
 
-test('the recency tint is withheld on the open row', () => {
+test('the recency rail is withheld on the open row', () => {
   const { container } = renderRow({
     selected: true,
     contentUpdatedAt: new Date(NOW.getTime() - 60 * 1000).toISOString(),
   });
 
-  assert.ok(!rowElement(container).className.includes('bg-primary/5'));
+  assert.equal(recencyRail(container), null);
 });
 
-test('the recency tint never draws a marker of its own', () => {
+test('the recency rail never draws a marker of its own', () => {
   const { container } = renderRow({ contentUpdatedAt: new Date(NOW.getTime() - 60 * 1000).toISOString() });
 
-  assert.equal(container.querySelectorAll('[role="status"]').length, 0, 'the tint is a background, not an indicator');
+  assert.equal(container.querySelectorAll('[role="status"]').length, 0, 'the rail is decoration, not an indicator');
 });
