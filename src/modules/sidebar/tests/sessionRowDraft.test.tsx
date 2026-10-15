@@ -7,17 +7,12 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 import type { Project, SessionAttentionLevel, SessionWithProvider, SidebarProjectListProps } from '@/shared/types';
 
 /**
- * Two additions to the session row's right edge, both independent of the unread
- * channel.
+ * The pen the session row's right edge draws for unsent input.
  *
- * A pen marks a scope that holds input the user wrote but never sent; it is
- * sticky and, unlike the unread dot, is not consumed by opening the session —
- * only sending or clearing the draft removes it. A left-edge rail marks a row
- * whose content changed very recently, so a session glanced at but not answered
- * stays findable; it decays on its own and never touches the dot. Neither may be
- * confused with the blue notice dot or the amber action capsule, which is why
- * the draft marker is a distinct shape on the right edge and the recency marker
- * a bar on the left one.
+ * It shares that edge with the unread dot and must not be read as one: the dot
+ * reports something that arrived and is consumed by opening the session, while
+ * the pen reports something the user wrote and left, and stays exactly as long
+ * as the draft does.
  */
 
 vi.mock('@/shared/api', () => ({
@@ -51,13 +46,11 @@ const PROJECT = { projectId: 'project-1', name: 'project-1', displayName: 'proje
 const renderRow = (state: {
   attentionLevel?: SessionAttentionLevel;
   selected?: boolean;
-  contentUpdatedAt?: string | null;
 } = {}) => {
   const session = {
     id: 's1',
     summary: 'session one',
     lastActivity: '2026-08-21T09:59:00.000Z',
-    contentUpdatedAt: state.contentUpdatedAt ?? null,
     __provider: 'claude',
   } as unknown as SessionWithProvider;
 
@@ -93,19 +86,6 @@ const renderRow = (state: {
     }),
   );
 };
-
-const rowElement = (container: HTMLElement): Element => {
-  const row = container.querySelector('a');
-  assert.ok(row, 'the desktop row is rendered');
-  return row;
-};
-
-/**
- * The recency rail is a class-only decoration with no role, so it is found by
- * its own colour token rather than a status query.
- */
-const recencyRail = (container: HTMLElement): Element | null =>
-  container.querySelector('[class*="bg-primary/50"]');
 
 beforeEach(() => {
   resetChatDrafts();
@@ -152,36 +132,4 @@ test('a queued message counts as an unsent draft', () => {
   const { container } = renderRow();
 
   assert.ok(container.querySelector('[aria-label="tooltips.draftIndicator"]'));
-});
-
-test('a session whose content just changed carries the left-edge recency rail', () => {
-  const recent = renderRow({ contentUpdatedAt: new Date(NOW.getTime() - 5 * 60 * 1000).toISOString() });
-  const rail = recencyRail(recent.container);
-  assert.ok(rail, 'the rail is drawn');
-  assert.ok(rowElement(recent.container).contains(rail), 'the rail lives inside the row it marks');
-  recent.unmount();
-
-  const stale = renderRow({ contentUpdatedAt: new Date(NOW.getTime() - 15 * 60 * 1000).toISOString() });
-  assert.equal(recencyRail(stale.container), null);
-});
-
-test('a session with no content timestamp never draws the rail', () => {
-  const { container } = renderRow({ contentUpdatedAt: null });
-
-  assert.equal(recencyRail(container), null);
-});
-
-test('the recency rail is withheld on the open row', () => {
-  const { container } = renderRow({
-    selected: true,
-    contentUpdatedAt: new Date(NOW.getTime() - 60 * 1000).toISOString(),
-  });
-
-  assert.equal(recencyRail(container), null);
-});
-
-test('the recency rail never draws a marker of its own', () => {
-  const { container } = renderRow({ contentUpdatedAt: new Date(NOW.getTime() - 60 * 1000).toISOString() });
-
-  assert.equal(container.querySelectorAll('[role="status"]').length, 0, 'the rail is decoration, not an indicator');
 });
