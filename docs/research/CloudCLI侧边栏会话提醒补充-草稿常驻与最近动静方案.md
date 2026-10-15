@@ -1,6 +1,6 @@
 # CloudCLI 侧边栏会话提醒补充：草稿常驻 + 最近动静弱提示
 
-> - **状态**：**已实现（2026-10-15，`6e971568`，未 push）**。需求 1 全量落地；需求 2 按 §3.2 落地于 Projects 页签，Conversations 页签**暂缓**（见 §8）。类型检查通过、前端全量测试与既存基线一致（8 文件 / 35 例环境相关失败，均在无关模块）；lint 0 error。§4 的 Q1–Q7 已在 §8 逐条落定。未走多 AI 审阅（见 §8 首段理由）。
+> - **状态**：**已实现（2026-10-15，未 push）**。需求 1 全量落地（`6e971568`）；需求 2 经两次迭代，最终定为**方案 B——改未读蓝点自身的清除规则**（`88e078e2`）；A 路径（整行弱底色 → 左缘竖条）已废弃（`e385524a`，见「迭代 1 / 迭代 2」）。**两个页签自动一致**：B 不引入新视觉，未读蓝点本就由同一个 `attentionSessions` 供两个页签，故原「Conversations 弱底色暂缓项」随之消解。类型检查 0 error；前端全量测试与既存基线一致（8 文件 / 35 例环境相关失败，全在无关模块）；lint 0 error。§4 的 Q1–Q7 已在 §8 逐条落定。未走多 AI 审阅（见 §8 首段理由）。
 > - **用途**：评审「在侧边栏会话行补充两类提醒」的方案 —— ① 输入框有草稿未发送 → 常驻标记；② AI 刚回复、我打开看过又切走 → 还想找得回去。审阅重点：**§4 开放问题的取舍（尤其需求 2 是否该新增弱底色而非给蓝点续命、弱底色的触发与时长、需求 1 的草稿标记是否复用蓝点）、§3.1 的订阅与重渲染边界、§3.2 的「零新增状态」推导是否成立**。
 > - **关联文档**（**务必先读**，本方案建立在其不变量之上）：
 >   - `docs/research/CloudCLI侧边栏状态指示重设计方案.md`（一期：左右双通道、删绿点）
@@ -14,6 +14,8 @@
 ## 0. 一句话结论
 
 用户提了两条需求。**第一条（草稿未发送提醒）成立，做**：草稿数据源已就绪，只需新增一个**独立形状**的常驻标记——**绝不复用蓝点**，否则重蹈一期「一个点三种语义」的覆辙。**第二条（打开后蓝点续命 10 分钟）动机真实，但形式否掉**：让蓝点兼职「我最近来过」会把一期刚拆开的「未读（Q1）」与「最近活跃（Q3）」两个生命周期重新压回一个形状，且纯定时器会「指示说谎」（你已回复它却还亮）。**替代实现（方案 A）**：新增一条**极弱**的会话行底色表达「最近 N 分钟有过新内容」，它**纯由已有的 `contentUpdatedAt` + 时间推导、零新增状态、不改任何既有生命周期**，恰好落在一期文档预留的回退位上（一期 §295）。
+
+> **⚠ 本节已被推翻，保留作决策留痕。** 方案 A 落地后用户实测两次否掉（底色不够明显 → 竖条与选中态撞车），最终改用**方案 B：改未读蓝点自身的清除规则**（打开不清、发出/留草稿才清、宽限期兜底）。**最终结论与理由见 §8「迭代 2」**，本节及 §3.1/§3.2 的 A 路径描述均已作废。
 
 ---
 
@@ -246,27 +248,27 @@ weakRecent(session) =
 **落地内容**
 
 - 需求 1：`DraftSlot`（`SessionStatusIndicators.tsx`，右缘钢笔，独立形状）；数据面 `getDraftScopesSnapshot` + `hasQueuedContent`/`draftHasContent`（`src/shared/chatDrafts.ts`）、`useDraftScopes`（`src/modules/sidebar/hooks/useDraftScopes.ts`，`useSyncExternalStore`）；三个宿主行接入；i18n `tooltips.draftIndicator`（en + zh-CN）。
-- 需求 2：`isRecentlyActive` + `RECENT_ACTIVITY_TTL_MS`（`src/modules/sidebar/utils/recentActivity.ts`）；`SidebarSessionItem` 两种布局（桌面 `<a>` / compact 卡片）挂**左缘竖条** `RecentActivityRail`（`SessionStatusIndicators.tsx`，3px `bg-primary/50`）。**注**：初版挂的是 `bg-primary/5` 整行底色，人工目视后判定「不够明显」，已改（见下方「迭代 1」）。
+- 需求 2：**初版 A 路径（`isRecentlyActive` + `RECENT_ACTIVITY_TTL_MS` + 整行底色 → 左缘竖条）已整体废弃**。最终形态见「迭代 2 · 方案 B」：不动渲染、只改 `useProjectsState` 里未读的清除规则。
 
 **§4 开放问题的落定（实现即答案）**
 
 | 问题 | 落定 | 说明 |
 |---|---|---|
-| Q1 弱底色 vs 蓝点续命 | **弱底色** | 蓝点生命周期未改，仍「打开即清」 |
-| Q2 含自己发的消息 | **含** | 直接读 `contentUpdatedAt`，不区分发言方 |
+| Q1 弱底色 vs 蓝点续命 | **都不是，走方案 B** | 最终改蓝点自身的清除规则（打开不清、处理才清），见「迭代 2」 |
+| Q2 含自己发的消息 | **N/A（A 已废弃）** | B 里「发出消息」经草稿清除路径覆盖 |
 | Q3 队列消息算草稿 | **算** | `hasQueuedContent`（content 或 attachments 非空） |
 | Q4 新会话草稿 | **不做** | 未触及项目行聚合 |
-| Q5 `contentUpdatedAt` 为 null | **不显示底色** | `isRecentlyActive` 对 null/NaN 返回 false |
-| Q6 TTL | **10 分钟** | 常量 `RECENT_ACTIVITY_TTL_MS`，可调 |
+| Q5 `contentUpdatedAt` 为 null | **N/A（A 已废弃）** | B 不依赖该字段做推导 |
+| Q6 TTL | **10 分钟** | B 的宽限期 `ATTENTION_GRACE_MS`，起点为「最后一次看到它」 |
 | Q7 形状 | **钢笔（`Pencil`）** | 与蓝点（实心圆）、琥珀胶囊（实心+警告）形状可区分 |
 
-**与方案的偏离**（均为待目视的取值，非结构变更）：初版底色强度选 `bg-primary/5`；目视后判定不明显，**改为左缘竖条**（见「迭代 1」）。
+**与方案的偏离**：A 路径的取值迭代（底色强度 → 竖条）已随 A 整体废弃，见「迭代 1」；最终需求 2 不再对应本文档 §3.2 的任何一种形式，而是 §3.1 曾评估过的「行为规则替代定时器」，见「迭代 2」。
 
-**暂缓项（明确未做）**：Conversations 页签的弱底色。该行数据来自服务端 `api.recentConversations`（`useSidebarController.ts:261`），`RecentConversationListItem`（`src/shared/types.ts:1982`）不含 `contentUpdatedAt`，需改服务端投影（`sessions.service.ts:324` → `provider.routes.ts:1244`）。且对话页签本就按时间排序，Q3 类信号边际收益低（一期 §130 同结论）。**若后续要补**：给 `RecentConversationListItem` 加 `contentUpdatedAt` 即可复用同一谓词。
+**暂缓项（已消解）**：原拟给 Conversations 页签补弱底色，需服务端投影补 `contentUpdatedAt`。**方案 B 不再新增视觉**，未读蓝点由同一个 `attentionSessions` 供两个页签，故该项无需再做；Conversations 的草稿钢笔早已接入（需求 1）。
 
-**测试**：`src/shared/tests/chatDrafts.test.ts`（快照口径 + 引用稳定性）、`src/modules/sidebar/tests/recentActivity.test.ts`（TTL 边界 / null / 未来时间戳）、`src/modules/sidebar/tests/sessionRowDraftAndRecency.test.tsx`（并存 / 选中隐藏 / 空白不计 / 队列计入 / 底色只有背景不画标记）。
+**测试**：`src/shared/tests/chatDrafts.test.ts`（快照口径 + 引用稳定性）；`src/modules/sidebar/tests/sessionRowDraft.test.tsx`（钢笔与蓝点并存 / 选中隐藏 / 空白不计 / 队列计入）；`src/modules/project-workspace/tests/projectsStateAttention.test.ts`（既有 23 例 + B 新增 6 例）。
 
-**未验证项（需人工目视或真机）**：左缘竖条 `bg-primary/50` 在亮/暗主题下的观感——是否与选中态左缘 `shadow-[inset_3px_0_0_0_hsl(var(--primary))]`、以及 `ActivitySlot` 左缘外侧的悬挂点相互干扰；移动端 compact 卡片的观感。
+**未验证项（需人工目视或真机）**：B 的行为需在真机上体感确认——「打开一个未读会话 → 切走 → 蓝点与加粗应仍在」、10 分钟后自动消失、留草稿即消失。
 
 **迭代 1（2026-10-15）· 需求 2 从「整行弱底色」改为「左缘竖条」**
 
@@ -277,6 +279,24 @@ weakRecent(session) =
 - 与选中态的关系：选中行本就不显示该条（`!isSelected`）；未选中 → 选中时，左缘从「50% 主色条」变为「实主色 inset 条」，读作自然递进，而非两个互相矛盾的状态。
 - 测试同步：`sessionRowDraftAndRecency.test.tsx` 由「断言行 class 含 `bg-primary/5`」改为「断言行内存在 `.bg-primary/50` 竖条」，并继续按「装饰、非状态」校验它不产生 `role="status"`。
 - 顺带修复：该测试自创建起就漏传两个必填 prop（`isProcessing` / `hasBackgroundWork`），`tsc` 报 TS2769 且已随 `6e971568` 提交；本次一并补上，`tsc --noEmit` 由 1 error 归零。
+
+**迭代 2（2026-10-15）· 需求 2 由「新增视觉」改为「改未读的清除规则」（方案 B）**
+
+用户指出左缘竖条与选中态竖条**几乎无差别**，一针见血。核对：选中态是 `shadow-[inset_3px_0_0_0_hsl(var(--primary))]`（**左缘内侧 3px 实主色**），竖条是 `left-0 w-[3px] bg-primary/50`（**左缘内侧 3px 半透明主色**）——同边、同宽、同色，只差透明度。这正是一期文档反复强调的禁忌（一个位置/形状只回答一个问题），A 路径两次都栽在同一处。
+
+**根因**：这条会话行的信道已基本占满——左缘外侧（活动）、左缘内侧（选中）、标题（未读加粗）、右缘（蓝点/胶囊/钢笔）、行底色（处理中/hover）。**没有任何一个位置能再插一个形状而不与既有语义抢地盘。**
+
+**用户最终选择 B，且它比 A 更简单**：用户原话要的就是「加粗 + 蓝点**继续保持显示**」——即同一个点续命，不必造第二个形状。落地：
+
+- **打开不再清除**。`useProjectsState` 的进入/离开 effect 由 `clearSessionAttention(viewedSessionId)` 改为 `noteSessionViewed(viewedSessionId)`：仅记录查看时刻并启动宽限期；`handleSessionSelect` 里的清除同步移除。
+- **真正清除**：① 该会话出现未发送草稿（`chatDrafts` 订阅）——回复必经此态，故「发出消息」被同一规则覆盖；② 宽限期到点，由**单个共享清扫**（每 30s）兜底；③ 删除会话。
+- **从未打开过的 `notice` 不过期**（无 `seenAt`）：没看见的提醒不会悄悄消失——这是刻意区别于「按置位时刻衰减」的设计。
+- **`action` 语义不变**：看它不老化胶囊，草稿也不清它（只清 `notice`）。
+- **状态结构**：内部 `Map<id, level>` → `Map<id, {level, seenAt}>`，对外仍以 `useMemo` 暴露 `Map<id, level>`，故侧边栏各层与既有渲染测试**零改动、零新 prop**。
+- **已知口径**：刷新后「已看过」不再保留——离开时会写服务端已读水位（与改动前一致），宽限期只在当前会话生命周期内有效。
+- **测试**：`projectsStateAttention.test.ts` 既有 23 例全绿 + 新增 6 例（打开不清 / 宽限期边界 / 未打开不过期 / 新信号重新变新 / 草稿清 `notice` / 草稿不碰 `action`）。
+
+**为何 B 不算「让蓝点说谎」**：本文档 §3.1 否掉的是「纯计时器给蓝点续命」；B 用「发出 / 留草稿即清」把说谎面收窄到仅剩「看了、不打算回、也没留字」这一类，而那一类正是宽限期要服务的对象。
 
 ---
 
