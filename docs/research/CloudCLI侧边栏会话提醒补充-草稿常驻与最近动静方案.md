@@ -246,7 +246,7 @@ weakRecent(session) =
 **落地内容**
 
 - 需求 1：`DraftSlot`（`SessionStatusIndicators.tsx`，右缘钢笔，独立形状）；数据面 `getDraftScopesSnapshot` + `hasQueuedContent`/`draftHasContent`（`src/shared/chatDrafts.ts`）、`useDraftScopes`（`src/modules/sidebar/hooks/useDraftScopes.ts`，`useSyncExternalStore`）；三个宿主行接入；i18n `tooltips.draftIndicator`（en + zh-CN）。
-- 需求 2：`isRecentlyActive` + `RECENT_ACTIVITY_TTL_MS`（`src/modules/sidebar/utils/recentActivity.ts`）；`SidebarSessionItem` 两种布局（桌面 `<a>` / compact 卡片）挂 `bg-primary/5`。
+- 需求 2：`isRecentlyActive` + `RECENT_ACTIVITY_TTL_MS`（`src/modules/sidebar/utils/recentActivity.ts`）；`SidebarSessionItem` 两种布局（桌面 `<a>` / compact 卡片）挂**左缘竖条** `RecentActivityRail`（`SessionStatusIndicators.tsx`，3px `bg-primary/50`）。**注**：初版挂的是 `bg-primary/5` 整行底色，人工目视后判定「不够明显」，已改（见下方「迭代 1」）。
 
 **§4 开放问题的落定（实现即答案）**
 
@@ -260,13 +260,23 @@ weakRecent(session) =
 | Q6 TTL | **10 分钟** | 常量 `RECENT_ACTIVITY_TTL_MS`，可调 |
 | Q7 形状 | **钢笔（`Pencil`）** | 与蓝点（实心圆）、琥珀胶囊（实心+警告）形状可区分 |
 
-**偏离方案的唯一一处**：弱底色强度选 `bg-primary/5`（而非文档举例的「极低透明度 tint」的泛指）。此为待人工目视的取值，若偏显眼或看不出，直接调这个 class。
+**与方案的偏离**（均为待目视的取值，非结构变更）：初版底色强度选 `bg-primary/5`；目视后判定不明显，**改为左缘竖条**（见「迭代 1」）。
 
 **暂缓项（明确未做）**：Conversations 页签的弱底色。该行数据来自服务端 `api.recentConversations`（`useSidebarController.ts:261`），`RecentConversationListItem`（`src/shared/types.ts:1982`）不含 `contentUpdatedAt`，需改服务端投影（`sessions.service.ts:324` → `provider.routes.ts:1244`）。且对话页签本就按时间排序，Q3 类信号边际收益低（一期 §130 同结论）。**若后续要补**：给 `RecentConversationListItem` 加 `contentUpdatedAt` 即可复用同一谓词。
 
 **测试**：`src/shared/tests/chatDrafts.test.ts`（快照口径 + 引用稳定性）、`src/modules/sidebar/tests/recentActivity.test.ts`（TTL 边界 / null / 未来时间戳）、`src/modules/sidebar/tests/sessionRowDraftAndRecency.test.tsx`（并存 / 选中隐藏 / 空白不计 / 队列计入 / 底色只有背景不画标记）。
 
-**未验证项（需人工目视或真机）**：`bg-primary/5` 在亮/暗主题下的可辨识度与是否与「非选中且处理中」的 `bg-muted/20`、hover 态混淆；移动端 compact 卡片的观感。
+**未验证项（需人工目视或真机）**：左缘竖条 `bg-primary/50` 在亮/暗主题下的观感——是否与选中态左缘 `shadow-[inset_3px_0_0_0_hsl(var(--primary))]`、以及 `ActivitySlot` 左缘外侧的悬挂点相互干扰；移动端 compact 卡片的观感。
+
+**迭代 1（2026-10-15）· 需求 2 从「整行弱底色」改为「左缘竖条」**
+
+用户目视后反馈 `bg-primary/5`「不够明显」。判断：**底色的「弱」是这个信道本身的属性**——当初选它正是为了不抢左右两缘的语义，因此加浓底色只会同时逼近「非选中且处理中」的 `bg-muted/20` 与 hover 态，越调越脏。正确做法是**换信道**（背景面积 → 边缘形状），而不是在同一维度加码。
+
+- 具体：新增 `RecentActivityRail`（`SessionStatusIndicators.tsx`），行内绝对定位、`inset-y-1 left-0 w-[3px] rounded-full bg-primary/50`；`SidebarSessionItem` 两种布局挂载（桌面 `<a>` 为此补 `relative`）。整行底色 `bg-primary/5` 移除。
+- 为何不与既有指示撞车：`ActivitySlot` 是**左缘外侧**的悬挂点（`left-0 -translate-x-1`，仅处理中出现），本竖条是**左缘内侧**的静态满高条——形状与位置都不同；右缘（蓝点 / 钢笔）完全未动。这正是本文档 §风险表「必要时只保留左缘 2px 条」预留的回退路径（本实现取 3px，以在圆角行上更稳）。
+- 与选中态的关系：选中行本就不显示该条（`!isSelected`）；未选中 → 选中时，左缘从「50% 主色条」变为「实主色 inset 条」，读作自然递进，而非两个互相矛盾的状态。
+- 测试同步：`sessionRowDraftAndRecency.test.tsx` 由「断言行 class 含 `bg-primary/5`」改为「断言行内存在 `.bg-primary/50` 竖条」，并继续按「装饰、非状态」校验它不产生 `role="status"`。
+- 顺带修复：该测试自创建起就漏传两个必填 prop（`isProcessing` / `hasBackgroundWork`），`tsc` 报 TS2769 且已随 `6e971568` 提交；本次一并补上，`tsc --noEmit` 由 1 error 归零。
 
 ---
 
