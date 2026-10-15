@@ -59,6 +59,15 @@ const writeDraft = async (scope: string, text: string): Promise<void> => {
   store.writeDraftText(scope, text);
 };
 
+/**
+ * Remembers a view through the same store instance the hook under test holds —
+ * the state a reload would find already in localStorage.
+ */
+const rememberView = async (sessionId: string, at: number): Promise<void> => {
+  const store = await import('@/shared/sessionLastViewed');
+  store.noteSessionLastViewed(sessionId, at);
+};
+
 const URL_SESSION_ID = 'url-session';
 const OTHER_SESSION_ID = 'other-session';
 
@@ -850,5 +859,82 @@ test('a draft does not clear a blocked session, whose approval still needs an an
     result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID),
     'action',
     'the capsule is not the unread channel to clear',
+  );
+});
+
+/**
+ * Reload survivability. The grace period's hollow dot lives in memory, so a
+ * refreshed tab would lose it; the mirrored view is what brings it back for a
+ * session the user glanced at and did not answer. It must restore only what was
+ * genuinely flagged-and-seen: a session opened while it carried no dot, or one
+ * the user has since answered with a draft, must not come back hollow.
+ */
+
+test('a session viewed on this device reloads as a hollow dot', async () => {
+  projectsResponse.mockResolvedValue({
+    ok: true,
+    json: async () => projectsWithSessions([
+      sessionWithContent('viewed-session', '2026-01-02T00:00:00.000Z'),
+    ]),
+  });
+  await rememberView('viewed-session', Date.now());
+
+  const { result } = await renderProjectsState();
+  await act(async () => {
+    await Promise.resolve();
+  });
+  await act(async () => {
+    await hydrateReadState([]);
+  });
+
+  assert.equal(
+    result.current.sidebarSharedProps.attentionSessions.get('viewed-session'),
+    'notice-seen',
+    'the grace period must survive a reload',
+  );
+});
+
+test('a view older than the grace period is not restored', async () => {
+  projectsResponse.mockResolvedValue({
+    ok: true,
+    json: async () => projectsWithSessions([
+      sessionWithContent('stale-view', '2026-01-02T00:00:00.000Z'),
+    ]),
+  });
+  await rememberView('stale-view', Date.now() - ATTENTION_GRACE_MS - 1);
+
+  const { result } = await renderProjectsState();
+  await act(async () => {
+    await Promise.resolve();
+  });
+  await act(async () => {
+    await hydrateReadState([]);
+  });
+
+  assert.equal(result.current.sidebarSharedProps.attentionSessions.get('stale-view'), undefined);
+});
+
+test('a session the user answered with a draft does not reload as hollow', async () => {
+  projectsResponse.mockResolvedValue({
+    ok: true,
+    json: async () => projectsWithSessions([
+      sessionWithContent('drafted-session', '2026-01-02T00:00:00.000Z'),
+    ]),
+  });
+  await rememberView('drafted-session', Date.now());
+  await writeDraft('drafted-session', 'half a reply');
+
+  const { result } = await renderProjectsState();
+  await act(async () => {
+    await Promise.resolve();
+  });
+  await act(async () => {
+    await hydrateReadState([]);
+  });
+
+  assert.equal(
+    result.current.sidebarSharedProps.attentionSessions.get('drafted-session'),
+    undefined,
+    'the pen answers the session, so no dot is restored beside it',
   );
 });
