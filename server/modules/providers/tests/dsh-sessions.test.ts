@@ -517,13 +517,16 @@ test('synchronizeFile and resolveTranscriptPath accept a generation-named (v3) l
   });
 });
 
-test('synchronizer keeps the app-assigned name and does not duplicate app sessions', async () => {
+test('synchronizer claims an app-created row and names it from the first prompt', async () => {
   await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
     const acpSessionId = 'dsh-session-app-1';
     await writeSessionLog(sessionsRoot, cwd, acpSessionId, [
       userMessage('Another prompt', 1, Date.now()),
       assistantMessage('Reply', 2, Date.now() + 100),
     ]);
+    // A session created in the app is provisional until its log shows up: DSH
+    // has no engine-generated title, so the first real prompt becomes the name
+    // and the row is claimed through `provider_session_id` rather than cloned.
     sessionsDb.createAppSession('app-dsh-1', 'dsh', cwd, 'CloudCLI title');
     sessionsDb.assignProviderSessionId('app-dsh-1', acpSessionId);
 
@@ -531,7 +534,8 @@ test('synchronizer keeps the app-assigned name and does not duplicate app sessio
     const processed = await synchronizer.synchronize();
     assert.equal(processed, 1);
     assert.equal(sessionsDb.getAllSessions().length, 1);
-    assert.equal(sessionsDb.getSessionById('app-dsh-1')?.custom_name, 'CloudCLI title');
+    assert.equal(sessionsDb.getSessionById('app-dsh-1')?.custom_name, 'Another prompt');
+    assert.equal(sessionsDb.getSessionById('app-dsh-1')?.name_source, 'provider_title');
     assert.equal(sessionsDb.getSessionById('app-dsh-1')?.provider_session_id, acpSessionId);
   });
 });
