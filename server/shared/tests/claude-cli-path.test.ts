@@ -1,10 +1,28 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test, { afterEach, beforeEach } from 'node:test';
 
 import {
   resolveClaudeCodeExecutablePath,
   type ResolveClaudeCodeExecutablePathDependencies,
 } from '@/shared/claude-cli-path.js';
+
+// `CLAUDE_CLI_PATH` is the resolver's default argument, so a developer machine
+// that sets it would rewrite every case below — including the Windows ones,
+// which then receive a macOS path. The cases that care about the environment
+// pass their own value; the rest must start from "unset".
+const savedCliPath = process.env.CLAUDE_CLI_PATH;
+
+beforeEach(() => {
+  delete process.env.CLAUDE_CLI_PATH;
+});
+
+afterEach(() => {
+  if (savedCliPath === undefined) {
+    delete process.env.CLAUDE_CLI_PATH;
+  } else {
+    process.env.CLAUDE_CLI_PATH = savedCliPath;
+  }
+});
 
 test('resolveClaudeCodeExecutablePath resolves the npm Claude wrapper to its native exe on Windows', () => {
   const wrapperDir = 'C:\\nvm4w\\nodejs';

@@ -78,13 +78,19 @@ afterEach(() => {
 test('the handshake completes despite a non-JSON banner, and stop() ends the process', async () => {
   process.env.CODEX_MOCK_MODE = 'banner';
   const connection = await startCodexAppServerConnection();
-
   const pid = connection.pid;
-  assert.equal(typeof pid, 'number');
-  // stderr is captured for diagnosing a process that dies.
-  assert.match(connection.stderrTail, /mock stderr/);
 
-  await connection.stop();
+  try {
+    assert.equal(typeof pid, 'number');
+    // stderr travels on its own pipe: the handshake resolving does not mean the
+    // parent has read the banner yet, and a loaded machine delays it further.
+    await waitFor(() => (/mock stderr/.test(connection.stderrTail) ? true : undefined));
+  } finally {
+    // A failed assertion must still take the child down, or the runner keeps
+    // waiting on the live process and the rest of the suite stalls.
+    await connection.stop();
+  }
+
   await waitFor(() => {
     try {
       process.kill(pid as number, 0);
