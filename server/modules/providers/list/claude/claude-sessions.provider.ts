@@ -1843,7 +1843,6 @@ export class ClaudeSessionsProvider implements IProviderSessions {
       normalized.push(...this.normalizeMessage(raw, sessionId));
     }
 
-    const pairedToolResultIds = new Set<string>();
     for (const msg of normalized) {
       if (msg.kind === 'tool_use' && msg.toolId && toolResultMap.has(msg.toolId)) {
         const toolResult = toolResultMap.get(msg.toolId);
