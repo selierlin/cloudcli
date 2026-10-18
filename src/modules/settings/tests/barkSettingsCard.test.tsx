@@ -92,6 +92,72 @@ test('a full Bark push URL fills both server and device key, and saving does not
   assert.equal(notificationMocks.test.mock.calls.length, 0);
 });
 
+test('pasting an already saved device key loads its settings so a re-save keeps them', async () => {
+  notificationMocks.endpoints.mockImplementation(() => Promise.resolve(jsonResponse({
+    success: true,
+    endpoints: [{
+      id: 1,
+      channel: 'bark',
+      endpointId: 'abc123',
+      label: 'iPhone',
+      metadata: {
+        serverUrl: 'https://bark.example.com',
+        group: 'CloudCLI · A',
+        subtitle: '',
+        sound: 'minuet',
+        level: 'passive',
+        publicBaseUrl: 'http://192.168.1.5:3001',
+      },
+      enabled: false,
+    }],
+  })));
+  notificationMocks.upsertEndpoint.mockResolvedValue(jsonResponse({ success: true }));
+
+  render(<BarkSettingsCard />);
+
+  await screen.findByText('https://bark.example.com · ••••');
+
+  fireEvent.change(screen.getByLabelText('Device key'), { target: { value: 'abc123' } });
+
+  assert.equal(
+    (screen.getByLabelText('Device name (optional)') as HTMLInputElement).value,
+    'iPhone',
+  );
+  assert.equal(
+    (screen.getByLabelText('Notification group (optional)') as HTMLInputElement).value,
+    'CloudCLI · A',
+  );
+  assert.equal(
+    (screen.getByLabelText('Sound (optional)') as HTMLInputElement).value,
+    'minuet',
+  );
+  assert.equal((screen.getByRole('combobox') as HTMLSelectElement).value, 'passive');
+  assert.equal(
+    (screen.getByPlaceholderText('http://192.168.1.5:3001') as HTMLInputElement).value,
+    'http://192.168.1.5:3001',
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Add device' }));
+
+  await waitFor(() => {
+    assert.equal(notificationMocks.upsertEndpoint.mock.calls.length, 1);
+  });
+
+  assert.deepEqual(notificationMocks.upsertEndpoint.mock.calls[0][0], {
+    channel: 'bark',
+    endpointId: 'abc123',
+    label: 'iPhone',
+    metadata: {
+      serverUrl: 'https://bark.example.com',
+      group: 'CloudCLI · A',
+      subtitle: '',
+      sound: 'minuet',
+      level: 'passive',
+      publicBaseUrl: 'http://192.168.1.5:3001',
+    },
+  });
+});
+
 test('the row test button sends a push to that endpoint and shows the result', async () => {
   notificationMocks.endpoints.mockImplementation(() => Promise.resolve(savedEndpoint()));
   notificationMocks.test.mockResolvedValue(jsonResponse({
