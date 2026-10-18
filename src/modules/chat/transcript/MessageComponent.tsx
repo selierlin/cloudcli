@@ -101,6 +101,14 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     assistantCopyContent.trim().length > 0 &&
     !isCommandOrFileEditToolResponse &&
     !message.isThinking;
+  // The final answer of a turn keeps the same footer in a document as it has
+  // on screen — copy, answering model, time. Grouping is a chat-only notion
+  // here: the row is still preceded by process narration, which would hide it.
+  const isExportAnswer = isExporting
+    && message.type === 'assistant'
+    && !message.isThinking
+    && !message.isToolUse
+    && !isProcessRunMember;
   // The composer currently restores text only. Withholding edit for messages
   // carrying attachments prevents a resend from silently dropping them.
   const canEditUserMessage = Boolean(
@@ -385,17 +393,39 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                   )
                 )}
               </>
+            ) : message.isThinking && isExporting ? (
+              /* Exported files carry no JavaScript, so `Reasoning`'s state
+                 toggle cannot work there: an `open` block can never close and
+                 a closed one can never open. A native `<details>` collapses by
+                 default and expands on click with no script, which is what the
+                 document needs — the record stays complete but quiet. */
+              <details className="chat-export-disclosure">
+                <summary className="chat-export-disclosure-summary">
+                  <span className="chat-export-disclosure-chevron" aria-hidden="true">
+                    ›
+                  </span>
+                  {t('transcript.executionProcess.reasoning', {
+                    defaultValue: 'Thinking process',
+                  })}
+                </summary>
+                <div className="chat-export-disclosure-body">
+                  <StreamingMarkdown
+                    content={String(message.content || '')}
+                    isStreaming={Boolean(message.isStreaming)}
+                    className="prose prose-sm prose-gray max-w-none font-serif dark:prose-invert"
+                  />
+                </div>
+              </details>
             ) : message.isThinking ? (
               /* Thinking messages — Reasoning component (ai-elements pattern).
                  Standalone streaming reasoning opens itself; reasoning inside
                  a Process Run stays folded except while it is the live
-                 stream, so narration remains the visible spine. Export and a
-                 matching search reveal override the fold.
+                 stream, so narration remains the visible spine. A matching
+                 search reveal overrides the fold.
                  The body keeps one element type across streaming completion. */
               <Reasoning
-                open={isExporting
-                  ? true
-                  : isProcessRunMember
+                open={
+                  isProcessRunMember
                     ? Boolean(
                         isReasoningSearchTarget
                         || reasoningDisclosureState?.ownership === 'user_open'
@@ -408,14 +438,15 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                           && reasoningDisclosureState?.ownership !== 'user_closed'
                         ),
                       )
-                    : undefined}
+                    : undefined
+                }
                 isStreaming={Boolean(message.isStreaming)}
                 handoffSequence={isProcessRunMember ? 0 : reasoningPresentation?.handoffSequence}
                 finalAnswerStarted={isProcessRunMember ? false : reasoningPresentation?.finalAnswerStarted}
                 isAutoCollapseCandidate={isProcessRunMember ? false : reasoningPresentation?.isAutoCollapseCandidate}
                 isSupersededThinking={isProcessRunMember ? false : reasoningPresentation?.isSupersededThinking}
                 toolActivityStarted={isProcessRunMember ? false : reasoningPresentation?.toolActivityStarted}
-                suppressAutoCollapse={Boolean(suppressReasoningAutoCollapse || isExporting)}
+                suppressAutoCollapse={Boolean(suppressReasoningAutoCollapse)}
                 disclosureState={reasoningDisclosureState}
                 onUserOpenChange={handleReasoningUserOpenChange}
                 onProgramOpen={isProcessRunMember ? undefined : handleReasoningProgramOpen}
@@ -447,7 +478,14 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                 />
               </div>
             ) : (
-              <div dir="auto" className="text-sm text-n-gray-700 dark:text-n-gray-300">
+              <div
+                dir="auto"
+                className="text-sm text-n-gray-700 dark:text-n-gray-300"
+                // The exported footer's copy button reads this subtree. Hidden
+                // reasoning lives in a closed `<details>` here, and `innerText`
+                // skips it, so the copied text is what the reader can see.
+                data-export-copy-source={isExportAnswer ? 'message' : undefined}
+              >
                 {/* Reasoning accordion */}
                 {showThinking && message.reasoning && (
                   <Reasoning className="mb-3" defaultOpen={false}>
@@ -521,7 +559,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               <MemoryCitations citations={message.memoryCitations} />
             )}
 
-            {!message.isThinking && (shouldShowAssistantCopyControl || !isGrouped) && (
+            {!message.isThinking && (shouldShowAssistantCopyControl || isExportAnswer || !isGrouped) && (
               /* The footer scrolls horizontally (hidden scrollbar) instead of
                  wrapping or squeezing: with speak + model + time + duration it
                  can exceed one line on narrow screens. A constant right-edge
@@ -549,6 +587,41 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                       <GitBranchIcon className="h-3.5 w-3.5" />
                     </button>
                   )}
+                {isExportAnswer && (
+                  /* The template's click listener reads `data-export-copy`; the
+                     two icons are swapped by CSS while the copy is confirmed. */
+                  <button
+                    type="button"
+                    data-export-copy=""
+                    title={t('copyMessage.copy')}
+                    aria-label={t('copyMessage.copy')}
+                    className="inline-flex items-center rounded px-1 py-0.5 text-n-gray-400 transition-[color,transform] duration-150 hover:text-foreground dark:text-n-gray-500"
+                  >
+                    <svg
+                      className="chat-export-copy-icon h-3.5 w-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                    </svg>
+                    <svg
+                      className="chat-export-copy-check h-3.5 w-3.5"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+                )}
                 {shouldShowAssistantCopyControl && (
                   <MessageCopyControl content={assistantCopyContent} messageType="assistant" />
                 )}
@@ -560,7 +633,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                     copy and speak it is not gated on the copy control, and an
                     exported transcript keeps it wherever the footer renders. */}
                 <MessageModelLabel model={message.model} />
-                {(shouldShowAssistantCopyControl || !isGrouped) && <span>{formattedTime}</span>}
+                {(shouldShowAssistantCopyControl || isExportAnswer || !isGrouped) && <span>{formattedTime}</span>}
                 {/* Last on purpose: this entry disappears on a reload (the
                     measurement is in memory only), and sitting at the tail
                     keeps its absence from shifting the controls before it. */}

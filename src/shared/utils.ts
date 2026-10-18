@@ -2,6 +2,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 import type { CodeFontFamilyId, FontFamilyId, Project, ProjectSession, QuickSettingsTab, SlashCommand, TerminalFontFamilyId, ThemeManifest } from '@/shared/types';
+import { applyFavicon } from '@/shared/favicon';
 
 //----------------- DEPLOYMENT MODE ------------
 
@@ -482,9 +483,8 @@ export function applyThemeChrome(
     resolveOpaqueTokenColor(overrides?.themeColor ?? '--background') || FALLBACK_THEME_COLOR[appearance];
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColor);
 
-  document
-    .querySelector('link[rel="icon"]')
-    ?.setAttribute('href', `/icons/favicon-${appearance}-32.png`);
+  // Republishing the appearance must not drop a raised completion mark.
+  applyFavicon(appearance);
 }
 //----------------- SLASH COMMANDS ------------
 

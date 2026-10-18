@@ -85,7 +85,8 @@
     },
     "export": {
       "title": "导出对话",
-      "loading": "正在加载聊天记录…"
+      "loading": "正在加载聊天记录…",
+      "generating": "正在生成 {{format}}…"
     },
     "theme": "主题",
     "showRawParameters": "显示原始参数",
@@ -183,7 +184,11 @@
       "enabled": "此浏览器已启用通知",
       "loading": "更新中...",
       "unsupported": "此浏览器不支持推送通知。",
-      "denied": "推送通知已被阻止，请在浏览器设置中允许。"
+      "denied": "推送通知已被阻止，请在浏览器设置中允许。",
+      "error": {
+        "timeout": "连接浏览器推送服务超时，请检查网络（该服务可能需要代理）后重试。",
+        "failed": "推送通知设置失败，请稍后重试。"
+      }
     },
     "desktop": {
       "title": "通知此桌面应用",

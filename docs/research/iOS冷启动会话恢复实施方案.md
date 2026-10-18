@@ -90,7 +90,7 @@
 - **路径 A（推荐，前端 route tracker）**：新增一个极小模块，路由变化时把 `{ url: window.location.href }` 写入 `@capacitor/preferences`。注意**不能**用 `useLocation().pathname` 拼（见上）。
   - 仅在 `window.Capacitor?.isNativePlatform?.()` 为真时生效（与 `SidebarServerMenu.tsx:52` 同一判定），浏览器与桌面包下是 no-op。
   - 还需一道自校验：仅当 `window.location.origin` 出现在 `cloudcli.servers` 里时才写入。否则一旦前端发生整页导航到本地选择页（`capacitor://localhost`，旧版前端的降级路径，见 `picker.js:290-306`），本地 URL 会被当成恢复目标写进去。
-  - **必须加一道 `document.visibilityState === 'visible'` 守卫**（事实 17）：缓存上限为 2，切走的那台 WebView 只是被 `isHidden = true`，其 JS 仍在跑；它在后台因 WebSocket 事件发生的路由变化会把 `restoreTarget` 写回**上一台**服务器，覆盖用户实际在看的这台。该守卫是否为有效手段取决于 V7（隐藏页的 `visibilityState` 是否真为 `hidden`），**不能假设**。仓库已有同款写法可参照：`AuthContext.tsx:280`、`pageTitleNotification.ts:15`。
+  - **必须加一道 `document.visibilityState === 'visible'` 守卫**（事实 17）：缓存上限为 2，切走的那台 WebView 只是被 `isHidden = true`，其 JS 仍在跑；它在后台因 WebSocket 事件发生的路由变化会把 `restoreTarget` 写回**上一台**服务器，覆盖用户实际在看的这台。该守卫是否为有效手段取决于 V7（隐藏页的 `visibilityState` 是否真为 `hidden`），**不能假设**。仓库已有同款写法可参照：`AuthContext.tsx:280`、`favicon.ts:139`。
   - 与 `cloudcli.lastServer` 的关系：其 origin 语义被本键取代，该键已删除（§8.1 决策 5）。
 - **路径 B —— 已取消（V7 通过，第十一轮）**：原为「兜底」，后提为多 WebView 下的正确性防线；因守卫经真机证实有效而不再实施。以下保留原设计文字：在 `SceneDelegate` 新增 `sceneDidEnterBackground`，对**当前可见的服务器 WebView**调 `evaluateJavaScript("window.location.href")`，成功则覆盖写 `cloudcli.restoreTarget`。
   - 事实 17 下路径 A 存在跨 WebView 污染窗口：用户在看 B，而 A 的 tracker 可能在切换**之后**写入 A。退到后台这一刻读 `currentController` 落盘，是把值修正回可见页的最后机会——所以 V2 不是「旧前端兜底」级别的待验证项，而是正确性依赖。
@@ -986,7 +986,7 @@ else                             { _serverURL = _localURL; }
 - **事实 17：隐藏的 WebView 不是停止的 WebView。** 缓存上限为 2，切换只把旧 WebView `isHidden = true`（`WebCachePlugin.swift:167,236-238`），其 JS 与 WebSocket 继续运行，**它的 tracker 仍会写 `restoreTarget`**。这给路径 A 开了两个窗口：一是审阅者问题 1 说的「切到已缓存服务器时 tracker 不触发」，二是**切换之后隐藏页反写**——后者比前者更隐蔽，因为写入发生在切换之后，会覆盖切换时写下的正确值。故新增：
   - **路径 C**（切换时覆盖，堵第一个窗口）：§8.4 P2-3 的缓存复用分支落盘。
   - **路径 B 的地位上调**：§8.3 已把 P4 从「旧前端兜底」升为「正确性防线」——退到后台那一刻读 `currentController` 是把值修正回可见页的最后机会。
-  - **P1-2 增加 `visibilityState` 守卫**（堵第二个窗口的前端侧），参照仓库既有写法 `AuthContext.tsx:280`、`pageTitleNotification.ts:15`。但 **WKWebView 对隐藏子视图是否真的把 `visibilityState` 置为 `hidden` 未经验证**，故新增 **V7**，且不把它当作唯一手段（原生两层不依赖该假设）。
+  - **P1-2 增加 `visibilityState` 守卫**（堵第二个窗口的前端侧），参照仓库既有写法 `AuthContext.tsx:280`、`favicon.ts:139`。但 **WKWebView 对隐藏子视图是否真的把 `visibilityState` 置为 `hidden` 未经验证**，故新增 **V7**，且不把它当作唯一手段（原生两层不依赖该假设）。
   - 同时给 tracker 加了 `visibilitychange` 监听：某一页重新可见时补写自己的 URL，与路径 C 形成双保险。
 - **新增 V8**：反代对任意路径返 200 的 `index.html`（静态层正常、API 全挂）不在 V5 的三种情形内——此时应用会正常挂载、探测判为「恢复成功」。已明确记为**可接受的降级**（页面确实起来了），只在真机清单里确认落点，不新增判据。
 

@@ -85,7 +85,8 @@
     },
     "export": {
       "title": "Export",
-      "loading": "Loading conversation…"
+      "loading": "Loading conversation…",
+      "generating": "Generating {{format}}…"
     },
     "theme": "Theme",
     "showRawParameters": "Show raw parameters",
@@ -183,7 +184,11 @@
       "enabled": "Notifications are enabled for this browser",
       "loading": "Updating...",
       "unsupported": "Push notifications are not supported in this browser.",
-      "denied": "Push notifications are blocked. Please allow them in your browser settings."
+      "denied": "Push notifications are blocked. Please allow them in your browser settings.",
+      "error": {
+        "timeout": "Timed out reaching the browser's push service. Check your network and try again.",
+        "failed": "Failed to update push notifications. Please try again."
+      }
     },
     "desktop": {
       "title": "Notify this desktop app",

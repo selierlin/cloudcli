@@ -36,6 +36,30 @@ export type ExecutionProcessProjection = {
   memberDisclosureKeys: Map<string, string>;
 };
 
+/**
+ * Counts what a reader would call a message: the user's turns plus each turn's
+ * visible answer.
+ *
+ * Counting raw rows made a single question report as a dozen messages, because
+ * one turn expands into reasoning, tool calls and tool results. Those rows are
+ * execution detail for the same answer, and the export already folds them into
+ * a Process Run, so they do not belong in the header's tally either.
+ */
+export function countVisibleTranscriptMessages(
+  messages: ChatMessage[],
+  getMessageKey: (message: ChatMessage) => string,
+): number {
+  const { memberDisclosureKeys } = deriveExecutionProcessProjection(messages, getMessageKey, {
+    isProcessing: false,
+  });
+
+  return messages.filter((message) => {
+    if (message.type === 'user') return true;
+    return isAssistantTextFocusCandidate(message)
+      && !memberDisclosureKeys.has(getMessageKey(message));
+  }).length;
+}
+
 export type ExecutionProcessOptions = {
   isProcessing: boolean;
 };

@@ -1,4 +1,5 @@
 import { ChevronDown, ChevronRight, Download, Loader2 } from 'lucide-react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -23,6 +24,23 @@ type QuickSettingsExportSectionProps = {
 };
 
 /**
+ * Resolves once the browser has painted the state update made just before the
+ * call. Rendering a long transcript is one synchronous pass that can occupy the
+ * main thread for seconds, so without this wait the "generating" row would only
+ * appear after the work finished — which is exactly the frozen click the row
+ * exists to explain.
+ */
+function afterNextPaint(): Promise<void> {
+  if (typeof requestAnimationFrame !== 'function') {
+    return new Promise((resolve) => { setTimeout(resolve, 0); });
+  }
+
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => { requestAnimationFrame(() => { resolve(); }); });
+  });
+}
+
+/**
  * Collapsible "Export conversation" entry that lives inside the Quick Settings
  * tab. Default-collapsed to keep the panel compact; expands to a vertical list
  * of format buttons (Markdown / HTML / PDF). The expand state is controlled by
@@ -39,6 +57,7 @@ export default function QuickSettingsExportSection({
   isLoading = false,
 }: QuickSettingsExportSectionProps) {
   const { t } = useTranslation('settings');
+  const [pendingFormat, setPendingFormat] = useState<TranscriptExportFormat | 'pdf' | null>(null);
 
   const createDiff = createCachedDiffCalculator();
   const exportInput = {
@@ -50,21 +69,42 @@ export default function QuickSettingsExportSection({
   };
 
   const handleExport = async (format: TranscriptExportFormat | 'pdf') => {
-    if (format !== 'pdf') {
-      await downloadTranscriptExport(format, exportInput);
-      return;
-    }
+    if (pendingFormat) return;
+    setPendingFormat(format);
 
-    const popup = window.open('', '', 'width=900,height=700');
-    if (!popup) {
-      window.alert(t('quickSettings.export.printBlocked'));
-      return;
+    try {
+      if (format === 'pdf') {
+        // The popup has to be opened inside the click's own task, before the
+        // await below hands control back to the event loop.
+        const popup = window.open('', '', 'width=900,height=700');
+        if (!popup) {
+          window.alert(t('quickSettings.export.printBlocked'));
+          return;
+        }
+        await afterNextPaint();
+        popup.document.write(await buildTranscriptExport('html', exportInput, new Date()));
+        popup.document.close();
+        // A closed <details> is not printed at all: its body is hidden, so the
+        // PDF would keep only the summary line and drop every folded thinking
+        // block, tool output and error detail. The exported document also opens
+        // folds on `beforeprint`, but not every browser fires it, so the print
+        // this button starts opens them here.
+        popup.document.querySelectorAll('details').forEach((details) => {
+          details.open = true;
+        });
+        popup.focus();
+        popup.print();
+        return;
+      }
+
+      await afterNextPaint();
+      await downloadTranscriptExport(format, exportInput);
+    } finally {
+      setPendingFormat(null);
     }
-    popup.document.write(await buildTranscriptExport('html', exportInput, new Date()));
-    popup.document.close();
-    popup.focus();
-    popup.print();
   };
+
+  const isBusy = pendingFormat !== null;
 
   return (
     <div className="space-y-1">
@@ -103,9 +143,18 @@ export default function QuickSettingsExportSection({
                 key={format.id}
                 type="button"
                 onClick={() => { void handleExport(format.id); }}
-                className={`${SETTING_ROW_CLASS} w-full cursor-pointer`}
+                disabled={isBusy}
+                aria-busy={pendingFormat === format.id}
+                className={`${SETTING_ROW_CLASS} w-full ${isBusy ? 'cursor-default opacity-60' : 'cursor-pointer'}`}
               >
-                <span className="text-sm text-foreground">{format.label}</span>
+                {pendingFormat === format.id ? (
+                  <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    {t('quickSettings.export.generating', { format: format.label })}
+                  </span>
+                ) : (
+                  <span className="text-sm text-foreground">{format.label}</span>
+                )}
               </button>
             ))
           )}

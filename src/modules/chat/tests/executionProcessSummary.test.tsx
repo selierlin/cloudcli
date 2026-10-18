@@ -28,19 +28,23 @@ const renderSummary = (collapsed: boolean) =>
 describe("execution process summary", () => {
   it("keeps the harness's full message header visible when its process rows are folded", () => {
     const view = renderSummary(true);
+    // Addressed by accessible name rather than by tag: provider marks are inline
+    // SVG or data URLs now, and anchoring on `img` re-breaks whenever one of
+    // them changes shape.
+    const logo = view.getByRole("img", { name: "WorkBuddy" });
 
-    expect(view.getByAltText("WorkBuddy")).toBeTruthy();
+    expect(logo).toBeTruthy();
     expect(view.getByText("WorkBuddy")).toBeTruthy();
-    expect(
-      view.container.querySelector("img")?.compareDocumentPosition(view.getByRole("button")),
-    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(logo.compareDocumentPosition(view.getByRole("button"))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
   });
 
   it("keeps the harness header above the summary when the process is open", () => {
     const view = renderSummary(false);
 
     expect(
-      view.container.querySelector("img")?.compareDocumentPosition(view.getByRole("button")),
+      view.getByRole("img", { name: "WorkBuddy" }).compareDocumentPosition(view.getByRole("button")),
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 

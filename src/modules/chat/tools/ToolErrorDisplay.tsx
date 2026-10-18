@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 
 import { cn } from '@/shared/utils';
+import { ExportDisclosure } from '@/modules/chat/tools/ExportDisclosure';
 import { useIsExportingTranscript } from '@/modules/chat/context/TranscriptRenderContext';
 
 type ToolErrorDisplayProps = {
@@ -37,6 +38,42 @@ export const ToolErrorDisplay: React.FC<ToolErrorDisplayProps> = ({ content, lab
       setOpen((prev) => !prev);
     }
   };
+
+  // See BashCommandDisplay: a static render cannot run this toggle, so the
+  // export uses a native disclosure that starts folded and opens on a click.
+  if (isExporting) {
+    return (
+      <div className="mt-2 overflow-hidden rounded-lg border border-red-500/30 bg-red-50/50 shadow-sm dark:bg-red-950/10">
+        <ExportDisclosure
+          summaryClassName="flex items-center gap-2 px-2.5 py-1.5"
+          bodyClassName="border-t border-red-500/20 px-3 py-2 text-sm text-red-900 dark:text-red-100"
+          summary={
+            <>
+              <ChevronRight
+                className={cn(
+                  'chat-export-details-chevron h-3.5 w-3.5 flex-shrink-0 text-red-500/70 dark:text-red-400/70',
+                  !hasContent && 'opacity-0',
+                )}
+              />
+              <svg
+                className="h-3.5 w-3.5 flex-shrink-0 text-red-500 dark:text-red-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              <span className="flex-shrink-0 text-xs font-medium text-red-700 dark:text-red-300">{label}</span>
+            </>
+          }
+        >
+          <div className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed">
+            {trimmedContent}
+          </div>
+        </ExportDisclosure>
+      </div>
+    );
+  }
 
   return (
     <div

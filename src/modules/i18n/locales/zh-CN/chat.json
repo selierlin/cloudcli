@@ -500,7 +500,10 @@
     "json": {
       "label": "JSON (.json)",
       "description": "全部消息原样输出，供工具使用。"
-    }
+    },
+    "messages": "{{count}} 条消息",
+    "exportedAt": "导出于 {{time}}",
+    "toggleTheme": "切换主题"
   },
   "schedule": {
     "trigger": "定时发送这条消息",

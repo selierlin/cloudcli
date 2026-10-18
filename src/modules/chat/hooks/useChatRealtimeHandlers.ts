@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 
 import type { ServerEvent,MarkSessionIdle,MarkSessionProcessing,PendingPermissionRequest,ProjectSession,LLMProvider,NormalizedMessage,GetSessionActivity,MarkSessionBackground } from '@/shared/types';
-import { showCompletionTitleIndicator } from '@/modules/chat/utils/pageTitleNotification';
+import { showCompletionIndicator, showFailureIndicator } from '@/shared/favicon';
 import { playChatCompletionSound, playNotificationSound, triggerNotificationHaptic } from '@/shared/utils';
 import type { SessionStore } from '@/modules/chat/hooks/useSessionStore';
 import type { StreamingBufferRegistry } from '@/modules/chat/utils/streamingBufferRegistry';
@@ -371,12 +371,15 @@ export function useChatRealtimeHandlers({
             break;
           }
 
-          // Celebrate only successful runs (failed runs end with success: false).
+          // Celebrate only successful runs; a failed run ends with `success: false`
+          // and raises the red failure mark instead.
           if (msg.success !== false) {
-            showCompletionTitleIndicator();
+            showCompletionIndicator();
             void playChatCompletionSound();
             // 震动是 iOS 客户端的声音替代/补充，浏览器与桌面端在此为 no-op。
             void triggerNotificationHaptic();
+          } else {
+            showFailureIndicator();
           }
 
           // The session id is stable for the whole conversation (allocated
