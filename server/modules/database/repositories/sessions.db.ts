@@ -156,9 +156,13 @@ export const sessionsDb = {
    * The given id is the provider-native session id. Rows are keyed by
    * `provider_session_id` so a session that was first created by the app
    * (with an app-allocated `session_id`) is updated in place once its
-   * transcript shows up on disk, instead of producing a duplicate row. An
-   * app-created row keeps its existing name; synchronizer names only update
-   * rows that were themselves created by indexing provider storage.
+   * transcript shows up on disk, instead of producing a duplicate row.
+   *
+   * Claiming the row does not pin its name: only a name the user or the
+   * provider itself fixed — `manual_rename`, `claude_custom_title`, `fork`,
+   * `legacy_unknown` — survives the upsert. The four-word `initial_message`
+   * title the app writes before any provider storage exists is provisional and
+   * yields to whatever the provider derives from its own transcript.
    */
   createSession(
     providerSessionId: string,
