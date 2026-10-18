@@ -282,6 +282,22 @@ test('a loopback public base URL is dropped instead of sent to the phone', async
   });
 });
 
+test('a test push for an unknown endpoint reports a failure instead of an empty list', async (t) => {
+  await withIsolatedDatabase(async (userId) => {
+    const requests: CapturedRequest[] = [];
+    mockFetch(t, requests);
+
+    const results = await sendBarkTestNotification(userId, 'missing-key');
+
+    assert.equal(requests.length, 0);
+    assert.deepEqual(results, [{
+      endpointId: 'missing-key',
+      ok: false,
+      message: 'Bark endpoint not found',
+    }]);
+  });
+});
+
 test('each run event carries the mark the favicon would show', async (t) => {
   await withIsolatedDatabase(async (userId) => {
     notificationChannelEndpointsDb.upsertEndpoint({
