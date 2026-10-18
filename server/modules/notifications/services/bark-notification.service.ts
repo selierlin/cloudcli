@@ -16,6 +16,17 @@ const BARK_TEST_TITLE = 'CloudCLI';
 const BARK_TEST_BODY = 'Bark 测试通知';
 
 /**
+ * The payload behind the Settings test button. The icon is part of the test: a
+ * mark showing up (or not) is the only way to confirm the phone can actually
+ * fetch it.
+ */
+const BARK_TEST_PAYLOAD: BarkPushPayload = {
+  title: BARK_TEST_TITLE,
+  body: BARK_TEST_BODY,
+  iconKind: 'complete',
+};
+
+/**
  * The three status marks Bark can show instead of its own app icon. They mirror
  * the favicon's completion/failure/approval states so a glance at the lock screen
  * reads the same as a glance at the tab.
@@ -231,16 +242,23 @@ export async function sendBarkTestNotification(
   endpointId?: string,
 ): Promise<BarkDeliveryResult[]> {
   const requested = readText(endpointId);
-  const endpoints = requested
-    ? [notificationChannelEndpointsDb.getEndpoint(userId, BARK_CHANNEL, requested)]
-      .filter((endpoint): endpoint is BarkEndpointRow => endpoint !== null)
-    : notificationChannelEndpointsDb.getEnabledEndpoints(userId, BARK_CHANNEL);
+  if (!requested) {
+    const endpoints = notificationChannelEndpointsDb.getEnabledEndpoints(userId, BARK_CHANNEL);
+    return Promise.all(endpoints.map((endpoint) => deliver(endpoint, BARK_TEST_PAYLOAD)));
+  }
 
-  return Promise.all(endpoints.map((endpoint) => deliver(endpoint, {
-    title: BARK_TEST_TITLE,
-    body: BARK_TEST_BODY,
-    // The test push also exercises the icon path: a mark showing up (or not)
-    // is the only way to confirm the phone can actually fetch it.
-    iconKind: 'complete',
-  })));
+  const endpoint = notificationChannelEndpointsDb.getEndpoint(userId, BARK_CHANNEL, requested);
+  if (!endpoint) {
+    // An empty result would reach Settings as "nothing happened" (the card has no
+    // other feedback path), so report the missing row like any other failure.
+    return [{
+      endpointId: requested,
+      ok: false,
+      message: 'Bark endpoint not found',
+    }];
+  }
+
+  // Disabled endpoints are tested on purpose: the button verifies connectivity,
+  // which is useful before switching the device back on.
+  return [await deliver(endpoint, BARK_TEST_PAYLOAD)];
 }
