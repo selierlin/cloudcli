@@ -242,6 +242,14 @@ final class CloudCLIBridgeViewController: CAPBridgeViewController {
             && current.port == loaded.port
     }
 
+    /** 该 webview 是否正好停在这个 URL 上（深链命中当前会话时用来避免整页重载）。 */
+    func isShowingExactURL(_ url: URL) -> Bool {
+        guard let current = bridgedWebView?.url else {
+            return false
+        }
+        return current.absoluteString == url.absoluteString
+    }
+
     /** 该 webview 是否仍在显示本地 App（选择页）内容。 */
     var isShowingLocalApp: Bool {
         guard let current = bridgedWebView?.url, let local = bridge?.config.localURL else {
@@ -295,23 +303,31 @@ final class CloudCLIContainerViewController: UIViewController, CloudCLIServerSes
      通知点击跳转：切到目标服务器并加载指定会话。
      只接受选择页里保存过的 origin——`cloudcli://` 是外部可触发的入口，
      否则任意链接都能把任意站点装进 App 的 WebView。
+     返回是否真的接收了这条深链；调用方据此决定要不要写还原标记，避免一条被
+     拒绝的链接覆盖掉用户原本有效的还原目标。
      */
-    func openDeepLink(_ url: URL) {
+    @discardableResult
+    func openDeepLink(_ url: URL) -> Bool {
         guard RestoreTargetStore.isKnownServerOrigin(url) else {
             NSLog("[CloudCLI] deep link: 目标服务器不在已保存列表，已忽略")
-            return
+            return false
         }
 
         let key = normalizedOriginKey(url)
         if let cachedController = serverControllers[key] {
             // 命中缓存时 presentServer 不会导航（同 origin 视为同一页面），
-            // 而深链要的正是换路径，所以显式重新加载。
-            cachedController.loadServer(url)
+            // 而深链要的正是换路径，所以显式重新加载；目标就是当前页面时
+            // 不重载，否则点自己所在会话的通知会白白断流重来一遍。
+            if !cachedController.isShowingExactURL(url) {
+                cachedController.loadServer(url)
+            }
             touchServer(key)
             show(cachedController)
         } else {
             presentServer(url)
         }
+
+        return true
     }
 
     func discardInactiveServerSessions(keeping controller: CloudCLIBridgeViewController) {

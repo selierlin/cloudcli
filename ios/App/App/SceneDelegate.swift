@@ -33,10 +33,15 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
         // 冷启动由系统在 connectionOptions 里交付 URL。必须先写还原标记：
         // 容器 viewDidLoad 的 attemptRestore 会直接加载目标会话，晚于它就只能
-        // 在还原流程之上再切一次，用户会看到还原浮层。
+        // 在还原流程之上再切一次，用户会看到还原浮层。只接受已保存的服务器，
+        // 否则一条未知 origin 的链接会顶掉用户原本有效的还原目标。
         if let opened = connectionOptions.urlContexts.first?.url,
            let target = cloudCLIDeepLinkTarget(from: opened) {
-            RestoreTargetStore.writeTargetURL(target)
+            if RestoreTargetStore.isKnownServerOrigin(target) {
+                RestoreTargetStore.writeTargetURL(target)
+            } else {
+                NSLog("[CloudCLI] deep link: 目标服务器不在已保存列表，已忽略")
+            }
         }
 
         window = UIWindow(windowScene: windowScene)
@@ -49,14 +54,17 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
         SceneDelegateProxy.shared.scene(scene, openURLContexts: URLContexts)
 
-        // App 已在运行时点击通知：切到目标服务器并加载目标会话。
+        // App 已在运行时点击通知：切到目标服务器并加载目标会话。只有容器真的
+        // 接受这条深链（已保存的服务器）后才落盘，被拒绝的链接必须原样保留
+        // 用户已有的还原目标。
         guard let opened = URLContexts.first?.url,
-              let target = cloudCLIDeepLinkTarget(from: opened) else {
+              let target = cloudCLIDeepLinkTarget(from: opened),
+              let container = window?.rootViewController as? CloudCLIContainerViewController,
+              container.openDeepLink(target) else {
             return
         }
 
         RestoreTargetStore.writeTargetURL(target)
-        (window?.rootViewController as? CloudCLIContainerViewController)?.openDeepLink(target)
     }
 
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
