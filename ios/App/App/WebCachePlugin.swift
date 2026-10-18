@@ -291,6 +291,29 @@ final class CloudCLIContainerViewController: UIViewController, CloudCLIServerSes
         _ = presentServer(url)
     }
 
+    /**
+     通知点击跳转：切到目标服务器并加载指定会话。
+     只接受选择页里保存过的 origin——`cloudcli://` 是外部可触发的入口，
+     否则任意链接都能把任意站点装进 App 的 WebView。
+     */
+    func openDeepLink(_ url: URL) {
+        guard RestoreTargetStore.isKnownServerOrigin(url) else {
+            NSLog("[CloudCLI] deep link: 目标服务器不在已保存列表，已忽略")
+            return
+        }
+
+        let key = normalizedOriginKey(url)
+        if let cachedController = serverControllers[key] {
+            // 命中缓存时 presentServer 不会导航（同 origin 视为同一页面），
+            // 而深链要的正是换路径，所以显式重新加载。
+            cachedController.loadServer(url)
+            touchServer(key)
+            show(cachedController)
+        } else {
+            presentServer(url)
+        }
+    }
+
     func discardInactiveServerSessions(keeping controller: CloudCLIBridgeViewController) {
         let inactiveKeys = serverControllers.compactMap { key, cachedController in
             cachedController === controller ? nil : key
