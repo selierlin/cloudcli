@@ -215,11 +215,13 @@
         "timeSensitive": "Time sensitive",
         "passive": "Passive"
       },
-      "enabled": "Enabled",
-      "test": "Test",
-      "remove": "Remove",
-      "save": "Save and test",
-      "empty": "No Bark device configured yet.",
+    "enabled": "Enabled",
+    "test": "Test",
+    "remove": "Remove",
+    "add": "Add device",
+    "iconBaseUrl": "Icon base URL (optional)",
+    "iconBaseUrlHint": "Use the address your phone opens CloudCLI at; the status icons are fetched from it. Leave empty for Bark’s default icon.",
+    "empty": "No Bark device configured yet.",
       "testOk": "Bark accepted the test notification.",
       "testFailed": "Bark rejected the test: {{message}}",
       "note": "The device key is stored on this server and sent only to the Bark server above. Use HTTPS if that server is not on a trusted network."

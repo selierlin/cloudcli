@@ -9,6 +9,8 @@ export type BarkEndpointMetadata = {
   subtitle: string;
   sound: string;
   level: string;
+  /** Address the phone uses to reach CloudCLI; the status icons are fetched from it. */
+  iconBaseUrl: string;
 };
 
 /** One saved Bark device, as returned by the generic notification endpoint API. */
@@ -36,6 +38,7 @@ export type BarkEndpointInput = {
   subtitle: string;
   sound: string;
   level: string;
+  iconBaseUrl: string;
 };
 
 function readString(value: unknown): string {
@@ -68,6 +71,7 @@ function toBarkEndpoint(raw: unknown): BarkEndpoint | null {
       subtitle: readString(metadata.subtitle),
       sound: readString(metadata.sound),
       level: readString(metadata.level),
+      iconBaseUrl: readString(metadata.iconBaseUrl),
     },
   };
 }
@@ -159,6 +163,7 @@ export function useBarkNotifications() {
           subtitle: input.subtitle,
           sound: input.sound,
           level: input.level,
+          iconBaseUrl: input.iconBaseUrl,
         },
       });
       const data = await readJson(response);

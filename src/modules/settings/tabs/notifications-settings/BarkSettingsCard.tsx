@@ -45,6 +45,27 @@ function parseDeviceKeyInput(value: string): { serverUrl: string; deviceKey: str
 }
 
 /**
+ * The phone downloads the status icons from CloudCLI, so the useful default is
+ * the address this page was opened with. A loopback address is never reachable
+ * from the phone, and a non-HTTP origin (the shell's `capacitor://`) is not a
+ * URL Bark can fetch, so both start empty and let the user fill it in.
+ */
+function defaultIconBaseUrl(): string {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  const { origin, hostname } = window.location;
+  if (!origin.startsWith('http://') && !origin.startsWith('https://')) {
+    return '';
+  }
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]') {
+    return '';
+  }
+  return origin;
+}
+
+/**
  * Rendered by NotificationsSettingsTab. Manages this server's Bark endpoints:
  * a user can add several devices, disable one without deleting it, and send a
  * test push that surfaces Bark's own reply.
@@ -54,14 +75,16 @@ export default function BarkSettingsCard() {
   const { endpoints, busy, error, testResult, save, remove, setEnabled, test } = useBarkNotifications();
 
   // In-progress form input. Kept local because it is not server state until
-  // the user saves; clearing the key after a successful save prevents a
-  // subsequent "add another device" from reusing it by accident.
+  // the user adds the device; clearing the key afterwards prevents a subsequent
+  // "add another device" from reusing it by accident. The other fields stay so a
+  // second device on the same server does not need them retyped.
   const [serverUrl, setServerUrl] = useState('');
   const [deviceKey, setDeviceKey] = useState('');
   const [label, setLabel] = useState('');
   const [group, setGroup] = useState('');
   const [sound, setSound] = useState('');
   const [level, setLevel] = useState<string>('active');
+  const [iconBaseUrl, setIconBaseUrl] = useState(defaultIconBaseUrl);
   // Validation failure for the form itself, separate from transport/Bark errors.
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -93,10 +116,10 @@ export default function BarkSettingsCard() {
       subtitle: '',
       sound: sound.trim(),
       level,
+      iconBaseUrl: iconBaseUrl.trim(),
     });
 
     if (saved) {
-      await test(trimmedKey);
       setDeviceKey('');
     }
   };
@@ -249,12 +272,29 @@ export default function BarkSettingsCard() {
               ))}
             </select>
           </label>
+          <label className="block space-y-1 sm:col-span-2">
+            <span className="text-sm font-medium text-foreground">
+              {t('notifications.bark.iconBaseUrl', { defaultValue: 'Icon base URL (optional)' })}
+            </span>
+            <input
+              className={inputClass}
+              placeholder="http://192.168.1.5:3001"
+              value={iconBaseUrl}
+              onChange={(event) => setIconBaseUrl(event.target.value)}
+              autoComplete="url"
+            />
+            <span className="block text-xs text-muted-foreground">
+              {t('notifications.bark.iconBaseUrlHint', {
+                defaultValue: 'Use the address your phone opens CloudCLI at; the status icons are fetched from it. Leave empty for Bark\u2019s default icon.',
+              })}
+            </span>
+          </label>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" variant="outline" size="sm" disabled={busy}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            {t('notifications.bark.save', { defaultValue: 'Save and test' })}
+            {t('notifications.bark.add', { defaultValue: 'Add device' })}
           </Button>
           {endpoints.length === 0 && (
             <span className="text-xs text-muted-foreground">
