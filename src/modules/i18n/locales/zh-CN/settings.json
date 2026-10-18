@@ -215,11 +215,13 @@
         "timeSensitive": "时效性",
         "passive": "静默"
       },
-      "enabled": "已启用",
-      "test": "测试",
-      "remove": "删除",
-      "save": "保存并测试",
-      "empty": "还没有配置 Bark 设备。",
+    "enabled": "已启用",
+    "test": "测试",
+    "remove": "删除",
+    "add": "添加设备",
+    "iconBaseUrl": "图标地址前缀（可选）",
+    "iconBaseUrlHint": "填手机访问 CloudCLI 用的地址，状态图标会从它下载。留空则使用 Bark 默认图标。",
+    "empty": "还没有配置 Bark 设备。",
       "testOk": "Bark 已接受测试通知。",
       "testFailed": "Bark 拒绝了测试：{{message}}",
       "note": "Device Key 只保存在本服务器，并且只会发往上面的 Bark 服务。如果该服务不在可信内网，请使用 HTTPS。"

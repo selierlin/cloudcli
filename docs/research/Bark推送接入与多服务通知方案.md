@@ -182,6 +182,9 @@ export async function sendBarkNotification(userId: number, payload: Notification
 | `group` | `metadata.group`，默认 `CloudCLI · <hostname>` |
 | `subtitle` | `metadata.subtitle`，默认空 |
 | `level` | `metadata.level`，默认 `active` |
+| `icon` | `metadata.iconBaseUrl` + 事件态：`/icons/bark/{complete,failed,approval}.png` |
+
+`icon` 的语义与 favicon 三态对齐：完成/后台完成 → `complete`，`run.failed` → `failed`，`permission.required` → `approval`；`run.stopped` 且 `stopReason=aborted` 不传（既不是成功也不是需要处理）。约束见 §4.6。
 
 注意：**事件类型开关是全局的**。Bark 会继承 `events.actionRequired/stop/error`，无法做到「Bark 只收完成、Web Push 收全部」。v1 接受这个限制，见 §9.2 第 4 条。
 
@@ -193,8 +196,10 @@ export async function sendBarkNotification(userId: number, payload: Notification
 - Device Key（支持直接粘贴 `https://bark.example.com/<key>`，前端拆成 origin + key）
 - 来源名称（默认 `os.hostname()`，写进 `group`/`subtitle`）
 - 铃声、级别（可折叠的「高级」区）
-- 「发送测试」按钮：同步调用专用测试接口，把 Bark 的 `message` 原样回显，失败可见
+- 图标地址前缀（可选，默认填当前页面 origin；留空则用 Bark 默认图标，见 §4.6）
+- 行内「测试」按钮（唯一测试入口）：同步调用专用测试接口，把 Bark 的 `message` 原样回显，失败可见
 - 已配置端点列表：可禁用/删除；key 显示为掩码
+- 表单按钮只保存（「添加设备」），不再保存后自动测试，理由见 §4.7
 
 端点增删走已有的通用路由（`notifications.routes.ts:42-125`），不需要新 CRUD。需要新增的只有：
 
@@ -208,6 +213,24 @@ i18n：15 个 locale（`src/modules/i18n/locales/*/settings.json`）。新增键
 - device key 是 bearer 凭据，存 `metadata_json` 明文，与 `push_subscriptions` 的 endpoint/keys 同级；单用户自托管可接受，但不要写进日志、不要出现在错误上报里。
 - `serverUrl` 是用户可控的出站目标。限制 `http/https`、去尾部斜杠、长度上限；**不封禁内网地址**，因为自建 Bark 常在 LAN（这是有意的取舍，写在文档里）。自建常用 `http://`，但 HTTP 下 device key 和通知正文在链路上明文，只在可信内网使用；跨网段或公网必须走 HTTPS 反向代理。
 - `GET /endpoints` 会返回完整 key（`notifications.routes.ts:11-23`）。UI 保存后应掩码显示，避免肩窥；这是展示层约束，不是权限边界。
+
+### 4.6 通知图标（Bark `icon`）
+
+Bark 的 `icon` 是**图片 URL**，由手机下载；不是本地资源名，也不支持 data URI。行为边界：
+
+- 仅 iOS 15+ 生效，替换通知里 Bark 的默认头像图标。
+- 同一 URL 只下载一次，之后走设备缓存；首次下载超过 10 秒就回落默认图标。
+- 取不到图时是静默的：通知照常送达，只是没有自定义图标。
+
+因此用三张固定 URL 的 128px PNG（`public/icons/bark/{complete,failed,approval}.png`），恰好对上缓存语义。`public/` 由 `express.static` 直接提供且**不需要登录**（`server/index.ts:262`），手机可以无凭据取图。
+
+关键取舍：`iconBaseUrl` 存的是**手机访问 CloudCLI 用的地址**，服务器自己推断不出来（可能是 LAN IP、域名、反代前缀），所以做成端点级字段。表单用当前页面 origin 预填；loopback 与 `capacitor://localhost` 不预填，服务端也会丢弃 loopback——手机永远取不到它，传了只会白等。
+
+未验证项：内网 `http://` 图片是否被 iOS ATS 拦截。真机验收时若通知到了但图标没变，先换成 HTTPS 再判断。
+
+### 4.7 测试入口只有一个
+
+行内「测试」按钮是唯一发测试推送的入口。表单按钮只负责添加/更新设备，不再顺手发一条——否则对同一个 key 再点一次会静默多推一条，「保存」和「测试」两个动作被绑在一起。
 
 ## 5. 多服务分析
 
@@ -302,19 +325,20 @@ hostname 只是默认值，允许在 Bark 卡片里改（例如「Mac mini」「
 
 | 文件 | 内容 |
 | --- | --- |
-| `server/modules/notifications/services/bark-notification.service.ts` | `POST {serverUrl}/push`、5 秒超时、`code !== 200` 判失败、失败不抛；`sendBarkTestNotification` 供测试按钮使用 |
-| `notification-orchestrator.service.ts` | 注册 `bark` 通道；端点存在性是开关 |
+| `server/modules/notifications/services/bark-notification.service.ts` | `POST {serverUrl}/push`、5 秒超时、`code !== 200` 判失败、失败不抛；`icon` 按事件态拼 URL、丢弃 loopback 前缀；`sendBarkTestNotification` 供测试按钮使用 |
+| `notification-orchestrator.service.ts` | 注册 `bark` 通道；端点存在性是开关；事件 → 图标态映射 |
 | `notifications.routes.ts` | `POST /api/notifications/test` |
 | `notification-preferences.ts` | `channels.bark` 默认值与归一化 |
 | `src/shared/types.ts`、`useSettingsController.ts` | 前端偏好类型与 round-trip |
 | `src/shared/api.ts` | endpoints / test 客户端方法 |
 | `src/modules/settings/hooks/useBarkNotifications.ts` | 端点加载、保存、启停、删除、测试 |
-| `src/modules/settings/tabs/notifications-settings/BarkSettingsCard.tsx` | 设置卡片；支持粘贴完整推送 URL |
-| `server/modules/notifications/tests/bark-notification.test.ts` | 5 例：载荷、禁用端点、缺 URL、Bark 业务错误、编排器接线 |
+| `src/modules/settings/tabs/notifications-settings/BarkSettingsCard.tsx` | 设置卡片；支持粘贴完整推送 URL；图标地址前缀；表单只保存，测试只留在行内 |
+| `public/icons/bark/{complete,failed,approval}.{svg,png}` | 128px 三种状态图，对应 favicon 三态 |
+| `server/modules/notifications/tests/bark-notification.test.ts` | 9 例：载荷、禁用端点、缺 URL、Bark 业务错误、编排器接线、图标拼接、loopback 丢弃、事件→图标映射 |
 | `src/modules/settings/tests/settingsControllerBarkPreferences.test.ts` | `channels.bark` 在设置保存后不丢 |
-| `src/modules/settings/tests/barkSettingsCard.test.tsx` | 完整推送 URL 拆成 server + key、保存后自动测试 |
+| `src/modules/settings/tests/barkSettingsCard.test.tsx` | 完整推送 URL 拆成 server + key；保存不发推送；行内测试发推送 |
 
-验证结果：`npm run typecheck`、`npm run build`、`npm run lint`（0 error）、通知模块 9 例、Bark 5 例、前端 round-trip 与卡片流程各 1 例、客户端全量 1830 例均通过。**尚未做真机 Bark 实测。**
+验证结果：`npm run typecheck`、`npm run build`、`npm run lint`（0 error）、通知模块 12 例（其中 Bark 9 例）、前端 round-trip 1 例与卡片流程 2 例、客户端全量 225 文件 / 1832 例均通过。**尚未做真机 Bark 实测，图标是否被 ATS 拦截也尚未验证。**
 
 ### P1（多服务体验）
 
