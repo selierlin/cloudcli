@@ -385,7 +385,11 @@
     "deleteAria": "删除 {{model}}",
     "effortLevels": "推理级别",
     "effortLevelsHint": "选择此模型支持的推理强度级别。若未选择任何级别，将无法在输入框中为此模型选择级别。",
-    "effortSummary": "推理：{{levels}}"
+    "effortSummary": "推理：{{levels}}",
+    "customModelsOnly": "仅使用我的模型",
+    "customModelsOnlyHint": "在所有模型选择器中隐藏 {{provider}} 的内置模型，并将您的第一个模型设为默认模型。在您添加模型之前，内置模型仍会显示。",
+    "builtInModelsHidden": "开启“仅使用我的模型”时，这些模型不会出现在模型选择器中。",
+    "customModelsOnlyFailed": "无法更改此设置。"
   },
   "session": {
     "continue": {
@@ -596,14 +600,5 @@
     "agentTimelineEmpty": "暂无记录",
     "taskOfAgent": "由本会话的某个子代理启动",
     "taskRowNotLoaded": "在此会话较早前启动，点击加载"
-  },
-  "modelLibrary": {
-    "effortLevels": "推理级别",
-    "effortLevelsHint": "选择此模型支持的推理强度级别。若未选择任何级别，将无法在输入框中为此模型选择级别。",
-    "effortSummary": "推理：{{levels}}",
-    "customModelsOnly": "仅使用我的模型",
-    "customModelsOnlyHint": "在所有模型选择器中隐藏 {{provider}} 的内置模型，并将您的第一个模型设为默认模型。在您添加模型之前，内置模型仍会显示。",
-    "builtInModelsHidden": "开启“仅使用我的模型”时，这些模型不会出现在模型选择器中。",
-    "customModelsOnlyFailed": "无法更改此设置。"
   }
 }

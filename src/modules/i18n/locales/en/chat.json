@@ -247,12 +247,6 @@
     "chooseModelStep": "2 · Choose a model",
     "clickToChooseModel": "Click to choose a model",
     "chooseModelForTool": "{{tool}} models",
-    "chooseModelDescription": "Built-in and custom models in one list",
-    "addModel": "Add model",
-    "manageModels": "Manage models",
-    "searchModels": "Search models...",
-    "noModelsFound": "No models found.",
-    "loadingModels": "Loading models…",
     "modelSelectorTitle": "Model Selector",
     "custom": "Custom",
     "otherModels": "Other",
@@ -406,7 +400,11 @@
     "deleteAria": "Delete {{model}}",
     "effortLevels": "Reasoning levels",
     "effortLevelsHint": "Select the reasoning-effort levels this model accepts. If none are selected, no effort level can be chosen for this model in the composer.",
-    "effortSummary": "Reasoning: {{levels}}"
+    "effortSummary": "Reasoning: {{levels}}",
+    "customModelsOnly": "Use only my models",
+    "customModelsOnlyHint": "Hide the built-in {{provider}} models from every model picker and make your first model the default. Built-in models stay listed until you add a model.",
+    "builtInModelsHidden": "Hidden from model pickers while “Use only my models” is on.",
+    "customModelsOnlyFailed": "Unable to change this setting."
   },
   "session": {
     "continue": {
@@ -636,14 +634,5 @@
         "text": "How do I try out what you changed?"
       }
     }
-  },
-  "modelLibrary": {
-    "effortLevels": "Reasoning levels",
-    "effortLevelsHint": "Select the reasoning-effort levels this model accepts. If none are selected, no effort level can be chosen for this model in the composer.",
-    "effortSummary": "Reasoning: {{levels}}",
-    "customModelsOnly": "Use only my models",
-    "customModelsOnlyHint": "Hide the built-in {{provider}} models from every model picker and make your first model the default. Built-in models stay listed until you add a model.",
-    "builtInModelsHidden": "Hidden from model pickers while “Use only my models” is on.",
-    "customModelsOnlyFailed": "Unable to change this setting."
   }
 }
