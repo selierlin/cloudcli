@@ -5,7 +5,6 @@
 // Spawned as `<binary> acp`; argv is ignored.
 
 let cancelPromptId = null;
-let cancelSessionId = null;
 let permissionId = null;
 let permissionPromptId = null;
 let permissionSessionId = null;
@@ -50,7 +49,6 @@ function handle(line) {
     if (text.includes('cancel')) {
       chunk(sessionId, '开始');
       cancelPromptId = message.id;
-      cancelSessionId = sessionId;
       return;
     }
 
