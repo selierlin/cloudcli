@@ -182,7 +182,8 @@ export async function sendBarkNotification(userId: number, payload: Notification
 | `group` | `metadata.group`，默认 `CloudCLI · <hostname>` |
 | `subtitle` | `metadata.subtitle`，默认空 |
 | `level` | `metadata.level`，默认 `active` |
-| `icon` | `metadata.iconBaseUrl` + 事件态：`/icons/bark/{complete,failed,approval}.png` |
+| `icon` | `metadata.publicBaseUrl` + 事件态：`/icons/bark/{complete,failed,approval}.png` |
+| `url` | `cloudcli://open?url=` + `{publicBaseUrl}/session/{sessionId}`（见 §4.8） |
 
 `icon` 的语义与 favicon 三态对齐：完成/后台完成 → `complete`，`run.failed` → `failed`，`permission.required` → `approval`；`run.stopped` 且 `stopReason=aborted` 不传（既不是成功也不是需要处理）。约束见 §4.6。
 
@@ -196,7 +197,7 @@ export async function sendBarkNotification(userId: number, payload: Notification
 - Device Key（支持直接粘贴 `https://bark.example.com/<key>`，前端拆成 origin + key）
 - 来源名称（默认 `os.hostname()`，写进 `group`/`subtitle`）
 - 铃声、级别（可折叠的「高级」区）
-- 图标地址前缀（可选，默认填当前页面 origin；留空则用 Bark 默认图标，见 §4.6）
+- 手机访问地址（可选，默认填当前页面 origin；图标与点击跳转都用它，见 §4.6 / §4.8）
 - 行内「测试」按钮（唯一测试入口）：同步调用专用测试接口，把 Bark 的 `message` 原样回显，失败可见
 - 已配置端点列表：可禁用/删除；key 显示为掩码
 - 表单按钮只保存（「添加设备」），不再保存后自动测试，理由见 §4.7
@@ -224,13 +225,39 @@ Bark 的 `icon` 是**图片 URL**，由手机下载；不是本地资源名，�
 
 因此用三张固定 URL 的 128px PNG（`public/icons/bark/{complete,failed,approval}.png`），恰好对上缓存语义。`public/` 由 `express.static` 直接提供且**不需要登录**（`server/index.ts:262`），手机可以无凭据取图。
 
-关键取舍：`iconBaseUrl` 存的是**手机访问 CloudCLI 用的地址**，服务器自己推断不出来（可能是 LAN IP、域名、反代前缀），所以做成端点级字段。表单用当前页面 origin 预填；loopback 与 `capacitor://localhost` 不预填，服务端也会丢弃 loopback——手机永远取不到它，传了只会白等。
+关键取舍：`publicBaseUrl` 存的是**手机访问 CloudCLI 用的地址**，服务器自己推断不出来（可能是 LAN IP、域名、反代前缀），所以做成端点级字段。表单用当前页面 origin 预填；loopback 与 `capacitor://localhost` 不预填，服务端也会丢弃 loopback——手机永远取不到它，传了只会白等。旧行里的 `iconBaseUrl` 仍作为回退键读取。
 
 未验证项：内网 `http://` 图片是否被 iOS ATS 拦截。真机验收时若通知到了但图标没变，先换成 HTTPS 再判断。
 
 ### 4.7 测试入口只有一个
 
 行内「测试」按钮是唯一发测试推送的入口。表单按钮只负责添加/更新设备，不再顺手发一条——否则对同一个 key 再点一次会静默多推一条，「保存」和「测试」两个动作被绑在一起。
+
+### 4.8 点击通知跳转到 App 里的会话
+
+Bark 的 `url` 参数在点击时由 `UIApplication` 打开，**支持自定义 URL Scheme**（已核对）。http(s) 链接会交给 Safari，所以发：
+
+```
+cloudcli://open?url=<percent-encoded {publicBaseUrl}/session/{sessionId}>
+```
+
+为什么把网页地址塞进参数，而不是 `cloudcli://session/<id>`：壳只具备「加载一个 URL」的能力，网页地址的基路径（部署前缀）由服务端知道；让壳去拼路由等于把 basename 判断复制一遍。
+
+iOS 壳改动（`ios/App/App/`）：
+
+| 文件 | 改动 |
+| --- | --- |
+| `Info.plist` | `CFBundleURLSchemes` 注册 `cloudcli` |
+| `SceneDelegate.swift` | 冷启动：`connectionOptions.urlContexts` → 先写还原标记，容器 `attemptRestore` 直接加载目标会话；热启动：`openURLContexts` → 容器 `openDeepLink` |
+| `WebCachePlugin.swift` | `openDeepLink`：按 origin 命中缓存时显式 `loadServer(target)`（`presentServer` 对同 origin 不导航），未命中则新建 |
+
+边界：
+
+- 只接受**选择页里保存过的 origin**，否则忽略。scheme 是外部可触发的入口，不设这道门任何链接都能把任意站点装进 App 的 WebView。
+- 内层只允许 `http/https`，挡掉 `file://`。
+- **必须重装一次 IPA**：旧包没有注册 scheme，点通知完全没有反应（也不会报错）。
+- 直连包（构建期设了 `CLOUDCLI_SERVER_URL`）跳过还原流程，冷启动深链不生效；选择页形态不受影响。
+- 不做 Universal Link：需要 associated domains 能力，与当前的开发签名方式冲突。
 
 ## 5. 多服务分析
 
@@ -325,20 +352,21 @@ hostname 只是默认值，允许在 Bark 卡片里改（例如「Mac mini」「
 
 | 文件 | 内容 |
 | --- | --- |
-| `server/modules/notifications/services/bark-notification.service.ts` | `POST {serverUrl}/push`、5 秒超时、`code !== 200` 判失败、失败不抛；`icon` 按事件态拼 URL、丢弃 loopback 前缀；`sendBarkTestNotification` 供测试按钮使用 |
+| `server/modules/notifications/services/bark-notification.service.ts` | `POST {serverUrl}/push`、5 秒超时、`code !== 200` 判失败、失败不抛；`icon` 与 `url` 都从 `publicBaseUrl` 拼、丢弃 loopback 前缀；`sendBarkTestNotification` 供测试按钮使用 |
 | `notification-orchestrator.service.ts` | 注册 `bark` 通道；端点存在性是开关；事件 → 图标态映射 |
 | `notifications.routes.ts` | `POST /api/notifications/test` |
 | `notification-preferences.ts` | `channels.bark` 默认值与归一化 |
 | `src/shared/types.ts`、`useSettingsController.ts` | 前端偏好类型与 round-trip |
 | `src/shared/api.ts` | endpoints / test 客户端方法 |
 | `src/modules/settings/hooks/useBarkNotifications.ts` | 端点加载、保存、启停、删除、测试 |
-| `src/modules/settings/tabs/notifications-settings/BarkSettingsCard.tsx` | 设置卡片；支持粘贴完整推送 URL；图标地址前缀；表单只保存，测试只留在行内 |
+| `src/modules/settings/tabs/notifications-settings/BarkSettingsCard.tsx` | 设置卡片；支持粘贴完整推送 URL；手机访问地址；表单只保存，测试只留在行内 |
+| `ios/App/App/Info.plist`、`SceneDelegate.swift`、`WebCachePlugin.swift` | 注册 `cloudcli://`；冷启动写还原标记、热启动 `openDeepLink`，按 origin 复用 WebView |
 | `public/icons/bark/{complete,failed,approval}.{svg,png}` | 128px 三种状态图，对应 favicon 三态 |
 | `server/modules/notifications/tests/bark-notification.test.ts` | 9 例：载荷、禁用端点、缺 URL、Bark 业务错误、编排器接线、图标拼接、loopback 丢弃、事件→图标映射 |
 | `src/modules/settings/tests/settingsControllerBarkPreferences.test.ts` | `channels.bark` 在设置保存后不丢 |
 | `src/modules/settings/tests/barkSettingsCard.test.tsx` | 完整推送 URL 拆成 server + key；保存不发推送；行内测试发推送 |
 
-验证结果：`npm run typecheck`、`npm run build`、`npm run lint`（0 error）、通知模块 12 例（其中 Bark 9 例）、前端 round-trip 1 例与卡片流程 2 例、客户端全量 225 文件 / 1832 例均通过。**尚未做真机 Bark 实测，图标是否被 ATS 拦截也尚未验证。**
+验证结果：`npm run typecheck`、`npm run build`、`npm run lint`（0 error）、通知模块 14 例、前端 round-trip 1 例与卡片流程 2 例、客户端全量通过；iOS 侧 `xcodebuild -scheme App -destination 'generic/platform=iOS'` **BUILD SUCCEEDED**。**均未做真机验证**：图标是否被 ATS 拦截、深链冷/热启动是否落到正确会话，都必须在重装 IPA 后实测。
 
 ### P1（多服务体验）
 
