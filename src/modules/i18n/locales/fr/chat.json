@@ -15,7 +15,10 @@
     "copyAsText": "Copier en texte brut"
   },
   "message": {
-    "branchFromHere": "Créer une branche à partir de ce message"
+    "branchFromHere": "Créer une branche à partir de ce message",
+    "editAndResend": "Modifier et renvoyer",
+    "forkFromHere": "Dupliquer à partir d’ici",
+    "answeredBy": "Répondu par {{model}}"
   },
   "messageTypes": {
     "user": "U",
@@ -243,11 +246,6 @@
   },
   "tasks": {
     "nextTaskPrompt": "Commencer la prochaine tâche"
-  },
-  "message": {
-    "editAndResend": "Modifier et renvoyer",
-    "forkFromHere": "Dupliquer à partir d’ici",
-    "answeredBy": "Répondu par {{model}}"
   },
   "composer": {
     "editing": {

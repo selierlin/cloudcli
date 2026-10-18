@@ -15,7 +15,10 @@
     "copyAsText": "Metin olarak kopyala"
   },
   "message": {
-    "branchFromHere": "Bu mesajdan dal oluştur"
+    "branchFromHere": "Bu mesajdan dal oluştur",
+    "editAndResend": "Düzenle ve yeniden gönder",
+    "forkFromHere": "Buradan çatalla",
+    "answeredBy": "{{model}} tarafından yanıtlandı"
   },
   "messageTypes": {
     "user": "S",
@@ -241,11 +244,6 @@
   },
   "tasks": {
     "nextTaskPrompt": "Sonraki görevi başlat"
-  },
-  "message": {
-    "editAndResend": "Düzenle ve yeniden gönder",
-    "forkFromHere": "Buradan çatalla",
-    "answeredBy": "{{model}} tarafından yanıtlandı"
   },
   "composer": {
     "editing": {

@@ -15,7 +15,10 @@
     "copyAsText": "텍스트로 복사"
   },
   "message": {
-    "branchFromHere": "이 메시지에서 브랜치 만들기"
+    "branchFromHere": "이 메시지에서 브랜치 만들기",
+    "editAndResend": "수정 후 다시 보내기",
+    "forkFromHere": "여기서 분기",
+    "answeredBy": "{{model}}이(가) 응답함"
   },
   "messageTypes": {
     "user": "U",
@@ -256,11 +259,6 @@
   },
   "tasks": {
     "nextTaskPrompt": "다음 작업 시작"
-  },
-  "message": {
-    "editAndResend": "수정 후 다시 보내기",
-    "forkFromHere": "여기서 분기",
-    "answeredBy": "{{model}}이(가) 응답함"
   },
   "composer": {
     "editing": {

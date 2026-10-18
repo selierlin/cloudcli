@@ -15,7 +15,10 @@
     "copyAsText": "複製為純文字"
   },
   "message": {
-    "branchFromHere": "從此訊息建立分支"
+    "branchFromHere": "從此訊息建立分支",
+    "editAndResend": "編輯並重新傳送",
+    "forkFromHere": "從此處分支",
+    "answeredBy": "由 {{model}} 回答"
   },
   "messageTypes": {
     "user": "U",
@@ -285,11 +288,6 @@
   },
   "tasks": {
     "nextTaskPrompt": "開始下一個任務"
-  },
-  "message": {
-    "editAndResend": "編輯並重新傳送",
-    "forkFromHere": "從此處分支",
-    "answeredBy": "由 {{model}} 回答"
   },
   "export": {
     "trigger": "匯出對話",
