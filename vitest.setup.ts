@@ -1,6 +1,11 @@
 import { cleanup } from '@testing-library/react';
 import { afterEach } from 'vitest';
 
+// The suite asserts English copy. The app follows the saved language and falls
+// back to zh-CN, so a clean profile would silently translate every assertion
+// target. Seed the preference mirror before any module reads it.
+localStorage.setItem('user-preferences', JSON.stringify({ userLanguage: 'en' }));
+
 // Auto-cleanup only self-registers when vitest globals are enabled, and they are
 // not. Without this, a hook rendered in one test stays mounted — with its timers
 // and effects live — for the rest of the file.

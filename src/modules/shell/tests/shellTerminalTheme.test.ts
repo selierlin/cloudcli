@@ -27,7 +27,6 @@ import { resetUserPreferences, writeUserPreference } from '@/shared/userSettings
 type FakeTerminal = {
   options: {
     theme?: ITheme;
-    minimumContrastRatio?: number;
   };
   disposed: boolean;
 };
@@ -76,6 +75,9 @@ vi.mock('@xterm/addon-web-links', () => ({ WebLinksAddon: class {} }));
 vi.mock('@xterm/addon-webgl', () => ({ WebglAddon: class {} }));
 vi.mock('@/modules/shell/utils/mobileTerminalSelection', () => ({
   installMobileTerminalSelection: () => ({ dispose() {} }),
+  // The terminal hook asks before installing touch selection; a desktop test
+  // must answer false, and the mock has to export it or the import throws.
+  isTouchSelectionEnvironment: () => false,
 }));
 // Only the URL builder is stubbed: it reads a stored auth token and would bail
 // before a socket is ever constructed.
@@ -161,20 +163,6 @@ function renderShellTerminal() {
   return { ...view, closeSocket };
 }
 
-function relativeLuminance(hex: string): number {
-  const channels = [1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16) / 255);
-  const [red, green, blue] = channels.map((channel) =>
-    channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4,
-  );
-  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
-}
-
-/** WCAG 2 contrast ratio between two `#rrggbb` colours. */
-function contrastRatio(first: string, second: string): number {
-  const [lighter, darker] = [relativeLuminance(first), relativeLuminance(second)].sort((a, b) => b - a);
-  return (lighter + 0.05) / (darker + 0.05);
-}
-
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', ResizeObserverStub);
   vi.stubGlobal('WebSocket', FakeSocket);
@@ -192,31 +180,25 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-test('a terminal opened in light mode is painted with the light palette', () => {
+test('builds the terminal with the board resolved from the stylesheet', () => {
   writeUserPreference('theme', 'light');
 
   renderShellTerminal();
 
   assert.equal(terminals.length, 1);
-  assert.equal(terminals[0].options.theme?.background, '#ffffff');
-  // Truecolor accents that CLIs pick for a dark background get darkened on white.
-  assert.equal(terminals[0].options.minimumContrastRatio, 4.5);
-});
-
-test('a terminal opened in dark mode keeps the existing dark palette', () => {
-  writeUserPreference('theme', 'dark');
-
-  renderShellTerminal();
-
-  assert.equal(terminals.length, 1);
-  assert.equal(terminals[0].options.theme?.background, '#1e1e1e');
-  assert.equal(terminals[0].options.minimumContrastRatio, 1);
+  // jsdom has no cascade, so `readTerminalTheme` cannot resolve `--term-*` here
+  // — the resolved board (and its light-half contrast) is pinned in a real
+  // browser by `tests/theme-tokens/terminal-tokens.spec.ts`. What stays
+  // unit-testable is that the constructor asks for a board instead of falling
+  // back to xterm's own default palette.
+  assert.ok(terminals[0].options.theme);
+  assert.ok(Object.keys(terminals[0].options.theme ?? {}).length > 0);
 });
 
 test('toggling the theme repaints the open terminal without rebuilding it or closing its socket', () => {
   writeUserPreference('theme', 'light');
   const { result, closeSocket } = renderShellTerminal();
-  assert.equal(terminals[0].options.theme?.background, '#ffffff');
+  const lightTheme = terminals[0].options.theme;
 
   act(() => {
     result.current.toggleDarkMode();
@@ -225,39 +207,13 @@ test('toggling the theme repaints the open terminal without rebuilding it or clo
   assert.equal(terminals.length, 1, 'a theme switch must not create a second terminal');
   assert.equal(terminals[0].disposed, false, 'the running terminal must not be disposed');
   assert.equal(closeSocket.mock.calls.length, 0, 'the pty socket must stay open');
-  assert.equal(terminals[0].options.theme?.background, '#1e1e1e');
-  assert.equal(terminals[0].options.minimumContrastRatio, 1);
+  assert.notStrictEqual(terminals[0].options.theme, lightTheme, 'a repaint re-reads the board');
 
   act(() => {
     result.current.toggleDarkMode();
   });
 
   assert.equal(terminals.length, 1);
-  assert.equal(terminals[0].options.theme?.background, '#ffffff');
-  assert.equal(terminals[0].options.minimumContrastRatio, 4.5);
-});
-
-test('every ANSI colour of the light palette stays readable on its background', () => {
-  writeUserPreference('theme', 'light');
-  renderShellTerminal();
-  const theme = terminals[0].options.theme as ITheme & Record<string, string>;
-  const background = theme.background as string;
-  assert.ok(relativeLuminance(background) > 0.5, `expected a light background, got ${background}`);
-
-  assert.ok(contrastRatio(theme.foreground as string, background) >= 7);
-  const readableAsText = [
-    'black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan',
-    'brightBlack', 'brightRed', 'brightGreen', 'brightYellow', 'brightBlue', 'brightMagenta', 'brightCyan',
-  ];
-  for (const name of readableAsText) {
-    const ratio = contrastRatio(theme[name], background);
-    assert.ok(ratio >= 4.5, `${name} ${theme[name]} is only ${ratio.toFixed(2)}:1 on ${background}`);
-  }
-  // Light palettes keep "white" greyish; it still has to show up as text.
-  for (const name of ['white', 'brightWhite']) {
-    const ratio = contrastRatio(theme[name], background);
-    assert.ok(ratio >= 3, `${name} ${theme[name]} is only ${ratio.toFixed(2)}:1 on ${background}`);
-  }
 });
 
 test('the shell init message tells the server which colour scheme the terminal is in', () => {

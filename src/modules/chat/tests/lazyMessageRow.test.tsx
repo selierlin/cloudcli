@@ -48,6 +48,28 @@ function fireIntersection(
   });
 }
 
+/**
+ * The row measures itself with `getBoundingClientRect` (sub-pixel heights and
+ * 0-height rows both matter), which jsdom always reports as zeros. Give the
+ * element a real box so the measurement is taken.
+ */
+function stubMeasuredHeight(element: HTMLElement, height: number): void {
+  Object.defineProperty(element, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => ({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: 640,
+      bottom: height,
+      width: 640,
+      height,
+      toJSON: () => ({}),
+    }),
+  });
+}
+
 function Harness({
   initiallyNearViewport,
   isProcessCollapsed = false,
@@ -104,7 +126,7 @@ describe('LazyMessageRow', () => {
 
     const observer = StubIntersectionObserver.instances[0];
     const wrapper = observer.observed[0] as HTMLElement;
-    Object.defineProperty(wrapper, 'offsetHeight', { value: 123, configurable: true });
+    stubMeasuredHeight(wrapper, 123);
 
     fireIntersection(observer, wrapper, false);
     expect(queryByTestId('row-content')).toBeNull();
@@ -121,7 +143,7 @@ describe('LazyMessageRow', () => {
     const view = render(<Harness initiallyNearViewport />);
     const observer = StubIntersectionObserver.instances[0];
     const wrapper = observer.observed[0] as HTMLElement;
-    Object.defineProperty(wrapper, 'offsetHeight', { value: 246, configurable: true });
+    stubMeasuredHeight(wrapper, 246);
 
     fireIntersection(observer, wrapper, false);
     expect(wrapper.style.height).toBe('246px');
