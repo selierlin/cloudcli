@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 
 import { notificationPreferencesDb, pushSubscriptionsDb, sessionsDb } from '@/modules/database/index.js';
+import { sendBarkNotification } from '@/modules/notifications/services/bark-notification.service.js';
 import { sendDesktopNotification as sendDesktopNotificationToClients } from '@/modules/notifications/services/desktop-notification-clients.service.js';
 
 type NotificationKind = 'action_required' | 'stop' | 'error' | 'info';
@@ -274,6 +275,14 @@ const notificationChannels: Array<{
     id: 'desktop',
     isEnabled: (preferences) => Boolean(preferences.channels.desktop),
     send: ({ userId, payload }) => sendDesktopNotificationToClients(userId, payload),
+  },
+  {
+    id: 'bark',
+    // An enabled endpoint is the switch: delivery reads the endpoint rows, so a
+    // client holding a stale channels.bark snapshot cannot silence a configured
+    // device. The endpoints API still mirrors the derived value for display.
+    isEnabled: () => true,
+    send: ({ userId, payload }) => sendBarkNotification(userId, payload),
   },
 ];
 

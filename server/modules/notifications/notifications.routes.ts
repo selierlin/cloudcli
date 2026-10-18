@@ -1,6 +1,7 @@
 import express from 'express';
 
 import { notificationChannelEndpointsDb, notificationPreferencesDb } from '@/modules/database/index.js';
+import { sendBarkTestNotification } from '@/modules/notifications/services/bark-notification.service.js';
 
 const router = express.Router();
 
@@ -121,6 +122,23 @@ router.delete('/endpoints/:channel/:endpointId', (req, res) => {
   } catch (error) {
     console.error('Error removing notification endpoint:', error);
     return res.status(500).json({ error: 'Failed to remove notification endpoint' });
+  }
+});
+
+router.post('/test', async (req, res) => {
+  try {
+    const channel = readText(req.body?.channel);
+    if (channel !== 'bark') {
+      return res.status(400).json({ error: 'Unsupported notification channel' });
+    }
+
+    const endpointId = readText(req.body?.endpointId);
+    const userId = readUserId(req);
+    const results = await sendBarkTestNotification(userId, endpointId || undefined);
+    return res.json({ success: true, results });
+  } catch (error) {
+    console.error('Error sending test notification:', error);
+    return res.status(500).json({ error: 'Failed to send test notification' });
   }
 });
 

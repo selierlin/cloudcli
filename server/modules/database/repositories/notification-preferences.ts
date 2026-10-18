@@ -11,6 +11,8 @@ type NotificationPreferences = {
     inApp: boolean;
     webPush: boolean;
     desktop: boolean;
+    /** Derived from the user's Bark endpoints; kept here so the client round-trips it. */
+    bark: boolean;
     sound: boolean;
     /** Whether the iOS client plays a haptic on completion; stored like any other channel so it syncs across the user's devices. */
     vibration: boolean;
@@ -28,6 +30,7 @@ const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
     inApp: false,
     webPush: false,
     desktop: false,
+    bark: false,
     sound: true,
     vibration: true,
   },
@@ -45,7 +48,7 @@ function normalizeNotificationPreferences(value: unknown): NotificationPreferenc
     : {};
   const extraChannels = Object.fromEntries(
     Object.entries(sourceChannels)
-      .filter(([key, channelValue]) => !['inApp', 'webPush', 'desktop', 'sound', 'vibration'].includes(key) && typeof channelValue === 'boolean')
+      .filter(([key, channelValue]) => !['inApp', 'webPush', 'desktop', 'bark', 'sound', 'vibration'].includes(key) && typeof channelValue === 'boolean')
   ) as Record<string, boolean>;
 
   return {
@@ -54,6 +57,7 @@ function normalizeNotificationPreferences(value: unknown): NotificationPreferenc
       inApp: source.channels?.inApp === true,
       webPush: source.channels?.webPush === true,
       desktop: source.channels?.desktop === true,
+      bark: source.channels?.bark === true,
       sound: source.channels?.sound !== false,
       vibration: source.channels?.vibration !== false,
     },
