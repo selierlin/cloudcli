@@ -58,9 +58,10 @@
     "test:theme-tokens:serve": "vite --config tests/theme-tokens/vite.config.ts",
     "test:theme-tokens": "playwright test --config playwright.theme-tokens.config.ts",
     "typecheck:theme-tokens": "tsc --noEmit -p tests/theme-tokens/tsconfig.json",
-    "lint": "oxlint src/ server/",
+    "lint": "oxlint src/ server/ && node scripts/check-locale-json.mjs",
     "lint:server": "oxlint server/",
     "lint:client": "oxlint src/",
+    "lint:locales": "node scripts/check-locale-json.mjs",
     "lint:fix": "oxlint src/ server/ --fix",
     "change-password": "node scripts/change-cloudcli-password.mjs",
     "backfill:claude-name-sources": "tsx --tsconfig server/tsconfig.json server/scripts/backfill-claude-name-sources.ts",
@@ -271,7 +272,8 @@
   },
   "lint-staged": {
     "src/**/*.{ts,tsx,js,jsx}": "oxlint",
-    "server/**/*.{js,ts}": "oxlint"
+    "server/**/*.{js,ts}": "oxlint",
+    "src/modules/i18n/locales/**/*.json": "node scripts/check-locale-json.mjs"
   },
   "optionalDependencies": {
     "@nut-tree-fork/nut-js": "^4.2.6",
