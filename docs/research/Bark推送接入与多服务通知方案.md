@@ -312,8 +312,9 @@ hostname 只是默认值，允许在 Bark 卡片里改（例如「Mac mini」「
 | `src/modules/settings/tabs/notifications-settings/BarkSettingsCard.tsx` | 设置卡片；支持粘贴完整推送 URL |
 | `server/modules/notifications/tests/bark-notification.test.ts` | 5 例：载荷、禁用端点、缺 URL、Bark 业务错误、编排器接线 |
 | `src/modules/settings/tests/settingsControllerBarkPreferences.test.ts` | `channels.bark` 在设置保存后不丢 |
+| `src/modules/settings/tests/barkSettingsCard.test.tsx` | 完整推送 URL 拆成 server + key、保存后自动测试 |
 
-验证结果：`npm run typecheck`、`npm run build`、`npm run lint`（0 error）、通知模块 9 例、Bark 5 例、前端 round-trip 1 例均通过。**尚未做真机 Bark 实测。**
+验证结果：`npm run typecheck`、`npm run build`、`npm run lint`（0 error）、通知模块 9 例、Bark 5 例、前端 round-trip 与卡片流程各 1 例、客户端全量 1830 例均通过。**尚未做真机 Bark 实测。**
 
 ### P1（多服务体验）
 
