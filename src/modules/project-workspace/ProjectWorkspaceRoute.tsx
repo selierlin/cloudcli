@@ -11,6 +11,7 @@ import {
 import { useWebSocket } from '@/shared/context/WebSocketContext';
 import { useDeviceSettings } from '@/shared/hooks/useDeviceSettings';
 import { useVisualViewportKeyboardOffset } from '@/modules/project-workspace/hooks/useVisualViewportKeyboardOffset';
+import { useTabAttentionFavicon } from '@/modules/project-workspace/hooks/useTabAttentionFavicon';
 import ProjectWorkspaceShell from '@/modules/project-workspace/ProjectWorkspaceShell';
 
 const MemoizedProjectWorkspaceRouteContent = memo(ProjectWorkspaceRouteContent);
@@ -35,6 +36,7 @@ function ProjectWorkspaceRouteContent() {
   const pendingApprovalSessionIds = usePendingApprovalSessionIds();
 
   useVisualViewportKeyboardOffset();
+  useTabAttentionFavicon();
 
   return (
     <ProjectsStateProvider

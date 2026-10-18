@@ -3,7 +3,7 @@ import { ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import type { ChatMessage, ClaudePermissionSuggestion, PermissionGrantResult, LLMProvider,DiffLine,DiffStats,Project,ToolGroupItem,ToolStatus } from '@/shared/types';
-import { getToolConfig } from '@/modules/chat/tools';
+import { ExportDisclosure, getToolConfig } from '@/modules/chat/tools';
 import MessageComponent from '@/modules/chat/transcript/MessageComponent';
 import { useIsExportingTranscript } from '@/modules/chat/context/TranscriptRenderContext';
 import { DiffStatsBadge } from '@/modules/chat/tools/DiffStatsBadge';
@@ -166,6 +166,71 @@ function ToolGroupContainer({
     });
   }, [group.messages, getMessageKey]);
 
+  const batchChildren = (
+    <>
+      {group.messages.map((message, index) => (
+        <MessageComponent
+          key={messageKeys[index]}
+          message={message}
+          prevMessage={index > 0 ? group.messages[index - 1] : prevMessage}
+          createDiff={createDiff}
+          onFileOpen={onFileOpen}
+          onShowSettings={onShowSettings}
+          onGrantToolPermission={onGrantToolPermission}
+          showRawParameters={showRawParameters}
+          showThinking={showThinking}
+          selectedProject={selectedProject}
+          provider={provider}
+          hidesProcessIdentity={hidesProcessIdentity}
+        />
+      ))}
+    </>
+  );
+
+  // A document cannot run `toggleExpanded`, so the row would sit permanently
+  // open. Render the same header inside `<details>` instead. The batch starts
+  // folded like the rest of the process: the reader opens the run first, then
+  // the batch, and only then reaches one call's output.
+  if (isExporting) {
+    if (!isGrouped) {
+      return <div>{batchChildren}</div>;
+    }
+
+    return (
+      <div>
+        <ExportDisclosure
+          summaryClassName={`flex w-full items-center gap-2 border-l-2 ${borderClass} rounded-r-md bg-muted/25 px-3 py-2 text-left dark:bg-muted/10`}
+          bodyClassName="mt-2 space-y-3 sm:space-y-4"
+          summary={
+            <>
+              <ChevronRight
+                className="chat-export-details-chevron h-3.5 w-3.5 flex-shrink-0 text-muted-foreground"
+                aria-hidden
+              />
+              <span className={`${iconClass} flex h-5 w-5 flex-shrink-0 items-center justify-center rounded bg-background/80 text-xs font-medium`}>
+                {icon}
+              </span>
+              <span className="min-w-0 flex-shrink-0 text-xs font-medium text-foreground">{label}</span>
+              <span className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                x{group.messages.length}
+              </span>
+              {groupIssueStatus && <ToolStatusBadge status={groupIssueStatus} />}
+              {preview && (
+                <>
+                  <span className="text-[10px] text-muted-foreground/40">/</span>
+                  <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">{preview}</span>
+                </>
+              )}
+              {groupDiffStats && <DiffStatsBadge stats={groupDiffStats} className="ml-auto pl-2" />}
+            </>
+          }
+        >
+          {batchChildren}
+        </ExportDisclosure>
+      </div>
+    );
+  }
+
   return (
     <div>
       <button
@@ -198,26 +263,7 @@ function ToolGroupContainer({
       </button>
 
       <div className={isGrouped ? 'mt-2 space-y-3 sm:space-y-4' : ''}>
-        {showChildren && (
-          <>
-          {group.messages.map((message, index) => (
-            <MessageComponent
-              key={messageKeys[index]}
-              message={message}
-              prevMessage={index > 0 ? group.messages[index - 1] : prevMessage}
-              createDiff={createDiff}
-              onFileOpen={onFileOpen}
-              onShowSettings={onShowSettings}
-              onGrantToolPermission={onGrantToolPermission}
-              showRawParameters={showRawParameters}
-              showThinking={showThinking}
-              selectedProject={selectedProject}
-              provider={provider}
-              hidesProcessIdentity={hidesProcessIdentity}
-            />
-          ))}
-          </>
-        )}
+        {showChildren && batchChildren}
       </div>
     </div>
   );

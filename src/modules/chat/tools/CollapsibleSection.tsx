@@ -2,6 +2,7 @@ import React from 'react';
 
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/shared/ui';
 import { cn } from '@/shared/utils';
+import { ExportDisclosure } from '@/modules/chat/tools/ExportDisclosure';
 import { useIsExportingTranscript } from '@/modules/chat/context/TranscriptRenderContext';
 
 type CollapsibleSectionProps = {
@@ -34,9 +35,44 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
   children,
   className = '',
 }) => {
-  // A document has no chevron to click, so a section that stays collapsed in
-  // an export is simply content the reader can never reach.
   const isExporting = useIsExportingTranscript();
+
+  // Radix's Collapsible cannot toggle without an event loop, so an export
+  // would freeze this section open. Native `<details>` keeps the whole record
+  // and gives the reader the same fold back. Like the chat, it starts folded:
+  // a transcript is mostly tool output, and open rows bury the conversation.
+  if (isExporting) {
+    return (
+      <ExportDisclosure
+        className={cn('group/section', className)}
+        summaryClassName="flex select-none items-center gap-1.5 py-0.5 text-xs text-muted-foreground"
+        bodyClassName="mt-1.5 pl-[18px]"
+        summary={
+          <>
+            <svg
+              className="chat-export-details-chevron h-3 w-3 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+            {toolName && (
+              <span className="flex-shrink-0 font-medium">{toolName}</span>
+            )}
+            {toolName && (
+              <span className="flex-shrink-0 text-[10px] text-muted-foreground/40">/</span>
+            )}
+            <span className={cn('flex-1 truncate text-left', titleClassName)}>{title}</span>
+            {badge && <span className="ml-auto flex-shrink-0">{badge}</span>}
+            {action && <span className="ml-1 flex-shrink-0">{action}</span>}
+          </>
+        }
+      >
+        {children}
+      </ExportDisclosure>
+    );
+  }
 
   return (
     <Collapsible defaultOpen={open || isExporting} className={cn('group/section', className)}>

@@ -521,7 +521,10 @@
     "json": {
       "label": "JSON (.json)",
       "description": "Every message, unformatted, for tooling."
-    }
+    },
+    "messages": "{{count}} messages",
+    "exportedAt": "exported {{time}}",
+    "toggleTheme": "Toggle theme"
   },
   "schedule": {
     "trigger": "Schedule this message",

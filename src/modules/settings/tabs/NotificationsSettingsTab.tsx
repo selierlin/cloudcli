@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/shared/ui';
 import { isCapacitorNativeShell, playChatCompletionSound, triggerNotificationHaptic } from '@/shared/utils';
 import type { NotificationPreferencesState } from '@/shared/types';
+import type { WebPushError } from '@/modules/settings/hooks/useWebPush';
 
 type NotificationsSettingsTabProps = {
   notificationPreferences: NotificationPreferencesState;
@@ -11,6 +12,7 @@ type NotificationsSettingsTabProps = {
   pushPermission: NotificationPermission | 'unsupported';
   isPushSubscribed: boolean;
   isPushLoading: boolean;
+  pushError?: WebPushError | null;
   onEnablePush: () => void;
   onDisablePush: () => void;
   isDesktop?: boolean;
@@ -32,6 +34,7 @@ export default function NotificationsSettingsTab({
   pushPermission,
   isPushSubscribed,
   isPushLoading,
+  pushError = null,
   onEnablePush,
   onDisablePush,
   isDesktop = false,
@@ -149,6 +152,13 @@ export default function NotificationsSettingsTab({
                 </span>
               )}
             </div>
+          )}
+          {pushError && (
+            <p className="text-sm text-red-600 dark:text-red-400">
+              {pushError === 'timeout'
+                ? t('notifications.webPush.error.timeout')
+                : t('notifications.webPush.error.failed')}
+            </p>
           )}
         </div>
       )}
