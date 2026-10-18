@@ -158,6 +158,21 @@ export default function ProviderSelectionEmptyState({
     }
   }, [availableProviders, provider, setProvider, visibleProviders]);
 
+  /**
+   * Names of the branches whose built-in models are hidden ("Use only my
+   * models" on, with a custom model to show instead). The subtitle names them
+   * rather than promising built-in models there.
+   */
+  const customOnlyGroupNames = useMemo(
+    () => PROVIDER_META
+      .filter((meta) => {
+        const catalog = providerModelCatalog[meta.id];
+        return catalog?.CUSTOM_MODELS_ONLY === true && catalog.OPTIONS.some((option) => option.isCustom);
+      })
+      .map((meta) => meta.name),
+    [providerModelCatalog],
+  );
+
   const nextTaskPrompt = t("tasks.nextTaskPrompt", {
     defaultValue: "Start the next task",
   });
@@ -181,6 +196,12 @@ export default function ProviderSelectionEmptyState({
       models: providerModelCatalog[meta.id]?.OPTIONS ?? [],
     };
   }, [provider, providerModelCatalog]);
+
+  // The active tool turned "Use only my models" on and has a custom model to
+  // show, so its dialog lists nothing else.
+  const activeProviderCustomOnly = customOnlyGroupNames.includes(
+    PROVIDER_META.find((meta) => meta.id === provider)?.name ?? "",
+  );
 
   // Pi exposes every configured channel, so its models are split into sections
   // that keep same-named entries from different channels distinguishable. A
@@ -354,9 +375,13 @@ export default function ProviderSelectionEmptyState({
                         })}
                       </p>
                       <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                        {t("providerSelection.chooseModelDescription", {
-                          defaultValue: "Models available in this tool's config",
-                        })}
+                        {activeProviderCustomOnly
+                          ? t("providerSelection.chooseModelDescriptionCustomOnly", {
+                            providers: customOnlyGroupNames,
+                          })
+                          : t("providerSelection.chooseModelDescription", {
+                            defaultValue: "Models available in this tool's config",
+                          })}
                       </p>
                     </div>
                   </div>
