@@ -9,8 +9,8 @@ export type BarkEndpointMetadata = {
   subtitle: string;
   sound: string;
   level: string;
-  /** Address the phone uses to reach CloudCLI; the status icons are fetched from it. */
-  iconBaseUrl: string;
+  /** Address the phone uses to reach CloudCLI; icons and tap-through links are built from it. */
+  publicBaseUrl: string;
 };
 
 /** One saved Bark device, as returned by the generic notification endpoint API. */
@@ -38,7 +38,7 @@ export type BarkEndpointInput = {
   subtitle: string;
   sound: string;
   level: string;
-  iconBaseUrl: string;
+  publicBaseUrl: string;
 };
 
 function readString(value: unknown): string {
@@ -71,7 +71,9 @@ function toBarkEndpoint(raw: unknown): BarkEndpoint | null {
       subtitle: readString(metadata.subtitle),
       sound: readString(metadata.sound),
       level: readString(metadata.level),
-      iconBaseUrl: readString(metadata.iconBaseUrl),
+      // `iconBaseUrl` is the pre-rename key; keep reading it so a row saved
+      // before the rename still resolves its icons and links.
+      publicBaseUrl: readString(metadata.publicBaseUrl) || readString(metadata.iconBaseUrl),
     },
   };
 }
@@ -163,7 +165,7 @@ export function useBarkNotifications() {
           subtitle: input.subtitle,
           sound: input.sound,
           level: input.level,
-          iconBaseUrl: input.iconBaseUrl,
+          publicBaseUrl: input.publicBaseUrl,
         },
       });
       const data = await readJson(response);
