@@ -92,18 +92,26 @@ test('spawnOpenCode emits session_created before normalized live messages for ne
         : `.COM;.EXE;.BAT;.CMD${previousPathExt ? `;${previousPathExt}` : ''}`;
     }
 
-    await opencodeRuntime.run('Hi', { cwd: tempRoot }, writer, runtimeContext);
+    await opencodeRuntime.run(
+      'Hi',
+      { cwd: tempRoot, model: 'github-copilot/gpt-5.6-terra' },
+      writer,
+      runtimeContext,
+    );
 
     const sessionCreatedIndex = messages.findIndex((message) => message.kind === 'session_created');
-    const assistantDeltaIndex = messages.findIndex((message) =>
-      message.kind === 'stream_delta' && message.content === 'assistant response',
+    // A part-level text event arrives complete, so it is an assistant row
+    // rather than a delta; flat frames still stream.
+    const assistantRowIndex = messages.findIndex((message) =>
+      (message.kind === 'text' || message.kind === 'stream_delta')
+      && message.content === 'assistant response',
     );
     const streamEnd = messages.find((message) => message.kind === 'stream_end');
     const complete = messages.find((message) => message.kind === 'complete');
 
     assert.notEqual(sessionCreatedIndex, -1);
-    assert.notEqual(assistantDeltaIndex, -1);
-    assert.ok(sessionCreatedIndex < assistantDeltaIndex);
+    assert.notEqual(assistantRowIndex, -1);
+    assert.ok(sessionCreatedIndex < assistantRowIndex);
     assert.equal(messages[sessionCreatedIndex].newSessionId, 'open-live-1');
     assert.equal(writer.sessionId, 'open-live-1');
     assert.equal(streamEnd?.sessionId, 'open-live-1');
@@ -115,6 +123,10 @@ test('spawnOpenCode emits session_created before normalized live messages for ne
     assert.ok(Array.isArray(launchedArgs));
     assert.deepEqual(launchedArgs.slice(0, 5), ['run', '--format', 'json', '--thinking', '--dir']);
     assert.equal(launchedArgs[5], tempRoot);
+    assert.deepEqual(
+      launchedArgs.slice(6, 8),
+      ['--model', 'github-copilot/gpt-5.6-terra'],
+    );
     // No permission mode requested → no permission flags and no env override.
     assert.equal(launchedArgs.includes('--auto'), false);
     assert.equal(launchedArgs.includes('--agent'), false);
