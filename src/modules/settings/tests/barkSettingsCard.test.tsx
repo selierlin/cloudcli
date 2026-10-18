@@ -47,7 +47,7 @@ const savedEndpoint = () => jsonResponse({
       subtitle: '',
       sound: '',
       level: 'active',
-      iconBaseUrl: '',
+      publicBaseUrl: '',
     },
     enabled: true,
   }],
@@ -83,7 +83,7 @@ test('a full Bark push URL fills both server and device key, and saving does not
       subtitle: '',
       sound: '',
       level: 'active',
-      iconBaseUrl: '',
+      publicBaseUrl: '',
     },
   });
 

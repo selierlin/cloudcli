@@ -45,12 +45,13 @@ function parseDeviceKeyInput(value: string): { serverUrl: string; deviceKey: str
 }
 
 /**
- * The phone downloads the status icons from CloudCLI, so the useful default is
- * the address this page was opened with. A loopback address is never reachable
- * from the phone, and a non-HTTP origin (the shell's `capacitor://`) is not a
- * URL Bark can fetch, so both start empty and let the user fill it in.
+ * The phone fetches the status icons and follows the tap-through link to
+ * CloudCLI, so the useful default is the address this page was opened with. A
+ * loopback address is never reachable from the phone, and a non-HTTP origin (the
+ * shell's `capacitor://`) is not a URL Bark can fetch, so both start empty and
+ * let the user fill it in.
  */
-function defaultIconBaseUrl(): string {
+function defaultPublicBaseUrl(): string {
   if (typeof window === 'undefined') {
     return '';
   }
@@ -84,7 +85,7 @@ export default function BarkSettingsCard() {
   const [group, setGroup] = useState('');
   const [sound, setSound] = useState('');
   const [level, setLevel] = useState<string>('active');
-  const [iconBaseUrl, setIconBaseUrl] = useState(defaultIconBaseUrl);
+  const [publicBaseUrl, setPublicBaseUrl] = useState(defaultPublicBaseUrl);
   // Validation failure for the form itself, separate from transport/Bark errors.
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -116,7 +117,7 @@ export default function BarkSettingsCard() {
       subtitle: '',
       sound: sound.trim(),
       level,
-      iconBaseUrl: iconBaseUrl.trim(),
+      publicBaseUrl: publicBaseUrl.trim(),
     });
 
     if (saved) {
@@ -274,18 +275,18 @@ export default function BarkSettingsCard() {
           </label>
           <label className="block space-y-1 sm:col-span-2">
             <span className="text-sm font-medium text-foreground">
-              {t('notifications.bark.iconBaseUrl', { defaultValue: 'Icon base URL (optional)' })}
+              {t('notifications.bark.publicBaseUrl', { defaultValue: 'Phone-facing address (optional)' })}
             </span>
             <input
               className={inputClass}
               placeholder="http://192.168.1.5:3001"
-              value={iconBaseUrl}
-              onChange={(event) => setIconBaseUrl(event.target.value)}
+              value={publicBaseUrl}
+              onChange={(event) => setPublicBaseUrl(event.target.value)}
               autoComplete="url"
             />
             <span className="block text-xs text-muted-foreground">
-              {t('notifications.bark.iconBaseUrlHint', {
-                defaultValue: 'Use the address your phone opens CloudCLI at; the status icons are fetched from it. Leave empty for Bark\u2019s default icon.',
+              {t('notifications.bark.publicBaseUrlHint', {
+                defaultValue: 'Use the address your phone opens CloudCLI at. Status icons are fetched from it, and tapping the notification opens the session there.',
               })}
             </span>
           </label>
