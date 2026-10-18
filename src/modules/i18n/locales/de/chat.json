@@ -15,7 +15,10 @@
     "copyAsText": "Als Text kopieren"
   },
   "message": {
-    "branchFromHere": "Von dieser Nachricht abzweigen"
+    "branchFromHere": "Von dieser Nachricht abzweigen",
+    "editAndResend": "Bearbeiten und erneut senden",
+    "forkFromHere": "Ab hier verzweigen",
+    "answeredBy": "Beantwortet von {{model}}"
   },
   "messageTypes": {
     "user": "Benutzer:in",
@@ -241,11 +244,6 @@
   },
   "tasks": {
     "nextTaskPrompt": "Nächste Aufgabe starten"
-  },
-  "message": {
-    "editAndResend": "Bearbeiten und erneut senden",
-    "forkFromHere": "Ab hier verzweigen",
-    "answeredBy": "Beantwortet von {{model}}"
   },
   "composer": {
     "editing": {

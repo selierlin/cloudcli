@@ -15,7 +15,10 @@
     "copyAsText": "Copiar como texto"
   },
   "message": {
-    "branchFromHere": "Crear una rama desde este mensaje"
+    "branchFromHere": "Crear una rama desde este mensaje",
+    "editAndResend": "Editar y reenviar",
+    "forkFromHere": "Bifurcar desde aquí",
+    "answeredBy": "Respondido por {{model}}"
   },
   "messageTypes": {
     "user": "U",
@@ -276,11 +279,6 @@
   },
   "tasks": {
     "nextTaskPrompt": "Empezar la siguiente tarea"
-  },
-  "message": {
-    "editAndResend": "Editar y reenviar",
-    "forkFromHere": "Bifurcar desde aquí",
-    "answeredBy": "Respondido por {{model}}"
   },
   "export": {
     "trigger": "Exportar conversación",

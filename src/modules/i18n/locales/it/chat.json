@@ -15,7 +15,10 @@
     "copyAsText": "Copia come testo"
   },
   "message": {
-    "branchFromHere": "Crea un ramo da questo messaggio"
+    "branchFromHere": "Crea un ramo da questo messaggio",
+    "editAndResend": "Modifica e reinvia",
+    "forkFromHere": "Dirama da qui",
+    "answeredBy": "Risposto da {{model}}"
   },
   "messageTypes": {
     "user": "U",
@@ -241,11 +244,6 @@
   },
   "tasks": {
     "nextTaskPrompt": "Inizia l'attività successiva"
-  },
-  "message": {
-    "editAndResend": "Modifica e reinvia",
-    "forkFromHere": "Dirama da qui",
-    "answeredBy": "Risposto da {{model}}"
   },
   "composer": {
     "editing": {

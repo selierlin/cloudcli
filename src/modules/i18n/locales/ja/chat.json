@@ -15,7 +15,10 @@
     "copyAsText": "テキストとしてコピー"
   },
   "message": {
-    "branchFromHere": "このメッセージからブランチを作成"
+    "branchFromHere": "このメッセージからブランチを作成",
+    "editAndResend": "編集して再送信",
+    "forkFromHere": "ここから分岐",
+    "answeredBy": "{{model}} が回答"
   },
   "messageTypes": {
     "user": "U",
@@ -222,11 +225,6 @@
     "providers": {
       "assistant": "Assistant"
     }
-  },
-  "message": {
-    "editAndResend": "編集して再送信",
-    "forkFromHere": "ここから分岐",
-    "answeredBy": "{{model}} が回答"
   },
   "composer": {
     "editing": {
