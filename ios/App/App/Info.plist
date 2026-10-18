@@ -29,6 +29,20 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<!-- 通知点击跳转（Bark 的 url 参数）。系统只会用 App 打开自定义 scheme，
+	     http(s) 链接会落到 Safari，所以这里注册 cloudcli://，
+	     由 SceneDelegate 解析 cloudcli://open?url=<编码后的 Web 地址>。 -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>ai.cloudcli.mobile</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>cloudcli</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
