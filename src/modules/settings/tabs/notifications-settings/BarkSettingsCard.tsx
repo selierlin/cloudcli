@@ -89,6 +89,27 @@ export default function BarkSettingsCard() {
   // Validation failure for the form itself, separate from transport/Bark errors.
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Pasting a key that is already saved turns this form into an edit of that row:
+  // loading its stored values is what keeps a re-save from silently wiping the
+  // group, sound or level the user configured earlier.
+  const handleDeviceKeyChange = (value: string) => {
+    setDeviceKey(value);
+    const parsedKey = parseDeviceKeyInput(value).deviceKey;
+    const existing = endpoints.find((endpoint) => endpoint.endpointId === parsedKey);
+    if (!existing) {
+      return;
+    }
+
+    setServerUrl(existing.metadata.serverUrl);
+    setLabel(existing.label);
+    setGroup(existing.metadata.group);
+    setSound(existing.metadata.sound);
+    setLevel((LEVELS as readonly string[]).includes(existing.metadata.level)
+      ? existing.metadata.level
+      : 'active');
+    setPublicBaseUrl(existing.metadata.publicBaseUrl);
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFormError(null);
@@ -220,7 +241,7 @@ export default function BarkSettingsCard() {
                 defaultValue: 'Paste the key or the full push URL',
               })}
               value={deviceKey}
-              onChange={(event) => setDeviceKey(event.target.value)}
+              onChange={(event) => handleDeviceKeyChange(event.target.value)}
               autoComplete="off"
             />
           </label>
