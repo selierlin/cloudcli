@@ -197,6 +197,33 @@
       "enabled": "Notifications are enabled for this desktop app",
       "unsupported": "Desktop notifications are not supported on this system."
     },
+    "bark": {
+      "title": "Bark push",
+      "description": "Send notifications through your own Bark server so they arrive while the mobile app is in the background.",
+      "serverUrl": "Bark server URL",
+      "serverUrlRequired": "Bark server URL is required.",
+      "deviceKey": "Device key",
+      "deviceKeyRequired": "Device key is required.",
+      "deviceKeyPlaceholder": "Paste the key or the full push URL",
+      "deviceName": "Device name (optional)",
+      "deviceNamePlaceholder": "iPhone",
+      "group": "Notification group (optional)",
+      "sound": "Sound (optional)",
+      "level": "Interruption level",
+      "levels": {
+        "active": "Active",
+        "timeSensitive": "Time sensitive",
+        "passive": "Passive"
+      },
+      "enabled": "Enabled",
+      "test": "Test",
+      "remove": "Remove",
+      "save": "Save and test",
+      "empty": "No Bark device configured yet.",
+      "testOk": "Bark accepted the test notification.",
+      "testFailed": "Bark rejected the test: {{message}}",
+      "note": "The device key is stored on this server and sent only to the Bark server above. Use HTTPS if that server is not on a trusted network."
+    },
     "sound": {
       "title": "Sound",
       "description": "Play a short tone when a chat run finishes or needs tool approval.",

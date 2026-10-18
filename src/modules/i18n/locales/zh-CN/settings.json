@@ -197,6 +197,33 @@
       "enabled": "此桌面应用已启用通知",
       "unsupported": "此系统不支持桌面通知。"
     },
+    "bark": {
+      "title": "Bark 推送",
+      "description": "通过你自建的 Bark 服务推送通知，App 进入后台后也能收到。",
+      "serverUrl": "Bark 服务器地址",
+      "serverUrlRequired": "请填写 Bark 服务器地址。",
+      "deviceKey": "Device Key",
+      "deviceKeyRequired": "请填写 Device Key。",
+      "deviceKeyPlaceholder": "粘贴 key 或完整的推送 URL",
+      "deviceName": "设备名称（可选）",
+      "deviceNamePlaceholder": "iPhone",
+      "group": "通知分组（可选）",
+      "sound": "铃声（可选）",
+      "level": "中断级别",
+      "levels": {
+        "active": "立即",
+        "timeSensitive": "时效性",
+        "passive": "静默"
+      },
+      "enabled": "已启用",
+      "test": "测试",
+      "remove": "删除",
+      "save": "保存并测试",
+      "empty": "还没有配置 Bark 设备。",
+      "testOk": "Bark 已接受测试通知。",
+      "testFailed": "Bark 拒绝了测试：{{message}}",
+      "note": "Device Key 只保存在本服务器，并且只会发往上面的 Bark 服务。如果该服务不在可信内网，请使用 HTTPS。"
+    },
     "sound": {
       "title": "声音",
       "description": "聊天运行完成时播放短提示音。",
