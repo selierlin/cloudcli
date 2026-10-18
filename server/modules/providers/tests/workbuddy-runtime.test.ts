@@ -137,7 +137,9 @@ test('workbuddy run drives a new session and emits thinking/text/complete', asyn
 test('workbuddy run closes one-shot stdin so a completed CLI can emit its terminal result', async () => {
   process.env.CODEBUDDY_COMMAND = MOCK_CLI;
   process.env.MOCK_MODE = 'assistant-complete-await-eof';
-  process.env.WORKBUDDY_RUN_TIMEOUT_MS = '50';
+  // Generous enough to absorb a loaded machine: this case is about closing
+  // stdin, so the bound must only catch a runtime that never kills the CLI.
+  process.env.WORKBUDDY_RUN_TIMEOUT_MS = '10000';
   const captured: Captured[] = [];
 
   await workbuddyRuntime.run(

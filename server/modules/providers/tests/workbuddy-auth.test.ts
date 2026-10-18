@@ -33,13 +33,15 @@ afterEach(() => {
   else process.env.PATH = ORIGINAL_PATH;
 });
 
-test('getStatus reports an installed but desktop-managed WorkBuddy engine', async () => {
+test('getStatus reports an installed, runnable desktop-managed WorkBuddy engine', async () => {
   process.env.CODEBUDDY_COMMAND = MOCK_CLI;
 
   const status = await new WorkbuddyProviderAuth().getStatus();
 
   assert.equal(status.installed, true);
-  assert.equal(status.authenticated, false);
+  // `authenticated` tracks whether the engine answers `--version`; the desktop
+  // app owns the account session, which is why `authVerified` stays false.
+  assert.equal(status.authenticated, true);
   assert.equal(status.authVerified, false);
   assert.equal(status.method, 'workbuddy_desktop');
   assert.equal(status.error, undefined);
@@ -86,7 +88,7 @@ test('getStatus detects a codebuddy executable on PATH', async () => {
     const status = await new WorkbuddyProviderAuth().getStatus();
 
     assert.equal(status.installed, true);
-    assert.equal(status.authenticated, false);
+    assert.equal(status.authenticated, true);
     assert.equal(status.authVerified, false);
   } finally {
     fs.rmSync(binDir, { recursive: true, force: true });
@@ -107,7 +109,7 @@ test('getStatus detects the CLI embedded in WorkBuddy.app', async () => {
     const status = await new WorkbuddyProviderAuth().getStatus();
 
     assert.equal(status.installed, true);
-    assert.equal(status.authenticated, false);
+    assert.equal(status.authenticated, true);
     assert.equal(status.authVerified, false);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
