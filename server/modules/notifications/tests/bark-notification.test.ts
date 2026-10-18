@@ -200,6 +200,7 @@ test('an icon base URL turns the requested mark into a static icon URL', async (
       userId,
       channel: 'bark',
       endpointId: 'device-key-1',
+      // Pre-rename key: rows saved before `publicBaseUrl` existed must still work.
       metadata: { serverUrl: 'https://bark.example.com', iconBaseUrl: 'http://192.168.1.5:3001/' },
     });
 
@@ -212,13 +213,40 @@ test('an icon base URL turns the requested mark into a static icon URL', async (
   });
 });
 
-test('a loopback icon base URL is dropped instead of sent to the phone', async (t) => {
+test('a session event carries a tap-through link built from the public base URL', async (t) => {
   await withIsolatedDatabase(async (userId) => {
     notificationChannelEndpointsDb.upsertEndpoint({
       userId,
       channel: 'bark',
       endpointId: 'device-key-1',
-      metadata: { serverUrl: 'https://bark.example.com', iconBaseUrl: 'http://localhost:3001' },
+      metadata: { serverUrl: 'https://bark.example.com', publicBaseUrl: 'https://cloudcli.example.com/cc' },
+    });
+
+    const requests: CapturedRequest[] = [];
+    mockFetch(t, requests);
+
+    await sendBarkNotification(userId, {
+      title: 'Session',
+      body: 'done',
+      iconKind: 'complete',
+      sessionId: 'sess-1',
+    });
+
+    assert.equal(requests[0].body?.icon, 'https://cloudcli.example.com/cc/icons/bark/complete.png');
+    assert.equal(
+      requests[0].body?.url,
+      `cloudcli://open?url=${encodeURIComponent('https://cloudcli.example.com/cc/session/sess-1')}`,
+    );
+  });
+});
+
+test('an event without a session id carries no tap-through link', async (t) => {
+  await withIsolatedDatabase(async (userId) => {
+    notificationChannelEndpointsDb.upsertEndpoint({
+      userId,
+      channel: 'bark',
+      endpointId: 'device-key-1',
+      metadata: { serverUrl: 'https://bark.example.com', publicBaseUrl: 'https://cloudcli.example.com' },
     });
 
     const requests: CapturedRequest[] = [];
@@ -226,7 +254,31 @@ test('a loopback icon base URL is dropped instead of sent to the phone', async (
 
     await sendBarkNotification(userId, { title: 'Session', body: 'done', iconKind: 'complete' });
 
+    assert.equal(requests[0].body?.url, undefined);
+  });
+});
+
+test('a loopback public base URL is dropped instead of sent to the phone', async (t) => {
+  await withIsolatedDatabase(async (userId) => {
+    notificationChannelEndpointsDb.upsertEndpoint({
+      userId,
+      channel: 'bark',
+      endpointId: 'device-key-1',
+      metadata: { serverUrl: 'https://bark.example.com', publicBaseUrl: 'http://localhost:3001' },
+    });
+
+    const requests: CapturedRequest[] = [];
+    mockFetch(t, requests);
+
+    await sendBarkNotification(userId, {
+      title: 'Session',
+      body: 'done',
+      iconKind: 'complete',
+      sessionId: 'sess-1',
+    });
+
     assert.equal(requests[0].body?.icon, undefined);
+    assert.equal(requests[0].body?.url, undefined);
   });
 });
 
