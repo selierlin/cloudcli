@@ -84,11 +84,13 @@ function resolveApiErrorMessage(payload: ApiErrorPayload | null, fallback: strin
     return fallback;
   }
 
-  if (typeof payload.error === 'string') {
-    return payload.error;
-  }
+  // A blank message is no message: rendering it would leave an empty alert,
+  // which reads as a UI failure rather than the server's answer.
+  const message = typeof payload.error === 'string'
+    ? payload.error
+    : payload.error?.message ?? payload.message;
 
-  return payload.error?.message ?? payload.message ?? fallback;
+  return message?.trim() ? message : fallback;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
