@@ -1,5 +1,7 @@
 # Fork 上游同步冲突解决文档（供评审批注）
 
+> **文档包含两轮记录**：第一轮 2026-09-22（下方第 1–6 节与审阅批注）；第二轮 2026-10-18（见文末「第二轮同步」）。
+
 > **生成时间**：2026-09-22
 > **同步模式**：main-first（upstream → fork `main` → `cloudcli-dev`）
 > **同步范围**：`3ed3be5a..upstream/main`（6c51fcaa），3 个提交，117 文件，+10218/-802
@@ -887,3 +889,116 @@ const renderConversationRow = (conversation: RecentConversationListItem) => {
 - **新增核对/验收项**（来源：Claude、OpenCode、Codex）：4.1 WebSocket 返回签名 + retention guard 扩展 provider 降级路径；4.2 变量改名全文核对；4.3 事件契约确认 + 每 provider 两条冒烟路径；4.5 双 reveal 互斥；4.6 onLoadAll 语义 + 死 prop + 双 sticky 四状态截图；4.8 Workflow 渲染落点目检；4.13 断言清单（已从 upstream 原文提取落定）；第 5 节新增第 7 条（sessionHistoryCache 前置确认）与第 8 条（拖宽移动端适配）
 - **基线落成清单**：第 5 节第 3 条已由「9 个失败（数量）」改写为逐条测试名清单，合并后按集合比对（来源：Claude）
 - **修订说明**：本次按批注修订了 3.4、3.5、3.8/3.9、4.1、4.2、4.3、4.4、4.5、4.6、4.8、4.9、4.12、4.13 共 13 处正文；第 5 节扩为 8 条并调整验证顺序（tsc → lint → 测试，C 类冲突逐项先跑）；第 6 节决策清单增加「评审后状态」列，D1–D4、D6–D10 已确认，仅 D5（`ChatExportMenu` 是否恢复）待用户最终拍板。
+
+---
+
+# 第二轮同步（2026-10-18）
+
+> **同步模式**：`upstream/main` → fork `main`（`5597be25`）→ `cloudcli-dev`（`f63252f5`）
+> **基线**：fork 侧 `c7105c61`；merge-base `5ce102bd`；上游侧 `5597be25`（含 v1.37.5 `0ce5630f`）
+> **规模**：88 文件、+5298/−451；其中两侧同时改动 **53 个文件**，全部为混合结果（无整侧覆盖），合并后无残留冲突标记
+> **上游内容**：14 个提交（12 个功能/修复 + 1 个 release + 1 个 merge），主要工作线：后台排队发送（#1583）、provider 仅列自定义模型（#1561）、opencode 模型发现（#1578）与 task 子代理展示（#1443）、codex 继承历史（#1530）、claude 上下文窗口（#1557）、多行 slash 参数（#1581）、粘贴文本渲染（#1504）、插件失败原因（#1562）、auth 缓存头（#1549）
+
+本轮没有产生 `<<<<<<<` 标记，但**自动合并产生了 1 个真实功能缺陷（i18n 重复对象）**，说明「无冲突标记」不等于「合并正确」。下面记录人工决策、关键合并点与验证结果。
+
+## 7. 人工决策清单
+
+| # | 决策项 | 做法 | 理由 |
+|---|--------|------|------|
+| D11 | `claude-runtime.provider.js`：fork 的 delta gate vs upstream 的 hold 判定 | 两侧并存，按事件时序落位：`complete` → `flush()` → `terminalSent = true` → `holdForTurn` 判定 → hold/release | 流式增量与后台工作保持各自修的是不同问题；顺序错会吞最后一批 delta 或误保持进程 |
+| D12 | `agent.routes.ts`：upstream run 注册结构 + fork 10 provider | 采用 upstream 的 `requestedProvider` null 语义、`run.writer`、aborted 检测；保留 fork 的 10 provider 白名单与 else-if 分支 | 注册机制是 upstream 本轮的核心重构，fork 只需适配分支 |
+| D13 | provider 目录 / custom-only | `provider-models.service` 以 upstream 版本为骨架（custom-only、首个自定义模型作为 DEFAULT），fork 的 provider registry 10 家全部可解析 | 让 API 文档「省略 model 用目录 DEFAULT」对所有 provider 成立 |
+| D14 | 前端 chat 并存 | fork 的滚动定位、搜索 reveal、quick replies 与 upstream 的后台任务排队发送、backgroundTasks、custom-only 全保留 | 两侧改动正交，均为独立 UI 工作线 |
+| D15 | i18n | 以 fork 的 `en` / `zh-CN` 为基准吸收 upstream 新键；其余语言缺键按 `fallbackLng=en` 回退 | fork 只维护 en/zh-CN，其他语言跟随 upstream |
+| D16 | 测试基线 | 沿用第一轮第 5.3 条的失败集合，不修既有失败 | 环境敏感噪声，数量会漂移 |
+
+## 8. 关键合并点（按风险排序）
+
+### 8.1 `server/modules/providers/list/claude/claude-runtime.provider.js`
+
+- **fork 保留**：`createDeltaBatcher`、`terminalSent` delta gate、`omitStreamedAssistantBlocks`（`server/shared/utils.ts` 中两个 helper 均在）
+- **upstream 采纳**：`holdForTurn = sawTaskEventThisTurn ? stillOutstanding : backgroundWorkPending || stillOutstanding`
+- **顺序核对（通过）**：`terminalSent = true` 位于 `complete` 之后、hold 判定之前；deltaBatcher 的 callback 也会在 `complete` 时置位，形成双保险；`flush()` 在 `complete` 前执行，最后一批 delta 不会被吞
+- **待实机验证**：流式输出 + 后台任务保持两条路径（自动化测试覆盖有限）
+
+### 8.2 `server/modules/agent/agent.routes.ts`
+
+- upstream 的 `requestedProvider !== null` 校验、`run.writer`、aborted 检测全部保留
+- fork 的 dsh/workbuddy/pi/zcode/omp/openclaw 分支全部保留
+- **本轮修复（`0aa9a572`）**：缺省 `model` 语义统一——workbuddy/pi/zcode/omp/openclaw 改为 `model || providerModels?.DEFAULT`；dsh 的 ACP profile 没有模型选择，继续不传 model 并加注释；补 2 个路由测试；修正「只有四个 provider 有目录」的过时注释
+- 行为变化：agent API 对这 5 个 provider 省略 `model` 时，不再落到各自 CLI 的默认值，而是目录 DEFAULT（与 `/api/providers/:provider/models` 及文档一致）。`resolveResumeModel` 仍优先使用会话已记录的模型，续跑不受影响
+
+### 8.3 provider catalog / routes / shared types
+
+- `provider-models.service.ts`：upstream 的 catalog、custom-only、DEFAULT 计算为骨架；fork 的 `resolveProvider` 覆盖面保留
+- `provider.routes.ts`：fork 的 outline / turn 分页 / gzip 路由与 upstream 的 workflow agent 路由并存
+- `src/shared/api.ts`、`src/shared/types.ts`、`server/shared/types.ts`：两侧方法/类型取并集（pin、批量删除归档、workflowAgentActivity、custom models only、background tasks）
+- 已核对：`AGENT_RUN_PROVIDERS` 的 10 个 provider 都存在 `getSupportedModels()`，`getProviderModels` 不会抛错
+
+### 8.4 前端 chat
+
+- `useChatComposerState` / `ChatInterface`：fork 的滚动定位（`scrollToLatest`）、搜索 reveal、quick replies 与 upstream 的后台任务发送/排队、`backgroundTasks` 并存
+- `ChatComposer` / `useChatProviderState` / `CommandResultModal` / `ProviderSelectionEmptyState` / `ModelLibraryPanel`：均为两侧 props 与分支并存；`ModelLibraryPanel` 同时提供 fork 的模型库弹窗与 upstream 的「仅使用我的模型」开关
+- `composerSendOverBackgroundWork.test.ts`：upstream 新增测试保留
+
+### 8.5 i18n（本轮唯一的实际功能缺陷）
+
+- **现象**：`en/chat.json` 与 `zh-CN/chat.json` 出现两个同名顶层 `modelLibrary` 对象——upstream 的新键被追加在文件末尾，而不是并入 fork 原有对象。`JSON.parse` 只保留最后一个，**35 个已翻译键静默丢失**（`title`、`description`、`modelName`、`modelId`、`saveChanges` 等）
+- **影响**：`ModelLibraryPanel` 大多不带 `defaultValue`，缺键时 i18next 直接返回 key 字符串，中英文界面打开模型库会看到 `modelLibrary.title` 之类的原始 key
+- **修复**：`63d000ef` 把末尾 4 个新键并入原对象并删除重复块；同批清掉 `en` 的 `providerSelection` 中 6 个重复键
+- **同类历史问题**：`de/es/fr/it/ja/ko/ru/tr/zh-TW` 各有一个重复的顶层 `message` 对象（源自更早的同步，非本轮），第二个块覆盖第一个导致 `branchFromHere` 翻译丢失；`1f257839` 合并为单块
+- **防线**：`5d48c307` 新增 `scripts/check-locale-json.mjs`，用原文扫描检测同一对象内的重复键（`JSON.parse` 不会报错），接入 `npm run lint` 与 lint-staged 的 `src/modules/i18n/locales/**/*.json`；`3cb77793` 把该检查放到 oxlint 之前，避免既有的 1 个 lint error 让检查被 `&&` 短路
+- **说明**：fork 独有的 35 个 `modelLibrary` 键目前只有 en/zh-CN 翻译，其余语言按 `fallbackLng=en` 回退，属既有状态
+
+## 9. 文件清单（53 个两侧同时改动）
+
+**后端 providers / runtime（13）**
+
+`agent/agent.routes.ts`、`agent/tests/agent.routes.test.ts`、`commands/commands.routes.ts`、`providers/list/claude/claude-runtime.provider.js`、`providers/list/claude/claude-sessions.provider.ts`、`providers/list/codex/codex-sessions.provider.ts`、`providers/list/opencode/opencode-models.provider.ts`、`providers/list/opencode/opencode-runtime.provider.test.js`、`providers/list/opencode/opencode-sessions.provider.ts`、`providers/provider.routes.ts`、`providers/services/provider-models.service.ts`、`providers/services/provider-token-usage.service.ts`、`providers/services/session-conversations-search.service.ts`
+
+**后端测试（4）**
+
+`providers/tests/opencode-models.test.ts`、`providers/tests/opencode-sessions.test.ts`、`providers/tests/provider-models.service.test.ts`、`providers/tests/provider.routes.test.ts`
+
+**后端 shared（2）**
+
+`server/shared/types.ts`、`server/shared/utils.ts`
+
+**前端（11）**
+
+`chat/ChatInterface.tsx`、`chat/composer/ChatComposer.tsx`、`chat/hooks/useChatComposerState.ts`、`chat/hooks/useChatProviderState.ts`、`chat/modals/CommandResultModal.tsx`、`chat/modals/ModelLibraryPanel.tsx`、`chat/tests/composerSendOverBackgroundWork.test.ts`、`chat/transcript/ProviderSelectionEmptyState.tsx`、`plugins/PluginSettingsTab.tsx`、`src/shared/api.ts`、`src/shared/types.ts`
+
+**i18n（21）**
+
+`cs/chat.json`、`cs/settings.json`、`de/chat.json`、`en/chat.json`、`en/settings.json`、`es/chat.json`、`es/settings.json`、`fr/chat.json`、`fr/settings.json`、`he/settings.json`、`id/settings.json`、`it/chat.json`、`ja/chat.json`、`ko/chat.json`、`ko/settings.json`、`pt-BR/settings.json`、`ru/chat.json`、`tr/chat.json`、`zh-CN/chat.json`、`zh-CN/settings.json`、`zh-TW/chat.json`
+
+**依赖（2）**
+
+`package.json`、`package-lock.json`
+
+## 10. 验证结果
+
+| 检查 | 结果 |
+|---|---|
+| `tsc --noEmit`（client + server） | 0 error |
+| `oxlint src/ server/` | 170 warnings / 1 error，与合并前 `c7105c61` 完全一致 |
+| server `npm test` | 1556 tests / 10 fail：9 个既有环境失败 + `agent.routes.test.ts` 并发跑时的 node:test IPC flake（单跑 18/18 通过） |
+| client `vitest` | 8 files / 35 fail，与 `c7105c61` worktree 对照逐文件数量一致，无回归 |
+| `npm run lint:locales` | 通过（全语言无重复键） |
+
+## 11. 下轮注意
+
+1. **只查冲突标记不够**：本轮 en/zh-CN 的 `modelLibrary` 与 9 个语言的 `message` 都是自动合并追加的同名对象，git 不报冲突、编译器不报错、JSON.parse 静默丢键。合并后必须跑 `npm run lint:locales`
+2. **fork 的 10 provider 与 upstream 的 4 provider 假设**：上游注释、文档、测试经常只覆盖 4 家；合并后凡出现 provider 列表、默认值、事件契约，逐个核对 fork 6 家
+3. **`agent.routes.ts` 的默认模型语义**：本轮已统一为目录 DEFAULT（dsh 除外）；上游若再次调整 catalog / DEFAULT，需要同步这段
+4. **`claude-runtime.provider.js` 仍是最高风险区**：上游每次改 hold 判定，都要按事件时序重新核对 `terminalSent` 的位置
+5. **既有失败不要修**：server 9 个环境失败、client 8 文件 35 个失败、1 个 lint error 均为基线；归因必须用合并前提交的 worktree 对照，且 server 测试不要并行跑两套
+
+## 审阅批注（第二轮，待填）
+
+请重点批注：
+
+- [ ] 8.2 的默认模型行为变化（5 个 fork provider 由 CLI 默认改为目录 DEFAULT）是否符合预期
+- [ ] 8.5 的 i18n 修复是否还有遗漏的语言/命名空间
+- [ ] `scripts/check-locale-json.mjs` 的检查范围（当前只覆盖 `src/modules/i18n/locales`）是否够用
+- [ ] 9 中列出的 53 个文件中是否有需要单独复核的语义冲突
