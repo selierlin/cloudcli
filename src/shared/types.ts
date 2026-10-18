@@ -1751,6 +1751,8 @@ export type NotificationPreferencesState = {
     inApp: boolean;
     webPush: boolean;
     desktop: boolean;
+    /** Derived by the server from this user's Bark endpoints; the client only round-trips it. */
+    bark: boolean;
     sound: boolean;
     /** Whether the iOS client plays a haptic when a chat run finishes; ignored on platforms without a Taptic Engine. */
     vibration: boolean;

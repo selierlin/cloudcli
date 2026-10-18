@@ -669,6 +669,29 @@ export const api = {
     }) => get(`/api/settings/auth-events${query(params)}`),
   },
 
+  // Notification channel endpoints and connectivity tests. Web Push and the
+  // desktop app keep their dedicated settings routes; Bark is endpoint-based
+  // because each device key is a separate delivery target.
+  notifications: {
+    endpoints: (channel: string) => get(`/api/notifications/endpoints${query({ channel })}`),
+    upsertEndpoint: (payload: {
+      channel: string;
+      endpointId: string;
+      label?: string;
+      metadata?: Record<string, unknown>;
+      enabled?: boolean;
+    }) => post('/api/notifications/endpoints/current', payload),
+    setEndpointEnabled: (channel: string, endpointId: string, enabled: boolean) =>
+      patch(
+        `/api/notifications/endpoints/${encodeURIComponent(channel)}/${encodeURIComponent(endpointId)}`,
+        { enabled },
+      ),
+    removeEndpoint: (channel: string, endpointId: string) =>
+      del(`/api/notifications/endpoints/${encodeURIComponent(channel)}/${encodeURIComponent(endpointId)}`),
+    test: (payload: { channel: string; endpointId?: string }) =>
+      post('/api/notifications/test', payload),
+  },
+
   plugins: {
     list: () => get('/api/plugins'),
     install: (url: string) => post('/api/plugins/install', { url }),

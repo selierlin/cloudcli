@@ -5,6 +5,7 @@ import { Button } from '@/shared/ui';
 import { isCapacitorNativeShell, playChatCompletionSound, triggerNotificationHaptic } from '@/shared/utils';
 import type { NotificationPreferencesState } from '@/shared/types';
 import type { WebPushError } from '@/modules/settings/hooks/useWebPush';
+import BarkSettingsCard from '@/modules/settings/tabs/notifications-settings/BarkSettingsCard';
 
 type NotificationsSettingsTabProps = {
   notificationPreferences: NotificationPreferencesState;
@@ -162,6 +163,8 @@ export default function NotificationsSettingsTab({
           )}
         </div>
       )}
+
+      <BarkSettingsCard />
 
       <div className="space-y-4 rounded-lg border border-border bg-card p-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
