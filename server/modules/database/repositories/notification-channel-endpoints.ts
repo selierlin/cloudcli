@@ -55,7 +55,11 @@ export const notificationChannelEndpointsDb = {
     if (!channel) throw new Error('channel is required');
     if (!endpointId) throw new Error('endpointId is required');
 
-    const enabled = input.enabled === false ? 0 : 1;
+    // `undefined` means "the caller has no opinion": a new row starts enabled, but
+    // re-saving an existing row keeps whatever state it was in. Without this an
+    // upsert (e.g. re-adding the same device in Settings) would silently re-enable
+    // an endpoint the user had turned off.
+    const enabled = input.enabled === undefined ? null : input.enabled ? 1 : 0;
     const db = getConnection();
     db.prepare(
       `INSERT INTO notification_channel_endpoints (
@@ -68,11 +72,11 @@ export const notificationChannelEndpointsDb = {
          last_seen_at,
          updated_at
        )
-       VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       VALUES (?, ?, ?, ?, ?, COALESCE(?, 1), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
        ON CONFLICT(user_id, channel, endpoint_id) DO UPDATE SET
          label = excluded.label,
          metadata_json = excluded.metadata_json,
-         enabled = excluded.enabled,
+         enabled = COALESCE(?, notification_channel_endpoints.enabled),
          last_seen_at = CURRENT_TIMESTAMP,
          updated_at = CURRENT_TIMESTAMP`
     ).run(
@@ -81,6 +85,7 @@ export const notificationChannelEndpointsDb = {
       endpointId,
       normalizeNullableText(input.label),
       serializeMetadata(input.metadata),
+      enabled,
       enabled
     );
 

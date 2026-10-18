@@ -60,7 +60,7 @@ router.get('/endpoints', (req, res) => {
 
 router.post('/endpoints/current', (req, res) => {
   try {
-    const { channel, endpointId, label, metadata = {}, enabled = true } = req.body || {};
+    const { channel, endpointId, label, metadata = {}, enabled } = req.body || {};
     const normalizedChannel = readText(channel);
     const normalizedEndpointId = readText(endpointId);
     if (!normalizedChannel || !normalizedEndpointId) {
@@ -74,7 +74,9 @@ router.post('/endpoints/current', (req, res) => {
       endpointId: normalizedEndpointId,
       label,
       metadata: metadata && typeof metadata === 'object' ? metadata : {},
-      enabled: enabled !== false,
+      // Only forward a caller-supplied flag: omitting it keeps an existing row's
+      // enabled state instead of re-enabling a device the user turned off.
+      enabled: typeof enabled === 'boolean' ? enabled : undefined,
     });
 
     const preferences = updateChannelPreference(userId, normalizedChannel);
