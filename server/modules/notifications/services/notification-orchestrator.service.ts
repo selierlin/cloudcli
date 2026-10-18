@@ -1,7 +1,10 @@
 import { createRequire } from 'node:module';
 
 import { notificationPreferencesDb, pushSubscriptionsDb, sessionsDb } from '@/modules/database/index.js';
-import { sendBarkNotification } from '@/modules/notifications/services/bark-notification.service.js';
+import {
+  sendBarkNotification,
+  type BarkIconKind,
+} from '@/modules/notifications/services/bark-notification.service.js';
 import { sendDesktopNotification as sendDesktopNotificationToClients } from '@/modules/notifications/services/desktop-notification-clients.service.js';
 
 type NotificationKind = 'action_required' | 'stop' | 'error' | 'info';
@@ -259,6 +262,27 @@ async function sendWebPushPayload(userId: number, payload: NotificationPayload):
   });
 }
 
+/**
+ * Bark's icon is a static image per state, so the mark has to be chosen from the
+ * event's semantics rather than rendered from its text. An aborted run
+ * deliberately gets no mark: it is neither a success nor a failure the user must
+ * look at.
+ */
+function resolveBarkIconKind(event: NotificationEvent): BarkIconKind | undefined {
+  switch (event.code) {
+    case 'run.failed':
+      return 'failed';
+    case 'permission.required':
+      return 'approval';
+    case 'run.background_completed':
+      return 'complete';
+    case 'run.stopped':
+      return event.meta.stopReason === 'completed' ? 'complete' : undefined;
+    default:
+      return undefined;
+  }
+}
+
 const notificationChannels: Array<{
   id: string;
   isEnabled: (preferences: ReturnType<typeof notificationPreferencesDb.getPreferences>) => boolean;
@@ -282,7 +306,11 @@ const notificationChannels: Array<{
     // client holding a stale channels.bark snapshot cannot silence a configured
     // device. The endpoints API still mirrors the derived value for display.
     isEnabled: () => true,
-    send: ({ userId, payload }) => sendBarkNotification(userId, payload),
+    send: ({ userId, event, payload }) => sendBarkNotification(userId, {
+      title: payload.title,
+      body: payload.body,
+      iconKind: resolveBarkIconKind(event),
+    }),
   },
 ];
 

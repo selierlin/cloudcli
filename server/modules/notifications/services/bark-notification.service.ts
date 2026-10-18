@@ -15,9 +15,18 @@ const BARK_TIMEOUT_MS = 5000;
 const BARK_TEST_TITLE = 'CloudCLI';
 const BARK_TEST_BODY = 'Bark 测试通知';
 
+/**
+ * The three status marks Bark can show instead of its own app icon. They mirror
+ * the favicon's completion/failure/approval states so a glance at the lock screen
+ * reads the same as a glance at the tab.
+ */
+export type BarkIconKind = 'complete' | 'failed' | 'approval';
+
 export type BarkPushPayload = {
   title: string;
   body: string;
+  /** Omitted for events with no meaningful mark (e.g. an aborted run). */
+  iconKind?: BarkIconKind;
 };
 
 export type BarkDeliveryResult = {
@@ -65,6 +74,35 @@ function errorMessage(error: unknown): string {
   return String(error);
 }
 
+/**
+ * Bark's `icon` is a URL the *phone* downloads, not a file this server reads, so
+ * the base URL must be the address the phone uses to reach CloudCLI — which is
+ * why it is a per-endpoint field instead of something derived from the request
+ * that created the endpoint. A loopback base can never work from a phone, so it
+ * is dropped rather than left to time out on the device.
+ *
+ * The filename is the device's cache key: replacing the artwork behind an
+ * existing name never reaches devices that already cached it. Give a new
+ * drawing a new filename instead.
+ */
+function resolveIconUrl(iconBaseUrl: unknown, kind: BarkIconKind | undefined): string | null {
+  if (!kind) {
+    return null;
+  }
+
+  const baseUrl = normalizeBaseUrl(iconBaseUrl);
+  if (!baseUrl) {
+    return null;
+  }
+
+  const host = new URL(baseUrl).hostname;
+  if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]') {
+    return null;
+  }
+
+  return `${baseUrl}/icons/bark/${kind}.png`;
+}
+
 /** Sends one payload to one endpoint and normalizes Bark's own response shape. */
 async function deliver(
   endpoint: BarkEndpointRow,
@@ -84,6 +122,7 @@ async function deliver(
   // group, so the group doubles as the per-server identity when several
   // CloudCLI instances push to the same phone.
   const group = readText(metadata.group) || `CloudCLI · ${os.hostname()}`;
+  const icon = resolveIconUrl(metadata.iconBaseUrl, payload.iconKind);
   const body = {
     device_key: endpoint.endpoint_id,
     title: payload.title,
@@ -92,6 +131,7 @@ async function deliver(
     subtitle: readText(metadata.subtitle) || undefined,
     sound: readText(metadata.sound) || undefined,
     level: readText(metadata.level) || undefined,
+    icon: icon || undefined,
   };
 
   try {
@@ -172,5 +212,8 @@ export async function sendBarkTestNotification(
   return Promise.all(endpoints.map((endpoint) => deliver(endpoint, {
     title: BARK_TEST_TITLE,
     body: BARK_TEST_BODY,
+    // The test push also exercises the icon path: a mark showing up (or not)
+    // is the only way to confirm the phone can actually fetch it.
+    iconKind: 'complete',
   })));
 }
