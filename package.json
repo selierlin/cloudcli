@@ -58,7 +58,7 @@
     "test:theme-tokens:serve": "vite --config tests/theme-tokens/vite.config.ts",
     "test:theme-tokens": "playwright test --config playwright.theme-tokens.config.ts",
     "typecheck:theme-tokens": "tsc --noEmit -p tests/theme-tokens/tsconfig.json",
-    "lint": "oxlint src/ server/ && node scripts/check-locale-json.mjs",
+    "lint": "node scripts/check-locale-json.mjs && oxlint src/ server/",
     "lint:server": "oxlint server/",
     "lint:client": "oxlint src/",
     "lint:locales": "node scripts/check-locale-json.mjs",
