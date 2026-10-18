@@ -1108,7 +1108,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
       // A request without `model` runs on the catalog's DEFAULT, the value
       // /api/providers/:provider/models and the API docs advertise. It is the
       // first custom model while the provider lists only custom models.
-      // Only the four runnable providers have a catalog: a continued legacy
+      // Every provider this route accepts has a catalog: a continued legacy
       // session whose provider is no longer registered must not fail here.
       const providerModels = AGENT_RUN_PROVIDERS.includes(provider)
         ? await providerModelsService.getProviderModels(provider)
@@ -1168,6 +1168,8 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
       } else if (provider === 'dsh') {
         console.log('🤖 Starting DSH ACP session');
 
+        // The dsh ACP profile exposes no model selection, so it takes no
+        // model and cannot honour the catalog DEFAULT.
         await queryDsh(message.trim(), {
           projectPath: finalProjectPath,
           cwd: finalProjectPath,
@@ -1181,7 +1183,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
           projectPath: finalProjectPath,
           cwd: finalProjectPath,
           sessionId: appSessionId,
-          model: model || undefined,
+          model: model || providerModels?.DEFAULT,
           effort,
           permissionMode: 'bypassPermissions'
         }, run.writer);
@@ -1192,7 +1194,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
           projectPath: finalProjectPath,
           cwd: finalProjectPath,
           sessionId: appSessionId,
-          model: model || undefined,
+          model: model || providerModels?.DEFAULT,
           effort,
           permissionMode: 'bypassPermissions'
         }, run.writer);
@@ -1203,7 +1205,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
           projectPath: finalProjectPath,
           cwd: finalProjectPath,
           sessionId: appSessionId,
-          model: model || undefined,
+          model: model || providerModels?.DEFAULT,
           permissionMode: 'bypassPermissions'
         }, run.writer);
       } else if (provider === 'omp') {
@@ -1213,7 +1215,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
           projectPath: finalProjectPath,
           cwd: finalProjectPath,
           sessionId: appSessionId,
-          model: model || undefined,
+          model: model || providerModels?.DEFAULT,
           effort,
           permissionMode: 'bypassPermissions'
         }, run.writer);
@@ -1227,7 +1229,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
           projectPath: finalProjectPath,
           cwd: finalProjectPath,
           sessionId: appSessionId,
-          model: model || undefined,
+          model: model || providerModels?.DEFAULT,
           permissionMode: 'bypassPermissions'
         }, run.writer);
       }
