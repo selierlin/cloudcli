@@ -310,6 +310,7 @@ const notificationChannels: Array<{
       title: payload.title,
       body: payload.body,
       iconKind: resolveBarkIconKind(event),
+      sessionId: payload.data.sessionId,
     }),
   },
 ];

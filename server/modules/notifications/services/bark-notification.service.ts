@@ -27,6 +27,8 @@ export type BarkPushPayload = {
   body: string;
   /** Omitted for events with no meaningful mark (e.g. an aborted run). */
   iconKind?: BarkIconKind;
+  /** The app session the notification is about; drives the tap-through link. */
+  sessionId?: string | null;
 };
 
 export type BarkDeliveryResult = {
@@ -75,22 +77,17 @@ function errorMessage(error: unknown): string {
 }
 
 /**
- * Bark's `icon` is a URL the *phone* downloads, not a file this server reads, so
- * the base URL must be the address the phone uses to reach CloudCLI — which is
- * why it is a per-endpoint field instead of something derived from the request
- * that created the endpoint. A loopback base can never work from a phone, so it
- * is dropped rather than left to time out on the device.
+ * The address the phone uses to reach CloudCLI. It cannot be derived from the
+ * request that created the endpoint (the phone may use a LAN address, a domain,
+ * or a reverse-proxy prefix), so it is configured per endpoint. `iconBaseUrl` is
+ * the pre-rename key and is still read so an existing row keeps working.
  *
- * The filename is the device's cache key: replacing the artwork behind an
- * existing name never reaches devices that already cached it. Give a new
- * drawing a new filename instead.
+ * A loopback base can never work from a phone, so it is dropped rather than left
+ * to time out on the device.
  */
-function resolveIconUrl(iconBaseUrl: unknown, kind: BarkIconKind | undefined): string | null {
-  if (!kind) {
-    return null;
-  }
-
-  const baseUrl = normalizeBaseUrl(iconBaseUrl);
+function resolvePublicBaseUrl(metadata: Record<string, unknown>): string | null {
+  const raw = readText(metadata.publicBaseUrl) || readText(metadata.iconBaseUrl);
+  const baseUrl = normalizeBaseUrl(raw);
   if (!baseUrl) {
     return null;
   }
@@ -100,7 +97,34 @@ function resolveIconUrl(iconBaseUrl: unknown, kind: BarkIconKind | undefined): s
     return null;
   }
 
-  return `${baseUrl}/icons/bark/${kind}.png`;
+  return baseUrl;
+}
+
+/**
+ * The filename is the device's cache key: replacing the artwork behind an
+ * existing name never reaches devices that already cached it. Give a new
+ * drawing a new filename instead.
+ */
+function resolveIconUrl(publicBaseUrl: string | null, kind: BarkIconKind | undefined): string | null {
+  if (!publicBaseUrl || !kind) {
+    return null;
+  }
+  return `${publicBaseUrl}/icons/bark/${kind}.png`;
+}
+
+/**
+ * Bark opens `url` with `UIApplication` on tap, so only a custom scheme lands in
+ * the app instead of Safari. The web URL travels as a parameter because the
+ * shell knows how to load a URL but not how to rebuild one from a session id
+ * (that depends on the deployment's path prefix).
+ */
+function resolveTapUrl(publicBaseUrl: string | null, sessionId: string): string | null {
+  if (!publicBaseUrl || !sessionId) {
+    return null;
+  }
+
+  const webUrl = `${publicBaseUrl}/session/${encodeURIComponent(sessionId)}`;
+  return `cloudcli://open?url=${encodeURIComponent(webUrl)}`;
 }
 
 /** Sends one payload to one endpoint and normalizes Bark's own response shape. */
@@ -122,7 +146,9 @@ async function deliver(
   // group, so the group doubles as the per-server identity when several
   // CloudCLI instances push to the same phone.
   const group = readText(metadata.group) || `CloudCLI · ${os.hostname()}`;
-  const icon = resolveIconUrl(metadata.iconBaseUrl, payload.iconKind);
+  const publicBaseUrl = resolvePublicBaseUrl(metadata);
+  const icon = resolveIconUrl(publicBaseUrl, payload.iconKind);
+  const tapUrl = resolveTapUrl(publicBaseUrl, readText(payload.sessionId));
   const body = {
     device_key: endpoint.endpoint_id,
     title: payload.title,
@@ -132,6 +158,7 @@ async function deliver(
     sound: readText(metadata.sound) || undefined,
     level: readText(metadata.level) || undefined,
     icon: icon || undefined,
+    url: tapUrl || undefined,
   };
 
   try {
