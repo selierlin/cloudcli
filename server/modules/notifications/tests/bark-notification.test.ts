@@ -193,3 +193,102 @@ test('the orchestrator reaches Bark when an enabled endpoint exists', async (t) 
     assert.equal(requests[0].body?.device_key, 'device-key-1');
   });
 });
+
+test('an icon base URL turns the requested mark into a static icon URL', async (t) => {
+  await withIsolatedDatabase(async (userId) => {
+    notificationChannelEndpointsDb.upsertEndpoint({
+      userId,
+      channel: 'bark',
+      endpointId: 'device-key-1',
+      metadata: { serverUrl: 'https://bark.example.com', iconBaseUrl: 'http://192.168.1.5:3001/' },
+    });
+
+    const requests: CapturedRequest[] = [];
+    mockFetch(t, requests);
+
+    await sendBarkNotification(userId, { title: 'Session', body: 'failed', iconKind: 'failed' });
+
+    assert.equal(requests[0].body?.icon, 'http://192.168.1.5:3001/icons/bark/failed.png');
+  });
+});
+
+test('a loopback icon base URL is dropped instead of sent to the phone', async (t) => {
+  await withIsolatedDatabase(async (userId) => {
+    notificationChannelEndpointsDb.upsertEndpoint({
+      userId,
+      channel: 'bark',
+      endpointId: 'device-key-1',
+      metadata: { serverUrl: 'https://bark.example.com', iconBaseUrl: 'http://localhost:3001' },
+    });
+
+    const requests: CapturedRequest[] = [];
+    mockFetch(t, requests);
+
+    await sendBarkNotification(userId, { title: 'Session', body: 'done', iconKind: 'complete' });
+
+    assert.equal(requests[0].body?.icon, undefined);
+  });
+});
+
+test('each run event carries the mark the favicon would show', async (t) => {
+  await withIsolatedDatabase(async (userId) => {
+    notificationChannelEndpointsDb.upsertEndpoint({
+      userId,
+      channel: 'bark',
+      endpointId: 'device-key-1',
+      metadata: { serverUrl: 'https://bark.example.com', iconBaseUrl: 'https://cloudcli.example.com' },
+    });
+    notificationPreferencesDb.updatePreferences(userId, {
+      channels: { bark: true },
+      events: { actionRequired: true, stop: true, error: true },
+    });
+
+    const requests: CapturedRequest[] = [];
+    mockFetch(t, requests);
+
+    const events = [
+      createNotificationEvent({
+        provider: 'claude',
+        sessionId: 'mark-completed',
+        kind: 'stop',
+        code: 'run.stopped',
+        meta: { stopReason: 'completed' },
+      }),
+      createNotificationEvent({
+        provider: 'claude',
+        sessionId: 'mark-aborted',
+        kind: 'stop',
+        code: 'run.stopped',
+        meta: { stopReason: 'aborted' },
+      }),
+      createNotificationEvent({
+        provider: 'claude',
+        sessionId: 'mark-failed',
+        kind: 'error',
+        code: 'run.failed',
+        meta: { error: 'boom' },
+      }),
+      createNotificationEvent({
+        provider: 'claude',
+        sessionId: 'mark-approval',
+        kind: 'action_required',
+        code: 'permission.required',
+        meta: { toolName: 'Bash' },
+      }),
+    ];
+
+    for (const event of events) {
+      notifyUserIfEnabled({ userId, event });
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    assert.deepEqual(requests.map((request) => request.body?.icon), [
+      'https://cloudcli.example.com/icons/bark/complete.png',
+      undefined,
+      'https://cloudcli.example.com/icons/bark/failed.png',
+      'https://cloudcli.example.com/icons/bark/approval.png',
+    ]);
+  });
+});
+
