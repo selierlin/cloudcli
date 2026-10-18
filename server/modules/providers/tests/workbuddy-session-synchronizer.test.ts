@@ -181,7 +181,7 @@ test('synchronizer skips subagent transcripts under session directories', async 
   });
 });
 
-test('synchronizer keeps the app-assigned name and does not duplicate app sessions', async () => {
+test('synchronizer upgrades an app-created initial-message name without duplicating the row', async () => {
   await withIsolatedEnvironment(async (homeDir) => {
     const cwd = path.join(homeDir, 'workspace', 'project-c');
     const providerSessionId = 'wb-session-app';
@@ -190,6 +190,10 @@ test('synchronizer keeps the app-assigned name and does not duplicate app sessio
       makeAiTitle(providerSessionId, cwd, 'Engine generated title'),
     ]);
 
+    // `createAppSession` names a new row after its first message, which is a
+    // placeholder: the engine's own ai-title is the better name and wins. The
+    // row itself is claimed, not duplicated, because the app already holds the
+    // provider session id.
     sessionsDb.createAppSession('app-wb-1', 'workbuddy', cwd, 'CloudCLI title');
     sessionsDb.assignProviderSessionId('app-wb-1', providerSessionId);
 
@@ -197,8 +201,29 @@ test('synchronizer keeps the app-assigned name and does not duplicate app sessio
     const processed = await synchronizer.synchronize();
     assert.equal(processed, 1);
     assert.equal(sessionsDb.getAllSessions().length, 1);
-    assert.equal(sessionsDb.getSessionById('app-wb-1')?.custom_name, 'CloudCLI title');
+    assert.equal(sessionsDb.getSessionById('app-wb-1')?.custom_name, 'Engine generated title');
+    assert.equal(sessionsDb.getSessionById('app-wb-1')?.name_source, 'provider_title');
     assert.equal(sessionsDb.getSessionById('app-wb-1')?.provider_session_id, providerSessionId);
+  });
+});
+
+test('synchronizer keeps a manually renamed app session title', async () => {
+  await withIsolatedEnvironment(async (homeDir) => {
+    const cwd = path.join(homeDir, 'workspace', 'project-rename');
+    const providerSessionId = 'wb-session-renamed';
+    await writeSessionFile(homeDir, '.codebuddy', cwd, providerSessionId, [
+      makeUserMessage(providerSessionId, cwd, 'Prompt', 1_700_000_000_000),
+      makeAiTitle(providerSessionId, cwd, 'Engine generated title'),
+    ]);
+
+    sessionsDb.createAppSession('app-wb-renamed', 'workbuddy', cwd, 'Placeholder');
+    sessionsDb.updateSessionCustomName('app-wb-renamed', 'My manual title', 'manual_rename');
+    sessionsDb.assignProviderSessionId('app-wb-renamed', providerSessionId);
+
+    await new WorkbuddySessionSynchronizer().synchronize();
+
+    assert.equal(sessionsDb.getSessionById('app-wb-renamed')?.custom_name, 'My manual title');
+    assert.equal(sessionsDb.getSessionById('app-wb-renamed')?.name_source, 'manual_rename');
   });
 });
 
