@@ -45,7 +45,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
     return (
       <ExportDisclosure
         className={cn('group/section', className)}
-        summaryClassName="flex select-none items-center gap-1.5 py-0.5 text-xs text-muted-foreground"
+        summaryClassName="flex w-full select-none items-center gap-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
         bodyClassName="mt-1.5 pl-[18px]"
         summary={
           <>
@@ -63,7 +63,18 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
             {toolName && (
               <span className="flex-shrink-0 text-[10px] text-muted-foreground/40">/</span>
             )}
-            <span className={cn('flex-1 truncate text-left', titleClassName)}>{title}</span>
+            {/* A file title is a click target in the chat, drawn as a mono link.
+                The export cannot open it, but the same shape keeps the row
+                recognisable instead of looking like plain prose. */}
+            <span
+              className={cn(
+                'flex-1 truncate text-left',
+                onTitleClick && 'font-mono text-primary',
+                titleClassName,
+              )}
+            >
+              {title}
+            </span>
             {badge && <span className="ml-auto flex-shrink-0">{badge}</span>}
             {action && <span className="ml-1 flex-shrink-0">{action}</span>}
           </>

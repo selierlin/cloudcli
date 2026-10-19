@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
+import { useIsExportingTranscript } from '@/modules/chat/context/TranscriptRenderContext';
 import { api } from '@/shared/api';
 import type { ChatImage } from '@/shared/types';
 
@@ -132,18 +133,22 @@ export function ImageLightbox({ src, alt, onClose }: { src: string; alt: string;
 function ChatMessageImage({ image, projectId }: { image: ChatImage; projectId?: string | null }) {
   const { t } = useTranslation();
   const { src, failed } = useChatImageSrc(image, projectId);
+  const isExporting = useIsExportingTranscript();
   const [expanded, setExpanded] = useState(false);
   const alt = image.name || 'Attached image';
 
-  if (failed) {
-    return (
-      <div className="flex h-28 w-28 items-center justify-center rounded-xl border border-border/50 bg-muted px-2 text-center text-[10px] text-muted-foreground">
-        {alt}
-      </div>
-    );
-  }
-
   if (!src) {
+    // A document has no effect loop, so a path the exporter could not read
+    // would pulse forever. The name is the honest fallback: it still tells the
+    // reader what was attached. The live view keeps the spinner until a load
+    // actually fails.
+    if (failed || isExporting) {
+      return (
+        <div className="flex h-28 w-28 items-center justify-center rounded-xl border border-border/50 bg-muted px-2 text-center text-[10px] text-muted-foreground">
+          {alt}
+        </div>
+      );
+    }
     return <div className="h-28 w-28 animate-pulse rounded-xl border border-border/50 bg-muted" />;
   }
 

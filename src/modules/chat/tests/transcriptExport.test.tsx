@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n } from '@/modules/i18n';
-import type { ChatMessage } from '@/shared/types';
+import { api } from '@/shared/api';
+import type { ChatMessage, Project } from '@/shared/types';
 import { buildTranscriptExport, toExportFileStem } from '@/modules/chat/utils/chatExport';
 import { createCachedDiffCalculator } from '@/modules/chat/utils/messageTransforms';
 
@@ -157,6 +158,121 @@ describe('html export', () => {
     expect(html).not.toMatch(/<script[^>]+src=/);
   });
 
+  it('applies the reader’s prose face inside the exported document', async () => {
+    const html = await buildTranscriptExport('html', input, exportedAt);
+
+    // In the app this rule is scoped to `.chat-messages-pane`; the export's
+    // transcript has no such ancestor, so it must be restated or every
+    // paragraph falls back to the `font-serif` utility.
+    expect(html).toContain('.chat-export-transcript .chat-message .prose');
+    expect(html).toContain('font-family: var(--ui-font-family');
+    expect(html).toContain('font-size: var(--ui-font-size');
+    // The restated rule only works if the transcript really is that ancestor.
+    expect(html).toContain('class="chat-export-transcript"');
+  });
+
+  it('lets output run its full length and prints with margins', async () => {
+    const html = await buildTranscriptExport('html', input, exportedAt);
+
+    // The chat caps a terminal block at 20rem; a document has no pane to
+    // scroll, and a capped block would hide most of the output behind one.
+    expect(html).toContain('.chat-export-transcript pre { max-height: none !important; }');
+    // Paper needs a margin and exact colour, or code blocks lose their fill.
+    expect(html).toContain('@page { margin: 12mm; }');
+    expect(html).toContain('print-color-adjust: exact');
+    expect(html).toContain('break-inside: avoid');
+    // The process row keeps the chat's 12px medium treatment.
+    expect(html).toContain('font-size: 0.75rem; font-weight: 500;');
+  });
+
+  it('inlines a stored attachment the live view would fetch in an effect', async () => {
+    const image = vi
+      .spyOn(api.assets, 'image')
+      .mockResolvedValue(new Response(new Uint8Array([137, 80, 78, 71]), {
+        status: 200,
+        headers: { 'content-type': 'image/png' },
+      }));
+
+    try {
+      const html = await buildTranscriptExport(
+        'html',
+        {
+          ...input,
+          messages: [
+            { ...userMessage, images: [{ path: '/store/shot.png', name: 'shot.png' }] },
+          ],
+        },
+        exportedAt,
+      );
+
+      expect(html).toContain('src="data:image/png;base64,');
+      // The path is resolved through the app's own authorized route.
+      expect(image).toHaveBeenCalledWith('shot.png');
+    } finally {
+      image.mockRestore();
+    }
+  });
+
+  it('names an attachment it could not read instead of pulsing forever', async () => {
+    const image = vi
+      .spyOn(api.assets, 'image')
+      .mockResolvedValue(new Response('missing', { status: 404 }));
+
+    try {
+      const html = await buildTranscriptExport(
+        'html',
+        {
+          ...input,
+          messages: [
+            { ...userMessage, images: [{ path: '/store/shot.png', name: 'shot.png' }] },
+          ],
+        },
+        exportedAt,
+      );
+
+      expect(html).toContain('shot.png');
+      // A static document never settles the live view's placeholder.
+      expect(html).not.toContain('animate-pulse');
+    } finally {
+      image.mockRestore();
+    }
+  });
+
+  it('tries the project route when the asset route answers but its body is gone', async () => {
+    const image = vi.spyOn(api.assets, 'image').mockResolvedValue({
+      ok: true,
+      arrayBuffer: () => Promise.reject(new Error('body unavailable')),
+    } as unknown as Response);
+    const file = vi.spyOn(api, 'readFileBlob').mockResolvedValue(
+      new Response(new Uint8Array([137, 80, 78, 71]), {
+        status: 200,
+        headers: { 'content-type': 'image/png' },
+      }),
+    );
+
+    try {
+      const html = await buildTranscriptExport(
+        'html',
+        {
+          ...input,
+          selectedProject: { projectId: 'proj-1' } as Project,
+          messages: [
+            { ...userMessage, images: [{ path: '/store/shot.png', name: 'shot.png' }] },
+          ],
+        },
+        exportedAt,
+      );
+
+      // A 200 whose bytes cannot be read is a miss, not the end of the search.
+      expect(html).toContain('src="data:image/png;base64,');
+      expect(image).toHaveBeenCalledWith('shot.png');
+      expect(file).toHaveBeenCalledWith('proj-1', '/store/shot.png');
+    } finally {
+      image.mockRestore();
+      file.mockRestore();
+    }
+  });
+
   it('includes tool output that the live view only reveals on demand', async () => {
     const html = await buildTranscriptExport(
       'html',
@@ -220,6 +336,21 @@ describe('html export thinking', () => {
     expect(html).toContain('Considering whether the rename touches other call sites.');
     expect(html).toContain(chatT('transcript.executionProcess.reasoning'));
   });
+
+  it('wears the chat’s own icon pair on the thinking summary', async () => {
+    const html = await buildTranscriptExport(
+      'html',
+      { ...input, messages: [userMessage, thinkingMessage, assistantMessage] },
+      exportedAt,
+    );
+
+    const summary = parseExport(html)
+      .querySelector('details.chat-export-disclosure > summary');
+    // Brain plus the downward chevron ReasoningTrigger draws, rather than a
+    // text arrow that only approximated them.
+    expect(summary?.querySelectorAll('svg')).toHaveLength(2);
+    expect(summary?.querySelector('.chat-export-thinking-chevron')).not.toBeNull();
+  });
 });
 
 const narrationMessage: ChatMessage = {
@@ -248,10 +379,12 @@ describe('html export process runs', () => {
     // row. This is the fold that used to be missing: every member rendered
     // open, so the turn read as one long wall of process output.
     assert.equal(process.hasAttribute('open'), false);
+    // The chevron is an SVG, so the summary's text is the label alone.
     assert.equal(
       process.querySelector('summary')?.textContent,
-      `›${chatT('transcript.executionProcess.execution')} · ${chatT('transcript.executionProcess.toolCount', { count: 1 })}`,
+      `${chatT('transcript.executionProcess.execution')} · ${chatT('transcript.executionProcess.toolCount', { count: 1 })}`,
     );
+    assert.ok(process.querySelector('summary .chat-export-disclosure-chevron'));
     // Every member row lives inside the fold — including the narration prose,
     // which now wears the chat's muted process styling instead of reading like
     // a second answer.

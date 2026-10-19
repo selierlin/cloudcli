@@ -16,6 +16,7 @@ import type {
 import { api, readApiJson } from '@/shared/api';
 import { cn } from '@/shared/utils';
 import { MarkdownContent } from '@/modules/chat/tools/ContentRenderers/MarkdownContent';
+import { ExportDisclosure } from '@/modules/chat/tools/ExportDisclosure';
 import { SubagentTimeline } from '@/modules/chat/tools/SubagentTimeline';
 import { ToolErrorDisplay } from '@/modules/chat/tools/ToolErrorDisplay';
 import { useIsExportingTranscript } from '@/modules/chat/context/TranscriptRenderContext';
@@ -436,6 +437,137 @@ export const WorkflowPanel = memo(({ toolInput, toolResult, workflow, taskStatus
     [content, status],
   );
 
+  const summaryContent = (
+    <>
+      <ChevronRight className={cn('h-3 w-3 flex-shrink-0 transition-transform duration-150', isExporting ? 'chat-export-details-chevron' : isOpen && 'rotate-90')} />
+      <Workflow className="h-3.5 w-3.5 flex-shrink-0 text-purple-500 dark:text-purple-400" />
+      <span className="flex-shrink-0 font-medium text-foreground">{t('workflow.title', 'Workflow')}</span>
+      {name && (
+        <>
+          <span className="flex-shrink-0 text-[10px] text-muted-foreground/40">/</span>
+          <span className="flex-shrink-0 font-medium">{name}</span>
+        </>
+      )}
+      {description && <span className="min-w-0 flex-1 truncate">{description}</span>}
+      <span className={cn('ml-auto flex flex-shrink-0 items-center gap-1 text-[11px]', STATUS_STYLES[status])}>
+        {status === 'running' ? (
+          <>
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-purple-500 dark:bg-purple-400" />
+            {liveSummary || t('workflow.status.running', 'running')}
+          </>
+        ) : status === 'failed' ? (
+          <>
+            <CircleAlert className="h-3 w-3" />
+            {t('workflow.status.failed', 'failed')}
+          </>
+        ) : status === 'stopped' ? (
+          // Neither a spinner nor a check mark: the run never reported and
+          // the process it ran in is gone, so there is no outcome to draw.
+          <span title={t('workflow.stoppedHint', 'The run ended before this workflow reported back')} className="flex items-center gap-1">
+            <CircleDashed className="h-3 w-3" />
+            {t('workflow.status.stopped', 'no result')}
+          </span>
+        ) : (
+          <>
+            <CircleCheck className="h-3 w-3" />
+            {t('workflow.status.completed', 'done')}
+          </>
+        )}
+      </span>
+    </>
+  );
+  const bodyContent = (
+    <div className="mt-1.5 space-y-2 pl-[18px] text-xs">
+      {meta.phases.length > 0 && (
+        <div className="rounded border border-border/40 bg-muted/40 p-2 text-muted-foreground">
+          <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/60">{t('workflow.phases', 'Phases')}</div>
+          <ol className="list-decimal space-y-0.5 pl-4">
+            {meta.phases.map((phase) => (
+              <li key={phase.title}>
+                <span className="font-medium text-foreground">{phase.title}</span>
+                {phase.detail && <span className="text-muted-foreground"> — {phase.detail}</span>}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {agents.length > 0 && (
+        <div className="rounded border border-border/40 bg-muted/40 p-2 text-muted-foreground">
+          <div className="mb-1 flex items-baseline justify-between gap-2 text-[10px] uppercase tracking-wide text-muted-foreground/60">
+            <span>{t('workflow.agents', 'Agents')}</span>
+            <span className="normal-case tracking-normal">
+              {t('workflow.agentsFinished', { finished: finishedCount, count: agents.length, defaultValue_one: '{{finished}} of {{count}} agent finished', defaultValue_other: '{{finished}} of {{count}} agents finished' })}
+              {failedCount > 0 && ` · ${t('workflow.agentsFailed', '{{count}} failed', { count: failedCount })}`}
+            </span>
+          </div>
+          <ul className="space-y-0.5">
+            {agents.map((agent) => (
+              <WorkflowAgentRowView
+                key={agent.key}
+                agent={agent}
+                timelineAddress={timelineAddress}
+                onFileOpen={onFileOpen}
+                createDiff={createDiff}
+                selectedProject={selectedProject}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {taskStatus?.usage && (
+        <div className="text-[11px] text-muted-foreground/70">
+          {t('workflow.usage', '{{toolUses}} tool uses · {{elapsed}}', {
+            toolUses: taskStatus.usage.toolUses,
+            elapsed: formatTaskDuration(taskStatus.usage.durationMs),
+          })}
+          {status === 'running' && currentAgentLabel && ` · ${t('workflow.currentAgent', 'current: {{label}}', { label: currentAgentLabel })}`}
+        </div>
+      )}
+
+      {toolResult?.isError ? (
+        // The tool's refusal is the whole story of this call.
+        <ToolErrorDisplay label={t('chat:messageTypes.error', 'Error')} content={content} />
+      ) : resultText && (
+        <details open className="rounded border border-border/40 bg-muted/30 p-2">
+          <summary className="cursor-pointer text-[10px] uppercase tracking-wide text-muted-foreground/60">
+            {t('workflow.result', 'Result')}
+          </summary>
+          <MarkdownContent content={resultText} className="prose prose-sm max-w-none dark:prose-invert" />
+        </details>
+      )}
+
+      {(script || scriptPath) && (
+        <details className="rounded border border-border/40 bg-muted/30 p-2">
+          <summary className="cursor-pointer text-[10px] uppercase tracking-wide text-muted-foreground/60">
+            {t('workflow.script', 'Script')}
+            {scriptPath && <span className="ml-2 normal-case tracking-normal text-muted-foreground/50">{scriptPath}</span>}
+          </summary>
+          {script && (
+            <pre className="mt-1 max-h-96 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] text-muted-foreground">{script}</pre>
+          )}
+        </details>
+      )}
+    </div>
+  );
+
+  // A static render cannot run the toggle above, so the export wraps the same
+  // header and body in a native disclosure. It starts folded like the rest of
+  // the process record; one click reveals the phases and agents.
+  if (isExporting) {
+    return (
+      <div className="my-1 border-l-2 border-l-purple-500 py-0.5 pl-3 dark:border-l-purple-400">
+        <ExportDisclosure
+          summaryClassName="flex w-full select-none items-center gap-1.5 py-0.5 text-left text-xs text-muted-foreground transition-colors hover:text-foreground"
+          summary={summaryContent}
+        >
+          {bodyContent}
+        </ExportDisclosure>
+      </div>
+    );
+  }
+
   return (
     <div className="my-1 border-l-2 border-l-purple-500 py-0.5 pl-3 dark:border-l-purple-400">
       <button
@@ -444,118 +576,10 @@ export const WorkflowPanel = memo(({ toolInput, toolResult, workflow, taskStatus
         onClick={() => setIsOpen((previous) => !previous)}
         className="flex w-full select-none items-center gap-1.5 py-0.5 text-left text-xs text-muted-foreground transition-colors hover:text-foreground"
       >
-        <ChevronRight className={cn('h-3 w-3 flex-shrink-0 transition-transform duration-150', isOpen && 'rotate-90')} />
-        <Workflow className="h-3.5 w-3.5 flex-shrink-0 text-purple-500 dark:text-purple-400" />
-        <span className="flex-shrink-0 font-medium text-foreground">{t('workflow.title', 'Workflow')}</span>
-        {name && (
-          <>
-            <span className="flex-shrink-0 text-[10px] text-muted-foreground/40">/</span>
-            <span className="flex-shrink-0 font-medium">{name}</span>
-          </>
-        )}
-        {description && <span className="min-w-0 flex-1 truncate">{description}</span>}
-        <span className={cn('ml-auto flex flex-shrink-0 items-center gap-1 text-[11px]', STATUS_STYLES[status])}>
-          {status === 'running' ? (
-            <>
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-purple-500 dark:bg-purple-400" />
-              {liveSummary || t('workflow.status.running', 'running')}
-            </>
-          ) : status === 'failed' ? (
-            <>
-              <CircleAlert className="h-3 w-3" />
-              {t('workflow.status.failed', 'failed')}
-            </>
-          ) : status === 'stopped' ? (
-            // Neither a spinner nor a check mark: the run never reported and
-            // the process it ran in is gone, so there is no outcome to draw.
-            <span title={t('workflow.stoppedHint', 'The run ended before this workflow reported back')} className="flex items-center gap-1">
-              <CircleDashed className="h-3 w-3" />
-              {t('workflow.status.stopped', 'no result')}
-            </span>
-          ) : (
-            <>
-              <CircleCheck className="h-3 w-3" />
-              {t('workflow.status.completed', 'done')}
-            </>
-          )}
-        </span>
+        {summaryContent}
       </button>
 
-      {showBody && (
-        <div className="mt-1.5 space-y-2 pl-[18px] text-xs">
-          {meta.phases.length > 0 && (
-            <div className="rounded border border-border/40 bg-muted/40 p-2 text-muted-foreground">
-              <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/60">{t('workflow.phases', 'Phases')}</div>
-              <ol className="list-decimal space-y-0.5 pl-4">
-                {meta.phases.map((phase) => (
-                  <li key={phase.title}>
-                    <span className="font-medium text-foreground">{phase.title}</span>
-                    {phase.detail && <span className="text-muted-foreground"> — {phase.detail}</span>}
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
-
-          {agents.length > 0 && (
-            <div className="rounded border border-border/40 bg-muted/40 p-2 text-muted-foreground">
-              <div className="mb-1 flex items-baseline justify-between gap-2 text-[10px] uppercase tracking-wide text-muted-foreground/60">
-                <span>{t('workflow.agents', 'Agents')}</span>
-                <span className="normal-case tracking-normal">
-                  {t('workflow.agentsFinished', { finished: finishedCount, count: agents.length, defaultValue_one: '{{finished}} of {{count}} agent finished', defaultValue_other: '{{finished}} of {{count}} agents finished' })}
-                  {failedCount > 0 && ` · ${t('workflow.agentsFailed', '{{count}} failed', { count: failedCount })}`}
-                </span>
-              </div>
-              <ul className="space-y-0.5">
-                {agents.map((agent) => (
-                  <WorkflowAgentRowView
-                    key={agent.key}
-                    agent={agent}
-                    timelineAddress={timelineAddress}
-                    onFileOpen={onFileOpen}
-                    createDiff={createDiff}
-                    selectedProject={selectedProject}
-                  />
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {taskStatus?.usage && (
-            <div className="text-[11px] text-muted-foreground/70">
-              {t('workflow.usage', '{{toolUses}} tool uses · {{elapsed}}', {
-                toolUses: taskStatus.usage.toolUses,
-                elapsed: formatTaskDuration(taskStatus.usage.durationMs),
-              })}
-              {status === 'running' && currentAgentLabel && ` · ${t('workflow.currentAgent', 'current: {{label}}', { label: currentAgentLabel })}`}
-            </div>
-          )}
-
-          {toolResult?.isError ? (
-            // The tool's refusal is the whole story of this call.
-            <ToolErrorDisplay label={t('chat:messageTypes.error', 'Error')} content={content} />
-          ) : resultText && (
-            <details open className="rounded border border-border/40 bg-muted/30 p-2">
-              <summary className="cursor-pointer text-[10px] uppercase tracking-wide text-muted-foreground/60">
-                {t('workflow.result', 'Result')}
-              </summary>
-              <MarkdownContent content={resultText} className="prose prose-sm max-w-none dark:prose-invert" />
-            </details>
-          )}
-
-          {(script || scriptPath) && (
-            <details className="rounded border border-border/40 bg-muted/30 p-2">
-              <summary className="cursor-pointer text-[10px] uppercase tracking-wide text-muted-foreground/60">
-                {t('workflow.script', 'Script')}
-                {scriptPath && <span className="ml-2 normal-case tracking-normal text-muted-foreground/50">{scriptPath}</span>}
-              </summary>
-              {script && (
-                <pre className="mt-1 max-h-96 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] text-muted-foreground">{script}</pre>
-              )}
-            </details>
-          )}
-        </div>
-      )}
+      {showBody && bodyContent}
     </div>
   );
 });
