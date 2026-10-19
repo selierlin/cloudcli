@@ -156,7 +156,7 @@ export function DraftSlot({ hasDraft, isSelected, t }: DraftSlotProps) {
         aria-label={label}
         className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-muted-foreground"
       >
-        <Pencil className="h-3 w-3" aria-hidden="true" />
+        <Pencil className="!h-3 !w-3" aria-hidden="true" />
       </span>
     </Tooltip>
   );
@@ -210,7 +210,7 @@ export function ProjectAggregateSlot({ aggregate, t }: ProjectAggregateSlotProps
     return (
       <Tooltip content={label} position="top">
         <span role="status" aria-label={label} className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
-          <Bell className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" aria-hidden="true" />
+          <Bell className="!h-3 !w-3 text-blue-500 dark:text-blue-400" aria-hidden="true" />
         </span>
       </Tooltip>
     );
