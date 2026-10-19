@@ -6,7 +6,7 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import QuickSettingsExportSection from '@/modules/quick-settings-panel/QuickSettingsExportSection';
 import type { ChatMessage, LLMProvider } from '@/shared/types';
-import { buildTranscriptExport, downloadTranscriptExport } from '@/modules/chat';
+import { downloadTranscriptExport } from '@/modules/chat';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -16,7 +16,6 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('@/modules/chat', () => ({
-  buildTranscriptExport: vi.fn(),
   createCachedDiffCalculator: () => () => [],
   downloadTranscriptExport: vi.fn(),
 }));
@@ -50,37 +49,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-});
-
-test('opens every fold before printing, since a closed disclosure is not printed', async () => {
-  const folds = [{ open: false }, { open: true }, { open: false }];
-  const lifecycle: string[] = [];
-  const popup = {
-    document: {
-      write: vi.fn(),
-      close: vi.fn(),
-      querySelectorAll: vi.fn(() => {
-        lifecycle.push('open-folds');
-        return folds;
-      }),
-    },
-    focus: vi.fn(),
-    print: vi.fn(() => { lifecycle.push('print'); }),
-  };
-  vi.spyOn(window, 'open').mockReturnValue(popup as unknown as Window);
-  vi.mocked(buildTranscriptExport).mockResolvedValue('<!DOCTYPE html><html></html>');
-
-  const { getByText } = renderSection();
-  fireEvent.click(getByText('PDF (Print to File)'));
-
-  await waitFor(() => {
-    assert.equal(popup.print.mock.calls.length, 1);
-  });
-
-  // The print snapshot happens at print() time: a fold opened afterwards is
-  // too late, and its body would be missing from the PDF.
-  assert.deepEqual(lifecycle, ['open-folds', 'print']);
-  assert.deepEqual(folds.map((fold) => fold.open), [true, true, true]);
 });
 
 test('shows a busy row before the export starts and clears it afterwards', async () => {

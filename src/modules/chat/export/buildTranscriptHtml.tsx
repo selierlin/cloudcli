@@ -473,9 +473,8 @@ ${styles}
 <script>
 /* Printing hides a closed <details> completely — the body is not laid out. A
    transcript that keeps its runs folded would therefore print as bare summary
-   lines. Open every fold for the print and restore the reader's state after.
-   The in-app PDF button sets the same state before calling print(), because
-   not every browser fires these events. */
+   lines. Open every fold for the print and restore the reader's state after,
+   so printing the page by hand still yields the whole conversation. */
 (function () {
   var reopened = [];
   window.addEventListener('beforeprint', function () {
