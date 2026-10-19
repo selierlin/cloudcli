@@ -2,10 +2,14 @@
 """按 provider 抽取会话对话脉络（只读）。
 
 用法:
-  python3 extract.py <transcript.jsonl> [--provider auto|claude|codex|workbuddy|generic] [--max N]
-  python3 extract.py --provider zcode --id sess_xxxx [--db PATH] [--max N]
+  python3 extract.py <a.jsonl> [b.jsonl ...] [--provider auto|...] [--max N]
+                     [--start 1] [--limit 8]
+  python3 extract.py --provider zcode --id sess_xxxx [--id sess_yyyy] [--db PATH]
 
 输出每轮 USER 首行与末答，用于快速判断一条会话的内容与价值。
+
+分批/分片读取：一次可给多个路径（小会话成批读）；--start/--limit 按轮切片
+（长会话逐片读，避免一次灌满上下文）。--limit 0（默认）＝不限。
 """
 import argparse
 import json
@@ -62,6 +66,8 @@ def detect_provider(path, sample=120):
             return "codex"
         if t == "message" and "role" in o:
             return "workbuddy"
+        if t == "message" and isinstance(o.get("message"), dict) and "role" in o["message"]:
+            return "pi"
         if t in ("user", "assistant") and isinstance(o.get("message"), dict):
             return "claude"
     return "generic"
@@ -107,6 +113,25 @@ def parse_jsonl(path, provider):
                 a = _join_blocks(it.get("content"), _AGENT_KEY).strip()
                 if a:
                     agents.append((it.get("phase"), a.replace("\n", " ")))
+            continue
+
+        if provider == "pi":
+            if o.get("type") != "message":
+                continue
+            msg = o.get("message") or {}
+            role = msg.get("role")
+            if role == "user":
+                u = _join_blocks(msg.get("content"), _USER_KEY).strip()
+                if _noise(u) or u in seen:
+                    continue
+                seen.add(u)
+                flush()
+                cur_user = u.replace("\n", " ")
+                agents = []
+            elif role == "assistant":
+                a = _join_blocks(msg.get("content"), _AGENT_KEY).strip()
+                if a:
+                    agents.append((None, a.replace("\n", " ")))
             continue
 
         if provider == "claude":
@@ -190,9 +215,23 @@ def zcode_turns(sid, db=ZCODE_DB):
     return turns
 
 
-def show(turns, cap):
-    print(f"共 {len(turns)} 轮\n")
-    for i, (u, agents) in enumerate(turns):
+def show(turns, cap, start=1, limit=0):
+    """打印一轮窗口。start 为 1-based 轮号，limit=0 表示到末尾。"""
+    total = len(turns)
+    s = max(1, start)
+    e = total if not limit else min(total, s - 1 + limit)
+    if total == 0:
+        print("共 0 轮（无真实用户轮）")
+        return
+    if s > total:
+        print(f"共 {total} 轮；--start {s} 已超出末尾，无内容")
+        return
+    head = f"共 {total} 轮"
+    if s > 1 or e < total:
+        head += f"；本片 {s}-{e}" + ("" if e >= total else f"，剩 {total - e} 轮")
+    print(head + "\n")
+    for i in range(s - 1, e):
+        u, agents = turns[i]
         print(f"--- [{i + 1}] USER: {u[:300]}")
         if agents:
             finals = [t for ph, t in agents if ph == "final"]
@@ -204,27 +243,39 @@ def show(turns, cap):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("path", nargs="?", help="transcript 路径（zcode 用 --id）")
+    ap.add_argument("paths", nargs="*", help="transcript 路径，可给多个（zcode 用 --id）")
     ap.add_argument("--provider", default="auto",
                     choices=["auto", "claude", "codex", "workbuddy", "generic", "zcode"])
-    ap.add_argument("--id", help="zcode 会话 id（sess_...）")
+    ap.add_argument("--id", action="append", dest="ids", help="zcode 会话 id（可重复）")
     ap.add_argument("--db", default=ZCODE_DB, help="zcode 库路径")
     ap.add_argument("--max", type=int, default=400, help="每轮答案截断长度")
+    ap.add_argument("--start", type=int, default=1, help="从第几轮开始（1-based）")
+    ap.add_argument("--limit", type=int, default=0, help="本片最多几轮，0=不限")
     args = ap.parse_args()
 
-    if args.provider == "zcode" or (args.id and not args.path):
-        if not args.id:
-            ap.error("zcode 模式需要 --id")
-        show(zcode_turns(args.id, args.db), args.max)
+    if args.provider == "zcode" and not args.ids:
+        ap.error("zcode 没有 transcript 文件，必须用 --id <sid>")
+
+    if args.ids:
+        for sid in args.ids:
+            print(f"# zcode id={sid}")
+            show(zcode_turns(sid, args.db), args.max, args.start, args.limit)
         return
 
-    if not args.path:
-        ap.error("需要 transcript 路径，或 --provider zcode --id <sid>")
-    if not os.path.exists(args.path):
-        ap.error(f"文件不存在: {args.path}")
-    prov = detect_provider(args.path) if args.provider == "auto" else args.provider
-    print(f"# {os.path.basename(args.path)}  provider={prov}\n")
-    show(parse_jsonl(args.path, prov), args.max)
+    if not args.paths:
+        ap.error("需要 transcript 路径（可多个），或 --provider zcode --id <sid>")
+    for path in args.paths:
+        if not os.path.isfile(path):
+            # 批量读时单条缺失不该拖垮整批（路径手抄错/文件已删/误传目录都常见）。
+            print(f"# SKIP（不是可读文件）: {path}\n")
+            continue
+        try:
+            prov = detect_provider(path) if args.provider == "auto" else args.provider
+            print(f"# {os.path.basename(path)}  provider={prov}  {path}")
+            show(parse_jsonl(path, prov), args.max, args.start, args.limit)
+        except OSError as exc:
+            # 权限不足、读一半被删等同样只跳这一条。
+            print(f"# SKIP（读取失败: {exc}）: {path}\n")
 
 
 if __name__ == "__main__":
