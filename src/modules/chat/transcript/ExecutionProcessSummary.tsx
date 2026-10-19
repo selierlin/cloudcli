@@ -198,7 +198,7 @@ export default function ExecutionProcessSummary({
 
   return (
     <>
-      <div className="mb-2 flex items-center space-x-3 px-3">
+      <div className="mb-2 flex items-center space-x-3 px-3 sm:px-0">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full p-1 text-sm text-foreground">
           <LLMProviderLogo provider={provider} className="h-full w-full" />
         </div>
