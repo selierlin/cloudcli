@@ -246,14 +246,14 @@ function RecentConversationRow({
           <span className={cn('block truncate text-[13px] leading-4', isUnread ? 'font-bold' : 'font-normal')}>
             {conversation.sessionTitle}
           </span>
-          {conversation.isPinned && (
-            <span className="flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center text-muted-foreground">
-              <Pin className="h-3 w-3 fill-current" aria-hidden="true" />
-            </span>
-          )}
           <span className="ml-auto flex flex-shrink-0 items-center gap-1.5">
             <DraftSlot hasDraft={hasDraft} isSelected={isSelected} t={t} />
             <AttentionSlot level={attentionLevel} isSelected={isSelected} t={t} />
+            {conversation.isPinned && (
+              <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-muted-foreground">
+                <Pin className="h-3 w-3 fill-current" aria-hidden="true" />
+              </span>
+            )}
           </span>
         </span>
         {parentSessionId && (

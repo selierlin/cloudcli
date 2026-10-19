@@ -355,7 +355,7 @@ function SidebarProjectItem({
             >
               <Star
                 className={cn(
-                  'w-3 h-3 transition-colors',
+                  '!h-3 !w-3 transition-colors',
                   isStarred
                     ? 'text-yellow-600 dark:text-yellow-400 fill-current'
                     : 'text-muted-foreground',
@@ -439,7 +439,7 @@ function SidebarProjectItem({
                   }}
                   title={t('tooltips.renameProject')}
                 >
-                  <Edit3 className="h-3 w-3" />
+                  <Edit3 className="!h-3 !w-3" />
                 </div>
                 <div
                   className="touch:opacity-100 flex h-6 w-6 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-red-50 group-hover:opacity-100 dark:hover:bg-red-900/20"
@@ -449,10 +449,10 @@ function SidebarProjectItem({
                   }}
                   title={t('tooltips.deleteProject')}
                 >
-                  <Trash2 className="h-3 w-3 text-red-600 dark:text-red-400" />
+                  <Trash2 className="!h-3 !w-3 text-red-600 dark:text-red-400" />
                 </div>
                 <ChevronRight className={cn(
-                  'h-4 w-4 text-muted-foreground transition-all duration-200 group-hover:text-foreground',
+                  'mr-1.5 h-4 w-4 text-muted-foreground transition-all duration-200 group-hover:text-foreground',
                   isExpanded && 'rotate-90',
                 )} />
               </>

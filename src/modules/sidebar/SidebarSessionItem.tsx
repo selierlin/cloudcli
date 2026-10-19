@@ -555,14 +555,10 @@ function SidebarSessionItem({
                 >
                   {sessionView.sessionName}
                 </div>
-                {session.isPinned && (
-                  <Tooltip content={t('sessions.pinnedSession')} position="top">
-                    <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-muted-foreground">
-                      <Pin className="h-3 w-3 fill-current" aria-hidden="true" />
-                    </span>
-                  </Tooltip>
-                )}
                 <span className="ml-auto flex flex-shrink-0 items-center gap-1.5">
+                  <DraftSlot hasDraft={hasDraft} isSelected={isSelected} t={t} />
+                  <AttentionSlot level={attentionLevel} isSelected={isSelected} t={t} />
+                  {compactSessionAge && (isUnread || hasDraft) && <span className="text-[11px] text-muted-foreground/40">·</span>}
                   {compactSessionAge && (
                     <span
                       className={cn(
@@ -573,9 +569,15 @@ function SidebarSessionItem({
                       {compactSessionAge}
                     </span>
                   )}
-                  {compactSessionAge && (isUnread || hasDraft) && <span className="text-[11px] text-muted-foreground/40">·</span>}
-                  <DraftSlot hasDraft={hasDraft} isSelected={isSelected} t={t} />
-                  <AttentionSlot level={attentionLevel} isSelected={isSelected} t={t} />
+                  {session.isPinned ? (
+                    <Tooltip content={t('sessions.pinnedSession')} position="top">
+                      <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-muted-foreground">
+                        <Pin className="!h-3 !w-3 fill-current" aria-hidden="true" />
+                      </span>
+                    </Tooltip>
+                  ) : (
+                    <span className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                  )}
                 </span>
               </div>
               <div className="mt-0.5 flex items-center">
