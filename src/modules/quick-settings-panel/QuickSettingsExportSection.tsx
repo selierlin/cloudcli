@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
-  buildTranscriptExport,
   createCachedDiffCalculator,
   downloadTranscriptExport,
   type TranscriptExportFormat,
@@ -43,8 +42,8 @@ function afterNextPaint(): Promise<void> {
 /**
  * Collapsible "Export conversation" entry that lives inside the Quick Settings
  * tab. Default-collapsed to keep the panel compact; expands to a vertical list
- * of format buttons (Markdown / HTML / PDF). The expand state is controlled by
- * the panel so the full transcript is only loaded once the user opens it — the
+ * of format buttons (Markdown / HTML). The expand state is controlled by the
+ * panel so the full transcript is only loaded once the user opens it — the
  * toggle therefore stays enabled even before data arrives.
  */
 export default function QuickSettingsExportSection({
@@ -57,7 +56,7 @@ export default function QuickSettingsExportSection({
   isLoading = false,
 }: QuickSettingsExportSectionProps) {
   const { t } = useTranslation('settings');
-  const [pendingFormat, setPendingFormat] = useState<TranscriptExportFormat | 'pdf' | null>(null);
+  const [pendingFormat, setPendingFormat] = useState<TranscriptExportFormat | null>(null);
 
   const createDiff = createCachedDiffCalculator();
   const exportInput = {
@@ -68,35 +67,11 @@ export default function QuickSettingsExportSection({
     createDiff,
   };
 
-  const handleExport = async (format: TranscriptExportFormat | 'pdf') => {
+  const handleExport = async (format: TranscriptExportFormat) => {
     if (pendingFormat) return;
     setPendingFormat(format);
 
     try {
-      if (format === 'pdf') {
-        // The popup has to be opened inside the click's own task, before the
-        // await below hands control back to the event loop.
-        const popup = window.open('', '', 'width=900,height=700');
-        if (!popup) {
-          window.alert(t('quickSettings.export.printBlocked'));
-          return;
-        }
-        await afterNextPaint();
-        popup.document.write(await buildTranscriptExport('html', exportInput, new Date()));
-        popup.document.close();
-        // A closed <details> is not printed at all: its body is hidden, so the
-        // PDF would keep only the summary line and drop every folded thinking
-        // block, tool output and error detail. The exported document also opens
-        // folds on `beforeprint`, but not every browser fires it, so the print
-        // this button starts opens them here.
-        popup.document.querySelectorAll('details').forEach((details) => {
-          details.open = true;
-        });
-        popup.focus();
-        popup.print();
-        return;
-      }
-
       await afterNextPaint();
       await downloadTranscriptExport(format, exportInput);
     } finally {
@@ -137,7 +112,6 @@ export default function QuickSettingsExportSection({
             ([
               { id: 'markdown', label: 'Markdown (.md)' },
               { id: 'html', label: 'Web Page (.html)' },
-              { id: 'pdf', label: 'PDF (Print to File)' },
             ] as const).map((format) => (
               <button
                 key={format.id}
