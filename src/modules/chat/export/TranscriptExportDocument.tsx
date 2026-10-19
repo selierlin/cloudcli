@@ -1,4 +1,5 @@
 import { Fragment } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { I18nextProvider } from 'react-i18next';
 
 import { i18n } from '@/modules/i18n';
@@ -224,9 +225,10 @@ export function TranscriptExportDocument({
                     open={block.group.hasAttention || undefined}
                   >
                     <summary className="chat-export-disclosure-summary">
-                      <span className="chat-export-disclosure-chevron" aria-hidden="true">
-                        ›
-                      </span>
+                      <ChevronRight
+                        className="chat-export-disclosure-chevron h-3.5 w-3.5 flex-shrink-0"
+                        aria-hidden="true"
+                      />
                       {processSummary(block.group)}
                     </summary>
                     <div className="chat-export-disclosure-body">

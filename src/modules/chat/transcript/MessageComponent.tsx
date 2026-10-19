@@ -1,6 +1,6 @@
 import { memo, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { GitBranchIcon, PencilIcon, Timer, UserRoundIcon } from 'lucide-react';
+import { BrainIcon, ChevronDownIcon, GitBranchIcon, PencilIcon, Timer, UserRoundIcon } from 'lucide-react';
 
 import type { ChatMessage, ClaudePermissionSuggestion, PermissionGrantResult, LLMProvider,DiffLine,Project,ReasoningDisclosureState,ReasoningPresentation } from '@/shared/types';
 import { formatUsageLimitText, stripProposedPlanEnvelope } from '@/modules/chat/utils/chatFormatting';
@@ -401,12 +401,16 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                  document needs — the record stays complete but quiet. */
               <details className="chat-export-disclosure">
                 <summary className="chat-export-disclosure-summary">
-                  <span className="chat-export-disclosure-chevron" aria-hidden="true">
-                    ›
-                  </span>
+                  {/* The same icon pair ReasoningTrigger uses, so a thinking
+                      block reads the same in the document as in the app. */}
+                  <BrainIcon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
                   {t('transcript.executionProcess.reasoning', {
                     defaultValue: 'Thinking process',
                   })}
+                  <ChevronDownIcon
+                    className="chat-export-thinking-chevron h-4 w-4"
+                    aria-hidden="true"
+                  />
                 </summary>
                 <div className="chat-export-disclosure-body">
                   <StreamingMarkdown

@@ -1,7 +1,8 @@
 import { createElement } from 'react';
 
 import { i18n } from '@/modules/i18n';
-import type { ChatMessage, DiffLine, LLMProvider, Project } from '@/shared/types';
+import { api } from '@/shared/api';
+import type { ChatImage, ChatMessage, DiffLine, LLMProvider, Project } from '@/shared/types';
 import { TranscriptExportDocument } from '@/modules/chat/export/TranscriptExportDocument';
 import { countVisibleTranscriptMessages } from '@/modules/chat/utils/executionProcess';
 import {
@@ -153,6 +154,73 @@ async function readAsDataUrl(reference: string, href: string): Promise<string | 
 }
 
 /**
+ * Reads an already-authorized response into a data URL. The response came from
+ * the app's own client, whose auth header a second `fetch(response.url)` would
+ * not carry, so the bytes are taken from the body that was just received.
+ */
+async function responseToDataUrl(response: Response, reference: string): Promise<string | null> {
+  try {
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return `data:${mimeTypeOf(reference, response)};base64,${encodeBase64(bytes)}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * One attachment image, as bytes the document can carry.
+ *
+ * Path-based attachments are fetched by the live view in a `useEffect`, which
+ * a static render never runs: without this the export painted a pulsing
+ * placeholder that could never resolve. The same two routes the chat tries
+ * are used here — the global asset store, then the project files route for
+ * sessions recorded before attachments moved — and a failure leaves the image
+ * data-less, which the component turns into its filename.
+ */
+async function resolveImageData(image: ChatImage, projectId?: string | null): Promise<string | null> {
+  if (image.data) return image.data;
+  const imagePath = image.path;
+  if (!imagePath) return null;
+
+  const filename = imagePath.split(/[\\/]/).pop() || '';
+  const candidates: Array<() => Promise<Response>> = [
+    () => api.assets.image(filename),
+    ...(projectId ? [() => api.readFileBlob(projectId, imagePath)] : []),
+  ];
+
+  for (const request of candidates) {
+    try {
+      const response = await request();
+      if (!response.ok) continue;
+      const data = await responseToDataUrl(response, imagePath);
+      // A 200 whose body cannot be read is still a miss: fall through to the
+      // next route instead of ending the search here.
+      if (data) return data;
+    } catch {
+      // Try the next route; a 403 here is a project the reader cannot read.
+    }
+  }
+
+  return null;
+}
+
+/** Rewrites path-based attachments into data URLs before the static render. */
+async function inlineMessageImages(messages: ChatMessage[], projectId?: string | null): Promise<ChatMessage[]> {
+  const needsInline = messages.some((message) => message.images?.some((image) => !image.data && image.path));
+  if (!needsInline) return messages;
+
+  return Promise.all(messages.map(async (message) => {
+    if (!message.images?.length) return message;
+
+    const images = await Promise.all(message.images.map(async (image) => {
+      const data = await resolveImageData(image, projectId);
+      return data ? { ...image, data } : image;
+    }));
+    return { ...message, images };
+  }));
+}
+
+/**
  * Rewrites every stylesheet `url()` that points into the app's own origin into
  * a data URL.
  *
@@ -243,9 +311,13 @@ export async function buildTranscriptHtml(input: BuildTranscriptHtmlInput): Prom
   // Loaded on demand so react-dom/server stays out of the app's main chunk.
   const { renderToStaticMarkup } = await import('react-dom/server');
 
+  // The live view resolves attachment paths in effects, which never run here.
+  // Resolving them first is what turns a pulsing placeholder into the image.
+  const messages = await inlineMessageImages(input.messages, input.selectedProject?.projectId);
+
   const body = renderToStaticMarkup(
     createElement(TranscriptExportDocument, {
-      messages: input.messages,
+      messages,
       createDiff: input.createDiff,
       provider: input.provider,
       selectedProject: input.selectedProject,
@@ -263,9 +335,9 @@ export async function buildTranscriptHtml(input: BuildTranscriptHtmlInput): Prom
   const exportedAt = escapeHtml(input.exportedAt.toLocaleString());
   // The header counts the conversation, not the plumbing: one question that
   // ran twenty tool calls is still one message and one answer.
-  const messageKeys = buildTranscriptMessageKeys(input.messages);
+  const messageKeys = buildTranscriptMessageKeys(messages);
   const messageCount = countVisibleTranscriptMessages(
-    input.messages,
+    messages,
     (message) => messageKeys.get(message) ?? getTranscriptMessageKey(message),
   );
   // The document speaks the language the app is set to: the header, the
@@ -288,6 +360,21 @@ ${styles}
   html, body { height: auto; overflow: visible; }
   body { background: hsl(var(--background)); color: hsl(var(--foreground)); margin: 0; }
   .chat-export-shell { max-width: 60rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+  /* The reader's prose face and size are applied under .chat-messages-pane
+     in the app, an ancestor this document does not have. Without restating
+     them here every paragraph falls back to the font-serif utility — the
+     transcript would ignore Settings → Appearance → Fonts. */
+  .chat-export-transcript .chat-message .break-words,
+  .chat-export-transcript .chat-message .prose {
+    font-family: var(--ui-font-family, ui-serif, Georgia, Cambria, "Times New Roman", Times, serif);
+  }
+  .chat-export-transcript .chat-message .prose { font-size: var(--ui-font-size, 14px); }
+  /* Tool output is capped at 20rem in the chat so a long command cannot swallow
+     the conversation. A document has no pane to scroll: the cap would hide
+     most of the output behind an inner scrollbar and clip it on paper, so the
+     block runs its full length here. Horizontal overflow is left alone -- a
+     terminal row must not wrap. */
+  .chat-export-transcript pre { max-height: none !important; }
   .chat-export-header {
     display: flex; align-items: center; justify-content: space-between; gap: 1rem;
     border-bottom: 1px solid hsl(var(--border)); padding-bottom: 1rem; margin-bottom: 2rem;
@@ -319,6 +406,23 @@ ${styles}
     transform: rotate(90deg);
   }
   .chat-export-disclosure-body { margin-top: 0.5rem; }
+  /* The chat's process row is 12px medium on a 28px line with a hover fill;
+     the shared summary is sized for prose. Match the row the reader knows, so
+     the fold reads as the same affordance it is in the app. */
+  .chat-export-process > .chat-export-disclosure-summary {
+    min-height: 1.75rem; border-radius: 0.375rem;
+    padding: 0 0.375rem; margin: 0 -0.375rem;
+    font-size: 0.75rem; font-weight: 500;
+  }
+  .chat-export-process > .chat-export-disclosure-summary:hover {
+    background: hsl(var(--muted));
+    color: hsl(var(--foreground));
+  }
+  /* Thinking uses the chat's ChevronDown, which points down when closed. */
+  .chat-export-thinking-chevron { transition: transform 150ms; flex-shrink: 0; }
+  .chat-export-disclosure[open] > .chat-export-disclosure-summary .chat-export-thinking-chevron {
+    transform: rotate(180deg);
+  }
   /* Tool rows use the same native disclosure so a command, a file section or
      a whole tool batch can be closed again. The header is the summary; only
      the marker is stripped, every layout class carries over from the app. */
@@ -340,6 +444,16 @@ ${styles}
   [data-export-copy].is-copied .chat-export-copy-icon { display: none; }
   [data-export-copy].is-copied .chat-export-copy-check { display: inline-block; }
   @media print {
+    /* A sheet has no scroll pane and no margin of its own. Without a page
+       margin the text runs into the printer's dead edge, and without
+       exact colour a code block or tool output loses the fill that separates
+       it from prose — both are what the screen rendering relies on. */
+    @page { margin: 12mm; }
+    html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    /* Keep a fold's header with the body it opens; a header alone at the foot
+       of a page reads as an empty section. Long bodies still split, browsers
+       ignore this once the block exceeds a page. */
+    .chat-export-details, .chat-export-disclosure { break-inside: avoid; }
     .chat-export-theme-toggle { display: none; }
     .chat-export-shell { max-width: none; padding: 0; }
   }

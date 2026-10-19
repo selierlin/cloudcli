@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
+import { TranscriptRenderContext } from '@/modules/chat/context/TranscriptRenderContext';
 import { SubagentPanel } from '@/modules/chat/tools/SubagentPanel';
 import { createCachedDiffCalculator } from '@/modules/chat/utils/messageTransforms';
 import type { LiveTaskStatus, SubagentInfo, ToolResult } from '@/shared/types';
@@ -98,5 +99,29 @@ describe('a background agent card at the moment it launches', () => {
     expect(render(launch, undefined, { status: 'completed', summary: 'Agent "Survey the repo" finished' }).toLowerCase()).toContain('done');
     expect(render(launch, undefined, { status: 'failed' }).toLowerCase()).toContain('failed');
     expect(render(launch, undefined, { status: 'stopped' })).toContain('no result');
+  });
+});
+
+describe('an agent card in an exported document', () => {
+  it('folds the timeline into a native disclosure that starts closed', () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(
+        TranscriptRenderContext.Provider,
+        { value: { isExporting: true } },
+        React.createElement(SubagentPanel, {
+          toolInput: JSON.stringify({ subagent_type: 'Explore', description: 'Survey the repo' }),
+          toolResult: { content: 'The repo has two packages.', isError: false },
+          createDiff,
+        }),
+      ),
+    );
+
+    // A static render cannot run the toggle; the native fold keeps the detail
+    // reachable without painting the whole timeline on first open.
+    expect(markup).toContain('<details');
+    expect(markup).not.toMatch(/<details[^>]*\sopen[=\s>]/);
+    expect(markup).toContain('Survey the repo');
+    // The body is still in the document, just folded.
+    expect(markup).toContain('The repo has two packages.');
   });
 });

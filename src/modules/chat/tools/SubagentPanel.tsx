@@ -4,6 +4,7 @@ import { Bot, Brain, ChevronRight, CircleAlert, CircleCheck, CircleDashed, Messa
 import type { DiffLine, LiveTaskStatus, Project, SubagentActivity, SubagentInfo, ToolResult } from '@/shared/types';
 import { cn } from '@/shared/utils';
 import { useIsExportingTranscript } from '@/modules/chat/context/TranscriptRenderContext';
+import { ExportDisclosure } from '@/modules/chat/tools/ExportDisclosure';
 import { MarkdownContent } from '@/modules/chat/tools/ContentRenderers/MarkdownContent';
 import { ToolRenderer } from '@/modules/chat/tools/ToolRenderer';
 import { resolveBackgroundTaskStatus } from '@/modules/chat/utils/backgroundTasks';
@@ -180,6 +181,129 @@ export const SubagentPanel = memo(({
   const description = subagent?.description ?? String(parsedInput.description ?? '');
   const prompt = String(parsedInput.prompt ?? '');
 
+  const summaryContent = (
+    <>
+      <ChevronRight className={cn('h-3 w-3 flex-shrink-0 transition-transform duration-150', isExporting ? 'chat-export-details-chevron' : isOpen && 'rotate-90')} />
+      <Bot className="h-3.5 w-3.5 flex-shrink-0 text-purple-500 dark:text-purple-400" />
+      <span className="flex-shrink-0 font-medium text-foreground">{label || 'Agent'}</span>
+      {description && (
+        <>
+          <span className="flex-shrink-0 text-[10px] text-muted-foreground/40">/</span>
+          <span className="min-w-0 flex-1 truncate">{description}</span>
+        </>
+      )}
+      {nickname && (
+        <span className="flex-shrink-0 rounded bg-muted px-1 text-[10px] text-muted-foreground/70">{nickname}</span>
+      )}
+      <span className={cn('ml-auto flex flex-shrink-0 items-center gap-1 text-[11px]', STATUS_STYLES[status])}>
+        {status === 'running' ? (
+          <>
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-purple-500 dark:bg-purple-400" />
+            Running{runningSeconds !== undefined ? ` · ${runningSeconds}s` : ''}{stepCount > 0 ? ` · ${stepCount} steps` : ''}
+          </>
+        ) : status === 'failed' ? (
+          <>
+            <CircleAlert className="h-3 w-3" />
+            failed
+          </>
+        ) : status === 'stopped' ? (
+          // Neither a spinner nor a check mark: the agent never reported and
+          // the process it ran in is gone, so there is no outcome to draw.
+          <span title="The run ended before this agent reported back" className="flex items-center gap-1">
+            <CircleDashed className="h-3 w-3" />
+            no result
+          </span>
+        ) : (
+          <>
+            <CircleCheck className="h-3 w-3" />
+            {stepCount > 0
+              ? `Completed · ${stepCount} steps${toolCount > 0 ? ` · ${toolCount} tools` : ''}`
+              : 'done'}
+          </>
+        )}
+      </span>
+    </>
+  );
+  const bodyContent = (
+    <div className="mt-1.5 space-y-2 pl-[18px]">
+      {subagent?.model && (
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground/50">{subagent.model}</div>
+      )}
+
+      {prompt && (
+        <div className="rounded border border-border/40 bg-muted/40 p-2 text-xs text-muted-foreground">
+          <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/60">Task</div>
+          <div className="line-clamp-6 whitespace-pre-wrap break-words">{prompt}</div>
+        </div>
+      )}
+
+      {visibleEntries.length > 0 && (
+        <div className="border-l border-border/60 pl-2">
+          {visibleEntries.map((entry, index) => (
+            entry.kind === 'tool' ? (
+              // Rendered through the same router the main thread uses, so a
+              // subagent's shell command or diff looks exactly like one the
+              // top-level agent ran.
+              <ToolRenderer
+                key={entry.toolId ?? `activity-${index}`}
+                toolName={entry.toolName || 'UnknownTool'}
+                toolInput={entry.toolInput}
+                toolResult={entry.toolResult}
+                toolId={entry.toolId}
+                mode="input"
+                onFileOpen={onFileOpen}
+                createDiff={createDiff}
+                selectedProject={selectedProject}
+                startTimestamp={entry.timestamp}
+              />
+            ) : (
+              <SubagentNote key={`activity-${index}`} activity={entry} />
+            )
+          ))}
+        </div>
+      )}
+
+      {hiddenCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setRenderLimit((previous) => previous + INITIALLY_RENDERED_ACTIVITIES * 4)}
+          className="text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        >
+          Show {hiddenCount} more {hiddenCount === 1 ? 'step' : 'steps'}
+        </button>
+      )}
+
+      {untransmittedCount > 0 && hiddenCount === 0 && (
+        <div className="text-[11px] text-muted-foreground/60">
+          {untransmittedCount} earlier {untransmittedCount === 1 ? 'step is' : 'steps are'} not included
+        </div>
+      )}
+
+      {resultText && (
+        <div className="rounded border border-border/40 bg-muted/30 p-2">
+          <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/60">Result</div>
+          <MarkdownContent content={resultText} breaks className="prose prose-sm max-w-none dark:prose-invert" />
+        </div>
+      )}
+    </div>
+  );
+
+  // A static render cannot run the toggle above, so the export wraps the same
+  // header and body in a native disclosure. It starts folded like every other
+  // process surface: the reader expands the run, then this panel.
+  if (isExporting) {
+    return (
+      <div className="my-1 border-l-2 border-l-purple-500 py-0.5 pl-3 dark:border-l-purple-400">
+        <ExportDisclosure
+          summaryClassName="flex w-full select-none items-center gap-1.5 py-0.5 text-left text-xs text-muted-foreground transition-colors hover:text-foreground"
+          summary={summaryContent}
+        >
+          {bodyContent}
+        </ExportDisclosure>
+      </div>
+    );
+  }
+
   return (
     <div className="my-1 border-l-2 border-l-purple-500 py-0.5 pl-3 dark:border-l-purple-400">
       <button
@@ -188,45 +312,7 @@ export const SubagentPanel = memo(({
         onClick={() => setIsOpen((previous) => !previous)}
         className="flex w-full select-none items-center gap-1.5 py-0.5 text-left text-xs text-muted-foreground transition-colors hover:text-foreground"
       >
-        <ChevronRight className={cn('h-3 w-3 flex-shrink-0 transition-transform duration-150', isOpen && 'rotate-90')} />
-        <Bot className="h-3.5 w-3.5 flex-shrink-0 text-purple-500 dark:text-purple-400" />
-        <span className="flex-shrink-0 font-medium text-foreground">{label || 'Agent'}</span>
-        {description && (
-          <>
-            <span className="flex-shrink-0 text-[10px] text-muted-foreground/40">/</span>
-            <span className="min-w-0 flex-1 truncate">{description}</span>
-          </>
-        )}
-        {nickname && (
-          <span className="flex-shrink-0 rounded bg-muted px-1 text-[10px] text-muted-foreground/70">{nickname}</span>
-        )}
-        <span className={cn('ml-auto flex flex-shrink-0 items-center gap-1 text-[11px]', STATUS_STYLES[status])}>
-          {status === 'running' ? (
-            <>
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-purple-500 dark:bg-purple-400" />
-              Running{runningSeconds !== undefined ? ` · ${runningSeconds}s` : ''}{stepCount > 0 ? ` · ${stepCount} steps` : ''}
-            </>
-          ) : status === 'failed' ? (
-            <>
-              <CircleAlert className="h-3 w-3" />
-              failed
-            </>
-          ) : status === 'stopped' ? (
-            // Neither a spinner nor a check mark: the agent never reported and
-            // the process it ran in is gone, so there is no outcome to draw.
-            <span title="The run ended before this agent reported back" className="flex items-center gap-1">
-              <CircleDashed className="h-3 w-3" />
-              no result
-            </span>
-          ) : (
-            <>
-              <CircleCheck className="h-3 w-3" />
-              {stepCount > 0
-                ? `Completed · ${stepCount} steps${toolCount > 0 ? ` · ${toolCount} tools` : ''}`
-                : 'done'}
-            </>
-          )}
-        </span>
+        {summaryContent}
       </button>
 
       {!showTimeline && currentActivity && (
@@ -241,69 +327,7 @@ export const SubagentPanel = memo(({
         </div>
       )}
 
-      {showTimeline && (
-        <div className="mt-1.5 space-y-2 pl-[18px]">
-          {subagent?.model && (
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground/50">{subagent.model}</div>
-          )}
-
-          {prompt && (
-            <div className="rounded border border-border/40 bg-muted/40 p-2 text-xs text-muted-foreground">
-              <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/60">Task</div>
-              <div className="line-clamp-6 whitespace-pre-wrap break-words">{prompt}</div>
-            </div>
-          )}
-
-          {visibleEntries.length > 0 && (
-            <div className="border-l border-border/60 pl-2">
-              {visibleEntries.map((entry, index) => (
-                entry.kind === 'tool' ? (
-                  // Rendered through the same router the main thread uses, so a
-                  // subagent's shell command or diff looks exactly like one the
-                  // top-level agent ran.
-                  <ToolRenderer
-                    key={entry.toolId ?? `activity-${index}`}
-                    toolName={entry.toolName || 'UnknownTool'}
-                    toolInput={entry.toolInput}
-                    toolResult={entry.toolResult}
-                    toolId={entry.toolId}
-                    mode="input"
-                    onFileOpen={onFileOpen}
-                    createDiff={createDiff}
-                    selectedProject={selectedProject}
-                    startTimestamp={entry.timestamp}
-                  />
-                ) : (
-                  <SubagentNote key={`activity-${index}`} activity={entry} />
-                )
-              ))}
-            </div>
-          )}
-
-          {hiddenCount > 0 && (
-            <button
-              type="button"
-              onClick={() => setRenderLimit((previous) => previous + INITIALLY_RENDERED_ACTIVITIES * 4)}
-              className="text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-            >
-              Show {hiddenCount} more {hiddenCount === 1 ? 'step' : 'steps'}
-            </button>
-          )}
-
-          {untransmittedCount > 0 && hiddenCount === 0 && (
-            <div className="text-[11px] text-muted-foreground/60">
-              {untransmittedCount} earlier {untransmittedCount === 1 ? 'step is' : 'steps are'} not included
-            </div>
-          )}
-
-          {resultText && (
-            <div className="rounded border border-border/40 bg-muted/30 p-2">
-              <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/60">Result</div>
-              <MarkdownContent content={resultText} breaks className="prose prose-sm max-w-none dark:prose-invert" />
-            </div>
-          )}
-        </div>
-      )}
+      {showTimeline && bodyContent}
     </div>
   );
 });
