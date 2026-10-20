@@ -38,8 +38,13 @@ vi.mock('@/modules/quick-settings-panel/hooks/useSessionOutlineData', () => ({
   }),
 }));
 
+const handleProps = vi.hoisted(() => ({ current: null as { openOffset?: number } | null }));
+
 vi.mock('@/modules/quick-settings-panel/QuickSettingsHandle', () => ({
-  default: () => null,
+  default: (props: { openOffset?: number }) => {
+    handleProps.current = props;
+    return null;
+  },
 }));
 
 vi.mock('@/modules/quick-settings-panel/QuickSettingsPanelHeader', () => ({
@@ -59,4 +64,29 @@ it('renders the settings tab by default', () => {
 
   expect(screen.getByTestId('quick-settings-content')).toBeTruthy();
   expect(screen.queryByTestId('quick-settings-outline')).toBeNull();
+});
+
+// Pinning used to dock the panel 64px narrower than the overlay it replaced,
+// which read as a bug: the stored width has to survive the switch.
+it('pins to the same width the overlay opens with', () => {
+  window.localStorage.setItem('quickSettingsPanelWidth', '420');
+  window.localStorage.setItem('quickSettingsPanel', JSON.stringify({ pinned: true, tab: 'settings' }));
+
+  const docked = render(<QuickSettingsPanelView selectedProject={null} />);
+  const separator = screen.getByRole('separator');
+  expect((separator.parentElement as HTMLElement).style.width).toBe('420px');
+  // The edge handle sits at the panel's outer edge; a hardcoded 320px offset
+  // would leave it floating inside a panel that was dragged wider.
+  expect(handleProps.current?.openOffset).toBe(420);
+  docked.unmount();
+
+  window.localStorage.setItem('quickSettingsPanel', JSON.stringify({ pinned: false, tab: 'settings' }));
+  render(<QuickSettingsPanelView selectedProject={null} />);
+  // The wrapper sits above the panel body, which is the tabpanel's parent.
+  const overlay = screen.getByRole('tabpanel').parentElement?.parentElement as HTMLElement;
+  expect(overlay.style.width).toBe('420px');
+  expect(handleProps.current?.openOffset).toBe(420);
+
+  window.localStorage.removeItem('quickSettingsPanelWidth');
+  window.localStorage.removeItem('quickSettingsPanel');
 });
