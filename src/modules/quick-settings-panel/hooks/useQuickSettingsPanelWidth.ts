@@ -33,13 +33,17 @@ export const clampQuickSettingsPanelWidth = (value: number, viewportWidth: numbe
   )
 );
 
-/** A stored width that is missing, unparseable or out of range falls back to the default, itself clamped. */
-export const parseQuickSettingsPanelWidth = (raw: unknown, viewportWidth: number): number => {
+/**
+ * The stored width is a preference, so it is only held to the absolute range.
+ * The window's half-width ceiling is applied when rendering instead: a smaller
+ * window must narrow the panel, not rewrite what the user dragged on a bigger one.
+ */
+export const parseQuickSettingsPanelWidth = (raw: unknown): number => {
   // Number(), not parseInt(): the latter takes a numeric prefix, so '320px' would pass.
   const value = typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : Number.NaN;
   return Number.isFinite(value)
-    ? clampQuickSettingsPanelWidth(value, viewportWidth)
-    : clampQuickSettingsPanelWidth(QUICK_SETTINGS_PANEL_WIDTH_DEFAULT, viewportWidth);
+    ? Math.max(QUICK_SETTINGS_PANEL_WIDTH_MIN, Math.min(QUICK_SETTINGS_PANEL_WIDTH_MAX, Math.round(value)))
+    : QUICK_SETTINGS_PANEL_WIDTH_DEFAULT;
 };
 
 /** Without a real viewport (SSR, unlaid-out documents) the cap stays at its absolute maximum. */
@@ -51,12 +55,9 @@ const readViewportWidth = (): number => (
 
 const readStoredWidth = (): number => {
   try {
-    return parseQuickSettingsPanelWidth(
-      window.localStorage.getItem(WIDTH_STORAGE_KEY),
-      readViewportWidth(),
-    );
+    return parseQuickSettingsPanelWidth(window.localStorage.getItem(WIDTH_STORAGE_KEY));
   } catch {
-    return clampQuickSettingsPanelWidth(QUICK_SETTINGS_PANEL_WIDTH_DEFAULT, readViewportWidth());
+    return QUICK_SETTINGS_PANEL_WIDTH_DEFAULT;
   }
 };
 
@@ -82,9 +83,16 @@ type UseQuickSettingsPanelWidthOptions = {
  * `useSidebarWidth`.
  */
 export function useQuickSettingsPanelWidth({ resizable }: UseQuickSettingsPanelWidthOptions) {
-  // The panel width in CSS pixels: the drag rewrites it on every animation
-  // frame, so it has to be state; `localStorage` only receives the final value.
-  const [width, setWidth] = useState<number>(QUICK_SETTINGS_PANEL_WIDTH_DEFAULT);
+  // The width the user chose. The drag rewrites it on every animation frame,
+  // so it has to be state; `localStorage` only receives the final value.
+  const [preference, setPreference] = useState<number>(QUICK_SETTINGS_PANEL_WIDTH_DEFAULT);
+  // Read in the initialiser so the first render already knows the ceiling.
+  const [viewportWidth, setViewportWidth] = useState<number>(readViewportWidth);
+
+  // What the panel actually renders at: the preference, held to the window's
+  // half-width ceiling. Shrinking the window narrows the panel without touching
+  // the stored preference, so widening it again brings the dragged width back.
+  const width = clampQuickSettingsPanelWidth(preference, viewportWidth);
 
   // Drag origin; null while no resize is in progress. The refs keep pointer
   // moves from re-rendering the panel just to remember where the drag started.
@@ -95,12 +103,33 @@ export function useQuickSettingsPanelWidth({ resizable }: UseQuickSettingsPanelW
   // Read after mount so server-side rendering and hydration see the same value.
   useEffect(() => {
     if (!resizable) return;
-    setWidth(readStoredWidth());
+    setPreference(readStoredWidth());
   }, [resizable]);
+
+  // The ceiling follows the window. Throttled to one update per frame because
+  // ResizeObserver-free resize events fire for every pixel of a window drag.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    let frame: number | null = null;
+    const handleResize = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        setViewportWidth(readViewportWidth());
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (frame !== null) window.cancelAnimationFrame(frame);
+    };
+  }, []);
 
   const commitWidth = useCallback((value: number) => {
     const next = clampQuickSettingsPanelWidth(value, readViewportWidth());
-    setWidth(next);
+    setPreference(next);
     writeStoredWidth(next);
   }, []);
 
@@ -127,7 +156,7 @@ export function useQuickSettingsPanelWidth({ resizable }: UseQuickSettingsPanelW
     if (resizeFrameRef.current !== null) return;
     resizeFrameRef.current = window.requestAnimationFrame(() => {
       resizeFrameRef.current = null;
-      setWidth(pendingWidthRef.current);
+      setPreference(pendingWidthRef.current);
     });
   }, []);
 
@@ -188,7 +217,7 @@ export function useQuickSettingsPanelWidth({ resizable }: UseQuickSettingsPanelW
   return {
     width,
     minWidth: QUICK_SETTINGS_PANEL_WIDTH_MIN,
-    maxWidth: resolveQuickSettingsPanelWidthMax(readViewportWidth()),
+    maxWidth: resolveQuickSettingsPanelWidthMax(viewportWidth),
     separatorProps: {
       onPointerDown: handleResizeStart,
       onPointerMove: handleResizeMove,
