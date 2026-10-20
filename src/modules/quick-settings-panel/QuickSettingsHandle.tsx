@@ -14,6 +14,8 @@ import type { QuickSettingsHandleStyle } from '@/shared/types';
 type QuickSettingsHandleProps = {
   isOpen: boolean;
   isDragging: boolean;
+  /** Panel width while open, so the handle stays glued to the panel's outer edge. */
+  openOffset: number;
   style: QuickSettingsHandleStyle;
   onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void;
   onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
@@ -27,6 +29,7 @@ type QuickSettingsHandleProps = {
 export default function QuickSettingsHandle({
   isOpen,
   isDragging,
+  openOffset,
   style,
   onClick,
   onPointerDown,
@@ -37,7 +40,6 @@ export default function QuickSettingsHandle({
 }: QuickSettingsHandleProps) {
   const { t } = useTranslation('settings');
 
-  const placementClass = isOpen ? 'right-80' : 'right-0';
   const borderClass = isDragging
     ? 'border-blue-500 dark:border-blue-400'
     : 'border-border';
@@ -63,9 +65,10 @@ export default function QuickSettingsHandle({
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
       onLostPointerCapture={onLostPointerCapture}
-      className={`fixed ${placementClass} z-50 ${transitionClass} border bg-card dark:bg-secondary ${borderClass} rounded-l-md p-2 shadow-lg transition-colors hover:bg-muted dark:hover:bg-sunken ${cursorClass} touch-none`}
+      className={`fixed z-50 ${transitionClass} border bg-card dark:bg-secondary ${borderClass} rounded-l-md p-2 shadow-lg transition-colors hover:bg-muted dark:hover:bg-sunken ${cursorClass} touch-none`}
       style={{
         ...style,
+        right: isOpen ? openOffset : 0,
         touchAction: 'none',
         WebkitTouchCallout: 'none',
         WebkitUserSelect: 'none',

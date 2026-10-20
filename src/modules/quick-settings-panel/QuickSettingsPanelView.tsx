@@ -1,11 +1,13 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { useDeviceSettings } from '@/shared/hooks/useDeviceSettings';
 import { useProjectSlashCommands } from '@/shared/hooks/useProjectSlashCommands';
 import { useSelectedProvider } from '@/shared/hooks/useSelectedProvider';
 import { useQuickSettingsDrag } from '@/modules/quick-settings-panel/hooks/useQuickSettingsDrag';
 import { useQuickSettingsPanelState } from '@/modules/quick-settings-panel/hooks/useQuickSettingsPanelState';
+import { useQuickSettingsPanelWidth } from '@/modules/quick-settings-panel/hooks/useQuickSettingsPanelWidth';
 import { useSessionOutlineData } from '@/modules/quick-settings-panel/hooks/useSessionOutlineData';
 import { useProjectMainState } from '@/modules/project-workspace';
 import type { Project, SlashCommand } from '@/shared/types';
@@ -24,8 +26,12 @@ type QuickSettingsPanelViewProps = {
   onInsertCommand?: (command: SlashCommand) => void;
 };
 
+/** Matches the `w-80` class on the mobile overlay, whose width never reads the stored desktop width. */
+const MOBILE_PANEL_WIDTH = 320;
+
 /** Exported as QuickSettingsPanel and rendered by the project-workspace module as its quick settings drawer — an overlay by default, docked into the workspace row when pinned. */
 function QuickSettingsPanelView({ selectedProject, onInsertCommand }: QuickSettingsPanelViewProps) {
+  const { t } = useTranslation('settings');
   const { isMobile } = useDeviceSettings({ trackPWA: false });
   const canPin = !isMobile;
   const {
@@ -37,6 +43,11 @@ function QuickSettingsPanelView({ selectedProject, onInsertCommand }: QuickSetti
     selectTab,
     togglePin,
   } = useQuickSettingsPanelState({ canPin });
+  // One width for both states: the panel keeps its footprint when it is pinned,
+  // and only the drag handle on the docked column's edge changes it.
+  const { width: panelWidth, minWidth, maxWidth, separatorProps } = useQuickSettingsPanelWidth({
+    resizable: canPin,
+  });
   const provider = useSelectedProvider();
   const {
     commands,
@@ -193,6 +204,7 @@ function QuickSettingsPanelView({ selectedProject, onInsertCommand }: QuickSetti
         <QuickSettingsHandle
           isOpen={isOpen}
           isDragging={isDragging}
+          openOffset={isMobile ? MOBILE_PANEL_WIDTH : panelWidth}
           style={handleStyle}
           onClick={handleToggleFromHandle}
           onPointerDown={startDrag}
@@ -206,17 +218,37 @@ function QuickSettingsPanelView({ selectedProject, onInsertCommand }: QuickSetti
       {/* Docked: a layout column while open, gone while collapsed via the handle (the pin is kept). */}
       {isPinned ? (
         isOpen && (
-          <div className="relative h-full w-64 flex-shrink-0 border-l border-border bg-background">
+          <div
+            className="relative h-full flex-shrink-0 border-l border-border bg-background"
+            style={{ width: panelWidth }}
+          >
             {panelBody}
+            {/* Desktop only, mirrored from the sidebar: 4px of grab area on the column's outer edge. */}
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label={t('quickSettings.resizePanel')}
+              aria-valuenow={panelWidth}
+              aria-valuemin={minWidth}
+              aria-valuemax={maxWidth}
+              tabIndex={0}
+              className="absolute inset-y-0 -left-0.5 z-10 w-1 cursor-col-resize hover:bg-primary/40 focus-visible:bg-primary/60 focus-visible:outline-none"
+              {...separatorProps}
+            />
           </div>
         )
       ) : (
-        // Overlay: the feature branch keeps it wider and without a backdrop so
-        // the conversation stays visible and usable while the drawer is open.
+        // Overlay: the same width as the docked column and without a backdrop,
+        // so pinning does not change the panel's footprint and the conversation
+        // stays visible and usable while the drawer is open. Mobile keeps its
+        // fixed width: the stored desktop width would not fit a phone.
         <div
           ref={panelRef}
-          className={`fixed right-0 top-0 z-[9999] h-full w-80 transform border-l border-border bg-background shadow-xl transition-transform duration-150 ease-out ${isOpen ? 'translate-x-0' : 'translate-x-full'} ${isMobile ? 'h-screen' : ''}`}
-          style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+          className={`fixed right-0 top-0 z-[9999] h-full transform border-l border-border bg-background shadow-xl transition-transform duration-150 ease-out ${isOpen ? 'translate-x-0' : 'translate-x-full'} ${isMobile ? 'h-screen w-80' : ''}`}
+          style={{
+            paddingTop: 'env(safe-area-inset-top, 0px)',
+            ...(isMobile ? undefined : { width: panelWidth }),
+          }}
         >
           {panelBody}
         </div>

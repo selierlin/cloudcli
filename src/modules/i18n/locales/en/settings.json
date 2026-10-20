@@ -103,6 +103,7 @@
     },
     "pin": "Pin panel open",
     "unpin": "Unpin panel",
+    "resizePanel": "Resize panel",
     "close": "Close panel",
     "commands": {
       "searchPlaceholder": "Search commands…",
