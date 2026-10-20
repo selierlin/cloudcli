@@ -192,6 +192,25 @@ function getProfilePath(profileName: string): string {
   return path.join(PROFILE_ROOT, safeName);
 }
 
+/**
+ * Reads a bearer token from a file for the browser session to inject on load.
+ * Verification runs are headless, so the agent cannot type a password; minting a
+ * token with scripts/mint-auth-token.mjs and handing the file over is the
+ * supported way in. The file is read here (not by the MCP client) so the token
+ * never has to appear in the transcript.
+ */
+function readAuthTokenFile(filePath?: string | null): string | null {
+  const normalized = String(filePath || '').trim();
+  if (!normalized) {
+    return null;
+  }
+  const token = fs.readFileSync(path.resolve(normalized), 'utf8').trim();
+  if (!token) {
+    throw new Error(`Auth token file is empty: ${normalized}`);
+  }
+  return token;
+}
+
 function probeRuntime(): RuntimeProbe {
   const playwright = getPlaywright();
   const readiness: RuntimeProbe = {
@@ -498,7 +517,11 @@ export const browserUseService = {
       .map(publicSession);
   },
 
-  async createAgentSession(options?: { profileName?: string | null }) {
+  async createAgentSession(options?: {
+    profileName?: string | null;
+    authTokenFile?: string | null;
+    authOrigin?: string | null;
+  }) {
     const settings = readSettings();
     if (!settings.enabled) {
       throw new Error('Browser agent tools are disabled.');
@@ -506,6 +529,11 @@ export const browserUseService = {
 
     await expireStaleSessions();
     const profileName = normalizeProfileName(options?.profileName);
+    const authToken = readAuthTokenFile(options?.authTokenFile);
+    const authOrigin = String(options?.authOrigin || '').trim().replace(/\/$/, '');
+    if (authToken && !authOrigin) {
+      throw new Error('authOrigin is required when authTokenFile is provided.');
+    }
 
     const now = new Date().toISOString();
     const session: BrowserUseSession = {
@@ -562,6 +590,27 @@ export const browserUseService = {
       context = await browser.newContext(contextOptions);
       page = await context.newPage();
     }
+    if (authToken && authOrigin) {
+      // Scoped to a single origin: the token must never be written into
+      // third-party pages the agent happens to visit in the same context.
+      // This callback runs in the page, not in Node, so DOM globals are typed by hand.
+      await context.addInitScript(
+        ({ token, origin }: { token: string; origin: string }) => {
+          const page = globalThis as unknown as {
+            location: { origin: string };
+            localStorage: { setItem: (key: string, value: string) => void };
+          };
+          try {
+            if (page.location.origin === origin) {
+              page.localStorage.setItem('auth-token', token);
+            }
+          } catch {
+            // Storage is unavailable on opaque origins; those pages stay logged out.
+          }
+        },
+        { token: authToken, origin: authOrigin },
+      );
+    }
     session.status = 'ready';
     session.message = 'Browser session is ready.';
     sessions.set(session.id, session);
@@ -617,6 +666,35 @@ export const browserUseService = {
     session.cursor = null;
     await captureSession(session, handle.page);
     return publicSession(session);
+  },
+
+  /**
+   * Evaluates a JavaScript expression in the page and returns its JSON value.
+   * Expression evaluation is the only way to read layout measurements
+   * (getBoundingClientRect/getComputedStyle) during headless verification.
+   */
+  async agentEvaluate(sessionId: string, expression: string) {
+    const session = await this.getAgentSession(sessionId);
+    const handle = handles.get(sessionId);
+    if (!handle?.page) {
+      throw new Error('Browser runtime handle is not available.');
+    }
+    const source = String(expression || '').trim();
+    if (!source) {
+      throw new Error('expression is required.');
+    }
+
+    const value = await handle.page.evaluate(source);
+    const text = JSON.stringify(value === undefined ? null : value) ?? 'null';
+    const MAX_LENGTH = 20_000;
+    const truncated = text.length > MAX_LENGTH;
+    session.lastAction = 'evaluate';
+    await captureSession(session, handle.page);
+    return {
+      session: publicSession(session),
+      result: truncated ? `${text.slice(0, MAX_LENGTH)}…` : (value ?? null),
+      truncated,
+    };
   },
 
   async agentSnapshot(sessionId: string) {

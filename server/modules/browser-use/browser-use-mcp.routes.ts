@@ -54,6 +54,8 @@ router.post('/tools/:toolName', async (req, res) => {
       case 'browser_create_session':
         result = await browserUseService.createAgentSession({
           profileName: typeof input.profileName === 'string' ? input.profileName : null,
+          authTokenFile: typeof input.authTokenFile === 'string' ? input.authTokenFile : null,
+          authOrigin: typeof input.authOrigin === 'string' ? input.authOrigin : null,
         });
         break;
       case 'browser_list_sessions':
@@ -62,6 +64,9 @@ router.post('/tools/:toolName', async (req, res) => {
       case 'browser_snapshot':
       case 'browser_take_screenshot':
         result = await browserUseService.agentSnapshot(sessionId);
+        break;
+      case 'browser_evaluate':
+        result = await browserUseService.agentEvaluate(sessionId, String(input.expression || ''));
         break;
       case 'browser_navigate':
         result = await browserUseService.agentNavigate(sessionId, String(input.url || ''));
