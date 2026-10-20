@@ -71,11 +71,13 @@ const sessionIdSchema = {
 const tools: ToolDefinition[] = [
   {
     name: 'browser_create_session',
-    description: 'Create a temporary Browser session that the agent can control. Optionally provide a background profileName to reuse cookies and storage.',
+    description: 'Create a temporary Browser session that the agent can control. Optionally provide a background profileName to reuse cookies and storage, or authTokenFile plus authOrigin to inject a login token before the app loads (the file is read by the server, so the token stays out of the transcript).',
     inputSchema: {
       type: 'object',
       properties: {
         profileName: { type: 'string', description: 'Optional background profile name for persistent browser storage.' },
+        authTokenFile: { type: 'string', description: 'Optional path to a file holding a bearer token to store in localStorage["auth-token"].' },
+        authOrigin: { type: 'string', description: 'Origin the token is scoped to, e.g. http://127.0.0.1:3011. Required with authTokenFile.' },
       },
     },
   },
@@ -93,6 +95,18 @@ const tools: ToolDefinition[] = [
     name: 'browser_take_screenshot',
     description: 'Capture the latest screenshot for a Browser session.',
     inputSchema: sessionIdSchema,
+  },
+  {
+    name: 'browser_evaluate',
+    description: 'Evaluate a JavaScript expression in the page and return its JSON value. Use it to read layout metrics (getBoundingClientRect, getComputedStyle) or to set page state. Results are truncated at 20000 characters.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string' },
+        expression: { type: 'string', description: 'JavaScript expression evaluated in the page context.' },
+      },
+      required: ['sessionId', 'expression'],
+    },
   },
   {
     name: 'browser_navigate',
@@ -222,11 +236,18 @@ async function callTool(name: string, args: Record<string, unknown>) {
     case 'browser_create_session':
       return jsonResponse(await callBrowserUseApi(name, {
         profileName: readOptionalString(args.profileName),
+        authTokenFile: readOptionalString(args.authTokenFile),
+        authOrigin: readOptionalString(args.authOrigin),
       }));
     case 'browser_list_sessions':
       return jsonResponse(await callBrowserUseApi(name, {}));
     case 'browser_snapshot':
       return jsonResponse(await callBrowserUseApi(name, { sessionId: readString(args.sessionId, 'sessionId') }));
+    case 'browser_evaluate':
+      return jsonResponse(await callBrowserUseApi(name, {
+        sessionId: readString(args.sessionId, 'sessionId'),
+        expression: readString(args.expression, 'expression'),
+      }));
     case 'browser_take_screenshot': {
       return jsonResponse(await callBrowserUseApi(name, { sessionId: readString(args.sessionId, 'sessionId') }));
     }
