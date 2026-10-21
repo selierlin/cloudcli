@@ -239,6 +239,16 @@
     --border: var(--palette-sand-200);
     --input: var(--palette-sand-200);
     --ring: var(--palette-brand-500);
+    /* Scrollbar chrome. The thumb is the secondary-text colour at low alpha, so
+       it follows whatever theme is active without a second declaration per
+       appearance, and the track stays empty — an empty track is what keeps the
+       bar reading as a pill floating on the surface instead of a gutter dug
+       into it. A theme that wants a real gutter (win9x's sunken well, nes's
+       bevel) overrides these four; nothing else may paint a scrollbar. */
+    --scrollbar-size: 8px;
+    --scrollbar-thumb: var(--muted-foreground) / 0.35;
+    --scrollbar-thumb-hover: var(--muted-foreground) / 0.6;
+    --scrollbar-track: transparent;
     /* The code-block panel's own background: the board the chat transcript's
        fenced blocks and the editor's preview draw on. It follows the
        appearance's *editor page* rather than `--muted`, so a block sits on the
@@ -824,70 +834,49 @@
                 max-height 200ms ease-in-out;
   }
   
+  /* Scrollbars — one rule for the whole app, so a theme only has to recolour
+     the thumb. The two mechanisms cannot be mixed: Chrome renders its own
+     standard bar and ignores every ::-webkit-scrollbar rule as soon as a
+     non-`auto` `scrollbar-width` / `scrollbar-color` reaches the element, so
+     the old `.dark { scrollbar-width: thin }` here was silently discarding the
+     per-theme boards in `~/.cloudcli/themes/` (14 of them paint a thumb) and
+     leaving a stock grey slab with an opaque track in their place. Firefox has
+     no scrollbar pseudo-elements, so it takes the standard properties alone. */
+  @supports selector(::-webkit-scrollbar) {
+    *::-webkit-scrollbar {
+      width: var(--scrollbar-size);
+      height: var(--scrollbar-size);
+    }
+
+    *::-webkit-scrollbar-track {
+      background: var(--scrollbar-track);
+    }
+
+    *::-webkit-scrollbar-thumb {
+      background-color: hsl(var(--scrollbar-thumb));
+      border-radius: 999px;
+    }
+
+    *::-webkit-scrollbar-thumb:hover {
+      background-color: hsl(var(--scrollbar-thumb-hover));
+    }
+
+    *::-webkit-scrollbar-corner {
+      background: transparent;
+    }
+  }
+
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: hsl(var(--scrollbar-thumb)) transparent;
+    }
+  }
+
+  /* Tighter variant for the small panels (command output, model library,
+     permission prompts) that already sit inside a padded card. */
   .scrollbar-thin {
-    scrollbar-width: thin;
-    scrollbar-color: hsl(var(--muted-foreground)) transparent;
-  }
-  
-  .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  
-  .scrollbar-thin::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  
-  .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--muted-foreground));
-    border-radius: 3px;
-  }
-  
-  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--muted-foreground) / 0.8);
-  }
-  
-  /* Dark mode scrollbar styles */
-  .dark .scrollbar-thin {
-    scrollbar-color: hsl(var(--n-gray-400) / 0.5) transparent;
-  }
-  
-  .dark .scrollbar-thin::-webkit-scrollbar-track {
-    background: hsl(var(--n-neutral-800) / 0.3);
-  }
-  
-  .dark .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--n-gray-400) / 0.5);
-    border-radius: 3px;
-  }
-  
-  .dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--n-gray-400) / 0.7);
-  }
-  
-  /* Global scrollbar styles for main content areas */
-  .dark::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-  
-  .dark::-webkit-scrollbar-track {
-    background: hsl(var(--n-neutral-800) / 0.5);
-  }
-  
-  .dark::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--n-gray-500) / 0.5);
-    border-radius: 4px;
-  }
-  
-  .dark::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--n-gray-500) / 0.7);
-  }
-  
-  /* Firefox scrollbar styles */
-  .dark {
-    scrollbar-width: thin;
-    scrollbar-color: hsl(var(--n-neutral-500) / 0.5) hsl(var(--n-neutral-800) / 0.5);
+    --scrollbar-size: 6px;
   }
   
   /* Ensure checkbox styling is preserved */
@@ -1083,11 +1072,14 @@
        keyboard already raises the shell (and --keyboard-height with it), so
        keeping the inset there would open a gap between input and keyboard. */
     --chat-composer-safe-bottom: max(0px, env(safe-area-inset-bottom, 0px) - var(--keyboard-height, 0px));
+    /* Match the transcript's centre axis when its scrollbar takes up space. */
+    padding-right: calc(0.5rem + var(--chat-scrollbar-w, 0px));
     padding-bottom: calc(0.5rem + var(--chat-composer-safe-bottom));
   }
 
   @media (min-width: 640px) {
     .chat-composer-shell {
+      padding-right: calc(1rem + var(--chat-scrollbar-w, 0px));
       padding-bottom: calc(1rem + var(--chat-composer-safe-bottom));
     }
   }
@@ -1434,44 +1426,11 @@
   /* Improved textarea styling */
   .chat-input-placeholder {
     display: block !important;
-    scrollbar-width: thin;
-    scrollbar-color: hsl(var(--n-gray-400) / 0.3) transparent;
   }
 
   /* Ensure container fits textarea tightly */
   .chat-input-placeholder:not(:focus) {
     height: auto;
-  }
-  
-  .chat-input-placeholder::-webkit-scrollbar {
-    width: 6px;
-  }
-  
-  .chat-input-placeholder::-webkit-scrollbar-track {
-    background: transparent;
-    margin: 8px 0;
-  }
-  
-  .chat-input-placeholder::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--n-gray-400) / 0.3);
-    border-radius: 3px;
-    transition: background-color 0.2s;
-  }
-  
-  .chat-input-placeholder::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--n-gray-400) / 0.5);
-  }
-  
-  .dark .chat-input-placeholder {
-    scrollbar-color: hsl(var(--n-gray-500) / 0.3) transparent;
-  }
-  
-  .dark .chat-input-placeholder::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--n-gray-500) / 0.3);
-  }
-  
-  .dark .chat-input-placeholder::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--n-gray-500) / 0.5);
   }
   
   /* Enhanced box shadow when textarea expands */

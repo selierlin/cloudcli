@@ -114,6 +114,11 @@ disable-model-invocation: true
 
 - **令牌值必须是 HSL 三元组**（`150 12% 94%`），消费端是 `hsl(var(--x))`。
   写 `#hex` 会**静默失效**——不报错，只是没效果。
+- **带 alpha 的三元组槽**（`--scrollbar-thumb` / `--scrollbar-thumb-hover`）：值形如
+  `var(--muted-foreground) / 0.35`，即「三元组 ＋ `/ 透明度`」，消费端仍会再包一层 `hsl()`。
+  写完整颜色（`hsl(...)` / `#hex`）会得到 `hsl(hsl(...))`：声明**静默丢弃**，滑块直接变透明。
+  `--scrollbar-track` 可写 `transparent` 或同形三元组。这条**无守卫拦用户主题**（仓库默认值有断言，
+  `src/shared/tests/scrollbarChrome.test.ts`）。
 - **明暗分工**（推荐契约）：颜色规则全写 `:root:not(.dark)`，几何 / 材质 / 选择器写裸 `:root`。
   → 浅色是主题、切深色时颜色回落基色但布局改动保留。
 - **内容面（编辑器页 ＋ 代码块底）默认交还基座**（家族口径，2026-10-06 新增）：`--editor-*` 与

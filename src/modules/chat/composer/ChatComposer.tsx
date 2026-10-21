@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type {
   ChangeEvent,
   ClipboardEvent,
+  CSSProperties,
   FormEvent,
   KeyboardEvent,
   MouseEvent,
@@ -207,6 +208,29 @@ export default function ChatComposer({
   const { t } = useTranslation('chat');
   const fileDropdownRef = useRef<HTMLDivElement | null>(null);
   const selectedFileRef = useRef<HTMLDivElement | null>(null);
+  const [transcriptScrollbarWidth, setTranscriptScrollbarWidth] = useState(0);
+
+  // The transcript scrolls in its own box. Where the platform reserves space for
+  // the scrollbar (Firefox, or "always show scrollbars"), that box is narrower
+  // than the composer shell, so the message column centres a few pixels left of
+  // the input and the two left edges stop lining up. Carry the gap over to the
+  // composer so both centre on the same axis; overlay scrollbars report 0.
+  useLayoutEffect(() => {
+    const pane = document.querySelector<HTMLDivElement>('.chat-messages-pane');
+    if (!pane) {
+      return;
+    }
+    const measure = () => setTranscriptScrollbarWidth(pane.offsetWidth - pane.clientWidth);
+    measure();
+    const frame = requestAnimationFrame(measure);
+    const observer = new ResizeObserver(measure);
+    observer.observe(pane);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, []);
+
   const commandMenuPosition = useMemo(() => {
     if (!isCommandMenuOpen) {
       return { top: 0, left: 16, bottom: 90 };
@@ -286,13 +310,10 @@ export default function ChatComposer({
       : t('input.send');
 
   return (
-    <div className="chat-composer-shell relative flex-shrink-0 px-2 pt-0 sm:px-4 md:px-4">
-      {!hasPendingPermissions && (
-        <div className="pointer-events-none absolute bottom-full left-1/2 z-10 w-[calc(100%-1rem)] max-w-[60.5rem] -translate-x-1/2 translate-y-[var(--activity-tab-overlap)] bg-transparent sm:w-[calc(100%-2rem)]">
-          <ActivityIndicator activity={activity} onAbort={onAbortSession} isInputFocused={isInputFocused} />
-        </div>
-      )}
-
+    <div
+      className="chat-composer-shell relative flex-shrink-0 pl-2 pt-0 sm:pl-4 md:pl-4"
+      style={{ '--chat-scrollbar-w': `${transcriptScrollbarWidth}px` } as CSSProperties}
+    >
       {pendingPermissionRequests.length > 0 && (
         <div className="mx-auto mb-3 max-w-[60.5rem]">
           <PermissionRequestsBanner
@@ -343,6 +364,15 @@ export default function ChatComposer({
       )}
 
       {!hasQuestionPanel && <div className="relative mx-auto max-w-[60.5rem]">
+        {/* Inside the input's own column, not the shell: the shell is wider by
+            its left padding plus the reserved scrollbar width, so a calc()
+            width centred on it drifts off the input once the transcript shows
+            a scrollbar (`w-[calc(100%-2rem)]` only cancels the paddings). */}
+        {!hasPendingPermissions && (
+          <div className="pointer-events-none absolute bottom-full left-0 right-0 z-10 translate-y-[var(--activity-tab-overlap)] bg-transparent">
+            <ActivityIndicator activity={activity} onAbort={onAbortSession} isInputFocused={isInputFocused} />
+          </div>
+        )}
         {showFileDropdown && filteredFiles.length > 0 && (
           <div
             ref={fileDropdownRef}
