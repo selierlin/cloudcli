@@ -11,11 +11,15 @@ import type { BackgroundTaskSummary,
   ProviderModelActions,
   ProviderModelsDefinition,
 } from '@/shared/types';
-import { getIntrinsicMessageKey } from '@/modules/chat/utils/messageKeys';
+import {
+  buildTailAnchoredMessageKeys,
+  getIntrinsicMessageKey,
+} from '@/modules/chat/utils/messageKeys';
 import { getTurnDuration } from '@/modules/chat/utils/turnDurationRegistry';
 import {
   deriveExecutionProcessProjection,
 } from '@/modules/chat/utils/executionProcess';
+import { collectTurnSelectionKeys } from '@/modules/chat/utils/transcriptSelection';
 import {
   groupConsecutiveTools,
   isToolGroupItem,
@@ -202,6 +206,12 @@ type ChatMessagesPaneProps = {
   onEditMessage?: (message: ChatMessage) => void;
   /** Branches the conversation into a new session ending at a message. */
   onForkFromMessage?: (message: ChatMessage) => void;
+  /** True while the reader is picking rows for a partial export. */
+  isExportSelecting?: boolean;
+  /** Row keys currently picked for the partial export. */
+  selectedExportRowKeys?: Set<string>;
+  /** Adds or clears these rows; the turn entry passes its question and answers. */
+  onToggleExportRows?: (messageKeys: string[]) => void;
 };
 
 /**
@@ -263,6 +273,9 @@ function ChatMessagesPane({
   createDiff,
   onEditMessage,
   onForkFromMessage,
+  isExportSelecting = false,
+  selectedExportRowKeys,
+  onToggleExportRows,
   onFileOpen,
   onShowSettings,
   onGrantToolPermission,
@@ -335,23 +348,10 @@ function ChatMessagesPane({
   // Deriving keys from this render's ordered messages (intrinsic key,
   // disambiguated by occurrence index on collision) preserves existing DOM
   // nodes and component state when older history is prepended.
-  const messageKeyMap = useMemo(() => {
-    const keys = new WeakMap<ChatMessage, string>();
-    const occurrences = new Map<string, number>();
-    const assign = (message: ChatMessage) => {
-      const intrinsicKey = getIntrinsicMessageKey(message) ?? 'message-generated';
-      const seen = occurrences.get(intrinsicKey) ?? 0;
-      occurrences.set(intrinsicKey, seen + 1);
-      keys.set(message, seen === 0 ? intrinsicKey : `${intrinsicKey}__${seen}`);
-    };
-    // Number collisions from the tail so prepending historical pages never
-    // changes an already-rendered row's key or its local React state.
-    for (let index = visibleMessages.length - 1; index >= 0; index -= 1) {
-      const message = visibleMessages[index];
-      if (message) assign(message);
-    }
-    return keys;
-  }, [visibleMessages]);
+  const messageKeyMap = useMemo(
+    () => buildTailAnchoredMessageKeys(visibleMessages),
+    [visibleMessages],
+  );
 
   const getMessageKey = useCallback(
     (message: ChatMessage) =>
@@ -365,6 +365,34 @@ function ChatMessagesPane({
       }),
     [getMessageKey, isProcessing, visibleMessages],
   );
+  // The turn entry picks a question together with its answers; a row click
+  // picks just that row. Resolving a turn needs the rows and the projection
+  // above, which change on every stream tick — held in a ref so the handler
+  // passed to every row keeps its identity and memoized rows stay memoized.
+  const resolveExportRowsRef = useRef<(message: ChatMessage, wholeTurn: boolean) => string[]>(
+    () => [],
+  );
+  useLayoutEffect(() => {
+    resolveExportRowsRef.current = (message, wholeTurn) => {
+      const key = getMessageKey(message);
+      if (!wholeTurn) return [key];
+      return collectTurnSelectionKeys(
+        visibleMessages,
+        key,
+        getMessageKey,
+        // The same test the render performs: a key is a run member only when
+        // its group exists, so a row drawn on its own is never silently
+        // excluded from turn selection.
+        (memberKey) => {
+          const groupKey = executionProjection.memberDisclosureKeys.get(memberKey);
+          return Boolean(groupKey && executionProjection.groups.get(groupKey));
+        },
+      );
+    };
+  }, [executionProjection, getMessageKey, visibleMessages]);
+  const handleSelectExportRow = useCallback((message: ChatMessage, wholeTurn: boolean) => {
+    onToggleExportRows?.(resolveExportRowsRef.current(message, wholeTurn));
+  }, [onToggleExportRows]);
   const userMessageAnchors = useMemo(
     () => deriveUserMessageAnchors(visibleMessages, getMessageKey),
     [getMessageKey, visibleMessages],
@@ -748,6 +776,9 @@ function ChatMessagesPane({
                           onReasoningProgramCollapse={handleReasoningProgramCollapse}
                           onEditMessage={onEditMessage}
                           onForkFromMessage={onForkFromMessage}
+                          isExportSelecting={isExportSelecting}
+                          isExportSelected={Boolean(selectedExportRowKeys?.has(messageKey))}
+                          onSelectExportRow={handleSelectExportRow}
                           turnDurationMs={turnDurationMs}
                         />
                       </LazyMessageRow>

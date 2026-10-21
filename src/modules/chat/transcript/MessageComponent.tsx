@@ -1,9 +1,12 @@
 import { memo, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BrainIcon, ChevronDownIcon, GitBranchIcon, PencilIcon, Timer, UserRoundIcon } from 'lucide-react';
+import { CheckIcon, BrainIcon, ChevronDownIcon, GitBranchIcon, ListChecksIcon, PencilIcon, Timer } from 'lucide-react';
 
 import type { ChatMessage, ClaudePermissionSuggestion, PermissionGrantResult, LLMProvider,DiffLine,Project,ReasoningDisclosureState,ReasoningPresentation } from '@/shared/types';
+import { cn } from '@/shared/utils';
 import { formatUsageLimitText, stripProposedPlanEnvelope } from '@/modules/chat/utils/chatFormatting';
+import { isVisibleUserTurnStart } from '@/modules/chat/utils/transcriptProjection';
+import { isSelectableExportRow } from '@/modules/chat/utils/transcriptSelection';
 import { formatTaskDuration } from '@/modules/chat/utils/backgroundTasks';
 import { ToolRenderer, ToolErrorDisplay, SubagentPanel, WorkflowPanel, shouldHideToolResult } from '@/modules/chat/tools';
 import { LLMProviderLogo } from '@/shared/ui';
@@ -15,6 +18,7 @@ import StreamingMarkdown from '@/modules/chat/transcript/StreamingMarkdown';
 import MessageCopyControl from '@/modules/chat/transcript/MessageCopyControl';
 import MessageModelLabel from '@/modules/chat/transcript/MessageModelLabel';
 import MessageSpeakControl from '@/modules/chat/transcript/MessageSpeakControl';
+import ExportCopyButton from '@/modules/chat/transcript/ExportCopyButton';
 import { useIsExportingTranscript } from '@/modules/chat/context/TranscriptRenderContext';
 import { MemoryCitations } from '@/modules/chat/transcript/MemoryCitations';
 
@@ -52,6 +56,16 @@ type MessageComponentProps = {
    * Absent when the provider cannot copy a transcript prefix.
    */
   onForkFromMessage?: (message: ChatMessage) => void;
+  /** True while the reader is picking rows for a partial export. */
+  isExportSelecting?: boolean;
+  /** This row is picked for the partial export. */
+  isExportSelected?: boolean;
+  /**
+   * Starts selection (when idle) or toggles this row (while selecting).
+   * `wholeTurn` is the turn entry: it picks the question with its answers.
+   * Absent in the exported document, which has no reader interaction.
+   */
+  onSelectExportRow?: (message: ChatMessage, wholeTurn: boolean) => void;
   /**
    * Wall-clock time the reply's turn took, as this client measured it while the
    * run streamed. Absent on rows with no measurement — every historical turn,
@@ -66,7 +80,7 @@ const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
  * Rendered by chat's ChatMessagesPane and ToolGroupContainer to draw one
  * transcript entry — user turn, assistant turn, or a tool call and its result.
  */
-const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, reasoningPresentation, reasoningDisclosureState, isProcessRunMember, hidesProcessIdentity, isReasoningSearchTarget, suppressReasoningAutoCollapse, onReasoningUserOpenChange, onReasoningProgramOpen, onReasoningProgramCollapse, onEditMessage, onForkFromMessage, turnDurationMs }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, reasoningPresentation, reasoningDisclosureState, isProcessRunMember, hidesProcessIdentity, isReasoningSearchTarget, suppressReasoningAutoCollapse, onReasoningUserOpenChange, onReasoningProgramOpen, onReasoningProgramCollapse, onEditMessage, onForkFromMessage, isExportSelecting, isExportSelected, onSelectExportRow, turnDurationMs }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -96,6 +110,9 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
   // provider for.
   const isExporting = useIsExportingTranscript();
   const shouldShowUserCopyControl = !isExporting && message.type === 'user' && userCopyContent.trim().length > 0;
+  // A question is as copyable in a document as an answer: the exported footer
+  // keeps the control, only without the hover gate the chat uses.
+  const isExportUserCopy = isExporting && message.type === 'user' && userCopyContent.trim().length > 0;
   const shouldShowAssistantCopyControl = !isExporting &&
     message.type === 'assistant' &&
     assistantCopyContent.trim().length > 0 &&
@@ -117,6 +134,19 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     && !message.images?.length
     && !message.files?.length,
   );
+  // A question or an answer can be picked on its own; both carry a mark so the
+  // reader can see exactly which rows will land in the file.
+  const isSelectableRow = Boolean(onSelectExportRow)
+    && !isExporting
+    && isSelectableExportRow(message, Boolean(isProcessRunMember));
+  // Only a real user turn opens the mode, and it opens it with the whole turn.
+  const isTurnEntry = isSelectableRow && isVisibleUserTurnStart(message);
+  const isRowPickable = isExportSelecting && isSelectableRow;
+  // Every left-hand row takes the gutter while picking, not just the pickable
+  // ones: the checkbox marks a few rows, but an indent that came and went per
+  // row would leave the left edge ragged. Rows that cannot be picked shift
+  // with the rest and simply leave the gutter empty.
+  const pickingGutterClass = isExportSelecting ? 'sm:pl-7' : '';
   const disclosureKey = reasoningPresentation?.disclosureKey;
   const handleReasoningUserOpenChange = useCallback((open: boolean) => {
     if (disclosureKey) onReasoningUserOpenChange?.(disclosureKey, open);
@@ -150,11 +180,49 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     <div
       ref={messageRef}
       data-message-timestamp={message.timestamp || undefined}
-      className={`chat-message ${message.type} ${isGrouped ? 'grouped' : ''} ${message.type === 'user' ? 'flex justify-end px-3 sm:px-0' : 'px-3 sm:px-0'}`}
+      onClick={isRowPickable ? () => onSelectExportRow?.(message, false) : undefined}
+      className={`chat-message ${message.type} ${isGrouped ? 'grouped' : ''} ${
+        message.type === 'user' ? 'flex justify-end px-3 sm:px-0' : 'px-3 sm:px-0'
+      } ${
+        isRowPickable
+          // While picking, the row is the only target: every control inside it
+          // goes inert, so a click cannot expand a tool card, follow a link,
+          // fork the session or re-send an edit — it only picks this row.
+          ? 'relative cursor-pointer select-none rounded-lg transition-colors [&_*]:pointer-events-none'
+          : ''
+      } ${isRowPickable && isExportSelected
+        ? 'bg-primary/5 shadow-[inset_2px_0_0_0_hsl(var(--primary))]'
+        : ''} ${
+        isRowPickable && !isExportSelected ? 'hover:bg-muted/40' : ''
+      }`}
     >
       {message.type === 'user' ? (
         /* User turn on the right: claude.ai-style attachment cards above the bubble */
-        <div className="flex w-full items-end space-x-0 sm:w-auto sm:max-w-[85%] sm:space-x-3 md:max-w-md lg:max-w-lg xl:max-w-xl">
+        <div className="flex w-full min-w-0 items-end space-x-0 sm:w-auto sm:max-w-[85%] sm:space-x-3 md:max-w-md lg:max-w-lg xl:max-w-xl">
+          {/* The checkbox sits outside the bubble so a selected row reads as a
+              picked turn, not as part of the message's own content. */}
+          {isRowPickable && (
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={Boolean(isExportSelected)}
+              aria-label={t('transcript.selection.selectRow')}
+              // A mouse click already lands on the row above; this only fires
+              // for the keyboard, so it must not toggle twice.
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelectExportRow?.(message, false);
+              }}
+              className={cn(
+                'mb-2 mr-2 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border transition-colors',
+                isExportSelected
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-card text-transparent hover:border-primary',
+              )}
+            >
+              <CheckIcon className="h-3 w-3" strokeWidth={3} aria-hidden="true" />
+            </button>
+          )}
           <div className="flex min-w-0 flex-1 flex-col items-end gap-2 sm:flex-initial">
             {message.images && message.images.length > 0 && (
               <ChatMessageImages
@@ -167,7 +235,12 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
             )}
             {userCopyContent.trim().length > 0 || (!message.images?.length && !message.files?.length) ? (
               <div className="group max-w-full rounded-2xl rounded-br-md border border-border/60 bg-muted/60 px-3 py-2 text-foreground shadow-sm sm:px-4">
-                <div dir="auto" className="break-words font-serif text-sm">
+                <div
+                  dir="auto"
+                  className="break-words font-serif text-sm"
+                  // The footer's export copy button reads this subtree.
+                  data-export-copy-source={isExportUserCopy ? 'message' : undefined}
+                >
                   <Markdown
                     breaks
                     className="prose prose-sm max-w-none font-serif dark:prose-invert"
@@ -198,8 +271,28 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                       <GitBranchIcon className="h-3.5 w-3.5" />
                     </button>
                   )}
+                  {/* Hover reveals the entry on a mouse; a touch screen has no
+                      hover, so the icon stays visible there. Opening the mode
+                      here picks this question together with its answers. */}
+                  {isTurnEntry && !isExportSelecting && (
+                    <button
+                      type="button"
+                      onClick={() => onSelectExportRow?.(message, true)}
+                      title={t('transcript.selection.enter')}
+                      aria-label={t('transcript.selection.enter')}
+                      className="rounded p-1 opacity-0 transition-[opacity,transform] duration-150 active:scale-90 hover:bg-muted focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+                    >
+                      <ListChecksIcon className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                   {shouldShowUserCopyControl && (
                     <MessageCopyControl content={userCopyContent} messageType="user" />
+                  )}
+                  {isExportUserCopy && (
+                    <ExportCopyButton
+                      label={t('copyMessage.copy')}
+                      className="inline-flex items-center rounded p-1 text-muted-foreground transition-colors duration-150 hover:text-foreground"
+                    />
                   )}
                   <span>{formattedTime}</span>
                 </div>
@@ -211,15 +304,10 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               </div>
             )}
           </div>
-          {!isGrouped && (
-            <div className="hidden h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-border/60 bg-muted text-muted-foreground sm:flex">
-              <UserRoundIcon className="h-4 w-4" />
-            </div>
-          )}
         </div>
       ) : message.compact ? (
         /* A compaction: one row, its numbers, and its summary folded into it */
-        <div className="w-full">
+        <div className={`w-full ${pickingGutterClass}`}>
           <div className="flex items-center gap-2 py-0.5">
             <span
               className={`inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full ${
@@ -249,7 +337,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
         </div>
       ) : message.isTaskNotification ? (
         /* Compact task notification on the left */
-        <div className="w-full">
+        <div className={`w-full ${pickingGutterClass}`}>
           <div className="flex items-center gap-2 py-0.5">
             <span className={`inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full ${message.taskNotificationStatus === 'completed' ? 'bg-green-400 dark:bg-green-500' : 'bg-amber-400 dark:bg-amber-500'}`} />
             <span className="text-xs text-muted-foreground">{message.content}</span>
@@ -257,7 +345,33 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
         </div>
       ) : (
         /* Claude/Error/Tool messages on the left */
-        <div className="w-full">
+        <div className={`w-full ${pickingGutterClass}`}>
+          {/* The answer's own mark sits in the gutter the row makes for it, so
+              a picked question and its picked answer read as two picked rows
+              rather than one silently carrying the other. */}
+          {isRowPickable && (
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={Boolean(isExportSelected)}
+              aria-label={t('transcript.selection.selectRow')}
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelectExportRow?.(message, false);
+              }}
+              className={cn(
+                // A phone has no gutter to give the box, and taking one would
+                // rewrap the whole transcript; there the row's inset bar and
+                // tint carry the state instead.
+                'absolute left-1 top-6 hidden h-5 w-5 items-center justify-center rounded-full border transition-colors sm:flex',
+                isExportSelected
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-card text-transparent hover:border-primary',
+              )}
+            >
+              <CheckIcon className="h-3 w-3" strokeWidth={3} aria-hidden="true" />
+            </button>
+          )}
           {!isGrouped && !hidesProcessIdentity && (
             <div className="mb-2 flex items-center space-x-3">
               {message.type === 'error' ? (
@@ -594,37 +708,10 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                 {isExportAnswer && (
                   /* The template's click listener reads `data-export-copy`; the
                      two icons are swapped by CSS while the copy is confirmed. */
-                  <button
-                    type="button"
-                    data-export-copy=""
-                    title={t('copyMessage.copy')}
-                    aria-label={t('copyMessage.copy')}
+                  <ExportCopyButton
+                    label={t('copyMessage.copy')}
                     className="inline-flex items-center rounded px-1 py-0.5 text-n-gray-400 transition-[color,transform] duration-150 hover:text-foreground dark:text-n-gray-500"
-                  >
-                    <svg
-                      className="chat-export-copy-icon h-3.5 w-3.5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                    </svg>
-                    <svg
-                      className="chat-export-copy-check h-3.5 w-3.5"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </button>
+                  />
                 )}
                 {shouldShowAssistantCopyControl && (
                   <MessageCopyControl content={assistantCopyContent} messageType="assistant" />

@@ -11,6 +11,8 @@ import { useTranslation } from 'react-i18next';
 
 import { MermaidDiagram } from '@/modules/code-editor';
 import { MarkdownImage } from '@/modules/chat/transcript/MarkdownImage';
+import ExportCopyButton from '@/modules/chat/transcript/ExportCopyButton';
+import { useIsExportingTranscript } from '@/modules/chat/context/TranscriptRenderContext';
 import { normalizeInlineCodeFences } from '@/modules/chat/utils/chatFormatting';
 import { normalizeLatexDelimiters } from '@/modules/chat/utils/latexDelimiters';
 import { copyTextToClipboard } from '@/shared/utils';
@@ -36,8 +38,21 @@ type CopyButtonProps = {
 // Hover-revealed clipboard button shared by code blocks and tables. The parent
 // must carry the Tailwind `group` class for the reveal-on-hover to work.
 const CopyButton = ({ getText, copyLabel, copiedLabel, className = '' }: CopyButtonProps) => {
+  const isExporting = useIsExportingTranscript();
   // Marks a recent successful copy so the icon and title can flip to a check.
   const [copied, setCopied] = useState(false);
+  // A document has no React handlers: the page's own click listener does the
+  // copying, reading the enclosing block, and nothing hovers a static page —
+  // so the control has to be visible as rendered.
+  if (isExporting) {
+    return (
+      <ExportCopyButton
+        label={copyLabel}
+        className={`rounded-md p-1 text-muted-foreground ${className}`}
+        iconClassName="h-4 w-4"
+      />
+    );
+  }
   return (
     <button
       type="button"
@@ -84,10 +99,11 @@ const CopyButton = ({ getText, copyLabel, copiedLabel, className = '' }: CopyBut
 
 const MarkdownTable = ({ children, scrollHint }: { children?: React.ReactNode; scrollHint: string }) => {
   const { t } = useTranslation('chat');
+  const isExporting = useIsExportingTranscript();
   return (
     // The outer wrapper owns `relative` + `group` so the copy button stays
     // pinned to the visible top-right corner while the table scrolls beneath it.
-    <div className="group relative my-3">
+    <div className="group relative my-3" data-export-copy-group={isExporting ? 'table' : undefined}>
       <CopyButton
         getText={() => childrenToTSV(children)}
         copyLabel={t('codeBlock.copy', { defaultValue: 'Copy' })}
@@ -194,6 +210,7 @@ type CodeBlockProps = {
 // `node` is destructured out so react-markdown's hast node never reaches the DOM.
 const CodeBlock = ({ node: _node, className, children, forceBlock, ...props }: CodeBlockProps) => {
   const { t } = useTranslation('chat');
+  const isExporting = useIsExportingTranscript();
   // Fenced blocks carry a trailing newline in the tree; trim it so the
   // highlighter doesn't render an empty final line.
   const raw = (Array.isArray(children) ? children.join('') : String(children ?? '')).replace(/\n$/, '');
@@ -227,7 +244,12 @@ const CodeBlock = ({ node: _node, className, children, forceBlock, ...props }: C
   }
 
   return (
-    <div className="markdown-code-block group my-3 overflow-hidden rounded-xl border border-border bg-code-block/50 shadow-sm dark:bg-code-block">
+    <div
+      className="markdown-code-block group my-3 overflow-hidden rounded-xl border border-border bg-code-block/50 shadow-sm dark:bg-code-block"
+      // The export listener scopes a code block's copy to this element so the
+      // language label above the code never joins the copied text.
+      data-export-copy-group={isExporting ? 'code' : undefined}
+    >
       {/* Label row shares the block's background — no divider, ChatGPT-style */}
       <div className="flex items-center justify-between px-4 pt-2">
         <span className="select-none text-xs text-muted-foreground">{languageLabel}</span>

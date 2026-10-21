@@ -8,6 +8,8 @@ type BuildTranscriptMarkdownInput = {
   provider: LLMProvider | string;
   exportedAt: Date;
   createDiff: (oldStr: string, newStr: string) => DiffLine[];
+  /** The whole conversation when `messages` is only the picked rows. */
+  totalMessages?: ChatMessage[];
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -92,10 +94,19 @@ function renderToolCall(
  */
 export function buildTranscriptMarkdown(input: BuildTranscriptMarkdownInput): string {
   const providerLabel = PROVIDER_LABELS[String(input.provider)] ?? 'Assistant';
+  // One section per row, so the header counts rows — unlike the HTML export,
+  // which renders the run folded and counts what a reader sees as a message.
+  // A picked subset has to say so, or three rows read as three messages of
+  // the whole conversation.
+  const messageCount = input.messages.length;
+  const totalCount = input.totalMessages?.length ?? messageCount;
+  const messageSummary = totalCount > messageCount
+    ? `${messageCount} of ${totalCount} messages selected`
+    : `${messageCount} messages`;
   const sections: string[] = [
     `# ${input.sessionTitle}`,
     '',
-    `_${input.messages.length} messages · exported ${input.exportedAt.toLocaleString()}_`,
+    `_${messageSummary} · exported ${input.exportedAt.toLocaleString()}_`,
     '',
     '---',
   ];

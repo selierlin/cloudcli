@@ -69,6 +69,28 @@ describe('markdown export', () => {
     expect(markdown).toContain('const renamed = 1;');
   });
 
+  it('says when the file holds only the picked rows', async () => {
+    const markdown = await buildTranscriptExport('markdown', {
+      ...input,
+      messages: [userMessage],
+      totalMessages: input.messages,
+    }, exportedAt);
+
+    // Without the total, three picked rows are indistinguishable from a
+    // three-message conversation that was exported whole.
+    expect(markdown).toContain('1 of 3 messages selected');
+  });
+
+  it('counts the whole conversation when nothing was picked', async () => {
+    const markdown = await buildTranscriptExport('markdown', {
+      ...input,
+      totalMessages: input.messages,
+    }, exportedAt);
+
+    expect(markdown).toContain('3 messages · exported');
+    expect(markdown).not.toContain('selected');
+  });
+
   it('fences content that already contains a fence', async () => {
     const markdown = await buildTranscriptExport('markdown', {
       ...input,
@@ -100,20 +122,28 @@ describe('json export', () => {
 });
 
 describe('export filenames', () => {
-  it('turns a session title into a safe stem', () => {
+  it('names the file after the transcript, not its date', () => {
     assert.equal(
       toExportFileStem('Fix src/utils/date.ts "properly"', exportedAt),
-      'fix-src-utils-date-ts-properly-2026-08-24',
+      'conversation-fix-src-utils-date-ts-properly',
     );
   });
 
-  it('falls back when the title has nothing usable in it', () => {
+  it('uses the caller\u2019s localized prefix', () => {
+    assert.equal(toExportFileStem('重构导出流程', exportedAt, '对话'), '对话-重构导出流程');
+  });
+
+  it('falls back to the date when the title has nothing usable in it', () => {
     assert.equal(toExportFileStem('///', exportedAt), 'conversation-2026-08-24');
+  });
+
+  it('does not repeat the prefix when the title is the untitled placeholder', () => {
+    assert.equal(toExportFileStem('对话', exportedAt, '对话'), '对话-2026-08-24');
   });
 
   it('bounds a very long title', () => {
     const stem = toExportFileStem('word '.repeat(80), exportedAt);
-    assert.ok(stem.length <= 60 + '-2026-08-24'.length);
+    assert.ok(stem.length <= 60 + '-conversation'.length);
   });
 });
 
@@ -647,8 +677,12 @@ describe('html export message footer', () => {
         exportedAt,
       ),
     );
-    const copy = doc.querySelector('[data-export-copy]');
-    const source = doc.querySelector('[data-export-copy-source]');
+    // Scoped to the answer: the question carries a copy control of its own now,
+    // and so does every code block inside the answer — the footer's is the one
+    // that has no enclosing block.
+    const copy = Array.from(doc.querySelectorAll('.chat-message.assistant [data-export-copy]'))
+      .find((candidate) => !candidate.closest('[data-export-copy-group]'));
+    const source = doc.querySelector('.chat-message.assistant [data-export-copy-source]');
 
     assert.ok(copy, 'the footer carries a copy control');
     assert.ok(source, 'the copy control needs a source subtree');
@@ -665,6 +699,49 @@ describe('html export message footer', () => {
         new Date(answeredMessage.timestamp).toLocaleString(),
       ),
     );
+  });
+
+  it('gives the question a copy control of its own, without the hover gate', async () => {
+    const doc = parseExport(
+      await buildTranscriptExport(
+        'html',
+        { ...input, messages: [userMessage, answeredMessage] },
+        exportedAt,
+      ),
+    );
+    const row = doc.querySelector('.chat-message.user');
+    const copy = row?.querySelector('[data-export-copy]');
+    const source = row?.querySelector('[data-export-copy-source]');
+
+    assert.ok(copy, 'the question carries a copy control');
+    assert.ok(source, 'it needs a source subtree of its own');
+    assert.ok(source.textContent?.includes('Please rename the helper'));
+    // The chat reveals its copy on hover; a document has no pointer to wait
+    // for, so the control has to be visible as rendered.
+    assert.equal(copy.className.includes('opacity-0'), false);
+    assert.equal(copy.className.includes('group-hover'), false);
+    // The listener starts at the row, so the question copies the question.
+    assert.equal(copy.closest('.chat-message')?.contains(source), true);
+  });
+
+  it('gives each code block a copy control scoped to the code alone', async () => {
+    const doc = parseExport(
+      await buildTranscriptExport('html', {
+        ...input,
+        messages: [userMessage, answeredMessage],
+      }, exportedAt),
+    );
+    const block = doc.querySelector('.markdown-code-block');
+    assert.ok(block, 'the answer renders a fenced block');
+    assert.equal(block.getAttribute('data-export-copy-group'), 'code');
+
+    const copy = block.querySelector('[data-export-copy]');
+    assert.ok(copy, 'the block carries a copy control');
+    // The chat reveals this one on hover; a static page has nothing to hover
+    // with, and a hidden control is a control nobody finds.
+    assert.equal(copy.className.includes('opacity-0'), false);
+    // Scoping to the block is what keeps the language label out of the copy.
+    assert.equal(copy.closest('[data-export-copy-group]'), block);
   });
 
   it('does not put a footer on the process narration', async () => {
@@ -684,6 +761,71 @@ describe('html export message footer', () => {
   });
 });
 
+
+// A file travels without the app around it: the header has to carry the context
+// a reader would otherwise get from the window it was exported from.
+describe('html export header context', () => {
+  const project = {
+    projectId: 'p-1',
+    displayName: 'acme-web',
+    fullPath: '/repo/acme-web',
+  } as Project;
+
+  it('names the tool, the project and the window the transcript covers', async () => {
+    const doc = parseExport(
+      await buildTranscriptExport('html', {
+        ...input,
+        messages: [userMessage, assistantMessage],
+        selectedProject: project,
+      }, exportedAt),
+    );
+    const meta = Array.from(doc.querySelectorAll('.chat-export-meta'))
+      .map((line) => line.textContent ?? '');
+
+    assert.ok(meta.some((line) => line.includes(chatT('messageTypes.claude'))));
+    assert.ok(meta.some((line) => line.includes('acme-web')));
+    assert.ok(
+      meta.some((line) => line.includes(new Date(userMessage.timestamp).toLocaleString())),
+      'the window starts at the first message',
+    );
+    assert.ok(
+      meta.some((line) => line.includes(new Date(assistantMessage.timestamp).toLocaleString())),
+      'and ends at the last one',
+    );
+    // The project name is labelled, so it does not read as another provider.
+    assert.ok(meta.some((line) => line.includes(chatT('export.projectName', { name: 'acme-web' }))));
+  });
+
+  it('says when the file holds only the picked rows', async () => {
+    const doc = parseExport(
+      await buildTranscriptExport('html', {
+        ...input,
+        messages: [userMessage],
+        totalMessages: [userMessage, assistantMessage],
+      }, exportedAt),
+    );
+    const summary = doc.querySelector('.chat-export-meta')?.textContent ?? '';
+
+    assert.ok(
+      summary.includes(chatT('export.partialMessages', { count: 1, total: 2 })),
+      'a picked subset never claims to be the whole conversation',
+    );
+  });
+
+  it('counts the whole conversation when nothing was picked', async () => {
+    const doc = parseExport(
+      await buildTranscriptExport('html', {
+        ...input,
+        messages: [userMessage, assistantMessage],
+        totalMessages: [userMessage, assistantMessage],
+      }, exportedAt),
+    );
+    const summary = doc.querySelector('.chat-export-meta')?.textContent ?? '';
+
+    assert.ok(summary.includes(chatT('export.messages', { count: 2 })));
+    assert.equal(summary.includes(chatT('export.partialMessages', { count: 2, total: 2 })), false);
+  });
+});
 
 // The document, not the transcript: what the export wears is decided by the
 // attributes on `<html>`, and a stylesheet full of `[data-theme="…"]` rules is

@@ -13,12 +13,17 @@ import { buildTranscriptMarkdown } from '@/modules/chat/export/buildTranscriptMa
 
 export type TranscriptExportFormat = 'html' | 'markdown' | 'json';
 
+/** The formats a turn-selection export offers; JSON stays a whole-session view. */
+export type PartialExportFormat = Extract<TranscriptExportFormat, 'html' | 'markdown'>;
+
 export type TranscriptExportInput = {
   messages: ChatMessage[];
   sessionTitle: string;
   provider: LLMProvider | string;
   selectedProject?: Project | null;
   createDiff: (oldStr: string, newStr: string) => DiffLine[];
+  /** The whole conversation, when `messages` is only the rows the user picked. */
+  totalMessages?: ChatMessage[];
 };
 
 const EXTENSIONS: Record<TranscriptExportFormat, string> = {
@@ -39,8 +44,18 @@ const MIME_TYPES: Record<TranscriptExportFormat, string> = {
  * Session titles are the user's first message, so they routinely contain
  * slashes and quotes; unsanitized they produced downloads named after only the
  * last path segment, or nothing at all.
+ *
+ * `prefix` names the artifact — the caller localizes it, so a zh-CN export
+ * reads `对话-重构导出.html` and an English one `conversation-Refactor-export`.
+ * The export date only appears when the title itself cannot name the file,
+ * including the caller's own "untitled" placeholder, which would otherwise
+ * produce `对话-对话`.
  */
-export function toExportFileStem(sessionTitle: string, exportedAt: Date): string {
+export function toExportFileStem(
+  sessionTitle: string,
+  exportedAt: Date,
+  prefix = 'conversation',
+): string {
   const date = exportedAt.toISOString().slice(0, 10);
   const slug = sessionTitle
     .normalize('NFKD')
@@ -49,7 +64,7 @@ export function toExportFileStem(sessionTitle: string, exportedAt: Date): string
     .slice(0, 60)
     .toLowerCase();
 
-  return slug ? `${slug}-${date}` : `conversation-${date}`;
+  return slug && slug !== prefix.toLowerCase() ? `${prefix}-${slug}` : `${prefix}-${date}`;
 }
 
 function downloadBlob(blob: Blob, filename: string): void {
@@ -90,6 +105,7 @@ export async function buildTranscriptExport(
       provider: input.provider,
       exportedAt,
       createDiff: input.createDiff,
+      totalMessages: input.totalMessages,
     });
   }
 
@@ -100,16 +116,18 @@ export async function buildTranscriptExport(
     selectedProject: input.selectedProject,
     sessionTitle: input.sessionTitle,
     exportedAt,
+    totalMessages: input.totalMessages,
   });
 }
 
 export async function downloadTranscriptExport(
   format: TranscriptExportFormat,
   input: TranscriptExportInput,
+  fileNamePrefix?: string,
 ): Promise<void> {
   const exportedAt = new Date();
   const content = await buildTranscriptExport(format, input, exportedAt);
-  const filename = `${toExportFileStem(input.sessionTitle, exportedAt)}.${EXTENSIONS[format]}`;
+  const filename = `${toExportFileStem(input.sessionTitle, exportedAt, fileNamePrefix)}.${EXTENSIONS[format]}`;
 
   downloadBlob(new Blob([content], { type: MIME_TYPES[format] }), filename);
 }
