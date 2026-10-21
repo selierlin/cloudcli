@@ -55,6 +55,26 @@ const ZCODE_SESSION_REFERENCING_TABLES = [
 ] as const;
 
 /**
+ * How recent a session's own clock must be for a watcher event to index it.
+ *
+ * The watcher fires on any write to the shared `db.sqlite`, including the
+ * `DELETE` this app issues for a permanent session removal. Without a
+ * freshness filter the scan takes the store's newest row, so a delete merely
+ * uncovers the next-newest session — often one that has been idle for weeks —
+ * and re-indexes it into the sidebar as if it had just appeared.
+ *
+ * Recency is read from two clocks, because only one of them is guaranteed to
+ * move on new content: `time_updated` is known to move on a rename, and
+ * whether every message append bumps it is ZCode's business, not something
+ * this app can assert. The newest message's own `time_created` is written by
+ * the append itself, so accepting either clock keeps a live session indexed
+ * without making the delete-uncovered case look live — an idle session has
+ * neither clock inside the window. Anything the window misses is still caught
+ * by the cursor-based full scan.
+ */
+const WATCHER_SYNC_FRESHNESS_MS = 5 * 60_000;
+
+/**
  * Resolves a session's project path to its real filesystem path.
  *
  * ZCode stores an absolute `directory`, but on macOS `/tmp` is reported as
@@ -95,7 +115,7 @@ export class ZcodeSessionSynchronizer implements IProviderSessionSynchronizer {
       return null;
     }
 
-    return this.synchronizeRows(undefined, 1).firstSessionId;
+    return this.synchronizeRows(new Date(Date.now() - WATCHER_SYNC_FRESHNESS_MS), 1).firstSessionId;
   }
 
   /**
@@ -140,7 +160,9 @@ export class ZcodeSessionSynchronizer implements IProviderSessionSynchronizer {
       db.pragma('busy_timeout = 2000');
       const sinceMillis = since?.getTime() ?? null;
       const limitClause = limit ? 'LIMIT ?' : '';
-      const params = limit ? [sinceMillis, sinceMillis, limit] : [sinceMillis, sinceMillis];
+      const params = limit
+        ? [sinceMillis, sinceMillis, sinceMillis, limit]
+        : [sinceMillis, sinceMillis, sinceMillis];
       const rows = db.prepare(`
         SELECT
           s.id AS id,
@@ -151,8 +173,13 @@ export class ZcodeSessionSynchronizer implements IProviderSessionSynchronizer {
           (SELECT MAX(m.time_created) FROM message m WHERE m.session_id = s.id) AS content_time
         FROM session s
         WHERE s.time_archived IS NULL
-          AND (? IS NULL OR COALESCE(s.time_updated, s.time_created, 0) >= ?)
-        ORDER BY COALESCE(s.time_updated, s.time_created, 0) DESC, s.id DESC
+          AND (
+            ? IS NULL
+            OR COALESCE(s.time_updated, s.time_created, 0) >= ?
+            OR COALESCE((SELECT MAX(m.time_created) FROM message m WHERE m.session_id = s.id), 0) >= ?
+          )
+        ORDER BY MAX(COALESCE(s.time_updated, s.time_created, 0), COALESCE(content_time, 0)) DESC,
+          s.id DESC
         ${limitClause}
       `).all(...params) as ZcodeSessionRow[];
 
