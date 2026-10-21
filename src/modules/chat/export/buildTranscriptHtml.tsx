@@ -5,6 +5,7 @@ import { api } from '@/shared/api';
 import type { ChatImage, ChatMessage, DiffLine, LLMProvider, Project } from '@/shared/types';
 import { TranscriptExportDocument } from '@/modules/chat/export/TranscriptExportDocument';
 import { countVisibleTranscriptMessages } from '@/modules/chat/utils/executionProcess';
+import { getChatProviderLabel } from '@/modules/chat/utils/chatProviderLabel';
 import {
   buildTranscriptMessageKeys,
   getTranscriptMessageKey,
@@ -17,6 +18,8 @@ type BuildTranscriptHtmlInput = {
   selectedProject?: Project | null;
   sessionTitle: string;
   exportedAt: Date;
+  /** The whole conversation when `messages` is only the picked rows. */
+  totalMessages?: ChatMessage[];
 };
 
 /**
@@ -345,6 +348,37 @@ export async function buildTranscriptHtml(input: BuildTranscriptHtmlInput): Prom
   // no longer drops the user back into English.
   const t = i18n.getFixedT(null, 'chat');
   const lang = escapeHtml(i18n.language || 'en');
+  // A partial export has to say so: the header's own count describes the file,
+  // and a reader would otherwise take four picked rows for the whole session.
+  const totalVisibleCount = (() => {
+    if (!input.totalMessages) return messageCount;
+    const keys = buildTranscriptMessageKeys(input.totalMessages);
+    return countVisibleTranscriptMessages(
+      input.totalMessages,
+      (message) => keys.get(message) ?? getTranscriptMessageKey(message),
+    );
+  })();
+  const messageSummary = totalVisibleCount > messageCount
+    ? t('export.partialMessages', { count: messageCount, total: totalVisibleCount })
+    : t('export.messages', { count: messageCount });
+  // Whoever receives the file has none of the app's context around it: name the
+  // tool that produced the transcript, the project it belongs to, and the
+  // window it covers. Each part is optional, so an export missing one keeps the
+  // others instead of printing a separator for nothing.
+  const firstTimestamp = input.messages[0]?.timestamp;
+  const lastTimestamp = input.messages[input.messages.length - 1]?.timestamp;
+  const contextLine = [
+    getChatProviderLabel(String(input.provider), t),
+    input.selectedProject?.displayName
+      ? t('export.projectName', { name: input.selectedProject.displayName })
+      : null,
+    firstTimestamp && lastTimestamp
+      ? `${new Date(firstTimestamp).toLocaleString()} – ${new Date(lastTimestamp).toLocaleString()}`
+      : null,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .map(escapeHtml)
+    .join(' · ');
 
   return `<!DOCTYPE html>
 <html lang="${lang}"${rootAttributeList}>
@@ -464,7 +498,8 @@ ${styles}
   <header class="chat-export-header">
     <div>
       <h1 class="chat-export-title">${title}</h1>
-      <p class="chat-export-meta">${t('export.messages', { count: messageCount })} · ${t('export.exportedAt', { time: exportedAt })}</p>
+      <p class="chat-export-meta">${messageSummary} · ${t('export.exportedAt', { time: exportedAt })}</p>
+      ${contextLine ? `<p class="chat-export-meta">${contextLine}</p>` : ''}
     </div>
     <button type="button" class="chat-export-theme-toggle" onclick="document.documentElement.classList.toggle('dark')">${t('export.toggleTheme')}</button>
   </header>
@@ -516,13 +551,37 @@ ${styles}
     try { document.execCommand('copy'); markCopied(button); } catch (error) {}
     document.body.removeChild(area);
   }
+  /* A table copies as TSV and a code block copies as its own source, matching
+     what the app gives each of its copy buttons. Both are scoped to the block
+     that owns the button, so a code block never drags its language label into
+     the clipboard and never falls back to the whole message.
+     Every backslash below is doubled: this script lives inside a template
+     literal, where an unescaped escape would become a real character. */
+  function tableToTsv(table) {
+    if (!table) return '';
+    return Array.prototype.map.call(table.rows, function (row) {
+      return Array.prototype.map.call(row.cells, function (cell) {
+        return cell.innerText.replace(/\\s+/g, ' ').trim();
+      }).join('\\t');
+    }).join('\\n');
+  }
+  function textFor(button) {
+    var group = button.closest('[data-export-copy-group]');
+    if (group) {
+      if (group.getAttribute('data-export-copy-group') === 'table') {
+        return tableToTsv(group.querySelector('table'));
+      }
+      var code = group.querySelector('code');
+      return code ? code.textContent : '';
+    }
+    var message = button.closest('.chat-message');
+    var source = message && message.querySelector('[data-export-copy-source]');
+    return source ? source.innerText : '';
+  }
   document.addEventListener('click', function (event) {
     var button = event.target.closest && event.target.closest('[data-export-copy]');
     if (!button) return;
-    var message = button.closest('.chat-message');
-    var source = message && message.querySelector('[data-export-copy-source]');
-    if (!source) return;
-    var text = source.innerText;
+    var text = textFor(button);
     if (!text) return;
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(function () {

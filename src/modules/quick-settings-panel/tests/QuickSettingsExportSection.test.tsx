@@ -100,3 +100,48 @@ test('starts one export per click', async () => {
     assert.ok(getByText('Web Page (.html)'));
   });
 });
+
+const renderWith = (messages: ChatMessage[]) => render(
+  <QuickSettingsExportSection
+    messages={messages}
+    sessionTitle="Conversation"
+    provider={'claude' as LLMProvider}
+    selectedProject={null}
+    isOpen
+    onToggle={() => {}}
+  />,
+);
+
+test('warns before a long transcript makes the click look dead', () => {
+  const transcript = Array.from({ length: 400 }, (_, index) => ({
+    type: 'user',
+    content: `message ${index}`,
+  } as ChatMessage));
+
+  assert.ok(renderWith(transcript).queryByText('quickSettings.export.sizeHint'));
+});
+
+test('warns for a short transcript that still carries a lot of text', () => {
+  const transcript = [{ type: 'user', content: 'x'.repeat(600 * 1024) } as ChatMessage];
+
+  assert.ok(renderWith(transcript).queryByText('quickSettings.export.sizeHint'));
+});
+
+test('says so when the export throws', async () => {
+  vi.mocked(downloadTranscriptExport).mockRejectedValueOnce(new Error('stylesheets blocked'));
+  const { getByText, queryByText } = renderSection();
+
+  fireEvent.click(getByText('Web Page (.html)'));
+
+  // The row goes back to its label either way, so silence is indistinguishable
+  // from a download that produced no file.
+  await waitFor(() => {
+    assert.ok(queryByText('transcript.selection.exportFailed'));
+  });
+});
+
+test('stays quiet for a transcript that exports instantly', () => {
+  const { queryByText } = renderWith([{ type: 'user', content: 'hi' } as ChatMessage]);
+
+  assert.equal(queryByText('quickSettings.export.sizeHint'), null);
+});

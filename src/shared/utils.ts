@@ -132,6 +132,27 @@ export async function copyTextToClipboard(text: string): Promise<boolean> {
 
 // ---------------------------
 
+//----------------- RENDERING SCHEDULE ------------
+
+/**
+ * Resolves after the browser has painted the state update made just before the
+ * call. Exporting a long transcript is one synchronous render that can occupy
+ * the main thread for seconds; without this wait a "generating" row would only
+ * appear after the work finished, which is the frozen click it exists to
+ * explain. Used by the quick-settings export and the transcript selection bar.
+ */
+export function afterNextPaint(): Promise<void> {
+  if (typeof requestAnimationFrame !== 'function') {
+    return new Promise((resolve) => { setTimeout(resolve, 0); });
+  }
+
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => { requestAnimationFrame(() => { resolve(); }); });
+  });
+}
+
+// ---------------------------
+
 //----------------- NOTIFICATION SOUND ------------
 
 /** localStorage key holding the user's completion-sound preference. Private to the sound helpers. */

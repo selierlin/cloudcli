@@ -112,6 +112,16 @@
       "loadedToolCount": "{{count}} loaded tool calls",
       "attention": "needs attention",
       "truncated": "earlier history not loaded"
+    },
+    "selection": {
+      "enter": "Select messages",
+      "selectRow": "Select this message",
+      "selectedMessages": "{{count}} messages selected",
+      "exportHtml": "Export HTML",
+      "exportMarkdown": "Export Markdown",
+      "generating": "Generating {{format}}…",
+      "exportFailed": "Export failed — no file was written",
+      "cancel": "Cancel"
     }
   },
   "json": {
@@ -510,6 +520,7 @@
     "trigger": "Export conversation",
     "heading": "Export as",
     "untitled": "Conversation",
+    "filePrefix": "conversation",
     "html": {
       "label": "Web page (.html)",
       "description": "Self-contained, looks like the app, prints to PDF."
@@ -523,6 +534,8 @@
       "description": "Every message, unformatted, for tooling."
     },
     "messages": "{{count}} messages",
+    "partialMessages": "{{count}} of {{total}} messages selected",
+    "projectName": "Project {{name}}",
     "exportedAt": "exported {{time}}",
     "toggleTheme": "Toggle theme"
   },

@@ -86,7 +86,8 @@
     "export": {
       "title": "导出对话",
       "loading": "正在加载聊天记录…",
-      "generating": "正在生成 {{format}}…"
+      "generating": "正在生成 {{format}}…",
+      "sizeHint": "文本约 {{size}}（不含图片），生成需要几秒"
     },
     "theme": "主题",
     "showRawParameters": "显示原始参数",

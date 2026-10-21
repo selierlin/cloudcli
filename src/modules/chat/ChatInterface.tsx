@@ -8,6 +8,7 @@ import PermissionContext from '@/modules/chat/context/PermissionContext';
 import { MarkdownWorkspaceContext } from '@/modules/chat/context/MarkdownWorkspaceContext';
 import { TranscriptSessionContext } from '@/modules/chat/context/TranscriptSessionContext';
 import { api } from '@/shared/api';
+import { afterNextPaint } from '@/shared/utils';
 import type {
   ChatMessage,
   Project,
@@ -27,6 +28,10 @@ import { createRevealPacer } from '@/modules/chat/utils/revealPacer';
 import type { RevealPacer } from '@/modules/chat/utils/revealPacer';
 import { getChatProviderLabel } from '@/modules/chat/utils/chatProviderLabel';
 import { forkFailureMessageKey } from '@/modules/chat/utils/forkFailureMessage';
+import { downloadTranscriptExport } from '@/modules/chat/utils/chatExport';
+import type { PartialExportFormat } from '@/modules/chat/utils/chatExport';
+import { buildTailAnchoredMessageKeys, getTranscriptMessageKey } from '@/modules/chat/utils/messageKeys';
+import { collectSelectedMessages } from '@/modules/chat/utils/transcriptSelection';
 import {
   useProcessingSessions,
   useSessionProtectionActions,
@@ -35,6 +40,7 @@ import ChatMessagesPane from '@/modules/chat/transcript/ChatMessagesPane';
 import ChatComposer from '@/modules/chat/composer/ChatComposer';
 import CommandResultModal from '@/modules/chat/modals/CommandResultModal';
 import ScrollToBottomAffordance from '@/modules/chat/ScrollToBottomAffordance';
+import TranscriptSelectionBar from '@/modules/chat/TranscriptSelectionBar';
 
 type ChatInterfaceProps = {
   isActive: boolean;
@@ -57,6 +63,13 @@ type ChatInterfaceProps = {
 };
 
 const REASONING_COLLAPSE_FOLLOW_MS = 350;
+
+/**
+ * Shared empty turn selection. A selection made in another session reads as
+ * this set, so the bar disappears without an effect rewriting state after the
+ * new transcript has painted. Never mutated.
+ */
+const EMPTY_EXPORT_ROW_KEYS: Set<string> = new Set();
 
 /** Resolves the provider name shown in chat empty states and composer hints. */
 /**
@@ -130,6 +143,8 @@ function ChatInterface({
   // on every sequenced frame, read whenever a `chat.subscribe` is sent so the
   // server replays only the events this client actually missed.
   const lastSeqRef = useRef(new Map<string, number>());
+  /** Wrapper around the composer, made inert while the reader picks rows. */
+  const composerShellRef = useRef<HTMLDivElement | null>(null);
 
   const {
     provider,
@@ -503,6 +518,132 @@ function ChatInterface({
   // the turn is running.
   const hasActivityIndicator = Boolean(sessionActivity && pendingPermissionRequests.length === 0);
 
+  // Partial-export selection. `sessionKey` scopes the picked row keys to the
+  // transcript they came from, so switching sessions cannot match an unrelated
+  // row in the next one. `active` keeps the mode on while the reader clears and
+  // re-picks rows; `rowKeys` holds one key per picked question or answer.
+  const exportSessionKey = currentSessionId ?? selectedSession?.id ?? null;
+  const [exportSelection, setExportSelection] = useState<{
+    sessionKey: string | null;
+    active: boolean;
+    rowKeys: Set<string>;
+  }>({ sessionKey: null, active: false, rowKeys: new Set() });
+  // The format currently being built, which keeps both bar buttons disabled
+  // while one synchronous transcript render owns the main thread.
+  const [selectionExportFormat, setSelectionExportFormat] = useState<PartialExportFormat | null>(null);
+  // Set when the last attempt threw; the bar reports it until the next attempt
+  // or until the reader leaves the mode.
+  const [selectionExportFailed, setSelectionExportFailed] = useState(false);
+
+  // Same tail-anchored keys the pane renders, so a row picked before older
+  // history is prepended keeps pointing at the same row.
+  const exportMessageKeys = useMemo(
+    () => buildTailAnchoredMessageKeys(chatMessages),
+    [chatMessages],
+  );
+  const getExportMessageKey = useCallback(
+    (message: ChatMessage) => exportMessageKeys.get(message) || getTranscriptMessageKey(message),
+    [exportMessageKeys],
+  );
+
+  const exportSelectionActive = exportSelection.active && exportSelection.sessionKey === exportSessionKey;
+  // A selection made in another session reads as no selection, without an
+  // effect resetting state after the transcript has already painted.
+  const exportRowKeys = exportSelection.sessionKey === exportSessionKey
+    ? exportSelection.rowKeys
+    : EMPTY_EXPORT_ROW_KEYS;
+  // What the selection actually resolves to, resolved once for both the bar
+  // and the export. Keys can drift out of the transcript while an answer
+  // streams (tail-anchored duplicates, a row without an id), and a bar that
+  // counted the key set would keep promising rows the export can no longer
+  // find — the click would then do nothing at all.
+  const selectedExportMessages = useMemo(
+    () => (exportRowKeys.size === 0
+      ? []
+      : collectSelectedMessages(chatMessages, exportRowKeys, getExportMessageKey)),
+    [chatMessages, exportRowKeys, getExportMessageKey],
+  );
+
+  // Turning the mode on gives every pickable row a mark, which narrows its
+  // content and can push the tail below the fold. A reader who was at the tail
+  // stays there; one who was reading further up is left where they are.
+  useLayoutEffect(() => {
+    if (exportSelectionActive) followTranscriptLayout();
+  }, [exportSelectionActive, followTranscriptLayout]);
+
+  const handleToggleExportRows = useCallback((messageKeys: string[]) => {
+    if (messageKeys.length === 0) return;
+    setSelectionExportFailed(false);
+    setExportSelection((previous) => {
+      const rowKeys = new Set(
+        previous.sessionKey === exportSessionKey ? previous.rowKeys : [],
+      );
+      // The turn entry arrives as several keys at once: it clears only when
+      // every row it names is already picked, so one deselect cannot leave a
+      // question behind without its answer.
+      const clearAll = messageKeys.every((key) => rowKeys.has(key));
+      messageKeys.forEach((key) => {
+        if (clearAll) rowKeys.delete(key);
+        else rowKeys.add(key);
+      });
+      return { sessionKey: exportSessionKey, active: true, rowKeys };
+    });
+  }, [exportSessionKey]);
+
+  const handleCancelExportSelection = useCallback(() => {
+    setSelectionExportFailed(false);
+    setExportSelection({ sessionKey: exportSessionKey, active: false, rowKeys: new Set() });
+  }, [exportSessionKey]);
+
+  const handleExportSelectedRows = useCallback(async (format: PartialExportFormat) => {
+    if (selectionExportFormat !== null) return;
+    if (selectedExportMessages.length === 0) return;
+
+    setSelectionExportFailed(false);
+    setSelectionExportFormat(format);
+    try {
+      // The busy label must paint before the synchronous render starts.
+      await afterNextPaint();
+      await downloadTranscriptExport(format, {
+        messages: selectedExportMessages,
+        sessionTitle: selectedSession?.title || t('export.untitled', { defaultValue: 'Conversation' }),
+        provider,
+        selectedProject,
+        createDiff,
+        // The file names its own subset, so the reader can tell a pick from a
+        // short conversation.
+        totalMessages: chatMessages,
+      }, t('export.filePrefix', { defaultValue: 'conversation' }));
+    } catch (error) {
+      // The bar is the only confirmation surface this mode has, so a failure
+      // has to be said there: resetting the busy state silently would look
+      // exactly like a successful download that produced no file.
+      console.error('[Chat] Failed to export the selected messages:', error);
+      setSelectionExportFailed(true);
+    } finally {
+      setSelectionExportFormat(null);
+    }
+  }, [
+    chatMessages,
+    createDiff,
+    provider,
+    selectedExportMessages,
+    selectedProject,
+    selectedSession?.title,
+    selectionExportFormat,
+    t,
+  ]);
+
+  // Picking rows is a mode, not a panel: the composer must not accept text,
+  // focus or drops while it is on. `inert` covers pointer, keyboard and focus
+  // in one attribute, and it also blurs whatever input had focus on entry.
+  useLayoutEffect(() => {
+    const shell = composerShellRef.current;
+    if (!shell) return;
+    if (exportSelectionActive) shell.setAttribute('inert', '');
+    else shell.removeAttribute('inert');
+  }, [exportSelectionActive]);
+
   const selectedProviderLabel = getChatProviderLabel(provider, t);
 
   if (!selectedProject) {
@@ -584,12 +725,33 @@ function ChatInterface({
               // a live stream writing into it is not recoverable.
               onEditMessage={supportsMessageEditing && !isProcessing ? beginEditMessage : undefined}
               onForkFromMessage={supportsSessionForking ? handleForkFromMessage : undefined}
+              isExportSelecting={exportSelectionActive}
+              selectedExportRowKeys={exportRowKeys}
+              onToggleExportRows={handleToggleExportRows}
             />
           </TranscriptSessionContext.Provider>
         </MarkdownWorkspaceContext.Provider>
 
         <div className="relative flex-shrink-0">
-          {isUserScrolledUp && chatMessages.length > 0 && (
+          {exportSelectionActive && (
+            /* Floats over the tail of the transcript instead of taking a row of
+               its own: the band either side of the pill stays transparent, so
+               the reader still sees the conversation around the controls. It
+               must not be laid out in flow: growing the composer's column
+               shrinks the pane, and the browser's scroll anchoring then moves
+               the reader several screens away from where they were. */
+            <div className="pointer-events-none absolute bottom-full left-0 right-0 z-20 mb-2 flex justify-center px-3">
+              <TranscriptSelectionBar
+                selectedCount={selectedExportMessages.length}
+                failed={selectionExportFailed}
+                busyFormat={selectionExportFormat}
+                onExport={(format) => { void handleExportSelectedRows(format); }}
+                onCancel={handleCancelExportSelection}
+              />
+            </div>
+          )}
+
+          {!exportSelectionActive && isUserScrolledUp && chatMessages.length > 0 && (
             <div className="pointer-events-none absolute -top-11 left-0 right-0 z-20 flex justify-center">
               <ScrollToBottomAffordance
                 isThinking={hasActivityIndicator}
@@ -598,6 +760,7 @@ function ChatInterface({
             </div>
           )}
 
+          <div ref={composerShellRef}>
           <ChatComposer
           pendingPermissionRequests={pendingPermissionRequests}
           handlePermissionDecision={handlePermissionDecision}
@@ -674,6 +837,7 @@ function ChatInterface({
           isTextareaExpanded={isTextareaExpanded}
           sendByCtrlEnter={sendByCtrlEnter}
         />
+          </div>
         </div>
       </div>
 
