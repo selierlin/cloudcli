@@ -305,6 +305,41 @@ const countRows = (db: Database.Database, table: string, sessionId: string): num
   return row?.n ?? 0;
 };
 
+/**
+ * Moves one seeded session's clocks to the given time.
+ *
+ * Watcher syncs only index sessions updated within the freshness window, so a
+ * test that exercises `synchronizeFile` must make its target look live. Other
+ * seeded rows keep their old clocks, which also preserves the newest-row order.
+ */
+const setOpenCodeSessionClock = (dbPath: string, sessionId: string, time: number): void => {
+  const db = new Database(dbPath);
+  try {
+    db.prepare('UPDATE session SET time_created = ?, time_updated = ? WHERE id = ?')
+      .run(time - 1_000, time, sessionId);
+  } finally {
+    db.close();
+  }
+};
+
+/**
+ * Appends one message to a seeded session, stamped with the given time.
+ *
+ * This is the second clock the freshness filter reads: OpenCode is free to
+ * write a message without moving `session.time_updated`, and a test that only
+ * moved the session clock would never notice the difference.
+ */
+const appendOpenCodeMessage = (dbPath: string, sessionId: string, time: number): void => {
+  const db = new Database(dbPath);
+  try {
+    db.prepare(
+      'INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, ?, ?, ?, ?)',
+    ).run(`message-${sessionId}`, sessionId, time, time, JSON.stringify({ role: 'user' }));
+  } finally {
+    db.close();
+  }
+};
+
 test('OpenCode session synchronizer indexes sqlite sessions without deletable transcript paths', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-sync-'));
   const workspacePath = path.join(tempRoot, 'workspace');
@@ -510,6 +545,75 @@ test('OpenCode permanent delete tolerates a provider store that no longer holds 
   }
 });
 
+test('OpenCode watcher sync does not index a stale session uncovered by a delete', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-sync-stale-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+  const dbPath = path.join(tempRoot, '.local', 'share', 'opencode', 'opencode.db');
+
+  try {
+    await createOpenCodeDatabase(tempRoot, workspacePath);
+    const now = Date.now();
+    // The parent is the store's newest row; the sibling is long idle. Deleting
+    // the parent — which the app does on permanent delete — makes that stale
+    // sibling the newest row and writes opencode.db, so the watcher event the
+    // delete itself produces must not index it as if it had just appeared.
+    setOpenCodeSessionClock(dbPath, 'open-session-1', now);
+    setOpenCodeSessionClock(dbPath, 'open-sibling-session-1', now - 30 * 24 * 60 * 60 * 1_000);
+
+    await withIsolatedDatabase(async () => {
+      const synchronizer = new OpenCodeSessionSynchronizer();
+      assert.equal(await synchronizer.synchronize(), 2);
+
+      await synchronizer.deleteProviderSession('open-session-1');
+      sessionsDb.deleteSessionById('open-session-1');
+      sessionsDb.deleteSessionById('open-sibling-session-1');
+
+      assert.equal(await synchronizer.synchronizeFile(dbPath), null);
+      assert.equal(sessionsDb.getSessionById('open-sibling-session-1'), null);
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('OpenCode watcher sync indexes a session whose newest message outran its clock', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-sync-fresh-message-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+  const dbPath = path.join(tempRoot, '.local', 'share', 'opencode', 'opencode.db');
+
+  try {
+    await createOpenCodeDatabase(tempRoot, workspacePath);
+    const now = Date.now();
+    // The sibling's session row has been idle for a month, but a message
+    // landed just now. OpenCode does not have to move `time_updated` with it,
+    // and the watcher must still see the append rather than waiting for the
+    // next cursor scan to notice.
+    setOpenCodeSessionClock(dbPath, 'open-session-1', now);
+    setOpenCodeSessionClock(dbPath, 'open-sibling-session-1', now - 30 * 24 * 60 * 60 * 1_000);
+    appendOpenCodeMessage(dbPath, 'open-sibling-session-1', now - 1_000);
+
+    await withIsolatedDatabase(async () => {
+      const synchronizer = new OpenCodeSessionSynchronizer();
+      assert.equal(await synchronizer.synchronize(), 2);
+
+      await synchronizer.deleteProviderSession('open-session-1');
+      sessionsDb.deleteSessionById('open-session-1');
+      sessionsDb.deleteSessionById('open-sibling-session-1');
+
+      assert.equal(await synchronizer.synchronizeFile(dbPath), 'open-sibling-session-1');
+      assert.ok(sessionsDb.getSessionById('open-sibling-session-1'));
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('OpenCode session synchronizer returns the app session id once provider mapping exists', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-sync-mapped-'));
   const workspacePath = path.join(tempRoot, 'workspace');
@@ -518,6 +622,11 @@ test('OpenCode session synchronizer returns the app session id once provider map
 
   try {
     await createOpenCodeDatabase(tempRoot, workspacePath);
+    setOpenCodeSessionClock(
+      path.join(tempRoot, '.local', 'share', 'opencode', 'opencode.db'),
+      'open-session-1',
+      Date.now(),
+    );
     await withIsolatedDatabase(() => {
       sessionsDb.createAppSession('app-session-1', 'opencode', workspacePath);
       sessionsDb.assignProviderSessionId('app-session-1', 'open-session-1');
@@ -544,6 +653,11 @@ test('OpenCode session synchronizer adopts the pending app session before watche
 
   try {
     await createOpenCodeDatabase(tempRoot, workspacePath);
+    setOpenCodeSessionClock(
+      path.join(tempRoot, '.local', 'share', 'opencode', 'opencode.db'),
+      'open-session-1',
+      Date.now(),
+    );
     await withIsolatedDatabase(() => {
       sessionsDb.createAppSession('app-session-race', 'opencode', workspacePath);
 

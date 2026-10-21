@@ -181,6 +181,101 @@ test('ZCode synchronizer ignores archived sessions and non-database watcher path
   }
 });
 
+test('ZCode watcher sync does not index a stale session uncovered by a delete', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'zcode-session-sync-stale-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+  const now = Date.now();
+  const monthAgo = now - 30 * 24 * 60 * 60 * 1_000;
+
+  try {
+    const seededDbPath = await seedZcodeRichSession(tempRoot, workspacePath);
+    const db = new Database(seededDbPath);
+    try {
+      // Make the seeded session the store's newest row, and add a long-idle one
+      // that becomes the newest once the live session is deleted — the state
+      // the watcher used to mistake for fresh activity.
+      db.prepare('UPDATE session SET time_created = ?, time_updated = ? WHERE id = ?')
+        .run(now - 1_000, now, 'zcode-session-1');
+      db.prepare(`
+        INSERT INTO session (id, project_id, directory, title, time_created, time_updated, time_archived)
+        VALUES (?, ?, ?, ?, ?, ?, NULL)
+      `).run('zcode-stale-1', 'project-1', workspacePath, 'Stale', monthAgo, monthAgo);
+    } finally {
+      db.close();
+    }
+    const dbPath = path.join(tempRoot, '.zcode', 'cli', 'db', 'db.sqlite');
+
+    await withIsolatedDatabase(async () => {
+      const synchronizer = new ZcodeSessionSynchronizer();
+      assert.equal(await synchronizer.synchronize(), 2);
+
+      await synchronizer.deleteProviderSession('zcode-session-1');
+      sessionsDb.deleteSessionById('zcode-session-1');
+      sessionsDb.deleteSessionById('zcode-stale-1');
+
+      assert.equal(await synchronizer.synchronizeFile(dbPath), null);
+      assert.equal(sessionsDb.getSessionById('zcode-stale-1'), null);
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('ZCode watcher sync indexes a session whose newest message outran its clock', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'zcode-session-sync-fresh-message-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+  const now = Date.now();
+  const monthAgo = now - 30 * 24 * 60 * 60 * 1_000;
+
+  try {
+    const seededDbPath = await seedZcodeRichSession(tempRoot, workspacePath);
+    const db = new Database(seededDbPath);
+    try {
+      // The second session's row has been idle for a month, but a message
+      // landed just now. Whether ZCode moves `time_updated` with an append is
+      // its business; the append is activity either way.
+      db.prepare('UPDATE session SET time_created = ?, time_updated = ? WHERE id = ?')
+        .run(now - 1_000, now, 'zcode-session-1');
+      db.prepare(`
+        INSERT INTO session (id, project_id, directory, title, time_created, time_updated, time_archived)
+        VALUES (?, ?, ?, ?, ?, ?, NULL)
+      `).run('zcode-fresh-message-1', 'project-1', workspacePath, 'Fresh message', monthAgo, monthAgo);
+      db.prepare(
+        'INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, ?, ?, ?, ?)',
+      ).run(
+        'message-zcode-fresh-1',
+        'zcode-fresh-message-1',
+        now - 1_000,
+        now - 1_000,
+        JSON.stringify({ role: 'user' }),
+      );
+    } finally {
+      db.close();
+    }
+    const dbPath = path.join(tempRoot, '.zcode', 'cli', 'db', 'db.sqlite');
+
+    await withIsolatedDatabase(async () => {
+      const synchronizer = new ZcodeSessionSynchronizer();
+      assert.equal(await synchronizer.synchronize(), 2);
+
+      await synchronizer.deleteProviderSession('zcode-session-1');
+      sessionsDb.deleteSessionById('zcode-session-1');
+      sessionsDb.deleteSessionById('zcode-fresh-message-1');
+
+      assert.equal(await synchronizer.synchronizeFile(dbPath), 'zcode-fresh-message-1');
+      assert.ok(sessionsDb.getSessionById('zcode-fresh-message-1'));
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('ZCode permanent delete removes the session from the provider store so no scan re-indexes it', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'zcode-session-delete-'));
   const workspacePath = path.join(tempRoot, 'workspace');
