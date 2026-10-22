@@ -3,7 +3,7 @@ import { Check, ChevronRight, Edit3, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button } from '@/shared/ui';
-import { cn } from '@/shared/utils';
+import { cn, isImeKeyEvent } from '@/shared/utils';
 import type { LLMProvider, MCPServerStatus, Project, ProjectSession, SessionAttentionLevel, SessionWithProvider } from '@/shared/types';
 import { getTaskIndicatorStatus } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import TaskIndicator from '@/modules/sidebar/TaskIndicator';
@@ -230,11 +230,11 @@ function SidebarProjectItem({
                       autoComplete="off"
                       onClick={(event) => event.stopPropagation()}
                       onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
+                        if (event.key === 'Enter' && !isImeKeyEvent(event)) {
                           saveProjectName();
                         }
 
-                        if (event.key === 'Escape') {
+                        if (event.key === 'Escape' && !isImeKeyEvent(event)) {
                           // Cancelling the rename must not also close the code editor.
                           event.stopPropagation();
                           onCancelEditingProject();
@@ -373,10 +373,10 @@ function SidebarProjectItem({
                     placeholder={t('projects.projectNamePlaceholder')}
                     autoFocus
                     onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
+                      if (event.key === 'Enter' && !isImeKeyEvent(event)) {
                         saveProjectName();
                       }
-                      if (event.key === 'Escape') {
+                      if (event.key === 'Escape' && !isImeKeyEvent(event)) {
                         // Cancelling the rename must not also close the code editor.
                         event.stopPropagation();
                         onCancelEditingProject();

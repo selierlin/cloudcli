@@ -4,7 +4,7 @@ import { Check, Edit2, Loader2, MoreHorizontal, Pin, PinOff, Trash2, X } from 'l
 import type { TFunction } from 'i18next';
 
 import { Badge, Dialog, DialogContent, DialogTitle, LLMProviderLogo, Tooltip, buttonVariants } from '@/shared/ui';
-import { cn } from '@/shared/utils';
+import { cn, isImeKeyEvent } from '@/shared/utils';
 import { SESSION_OWNERSHIP_DRAG_MIME } from '@/shared/constants';
 import type { LLMProvider, Project, ProjectSession, SessionAttentionLevel, SessionWithProvider } from '@/shared/types';
 import { PROVIDER_LABELS, createSessionViewModel, formatCompactAge } from '@/modules/sidebar/utils/sidebarProjectFormatting';
@@ -367,7 +367,7 @@ function SidebarSessionItem({
                   onChange={(event) => onRenameDraftChange(event.target.value)}
                   onKeyDown={(event) => {
                     event.stopPropagation();
-                    if (event.key === 'Enter') {
+                    if (event.key === 'Enter' && !isImeKeyEvent(event)) {
                       saveMobileRename();
                     }
                   }}

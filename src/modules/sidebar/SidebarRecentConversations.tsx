@@ -4,7 +4,7 @@ import type { MouseEvent } from 'react';
 import type { TFunction } from 'i18next';
 
 import { ActionMenu, Button, Dialog, DialogContent, DialogTitle, LLMProviderLogo } from '@/shared/ui';
-import { cn } from '@/shared/utils';
+import { cn, isImeKeyEvent } from '@/shared/utils';
 import type { LLMProvider, Project, ProjectSession, RecentConversationListItem, SessionAttentionLevel } from '@/shared/types';
 import { formatCompactAge } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import { buildSessionOwnershipMenuItems } from '@/modules/sidebar/utils/sessionOwnershipMenuItems';
@@ -381,7 +381,7 @@ function RecentConversationRow({
                   onChange={(event) => onEditingSessionNameChange(event.target.value)}
                   onKeyDown={(event) => {
                     event.stopPropagation();
-                    if (event.key === 'Enter') {
+                    if (event.key === 'Enter' && !isImeKeyEvent(event)) {
                       saveMobileRename();
                     }
                   }}
@@ -522,9 +522,9 @@ function RecentConversationRow({
                 onChange={(event) => onEditingSessionNameChange(event.target.value)}
                 onKeyDown={(event) => {
                   event.stopPropagation();
-                  if (event.key === 'Enter') {
+                  if (event.key === 'Enter' && !isImeKeyEvent(event)) {
                     saveEditedSession();
-                  } else if (event.key === 'Escape') {
+                  } else if (event.key === 'Escape' && !isImeKeyEvent(event)) {
                     onCancelEditingSession();
                   }
                 }}

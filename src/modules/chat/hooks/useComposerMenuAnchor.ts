@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ComposerMenuAnchor } from '@/shared/types';
+import { isImeKeyEvent } from '@/shared/utils';
 
 
 const VIEWPORT_MARGIN = 8;
@@ -104,7 +105,9 @@ export function useComposerMenuAnchor(
     };
 
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== 'Escape') {
+      // An Escape that cancels an IME candidate must not close the menu the user
+      // is typing into.
+      if (event.key !== 'Escape' || isImeKeyEvent(event)) {
         return;
       }
       event.preventDefault();

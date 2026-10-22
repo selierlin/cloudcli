@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 
-import { cn } from '@/shared/utils';
+import { cn, isImeKeyEvent } from '@/shared/utils';
 
 type DialogContextValue = {
   open: boolean;
@@ -123,7 +123,7 @@ export const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps
       if (!open) return;
 
       const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
+        if (e.key === 'Escape' && !isImeKeyEvent(e)) {
           e.stopPropagation();
           onEscapeKeyDown?.();
           onOpenChange(false);

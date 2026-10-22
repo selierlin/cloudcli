@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { isImeKeyEvent } from '@/shared/utils';
+
 type UseSessionTitleRenameArgs = {
   /** The open session's id, or null when the header is not naming a session. */
   sessionId: string | null;
@@ -119,7 +121,8 @@ export function useSessionTitleRename({
       }
       event.preventDefault();
       void saveDraft();
-    } else if (event.key === 'Escape') {
+    } else if (event.key === 'Escape' && !isImeKeyEvent(event)) {
+      // Escape that cancels an IME candidate keeps the rename open.
       event.preventDefault();
       cancelEditing();
     }

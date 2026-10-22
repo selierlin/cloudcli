@@ -4,6 +4,7 @@ import type { Dispatch, KeyboardEvent, RefObject, SetStateAction } from 'react';
 import { api } from '@/shared/api';
 import { escapeRegExp } from '@/modules/chat/utils/chatFormatting';
 import type { Project } from '@/shared/types';
+import { isImeKeyEvent } from '@/shared/utils';
 
 type ProjectFileNode = {
   name: string;
@@ -277,7 +278,7 @@ export function useFileMentions({ selectedProject, input, setInput, textareaRef 
         return false;
       }
 
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !isImeKeyEvent(event)) {
         event.preventDefault();
         // The caret is still inside the `@` query, so a refetch landing after
         // this would re-open the dropdown (or first show it, when nothing

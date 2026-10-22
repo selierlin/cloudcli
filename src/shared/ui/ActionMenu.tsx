@@ -2,7 +2,7 @@ import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Loader2, type LucideIcon } from 'lucide-react';
 
-import { cn } from '@/shared/utils';
+import { cn, isImeKeyEvent } from '@/shared/utils';
 import { Button } from '@/shared/ui/Button';
 
 type ButtonVariant = 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
@@ -95,7 +95,7 @@ export function ActionMenu({
     };
 
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !isImeKeyEvent(event)) {
         restoreFocusRef.current = true;
         setMenuOpen(false);
       }

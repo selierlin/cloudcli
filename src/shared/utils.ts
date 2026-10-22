@@ -26,6 +26,60 @@ export function cn(...inputs: ClassValue[]) {
 
 // ---------------------------
 
+//----------------- IME INPUT ------------
+
+/**
+ * How long after `compositionend` a press still counts as the IME's, not the app's.
+ *
+ * Safari dispatches `compositionend` before the `keydown` of the key that
+ * committed or cancelled the composition, so `isComposing` is already false by
+ * the time a handler runs. Chrome and Firefox fire it afterwards, which is why
+ * the naive check passes there and the bug reads as Safari-only. The two events
+ * are synchronous — a person pressing the same key again takes far longer than
+ * this window.
+ */
+const IME_COMPOSITION_GRACE_MS = 30;
+
+let compositionEndedAt = 0;
+
+if (typeof window !== 'undefined') {
+  // Capture phase: the timestamp has to be recorded before any handler that
+  // might consult it runs.
+  window.addEventListener('compositionend', () => {
+    compositionEndedAt = Date.now();
+  }, true);
+}
+
+type KeyEventLike = {
+  isComposing?: boolean;
+  keyCode?: number;
+  nativeEvent?: { isComposing?: boolean; keyCode?: number };
+};
+
+/**
+ * Tells whether a keydown belongs to an IME composition instead of the app.
+ *
+ * Consult it in every `Escape` handler. Cancelling a pinyin candidate is done
+ * with Escape, and the browser still dispatches a `keydown` for it — without the
+ * check that press closes the panel the user is typing into, aborts the running
+ * turn, or dismisses an open menu.
+ *
+ * `isComposing` alone is not enough: Safari reports it as false (see
+ * `IME_COMPOSITION_GRACE_MS`), and some Windows IMEs report `keyCode` 229 for
+ * every key while composing.
+ *
+ * Accepts either a native `KeyboardEvent` or a React synthetic event.
+ */
+export function isImeKeyEvent(event: KeyEventLike): boolean {
+  const nativeEvent = event.nativeEvent ?? event;
+  if (nativeEvent.isComposing || nativeEvent.keyCode === 229) {
+    return true;
+  }
+  return Date.now() - compositionEndedAt < IME_COMPOSITION_GRACE_MS;
+}
+
+// ---------------------------
+
 //----------------- CHAT FONT SETTINGS ------------
 
 /** Event dispatched after local chat font settings change so active views can refresh CSS variables. */

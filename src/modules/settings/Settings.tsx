@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { ProviderLoginModal } from '@/modules/provider-auth';
 import { Button } from '@/shared/ui';
+import { isImeKeyEvent } from '@/shared/utils';
 import SettingsSidebar from '@/modules/settings/SettingsSidebar';
 import AgentsSettingsTab from '@/modules/settings/tabs/agents-settings/AgentsSettingsTab';
 import AppearanceSettingsTab from '@/modules/settings/tabs/AppearanceSettingsTab';
@@ -169,7 +170,11 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || document.querySelector('[data-escape-layer]')) {
+      if (
+        event.key !== 'Escape'
+        || isImeKeyEvent(event)
+        || document.querySelector('[data-escape-layer]')
+      ) {
         return;
       }
       onClose();
