@@ -36,9 +36,11 @@ done
 
 ### 已沉淀会话 — 内容已进 OV，可删
 
-「已沉淀」的判定不是 cloudcli 的字段，而是 **memory-bank 的 `s:` 引用**（`session-sediment` 落的）。`s:` 引用绝大多数指向早已删除的会话（引用悬空、只剩沉淀），属正常态，不用追。
+「已沉淀」的判定不是 cloudcli 的字段，而是 **`s:` 引用**（`session-sediment` 落的）：memory-bank 与 **db dict**（`docs/db-dictionary/_sediment-log.md`）两处都算。`s:` 引用绝大多数指向早已删除的会话（引用悬空、只剩沉淀），属正常态，不用追。
 
-用 `sediment_refs.py` 交叉匹配，命中的就是已沉淀会话。删掉不丢信息（前提：确认对应条目已在 OV）。
+用 `sediment_refs.py` 交叉匹配（默认同时扫 bank 与 db dict，`--no-dict` 可关），命中的就是已沉淀会话。
+
+**但「命中」只证明有东西落过，不证明全部落过。** 判可删要看两段：该会话在分诊表里的落点（`bank:x` / `db:y`）是否**全部**有对应命中。只落了 bank 那半就删 = db 那半永久丢失，且原料（transcript）没了无法补救。删前确认对应条目/段落已在 OV。
 
 ### 残留目录 / 孤儿文件
 

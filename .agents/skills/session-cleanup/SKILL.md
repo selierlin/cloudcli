@@ -38,17 +38,27 @@ disable-model-invocation: true
    - **划批按清单逐条打勾，不按 provider 手感挑**：踩过 opencode 那条归档会话连着 8 批没被带出来，因为每批都在 workbuddy 里挑。每批结束核一次「已处理 + 剩余 = 总数」，差额就是漏掉的。
    - 分批只看归档/全部的范围参数，别在中途换口径（换了就会漏或多）。
 2. **读一批**：小会话用一次 `extract.py` 多路径调用**读完**（`--max 200` 只压答案长度；控制预算靠批内条数，别用 `--limit` 把短会话截断）。
-3. **出分诊表**：每条一行「处置 + 一句理由 + 依据」。建议删的条目必须附「将删什么」（DB 行 / transcript 路径 / superseded / 共享库行）——**这份表就是干跑输出，用户点「删」即可直接 apply**，不要再来一轮干跑。
+3. **出分诊表**：每条一行「处置 + 一句理由 + 依据」。**处置可多值，用 `+` 连接**：`删` / `bank:<kind>` / `db:<域文件>` / `边界`，例如 `删 + bank:case + db:04-recharge-refund`。**落点必须写全**——只写 bank 会让 db dict 那半在删除时静默丢失。建议删的条目必须附「将删什么」（DB 行 / transcript 路径 / superseded / 共享库行）——**这份表就是干跑输出，用户点「删」即可直接 apply**，不要再来一轮干跑。
+   - 批内 **db 侧改动先聚合再写**：同一域文件被多条会话命中时，合并成一份 diff、一次签核，不许按会话逐条 apply（否则同一段落被读改多轮，前一次的 diff 会被后一次踩掉）。
+   - 聚合时若两条会话对同一张表给出相反口径，**单独列出来问**，不许后写的覆盖先写的。
 4. **停**。不预读下一批、不替用户拍板、边界项不自己选。
    - **「按你推荐的」只授权当前这张表**：它覆盖的是本批已列出的条目，**不构成对下一批的预授权**。下一批照样要贴表、照样要等回话。踩过：第 6 批获批后顺手读了第 7 批并直接 apply，11 条没经同意就删了。批与批之间是新的决策点，不是同一决策的延续。
    - 同理，用户说「继续」= 继续读下一批，不是「继续删」。
 5. 用户回复 → **先执行本批的删与沉淀**，再取下一批，回第 2 步。
 
-**每批只回三块**（别写成长文）
+**每批固定回这几块**（别写成长文）
 
 ```
 本批 7 条 · 累计 13/48 · 第 2 批
-[分诊表]
+
+[分诊表，处置可多值]
+
+db 侧（按域文件合并，一次签核）：
+  04-recharge-refund.md  +6 −1  ← a3f2
+  05-activity.md        +11 −2  ← b8e4
+
+bank 侧：2 条新建（case / knowledge）· 1 条更新（knowledge <id>）
+
 下一批：第 3 批，9 条，共约 24KB —— 继续？
 ```
 
@@ -88,6 +98,7 @@ disable-model-invocation: true
 **zcode / opencode 是共享库**：app 行只是索引，删它不删 provider 库 ⇒ 会话必然复活。这两个 provider 必须**两侧都清**才叫删干净。
 
 **沉淀库**：本地权威副本 `~/.memory-bank/<project>/entries/*.md`；OV 检索镜像 `viking://resources/<project>/session-sediments/`。
+**db dict**：`~/Projects/lemobar/ToC-Admin/docs/db-dictionary/`（表结构/字段口径/表间关系/码值/跨库机制的权威来源；OV 镜像 `viking://resources/ToC-Admin/2026-09-20-db-dictionary/`）。只收 ToC-Admin 业务库，cloudcli 自己的库仍落 memory-bank。
 
 **服务**：`~/.cloudcli/local-server.json` 里有端口（本机现值 3011）。删完 UI 若还列着旧会话，那是服务端 `sessionHistoryCache` 内存缓存，重启即消（应用自身的删除路径也不清它）。
 
@@ -99,17 +110,22 @@ disable-model-invocation: true
 |---|---|---|
 | 口水会话 | 单轮/一行口令、体积仅几十 KB、名字就是那句口令或 `Untitled`/`New session` | cleanup §口水 |
 | 邻接垃圾 | 旧备份、目录已不存在的空项目行、孤儿会话行、provider 侧空目录 | cleanup §垃圾 |
-| 已沉淀会话 | memory-bank 的 `s:` 引用能匹配到它 → 内容已在 OV，删掉不丢信息 | cleanup §已沉淀 |
+| 已沉淀会话 | `s:` 引用命中（bank **或** db dict）**且**该会话在分诊表里的落点已全部落地 → 才可删 | cleanup §已沉淀 |
 | WorkBuddy 孤儿目录 | uuid 不在库 **且** 无同名 `.jsonl` 才是死残留；有同名 `.jsonl` 的是应用本体会话，**不能删** | cleanup §WorkBuddy |
+
+> **「已沉淀」判据是两段**：单处 `s:` 命中只证明「有东西落过」，不证明「全部落过」。一条会话若同时产出 bank 与 db dict 两类知识，只落了 bank 那半就删 = 信息真丢，且原料没了无法补救。
 
 **沉淀线（值不值得留）**
 
 | 桶 | 判据 | 处置 |
 |---|---|---|
-| 已沉淀 | `s:` 引用命中 | 可删 |
-| 无价值 | 一次性 ops/分析/脚本、结论已在代码或 bank、transcript 已丢的孤儿、含明文密钥 | 可删 |
-| 值得沉淀 | 业务规则、架构决策、字段/接口口径、排障根因、进行中任务 | 交 `session-sediment` |
+| 已沉淀 | `s:` 引用命中 **且** 落点全落地 | 可删 |
+| 无价值 | 一次性 ops/分析/脚本、一次性取数结论、结论已在代码或 bank、transcript 已丢的孤儿、含明文密钥 | 可删 |
+| 值得沉淀 · bank | 业务规则、架构决策、排障根因、进行中任务、系统能力 | 交 `session-sediment` → memory-bank |
+| 值得沉淀 · db dict | 表结构、字段语义、表间关系、码值、跨库机制、查询链路 | 交 `session-sediment` → db dict |
 | 边界 | 主题 bank/文档里「多半已有」但没确证 | **停下问**，别自己拍 |
+
+> 双落点（两类都有）时两条处置一起写：`bank:case + db:04-recharge-refund`。判据一句话：**下次写 SQL 前必须先知道的 → db dict；下次干活前必须先知道的 → memory-bank。**
 
 ## 4. 脚本（`scripts/`，默认只读/干跑）
 
@@ -119,7 +135,7 @@ disable-model-invocation: true
 |---|---|---|
 | `inventory.py` | 只读盘点：会话表 + 体积 + 真实用户轮数 + 磁盘状态 + 首问预览（zcode / opencode 行另读各自库；并列出 cloudcli 未收录的「provider 库独有」会话） | 只读 |
 | `purge.py` | 物理删除（DB 行 + transcript + superseded + WorkBuddy 残留目录 + zcode / opencode 共享库） | **干跑**；`--apply` 需 `--backup` |
-| `sediment_refs.py` | 采集 memory-bank 的 `s:` 引用并与会话交叉匹配 | 只读 |
+| `sediment_refs.py` | 采集 `s:` 引用（memory-bank + db dict）并与会话交叉匹配；`--bank` / `--dict` 可重复给多个根，`--no-dict` 跳过 db dict | 只读 |
 | `extract.py` | 按 provider 抽取对话脉络（USER/末答）；**可一次给多个路径**（成批读），`--start/--limit` 按轮切片（长会话续读） | 只读 |
 
 用法示例见各分册；`python3 scripts/<name>.py --help` 也可查。
