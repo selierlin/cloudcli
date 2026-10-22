@@ -508,6 +508,20 @@ const addSessionContentUpdatedAtColumn = (db: Database): void => {
 };
 
 /**
+ * Adds the `is_ephemeral` visibility flag used by the "ask aside" (btw) drawer.
+ *
+ * Existing rows all default to 0 — the flag marks a throwaway fork that must
+ * stay out of every user-visible list, so a backfill would be wrong by
+ * definition. No index: the only queries that filter on it are cleanup sweeps
+ * (which already scan the whole table) and the visibility filters, which narrow
+ * by project path first.
+ */
+const addSessionIsEphemeralColumn = (db: Database): void => {
+  const columnNames = getTableInfo(db, 'sessions').map((column) => column.name);
+  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'is_ephemeral', 'BOOLEAN NOT NULL DEFAULT 0');
+};
+
+/**
  * Adds the reasoning-effort metadata columns to the custom-model library.
  *
  * Existing rows stay NULL on purpose: no effort levels were ever declared for
@@ -704,6 +718,7 @@ export const runMigrations = (db: Database) => {
     addSessionParentColumn(db);
     addSessionNameSourceColumn(db);
     addSessionContentUpdatedAtColumn(db);
+    addSessionIsEphemeralColumn(db);
     ensureProjectsForSessionPaths(db);
     db.exec(SCHEDULED_MESSAGES_TABLE_SCHEMA_SQL);
 

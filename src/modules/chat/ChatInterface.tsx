@@ -8,9 +8,10 @@ import PermissionContext from '@/modules/chat/context/PermissionContext';
 import { MarkdownWorkspaceContext } from '@/modules/chat/context/MarkdownWorkspaceContext';
 import { TranscriptSessionContext } from '@/modules/chat/context/TranscriptSessionContext';
 import { api } from '@/shared/api';
-import { afterNextPaint } from '@/shared/utils';
+import { afterNextPaint, isImeKeyEvent } from '@/shared/utils';
 import type {
   ChatMessage,
+  PendingPermissionRequest,
   Project,
   ProjectSession,
   SessionEstablishedContext,
@@ -21,6 +22,7 @@ import { useScheduledMessages } from '@/modules/chat/composer/useScheduledMessag
 import { useChatSessionState } from '@/modules/chat/hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '@/modules/chat/hooks/useChatRealtimeHandlers';
 import { useChatComposerState } from '@/modules/chat/hooks/useChatComposerState';
+import { normalizedToChatMessages } from '@/modules/chat/hooks/useChatMessages';
 import { useSessionStore } from '@/modules/chat/hooks/useSessionStore';
 import { createStreamingBufferRegistry } from '@/modules/chat/utils/streamingBufferRegistry';
 import type { StreamingBufferRegistry } from '@/modules/chat/utils/streamingBufferRegistry';
@@ -28,6 +30,10 @@ import { createRevealPacer } from '@/modules/chat/utils/revealPacer';
 import type { RevealPacer } from '@/modules/chat/utils/revealPacer';
 import { getChatProviderLabel } from '@/modules/chat/utils/chatProviderLabel';
 import { forkFailureMessageKey } from '@/modules/chat/utils/forkFailureMessage';
+import { buildChatSendOptions } from '@/modules/chat/utils/sendOptions';
+import { useBtwSession } from '@/modules/chat/hooks/useBtwSession';
+import type { BtwAnchorRequest } from '@/modules/chat/hooks/useBtwSession';
+import BtwDrawer from '@/modules/chat/btw/BtwDrawer';
 import { downloadTranscriptExport } from '@/modules/chat/utils/chatExport';
 import type { PartialExportFormat } from '@/modules/chat/utils/chatExport';
 import { buildTailAnchoredMessageKeys, getTranscriptMessageKey } from '@/modules/chat/utils/messageKeys';
@@ -70,6 +76,19 @@ const REASONING_COLLAPSE_FOLLOW_MS = 350;
  * new transcript has painted. Never mutated.
  */
 const EMPTY_EXPORT_ROW_KEYS: Set<string> = new Set();
+
+/** Stable empty transcript for a drawer that has not forked yet. Never mutated. */
+const EMPTY_CHAT_MESSAGES: ChatMessage[] = [];
+
+/**
+ * True when a keyboard event originated inside the side-question drawer.
+ *
+ * Used only by the Escape handler below, which has to leave the drawer's own
+ * Escape alone while still aborting the watched turn for presses outside it.
+ */
+function isInsideSideAskDrawer(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('[data-slot="btw-drawer"]') !== null;
+}
 
 /** Resolves the provider name shown in chat empty states and composer hints. */
 /**
@@ -117,6 +136,10 @@ function ChatInterface({
   const visibleStreamingSessionIdRef = useRef<string | null>(
     isActive ? selectedSession?.id ?? null : null,
   );
+  // The side-question copy is visible in its own drawer even though it is not
+  // the selected conversation; treating it as visible gives it the same
+  // foreground streaming cadence instead of the 5 Hz background one.
+  const sideAskStreamingSessionIdRef = useRef<string | null>(null);
   const publishStreamingBatch = useCallback<Parameters<typeof createStreamingBufferRegistry>[0]>(
     (sessionId, updates, provider) => {
       sessionStoreRef.current.updateStreamingBatch(sessionId, updates, provider);
@@ -124,7 +147,10 @@ function ChatInterface({
     [],
   );
   const isStreamingSessionVisible = useCallback(
-    (sessionId: string) => visibleStreamingSessionIdRef.current === sessionId,
+    (sessionId: string) => (
+      visibleStreamingSessionIdRef.current === sessionId
+      || sideAskStreamingSessionIdRef.current === sessionId
+    ),
     [],
   );
   // Session-keyed streaming buffer. The lazy initializer runs exactly once, so
@@ -332,6 +358,174 @@ function ChatInterface({
     resolvePermissionModeForProvider,
   });
 
+  /* ---------------------------------------------------------------- */
+  /*  Side question (btw)                                              */
+  /* ---------------------------------------------------------------- */
+
+  // Whether the drawer is on screen. Independent of `btw.sessionId`: the drawer
+  // opens first, and the first question is what creates the hidden copy.
+  const [sideAskOpen, setSideAskOpen] = useState(false);
+  // The message an explicit "ask from here" picked; null lets the server use
+  // the conversation's latest user message at send time.
+  const [sideAskAnchor, setSideAskAnchor] = useState<BtwAnchorRequest>(null);
+  // Tool prompts belonging to the copy. Kept apart from the viewed
+  // conversation's list so neither surface shows the other's requests.
+  const [sideAskPermissionRequests, setSideAskPermissionRequests] = useState<PendingPermissionRequest[]>([]);
+
+  const sideAskSourceSessionId = currentSessionId || selectedSession?.id || null;
+
+  // Same builder the main composer uses, fed the values it currently sends
+  // with: the drawer must not be able to run under a different permission mode
+  // (or model/effort) than the conversation it branched from.
+  const buildSideAskOptions = useCallback((text: string) => buildChatSendOptions({
+    provider,
+    model: currentProviderModel,
+    effort: currentProviderEffort,
+    permissionMode,
+    resolvePermissionModeForProvider,
+    selectedSession,
+  }, text), [
+    currentProviderEffort,
+    currentProviderModel,
+    permissionMode,
+    provider,
+    resolvePermissionModeForProvider,
+    selectedSession,
+  ]);
+
+  const btw = useBtwSession({
+    sourceSessionId: sideAskSourceSessionId,
+    provider,
+    anchor: sideAskAnchor,
+    sendMessage,
+    sessionStore,
+    buildOptions: buildSideAskOptions,
+  });
+
+  // Read straight from the activity map so a frame that changes this copy's
+  // state re-renders the drawer, exactly as the viewed conversation does.
+  const sideAskActivity = btw.sessionId ? processingSessions.get(btw.sessionId) : undefined;
+  const sideAskProcessing = Boolean(sideAskActivity && !sideAskActivity.background);
+  const sideAskCanAbort = sideAskProcessing && Boolean(sideAskActivity?.canInterrupt);
+  sideAskStreamingSessionIdRef.current = btw.sessionId;
+
+  // Read on every render rather than memoized: the store mutates its slot in
+  // place, so a memo on the session id alone would freeze the transcript.
+  const sideAskMessages = btw.sessionId
+    ? normalizedToChatMessages(sessionStore.getMessages(btw.sessionId))
+    : EMPTY_CHAT_MESSAGES;
+
+  const handleSideAskClose = useCallback(async () => {
+    const closed = await btw.close();
+    if (!closed) {
+      // The copy is still doing something or the request failed: the drawer
+      // stays up with its retry, so the reader never loses the only control.
+      return;
+    }
+    setSideAskOpen(false);
+    setSideAskAnchor(null);
+    setSideAskPermissionRequests([]);
+  }, [btw]);
+
+  // The drawer's "start over": discard the copy and fork a fresh one at the
+  // same cut point. Clearing the anchor here would quietly widen the context to
+  // the newest message, and the reader would have to re-open the drawer from
+  // the row they picked to get their branch back.
+  const handleSideAskRefork = useCallback(async () => {
+    const closed = await btw.refork();
+    if (!closed) {
+      return;
+    }
+    setSideAskPermissionRequests([]);
+  }, [btw]);
+
+  const handleSideAskPromote = useCallback(async () => {
+    const promotedSessionId = await btw.promote();
+    if (!promotedSessionId) {
+      return;
+    }
+    setSideAskOpen(false);
+    setSideAskAnchor(null);
+    setSideAskPermissionRequests([]);
+    const promotedProvider = selectedSession?.__provider;
+    if (promotedProvider && selectedProject) {
+      // The conversations feed does not receive `session_upserted`, so the new
+      // visible row is bridged the same way a formal fork is.
+      onSessionForked?.(promotedSessionId, { provider: promotedProvider, project: selectedProject });
+    }
+    onNavigateToSession?.(promotedSessionId);
+  }, [btw, onNavigateToSession, onSessionForked, selectedProject, selectedSession?.__provider]);
+
+  const handleSideAskPermissionDecision = useCallback((
+    requestIds: string | string[],
+    decision: { allow?: boolean; message?: string; rememberEntry?: string | null; updatedInput?: unknown },
+  ) => {
+    const ids = (Array.isArray(requestIds) ? requestIds : [requestIds]).filter(Boolean);
+    if (ids.length === 0) {
+      return;
+    }
+    ids.forEach((requestId) => {
+      sendMessage({
+        type: 'chat.permission-response',
+        requestId,
+        allow: Boolean(decision?.allow),
+        updatedInput: decision?.updatedInput,
+        message: decision?.message,
+        rememberEntry: decision?.rememberEntry,
+      });
+    });
+    setSideAskPermissionRequests((previous) =>
+      previous.filter((request) => !ids.includes(request.requestId)));
+  }, [sendMessage]);
+
+  // A message-level entry always branches from that message. Asking again while
+  // the drawer is open replaces the copy rather than stacking a second one.
+  const handleSideAskFromMessage = useCallback(async (message: ChatMessage) => {
+    const nextAnchor: BtwAnchorRequest = {
+      forkAnchorId: message.forkAnchorId,
+      messageId: message.id,
+    };
+    if (btw.sessionId) {
+      const closed = await btw.refork();
+      if (!closed) {
+        return;
+      }
+      setSideAskPermissionRequests([]);
+    }
+    setSideAskAnchor(nextAnchor);
+    setSideAskOpen(true);
+  }, [btw]);
+
+  // The cut point, resolved against the transcript the reader can see: the
+  // server answers with a display id only after the fork exists.
+  const sideAskAnchorLabel = useMemo(() => {
+    // The server moves the cut to the end of the requested row's turn, so its
+    // answer names the real boundary; the request is the fallback until the
+    // copy exists.
+    const messageId = btw.anchorInfo?.anchorMessageId ?? sideAskAnchor?.messageId ?? null;
+    if (!messageId) {
+      return null;
+    }
+    const index = chatMessages.findIndex((message) => message.id === messageId);
+    return index >= 0 ? t('sideAsk.anchorAt', { index: index + 1 }) : null;
+  }, [btw.anchorInfo?.anchorMessageId, chatMessages, sideAskAnchor?.messageId, t]);
+
+  // Providers that can only cut at a coarser boundary say so, because "why can
+  // it not see my last message" is otherwise read as a bug.
+  const sideAskAnchorNotice = btw.anchorInfo?.anchorDegraded
+    ? (provider === 'codex'
+      ? t('sideAsk.anchorDegradedCodex')
+      : provider === 'zcode'
+        ? t('sideAsk.anchorDegradedZcode')
+        : null)
+    : null;
+
+  const sideAskPermissionModeLabel = t('sideAsk.permissionMode', {
+    mode: t(`codex.modes.${provider}.${permissionMode}`, {
+      defaultValue: t(`codex.modes.${permissionMode}`, { defaultValue: permissionMode }),
+    }),
+  });
+
   // On WebSocket reconnect, request a bounded persisted-tail sync (deferred
   // while Chat is hidden), then re-subscribe — the
   // `chat_subscribed` ack restores or clears the activity indicator, replays
@@ -340,12 +534,22 @@ function ChatInterface({
     if (!selectedProject || !selectedSession) return;
     await requestLatestMessages(selectedSession.id, isActive);
     statusCheckSentAtRef.current.set(selectedSession.id, Date.now());
+
+    // The aside copy holds its own subscription, and a subscription does not
+    // survive the socket. Re-subscribing it here keeps a live drawer streaming
+    // after a blip and is also what tells the server the copy still has a
+    // watcher, so its idle reclaim never fires under an open drawer.
+    const asideSessionId = sideAskStreamingSessionIdRef.current;
+    const sessionIds = asideSessionId && asideSessionId !== selectedSession.id
+      ? [selectedSession.id, asideSessionId]
+      : [selectedSession.id];
+
     sendMessage({
       type: 'chat.subscribe',
-      sessions: [{
-        sessionId: selectedSession.id,
-        lastSeq: lastSeqRef.current.get(selectedSession.id) ?? 0,
-      }],
+      sessions: sessionIds.map((sessionId) => ({
+        sessionId,
+        lastSeq: lastSeqRef.current.get(sessionId) ?? 0,
+      })),
     });
   }, [isActive, requestLatestMessages, selectedProject, selectedSession, sendMessage]);
 
@@ -369,6 +573,8 @@ function ChatInterface({
     onWebSocketReconnect: handleWebSocketReconnect,
     requestLatestMessages,
     sessionStore,
+    sideAskSessionId: btw.sessionId,
+    setSideAskPermissionRequests,
   });
 
   // Lets other modules (the quick settings Commands tab) hand text to the
@@ -401,6 +607,19 @@ function ChatInterface({
       if (event.key !== 'Escape' || event.repeat || event.defaultPrevented) {
         return;
       }
+      // Escape cancels a pinyin candidate while the user is composing; aborting
+      // the turn on that press would end their answer mid-word.
+      if (isImeKeyEvent(event)) {
+        return;
+      }
+      // The drawer owns Escape for presses that land inside it, because
+      // "close this panel" must not read as "stop the watched turn". Desktop
+      // keeps the drawer beside a still-usable composer, so a press in the
+      // conversation behind it keeps aborting, exactly as before the drawer
+      // existed.
+      if (sideAskOpen && isInsideSideAskDrawer(event.target)) {
+        return;
+      }
 
       event.preventDefault();
       handleAbortSession();
@@ -410,7 +629,7 @@ function ChatInterface({
     return () => {
       document.removeEventListener('keydown', handleGlobalEscape, { capture: true });
     };
-  }, [canAbortSession, handleAbortSession]);
+  }, [canAbortSession, handleAbortSession, sideAskOpen]);
 
   // On unmount, cancel every pending flush so a timer cannot write into a
   // torn-down store. Per-session buffers are otherwise dropped by
@@ -725,6 +944,7 @@ function ChatInterface({
               // a live stream writing into it is not recoverable.
               onEditMessage={supportsMessageEditing && !isProcessing ? beginEditMessage : undefined}
               onForkFromMessage={supportsSessionForking ? handleForkFromMessage : undefined}
+              onAskAsideFromMessage={supportsSessionForking ? handleSideAskFromMessage : undefined}
               isExportSelecting={exportSelectionActive}
               selectedExportRowKeys={exportRowKeys}
               onToggleExportRows={handleToggleExportRows}
@@ -840,6 +1060,39 @@ function ChatInterface({
           </div>
         </div>
       </div>
+
+      {/* The drawer reads the copy's own session id for workflow cards, and the
+          project's id so markdown images resolve the same way they do in the
+          main transcript. */}
+      <MarkdownWorkspaceContext.Provider value={markdownWorkspaceValue}>
+        <TranscriptSessionContext.Provider value={{ sessionId: btw.sessionId }}>
+          <BtwDrawer
+            open={sideAskOpen}
+            btw={btw}
+            sourceTitle={selectedSession?.title || selectedSession?.summary || selectedSession?.name || ''}
+            provider={provider}
+            selectedProject={selectedProject}
+            messages={sideAskMessages}
+            isProcessing={sideAskProcessing}
+            canAbort={sideAskCanAbort}
+            sourceIsProcessing={isProcessing}
+            anchorLabel={sideAskAnchorLabel}
+            anchorNotice={sideAskAnchorNotice}
+            permissionModeLabel={sideAskPermissionModeLabel}
+            permissionRequests={sideAskPermissionRequests}
+            onPermissionDecision={handleSideAskPermissionDecision}
+            onGrantToolPermission={handleGrantToolPermission}
+            onSend={btw.send}
+            onClose={() => { void handleSideAskClose(); }}
+            onRefork={() => { void handleSideAskRefork(); }}
+            onPromote={() => { void handleSideAskPromote(); }}
+            createDiff={createDiff}
+            onFileOpen={onFileOpen}
+            showRawParameters={showRawParameters}
+            showThinking={showThinking}
+          />
+        </TranscriptSessionContext.Provider>
+      </MarkdownWorkspaceContext.Provider>
 
       <CommandResultModal
         payload={commandModalPayload}

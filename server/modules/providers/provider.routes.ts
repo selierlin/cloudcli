@@ -2,6 +2,7 @@ import compression from 'compression';
 import express, { type Request, type Response } from 'express';
 
 import { mcpCatalogService } from '@/modules/providers/services/mcp-catalog.service.js';
+import { btwService } from '@/modules/providers/services/btw.service.js';
 import { providerAuthService } from '@/modules/providers/services/provider-auth.service.js';
 import { claudeSettingsPermissionsService } from '@/modules/providers/services/claude-settings-permissions.service.js';
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
@@ -508,6 +509,56 @@ const parseSessionForkPayload = (payload: unknown): { upToAnchorId?: string; tit
     ...(upToAnchorId ? { upToAnchorId } : {}),
     ...(title ? { title } : {}),
   };
+};
+
+/**
+ * Parses an aside-session creation body.
+ *
+ * `anchorForkId` is the provider's own fork anchor (`message.forkAnchorId`),
+ * not a display id — providers such as codex synthesize display ids on every
+ * read, so forwarding one would fork at the wrong place. `anchorMessageId` is
+ * accepted only as a lookup aid for a client that has not learned the anchor yet.
+ */
+const parseBtwCreatePayload = (
+  payload: unknown,
+): { anchorForkId?: string; anchorMessageId?: string; title?: string } => {
+  if (payload === undefined || payload === null) {
+    return {};
+  }
+  if (typeof payload !== 'object') {
+    throw new AppError('Request body must be an object.', {
+      code: 'INVALID_REQUEST_BODY',
+      statusCode: 400,
+    });
+  }
+
+  const body = payload as Record<string, unknown>;
+  const anchorForkId = typeof body.anchorForkId === 'string' ? body.anchorForkId.trim() : '';
+  const anchorMessageId = typeof body.anchorMessageId === 'string' ? body.anchorMessageId.trim() : '';
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+
+  return {
+    ...(anchorForkId ? { anchorForkId } : {}),
+    ...(anchorMessageId ? { anchorMessageId } : {}),
+    ...(title ? { title } : {}),
+  };
+};
+
+/** Parses the optional rename applied while promoting an aside session. */
+const parseBtwPromotePayload = (payload: unknown): { title?: string } => {
+  if (payload === undefined || payload === null) {
+    return {};
+  }
+  if (typeof payload !== 'object') {
+    throw new AppError('Request body must be an object.', {
+      code: 'INVALID_REQUEST_BODY',
+      statusCode: 400,
+    });
+  }
+
+  const body = payload as Record<string, unknown>;
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  return title ? { title } : {};
 };
 
 const parseSessionRenameSummary = (payload: unknown): string => {
@@ -1353,6 +1404,33 @@ router.post(
     const sessionId = parseSessionId(req.params.sessionId);
     const result = await sessionsService.forkSessionById(sessionId, parseSessionForkPayload(req.body));
     res.status(201).json(createApiSuccessResponse(result));
+  }),
+);
+
+router.post(
+  '/sessions/:sessionId/btw',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    const result = await btwService.createBtwSession(sessionId, parseBtwCreatePayload(req.body));
+    res.status(201).json(createApiSuccessResponse(result));
+  }),
+);
+
+router.delete(
+  '/sessions/:sessionId/btw',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    const result = await btwService.destroyBtwSession(sessionId);
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
+router.patch(
+  '/sessions/:sessionId/btw/promote',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    const result = btwService.promoteBtwSession(sessionId, parseBtwPromotePayload(req.body).title);
+    res.json(createApiSuccessResponse(result));
   }),
 );
 

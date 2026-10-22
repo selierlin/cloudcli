@@ -319,6 +319,14 @@ export const api = {
   // `upToAnchorId` (all of it when omitted). The source is left untouched.
   forkSession: (sessionId: string, body: { upToAnchorId?: string; title?: string } = {}) =>
     post(`/api/providers/sessions/${encodeURIComponent(sessionId)}/fork`, body),
+  // Side questions: a hidden copy of a session that is discarded when the
+  // drawer closes, unless the reader saves it as a normal conversation.
+  btwSession: (sessionId: string, body: { anchorForkId?: string; anchorMessageId?: string; title?: string } = {}) =>
+    post(`/api/providers/sessions/${encodeURIComponent(sessionId)}/btw`, body),
+  deleteBtwSession: (sessionId: string) =>
+    del(`/api/providers/sessions/${encodeURIComponent(sessionId)}/btw`),
+  promoteBtwSession: (sessionId: string, body: { title?: string } = {}) =>
+    patch(`/api/providers/sessions/${encodeURIComponent(sessionId)}/btw/promote`, body),
   renameSession: (sessionId: string, summary: string) =>
     put(`/api/providers/sessions/${sessionId}`, { summary }),
   // Pins or unpins a session so it sorts ahead of unpinned ones in the sidebar.

@@ -206,6 +206,8 @@ type ChatMessagesPaneProps = {
   onEditMessage?: (message: ChatMessage) => void;
   /** Branches the conversation into a new session ending at a message. */
   onForkFromMessage?: (message: ChatMessage) => void;
+  /** Opens the side-question drawer anchored at a message. */
+  onAskAsideFromMessage?: (message: ChatMessage) => void;
   /** True while the reader is picking rows for a partial export. */
   isExportSelecting?: boolean;
   /** Row keys currently picked for the partial export. */
@@ -273,6 +275,7 @@ function ChatMessagesPane({
   createDiff,
   onEditMessage,
   onForkFromMessage,
+  onAskAsideFromMessage,
   isExportSelecting = false,
   selectedExportRowKeys,
   onToggleExportRows,
@@ -365,10 +368,11 @@ function ChatMessagesPane({
       }),
     [getMessageKey, isProcessing, visibleMessages],
   );
-  // The turn entry picks a question together with its answers; a row click
-  // picks just that row. Resolving a turn needs the rows and the projection
-  // above, which change on every stream tick — held in a ref so the handler
-  // passed to every row keeps its identity and memoized rows stay memoized.
+  // The menu entry on an answer picks its whole turn, question included; a row
+  // click picks just that row. Resolving a turn needs the rows and the
+  // projection above, which change on every stream tick — held in a ref so the
+  // handler passed to every row keeps its identity and memoized rows stay
+  // memoized.
   const resolveExportRowsRef = useRef<(message: ChatMessage, wholeTurn: boolean) => string[]>(
     () => [],
   );
@@ -776,6 +780,7 @@ function ChatMessagesPane({
                           onReasoningProgramCollapse={handleReasoningProgramCollapse}
                           onEditMessage={onEditMessage}
                           onForkFromMessage={onForkFromMessage}
+                          onAskAsideFromMessage={onAskAsideFromMessage}
                           isExportSelecting={isExportSelecting}
                           isExportSelected={Boolean(selectedExportRowKeys?.has(messageKey))}
                           onSelectExportRow={handleSelectExportRow}

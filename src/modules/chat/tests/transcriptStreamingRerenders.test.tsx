@@ -136,8 +136,10 @@ test('a stream tick re-renders the growing row, not the collapsed tool groups ab
   };
 
   const view = render(pane([...history, streaming]));
+  // Answer footers carry a menu trigger, which is a disclosure too; the sanity
+  // check counts the plain ones so it still fails when a run did not collapse.
   assert.equal(
-    view.container.querySelectorAll('button[aria-expanded]').length,
+    view.container.querySelectorAll('button[aria-expanded]:not([aria-haspopup])').length,
     TOOL_GROUP_COUNT,
     'the fixture must actually collapse its tool runs into groups',
   );

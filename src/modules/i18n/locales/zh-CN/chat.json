@@ -17,6 +17,8 @@
   "message": {
     "editAndResend": "编辑并重新发送",
     "forkFromHere": "从此处派生",
+    "askAsideFromHere": "从此处侧边提问",
+    "moreActions": "更多操作",
     "forkFailed": "无法派生该会话，请重试。",
     "forkWorkspaceRewind": "从此处派生会回退该消息之后被改动的工作区文件。请改从更靠后的消息或会话末尾派生。",
     "answeredBy": "由 {{model}} 回答",
@@ -616,5 +618,40 @@
     "agentTimelineEmpty": "暂无记录",
     "taskOfAgent": "由本会话的某个子代理启动",
     "taskRowNotLoaded": "在此会话较早前启动，点击加载"
+  },
+  "sideAsk": {
+    "title": "侧边提问",
+    "badge": "不保存",
+    "close": "关闭",
+    "saveAsSession": "另存为会话",
+    "refork": "重新开始",
+    "creating": "正在派生会话…",
+    "closing": "正在丢弃这条分支…",
+    "stillRunning": "这一回合还在收尾。先在这里停止，再关闭。",
+    "closeFailed": "无法丢弃这条分支。",
+    "retry": "重试",
+    "anchorDefault": "上下文截止到你的最后一条消息",
+    "anchorAt": "上下文截至第 {{index}} 条消息",
+    "anchorDegradedCodex": "该 provider 只能按轮截断，上下文截止到那一轮结束。",
+    "anchorDegradedZcode": "已从会话末尾开始，上下文包含正在生成的回复。",
+    "sourceBusy": "主会话正在执行，这里的工具操作可能与其冲突。",
+    "permissionMode": "权限模式：{{mode}}",
+    "emptyTitle": "问一句，不打断主线",
+    "emptyBody": "这条分支不会进入主会话。关闭即丢弃这些问答。",
+    "input": {
+      "placeholder": "问一个侧边问题…",
+      "send": "发送",
+      "stop": "停止"
+    },
+    "errors": {
+      "anchorInvalid": "这条消息不能作为锚点，或 provider 未提供它的锚点。",
+      "notEphemeral": "该会话不是侧边提问。",
+      "titleInvalid": "标题太长。",
+      "stillRunning": "侧边提问仍在运行。",
+      "sessionNotFound": "原会话已不存在。",
+      "forkNotSupported": "该 provider 无法派生会话。",
+      "sourceNotReady": "该会话还没有可派生的记录。",
+      "generic": "无法开始侧边提问。"
+    }
   }
 }

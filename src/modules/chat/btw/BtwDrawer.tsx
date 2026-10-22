@@ -1,0 +1,254 @@
+import { useTranslation } from 'react-i18next';
+import { MessageSquareDashed, X } from 'lucide-react';
+
+import type {
+  ChatMessage,
+  DiffLine,
+  LLMProvider,
+  PendingPermissionRequest,
+  Project,
+} from '@/shared/types';
+import { Button } from '@/shared/ui';
+import { isImeKeyEvent } from '@/shared/utils';
+import type { BtwController } from '@/modules/chat/hooks/useBtwSession';
+import { btwFailureMessageKey } from '@/modules/chat/utils/btwFailureMessage';
+import BtwComposer from '@/modules/chat/btw/BtwComposer';
+import BtwMessageList from '@/modules/chat/btw/BtwMessageList';
+
+type BtwDrawerProps = {
+  open: boolean;
+  btw: BtwController;
+  /** Title of the conversation this branch came from, for the header. */
+  sourceTitle: string;
+  provider: LLMProvider;
+  selectedProject: Project | null;
+  messages: ChatMessage[];
+  isProcessing: boolean;
+  canAbort: boolean;
+  /** True while the conversation being asked about is mid-turn. */
+  sourceIsProcessing: boolean;
+  /** Human-readable cut point, e.g. "Context up to message 3". */
+  anchorLabel: string | null;
+  /** Provider-specific clarification for a degraded anchor, if any. */
+  anchorNotice: string | null;
+  permissionModeLabel: string;
+  permissionRequests: PendingPermissionRequest[];
+  onPermissionDecision: (
+    requestIds: string | string[],
+    decision: { allow?: boolean; message?: string; rememberEntry?: string | null; updatedInput?: unknown },
+  ) => void;
+  onGrantToolPermission: (suggestion: { entry: string; toolName: string }) => { success: boolean };
+  onSend: (text: string) => Promise<boolean>;
+  onClose: () => void;
+  onRefork: () => void;
+  onPromote: () => void;
+  createDiff: (oldStr: string, newStr: string) => DiffLine[];
+  onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
+  showRawParameters?: boolean;
+  showThinking?: boolean;
+};
+
+/**
+ * The side-question drawer: a hidden branch of the open conversation, shown on
+ * its own so a question asked here never enters the main transcript.
+ *
+ * Rendered by ChatInterface. Desktop keeps it beside the conversation (no
+ * backdrop, so the main input stays usable); narrow viewports take the whole
+ * screen and shrink by `--keyboard-height`, the offset the workspace shell
+ * already maintains for the virtual keyboard.
+ *
+ * Because it is positioned against the viewport rather than inside the shell,
+ * it has to clear the notch itself: the shell's safe-area handling lives on
+ * `#root` and on `.fixed.inset-0`, neither of which covers `fixed top-0`.
+ */
+export default function BtwDrawer({
+  open,
+  btw,
+  sourceTitle,
+  provider,
+  selectedProject,
+  messages,
+  isProcessing,
+  canAbort,
+  sourceIsProcessing,
+  anchorLabel,
+  anchorNotice,
+  permissionModeLabel,
+  permissionRequests,
+  onPermissionDecision,
+  onGrantToolPermission,
+  onSend,
+  onClose,
+  onRefork,
+  onPromote,
+  createDiff,
+  onFileOpen,
+  showRawParameters,
+  showThinking,
+}: BtwDrawerProps) {
+  const { t } = useTranslation('chat');
+
+  if (!open) {
+    return null;
+  }
+
+  const hasSession = Boolean(btw.sessionId);
+  const busy = btw.creating || btw.closing;
+  const closeFailure = btw.closeFailure;
+
+  return (
+    // `data-slot` is how ChatInterface's global Escape handler tells a press
+    // inside this drawer from one in the conversation behind it; the selector
+    // has no other guard, so renaming the slot silently re-arms both handlers.
+    <aside
+      role="complementary"
+      aria-label={t('sideAsk.title')}
+      data-slot="btw-drawer"
+      onKeyDown={(event) => {
+        // A pinyin candidate is cancelled with Escape. Without this check that
+        // press closes the drawer and discards the branch the user was writing
+        // into.
+        if (event.key === 'Escape' && !event.defaultPrevented && !isImeKeyEvent(event)) {
+          event.stopPropagation();
+          onClose();
+        }
+      }}
+      style={{
+        height: 'calc(100% - var(--keyboard-height, 0px))',
+        // Landscape on a notched phone puts the inset on the side the drawer
+        // is pinned to; #root pads for it, but a fixed element anchors to the
+        // viewport and never sees that padding.
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+        paddingRight: 'env(safe-area-inset-right, 0px)',
+      }}
+      className="fixed right-0 top-0 z-40 flex w-full flex-col border-l border-border bg-background shadow-xl sm:w-[420px]"
+    >
+      <header className="flex-shrink-0 border-b border-border/70 px-3 py-2">
+        <div className="flex items-start gap-2">
+          <MessageSquareDashed className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <h2 className="truncate text-sm font-semibold text-foreground">{t('sideAsk.title')}</h2>
+              <span className="flex-shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-[10px] leading-4 text-muted-foreground">
+                {t('sideAsk.badge')}
+              </span>
+            </div>
+            <p className="truncate text-[11px] text-muted-foreground" title={sourceTitle}>
+              {anchorLabel ?? t('sideAsk.anchorDefault')}
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7 flex-shrink-0"
+            title={t('sideAsk.close')}
+            aria-label={t('sideAsk.close')}
+            onClick={onClose}
+            disabled={btw.closing}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="mt-1 flex flex-wrap items-center gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-xs"
+            onClick={onPromote}
+            disabled={!hasSession || busy}
+          >
+            {t('sideAsk.saveAsSession')}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-xs"
+            onClick={onRefork}
+            disabled={busy || isProcessing}
+          >
+            {t('sideAsk.refork')}
+          </Button>
+        </div>
+
+        {btw.closing && (
+          <p className="mt-1 text-[11px] text-muted-foreground">{t('sideAsk.closing')}</p>
+        )}
+
+        {closeFailure && (
+          <div className="mt-1 flex items-center gap-2 rounded-md border border-border/70 bg-muted/50 px-2 py-1">
+            <p className="min-w-0 flex-1 text-[11px] text-foreground">
+              {closeFailure === 'still-running' ? t('sideAsk.stillRunning') : t('sideAsk.closeFailed')}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-6 px-2 text-[11px]"
+              onClick={onClose}
+              disabled={btw.closing}
+            >
+              {t('sideAsk.retry')}
+            </Button>
+          </div>
+        )}
+
+        {sourceIsProcessing && (
+          <p className="mt-1 rounded-md border border-border/70 bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
+            {t('sideAsk.sourceBusy')}
+          </p>
+        )}
+
+        {anchorNotice && (
+          <p className="mt-1 rounded-md border border-border/70 bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
+            {anchorNotice}
+          </p>
+        )}
+
+        {btw.createError && (
+          <p className="mt-1 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-[11px] text-foreground">
+            {t(btwFailureMessageKey(btw.createError))}
+          </p>
+        )}
+      </header>
+
+      <BtwMessageList
+        messages={messages}
+        provider={provider}
+        selectedProject={selectedProject}
+        createDiff={createDiff}
+        onFileOpen={onFileOpen}
+        showRawParameters={showRawParameters}
+        showThinking={showThinking}
+        isProcessing={isProcessing}
+        emptyState={(
+          <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+            {btw.creating ? (
+              <p className="text-sm text-muted-foreground">{t('sideAsk.creating')}</p>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-foreground">{t('sideAsk.emptyTitle')}</p>
+                <p className="text-xs text-muted-foreground">{t('sideAsk.emptyBody')}</p>
+              </>
+            )}
+          </div>
+        )}
+      />
+
+      <BtwComposer
+        disabled={btw.creating || btw.closing || isProcessing}
+        isProcessing={isProcessing}
+        canAbort={canAbort}
+        permissionModeLabel={permissionModeLabel}
+        permissionRequests={permissionRequests}
+        onPermissionDecision={onPermissionDecision}
+        onGrantToolPermission={onGrantToolPermission}
+        onSend={onSend}
+        onAbort={btw.abort}
+      />
+    </aside>
+  );
+}

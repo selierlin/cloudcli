@@ -17,6 +17,8 @@
   "message": {
     "editAndResend": "Edit and resend",
     "forkFromHere": "Fork from here",
+    "askAsideFromHere": "Ask a side question from here",
+    "moreActions": "More actions",
     "forkFailed": "Could not branch this conversation. Please try again.",
     "forkWorkspaceRewind": "Branching here would revert the workspace files this conversation changed afterwards. Branch from a later message, or from the end.",
     "answeredBy": "Answered by {{model}}",
@@ -649,6 +651,41 @@
         "label": "How to verify",
         "text": "How do I try out what you changed?"
       }
+    }
+  },
+  "sideAsk": {
+    "title": "Side question",
+    "badge": "Not saved",
+    "close": "Close",
+    "saveAsSession": "Keep as session",
+    "refork": "Start over",
+    "creating": "Branching the conversation…",
+    "closing": "Discarding this branch…",
+    "stillRunning": "Still finishing its turn. Stop it here, then close again.",
+    "closeFailed": "Could not discard this branch.",
+    "retry": "Retry",
+    "anchorDefault": "Context up to your latest message",
+    "anchorAt": "Context up to message {{index}}",
+    "anchorDegradedCodex": "This provider can only cut at turn boundaries, so the context ends with that turn.",
+    "anchorDegradedZcode": "Started from the end of the conversation, so the context includes the reply in progress.",
+    "sourceBusy": "The main conversation is running; tool actions here may conflict with it.",
+    "permissionMode": "Permission mode: {{mode}}",
+    "emptyTitle": "Ask without derailing",
+    "emptyBody": "This branch stays out of the main conversation. Closing it discards these questions and answers.",
+    "input": {
+      "placeholder": "Ask a side question…",
+      "send": "Send",
+      "stop": "Stop"
+    },
+    "errors": {
+      "anchorInvalid": "That message cannot anchor a side question, or the provider gave it no anchor.",
+      "notEphemeral": "That conversation is not a side question.",
+      "titleInvalid": "That title is too long.",
+      "stillRunning": "The side question is still running.",
+      "sessionNotFound": "The original conversation is gone.",
+      "forkNotSupported": "This provider cannot branch a conversation.",
+      "sourceNotReady": "This conversation has no transcript to branch yet.",
+      "generic": "Could not start the side question."
     }
   }
 }

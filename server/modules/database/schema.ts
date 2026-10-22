@@ -153,6 +153,12 @@ CREATE TABLE IF NOT EXISTS sessions (
     -- Constrained by the service, not the DB: same project, one level deep.
     parent_session_id TEXT,
     isArchived BOOLEAN DEFAULT 0,
+    -- Marks a throwaway fork created by the "ask aside" (btw) drawer: a fully
+    -- real session that must never appear in any user-visible list, must not be
+    -- broadcast to clients, and is reclaimed as soon as the drawer closes.
+    -- Read by the upsert broadcast (skip), the cleanup jobs (delete), and the
+    -- visibility filters (exclude). Never exposed in session DTOs.
+    is_ephemeral BOOLEAN NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     -- Timestamp of the newest main-line conversation event in the transcript,

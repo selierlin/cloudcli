@@ -64,7 +64,12 @@ export function projectSelectableTurns(
 }
 
 /**
- * Keys picked when the reader selects a whole turn from that turn's entry.
+ * Keys picked when the reader selects a whole turn from the entry on one of its
+ * rows.
+ *
+ * The entry sits on an answer, but a turn is read as a question plus its
+ * answers, so the row is resolved to the turn that contains it. A row no turn
+ * covers — a window that opens mid-turn — is picked on its own.
  *
  * The question and the answers outside the run: a turn's tool record is
  * detail of the answer, not a row of its own, so it is never counted or
@@ -72,14 +77,18 @@ export function projectSelectableTurns(
  */
 export function collectTurnSelectionKeys(
   messages: ChatMessage[],
-  turnKey: string,
+  rowKey: string,
   getMessageKey: (message: ChatMessage) => string,
   isProcessRunMember: (messageKey: string) => boolean,
 ): string[] {
-  const turn = projectSelectableTurns(messages, getMessageKey).find((item) => item.key === turnKey);
-  if (!turn) return [turnKey];
+  const rowIndex = messages.findIndex((message) => getMessageKey(message) === rowKey);
+  const turn = rowIndex === -1
+    ? undefined
+    : projectSelectableTurns(messages, getMessageKey)
+      .find((item) => rowIndex >= item.startIndex && rowIndex <= item.endIndex);
+  if (!turn) return [rowKey];
 
-  const keys = [turnKey];
+  const keys = [turn.key];
   for (let index = turn.startIndex + 1; index <= turn.endIndex; index += 1) {
     const message = messages[index];
     if (!message) continue;

@@ -90,7 +90,7 @@ describe('which turns a reader can pick', () => {
     assert.equal(turns.some((turn) => turn.startIndex === 0), false);
   });
 
-  test('the turn entry picks the question with its answers, not the tool rows', () => {
+  test('the entry picks the question with its answers, not the tool rows', () => {
     const keys = collectTurnSelectionKeys(
       conversation,
       'message-user-u1',
@@ -99,6 +99,18 @@ describe('which turns a reader can pick', () => {
     );
 
     expect(keys).toEqual(['message-user-u1', 'message-assistant-a1']);
+  });
+
+  test('an answer resolves to the turn that contains it', () => {
+    // The entry lives on the answer, but a turn is what a reader exports, so
+    // the answer's key has to find its question.
+    expect(collectTurnSelectionKeys(conversation, 'message-assistant-a1', getKey, () => false))
+      .toEqual(['message-user-u1', 'message-assistant-a1']);
+  });
+
+  test('a row no turn covers is picked on its own', () => {
+    expect(collectTurnSelectionKeys(conversation, 'message-assistant-lead-answer', getKey, () => false))
+      .toEqual(['message-assistant-lead-answer']);
   });
 });
 
@@ -149,21 +161,44 @@ describe('the rows a selection exports', () => {
 const assistantMessage = conversation[2]!;
 
 describe('picking rows from the transcript', () => {
-  test('offers the entry on a user turn and asks for the whole turn', () => {
+  test('offers the entry on an answer and asks for the whole turn', () => {
     const onSelect = vi.fn();
-    render(
-      <MessageComponent
-        message={conversation[1]!}
-        prevMessage={null}
-        createDiff={() => []}
-        provider="claude"
-        onSelectExportRow={onSelect}
-      />,
+    const { container } = render(
+      <UiPreferencesProvider>
+        <MessageComponent
+          message={assistantMessage}
+          prevMessage={null}
+          createDiff={() => []}
+          provider="claude"
+          onSelectExportRow={onSelect}
+        />
+      </UiPreferencesProvider>,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Select messages' }));
+    // Rare next to copy and speak, so it sits in the overflow menu rather than
+    // claiming an icon of its own.
+    assert.equal(container.querySelector('button[aria-label="transcript.selection.enter"]'), null);
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Select messages' }));
 
-    expect(onSelect).toHaveBeenCalledWith(conversation[1], true);
+    expect(onSelect).toHaveBeenCalledWith(assistantMessage, true);
+  });
+
+  test('a question carries no entry of its own', () => {
+    render(
+      <UiPreferencesProvider>
+        <MessageComponent
+          message={conversation[1]!}
+          prevMessage={null}
+          createDiff={() => []}
+          provider="claude"
+          onSelectExportRow={() => {}}
+        />
+      </UiPreferencesProvider>,
+    );
+
+    assert.equal(screen.queryByRole('button', { name: 'Select messages' }), null);
+    assert.equal(screen.queryByRole('button', { name: 'More actions' }), null);
   });
 
   test('shows a checked box once the row is selected', () => {

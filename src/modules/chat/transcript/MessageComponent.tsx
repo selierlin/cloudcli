@@ -1,15 +1,14 @@
 import { memo, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CheckIcon, BrainIcon, ChevronDownIcon, GitBranchIcon, ListChecksIcon, PencilIcon, Timer } from 'lucide-react';
+import { CheckIcon, BrainIcon, ChevronDownIcon, GitBranchIcon, ListChecksIcon, MessageSquareDashed, MoreHorizontal, PencilIcon, Timer } from 'lucide-react';
 
 import type { ChatMessage, ClaudePermissionSuggestion, PermissionGrantResult, LLMProvider,DiffLine,Project,ReasoningDisclosureState,ReasoningPresentation } from '@/shared/types';
 import { cn } from '@/shared/utils';
 import { formatUsageLimitText, stripProposedPlanEnvelope } from '@/modules/chat/utils/chatFormatting';
-import { isVisibleUserTurnStart } from '@/modules/chat/utils/transcriptProjection';
 import { isSelectableExportRow } from '@/modules/chat/utils/transcriptSelection';
 import { formatTaskDuration } from '@/modules/chat/utils/backgroundTasks';
 import { ToolRenderer, ToolErrorDisplay, SubagentPanel, WorkflowPanel, shouldHideToolResult } from '@/modules/chat/tools';
-import { LLMProviderLogo } from '@/shared/ui';
+import { ActionMenu, LLMProviderLogo, type ActionMenuItem } from '@/shared/ui';
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/modules/chat/transcript/Reasoning';
 import ChatMessageImages from '@/modules/chat/transcript/ChatMessageImages';
 import ChatMessageFiles from '@/modules/chat/transcript/ChatMessageFiles';
@@ -56,6 +55,11 @@ type MessageComponentProps = {
    * Absent when the provider cannot copy a transcript prefix.
    */
   onForkFromMessage?: (message: ChatMessage) => void;
+  /**
+   * Opens the side-question drawer with this message as the cut point.
+   * Absent when the provider cannot fork at all.
+   */
+  onAskAsideFromMessage?: (message: ChatMessage) => void;
   /** True while the reader is picking rows for a partial export. */
   isExportSelecting?: boolean;
   /** This row is picked for the partial export. */
@@ -80,7 +84,7 @@ const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
  * Rendered by chat's ChatMessagesPane and ToolGroupContainer to draw one
  * transcript entry — user turn, assistant turn, or a tool call and its result.
  */
-const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, reasoningPresentation, reasoningDisclosureState, isProcessRunMember, hidesProcessIdentity, isReasoningSearchTarget, suppressReasoningAutoCollapse, onReasoningUserOpenChange, onReasoningProgramOpen, onReasoningProgramCollapse, onEditMessage, onForkFromMessage, isExportSelecting, isExportSelected, onSelectExportRow, turnDurationMs }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, reasoningPresentation, reasoningDisclosureState, isProcessRunMember, hidesProcessIdentity, isReasoningSearchTarget, suppressReasoningAutoCollapse, onReasoningUserOpenChange, onReasoningProgramOpen, onReasoningProgramCollapse, onEditMessage, onForkFromMessage, onAskAsideFromMessage, isExportSelecting, isExportSelected, onSelectExportRow, turnDurationMs }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -126,6 +130,45 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     && !message.isThinking
     && !message.isToolUse
     && !isProcessRunMember;
+  // A question or an answer can be picked on its own; both carry a mark so the
+  // reader can see exactly which rows will land in the file.
+  const isSelectableRow = Boolean(onSelectExportRow)
+    && !isExporting
+    && isSelectableExportRow(message, Boolean(isProcessRunMember));
+  // Picking rows, branching and side questions are all rare next to copy and
+  // speak, so an answer folds them into one overflow menu instead of giving
+  // each its own icon. They share the answer's footer because each of them acts
+  // on this row.
+  const answerMenuItems: ActionMenuItem[] = [];
+  if (isSelectableRow && message.type === 'assistant') {
+    answerMenuItems.push({
+      key: 'select',
+      label: t('transcript.selection.enter'),
+      icon: ListChecksIcon,
+      // Starting from an answer still takes the question with it: a selected
+      // turn is what a reader exports, and the question has no entry any more.
+      onSelect: () => onSelectExportRow?.(message, true),
+    });
+  }
+  if (!isExporting && message.type === 'assistant' && !message.isToolUse && message.forkAnchorId) {
+    if (onForkFromMessage) {
+      answerMenuItems.push({
+        key: 'fork',
+        label: t('message.forkFromHere'),
+        icon: GitBranchIcon,
+        onSelect: () => onForkFromMessage(message),
+      });
+    }
+    if (onAskAsideFromMessage) {
+      answerMenuItems.push({
+        key: 'askAside',
+        label: t('message.askAsideFromHere'),
+        icon: MessageSquareDashed,
+        onSelect: () => onAskAsideFromMessage(message),
+      });
+    }
+  }
+  const hasAnswerMenu = answerMenuItems.length > 0;
   // The composer currently restores text only. Withholding edit for messages
   // carrying attachments prevents a resend from silently dropping them.
   const canEditUserMessage = Boolean(
@@ -134,13 +177,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     && !message.images?.length
     && !message.files?.length,
   );
-  // A question or an answer can be picked on its own; both carry a mark so the
-  // reader can see exactly which rows will land in the file.
-  const isSelectableRow = Boolean(onSelectExportRow)
-    && !isExporting
-    && isSelectableExportRow(message, Boolean(isProcessRunMember));
-  // Only a real user turn opens the mode, and it opens it with the whole turn.
-  const isTurnEntry = isSelectableRow && isVisibleUserTurnStart(message);
+  // Once the mode is on, the row itself becomes the only target.
   const isRowPickable = isExportSelecting && isSelectableRow;
   // Every left-hand row takes the gutter while picking, not just the pickable
   // ones: the checkbox marks a few rows, but an indent that came and went per
@@ -258,31 +295,6 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                       className="rounded p-1 opacity-0 transition-[opacity,transform] duration-150 active:scale-90 hover:bg-muted focus-visible:opacity-100 group-hover:opacity-100"
                     >
                       <PencilIcon className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                  {onForkFromMessage && message.forkAnchorId && (
-                    <button
-                      type="button"
-                      onClick={() => onForkFromMessage(message)}
-                      title={t('message.forkFromHere')}
-                      aria-label={t('message.forkFromHere')}
-                      className="rounded p-1 opacity-0 transition-[opacity,transform] duration-150 active:scale-90 hover:bg-muted focus-visible:opacity-100 group-hover:opacity-100"
-                    >
-                      <GitBranchIcon className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                  {/* Hover reveals the entry on a mouse; a touch screen has no
-                      hover, so the icon stays visible there. Opening the mode
-                      here picks this question together with its answers. */}
-                  {isTurnEntry && !isExportSelecting && (
-                    <button
-                      type="button"
-                      onClick={() => onSelectExportRow?.(message, true)}
-                      title={t('transcript.selection.enter')}
-                      aria-label={t('transcript.selection.enter')}
-                      className="rounded p-1 opacity-0 transition-[opacity,transform] duration-150 active:scale-90 hover:bg-muted focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
-                    >
-                      <ListChecksIcon className="h-3.5 w-3.5" />
                     </button>
                   )}
                   {shouldShowUserCopyControl && (
@@ -677,7 +689,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               <MemoryCitations citations={message.memoryCitations} />
             )}
 
-            {!message.isThinking && (shouldShowAssistantCopyControl || isExportAnswer || !isGrouped) && (
+            {!message.isThinking && (shouldShowAssistantCopyControl || isExportAnswer || !isGrouped || hasAnswerMenu) && (
               /* The footer scrolls horizontally (hidden scrollbar) instead of
                  wrapping or squeezing: with speak + model + time + duration it
                  can exceed one line on narrow screens. A constant right-edge
@@ -691,20 +703,6 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                 }}
               >
                 <div className="flex w-max max-w-full items-center gap-2 text-[11px] text-n-gray-400 dark:text-n-gray-500">
-                {onForkFromMessage &&
-                  message.forkAnchorId &&
-                  message.type === 'assistant' &&
-                  !message.isToolUse && (
-                    <button
-                      type="button"
-                      onClick={() => onForkFromMessage(message)}
-                      title={t('message.forkFromHere')}
-                      aria-label={t('message.forkFromHere')}
-                      className="inline-flex items-center rounded px-1 py-0.5 text-n-gray-400 transition-[color,transform] duration-150 active:scale-90 active:opacity-60 hover:text-foreground dark:text-n-gray-500"
-                    >
-                      <GitBranchIcon className="h-3.5 w-3.5" />
-                    </button>
-                  )}
                 {isExportAnswer && (
                   /* The template's click listener reads `data-export-copy`; the
                      two icons are swapped by CSS while the copy is confirmed. */
@@ -718,6 +716,24 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                 )}
                 {shouldShowAssistantCopyControl && (
                   <MessageSpeakControl content={assistantCopyContent} />
+                )}
+                {hasAnswerMenu && (
+                  // Portalled: the footer scrolls horizontally, so an absolutely
+                  // positioned menu would be clipped by its own scroller and the
+                  // mask fade. The trigger keeps the footer's bare-icon weight
+                  // rather than the shared button chrome, and sits last in the
+                  // action group so frequent controls keep their place.
+                  <ActionMenu
+                    label={t('message.moreActions')}
+                    ariaLabel={t('message.moreActions')}
+                    items={answerMenuItems}
+                    icon={MoreHorizontal}
+                    iconOnly
+                    portal
+                    variant="ghost"
+                    size="icon"
+                    triggerClassName="h-5 w-5 rounded bg-transparent p-0 text-n-gray-400 hover:bg-transparent hover:text-foreground active:bg-transparent dark:text-n-gray-500 [&_svg]:size-3.5"
+                  />
                 )}
                 {/* Which model actually answered, as the provider recorded it
                     on this row. Provenance rather than an affordance, so unlike

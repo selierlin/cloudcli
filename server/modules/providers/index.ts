@@ -16,6 +16,13 @@ export { sessionsService } from './services/sessions.service.js';
 export { initializeSessionsWatcher } from './services/sessions-watcher.service.js';
 export { closeSessionsWatcher } from './services/sessions-watcher.service.js';
 
+// initializeEphemeralCleanup/closeEphemeralCleanup: used by server/index.ts to
+// reclaim leftover btw copies on boot and to keep sweeping long-idle ones.
+export {
+  closeEphemeralCleanup,
+  initializeEphemeralCleanup,
+} from './services/ephemeral-cleanup.service.js';
+
 // providerSettingsSourceService: used by server/index.ts to hand the shell
 // service the active claude settings file (the `claude --settings` equivalent)
 // so terminal launches match the chat-side relay/auth configuration.
