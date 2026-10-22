@@ -157,6 +157,39 @@ function buildOutlineItems(messages: NormalizedMessage[]): SessionOutlineItem[] 
 }
 
 /**
+ * Removes the directory a provider keeps beside a transcript.
+ *
+ * WorkBuddy gives every session `<project>/<id>.jsonl` plus a sibling
+ * `<project>/<id>/` holding its tool output. Deleting only the transcript
+ * strands that directory forever: the row is gone, so nothing in the app can
+ * reach it again, and a machine that has used the app for a while collects one
+ * per deleted session.
+ *
+ * Only a `.jsonl` transcript resolves to a directory, so providers that keep a
+ * lone file are unaffected. A failure here never fails the delete — the
+ * conversation is already unreachable, which makes an undeletable directory
+ * debris rather than a reason to keep the row.
+ */
+async function removeDirectoryBesideTranscript(transcriptPath: string): Promise<boolean> {
+  if (path.extname(transcriptPath) !== '.jsonl') {
+    return false;
+  }
+
+  const directoryPath = transcriptPath.slice(0, -'.jsonl'.length);
+  try {
+    await fsp.rm(directoryPath, { recursive: true });
+    return true;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') {
+      return false;
+    }
+    console.warn(`[Sessions] Failed to remove the directory beside ${transcriptPath}:`, error);
+    return false;
+  }
+}
+
+/**
  * Removes one file if it exists.
  */
 async function removeFileIfExists(filePath: string): Promise<boolean> {
@@ -1078,6 +1111,10 @@ export const sessionsService = {
       ];
       for (const transcript of transcripts) {
         removedFromDisk = (await removeFileIfExists(transcript)) || removedFromDisk;
+        // The transcript is only half of some providers' on-disk session: the
+        // sibling directory has to go too, or it outlives every row that could
+        // have pointed at it.
+        removedFromDisk = (await removeDirectoryBesideTranscript(transcript)) || removedFromDisk;
       }
     }
 

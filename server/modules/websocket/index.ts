@@ -1,5 +1,8 @@
 export { WS_OPEN_STATE, connectedClients } from './services/websocket-state.service.js';
 export { createWebSocketServer } from './services/websocket-server.service.js';
+// Session presence: the providers module's aside cleanup reclaims a copy once
+// no chat socket watches it any more, after a grace period.
+export { configureSessionPresence } from './services/session-presence.service.js';
 export { chatRunRegistry } from './services/chat-run-registry.service.js';
 // Consumed by the providers module's sessions watcher, which announces the
 // sessions it (re)indexed from disk through the same builder the chat gateway

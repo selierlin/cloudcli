@@ -1,7 +1,7 @@
 # CloudCLI 侧边提问（btw）功能方案
 
 > **文档性质**：实施方案。第 2 章是代码可核对的事实，第 3 章之后是设计决定；凡标 **【建议】** 的段落都欢迎推翻。
-> **状态**：方案已定稿，**未实施**（2026-10-21 拍板 D1–D5，见下表）。已吸收两轮外部审阅（第一轮 Claude 8 + Codex 4，处置见 §12；第二轮 Claude 4 + Codex 3，处置见 §14）与一轮实施前自查（§13，其中 1 条后被第二轮推翻）。正文已按三轮结论改写；**D5（§11-4）于 2026-10-21 定为方案 a，阻塞项已清，可进入实施**。§11 中第 2/5/6 条仍是带【建议】的默认取值，未单独拍板，实施时按建议执行。
+> **状态**：**S1、S2 已实施完成**（2026-10-21）。S1 落地清单与偏差见 §16，S2 见 §17。**S3 的消息级入口已随 S2 一起落地**（只剩真机验收），S4 未开始。已吸收三轮外部审阅（第一轮 12 条见 §12、第二轮 7 条见 §14、第三轮 8 条见 §15）与一轮实施前自查（§13，其中 1 条后被第二轮推翻）。**无待拍板项**；§11 中第 2/5/6 条仍是带【建议】的默认取值。
 > **关联文档**：
 > - `docs/research/WorkBuddy-OpenCode-Pi对话编辑与Fork实施方案.md`（fork 的既有实现）
 > - `docs/research/CloudCLI的Provider架构分析.md`（provider 分层）
@@ -130,18 +130,27 @@ is_ephemeral BOOLEAN DEFAULT 0
 
 ### 5.1 创建副本：`POST /api/providers/sessions/:id/btw`
 
+**锚点字段必须是 `forkAnchorId`，不是 message id（第三轮批注，接口阻断项）**。`NormalizedMessage` 区分三个 id：`id`（可能是读取时合成的展示 id）、`transcriptAnchorId`（编辑用）、`forkAnchorId`（fork 用，`server/shared/types.ts:398-415`）。codex 的 `id` 每次读取都会变，真正能传给 `thread/fork` 的是 `turnId`；现有前端 fork 也明确发送 `message.forkAnchorId`（`src/modules/chat/ChatInterface.tsx:432-437`）。沿用 `upToAnchorId` 这个名字但塞 generic id，会在 codex 上把展示 id 当 `lastTurnId` 传下去。
+
 请求：
 
 ```json
-{ "upToAnchorId": "可选，消息 id", "title": "可选" }
+{ "anchorForkId": "可选，provider 的 fork 锚点（来自 message.forkAnchorId）",
+  "anchorMessageId": "可选，仅用于服务端校验与前端回显",
+  "title": "可选" }
 ```
 
 响应：
 
 ```json
 { "sessionId": "...", "provider": "claude", "projectPath": "...",
-  "anchorMessageId": "...", "anchorDegraded": false }
+  "anchorForkId": "...", "anchorMessageId": "...",
+  "anchorDegraded": false, "anchorSource": "default|explicit" }
 ```
+
+- `anchorForkId` 是**实际生效**的锚点；`anchorMessageId` 是它在本次历史里的对应消息（前端用它显示"截至第 N 条消息"，并校验用户选的那条仍在）。
+- `anchorDegraded` 为真表示 provider 把锚点放大到了更大的粒度（codex：turn；zcode 默认：整段），此时 `anchorForkId` 返回放大后的值。
+- 两个字段都传时以 `anchorForkId` 为准；只传 `anchorMessageId` 时服务端按历史查它的 `forkAnchorId`，查不到即 400 —— 这条是**兼容前端手误的闸，不是主路径**。
 
 流程（放在 `sessions.service.ts`，路由只做解析与转发，遵守后端规范）：
 
@@ -175,15 +184,18 @@ is_ephemeral BOOLEAN DEFAULT 0
 
 ### 5.2 锚点解析规则
 
-- **只接受用户消息作为锚点**。理由：以助手消息收尾会切在回复中间，后续上下文不闭合；codex 更是只能落到 turn 粒度。
-- 请求未传 `upToAnchorId` 时，从 `fetchHistory` 取**最后一条 `type === 'user'` 的消息**。
-- 会话里一条用户消息都没有（刚建好、还没发过话）→ 400 `BTW_ANCHOR_INVALID`；前端在拿不到任何用户消息时直接隐藏两个入口，不发请求。
-- 请求传了但该消息不是用户消息、或不属于该会话 → 400 `BTW_ANCHOR_INVALID`。
-- 主会话正在跑时，"最后一条用户消息"是已落盘的完整行，**锚点选取**不会读到半写行（历史读取本身也会丢弃解析失败的行，`claude-sessions.provider.ts:493-495`）。这复现了原生 btw 的"看不到我正在写的那条"。注意：这只保证**锚点**正确，不保证 fork 复制过程本身能容忍半写行——那是 §10-6 的待实测项。
-- codex 会把锚点降级到所在 turn（`codex-fork.provider.ts:29-33`），此时响应 `anchorDegraded: true`，前端在抽屉顶部提示"上下文截至该轮结束"。
-- zcode 是唯一"默认锚点会必然失败"的 provider（第二轮自查，属于设计缺陷不是降级）：`planZcodeFork` 的判据是"存在比锚点更新的 workspace checkpoint 就拒绝"（`zcode-fork.provider.ts:62-77`）。我们的默认锚点是**最后一条用户消息**，而它之后的那一轮只要动过文件就必留 checkpoint ⇒ 默认路径直接 409。文档上一版给的补救"从末尾开始"在语义上不成立：不传锚点时 zcode 取的是最后一条消息（可能是助手消息），与本方案"只接受用户消息"冲突。
-  **处置**：zcode 的默认路径改为**不传 `upToAnchorId`**（等于 fork 整段对话，`planZcodeFork` 走到 `messages[last]`，永远不触发 checkpoint 守卫）；只有用户从中间指定锚点时才可能 409，此时按原样透传并提示"该位置之后有文件快照"。即：zcode 的"从末尾 btw"等价于"当前全部上下文"，比原生 btw 多带一条正在生成的助手消息——这是可接受的偏差，需在抽屉提示条里说明。
-- 响应字段口径：`anchorMessageId` 表示**实际生效**的锚点。zcode 默认路径不指定锚点，所以返回 `null` 且 `anchorDegraded: true`，与 codex 的"降级到轮"共用同一个布尔位但文案不同（前端按 provider 区分，见 §6.5）。
+**2026-10-22 修订：剪点从「被点的那一行」改为「该行的轮末」。** 原文只认用户文本消息，理由是「以助手消息收尾会切在回复中间」。实测推翻了这条（十家矩阵，见 §17.11）：真正切在回复中间的不是「助手行」，而是「同一轮里还没走完的工具往返」；而剪在提问行会让副本里留下一条**没人回答的问题**，provider 把它当成待办——pi / omp 会在旁问旁边把它重答一遍，claude 会补一条 `No response requested.`。
+
+- **可切的锚点是「带 `forkAnchorId` 的 user/assistant 文本行」**。工具行不算，即使 provider 给它们盖了锚点（pi / omp / zcode 是逐行盖）：一次调用还没拿到结果时，那是轮中而不是轮末，停在调用与结果之间是 provider 可能拒绝恢复的转录。判据仍是 `kind === 'text'`，不是 `role === 'user'` 一项（claude 的填法见 `claude-sessions.provider.ts:1250-1265`）。
+- **请求里的锚点只是游标，不是剪点**：服务端从该行往下扫，遇到下一条真正的用户提问（`role === 'user' && kind === 'text' && !isCompactSummary`）之前停下，取范围内**最后一条可切的文本行**作为剪点。被点的行本来就在轮末时，剪点就是它自己，不移动。
+- 请求未传锚点时，取**最后一条可切行**，也就是最后一轮的末行——同一套语义，不需要第二套规则。若最近这条没有锚点（claude 对缺 `uuid` 的行会整条不填锚点），**继续往前找**，不报错；实际生效到第几条由 `anchorMessageId` 如实反映（它回填的是**剪点**，不是被点的那行），提示条会显示。
+- 会话里一条可切行都没有（刚建好、还没发过话，或 provider 全不给锚点）→ 400 `BTW_ANCHOR_INVALID`；前端在拿不到此类消息时直接隐藏入口，不发请求。
+- 请求传了 `anchorForkId` 但该值不属于该会话的可切行（包括落在工具行上）→ 400 `BTW_ANCHOR_INVALID`。只传 `anchorMessageId` 时按历史查它的 `forkAnchorId`，查不到同样 400。
+- 主会话正在跑时，"最近一条可切行"是已落盘的完整行，**剪点选取**不会读到半写行（历史读取本身也会丢弃解析失败的行，`claude-sessions.provider.ts:493-495`）。注意：这只保证**剪点**正确，不保证 fork 复制过程本身能容忍半写行——那是 §10-6 的待实测项。
+- **codex 的 `forkAnchorId` 就是 `turnId`**（`codex-sessions.provider.ts:2321,2345` 直接写 `raw.turnId`），同一 turn 内的用户消息与助手消息共享一个值。所以"以用户消息为锚点"在 codex 上必然放大到该轮结束，`anchorDegraded: true`，前端提示"上下文截至该轮结束"。
+- zcode 是唯一"默认锚点会必然失败"的 provider（第二轮自查，属于设计缺陷不是降级）：`planZcodeFork` 的判据是"存在比锚点更新的 workspace checkpoint 就拒绝"（`zcode-fork.provider.ts:62-77`）。我们的默认剪点是**最后一条可切行**，而它之后的那一轮只要动过文件就必留 checkpoint ⇒ 默认路径直接 409（剪点后移到轮末只减少了差距，没消除：该轮的 checkpoint 写在该轮消息之后）。文档上一版给的补救"从末尾开始"在语义上不成立：不传锚点时 zcode 取的是最后一条消息（可能是助手消息），与本方案"只接受用户消息"冲突。
+  **处置**：zcode 的默认路径改为**不传锚点**（等于 fork 整段对话，`planZcodeFork` 走到 `messages[last]`，永远不触发 checkpoint 守卫）；只有用户从中间指定锚点时才可能 409，此时按原样透传并提示"该位置之后有文件快照"。即：zcode 的"从末尾 btw"等价于"当前全部上下文"，比原生 btw 多带一条正在生成的助手消息——这是可接受的偏差，需在抽屉提示条里说明。
+- **响应的 `anchorForkId` 是唯一可回传给 fork 的值**，`anchorMessageId` 只服务 UI（显示"截至第 N 条"、校验用户选的那条还在）。zcode 默认路径不指定锚点，所以 `anchorForkId` 返回 `null`、`anchorMessageId` 返回它内部实际取到的那条消息，`anchorDegraded: true`——与 codex 的"降级到轮"共用同一个布尔位，但文案不同（前端按 provider 区分，见 §6.5）。
 
 ### 5.3 复用 `chat.send`
 
@@ -218,6 +230,13 @@ is_ephemeral BOOLEAN DEFAULT 0
   2. 那个 provider 进程失去归属，继续改工作区文件，且再也没有 UI 能停它。
 
   通道是现成的：`chat.abort` 的 handler 做的就是 `runtime.abort(provider, sessionId)` + `completeRun`（`server/modules/websocket/services/chat-websocket.service.ts:429-457`），`DELETE /btw` 走同一套（不需要新协议）。删除顺序固定为 **abort → 等 run 终结（拿到 terminal 事件）→ 删文件 → 清 provider 共享库 → 删行**。若 run 在超时内没有终结，返回 409 `BTW_STILL_RUNNING` 并保留副本（让它被 §5.9 兜底），**不要**在没有确认退出时删文件。
+
+- **还有第三种"没在跑，但也没停"的状态：background task（第三轮批注）**。仓库明确区分两类忙：有 run 的（`background: false, canInterrupt: true`）和"回合已结束但后台任务还在跑"的（`background: true, canInterrupt: false`，`server/modules/providers/services/sessions.service.ts:31-45`）。后者**没有 run 可 abort**，只能用 `chat.stop-task`（按 taskId 逐个停，`chat-websocket.service.ts:459-500`、前端同样用法 `BackgroundTasksStrip.tsx:146`）。所以删除前置要做两步判定：
+  1. 查该会话在 `getRunningSessions` 里的条目；
+  2. `canInterrupt: true` → `runtime.abort` 并等终结；`background: true` 且有 `tasks` → 对每个 taskId 发 `chat.stop-task` 并等其消失；两者都为假（无非就是空闲）→ 直接进删除。
+
+  漏掉第 2 步的后果与漏掉 abort 一样：任务仍在写 provider 存储/工作区，删掉的 jsonl 会被重新 append 出来，watcher 再索引成可见会话。**`chat.abort` 不能替代 `chat.stop-task`**，两者覆盖的是不同状态。
+- **§5.9 的周期清扫必须走同一套前置判定**，不能只看 `updated_at` 就删：一个 6 小时没人打开、但后台任务仍在跑的副本，扫到就删同样会把会话"复活"成可见行。清扫的实现应当是"挑出候选 → 逐个执行与 `DELETE /btw` 完全相同的清理函数"，而不是另写一条 SQL 路径。
 - **直接复用** `deleteOrArchiveSessionById(sessionId, { force: true, deletedFromDisk: true })`：force 路径本来就不校验归档状态，且该函数及其路由都不广播（`server/modules/providers/provider.routes.ts:1328-1339` 只返回结果，前端自行更新列表），正好符合"副本不该被客户端知道"的要求。不需要为"删除"本身抽新方法，abort 是**前置步骤**，不是它的替代。
 - 幂等：行已不存在返回 204（注意 `deleteSessionById` 内部对不存在的行会抛 `SESSION_NOT_FOUND`，端点要先判存在性再调）。
 
@@ -244,6 +263,9 @@ is_ephemeral BOOLEAN DEFAULT 0
 | `getArchivedSessions` | `claude-session-synchronizer.provider.ts:416`：名称回填（按 `name_source` 过滤，副本本不匹配，但查询本身不该被收窄） | `sessions.service.ts:976` 归档列表、`session-conversations-search.service.ts:1199` 搜索候选集 |
 | `getSessionsByProjectPathPage` | — | `projects-with-sessions-fetch.service.ts:204` |
 | `getSessionsByProjectPath` | 当前无外部调用方（实施时确认） | — |
+| `getAllSessions` | `claude-session-synchronizer.provider.ts:416`：legacy 标题回填，查询本身不该被收窄 | `session-conversations-search.service.ts:1198`：**搜索候选集** |
+
+**搜索这一格是全表最容易漏、也最容易做对的（第三轮批注）**：正文搜索的候选集就是 `getAllSessions() + getArchivedSessions()`（`session-conversations-search.service.ts:1198-1199`），ripgrep 拿的是这两个函数给出的**显式文件清单**、不做目录扫描。所以只要在这两个函数的可见面版本上过滤，标题搜索与正文搜索**同时覆盖**，不需要再按服务逐个枚举。这也是为什么 `getAllSessions` 必须进上表——按"搜索服务"为单位想，很容易只记得改 `getArchivedSessions` 那一半。
 
 处置：
 
@@ -258,7 +280,11 @@ is_ephemeral BOOLEAN DEFAULT 0
 
 ### 5.7 watcher 竞态
 
-同步器看到新 transcript 会 upsert。正式 fork 已有"先插行再让 watcher 看见"的约定（`sessions.service.ts:584-596` 与 `sessions.db.ts:399-413` 的 reclaim 逻辑），副本沿用即可。
+**正式 fork 的实际顺序不是"先插行"（第三轮批注，原描述有误）**：`forkSession` 先落盘（provider 侧 transcript 已存在），然后才 `createForkedSession` 建行、`broadcastSessionUpserted`（`sessions.service.ts:575-605`）。所以正式 fork 今天就带着同一个窗口在跑：watcher 可能按 provider 原生 id 抢先建行并广播，随后 `createForkedSession` 的 reclaim 分支 `DELETE` 旧行 + `INSERT` 新行（`sessions.db.ts:399-426`，**新旧 `session_id` 不同**），而全仓没有删除广播 ⇒ 已推给前端的旧 id 条目会作为幽灵留在侧栏，直到刷新。正式 fork 里这个幽灵不被"顶掉"：新行是另一个 id，不是覆盖。
+
+**btw 不走这条路径**：占位行在 fork 之前就已落库（§5.1 第 3 步），注册表保证 watcher 抢先建出的行也是 `is_ephemeral = 1`、并且回填时会合并进占位行（`assignProviderSessionId` 走 duplicate 分支）。也就是说方案 a 顺带让 btw **不存在**"正式 fork 那种幽灵"。
+
+**顺带记录、不在本方案范围**：正式 fork 的幽灵是既有行为，本方案不修。S1 验收时顺便观察一次正式 fork 是否真的留下幽灵——如果留下，说明未来想修时可以直接复用本方案的"占位行 + 注册表"手法。
 
 **删除侧的竞态要按实际机制描述**（更正原方案）：watcher 并不"持有文件列表"，它是逐文件调用 `synchronizeProviderFile`，同步完成才入队广播（`sessions-watcher.service.ts:295-300`）。所以文件已经不存在时，sync 抛错、不建行、不入队，这条路径是安全的。
 
@@ -335,7 +361,13 @@ src/modules/chat/
 1. `ensureSession()`：发第一问时调 `POST /btw`，拿 `sessionId`，缓存。
 2. `send(text)`：`chat.send` 到副本，options 走 §5.3 的共享构造器。
 3. `subscribe()`：只发 `chat.subscribe({ sessions: [{ sessionId, lastSeq: 0 }] })`；**回放与增量都交给全局事件泵**，抽屉不自己累积。
-4. `destroy()`：`DELETE /btw`，然后丢弃该 sessionId 的 store slot。
+4. `destroy()`：**显式状态机，DELETE 成功才丢 slot**（第三轮批注更正——原写法"DELETE 后丢弃"在失败路径上会把唯一可观察状态扔掉）：
+   - `204` → `dropSession(sessionId)` → 关抽屉；
+   - `409 BTW_STILL_RUNNING` → **保留抽屉、保留 slot、保留已渲染的消息**，头部显示"正在停止…"并暴露重试；用户能在这里按 Stop 或再点关闭。绝不能先 drop 再删，否则用户既看不到副本也停不掉它，只能等 §5.9 的周期清扫；
+   - 已 `promoted` → 跳过 DELETE，直接关（副本已转正，删了就是删用户的正式会话）；
+   - 其他错误 → 保留，给出可重试提示。
+
+   这条状态机的判据是"**抽屉是否还能让用户操作这个副本**"：只要 DELETE 没成功，抽屉就不关，slot 也不丢；成功才一次性清干净。**不做"先关抽屉、后台异步删"**，那等于把失败变成一个用户看不见的孤儿。
 5. 消息、流式态、loading 一律从 `sessionStore` 里 B 的 slot 读（用 `getSessionSlot` 只读访问，避免顺手建槽）。
 
 **"自建 hook 本地累积、不渗进全局 store"这个隔离假设不成立（第二轮审阅核实，原结论作废）**：前端只有一条 WebSocket，所有帧都进 `useChatRealtimeHandlers.handleEvent`，它按 `msg.sessionId` 路由、**不丢弃非活跃会话的事件**（`src/modules/chat/hooks/useChatRealtimeHandlers.ts:172-330`），而 `sessionStore` 是按 sessionId 分槽的 Map、切会话不清空（`useSessionStore.ts:1-8`）。也就是说，**按原方案**（抽屉自己累积），B 的 `stream_delta`/`text`/`tool_use` 会同时落到共享 store 和抽屉数组里——两套累积、两套 seq 记账、两套 finalize。
@@ -353,11 +385,15 @@ src/modules/chat/
 
 ### 6.4 权限卡
 
-claude 是唯一会把工具权限弹到 UI 的 provider（`supportsPermissionRequests: true`）。默认权限模式下，抽屉里必须能渲染并回传权限请求，否则工具调用会卡住。
+**在支持 fork 的 provider 里，只有 claude 会把工具权限弹到 UI**（`supportsPermissionRequests: true`）。注意这个限定条件（第三轮批注）：**dsh 的 `supportsPermissionRequests` 也是 true**（`provider-capabilities.service.ts:150-160` 的注释写明其 ACP 权限请求会路由到 chat UI），只是它 `supportsSessionForking: false`，所以当前不受影响。写成"claude 是唯一"会在将来给 dsh 开 fork 时照错结论漏掉权限卡。
+
+因此抽屉**按能力位渲染，不按 provider id 分支**：`supportsPermissionRequests` 决定是否挂权限卡，`supportsAbort` 决定是否显示 Stop。这与 `provider-capabilities.service.ts:5-9` 的既定原则一致，也让 S4 铺到 dsh 时不需要改 UI。
+
+默认权限模式下，抽屉里必须能渲染并回传权限请求，否则工具调用会卡住。
 
 现成组件是 `PermissionRequestsBanner`（`src/modules/chat/composer/PermissionRequestsBanner.tsx:26-36`）：**纯受控**，接收 `pendingPermissionRequests` 与两个回调，可以直接放进抽屉的输入框上方，不需要改它。需要自己做的是**按 `sessionId` 过滤**待决请求——浏览器侧拿到的是全局待决列表，主会话与副本的请求必须分开渲染，否则两边会互相看到对方的授权弹窗。权限决策走 `chat.permission-response`（`chat-websocket.service.ts:575-587`），协议本身是 provider 中立的，无需扩展。
 
-其余 provider 不弹权限卡，按各自 CLI 的默认策略执行。
+其余 provider（当前 = 所有支持 fork 的 provider）不弹权限卡，按各自 CLI 的默认策略执行。
 
 **前提是生效 mode 为 `default`（第二轮审阅更正）**：mode 不是全局常量，而是 `useChatProviderState` 的 UI 状态（`src/modules/chat/hooks/useChatProviderState.ts:202,555`，初值来自该 provider 的偏好，可在输入框菜单里切换）。所以抽屉必须实时镜像它（§5.3）；只有在镜像到的值为 `default`、且该 provider 的权限偏好里 `skipPermissions` 为假时，claude 才会真的发权限请求。验收用例必须两者都显式设好，否则会"测了个空"。
 
@@ -379,22 +415,24 @@ claude 是唯一会把工具权限弹到 UI 的 provider（`supportsPermissionRe
 
 ### 6.7 i18n
 
-新增文案同时改 `zh-CN` 与 `en`（键集以 `en` 为基准，见项目 i18n 策略）。涉及：按钮名、抽屉标题、锚点说明、两个动作、**五个错误码**的用户可读文案：`BTW_ANCHOR_INVALID`（含"会话里还没有你的消息"）、`NOT_EPHEMERAL`、`BTW_TITLE_INVALID`、`BTW_STILL_RUNNING`、`SESSION_NOT_FOUND`（源会话已被删）。上一版写"四个"，第二轮自查更正。
+新增文案同时改 `zh-CN` 与 `en`（键集以 `en` 为基准，见项目 i18n 策略）。涉及：按钮名、抽屉标题、锚点说明、两个动作、**五个错误码**的用户可读文案：`BTW_ANCHOR_INVALID`（覆盖三种成因："会话里还没有你的消息"／"这条消息不能作为锚点"／"provider 没给这条消息锚点"）、`NOT_EPHEMERAL`、`BTW_TITLE_INVALID`、`BTW_STILL_RUNNING`、`SESSION_NOT_FOUND`（源会话已被删）。上一版写"四个"，第二轮自查更正。
+
+抽屉里的 `409 BTW_STILL_RUNNING` 文案不是错误提示，而是**状态**（"正在停止…"＋重试），所以它需要一条常驻文案而不是 toast（§6.3 的 destroy 状态机）。
 
 ---
 
 ## 7. Provider 支持矩阵
 
-| provider | fork 锚点 | 只读/工具 | 本方案可用性 |
+| provider | fork 锚点（`forkAnchorId` 的真身） | 只读/工具 | 本方案可用性 |
 |---|---|---|---|
-| claude | 任意消息（含锚点） | 完整可禁，本方案不禁 | 一等 |
-| pi | 任意分支条目 | 有 `--tools` 白名单 | 一等 |
-| omp | 任意分支条目 | 有 `--tools` 白名单 | 一等 |
-| workbuddy | 任意行 | `plan` 近似只读 | 一等 |
-| opencode | 任意 message id | `--agent plan` 只读 | 一等（fork 需临时 `opencode serve`；回收不用起进程，删除直连 `opencode.db`，已核实 `opencode-session-synchronizer.provider.ts:114-140`） |
-| zcode | 任意 message | `--mode build` 可拒写 | 二等：**默认不传锚点**（fork 整段，见 §5.2 更正）；只有用户从中间指定时才可能 409 |
-| codex | **仅 turn 粒度** | 无只读档 | 二等（锚点降级，`anchorDegraded`） |
-| cursor / dsh / openclaw | 无 fork | — | 不支持，按钮隐藏 |
+| claude | transcript 行 `uuid`，只挂在 user/assistant 的 **text** 消息上（`claude-sessions.provider.ts:1250-1265`） | 完整可禁，本方案不禁 | 一等 |
+| pi | 分支条目 `entryId`（`pi-sessions.provider.ts:161`） | 有 `--tools` 白名单 | 一等 |
+| omp | 分支条目 `entryId`（`omp-sessions.provider.ts:106`） | 有 `--tools` 白名单 | 一等 |
+| workbuddy | `eventAnchorId`（`workbuddy-sessions.provider.ts:1054,1104`） | `plan` 近似只读 | 一等 |
+| opencode | `message_id`（`opencode-sessions.provider.ts:712`） | `--agent plan` 只读 | 一等（fork 需临时 `opencode serve`；回收不用起进程，删除直连 `opencode.db`，已核实 `opencode-session-synchronizer.provider.ts:114-140`） |
+| zcode | `message_id`（`zcode-sessions.provider.ts:439`） | `--mode build` 可拒写 | 二等：**默认不传锚点**（fork 整段，见 §5.2 更正）；只有用户从中间指定时才可能 409 |
+| codex | **`turnId`**（`codex-sessions.provider.ts:2321,2345`，同 turn 的 user/assistant 共享） | 无只读档 | 二等（锚点必然放大到轮，`anchorDegraded`）。附：`forkThread` 不转发 `title`（`codex-fork.provider.ts:29-34`），副本在 provider 侧的标题是它自己的默认值；我们只在 DB 行里命名，转正后侧栏显示的是我们的名字，可接受 |
+| cursor / dsh / openclaw | 无 fork（dsh 有 `supportsPermissionRequests: true` 但 `supportsSessionForking: false`） | — | 不支持，按钮隐藏 |
 
 能力位建议加 `supportsBtw: boolean`（由 `supportsSessionForking` 派生也可），前端据此隐藏入口，而不是在组件里按 provider id 分支（沿用能力矩阵的既定原则，见 `provider-capabilities.service.ts:5-9`）。
 
@@ -421,6 +459,9 @@ claude 是唯一会把工具权限弹到 UI 的 provider（`supportsPermissionRe
 | **抽屉漏发 options → 与主会话行为不一致** | `BtwComposer` 自己手拼 `chat.send.options` | 复用 `buildSendOptions`＋实时镜像 mode（§5.3）；S2 加"故意漏传"回归 |
 | **副本事件双写** | 抽屉自建 hook 本地累积，同时全局事件泵也写 store | 改为读共享 store slot（§6.3），并给 store 加 `dropSession` |
 | 误删正式会话 | 前端传错 id | §5.4 的 `is_ephemeral` 校验 |
+| **锚点传成 generic message id** | `/btw` 收 `message.id` 而不是 `forkAnchorId` | **接口阻断级**：codex 的 `id` 每次读取都变，会被当成 `lastTurnId`；契约只认 `anchorForkId`（§5.1、§5.2） |
+| **回合结束但后台任务仍在跑** | 抽屉里跑过带 background task 的回合，用户随后关闭 | `chat.abort` 停不了它（`canInterrupt: false`），必须逐个 `chat.stop-task` 并等消失后再删；§5.9 清扫走同一套前置（§5.4） |
+| **DELETE 失败后前端丢了 slot** | 409 `BTW_STILL_RUNNING` 或网络错误 | destroy 状态机：DELETE 成功才 `dropSession`，失败保留抽屉与 slot 并给重试（§6.3） |
 | provider 侧短暂可见 | 副本存续期间，`~/.claude/projects` 等目录里多一个 jsonl，provider 自己的 CLI 会话列表能看到 | **可接受**，关闭即删。实施者不要把它当泄漏去"修"——CloudCLI 无法也不该隐藏 provider 自己的存储 |
 
 ---
@@ -433,9 +474,11 @@ claude 是唯一会把工具权限弹到 UI 的 provider（`supportsPermissionRe
 - 两阶段建行（占位 → 回填，**含 `jsonl_path` 补写**，§5.1）
 - **占位窗口注册表**（`ephemeral-fork-registry.service.ts`：登记 / 一次性消费 / 回填时校验误标并自愈 / 60s 过期；`createSession` 的 INSERT 分支消费它，§5.1）
 - **删除前置 abort**（`runtime.abort` + 等终结；超时 409 `BTW_STILL_RUNNING`，§5.4）
+- **删除前置 stop-task**（`canInterrupt: false` 但有 `tasks` 的条目逐个 `chat.stop-task` 并等消失；周期清扫复用同一函数，§5.4）
+- **锚点契约只认 `forkAnchorId`**（请求 `anchorForkId`／响应回填有效锚点，§5.1、§5.2）
 - 可见面过滤（侧栏/搜索/未读/计数，**过滤下沉到服务层，仓储层保持全量**，§5.6）+ **广播服务过滤**
 - 启动清理 + 周期清扫 + tombstone
-- **验收必须是自动化断言，不是手工 curl**：副本创建/删除前后比对①源 transcript 的字节数与 mtime 不变、②`sessions` 行集合不变、③侧栏/搜索/计数查询结果不变；再用同步器测试模拟"文件 add → 广播"路径，断言 `buildSessionUpsertedEvent` 对副本返回 `null`。**新增一条**：副本跑到一半发 `DELETE`，断言①run 收到 abort、②transcript 在删除后不再出现、③没有新行落库（这条挡的是 §5.4 的 abort 前置，手工 curl 测不出来）。**再新增一条（挡方案 a）**：在回填前手动插入一条"watcher 抢先建行"的调用，断言①新行 `is_ephemeral = 1`、②注册表条目已被消费（第二次调用不再命中）、③过期后同一 projectPath 的正常新会话仍为 `is_ephemeral = 0`；④**误标自愈**——构造"被标行的 provider id 与 fork 返回值不一致"的情形，断言该行被改回 `0`（这条挡的是"键按 projectPath、误标正常会话后被周期清扫删掉"）。
+- **验收必须是自动化断言，不是手工 curl**：副本创建/删除前后比对①源 transcript 的字节数与 mtime 不变、②`sessions` 行集合不变、③侧栏/搜索/计数查询结果不变；再用同步器测试模拟"文件 add → 广播"路径，断言 `buildSessionUpsertedEvent` 对副本返回 `null`。**新增一条**：副本跑到一半发 `DELETE`，断言①run 收到 abort、②transcript 在删除后不再出现、③没有新行落库（这条挡的是 §5.4 的 abort 前置，手工 curl 测不出来）。**再新增一条（挡方案 a）**：在回填前手动插入一条"watcher 抢先建行"的调用，断言①新行 `is_ephemeral = 1`、②注册表条目已被消费（第二次调用不再命中）、③过期后同一 projectPath 的正常新会话仍为 `is_ephemeral = 0`；④**误标自愈**——构造"被标行的 provider id 与 fork 返回值不一致"的情形，断言该行被改回 `0`（这条挡的是"键按 projectPath、误标正常会话后被周期清扫删掉"）。**第五条（挡锚点契约）**：给一个"同 turn 两条消息共享 `turnId`"的 codex 夹具，断言按用户消息的 `forkAnchorId` 建出的副本 `anchorForkId === turnId`、`anchorDegraded === true`；再断言传 generic `message.id` 时被拒（400），证明不会静默把它当 `lastTurnId` 用。**第六条（挡 background task）**：构造 `background: true, canInterrupt: false` 的副本，发 DELETE，断言①不发 `runtime.abort`、②对每个 taskId 发了 `chat.stop-task`、③任务消失前不删文件、④最终行与文件都不在。
 
 **S2｜前端抽屉**
 - 按钮 + 抽屉 + `useBtwSession`
@@ -450,11 +493,12 @@ claude 是唯一会把工具权限弹到 UI 的 provider（`supportsPermissionRe
   - **options 逐字段一致**：抽屉发出的 `chat.send.options` 与主会话相同（`permissionMode` / `effort` / `toolsSettings` / `skipPermissions` / `model`），并有一条**反向断言**：故意不发 `permissionMode` 时，claude 的工具调用会卡在权限卡上——证明该字段真的被继承链路用到了；
   - 关闭后侧栏无新增条目；
   - **生成中点 Stop**：回合停下、抽屉仍可用（副本未被删）；
+  - **destroy 状态机**：把 DELETE 打成 409（副本仍在跑）与打网络错误两种，断言抽屉**不关**、slot **不丢**、出现"正在停止/重试"；再断言 DELETE 成功那一路径才 `dropSession`；
   - 移动视口下聚焦输入框，发送按钮、最后一条消息、键盘三者不重叠。
 
 **S3｜消息级入口**
-- 用户消息上的「从这里 btw」
-- 验收：从中间消息开 btw，副本内容确实截止在该消息
+- 用户消息上的「从这里 btw」，显示条件与现有 fork 按钮一致：`message.forkAnchorId` 存在（`MessageComponent.tsx:263,694-697`），点击时把 `forkAnchorId` 当 `anchorForkId` 发（不是 `message.id`）
+- 验收：从中间消息开 btw，副本内容确实截止在该消息；对 codex 断言提示条显示"截至该轮结束"
 
 **S4｜铺开 provider**
 - pi / omp / workbuddy / opencode / zcode / codex，逐个实跑
@@ -479,6 +523,7 @@ claude 是唯一会把工具权限弹到 UI 的 provider（`supportsPermissionRe
 8. **fork 一个正在跑 turn 的线程，provider 是否接受**（第二轮自查补）。codex 的 `thread/fork` 与 zcode 的 `session/fork` 都走活的 app-server（`codex-app-server.client.ts:571-581`），opencode 还要临时起 serve。D4 允许并发打开；若 provider 报 "turn in progress"，二等档就变成"必须等主会话空闲"，矩阵与提示条都要改。逐个实跑，别只看文档。
 9. **zcode 不传锚点的整段 fork 是否真的不触发 checkpoint 守卫**。代码推导是 `messages[last]` ⇒ 不存在更新的 checkpoint（`zcode-fork.provider.ts:62-77`），但 `session/fork` 在"整段"情况下是否仍 restore 某个快照，要实跑确认。这是把 zcode 从"默认必然 409"改成"默认可用"的唯一依据。
 10. **abort 之后 jsonl 是否立刻停止增长**（§5.4 的验收前提）。有些 provider 的 abort 只是断流，进程仍会写完当前块；需要观察 abort 后文件 mtime 在 1s 内停止，否则"删文件"这一步永远赶不上 append。
+11. **正式 fork 是否真的留下侧栏幽灵**（第三轮批注建议，顺手验证）。按 §5.7 的代码推导它会：watcher 抢建 → reclaim `DELETE`+`INSERT` 换 id → 无删除广播。实跑一次正式 fork，看侧栏是否多出一条刷新后才消失的条目。结论只用于"未来要不要拿本方案的手法去修正式 fork"，不阻塞 S1。
 
 ---
 
@@ -522,6 +567,14 @@ claude 是唯一会把工具权限弹到 UI 的 provider（`supportsPermissionRe
 
 > [!NOTE] 补充说明（第二轮核查）：F1（resolveSendTarget / RUN_IN_PROGRESS）、F5（删除顺序 transcript → provider store → 行，含 superseded 路径清理）均核实成立，仅行号有数行漂移；§5.4"抽出不广播的内部方法"可行，`deleteOrArchiveSessionById` 本身确实不广播，广播发生在其调用方。
 
+> [!IMPORTANT] 关键信息（第三轮核查）：§6.4"claude 是唯一 supportsPermissionRequests: true 的 provider"**不成立**——dsh 也是 true（`provider-capabilities.service.ts:159`，注释明确说明其 ACP 权限请求会路由到 chat UI）。dsh 恰好 `supportsSessionForking: false` 所以本方案不受波及，但该句应改为"**支持 fork 的 provider 中仅 claude 弹权限卡**"，否则将来给 dsh 开 fork 时会照着错误结论漏掉权限卡实现。
+
+> [!WARNING] 潜在风险（第三轮核查）：§5.7"正式 fork 已有'先插行再让 watcher 看见'的约定，副本沿用即可"对实际代码顺序的描述不准确——真实顺序是 `forkSession` 先落盘（jsonl 已存在）→ **然后**才 `createForkedSession`。窗口期内 watcher 可能抢先按 provider 原生 id 建行并广播；reclaim 逻辑（`sessions.db.ts:398-413`）会删掉这行换成 app id 的正式行，但**已收到广播的客户端会留下幽灵条目**，除非后续有删除广播或前端对账。正式 fork 今天就带着这个窗口在跑（幽灵最终会被盖掉，因为正式行本来就该出现）；btw 的副本则不会——幽灵会一直挂着直到刷新。S1 验收建议实际观察一次正式 fork 的这个窗口，确认前端如何消化幽灵条目，再把同样机制用于 btw（或在广播侧过滤，与第一轮 CAUTION #1 一并处理）。
+
+> [!TIP] 建议（第三轮核查）：§5.6 过滤清单可以落到更精确的杠杆上——全文搜索的候选集就是 `getAllSessions()` + `getArchivedSessions()`（`session-conversations-search.service.ts:1198-1201`），ripgrep 拿的是显式文件清单、不做目录扫描，所以**过滤这两个仓库函数即可同时覆盖标题搜索与正文搜索**。`getAllSessions` 目前只有搜索与 claude 的 legacy 标题回填（`claude-session-synchronizer.provider.ts:416`）两个调用方，建议把它列为 §5.6 的显式条目，比按服务逐个枚举更不易漏。
+
+> [!NOTE] 补充说明（第三轮核查）：以下声明均核实成立——codex 仅 turn 粒度（`forkThread({ lastTurnId })`，`codex-fork.provider.ts:30-34`，且 title 确实未转发）；zcode checkpoint 守卫与 409 语义（`zcode-fork.provider.ts:14-49`）；消息级操作区可挂入口（`MessageComponent.tsx:255` 附近 edit 按钮同款形态）；抽屉订阅用 `lastSeq: 0` 的形态与 `useChatSessionState.ts:1144-1152` 现有写法一致；Escape capture 处理（`QuickSettingsPanelView.tsx:99-120`）与迁移 helper（`migrations.ts:34,50` 有 `isPinned` 先例）都可直接套用。
+
 #### Codex
 > [!IMPORTANT] 关键信息：§6.3 的目录布局与前端模块规范不一致。当前仓库把 `chat` 作为 `src/modules/chat/` 这一 feature module，规范要求 hook 放在 `src/modules/<feature>/hooks/`；方案却把 `useBtwSession.ts` 放在新建的 `src/modules/chat/btw/` 根目录，并把它称为独立模块。应明确二选一：若 btw 是独立 feature，就建 `src/modules/btw/`（含自己的 `index.ts`、`hooks/`）；若它是 chat 的子能力，就保留 `src/modules/chat/`，把 hook 放进 `src/modules/chat/hooks/`，不要在同一层级混用“模块”定义。否则后续 import 边界、barrel 导出和测试归属都会漂移。
 
@@ -536,6 +589,12 @@ claude 是唯一会把工具权限弹到 UI 的 provider（`supportsPermissionRe
 > [!WARNING] 潜在风险：§5.3/§11-3 把 model、effort 的继承写成默认行为，但 `chat.send` 的这些值来自**当次请求的 `options`**；`chat-websocket.service.ts` 只有在 `clientOptions.model/effort` 存在时才写回 session，且 `useChatComposerState.ts` 还会同时发送 `toolsSettings`、`skipPermissions`。仅在 `createForkedSession` 里复制 `source.model/effort`，不会让后续抽屉回合自动使用它们；方案又只明确透传 `permissionMode`。若 `BtwComposer` 漏发这些字段，D2 的“完整工具、继承权限”会与主会话产生实际差异。应明确由前端逐回合发送完整 options，或由服务端从副本/源会话解析，并在 S2 覆盖 model、effort、工具白名单、skipPermissions 的继承验收。
 
 > [!IMPORTANT] 关键信息：`is_ephemeral` 不是只改 schema 和 `createForkedSession` 就完成的单点字段。`sessions.db.ts` 的 `SessionRow`、`SESSION_ROW_COLUMNS`、各 `SELECT`/归一化结果，以及 `session_upserted` 构造、项目会话 API/共享类型都要有明确的字段流向；尤其广播服务需要能读到该字段才能跳过副本。实施清单应把这些消费者写全，并区分“内部清理必须读到”与“普通 API 不得返回”两种契约，避免字段只写不读或误暴露。
+
+> [!CAUTION] 潜在风险：§5.4 的关闭清理没有处理正在运行的副本回合或尚未结束的后台任务。`deleteOrArchiveSessionById` 只删 transcript、provider store 和 DB 行，不会先调用 `chat.abort` 或 `chat.stop-task`；如果用户在抽屉回合执行中关闭，runtime 仍可能继续写文件/启动后台工作，随后 watcher 会把已删会话重新索引，I4 不再成立。关闭流程必须先取消或确认终止 `chatRunRegistry` 中的 running run，并处理 background tasks，再执行删除；否则至少把“运行中关闭”定义为延迟删除并由服务端最终清理。
+
+> [!CAUTION] 潜在风险：§5.2 把 `upToAnchorId` 描述成“消息 id”，但现有契约实际上分三层：`NormalizedMessage.id` 可能是读取时合成的展示 id，`transcriptAnchorId` 是稳定转录行 id，`forkAnchorId` 才是 provider fork 锚点（`server/shared/types.ts:398-415`）。Codex 的 `id` 每次读取都会变化，真正的 fork 值是 `turnId`；现有前端 fork 也显式发送 `message.forkAnchorId`（`src/modules/chat/ChatInterface.tsx:432-437`）。若 `/btw` 只收 generic message id，Codex 会传错 `lastTurnId`，响应里的 `anchorMessageId` 也无法表达降级后的 turn。应把请求/响应契约改为 provider fork anchor（或同时传 `messageId` 与 `forkAnchorId`），并按 provider 解析有效锚点。
+
+> [!IMPORTANT] 关键信息：§6.4 不应硬编码“只有 claude 有权限卡”。`ProviderCapabilities` 已提供 `supportsPermissionRequests`、`supportsAbort` 等能力位（`server/modules/providers/services/provider-capabilities.service.ts:20-24`），而且 DSH/OpenClaw 的 capability 行也声明了 `supportsPermissionRequests: true`；即使当前它们没有 fork 而被隐藏，后续扩展矩阵时按 provider id 分支会再次漂移。抽屉的权限卡、中止按钮和失败处理都应由能力位驱动，并把 `chat.abort`/`chat.stop-task` 纳入关闭与异常路径验收。
 
 ---
 
@@ -625,6 +684,336 @@ claude 是唯一会把工具权限弹到 UI 的 provider（`supportsPermissionRe
 ### 14.2 本轮之后还剩什么
 
 - **已拍板**（2026-10-21，第二轮之后追加）：§11-4 占位窗口 → **方案 a**。S1 因此多一个 `ephemeral-fork-registry.service.ts` 与一条"回填前抢先建行"的断言；b/c 已否决。
-- **仍待实测**：§10-8/9/10。
+- **仍待实测**：§10-8/9/10（第三轮又加了第 11 条，见 §15）。
 - **新进 S2 的工作量**：`dropSession`、options 共享构造器、mode 置灰镜像（本轮新增）＋ Stop（§13 已补）——这四项在原 S2 里都不存在。
 - **没有遗留的分歧**：7 条全部采纳，无驳回。但两边的判据都要复算：R2 是"审阅者推翻了我"（我上一轮把"协议类型里没有该字段"误当成"链路上没有发送"）；R3 是"我采纳了事实、更正了审阅者的归因"（覆盖源是客户端偏好，不是服务端设置）。这两条互为镜像，说明**结论和归因都得回代码里对一遍**，不能只对一半。
+
+### Codex
+> [!CAUTION] 潜在风险（第三轮复核）：§5.1/§5.2 的锚点契约仍与现有 fork 契约不一致。请求示例写的是“消息 id”，响应写的是 `anchorMessageId`，但 `NormalizedMessage` 明确区分 `id`、`transcriptAnchorId` 与 `forkAnchorId`（`server/shared/types.ts:398-415`）；Codex 的 `id` 是读取时合成值，真正传给 `thread/fork` 的是 `turnId`/`forkAnchorId`，现有前端也从 `message.forkAnchorId` 发起 fork（`src/modules/chat/ChatInterface.tsx:432-437`）。若 `/btw` 仍按 generic message id 校验和转发，Codex 会把展示 id 误当 `lastTurnId`，且 `anchorDegraded` 没有稳定的请求/响应回填口径。应把字段改为 provider fork anchor，或同时传 `messageId` 与 `forkAnchorId` 并在响应返回有效锚点；这是进入 S3 前必须收口的接口阻断项。
+
+> [!CAUTION] 潜在风险（第三轮复核）：§5.4 只保证 `chat.abort` 后等待 running run 终结，却没有覆盖“回合已结束但 background task 仍在跑”的状态。仓库把这类会话列为 `background: true, canInterrupt: false`（`server/modules/providers/services/sessions.service.ts:36-44`），停止它必须走 `chat.stop-task`，不能用 `chat.abort` 代替。若此时执行 DELETE，或 §5.9 的 6 小时清扫只看 `updated_at`，后台任务仍可能继续写 provider 存储/工作区并在之后重建会话；周期清扫也必须先查询并停止/等待 background tasks，且验收要覆盖“回合完成、任务未完成时关闭/清扫”。
+
+> [!WARNING] 潜在风险（第三轮复核）：§6.3 把 `destroy()` 写成“DELETE 后丢弃 store slot”，但 §5.4 规定运行未终结时返回 409 并保留副本。前端没有定义收到 `BTW_STILL_RUNNING` 后是保持抽屉、保留 B slot 并显示可重试，还是照常关闭；按当前顺序会在删除失败后丢掉唯一可观察状态，用户无法再停止或重试。应把 destroy 改成显式状态机：DELETE 成功才 `dropSession`，409 保持 slot/抽屉并展示停止中或重试，只有 promoted 时才跳过删除。
+
+> [!IMPORTANT] 关键信息（第三轮复核）：§6.4 仍写“claude 是唯一会把工具权限弹到 UI 的 provider”，与能力矩阵不完全一致；`supportsPermissionRequests` 已是能力位，DSH/OpenClaw 行也为 true（`server/modules/providers/services/provider-capabilities.service.ts:20-24,159`）。虽然它们当前无 fork，但按 provider id 硬编码会让未来支持 fork 时漏掉权限卡。应改为按 `supportsPermissionRequests`/`supportsAbort` 渲染和处理，并把能力位作为 S2/S4 的验收输入。
+
+---
+
+## 15. 第三轮审阅批注与处置（2026-10-21）
+
+8 条（Claude 4 + Codex 4），其中 T4 是两边对同一问题各写一条。**全部采纳**，一条是接口阻断项（T1），一条推翻了我对正式 fork 顺序的描述（T5）。
+
+| # | 批注 | 判定 | 处置 |
+|---|---|---|---|
+| T1 | `/btw` 的锚点契约用 generic message id，与 `forkAnchorId` 契约冲突 | **采纳（接口阻断级）** | §5.1 请求改为 `anchorForkId` + 可选 `anchorMessageId`，响应回有效 `anchorForkId`；§5.2 判据改为 `role === 'user' && kind === 'text' && forkAnchorId`；§7 矩阵逐 provider 标出真身；§9 S1 第五条断言 + S3 入口条件。复核确认：codex 的 `forkAnchorId` 就是 `turnId`（`codex-sessions.provider.ts:2321,2345`），现有前端 fork 也发 `message.forkAnchorId`（`ChatInterface.tsx:432-437`） |
+| T2 | 回合已结束但 background task 仍在跑时，`chat.abort` 停不住 | **采纳（阻断级）** | §5.4 改两段式前置：`canInterrupt: true` → abort，`background: true` 有 tasks → 逐个 `chat.stop-task`；§5.9 清扫复用同一清理函数而不是另写 SQL；§9 S1 第六条断言。复核确认 `canInterrupt: false` 的设计说明在 `sessions.service.ts:31-45` |
+| T3 | `destroy()` 在 DELETE 失败（尤其 409）时丢 slot，用户无法再停或重试 | **采纳** | §6.3 改显式状态机：204 才 `dropSession`，409 保留抽屉/slot 并显示"正在停止…"＋重试，promoted 跳过 DELETE；§6.7 补"409 是状态不是 toast"；§9 S2 加两种失败路径验收 |
+| T4 | "claude 是唯一弹权限卡"不成立，dsh 的 `supportsPermissionRequests` 也是 true | **采纳**（Claude 与 Codex 各提一条，合并处置） | 复核确认 dsh 为 true 且 `supportsSessionForking: false`（`provider-capabilities.service.ts:150-160`）。§6.4 改为"**支持 fork 的 provider 中仅 claude**"，并要求权限卡与 Stop 分别由 `supportsPermissionRequests` / `supportsAbort` 驱动，不按 provider id 分支；§7 矩阵补脚注 |
+| T5 | §5.7 说"正式 fork 已有先插行再让 watcher 看见的约定"，与实际顺序不符 | **采纳，且顺带确认 btw 不受影响** | 复核确认真实顺序是 `forkSession`（落盘）→ `createForkedSession`（建行）→ `broadcastSessionUpserted`（`sessions.service.ts:575-605`）。§5.7 重写：正式 fork 今天就有这个幽灵（reclaim 是 `DELETE`+`INSERT`、新旧 id 不同、无删除广播），btw 因占位行 + 注册表走不到这条路径；§10 新增第 11 条顺手实测 |
+| T6 | 搜索候选集是 `getAllSessions()` + `getArchivedSessions()`，ripgrep 只吃显式文件清单 | **采纳** | §5.6 表格补 `getAllSessions` 行，并写明"过滤这两个函数即可同时覆盖标题搜索与正文搜索"，比按服务枚举更不易漏。复核确认调用点 `session-conversations-search.service.ts:1198-1199` |
+| T7 | 一批声明核实成立：codex 仅 turn 粒度、zcode 409 语义、`MessageComponent` 入口形态、`lastSeq: 0`、Escape capture、迁移 helper | **记录，正文无需改** | 已核，均在 §5.2 / §6.1 / §6.2 / §6.7 中以现有形式成立；§9 S3 的入口条件此时补上了 `forkAnchorId` 判据 |
+
+### 15.1 本轮之后还剩什么
+
+- **待实测增至 11 条**：原 10 条 + 正式 fork 幽灵观察（§10-11）。
+- **无待拍板项**：D1–D5 已定，本轮批注没有引入新的设计选择——全部是"照错的地方改对"。
+- **S1 范围又长了两条**：`chat.stop-task` 前置、锚点契约改造（含"传 generic id 被拒"的负向断言）。
+- **一个反复出现的模式**：三轮审阅里，凡是我写"只有 X 会 Y""顺序是先 A 后 B""约定是这样"的地方，几乎都被证伪（dsh 权限位、正式 fork 顺序、permissionMode 链路）。**凡断言"唯一/顺序/约定"，必须当场贴代码行**，否则不要写进方案。
+
+---
+
+## 16. S1 实施记录（2026-10-21）
+
+**状态：S1 已完成，门禁全绿（server 1592 测试 / 0 失败；typecheck、build:server、lint 全过）。S2–S4 未开始。**
+
+### 16.1 落地文件
+
+| 文件 | 内容 |
+|---|---|
+| `server/modules/database/ephemeral-fork-registry.service.ts`（新） | 占位窗口注册表（register / claim / settle / abandon / sweep）+ 回收墓碑（retire / isRetired） |
+| `server/modules/database/schema.ts` | `SESSIONS_TABLE_SCHEMA_SQL` 加 `is_ephemeral BOOLEAN NOT NULL DEFAULT 0` |
+| `server/modules/database/migrations.ts` | `addSessionIsEphemeralColumn` 并在 `runMigrations` 注册 |
+| `server/modules/database/repositories/sessions.db.ts` | `SessionRow` / `SESSION_ROW_COLUMNS` 加列；`createSession` 消费注册表与墓碑；新增 `createPendingEphemeralSession` / `completeForkedSession` / `promoteEphemeralSession` / `listEphemeralSessions`；可见面查询加过滤 |
+| `server/modules/providers/services/btw.service.ts`（新） | 创建（锚点解析）/ 回收（abort + stop-task 前置）/ 转正 / 清扫 |
+| `server/modules/providers/services/ephemeral-cleanup.service.ts`（新） | 启动全量回收 + 30 分钟周期清扫（`unref`） |
+| `server/modules/providers/provider.routes.ts` | `POST /sessions/:id/btw`、`DELETE .../btw`、`PATCH .../btw/promote` + 两个解析器 |
+| `server/modules/websocket/services/session-upsert-broadcast.service.ts` | `buildSessionUpsertedEvent` 对 `is_ephemeral` 返回 `null` |
+| `server/modules/projects/services/projects-with-sessions-fetch.service.ts` | 归档项目视图在服务层过滤副本（底层查询保持全量） |
+| `server/index.ts` | 启动时 `initializeEphemeralCleanup()`，关闭时 `closeEphemeralCleanup()` |
+| 两个测试文件 | `database/tests/ephemeral-sessions.db.integration.test.ts`（7 条）、`providers/tests/btw.routes.test.ts`（8 条） |
+
+### 16.2 与方案的四处偏差（都是实施时才暴露的）
+
+1. **注册表放在 database 模块，不在 providers**。方案 D5 写的是 `providers/services/ephemeral-fork-registry.service.ts`，但消费方 `sessions.db.ts` 属于 database 模块，反向依赖违反模块规范。最终落在 `database/ephemeral-fork-registry.service.ts`，由 database 桶导出给 providers 用。
+2. **过滤落点是"按查询用途"而不是"按层"**。§5.6 原话是"仓储层保持全量、过滤下沉到服务面"，但分页查询（`getRecentSessionsPage` / `getSessionsByProjectPathPage` / `countSessionsByProjectPath`）在服务层过滤会让分页与总数错位。最终按方法切分：**可见面方法直接在 SQL 过滤**（`getAllSessions` / `getArchivedSessions` / 两个分页 / 计数），**唯一需要全量的 `getSessionsByProjectPathIncludingArchived` 保持不过滤**，由项目归档视图在服务层过滤。两个函数都写了"调用方必须自己过滤"的注释。
+3. **新增一条方案没写、但会真出事的过滤**：`findLatestPendingAppSession` 加了 `is_ephemeral = 0`。OpenCode 同步器靠它"认领 app 创建但还没拿到 provider id 的行"，btw 占位行正好满足条件（`provider_session_id IS NULL`），不排除会被它认领成正式会话，随后被清扫当垃圾删掉。
+4. **墓碑检查放在 `createSession` 的 INSERT 分支**，不是"同步器的 upsert 入口"。同步器有十几个，入口不止一个；`createSession` 是它们唯一的汇合点，改一处即可。
+
+### 16.3 验收覆盖（对应 §9 的六条）
+
+自动化断言已覆盖：①占位行不进任何可见面、②窗口内 watcher 建行落成隐藏、③窗口误标正常会话后自愈、④注册表过期不再影响新会话、⑤墓碑阻止复活、⑥`completeForkedSession` 合并 duplicate 并补写 `jsonl_path`、⑦转正可见且 `updated_at` 不变、⑧锚点按 `forkAnchorId` 解析且 display id 被拒、⑨无可用锚点报 400、⑩无 fork / 嵌套 btw 报 409、⑪fork 失败删占位行、⑫删正式会话 403、⑬删副本后行与文件都不在。
+
+**未覆盖**（需要真 provider + 真进程，留给 S2 联调）：abort 后 jsonl 是否 1s 内停止增长、`chat.stop-task` 的真实停止时序、prompt cache 是否命中。
+
+### 16.4 实施期间发现的一个环境陷阱
+
+本机 `npm test` 在不设 `DATABASE_PATH` 时会**读写真实的 `~/.cloudcli/auth.db`**。该库若没跑过最新迁移（缺 `is_ephemeral` 列），所有 `SELECT ${SESSION_ROW_COLUMNS}` 都会 `SQLITE_ERROR`，表现为 omp/pi/zcode/codex 的 runtime 测试**整片假红**（15/15 失败，错误只有 `{ code: 'SQLITE_ERROR' }`，看不出是列缺失）。
+
+判据：`git stash` 后同一条命令变绿 ⇒ 不是代码问题。处置：对真实库跑一次 `initializeDatabase()`（等价于用户重启守护进程），列补齐后全绿。
+
+**这是加列类改动的通用前置**：先迁移真实库，再跑全量测试，否则会被假红带偏。
+
+
+
+---
+
+## 17. S2 实施记录（2026-10-21）
+
+**状态：S2 已完成，前端门禁全绿（client 1898 测试 / 0 失败；typecheck、build:client、lint 0 error）。** 真机联调仍需重启守护进程（S1 的新端点尚在 `dist-server` 里没被拉起），列入 §17.4。
+
+### 17.1 落地文件
+
+| 文件 | 内容 |
+|---|---|
+| `src/shared/api.ts` | `btwSession` / `deleteBtwSession` / `promoteBtwSession`（与 `forkSession` 同组） |
+| `src/modules/chat/hooks/useBtwSession.ts`（新） | 生命周期：create / send / abort / close 状态机 / promote / refork；**不累积消息** |
+| `src/modules/chat/btw/BtwDrawer.tsx`（新） | 抽屉容器 + 头部（锚点、降级、主会话忙碌、关闭失败重试）+ 两个动作 |
+| `src/modules/chat/btw/BtwMessageList.tsx`（新） | 直接渲染 `MessageComponent`，贴底跟随 |
+| `src/modules/chat/btw/BtwComposer.tsx`（新） | 受控输入 + Stop + 权限卡（复用 `PermissionRequestsBanner`） |
+| `src/modules/chat/hooks/useSessionStore.ts` | 新增 `dropSession` / `setObservedSession` |
+| `src/modules/chat/utils/sendOptions.ts`（新） | `buildChatSendOptions`：主 composer 与抽屉唯一的 options 构造器 |
+| `src/modules/chat/hooks/useChatRealtimeHandlers.ts` | 按 `sideAskSessionId` 单独路由抽屉的权限请求（订阅回放 / 请求 / 解决 / 回合结束） |
+| `src/modules/chat/ChatInterface.tsx` | 抽屉状态、镜像的 permissionMode/model/effort、Escape 让步、消息级入口透传、前台流式可见性、向上报告「有没有可作锚点的用户消息」 |
+| `src/modules/chat/transcript/MessageComponent.tsx` + `ChatMessagesPane.tsx` | 用户消息页脚的「从此处侧边提问」 |
+| `src/modules/project-workspace/WorkspaceHeader.tsx` + `WorkspaceMain.tsx` | 会话标题栏按钮；可见性由 `useSessionForkingProviders` 决定，以请求计数器下发给 chat |
+| `src/modules/i18n/locales/{en,zh-CN}/chat.json` | `sideAsk.*`（30 键，两语言齐全）+ `message.askAsideFromHere` |
+| 四个测试文件 | `btwSession.test.tsx`（4）、`btwPermissionRouting.test.tsx`（4）、`btwSendOptions.test.ts`（3）、`sessionStoreSideAsk.test.tsx`（2） |
+
+### 17.2 实施时才暴露的三处非正交问题
+
+1. **只加 `dropSession` 不够，还必须加 `setObservedSession`**。方案 §6.3 只记了「store 没有删槽 API」，但 `notify()` 只在 `sessionId === activeSessionId` 时 `setTick`，而抽屉里的副本**不是**选中会话 —— 只加 `dropSession` 的话，抽屉的流式与工具卡会一直停在第一帧。最终给 store 加了一个「观察槽」集合，`notify` 对 active ∪ observed 生效。这是 S2 的阻断级发现，方案原文没有覆盖。
+2. **权限卡不是「浏览器侧已经拿到全局列表、抽屉自己过滤」**。§6.4 的原判断有误：`useChatRealtimeHandlers` 只在 `sid === activeViewSessionId` 时写 `pendingPermissionRequests`，非查看中的副本请求**根本不会被记录**。所以改法不是「抽屉过滤」，而是给 handler 加了一条按 `sideAskSessionId` 的独立路由（订阅回放、请求、解决、`complete` 清空四条路径）。已加测试分别证明两边互不串台。
+3. **主会话的全局 Escape 会抢走抽屉的 Escape**。`ChatInterface` 在 `canAbortSession` 时用 document capture 监听 Escape 并 abort；抽屉在 bubble 阶段收到时 `defaultPrevented` 已为真。最终让主会话的全局处理在 `sideAskOpen` 时直接让位，抽屉自己关。
+
+### 17.3 与方案的三处有意偏差
+
+1. **移动端键盘不调用 `useVisualViewportKeyboardOffset`**。它是 project-workspace 模块的私有 hook，跨模块直接引用违反前端模块规范；而该 hook 已由 `ProjectWorkspaceRoute` 全局挂载，只写 `--keyboard-height`。抽屉直接 `height: calc(100% - var(--keyboard-height, 0px))` 读同一个变量，效果一致且零耦合。
+2. **转正按钮在副本运行中也可用**（只禁用 creating / closing）。§5.4 的后端语义就是「不 abort、只翻标记」，UI 不该比后端更严；转正时本地只丢 slot，不删行。
+3. **切换会话时不自动丢弃抽屉**。抽屉可能正拿着上一段会话的答案，切走再切回是常见用法；强行 DELETE 会把它变成不可预期的数据丢失。副作用是：切到别的会话后，头部「上下文截至第 N 条」会按新会话的消息表计算而可能变成空 —— 已知的外观偏差，不影响分支本身（锚点在创建时就已固定）。
+4. **空会话隐藏入口靠 chat 反向上报**。按钮在 header（project-workspace 模块），判断「有没有可作锚点的用户消息」要靠 chat 的转录 —— 因此 `ChatInterface` 通过 `onSideAskAvailabilityChange` 把布尔量报给 `WorkspaceMain`，后者与 provider 能力位一起决定按钮是否存在。方案原写法默认这两件事在同一层，实际不在。
+5. **S3 的消息级入口提前落地**：它只是 `MessageComponent` 的一个按钮 + 一条 prop 链，与抽屉共用同一状态，拆成两片反而要改两次同一批文件。锚点仍按方案只传 `forkAnchorId`（外加同一条消息的 display id 供回显），显示条件与 fork 按钮一致。
+
+### 17.4 验收现状与遗留
+
+- 自动化已覆盖：①首次发问才 fork、②`chat.send` options 与主 composer 同源（`permissionMode` 必在、跳过权限跟随 provider）、③409 保留抽屉与 slot、④204 才 `dropSession`、⑤转正不发 DELETE、⑥权限请求按 sessionId 分流、⑦观察槽与非观察槽的重绘差异、⑧删槽后行消失。
+- **未做**：真机/真浏览器联调（需要 `npm run build:server` 后重启守护进程，新端点才生效）。留待 S2 验收时逐条走：抽屉布局与滚动、软键盘、Stop 的真实中止、claude `default` 模式下的权限卡、以及「故意漏传 `permissionMode` 时工具卡住」这条反向断言（属联调项，无法在 jsdom 里表达）。
+- 已在真实浏览器（本机 3011，服务端仍是旧进程）做前端冒烟：头部按钮在可 fork 的会话上出现；抽屉贴右 420×900、背景与 `header` 同色、textarea 自动聚焦且落在底部；Escape 关闭且不触发主会话 abort；用户消息页脚的消息级按钮已渲染（hover 显现）。
+- **创建接口的真实往返已验**（2026-10-22 真机首轮，见 §17.6）；权限卡与 Stop 仍未验。
+
+### 17.5 移动端 / iOS 适配（2026-10-21 补）
+
+方案原文只写了「移动端全屏 + 读 `--keyboard-height`」，落地后按 `ios/` + Capacitor 壳的实际约束逐项核过，改了三处、否掉一处：
+
+1. **顶部与右侧安全区必须抽屉自己吃**。`viewport-fit=cover` 已开（`index.html`），而项目里那套补偿只覆盖两个位置：`#root` 的 padding（`display-mode: standalone` / `body.pwa-mode`）与 `body.pwa-mode .fixed.inset-0` 的 `top/left/right`。抽屉是 `fixed right-0 top-0`，**两者都不匹配**，所以 PWA standalone 下头部会钻到刘海底下。改为在 `aside` 上直接写 `paddingTop: env(safe-area-inset-top)`、`paddingRight: env(safe-area-inset-right)`（横屏时机身刘海落在抽屉所贴的那一侧）。桌面 `env()` 求值为 0，零影响。
+2. **底部安全区要减掉键盘，不能直接 `pb-safe-area-inset-bottom`**。抽屉高度已经是 `100% - --keyboard-height`，底边正好压在键盘顶；此时再叠 34px 的 home indicator inset，输入框会离键盘悬空。主 composer 早有同义表达式（`.chat-composer-shell` 的 `--chat-composer-safe-bottom = max(0, env(safe-area-inset-bottom) - --keyboard-height)`），但它挂在那个类的局部变量上，抽屉不在其内。最终在 `BtwComposer` 根节点内联同一个表达式，语义一而不跨模块偷变量。
+3. **头部按钮放大到 32px**。原来是 `h-6 w-6`（24px），比同一行的 `MobileMenuButton`（`p-1.5` + 16px 图标 = 32px）和 tab 按钮（32px 高）都小，iOS 上点不中。改成 `h-8 w-8` 后与邻居等高，且 header 高度由 tab 行决定，桌面不会变高。
+4. **消息级按钮不需要为触屏加变体（已否掉）**。`tailwind.config.js` 开了 `future.hoverOnlyWhenSupported`，`opacity-0 + group-hover:opacity-100` 在触屏上本该永久不可见 —— 但 `index.css:1192` 早有一条全局中和：`@media (hover: none) and (pointer: coarse) { .group-hover\:opacity-100 { opacity: 1 !important } }`。在 Playwright 的 iPhone 13 视口下实测既有 fork 按钮与新增按钮 `opacity` 均为 `1`，所以再加 `[@media(hover:none)]:opacity-100` 只会变成第二套机制（已撤销）。
+
+**验证（Playwright，iPhone 13：390×664）**：抽屉 `390×664` 贴边全屏、`paddingTop/Right` 在桌面为 0；把 `--keyboard-height` 手动置 300px 后抽屉高 364、底边 364，`BtwComposer` 底边同步且在键盘占满时 padding-bottom 归零；`matchMedia('(hover: none)')` 为 true 时两个消息级按钮 `opacity: 1`；头部按钮实测 `32×32`。
+
+**仍需真机（Capacitor / 微信内置 / iOS Safari）**：①`textarea` 的 `autoFocus` 在 WKWebView 里能否在非直接手势栈内唤起键盘（唤不起也只是少一次自动弹起，点一下即可）；②真实键盘弹出时 `--keyboard-height` 与 `env(safe-area-inset-bottom)` 的实际读数是否按上式抵消（`@capacitor/keyboard` 已设 `resize: 'none'`，插件只报高度）；③iPad 触摸设备上头部 32px 的命中感。
+
+### 17.6 真机首轮实测与删除路径的伴随目录修复（2026-10-22）
+
+**实测：一次完整的创建 → 追问 → 回答 → 关闭往返。** 用户在 workbuddy 会话 `1dfdb9c3…` 上打开抽屉、发问、收到回答后点关闭。守护进程日志：
+
+| 时间 | 事件 |
+|---|---|
+| 08:00:35.620 | `POST /api/providers/sessions/1dfdb9c3…/btw` → 201，副本 `29958168…`，provider 侧 `59077ef7…` |
+| 08:00:38 / 44 / 48 / 58 | watcher 四次 change event，均指向副本的 `59077ef7….jsonl` —— 回复在流式写入 |
+| 08:01:05.404 | `DELETE …/29958168…/btw` → 200，15.2ms（run 已结束，故没有 abort 等待） |
+
+事后核对：源会话仍在且未归档，`is_ephemeral = 1` 的行 0 条。**这证明 fork → 前缀复制 → 独立回答 → 关闭回收全链路成立**，副本没有反向污染源会话。
+
+**这一轮没有覆盖的**：权限卡（该轮无工具调用，副本的 `tool-results/` 为空）、Stop 的真实中止（答完才关）、软键盘与真机键盘高度。
+
+**修掉的一处删除缺陷**：副本关掉后 `<project>/<psid>/` 空目录残留。根因在通用删除路径 —— `deleteOrArchiveSessionById` 只 `removeFileIfExists(transcript)`，从不处理 provider 保在 transcript 旁边的同名目录；workbuddy 的 `<psid>.jsonl` 与 `<psid>/tool-results/…` 是一对。这不是 btw 引入的：正常删会话同样留下，本机 workbuddy 已积累 **55** 个（另有 50 个存活会话目录、15 个 `memory/` 目录），btw 只是让它发生得更频繁。
+
+修法在 `sessions.service.ts` 新增 `removeDirectoryBesideTranscript`，与文件删除同处一条循环：
+
+- **只对 `.jsonl` 结尾的 transcript 生效**，路径去掉扩展名即为候选目录。dsh 的 `session.jsonl.zstd` 因此不受影响（`path.extname` 是 `.zstd`，去掉最后一个扩展会指到别人的目录）。
+- **目录删除失败不阻断删行**，只 `console.warn`。会话行已经不可达，删不掉的目录是垃圾，不是拒绝删除的理由；这与文件删除失败会抛出的既有语义有意不同。
+- 目录被删也算进 `deletedFromDisk`：jsonl 已不在、只剩目录时，删除确实动了磁盘。
+
+三条测试（`sessions.service.test.ts`）：①jsonl + 同名目录都被删；②只剩目录时 `deletedFromDisk` 仍为 true；③`.jsonl.zstd` 的同名目录不被误删。反向验证：把该调用短路成 `false &&`，① ② 变红、③ 仍绿 —— 证明守卫测试不是靠「无差别删目录」通过的。
+
+服务端全量 1595 测试 0 失败（新增 3 条），typecheck / lint / build:server 通过，`dist-server` 已重建。**存量 55 个孤儿目录已清理**（2026-10-22，经用户确认后逐个复核「同名 jsonl 不存在」并移入垃圾篓；50 个存活目录与 15 个 `memory/` 目录未动，复核后剩余孤儿 0）。
+
+### 17.7 IME 组字中的 Escape 会误触发应用级动作（2026-10-22 修）
+
+**现象**：用户打拼音时按 Esc 取消候选，抽屉/会话被退出。数据核查先行：当前会话 transcript 2657 行、0 坏行，51 条 message 全部配对（每个 user 后都有 `status: completed` 的 assistant），无未完成回合、`is_ephemeral` 残留 0 条。**没有脏数据**。日志里当天 btw 只有 08:00 那一次 `POST`/`DELETE`，说明被关掉时还没发出请求（抽屉首次发送才建会话），所以也没有丢消息。
+
+**根因**：浏览器在 IME 组字中按 Esc（取消候选）仍然派发 `keydown` Escape，而应用侧所有 Escape 处理都没看 IME 状态。三条判据缺一不可：
+
+| 判据 | 覆盖的场景 |
+|---|---|
+| `event.isComposing` | Chrome / Firefox |
+| `keyCode === 229` | 部分 Windows IME 每个键都报 229 |
+| `compositionend` 之后 30ms 内 | Safari 先派发 `compositionend` 再派发 keydown，此时 `isComposing` 已是 false |
+
+落点：`src/shared/utils.ts` 新增 `isImeKeyEvent(event)`（模块级监听 `compositionend`，接受原生或 React 合成事件）。在此之前项目里有 **3 份**各自实现的同类判定（`useChatComposerState` / `BtwComposer` 的 Enter、`mobileImeInputFallback`），Escape 一处都没有。
+
+**接入的 13 处 Escape**：`ChatInterface` 的全局中止（capture 阶段，最危险）、`BtwDrawer`、`QuickSettingsPanelView`、`Settings`、`Dialog`、`ActionMenu`、`useComposerMenuAnchor`、`useSlashCommands`（2 处）、`useFileMentions`、`AskUserQuestionPanel`、`useSessionTitleRename`、侧栏 4 个重命名输入框。同一批顺带补齐了侧栏重命名输入框缺失的 Enter 守卫（`useSessionTitleRename` 早有，侧栏 5 处没有 —— 拼音确认候选的 Enter 会把半截名字存下去）。
+
+**验证**：
+- 单元测试 5 条（`src/shared/tests/imeKeyEvent.test.ts`）：普通 Escape 为 false、`isComposing`、`keyCode 229`、React 合成事件读 nativeEvent、`compositionend` 后 30ms 窗口的两端。
+- 组件测试 2 条（`src/modules/chat/tests/btwDrawerEscape.test.tsx`）：IME Escape 不关抽屉、普通 Escape 照关。反向验证：去掉守卫后前者变红、后者仍绿——证明不是把 Escape 整个禁掉。
+- 真机（Playwright，1280×900）：修复前三种情形**都会关抽屉**；修复后 `plainEscapeCloses: true`、`imeEscapeCloses: false`、`safariOrderCloses: false`。
+- client 全量 235 文件 1906 测试 0 失败（+7）、typecheck / lint 0 error / build:client 通过。
+
+**未覆盖**：`AskUserQuestionPanel` 之外的交互式卡片、代码编辑器与 PRD 编辑器的 Escape（不涉及打字中取消候选的场景），以及 git 各模态框；它们仍是无守卫的裸 Escape。
+
+### 17.8 入口收编：消息操作栏统一（2026-10-22）
+
+**动机**：按原来的布局，侧边提问有两个入口 —— 顶部标题右侧一个常驻图标、每条用户消息一个悬浮图标。前者在标题很短时离标题很远（`WorkspaceTitle` 根与内层都是 `flex-1`，图标被推到容器右端），后者让用户侧多出「这里也能做分支」的暗示。收敛结论是：**消息级操作只挂在 AI 回复上，低频操作折进一个「⋯」**。
+
+**改动**：
+
+| 位置 | 之前 | 现在 |
+|---|---|---|
+| 顶部标题右侧 | 侧边提问图标（`MessageSquareDashed`，`WorkspaceHeader`） | 删除 |
+| 用户消息 footer | 编辑、派生、侧边提问、选择、复制、时间 | 编辑、选择、复制、时间 |
+| AI 回复 footer | 派生、复制、朗读、模型、时间、耗时 | 复制、朗读、**⋯**、模型、时间、耗时 |
+
+「⋯」用的是共享 `ActionMenu`（`portal`），菜单项为「从此处派生」「从此处侧边提问」。三点选择都不是随意的：
+
+1. **必须 `portal`**：footer 是 `overflow-x-auto` + 右侧渐隐 mask，绝对定位的菜单会被自己的滚动容器裁掉、也会被 mask 吃掉。
+2. **触发按钮要脱掉 Button 的外壳**：footer 里全是裸图标（3.5 号），共享按钮的 `h-10 w-10` 会把它撑大一倍且多出 hover 底色；用 `triggerClassName` + `[&_svg]:size-3.5` 压回同一档。
+3. **菜单是操作组尾巴**：放在朗读之后、模型名之前，常用控件（复制/朗读）位置不动。
+
+**连带删除的 plumbing**（入口在 header 时才有意义的那套）：`WorkspaceHeader.onOpenSideAsk`、`WorkspaceMain` 的 `sideAskRequest` 计数器与 `sideAskHasAnchor` 上报、`ChatInterface` 的 `sideAskRequest` / `onSideAskAvailabilityChange` 两个 prop 与对应 effect，以及 i18n 里随之失去消费者的 `sideAsk.open`。抽屉的「重新开始」仍走 `handleSideAskRefork`，未受影响。
+
+**验收**：
+- 单元/组件测试：`messageStreamEnd.test.tsx` 的断言改成「菜单里两项、点谁触发谁」，并新增「用户消息没有 ⋯ 也没有派生/侧边提问」一条。
+- 真机（1440×900，`127.0.0.1:3011` 直连守护进程）：AI 回复可见 3 个「⋯」（3 条回复）；用户消息 footer 只剩「编辑并重新发送 / 选择消息 / 复制消息」；顶部 `header` 里已无侧边提问按钮；点「⋯」后菜单 220×82 贴在触发按钮下方 6px、两项文案正确；点「从此处侧边提问」抽屉正常打开（420 宽，右侧）。
+- client 全量 235 文件 1907 测试 0 失败、typecheck / lint 0 error / build:client 通过。
+
+**遗留**：从 AI 回复触发时抽屉的锚点标签可能退回默认文案「上下文截止到你的最后一条消息」——`sideAskAnchorLabel` 靠 `message.id` 在 `chatMessages` 里找序号，而 `id` 只来自 `segmentId`（部分行没有），找不到就退回默认。这是既有逻辑，旧入口同样会命中，不在本次改动范围。
+
+**行为边界**：入口收编后，一条刚发出、还没有 AI 回复的提问无法开始侧边提问（用户消息侧不再有图标）。这是「用户侧不做这几个操作」的直接代价，属预期。
+
+### 17.9 「选择消息」也移到 AI 侧（2026-10-22）
+
+收编的第二步：用户侧不再承担任何消息级操作，于是**局部导出的入口也从问句搬到答案**，并与派生/侧边提问一起放进 AI 回复的「⋯」。
+
+- **行为不变的部分**：点「选择消息」仍然是「选中这一整轮」——该轮的问题 + 本轮所有可选的答案，工具行不进选区。入口换了位置，导出的单位没换。
+- **实现**：`collectTurnSelectionKeys` 的第二个参数从「必须是该轮用户消息的 key」放宽为「该轮内任一行的 key」，内部由 `findIndex` + 轮的 `[startIndex, endIndex]` 区间反查所属轮；不被任何轮覆盖的行（窗口从一轮中段开始）退化为只选它自己。`ChatMessagesPane` 的接线不用改。
+- **菜单顺序**：选择消息 → 从此处派生 → 从此处侧边提问。副作用是**每条可选的 AI 回复现在都有「⋯」**（原先只有带 `forkAnchorId` 的行才有），因为选择与 provider 的分叉能力无关。
+- **测试**：`transcriptSelection.test.tsx` 的入口用例改成「从答案的菜单进入、回调拿到的仍是整轮」；新增「问句不再有入口」「答案的 key 能反查到所属轮」「无轮覆盖的行只选自己」。另修 `transcriptStreamingRerenders.test.tsx` 的夹具自检：它原用 `button[aria-expanded]` 的数量证明工具组真的折叠了，AI 回复多出菜单触发器后变成 8，改判 `button[aria-expanded]:not([aria-haspopup])`（折叠组按钮无 `aria-haspopup`，`ActionMenu` 触发器有）。
+- **真机**（1440×900，`127.0.0.1:3011` 直连）：菜单 220×118 三项；点「选择消息」后底部出现「已选 2 条消息」（该轮的问题 + 答案，选区高亮在两侧），取消后复选框与选择条清零；用户消息 footer 已无「选择消息」。
+
+### 17.10 旁问外壳与执行过程折叠（2026-10-22）
+
+抽屉此前只借了主线的 `MessageComponent`，没借它的外壳，于是同一份消息在抽屉里是另一副样子：14px 衬线、行与行之间没有间距，思考与工具调用一张一张铺开且永不收起。
+
+**外壳（三项，同一个根因）**
+
+1. 滚动容器加 `chat-messages-pane`。这正是主线字号规则（`.chat-messages-pane .chat-message .prose`）与 `contain: layout style paint` 的作用域；computed 值会序列化成 `content`（= layout + paint + style），不要误判成没生效。
+2. 消息外层补 `mx-auto w-full space-y-3 px-4`。主线的行外边距来自 `ChatMessagesPane.tsx` 的这层包裹（外加 `max-w-[62.5rem]`，抽屉宽度用不到），**不是**消息行自带的 `px-3 sm:px-0` ——后者是气泡内边距。所以「去掉抽屉的 `px-3` 让行内边距生效」是错的写法，会直接贴边。
+3. 输入框跟随设置。抽屉不是 `.chat-composer-shell`（那套还带着 shell 的 containment 与 `--chat-composer-safe-bottom`，fixed 浮层不该继承），因此单独加 `.btw-composer .btw-input` 一条规则，取 `--ui-font-family` / `--ui-font-size`。
+
+**折叠（最小档）**
+
+- 复用 `deriveExecutionProcessProjection`（纯函数，主线同款）与 `buildTailAnchoredMessageKeys`；`isProcessing` 用 `BtwDrawer` 已有的同名 prop 下传，不新增状态源。
+- 展开状态是抽屉本地 `Map<disclosureKey, collapsed>`，缺省取 `group.defaultCollapsed`（ordinary run 为 true）。主线的跨会话持久化与「搜索揭示」不在本档。
+- 折叠时**跳过组员渲染**，在 `firstMemberKey` 处渲染 `ExecutionProcessSummary`，在成员末尾渲染 `data-execution-process-end`。marker 不能省：`ExecutionProcessSummary` 的 sticky 靠它判断何时停止吸顶，缺了会一直粘着。
+- **attention 成员豁免折叠**（`group.attentionKeys`）：待批的权限卡、失败的调用本身就在 run 里，折掉等于把用户要处理的卡片藏起来。主线同样豁免。
+- 与主线的差异（有意）：没有工具组的紧凑列表（`ToolGroupContainer` 的三条以上折叠）、没有 reasoning 的 handoff/自动收起序列、展开状态不跨会话记住。这些只在手动展开后才看得见。
+
+**验证**
+
+- `btwMessageListExecution.test.tsx` 四条：pane 类存在 + 默认折叠（答案与问题可见、思考不渲染）、点开后成员行回到转录、attention 行在折叠态仍可见、空会话不渲染组头。
+- 真机（1440×900，`127.0.0.1:3011`）：抽屉 420 宽；`.chat-messages-pane` 命中且 `contain` 为 `content`；输入框 computed `17px` + system 字体（与主线一致）。
+- **折叠的真机态未验**：抽屉里发消息时 `btw.send` 没有成功（文本留在输入框、无 ephemeral 会话落库），与守护进程未重启、`/btw` 写端点尚未生效一致。等重启后再补一次「有思考的旁问」观感核验。
+- 标题未改（`sideAsk.title` 仍是「侧边提问 / Side question」）：命名尚未拍板，`sideAsk.title` 是唯一显示位，改一个键即可。
+
+
+
+### 17.11 剪点从「被点的行」移到「该行的轮末」（2026-10-22）
+
+**起因**：17.8 把入口搬到 AI 回复后，「从此处侧边提问」传的是该条回复的 `forkAnchorId`，而服务端 §5.2 只认用户文本行 ⇒ 真机报「不能作为锚点」。修法有两个方向：让前端退回传「这条回复所属的用户消息」，或者放宽服务端。真正决定方向的是一次实测。
+
+**实测（十家 harness，各起一个临时会话：用户问 A → 助手答 A → 用户问 B → 助手答 B，然后从用户 B 所在位置剪一份副本并发旁问 C）**
+
+| 结果 | provider | 现象 |
+|---|---|---|
+| 稳定双答 | pi、omp | 副本里既有对 B 的完整回答，又对 B 再答一遍，然后才答 C |
+| 补假回复 | claude | 给悬空的 B 补一条 `No response requested.` |
+| 正常 | workbuddy | B 被降级为历史，只答 C |
+| 无悬空 | codex | 剪点本来就是 turn 粒度，B 与它的回答一起进出 |
+| 走不通 | dsh（用户行无 anchor）、opencode（401）、zcode（余额）、cursor（无 transcript）、openclaw（已卸载） | 未验成 |
+
+结论：剪在提问行会让副本留下**没人回答的问题**，provider 把它当待办。所以「退回去传用户消息」是错的方向——它只是把入口暴露的问题藏起来，双答照旧。正确方向是**把剪点推到该轮结束**。
+
+**规则**（§5.2 已就地改写）
+
+- 可切行 = 带 `forkAnchorId` 的 `user`/`assistant` **文本行**；工具行即使带锚点也不算（pi / omp / zcode 是逐行盖锚点的，停在「调用发出、结果未回」之间是可能无法恢复的转录）。
+- 请求里的锚点是**游标**：从它往下扫，遇到下一条真正的用户提问前停下，取范围内最后一条可切行。被点的行本就在轮末时不动。
+- 未传锚点时取最后一条可切行 = 最后一轮的末行；与显式路径同一套语义，不新增分支。
+- `anchorMessageId` 回填**剪点**而不是被点的那行（否则提示条说「截至第 3 条」而副本实际含到第 6 条）。前端 `sideAskAnchorLabel` 因此改成优先读 `btw.anchorInfo?.anchorMessageId`，请求值只在副本创建前兜底。
+
+**实现**：`btw.service.ts` 里 `isAnchorableUserMessage` → `isCuttableMessage`（放开 assistant 文本行），新增 `advanceToTurnEnd` 与 `startsUserTurn`（后者排除 `isCompactSummary`，否则 workbuddy 的压缩摘要行会被当成新轮起点，把剪点提前）。匹配改在完整历史上按 index 找（`cuttable` 只用于「最后一条」与空集判断）。约 40 行。
+
+**测试**（`btw.routes.test.ts`，10 条全绿）
+
+- 显式锚点落在第一轮提问 → 剪到该轮回复（`anchor-1` → `anchor-2`），`anchorMessageId` 同步变成回复行。原文那条测试断言的正是旧语义，已改。
+- 新增「锚点在助手回复上」：落在轮末不移动，且不越过下一条提问。
+- 新增「一轮里有两次工具往返」：从提问剪，跳过工具行，停在下一轮提问前；工具行的锚点被拒（400）。
+
+**未验 / 遗留**
+
+- 真机未复验：需要重启守护进程才吃得到服务端改动，等下次重启后补一次「从 AI 回复开抽屉 → 抽屉里看到该轮完整回答」。
+- pi / omp 的双答是否消失，需要重启后再跑一次同一条矩阵；本次只证明了剪点规则，没有重跑真跑。
+- 源会话正在生成时，末行可能是「调用已发、结果未回」，此时剪点回落到该轮最后一条文本行（少带一次工具往返），但不会留下半条工具链 —— 这是有意取舍，未在真机压测。
+
+### 17.12 窄容器里的 markdown 表格（2026-10-22）
+
+**现象**：抽屉里的表格每一列都被压成窄条，文字逐字换行；同一张表在主会话里正常。
+
+**根因**：表格的「列宽保底」写成了**视口**媒体查询 —— `@media (max-width: 768px)` 下 `.chat-message .markdown-table` 才拿到 `min-width: 36rem`、单元格 `min-width: 8rem`（`src/index.css`）。抽屉是 `w-full sm:w-[420px]`，在 1440 的窗口里它很窄但视口很宽，媒体查询永远不触发；而 `.chat-message * { max-width: 100% }` 把 `min-w-full` 的表格钉在容器宽度上，`table-layout: auto` 只能把每一列继续压扁。换句话说，**判据一直是「屏幕窄不窄」，而真正决定列宽的是「这个容器给了表格多少空间」**。
+
+**改法**：`.markdown-table-wrapper` 加 `container-type: inline-size`，把同一组保底声明再写一份进 `@container (max-width: 36rem)`。容器查询命中的条件是 wrapper 自己的宽度，抽屉里是 386px（420 − 两侧 `px-4`），必然触发；主会话 998px，不触发。
+
+**为什么两份规则并存**：`@container` 要 Safari 16+，而项目构建 target 没有抬到那个版本；直接替换媒体查询会让老 Safari 连手机上的保底都失去。所以媒体查询保留原样做回落，两份声明**必须一起改**——注释里已写明这一点。
+
+**验证（真机 1440×900，`127.0.0.1:3011`，真实抽屉外壳结构）**
+
+| 容器 | wrapper | table | wrapper scrollWidth | 结果 |
+|---|---|---|---|---|
+| 抽屉（`aside` 420 + `chat-messages-pane` + `px-4`） | 386 | 576 | 576 | 横向可滚，列宽保底生效 |
+| 主会话（1000 宽） | 998 | 998 | 998 | 不误伤，表格仍随容器 |
+
+`getComputedStyle(wrapper).containerType === 'inline-size'` 是这条规则真的落地了的直接证据（不是"看起来对了"）。
+
+**没有自动化守卫**：`tests/transcript-layout` 与 `tests/theme-tokens` 都不覆盖表格宽度，这条只能靠上面的读数。若以后把 `container-type` 挪走或改掉 wrapper 类名，症状会回到"表格挤扁"，不会报错。
+
+### 17.13 抽屉断开后的宽限期回收（2026-10-22）
+
+**起因**：用户问「刷新后侧栏里消失的副本会不会变成脏数据」。查下来不脏，但回收窗口太长 —— 只有关闭按钮（X / Esc / 点背景）会立刻 DELETE，刷新绕过了它，副本要等启动清扫（下次重启）或 30 分钟一次的 6 小时扫描。
+
+**先澄清一个不存在的通道**：前端**没有任何重连入口**。副本 id 只活在 `useBtwSession` 的 `useState` 里，没有 localStorage / URL / store 持久化；`is_ephemeral` 在 `src/` 下零引用，所以侧栏、搜索、列表都不可能显示它。刷新＝这份旁问永久放弃，这一轮**不做恢复入口**（用户拍板只做回收）。
+
+**方案**：`server/modules/websocket/services/session-presence.service.ts` 记录「哪个 socket 在订阅哪个 session」，最后一个 watcher 断开后起一个 **2 分钟**的宽限期，到期仍无人订阅才回收。
+
+- 订阅即 watcher：`chat.subscribe` 里 `watchSession(ws, sessionId)`；`ws.on('close')` 里 `forgetConnection(ws)`。多标签页天然正确 —— 任一 socket 还订阅就不算 idle。
+- 宽限期的意义：socket 断开不等于抽屉关闭（合盖、网络闪断、重连）。客户端回来重新订阅会取消定时器。
+- 回收动作复用 `btwService.destroyBtwSession`（先 quiesce 再删行 + transcript + 伴随目录）。回收前重读一次行：正常关闭 / 提升 / 上一轮清扫已经处理掉的，静默跳过。
+- 装配方向是**反向注入**：presence 模块零 import（它被 chat gateway 调用，而 btw.service 已经依赖 gateway，直接 import 会成环），由 `ephemeral-cleanup.service.ts` 在启动时 `configureSessionPresence({ graceMs, onIdle })` 注册回调；`configureSessionPresence(null)` 同时清定时器与全部 watcher 记录（关闭路径 + 测试隔离都用它）。
+
+**必须配套的客户端改动**：`ChatInterface.handleWebSocketReconnect` 原来只重订阅当前选中会话，**不重订阅旁问副本**。不改的话任何一次网络闪断都会在 2 分钟后杀掉正开着的抽屉（还会顺带修掉一个既有缺口：重连后抽屉不再收流式帧）。现在按 `sideAskStreamingSessionIdRef` 一起订阅，`lastSeq` 取 `lastSeqRef` —— 该 ref 由 realtime handler 对**每条带 seq 的帧**写入（不只选中会话），所以旁问的 seq 是准的。
+
+**留在旧路径上的两种副本**：① 创建成功但 `chat.subscribe` 从未送达（页面在创建与订阅之间被杀）—— 没有 watcher 记录，不会起定时器；② 回收时 quiesce 超时返回 409（后台任务不肯停）—— 与关闭失败同样处理。两者都落回 6 小时扫描。
+
+**测试**（`server/modules/websocket/tests/session-presence.test.ts`，4 条全绿）：多 watcher 时最后一个才算 idle、宽限期内重订阅取消回收、一个 socket 关掉多个会话各通知一次（重复订阅不重复通知）、集成路径（`chat.subscribe` 记 watcher → `close` 才通知）。**客户端那条重订阅没有自动化守卫**（`handleWebSocketReconnect` 是组件内联回调，现有测试只到 hook 层），只能靠这条记录兜住。
+
+**未验**：真机刷新后 2 分钟副本是否真被回收 —— 需要重启守护进程让新服务端生效。

@@ -64,6 +64,14 @@ type UseChatRealtimeHandlersArgs = {
   onWebSocketReconnect?: () => void;
   requestLatestMessages: (sessionId: string, allowNetwork?: boolean) => Promise<void>;
   sessionStore: SessionStore;
+  /**
+   * The open side-question copy, if any. Browser-side pending prompts are
+   * global, so its requests are kept in their own list: rendering them in the
+   * main banner (or the reverse) would let a reader authorize a tool in the
+   * wrong conversation.
+   */
+  sideAskSessionId?: string | null;
+  setSideAskPermissionRequests?: Dispatch<SetStateAction<PendingPermissionRequest[]>>;
 };
 
 /* ------------------------------------------------------------------ */
@@ -99,6 +107,8 @@ export function useChatRealtimeHandlers({
   onWebSocketReconnect,
   requestLatestMessages,
   sessionStore,
+  sideAskSessionId,
+  setSideAskPermissionRequests,
 }: UseChatRealtimeHandlersArgs) {
   // Session switches can send `chat.subscribe` before this effect has a chance
   // to rebind the websocket listener. Read the visible session id from a ref
@@ -108,6 +118,10 @@ export function useChatRealtimeHandlers({
   activeViewSessionIdRef.current = selectedSession?.id || currentSessionId || null;
   const isActiveRef = useRef(isActive);
   isActiveRef.current = isActive;
+  // A ref, not an effect dependency: the drawer creates its copy mid-turn, and
+  // resubscribing the socket listener at that moment could drop live frames.
+  const sideAskSessionIdRef = useRef<string | null>(sideAskSessionId ?? null);
+  sideAskSessionIdRef.current = sideAskSessionId ?? null;
 
   // Keep the latest pending-permission snapshot available to the websocket
   // listener so back-to-back permission events can dedupe and re-arm the
@@ -225,6 +239,12 @@ export function useChatRealtimeHandlers({
             if (hasPendingActionablePermissionRequests && !hadActionablePermissionRequests) {
               void playNotificationSound();
             }
+          }
+
+          // The ack for the drawer's own subscribe seeds its banner from the
+          // run's replay buffer, exactly as the viewed conversation's does.
+          if (sid === sideAskSessionIdRef.current && Array.isArray(msg.pendingPermissions)) {
+            setSideAskPermissionRequests?.(msg.pendingPermissions as PendingPermissionRequest[]);
           }
           return;
         }
@@ -364,6 +384,9 @@ export function useChatRealtimeHandlers({
             pendingPermissionRequestsRef.current = [];
             setPendingPermissionRequests([]);
           }
+          if (sid && sid === sideAskSessionIdRef.current) {
+            setSideAskPermissionRequests?.([]);
+          }
 
           if (msg.aborted) {
             // Abort was requested — the complete event confirms it. No
@@ -421,6 +444,25 @@ export function useChatRealtimeHandlers({
               setPendingPermissionRequests(nextPendingPermissionRequests);
             }
           }
+          // The drawer's copy runs with the same permission mode as the
+          // conversation it branched from, so its prompts have to reach the
+          // drawer or its tools would wait forever for an answer no UI shows.
+          if (sid && sid === sideAskSessionIdRef.current) {
+            const request: PendingPermissionRequest = {
+              requestId: msg.requestId as string,
+              toolName: (msg.toolName as string) || 'UnknownTool',
+              input: msg.input,
+              context: msg.context,
+              sessionId: sid,
+              provider: msg.provider as PendingPermissionRequest['provider'],
+              receivedAt: new Date(),
+            };
+            setSideAskPermissionRequests?.((previous) => (
+              previous.some((entry) => entry.requestId === request.requestId)
+                ? previous
+                : [...previous, request]
+            ));
+          }
           if (sid) {
             onSessionProcessing?.(sid);
           }
@@ -439,6 +481,11 @@ export function useChatRealtimeHandlers({
 
             pendingPermissionRequestsRef.current = nextPendingPermissionRequests;
             setPendingPermissionRequests(nextPendingPermissionRequests);
+          }
+          if (msg.requestId && sid && sid === sideAskSessionIdRef.current) {
+            setSideAskPermissionRequests?.((previous) => (
+              previous.filter((request) => request.requestId !== msg.requestId)
+            ));
           }
           break;
         }

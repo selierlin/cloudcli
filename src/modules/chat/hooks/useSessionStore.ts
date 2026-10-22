@@ -2,7 +2,8 @@
  * Session-keyed message store.
  *
  * Holds per-session state in a Map keyed by sessionId.
- * Session switch = change activeSessionId pointer. No clearing. Old data stays.
+ * Session switch = change activeSessionId pointer. No clearing. Old data stays
+ * (the one explicit exception is `dropSession`, for a deleted side-question copy).
  * WebSocket handler = store.appendRealtime(msg.sessionId, msg). One line.
  * No localStorage for messages. Backend JSONL is the source of truth.
  */
@@ -719,13 +720,17 @@ export function useSessionStore() {
   // Allocates a new stable projected identity for each streaming cycle in a channel.
   const streamingSegmentSequenceRef = useRef(new Map<string, number>());
   const activeSessionIdRef = useRef<string | null>(null);
+  // Sessions rendered while they are not the selected conversation (the side
+  // question drawer). They repaint this tree on updates without becoming the
+  // active session, which would redirect history fetches and selection.
+  const observedSessionIdsRef = useRef(new Set<string>());
   // Bump to force re-render — only when the active session's data changes.
   // Session ids are stable for the whole conversation lifetime (the backend
   // allocates them before the first send), so slots are keyed directly with
   // no alias/redirect indirection.
   const [, setTick] = useState(0);
   const notify = useCallback((sessionId: string) => {
-    if (sessionId === activeSessionIdRef.current) {
+    if (sessionId === activeSessionIdRef.current || observedSessionIdsRef.current.has(sessionId)) {
       setTick(n => n + 1);
     }
   }, []);
@@ -1241,6 +1246,46 @@ export function useSessionStore() {
     return storeRef.current.get(sessionId);
   }, []);
 
+  /**
+   * Drops one session's cached state after its copy is gone.
+   *
+   * The store otherwise keeps every slot for the life of the tab, which is
+   * right for conversations a reader can return to and wrong for a side-question
+   * copy: closing the drawer deletes it server-side, and the messages would
+   * stay resident until a reload.
+   */
+  const dropSession = useCallback((sessionId: string) => {
+    if (!storeRef.current.delete(sessionId)) {
+      return;
+    }
+    for (const sequenceKey of streamingSegmentSequenceRef.current.keys()) {
+      if (sequenceKey.startsWith(`${sessionId}:`)) {
+        streamingSegmentSequenceRef.current.delete(sequenceKey);
+      }
+    }
+    if (sessionId === activeSessionIdRef.current || observedSessionIdsRef.current.has(sessionId)) {
+      setTick(n => n + 1);
+    }
+  }, []);
+
+  /**
+   * Marks a session whose live updates must repaint this tree even though it is
+   * not the selected conversation — today, the open side-question copy. Without
+   * it, `notify` only bumps the active session and the drawer would sit frozen
+   * while the copy streams.
+   */
+  const setObservedSession = useCallback((sessionId: string | null, observed: boolean) => {
+    if (!sessionId) {
+      return;
+    }
+    if (observed) {
+      observedSessionIdsRef.current.add(sessionId);
+      setTick(n => n + 1);
+    } else {
+      observedSessionIdsRef.current.delete(sessionId);
+    }
+  }, []);
+
   return useMemo(() => ({
     fetchFromServer,
     fetchMore,
@@ -1255,10 +1300,12 @@ export function useSessionStore() {
     finalizeStreaming,
     getMessages,
     getSessionSlot,
+    dropSession,
+    setObservedSession,
   }), [
     fetchFromServer, fetchMore, fetchNewer, appendRealtime, truncateAt, refreshLatestFromServer,
     setActiveSession, isStale, updateStreamingBatch, updateStreaming, finalizeStreaming,
-    getMessages, getSessionSlot,
+    getMessages, getSessionSlot, dropSession, setObservedSession,
   ]);
 }
 

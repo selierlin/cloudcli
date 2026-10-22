@@ -12,7 +12,9 @@ import cors from 'cors';
 import { AppError, findApplicationRoot, getModuleDirectory, IS_PLATFORM, terminalTextStyles } from '@/shared/utils.js';
 import type { LLMProvider } from '@/shared/types.js';
 import {
+    closeEphemeralCleanup,
     closeSessionsWatcher,
+    initializeEphemeralCleanup,
     initializeSessionsWatcher,
     mcpCatalogService,
     providerRuntimeService,
@@ -452,6 +454,9 @@ async function startServer() {
 
             // Start watching the projects folder for changes
             await initializeSessionsWatcher();
+            // Reclaim btw copies whose drawer never closed (refresh, crash),
+            // then keep sweeping long-idle ones.
+            await initializeEphemeralCleanup();
             // Sends anything that came due while the server was not running,
             // then keeps polling.
             initializeScheduledMessageDispatcher(providerRuntimeService);
@@ -463,6 +468,7 @@ async function startServer() {
         });
 
         await closeSessionsWatcher();
+        closeEphemeralCleanup();
         closeScheduledMessageDispatcher();
         // Clean up plugin processes on shutdown
         const shutdownRuntimeServices = async () => {

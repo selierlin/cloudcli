@@ -5,6 +5,7 @@ import type { WebSocket } from 'ws';
 import { sessionsDb } from '@/modules/database/index.js';
 import { providerModelsService, sessionsService } from '@/modules/providers/index.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
+import { forgetConnection, watchSession } from '@/modules/websocket/services/session-presence.service.js';
 import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
 import {
   getGlobalImageAssetsDir,
@@ -559,6 +560,11 @@ function handleChatSubscribe(
       timestamp: new Date().toISOString(),
     });
 
+    // Subscription is what makes a socket count as a watcher: an aside copy is
+    // reclaimed once no socket watches it any more (see the session-presence
+    // service), so this has to record the session even when nothing is running.
+    watchSession(ws, sessionId);
+
     // Replay only for RUNNING runs, strictly after the ack. Completed runs
     // are fully persisted to the provider transcript and served over REST —
     // replaying them (e.g. after a page reload where the client's lastSeq is
@@ -722,5 +728,6 @@ export function handleChatConnection(
   ws.on('close', () => {
     console.log('[INFO] Chat client disconnected');
     connectedClients.delete(ws);
+    forgetConnection(ws);
   });
 }

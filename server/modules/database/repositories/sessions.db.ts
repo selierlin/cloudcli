@@ -1,4 +1,5 @@
 import { getConnection } from '@/modules/database/connection.js';
+import { claimEphemeralFork, isRetiredProviderSession } from '@/modules/database/ephemeral-fork-registry.service.js';
 import { projectsDb } from '@/modules/database/repositories/projects.db.js';
 import { normalizeContentTimestamp, normalizeProjectPath } from '@/shared/utils.js';
 import type { SessionNameSource } from '@/shared/types.js';
@@ -23,6 +24,12 @@ type SessionRow = {
   /** The session this one is filed under (user-owned link); NULL if top-level. */
   parent_session_id: string | null;
   isArchived: number;
+  /**
+   * Hidden throwaway fork created by the btw drawer. Read by the upsert
+   * broadcast (skip the row) and by the cleanup jobs (delete it); never part of
+   * a session DTO.
+   */
+  is_ephemeral: number;
   created_at: string;
   updated_at: string;
   /** Timestamp of the newest main-line conversation event; NULL when unknown. */
@@ -35,7 +42,7 @@ type RecentSessionsPage = {
 };
 
 const SESSION_ROW_COLUMNS =
-  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, name_source, model, effort, isPinned, forked_from_session_id, parent_session_id, isArchived, created_at, updated_at, content_updated_at';
+  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, name_source, model, effort, isPinned, forked_from_session_id, parent_session_id, isArchived, is_ephemeral, created_at, updated_at, content_updated_at';
 
 /**
  * Canonical ISO shape for every timestamp read out of the DB.
@@ -241,12 +248,26 @@ export const sessionsDb = {
       return existing.session_id;
     }
 
+    // A watcher pass that already read the transcript can finish after the
+    // session was reclaimed; re-inserting the row would revive a conversation
+    // the user closed (and, for a btw fork, expose it as a normal session).
+    if (isRetiredProviderSession(providerSessionId)) {
+      return providerSessionId;
+    }
+
     // Sessions created outside the app (directly via the provider CLI) are
     // keyed by the provider-native id for both columns. The ON CONFLICT path
     // covers legacy rows that predate the provider_session_id mapping.
+    //
+    // A btw fork inserts its placeholder before the provider id exists, so the
+    // watcher's lookup misses and lands here for the fork's own transcript.
+    // Claiming it keeps that row out of every visible surface; the btw service
+    // re-checks the claim once the fork reports its id (see the registry).
+    const isEphemeral = claimEphemeralFork(normalizedProjectPath, providerSessionId) ? 1 : 0;
+
     db.prepare(
-      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, name_source, project_path, jsonl_path, isArchived, created_at, updated_at, content_updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP), ?)
+      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, name_source, project_path, jsonl_path, isArchived, is_ephemeral, created_at, updated_at, content_updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP), ?)
        ON CONFLICT(session_id) DO UPDATE SET
          provider = excluded.provider,
          provider_session_id = excluded.provider_session_id,
@@ -277,6 +298,7 @@ export const sessionsDb = {
       nameSource,
       normalizedProjectPath,
       jsonlPath ?? null,
+      isEphemeral,
       createdAtValue,
       updatedAtValue,
       contentUpdatedAtValue,
@@ -375,6 +397,92 @@ export const sessionsDb = {
    * the row does — and the filesystem watcher would otherwise index it as an
    * unrelated session under its own id.
    */
+  /**
+   * Inserts the placeholder row a btw fork owns before the provider has
+   * produced a session id.
+   *
+   * Writing the row first is what makes the whole flow crash-safe: if the
+   * process dies mid-fork, a hidden row exists for the startup cleanup to find,
+   * instead of a transcript file with no row that the watcher would index as a
+   * normal visible session. `provider_session_id` and `jsonl_path` stay NULL
+   * until `completeForkedSession` fills them in.
+   */
+  createPendingEphemeralSession(input: {
+    sessionId: string;
+    provider: string;
+    projectPath: string;
+    customName: string | null;
+    nameSource: SessionNameSource;
+    forkedFromSessionId: string;
+    model: string | null;
+    effort: string | null;
+  }): string {
+    const db = getConnection();
+    const normalizedProjectPath = normalizeProjectPathForProvider(input.provider, input.projectPath);
+
+    projectsDb.createProjectPath(normalizedProjectPath);
+
+    db.prepare(
+      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, name_source, project_path, jsonl_path, model, effort, forked_from_session_id, isArchived, is_ephemeral, created_at, updated_at)
+       VALUES (?, ?, NULL, ?, ?, ?, NULL, ?, ?, ?, 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+    ).run(
+      input.sessionId,
+      input.provider,
+      input.customName,
+      input.nameSource,
+      normalizedProjectPath,
+      input.model,
+      input.effort,
+      input.forkedFromSessionId,
+    );
+
+    return input.sessionId;
+  },
+
+  /**
+   * Finishes a btw fork: records the provider id and transcript path on the
+   * placeholder row, folding in a duplicate the watcher may have created.
+   *
+   * `jsonl_path` is written explicitly rather than inherited from the duplicate
+   * because the no-duplicate path is the common one, and a NULL path there would
+   * make the delete path unable to locate the transcript (leaving the file on
+   * disk forever while the row disappears).
+   */
+  completeForkedSession(input: {
+    sessionId: string;
+    providerSessionId: string;
+    jsonlPath: string | null;
+  }): void {
+    const db = getConnection();
+
+    db.transaction(() => {
+      const duplicate = db
+        .prepare(
+          `SELECT session_id, jsonl_path FROM sessions
+           WHERE (session_id = ? OR provider_session_id = ?)
+             AND session_id <> ?
+           LIMIT 1`
+        )
+        .get(input.providerSessionId, input.providerSessionId, input.sessionId) as
+        | { session_id: string; jsonl_path: string | null }
+        | undefined;
+
+      if (duplicate) {
+        repointChildrenToSurvivor(db, 'session_id = ?', input.sessionId, duplicate.session_id);
+        reclaimReadStateFor(db, 'session_id = ?', duplicate.session_id);
+        db.prepare('DELETE FROM sessions WHERE session_id = ?').run(duplicate.session_id);
+      }
+
+      db.prepare(
+        `UPDATE sessions SET
+           provider_session_id = ?,
+           jsonl_path = COALESCE(?, ?),
+           updated_at = CURRENT_TIMESTAMP
+         WHERE session_id = ?`
+      ).run(input.providerSessionId, input.jsonlPath, duplicate?.jsonl_path ?? null, input.sessionId);
+    })();
+  },
+
   createForkedSession(input: {
     sessionId: string;
     provider: string;
@@ -429,6 +537,43 @@ export const sessionsDb = {
     })();
 
     return input.sessionId;
+  },
+
+  /**
+   * Makes a btw copy visible and gives it a name.
+   *
+   * `updated_at` is deliberately untouched: the promoted copy should keep the
+   * position of the conversation it branched from, not jump to the top of the
+   * recent feed as if it had just received a message.
+   */
+  promoteEphemeralSession(sessionId: string, customName: string): void {
+    getConnection()
+      .prepare(
+        `UPDATE sessions SET
+           is_ephemeral = 0,
+           custom_name = ?,
+           name_source = 'manual_rename'
+         WHERE session_id = ?`
+      )
+      .run(customName, sessionId);
+  },
+
+  /**
+   * Lists the btw copies still on disk, newest-updated last.
+   *
+   * Consumers: the startup cleanup (reclaims every row) and the periodic sweep
+   * (reclaims only rows untouched for hours). Neither may filter the result —
+   * this query is the whole point of those jobs.
+   */
+  listEphemeralSessions(): Array<{ session_id: string; updated_at: string }> {
+    const rows = getConnection()
+      .prepare('SELECT session_id, updated_at FROM sessions WHERE is_ephemeral = 1')
+      .all() as Array<{ session_id: string; updated_at: string }>;
+
+    return rows.map((row) => ({
+      session_id: row.session_id,
+      updated_at: normalizeTimestamp(row.updated_at) ?? row.updated_at,
+    }));
   },
 
   /**
@@ -786,6 +931,7 @@ export const sessionsDb = {
            AND project_path = ?
            AND provider_session_id IS NULL
            AND isArchived = 0
+           AND is_ephemeral = 0
          ORDER BY datetime(COALESCE(updated_at, created_at)) DESC, session_id DESC
          LIMIT 1`
       )
@@ -794,13 +940,21 @@ export const sessionsDb = {
     return normalizeSessionRow(row) ?? null;
   },
 
+  /**
+   * Every active (non-archived) conversation the user may see.
+   *
+   * btw copies are excluded: every caller (full-text search candidates, legacy
+   * title backfill) wants the visible set. A cleanup job must use
+   * `listEphemeralSessions` or `getSessionsByProjectPathIncludingArchived`
+   * instead — those are the queries that deliberately see hidden rows.
+   */
   getAllSessions(): SessionRow[] {
     const db = getConnection();
     const rows = db
       .prepare(
         `SELECT ${SESSION_ROW_COLUMNS}
          FROM sessions
-         WHERE isArchived = 0`
+         WHERE isArchived = 0 AND is_ephemeral = 0`
       )
       .all() as SessionRow[];
 
@@ -819,6 +973,7 @@ export const sessionsDb = {
     const db = getConnection();
     const visibilityClause = `
       sessions.isArchived = 0
+      AND sessions.is_ephemeral = 0
       AND (projects.isArchived IS NULL OR projects.isArchived = 0)
     `;
     const rows = db
@@ -851,6 +1006,9 @@ export const sessionsDb = {
   /**
    * Archived rows are intentionally queried separately so the caller can render
    * them in a dedicated view without reintroducing them into active session lists.
+   *
+   * btw copies are excluded: an archived view is still a user-visible surface,
+   * and the search candidates are built from this result too.
    */
   getArchivedSessions(): SessionRow[] {
     const db = getConnection();
@@ -858,7 +1016,7 @@ export const sessionsDb = {
       .prepare(
         `SELECT ${SESSION_ROW_COLUMNS}
          FROM sessions
-         WHERE isArchived = 1
+         WHERE isArchived = 1 AND is_ephemeral = 0
          ORDER BY datetime(COALESCE(updated_at, created_at)) DESC, session_id DESC`
       )
       .all() as SessionRow[];
@@ -874,7 +1032,8 @@ export const sessionsDb = {
         `SELECT ${SESSION_ROW_COLUMNS}
          FROM sessions
          WHERE project_path = ?
-           AND isArchived = 0`
+           AND isArchived = 0
+           AND is_ephemeral = 0`
       )
       .all(normalizedProjectPath) as SessionRow[];
 
@@ -884,6 +1043,11 @@ export const sessionsDb = {
   /**
    * Permanent project deletion must see every session row for the path,
    * including archived ones, so their transcript files can be cleaned up.
+   *
+   * This is also the one query that still returns btw copies — deliberately,
+   * because hiding them here would leave their transcripts on disk forever.
+   * A caller that renders the result must drop `is_ephemeral` rows itself; see
+   * `projects-with-sessions-fetch.service.ts`.
    */
   getSessionsByProjectPathIncludingArchived(projectPath: string): SessionRow[] {
     const db = getConnection();
@@ -908,6 +1072,7 @@ export const sessionsDb = {
          FROM sessions
          WHERE project_path = ?
            AND isArchived = 0
+           AND is_ephemeral = 0
          ORDER BY datetime(COALESCE(updated_at, created_at)) DESC, session_id DESC
          LIMIT ? OFFSET ?`
       )
@@ -924,7 +1089,8 @@ export const sessionsDb = {
         `SELECT COUNT(*) AS count
          FROM sessions
          WHERE project_path = ?
-           AND isArchived = 0`
+           AND isArchived = 0
+           AND is_ephemeral = 0`
       )
       .get(normalizedProjectPath) as { count: number } | undefined;
 

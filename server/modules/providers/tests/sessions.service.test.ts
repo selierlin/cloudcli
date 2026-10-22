@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -29,6 +29,18 @@ async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promis
       process.env.DATABASE_PATH = previousDatabasePath;
     }
     await rm(tempDirectory, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Tells whether a path exists, without failing the test on a missing one.
+ */
+async function pathExists(targetPath: string): Promise<boolean> {
+  try {
+    await access(targetPath);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -602,6 +614,100 @@ test('permanently deleting archived sessions does not abort on a session that ne
       assert.equal(sessionsDb.getSessionById('batch-never-ran'), null);
       assert.deepEqual(prunedIds, ['opencode-native-2']);
     });
+  });
+});
+
+test('permanently deleting a session removes the directory beside its transcript', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'sessions-delete-directory-'));
+    try {
+      const providerSessionId = 'workbuddy-native-1';
+      const transcriptPath = path.join(tempRoot, `${providerSessionId}.jsonl`);
+      const siblingDirectory = path.join(tempRoot, providerSessionId);
+      await writeFile(transcriptPath, '{"type":"user"}\n');
+      await mkdir(path.join(siblingDirectory, 'tool-results'), { recursive: true });
+      await writeFile(path.join(siblingDirectory, 'tool-results', 'call-1.txt'), 'tool output');
+
+      sessionsDb.createAppSession('with-directory', 'workbuddy', tempRoot);
+      sessionsDb.repointSessionToProviderSession('with-directory', {
+        providerSessionId,
+        jsonlPath: transcriptPath,
+      });
+
+      const result = await sessionsService.deleteOrArchiveSessionById('with-directory', {
+        force: true,
+        deletedFromDisk: true,
+      });
+
+      assert.equal(result.action, 'deleted');
+      assert.equal(await pathExists(transcriptPath), false);
+      assert.equal(await pathExists(siblingDirectory), false, 'the tool output must not outlive the session');
+      assert.equal(sessionsDb.getSessionById('with-directory'), null);
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+test('a stranded directory alone still counts as removed from disk', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'sessions-delete-directory-'));
+    try {
+      const providerSessionId = 'workbuddy-native-2';
+      const transcriptPath = path.join(tempRoot, `${providerSessionId}.jsonl`);
+      const siblingDirectory = path.join(tempRoot, providerSessionId);
+      // The transcript is already gone (an earlier delete removed it, or the
+      // runtime never flushed one) while the directory survived.
+      await mkdir(siblingDirectory, { recursive: true });
+
+      sessionsDb.createAppSession('stranded-directory', 'workbuddy', tempRoot);
+      sessionsDb.repointSessionToProviderSession('stranded-directory', {
+        providerSessionId,
+        jsonlPath: transcriptPath,
+      });
+
+      const result = await sessionsService.deleteOrArchiveSessionById('stranded-directory', {
+        force: true,
+        deletedFromDisk: true,
+      });
+
+      assert.equal(result.deletedFromDisk, true);
+      assert.equal(await pathExists(siblingDirectory), false);
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+test('a transcript that is not a .jsonl leaves its same-named directory alone', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'sessions-delete-directory-'));
+    try {
+      // dsh writes `session.jsonl.zstd`; dropping the last extension would
+      // resolve to `session.jsonl`, a directory that never belongs to it.
+      const providerSessionId = 'dsh-native-1';
+      const transcriptPath = path.join(tempRoot, `${providerSessionId}.jsonl.zstd`);
+      const unrelatedDirectory = path.join(tempRoot, `${providerSessionId}.jsonl`);
+      await writeFile(transcriptPath, 'compressed');
+      await mkdir(unrelatedDirectory, { recursive: true });
+      await writeFile(path.join(unrelatedDirectory, 'keep.txt'), 'keep');
+
+      sessionsDb.createAppSession('compressed-transcript', 'dsh', tempRoot);
+      sessionsDb.repointSessionToProviderSession('compressed-transcript', {
+        providerSessionId,
+        jsonlPath: transcriptPath,
+      });
+
+      await sessionsService.deleteOrArchiveSessionById('compressed-transcript', {
+        force: true,
+        deletedFromDisk: true,
+      });
+
+      assert.equal(await pathExists(transcriptPath), false);
+      assert.equal(await pathExists(path.join(unrelatedDirectory, 'keep.txt')), true);
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
   });
 });
 

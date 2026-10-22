@@ -33,7 +33,12 @@ async function buildSessionUpsertedEvent(
   // existed — both lookups land on the same row anyway.
   const row = sessionsDb.getSessionByProviderSessionId(sessionIdOrProviderSessionId)
     ?? sessionsDb.getSessionById(sessionIdOrProviderSessionId);
-  if (!row || row.isArchived) {
+  // A btw copy is a real session that must stay invisible: the watcher announces
+  // every transcript it indexes, so without this the drawer's copy would appear
+  // in every connected sidebar the moment it is created. `is_ephemeral` is read
+  // through `getSessionById`, which intentionally does not filter, precisely so
+  // this guard can see the flag.
+  if (!row || row.isArchived || row.is_ephemeral) {
     return null;
   }
 

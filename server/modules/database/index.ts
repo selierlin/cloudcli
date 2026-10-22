@@ -1,5 +1,20 @@
 export { initializeDatabase } from '@/modules/database/init-db.js';
 export { closeConnection, getConnection, getDatabasePath } from '@/modules/database/connection.js';
+// ephemeralForkRegistry: used by Providers to protect the btw placeholder window
+// (register before forking, settle/abandon after) and by the cleanup job to
+// sweep registrations that never settled.
+export {
+  abandonEphemeralFork,
+  claimEphemeralFork,
+  isRetiredProviderSession,
+  registerEphemeralFork,
+  retireProviderSession,
+  settleEphemeralFork,
+  sweepExpiredEphemeralForks,
+} from '@/modules/database/ephemeral-fork-registry.service.js';
+// resetEphemeralForkRegistryForTests: test-only, keeps module state from leaking
+// between cases that reuse one process.
+export { resetEphemeralForkRegistryForTests } from '@/modules/database/ephemeral-fork-registry.service.js';
 export { apiKeysDb } from '@/modules/database/repositories/api-keys.js';
 // authEventsDb: used by Auth to record login/logout events and Settings to read them back.
 export { authEventsDb } from '@/modules/database/repositories/auth-events.js';

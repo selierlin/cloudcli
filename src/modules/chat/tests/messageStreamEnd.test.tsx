@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { render } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 import { test } from 'vitest';
 
 import MessageComponent from '@/modules/chat/transcript/MessageComponent';
@@ -109,12 +109,13 @@ test('a thinking message does not render a second timestamp footer', () => {
   assert.doesNotMatch(container.textContent ?? '', new RegExp(new Date(message.timestamp).toLocaleTimeString()));
 });
 
-test('an assistant message exposes the fork-from-here action', () => {
+test('an assistant message offers branching and side questions in one overflow menu', () => {
   const message: ChatMessage = {
     ...assistantMessage(false),
     forkAnchorId: 'assistant-anchor',
   };
   let forkedMessage: ChatMessage | null = null;
+  let asideMessage: ChatMessage | null = null;
   const { container } = render(
     <UiPreferencesProvider>
       <MessageComponent
@@ -125,14 +126,65 @@ test('an assistant message exposes the fork-from-here action', () => {
         onForkFromMessage={(selected) => {
           forkedMessage = selected;
         }}
+        onAskAsideFromMessage={(selected) => {
+          asideMessage = selected;
+        }}
       />
     </UiPreferencesProvider>,
   );
 
-  const button = container.querySelector('button[aria-label="message.forkFromHere"]');
-  assert.ok(button, 'expected the assistant fork action to be rendered');
-  (button as HTMLButtonElement).click();
+  // Both actions are rare next to copy and speak, so neither gets a permanent
+  // icon of its own on the answer's footer.
+  assert.equal(container.querySelector('button[aria-label="message.forkFromHere"]'), null);
+  assert.equal(container.querySelector('button[aria-label="message.askAsideFromHere"]'), null);
+
+  const trigger = container.querySelector('button[aria-label="message.moreActions"]');
+  assert.ok(trigger, 'expected the overflow menu trigger to be rendered');
+  fireEvent.click(trigger);
+
+  const items = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
+  assert.deepEqual(
+    items.map((item) => item.textContent?.trim()),
+    ['message.forkFromHere', 'message.askAsideFromHere'],
+  );
+
+  fireEvent.click(items[0]);
   assert.equal(forkedMessage, message);
+
+  // Selecting an item closes the menu, so the second one is reached through a
+  // fresh open.
+  fireEvent.click(trigger);
+  const asideItem = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
+    .find((item) => item.textContent?.includes('message.askAsideFromHere'));
+  assert.ok(asideItem, 'expected the side-question item to be rendered');
+  fireEvent.click(asideItem);
+  assert.equal(asideMessage, message);
+});
+
+test('a user message carries no branching or side-question actions', () => {
+  const message: ChatMessage = {
+    type: 'user',
+    content: '请看图片',
+    timestamp: '2026-08-21T10:00:00.000Z',
+    forkAnchorId: 'user-anchor',
+    transcriptAnchorId: 'user-transcript-anchor',
+  };
+  const { container } = render(
+    <UiPreferencesProvider>
+      <MessageComponent
+        message={message}
+        prevMessage={null}
+        createDiff={createDiff}
+        provider="claude"
+        onForkFromMessage={() => {}}
+        onAskAsideFromMessage={() => {}}
+      />
+    </UiPreferencesProvider>,
+  );
+
+  assert.equal(container.querySelector('button[aria-label="message.moreActions"]'), null);
+  assert.equal(container.querySelector('button[aria-label="message.forkFromHere"]'), null);
+  assert.equal(container.querySelector('button[aria-label="message.askAsideFromHere"]'), null);
 });
 
 test('a user message with attachments does not expose edit-and-resend', () => {

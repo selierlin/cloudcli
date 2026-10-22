@@ -50,6 +50,8 @@ type SessionRepositoryRow = {
   content_updated_at?: string | null;
   isPinned?: number;
   parent_session_id?: string | null;
+  /** btw copies stay in the query result but must never reach the client. */
+  is_ephemeral?: number;
 };
 
 export type ProjectListItem = {
@@ -183,7 +185,11 @@ function mapSessionRowToSummary(row: SessionRepositoryRow, watermarks: ReadWater
 }
 
 function readProjectSessionsIncludingArchived(projectPath: string, watermarks: ReadWatermarks): ProjectSessionsPageResult {
-  const rows = sessionsDb.getSessionsByProjectPathIncludingArchived(projectPath) as SessionRepositoryRow[];
+  // The repository keeps btw copies in this result on purpose (permanent
+  // project deletion needs them to remove their transcripts), so the visible
+  // surface filters them here instead. `total` counts what is returned.
+  const rows = (sessionsDb.getSessionsByProjectPathIncludingArchived(projectPath) as SessionRepositoryRow[])
+    .filter((row) => !row.is_ephemeral);
 
   return {
     sessions: rows.map((row) => mapSessionRowToSummary(row, watermarks)),

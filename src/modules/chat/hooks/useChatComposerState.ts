@@ -13,8 +13,6 @@ import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 
 import { api } from '@/shared/api';
-import { PROVIDER_PERMISSION_PREFERENCE_KEYS } from '@/shared/constants';
-import { readUserPreference } from '@/shared/userSettings';
 import type { BackgroundSendChoice, BackgroundSendPrompt, CommandModalPayload, CostCommandData, HelpCommandData, MarkSessionProcessing, ModelCommandData, QueuedDraft, QuickReply, SessionActivityMap, StatusCommandData,QueuedSendOptions,ChatAttachment,ChatMessage,PendingPermissionRequest,PermissionMode,SessionEstablishedContext,Project,ProjectSession,LLMProvider,SlashCommand } from '@/shared/types';
 import { grantClaudeToolPermission } from '@/modules/chat/utils/chatPermissions';
 import {
@@ -29,6 +27,7 @@ import {
 import { escapeRegExp } from '@/modules/chat/utils/chatFormatting';
 import { composeQuickReplyInput, isQuickReplyCommand } from '@/shared/quickReplies';
 import { describeBackgroundTask, ownBackgroundTasks } from '@/modules/chat/utils/backgroundTasks';
+import { buildChatSendOptions, getNotificationSessionSummary } from '@/modules/chat/utils/sendOptions';
 import { markTurnStart } from '@/modules/chat/utils/turnDurationRegistry';
 import { useFileMentions } from '@/modules/chat/hooks/useFileMentions';
 import { useInputHistory } from '@/modules/chat/hooks/useInputHistory';
@@ -153,23 +152,6 @@ const restoreQueuedDraft = (sessionKey: string): QueuedDraft | null => {
     : null;
 };
 
-const getNotificationSessionSummary = (
-  selectedSession: ProjectSession | null,
-  fallbackInput: string,
-): string | null => {
-  const sessionSummary = selectedSession?.summary || selectedSession?.name || selectedSession?.title;
-  if (typeof sessionSummary === 'string' && sessionSummary.trim()) {
-    const normalized = sessionSummary.replace(/\s+/g, ' ').trim();
-    return normalized.length > 80 ? `${normalized.slice(0, 77)}...` : normalized;
-  }
-
-  const normalizedFallback = fallbackInput.replace(/\s+/g, ' ').trim();
-  if (!normalizedFallback) {
-    return null;
-  }
-
-  return normalizedFallback.length > 80 ? `${normalizedFallback.slice(0, 77)}...` : normalizedFallback;
-};
 
 /**
  * Enter that CONFIRMS an IME candidate must not also submit.
@@ -663,27 +645,17 @@ export function useChatComposerState({
   // send time for immediate sends and at queue time for queued ones, so a
   // queued message keeps the provider settings it was composed under even if
   // it is later dispatched outside this composer (app-level auto-send).
-  const buildSendOptions = useCallback((currentInput: string): QueuedSendOptions => {
-    const getToolsSettings = () => readUserPreference(
-      PROVIDER_PERMISSION_PREFERENCE_KEYS[provider],
-      {
-        allowedTools: [],
-        disallowedTools: [],
-        skipPermissions: false,
-      },
-    );
-
-    const toolsSettings = getToolsSettings();
-
-    return {
+  // Shared with the side-question drawer, which must send exactly the same
+  // options (see `buildChatSendOptions`).
+  const buildSendOptions = useCallback((currentInput: string): QueuedSendOptions =>
+    buildChatSendOptions({
+      provider,
       model: currentProviderModel,
       effort: currentProviderEffort,
-      permissionMode: resolvePermissionModeForProvider(provider, permissionMode),
-      toolsSettings,
-      skipPermissions: toolsSettings?.skipPermissions || false,
-      sessionSummary: getNotificationSessionSummary(selectedSession, currentInput),
-    };
-  }, [
+      permissionMode,
+      resolvePermissionModeForProvider,
+      selectedSession,
+    }, currentInput), [
     currentProviderEffort,
     currentProviderModel,
     permissionMode,
