@@ -8,7 +8,7 @@ import {
 } from '@/shared/userSettings';
 import { useProjectSlashCommands } from '@/shared/hooks/useProjectSlashCommands';
 import type { LLMProvider, Project, SlashCommand } from '@/shared/types';
-import { isSkillCommand } from '@/shared/utils';
+import { isImeKeyEvent, isSkillCommand } from '@/shared/utils';
 
 const COMMAND_QUERY_DEBOUNCE_MS = 150;
 
@@ -326,7 +326,7 @@ export function useSlashCommands({
       }
 
       if (!filteredCommands.length) {
-        if (event.key === 'Escape') {
+        if (event.key === 'Escape' && !isImeKeyEvent(event)) {
           event.preventDefault();
           resetCommandMenuState();
           return true;
@@ -370,7 +370,7 @@ export function useSlashCommands({
         return true;
       }
 
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !isImeKeyEvent(event)) {
         event.preventDefault();
         resetCommandMenuState();
         return true;

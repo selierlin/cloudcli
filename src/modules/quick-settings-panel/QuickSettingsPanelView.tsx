@@ -11,7 +11,7 @@ import { useQuickSettingsPanelWidth } from '@/modules/quick-settings-panel/hooks
 import { useSessionOutlineData } from '@/modules/quick-settings-panel/hooks/useSessionOutlineData';
 import { useProjectMainState } from '@/modules/project-workspace';
 import type { Project, SlashCommand } from '@/shared/types';
-import { getQuickSettingsTabId, getQuickSettingsTabPanelId } from '@/shared/utils';
+import { getQuickSettingsTabId, getQuickSettingsTabPanelId, isImeKeyEvent } from '@/shared/utils';
 import QuickSettingsCommandsTab from '@/modules/quick-settings-panel/QuickSettingsCommandsTab';
 import QuickSettingsContent from '@/modules/quick-settings-panel/QuickSettingsContent';
 import QuickSettingsHandle from '@/modules/quick-settings-panel/QuickSettingsHandle';
@@ -107,7 +107,9 @@ function QuickSettingsPanelView({ selectedProject, onInsertCommand }: QuickSetti
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) {
+      // Escape also cancels an IME candidate; closing the panel on that press
+      // would drop the user out of what they were typing.
+      if (event.key !== 'Escape' || event.defaultPrevented || isImeKeyEvent(event)) {
         return;
       }
       event.preventDefault();

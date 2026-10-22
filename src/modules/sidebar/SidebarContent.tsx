@@ -3,7 +3,7 @@ import { Activity, Archive, Check, ChevronDown, ChevronRight, Edit2, Folder, Loa
 import type { TFunction } from 'i18next';
 
 import { ActionMenu, Dialog, DialogContent, DialogTitle, LLMProviderLogo, ScrollArea } from '@/shared/ui';
-import { cn } from '@/shared/utils';
+import { cn, isImeKeyEvent } from '@/shared/utils';
 import type { ArchivedProjectListItem, ArchivedSessionListItem, ConversationProjectResult, ConversationSearchResults, LLMProvider, Project, RecentConversationListItem, ReleaseInfo, SearchProgress, SessionTitleSearchResult, SidebarProjectListProps, SidebarSearchMode } from '@/shared/types';
 import { formatCompactAge, getAllSessions } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import { buildSessionOwnershipMenuItems } from '@/modules/sidebar/utils/sessionOwnershipMenuItems';
@@ -290,7 +290,7 @@ function ConversationTitleResultRow({
                   onChange={(event) => setEditingName(event.target.value)}
                   onKeyDown={(event) => {
                     event.stopPropagation();
-                    if (event.key === 'Enter') saveRename();
+                    if (event.key === 'Enter' && !isImeKeyEvent(event)) saveRename();
                   }}
                   className="w-full rounded-xl border-2 border-primary/40 bg-background px-3 py-3 text-foreground shadow-sm focus:border-primary focus:outline-none"
                   autoFocus
@@ -470,8 +470,8 @@ function ConversationTitleResultRow({
                 onChange={(event) => setEditingName(event.target.value)}
                 onKeyDown={(event) => {
                   event.stopPropagation();
-                  if (event.key === 'Enter') saveRename();
-                  else if (event.key === 'Escape') cancelRename();
+                  if (event.key === 'Enter' && !isImeKeyEvent(event)) saveRename();
+                  else if (event.key === 'Escape' && !isImeKeyEvent(event)) cancelRename();
                 }}
                 onClick={(event) => event.stopPropagation()}
                 className="w-32 rounded border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"

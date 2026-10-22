@@ -3,7 +3,7 @@ import { Check, Edit2, GitBranch, MoreHorizontal, Pin, PinOff, Trash2, X } from 
 import type { TFunction } from 'i18next';
 
 import { ActionMenu } from '@/shared/ui';
-import { cn } from '@/shared/utils';
+import { cn, isImeKeyEvent } from '@/shared/utils';
 import type { LLMProvider } from '@/shared/types';
 import { useSessionForkingProviders } from '@/shared/hooks/useProviderCapabilities';
 import { useProviderSessionIdCopy } from '@/modules/sidebar/hooks/useProviderSessionIdCopy';
@@ -131,9 +131,9 @@ export default function SessionOptions({
             onChange={(event) => onRenameDraftChange(event.target.value)}
             onKeyDown={(event) => {
               event.stopPropagation();
-              if (event.key === 'Enter') {
+              if (event.key === 'Enter' && !isImeKeyEvent(event)) {
                 saveRename();
-              } else if (event.key === 'Escape') {
+              } else if (event.key === 'Escape' && !isImeKeyEvent(event)) {
                 onCancelEditingSession();
               }
             }}

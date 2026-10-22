@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { PermissionPanelProps,Question } from '@/shared/types';
+import { isImeKeyEvent } from '@/shared/utils';
 
 /** Stable fallback so the memoized handlers below are not invalidated on every
  *  render by a fresh `[]` literal when a request carries no questions. */
@@ -132,8 +133,9 @@ export const AskUserQuestionPanel: React.FC<PermissionPanelProps> = ({
       return;
     }
 
-    // Escape to skip
-    if (e.key === 'Escape') {
+    // Escape to skip, unless it is cancelling an IME candidate in the "other"
+    // field.
+    if (e.key === 'Escape' && !isImeKeyEvent(e)) {
       e.preventDefault();
       handleSkip();
       return;
