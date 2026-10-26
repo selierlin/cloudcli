@@ -186,7 +186,9 @@ export async function seedZcodeRichSession(
         modelId: 'deepseek-v4-flash',
         providerId: 'ark',
         finish: 'stop',
-        tokens: { input: 10, output: 20, reasoning: 0, cache: { read: 3, write: 2 } },
+        // ZCode folds the cache buckets into `input` (total === input + output),
+        // so 15 is the whole prompt and 3 of it was served from the cache.
+        tokens: { input: 15, output: 20, reasoning: 0, total: 35, cache: { read: 3, write: 2 } },
       },
     });
     insertPart(db, {

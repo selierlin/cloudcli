@@ -28,6 +28,19 @@ const PERMISSION_MODE_MAP: Record<string, string | undefined> = {
   dontAsk: 'dontAsk',
 };
 
+/**
+ * Modes that make the engine wait for an interactive approver.
+ *
+ * `codebuddy -p` has no approver, and this runtime surfaces no permission
+ * requests to the client (`supportsPermissionRequests: false`), so a run in one
+ * of these modes issues its first write/exec tool call and then holds the turn
+ * open until the run timeout (an hour) with nothing visible on screen. Measured
+ * against the same edit task: `default`, `acceptEdits` and `plan` all hung past
+ * 75s with the file untouched, while `auto` finished in 19s and actually
+ * applied the change. Refuse the former rather than hang.
+ */
+const INTERACTIVE_ONLY_PERMISSION_MODES = new Set(['default', 'acceptEdits', 'plan']);
+
 const activeProcesses = new Map<string, ChildProcess>();
 // Sessions whose abort() was requested but whose process has not reaped yet.
 // The `close` handler consumes the flag so the terminal event reports the run
@@ -148,12 +161,25 @@ export const workbuddyRuntime: IProviderRuntime = {
     if (providerSessionId) {
       args.push('--resume', providerSessionId);
     }
-    const permissionMode = typeof options.permissionMode === 'string'
+    // Fall back to `auto` rather than letting the engine apply its own
+    // `default`: a caller that sends no mode would otherwise inherit the one
+    // mode that cannot finish here.
+    const requestedPermissionMode = typeof options.permissionMode === 'string'
       ? PERMISSION_MODE_MAP[options.permissionMode]
       : undefined;
-    if (permissionMode) {
-      args.push('--permission-mode', permissionMode);
+    const permissionMode = requestedPermissionMode ?? 'auto';
+    if (INTERACTIVE_ONLY_PERMISSION_MODES.has(permissionMode)) {
+      writer.send(createNormalizedMessage({
+        kind: 'error',
+        provider: 'workbuddy',
+        sessionId: appSessionId,
+        content: `WorkBuddy cannot run in "${permissionMode}" permission mode: it waits for an interactive approval that this app never receives, so the turn would hang instead of finishing. Use "auto" (approves in-process, keeps the guardrail) or "bypassPermissions".`,
+      }));
+      writer.send(createCompleteMessage({ provider: 'workbuddy', sessionId: appSessionId, exitCode: 1 }));
+      resolveRun();
+      return;
     }
+    args.push('--permission-mode', permissionMode);
     if (resolvedModel) {
       args.push('--model', resolvedModel);
     }

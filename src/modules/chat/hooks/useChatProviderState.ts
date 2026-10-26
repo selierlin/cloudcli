@@ -82,7 +82,9 @@ const FALLBACK_PERMISSION_MODES: Record<LLMProvider, PermissionMode[]> = {
   codex: ['default', 'acceptEdits', 'bypassPermissions'],
   opencode: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
   dsh: ['default', 'auto'],
-  workbuddy: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
+  // `default`/`acceptEdits`/`plan` wait for an approver that `-p` never has;
+  // only the self-answering modes can finish a workbuddy turn.
+  workbuddy: ['auto', 'bypassPermissions'],
   pi: ['default', 'readonly'],
   zcode: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
   omp: ['default', 'readonly'],

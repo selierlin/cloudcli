@@ -478,14 +478,16 @@ test('ZCode token usage reads the newest assistant snapshot from the SQLite stor
       fileExists: () => true,
     });
 
+    // ZCode already counts the cache read inside `input`; folding it in again
+    // would report the warm-prefix prompt twice (the observed 44.8k vs 22.4k).
     assert.deepEqual(await service.getSessionTokenUsage('app-session'), {
       used: 35,
-      inputTokens: 13,
+      inputTokens: 15,
       outputTokens: 20,
       cacheReadTokens: 3,
       cacheCreationTokens: 2,
       cacheTokens: 3,
-      breakdown: { input: 13, output: 20 },
+      breakdown: { input: 15, output: 20 },
     });
   } finally {
     await rm(tempDirectory, { recursive: true, force: true });
@@ -531,9 +533,11 @@ test('ZCode token usage skips an all-zero synthetic newest row', async () => {
       fileExists: () => true,
     });
 
+    // This row carries no `tokens.total`, so the reader falls back to
+    // `input + output` — still without adding the cache read back.
     const usage = await service.getSessionTokenUsage('app-session');
-    assert.equal(usage.used, 35);
-    assert.equal(usage.inputTokens, 13);
+    assert.equal(usage.used, 30);
+    assert.equal(usage.inputTokens, 10);
     assert.equal(usage.outputTokens, 20);
   } finally {
     await rm(tempDirectory, { recursive: true, force: true });

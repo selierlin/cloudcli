@@ -87,6 +87,20 @@ function resolveCodexLauncher(): string {
 }
 
 /**
+ * Feature switches every app-server we spawn runs with.
+ *
+ * Codex 0.164 resolves its plugin catalog and the `codex_apps` MCP server over
+ * `chatgpt_base_url` before a turn starts. On a Codex home that points that base
+ * URL at a dead endpoint (the usual arrangement for third-party providers), each
+ * of those calls burns a retry budget — measured at 9.1s of the 13.7s turn, with
+ * the model itself answering in 4.7s. Without them the same turn spends 3.0s
+ * before the request leaves. Local plugin tools are lost as a side effect; that
+ * is the trade this client makes so a turn is not dominated by a catalog fetch
+ * it can never complete.
+ */
+const APP_SERVER_FEATURE_FLAGS = ['--disable', 'apps', '--disable', 'plugins'];
+
+/**
  * Resolves the command line that starts `codex app-server`.
  *
  * `CODEX_APP_SERVER_COMMAND` replaces the launcher script so tests can point at
@@ -97,9 +111,9 @@ function resolveCodexLauncher(): string {
 function resolveCodexAppServerCommand(): { command: string; args: string[] } {
   const override = process.env.CODEX_APP_SERVER_COMMAND?.trim();
   if (override) {
-    return { command: process.execPath, args: [override, 'app-server'] };
+    return { command: process.execPath, args: [override, 'app-server', ...APP_SERVER_FEATURE_FLAGS] };
   }
-  return { command: process.execPath, args: [resolveCodexLauncher(), 'app-server'] };
+  return { command: process.execPath, args: [resolveCodexLauncher(), 'app-server', ...APP_SERVER_FEATURE_FLAGS] };
 }
 
 /**

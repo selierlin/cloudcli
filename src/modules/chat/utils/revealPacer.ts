@@ -19,7 +19,11 @@ const CHANNEL_ORDER: StreamChannel[] = ['thinking', 'text'];
  * Providers whose prose reaches the client as complete segments instead of
  * token deltas:
  *
- * - `dsh` — the DSH ACP bridge only emits committed `assistant/message` blocks.
+ * - `dsh` — the DSH runtime forwards each ACP update as the message's full text
+ *   so far (an upserted snapshot), not as a delta. A patched `dsh-acp` bridge
+ *   can now stream real model deltas, but they still arrive through that same
+ *   snapshot channel, so the pacer stays the only route that grows a row
+ *   without replaying its prefix.
  * - `openclaw` — `openclaw acp` bridges to the resident Gateway, and while the
  *   Gateway does produce `chat` `state:"delta"` frames, its live-delta
  *   broadcast does not reach the ACP client: every real prompt (2026-10-10,

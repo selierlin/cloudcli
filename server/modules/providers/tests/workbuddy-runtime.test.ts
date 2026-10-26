@@ -128,7 +128,7 @@ test('workbuddy run drives a new session and emits thinking/text/complete', asyn
   assert.equal(sessionCreated?.newSessionId, 'mock-session-123');
 
   const text = captured.find((entry) => entry.kind === 'text');
-  assert.equal(text?.content, `OK:hello:perm=none CFG:${DEFAULT_CONFIG_DIR}`);
+  assert.equal(text?.content, `OK:hello:perm=auto CFG:${DEFAULT_CONFIG_DIR}`);
 
   const complete = captured.find((entry) => entry.kind === 'complete');
   assert.equal(complete?.exitCode, 0);
@@ -205,7 +205,7 @@ test('workbuddy run sends image and file attachments as stream-json stdin', asyn
     // this asserts the runtime switched to stream-json and serialized one
     // image block and one document block.
     const text = captured.find((entry) => entry.kind === 'text');
-    assert.equal(text?.content, `OK:look at this:perm=none CFG:${DEFAULT_CONFIG_DIR} STDIN:1img:1file`);
+    assert.equal(text?.content, `OK:look at this:perm=auto CFG:${DEFAULT_CONFIG_DIR} STDIN:1img:1file`);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
@@ -249,14 +249,38 @@ test('workbuddy run forwards the permission mode flag', async () => {
 
   await workbuddyRuntime.run(
     'edit the file',
-    { sessionId: 'wb-test-3', cwd: '/tmp', permissionMode: 'acceptEdits' },
+    { sessionId: 'wb-test-3', cwd: '/tmp', permissionMode: 'bypassPermissions' },
     makeWriter(captured),
     makeContext(new Map()),
   );
 
   const text = captured.find((entry) => entry.kind === 'text');
-  assert.equal(text?.content, `OK:edit the file:perm=acceptEdits CFG:${DEFAULT_CONFIG_DIR}`);
+  assert.equal(text?.content, `OK:edit the file:perm=bypassPermissions CFG:${DEFAULT_CONFIG_DIR}`);
 });
+
+// `default`, `acceptEdits` and `plan` make `codebuddy -p` wait for an approver
+// that never answers, so a run in one of them would hold the turn open until
+// the one-hour run timeout. They must be refused up front, and no CLI may spawn.
+for (const mode of ['default', 'acceptEdits', 'plan']) {
+  test(`workbuddy run refuses the interactive-only ${mode} permission mode`, async () => {
+    process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+    process.env.MOCK_MODE = 'success';
+    const captured: Captured[] = [];
+
+    await workbuddyRuntime.run(
+      'edit the file',
+      { sessionId: `wb-refuse-${mode}`, cwd: '/tmp', permissionMode: mode },
+      makeWriter(captured),
+      makeContext(new Map()),
+    );
+
+    const error = captured.find((entry) => entry.kind === 'error');
+    assert.equal(error?.provider, 'workbuddy');
+    assert.match(String(error?.content ?? ''), new RegExp(`"${mode}" permission mode`));
+    assert.equal(captured.some((entry) => entry.kind === 'text'), false);
+    assert.equal(captured.at(-1)?.kind, 'complete');
+  });
+}
 
 test('workbuddy run forwards the selected model to a new session', async () => {
   process.env.CODEBUDDY_COMMAND = MOCK_CLI;
@@ -271,7 +295,7 @@ test('workbuddy run forwards the selected model to a new session', async () => {
   );
 
   const text = captured.find((entry) => entry.kind === 'text');
-  assert.equal(text?.content, `OK:hello:perm=none MODEL:glm-5.1 CFG:${DEFAULT_CONFIG_DIR}`);
+  assert.equal(text?.content, `OK:hello:perm=auto MODEL:glm-5.1 CFG:${DEFAULT_CONFIG_DIR}`);
 });
 
 test('workbuddy run forwards a model-supported reasoning effort', async () => {
@@ -289,7 +313,7 @@ test('workbuddy run forwards a model-supported reasoning effort', async () => {
     }),
   );
 
-  assert.equal(captured.find((entry) => entry.kind === 'text')?.content, `OK:reason carefully:perm=none MODEL:glm-5.3 EFFORT:xhigh CFG:${DEFAULT_CONFIG_DIR}`);
+  assert.equal(captured.find((entry) => entry.kind === 'text')?.content, `OK:reason carefully:perm=auto MODEL:glm-5.3 EFFORT:xhigh CFG:${DEFAULT_CONFIG_DIR}`);
 });
 
 test('workbuddy run forwards the recorded model when resuming a session', async () => {
@@ -530,7 +554,7 @@ test('workbuddy run points the engine at the session config dir', async () => {
   );
 
   const text = captured.find((entry) => entry.kind === 'text');
-  assert.equal(text?.content, 'OK:hello:perm=none CFG:/Users/test/.workbuddy');
+  assert.equal(text?.content, 'OK:hello:perm=auto CFG:/Users/test/.workbuddy');
 });
 
 test('workbuddy run preserves an explicit config-root override for new sessions', async () => {
@@ -546,7 +570,7 @@ test('workbuddy run preserves an explicit config-root override for new sessions'
     makeContext(new Map()),
   );
 
-  assert.equal(captured.find((entry) => entry.kind === 'text')?.content, 'OK:hello:perm=none CFG:/custom/workbuddy-root');
+  assert.equal(captured.find((entry) => entry.kind === 'text')?.content, 'OK:hello:perm=auto CFG:/custom/workbuddy-root');
 });
 
 test('workbuddy run defaults the engine config dir to ~/.workbuddy for new sessions', async () => {
@@ -565,7 +589,7 @@ test('workbuddy run defaults the engine config dir to ~/.workbuddy for new sessi
   );
 
   const text = captured.find((entry) => entry.kind === 'text');
-  assert.equal(text?.content, `OK:hello:perm=none CFG:${DEFAULT_CONFIG_DIR}`);
+  assert.equal(text?.content, `OK:hello:perm=auto CFG:${DEFAULT_CONFIG_DIR}`);
 });
 
 test('workbuddy run flushes a final event that lacks a trailing newline', async () => {
@@ -951,7 +975,7 @@ test('workbuddy streams thinking/reply deltas and suppresses the full-message co
   const deltas = captured.filter((entry) => entry.kind === 'stream_delta');
   const reply = deltas.filter((entry) => entry.streamChannel !== 'thinking').map((entry) => entry.content).join('');
   const thinking = deltas.filter((entry) => entry.streamChannel === 'thinking').map((entry) => entry.content).join('');
-  assert.equal(reply, 'OK:hello:perm=none');
+  assert.equal(reply, 'OK:hello:perm=auto');
   assert.equal(thinking, 'mock thinking');
 
   const streamEndIndex = captured.findIndex((entry) => entry.kind === 'stream_end');

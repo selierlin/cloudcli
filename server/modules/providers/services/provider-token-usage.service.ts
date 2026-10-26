@@ -522,8 +522,13 @@ function readOpenCodeTokenUsage(databasePath: string, providerSessionId: string)
  * ZCode persists a per-turn prompt snapshot on each assistant `message.data`
  * (`tokens.input` is that turn's whole prompt), so the newest row is the
  * current context occupancy — the same semantics as the Claude/WorkBuddy/Pi
- * readers. `cache.read` is reported alongside `input` rather than inside it,
- * matching the history reader's totals.
+ * readers.
+ *
+ * ZCode folds the cache buckets into `tokens.input` rather than reporting them
+ * beside it: its own `tokens.total` is exactly `input + output`, so a 22.4k
+ * prompt with a 22.4k cache read still totals 22.5k. OpenCode shares this store
+ * schema but the opposite convention (`input` excludes the cache read), which
+ * is why only this reader must not add `cache.read` back on top.
  */
 function readZcodeTokenUsage(databasePath: string, providerSessionId: string): TokenUsageResult {
   const database = new Database(databasePath, { readonly: true, fileMustExist: true });
@@ -563,19 +568,19 @@ function readZcodeTokenUsage(databasePath: string, providerSessionId: string): T
         continue;
       }
 
-      const displayInputTokens = inputTokens + cacheReadTokens;
+      // `tokens.input` already contains the cache buckets, so folding
+      // `cache.read` in again would double a warm-prefix prompt. Prefer ZCode's
+      // own `total` when present; it is authoritative about whether reasoning
+      // sits inside `output`.
+      const reportedTotal = readUsageNumber(tokens.total);
       return {
-        used: inputTokens
-          + outputTokens
-          + readUsageNumber(tokens.reasoning)
-          + cacheReadTokens
-          + cacheCreationTokens,
-        inputTokens: displayInputTokens,
+        used: reportedTotal > 0 ? reportedTotal : inputTokens + outputTokens,
+        inputTokens,
         outputTokens,
         cacheReadTokens,
         cacheCreationTokens,
         cacheTokens: cacheReadTokens,
-        breakdown: { input: displayInputTokens, output: outputTokens },
+        breakdown: { input: inputTokens, output: outputTokens },
       };
     }
 

@@ -45,12 +45,13 @@ test('ZCode sessions provider reads sqlite history and aggregates token usage', 
     assert.equal(history.messages[3]?.toolName, 'bash');
     assert.deepEqual(history.messages[3]?.toolResult, { content: 'ok', isError: false });
     assert.equal(history.messages[4]?.kind, 'stream_end');
-    // Input is reported with cache reads folded in; `used` sums every bucket.
+    // `tokens.input` already contains the cache buckets, so the cache read is
+    // not added a second time: 15 (not 18).
     assert.deepEqual(history.tokenUsage, {
       used: 35,
-      inputTokens: 13,
+      inputTokens: 15,
       outputTokens: 20,
-      breakdown: { input: 13, output: 20 },
+      breakdown: { input: 15, output: 20 },
     });
 
     const paged = await provider.fetchHistory('zcode-session-1', { limit: 2, offset: 0 });

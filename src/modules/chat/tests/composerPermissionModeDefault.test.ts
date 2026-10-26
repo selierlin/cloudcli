@@ -102,9 +102,17 @@ test('dsh still reads its stored default', async () => {
 });
 
 test('workbuddy reads its mode from its own browser-local blob', async () => {
+  localStorage.setItem(WORKBUDDY_SETTINGS_STORAGE_KEY, JSON.stringify({ permissionMode: 'bypassPermissions' }));
+
+  assert.equal(await resolvedModeFor('workbuddy'), 'bypassPermissions');
+});
+
+test('workbuddy drops a stored mode it can no longer run', async () => {
+  // `plan` waits for an approver that `codebuddy -p` never has, so the
+  // capability list no longer offers it; a stale pick must not be restored.
   localStorage.setItem(WORKBUDDY_SETTINGS_STORAGE_KEY, JSON.stringify({ permissionMode: 'plan' }));
 
-  assert.equal(await resolvedModeFor('workbuddy'), 'plan');
+  assert.equal(await resolvedModeFor('workbuddy'), 'auto');
 });
 
 test('a mode picked in the composer outranks the stored default', async () => {

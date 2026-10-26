@@ -125,10 +125,13 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     provider: 'workbuddy',
     effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
     // The embedded CodeBuddy engine shares the app's permission-mode
-    // vocabulary (default/acceptEdits/bypassPermissions/plan), passed through
-    // `--permission-mode` on every run.
-    permissionModes: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
-    defaultPermissionMode: 'default',
+    // vocabulary, but `-p` has no interactive approver and this provider
+    // surfaces no permission requests (`supportsPermissionRequests: false`).
+    // Modes that wait for one (`default`, `acceptEdits`, `plan`) hang the turn
+    // until the run timeout, so only the self-answering modes are offered:
+    // `auto` approves in-process, `bypassPermissions` skips the checks.
+    permissionModes: ['auto', 'bypassPermissions'],
+    defaultPermissionMode: 'auto',
     // Images and files reach the engine as stream-json input blocks; token
     // usage is summarized from the `message.usage` blocks persisted on
     // assistant/function_call transcript rows.

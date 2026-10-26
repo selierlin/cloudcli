@@ -32,8 +32,6 @@ type ZcodeTokenTotals = {
   inputTokens: number;
   outputTokens: number;
   reasoningTokens: number;
-  cacheReadTokens: number;
-  cacheWriteTokens: number;
 };
 
 /** Opens the ZCode SQLite store read-only, or returns null when it does not exist. */
@@ -130,14 +128,15 @@ const buildTokenUsage = (totals: ZcodeTokenTotals | undefined): AnyRecord | unde
     return undefined;
   }
 
+  // ZCode folds the cache buckets into `tokens.input` (its per-turn `total` is
+  // exactly `input + output`), so `input` is already the whole prompt. Adding
+  // `cache.read` back would report a warm-prefix prompt twice. OpenCode shares
+  // this store schema but the opposite convention, so its reader does add it.
   const inputTokens = totals.inputTokens;
-  const displayInputTokens = inputTokens + totals.cacheReadTokens;
   const outputTokens = totals.outputTokens;
   const used = inputTokens
     + outputTokens
-    + totals.reasoningTokens
-    + totals.cacheReadTokens
-    + totals.cacheWriteTokens;
+    + totals.reasoningTokens;
 
   if (used <= 0) {
     return undefined;
@@ -145,10 +144,10 @@ const buildTokenUsage = (totals: ZcodeTokenTotals | undefined): AnyRecord | unde
 
   return {
     used,
-    inputTokens: displayInputTokens,
+    inputTokens,
     outputTokens,
     breakdown: {
-      input: displayInputTokens,
+      input: inputTokens,
       output: outputTokens,
     },
   };
@@ -171,8 +170,6 @@ const aggregateZcodeSessionTokenUsage = (
   let inputTokens = 0;
   let outputTokens = 0;
   let reasoningTokens = 0;
-  let cacheReadTokens = 0;
-  let cacheWriteTokens = 0;
 
   for (const row of rows) {
     const info = readJsonRecord(row.data);
@@ -188,17 +185,12 @@ const aggregateZcodeSessionTokenUsage = (
     inputTokens += Number(tokens.input ?? 0);
     outputTokens += Number(tokens.output ?? 0);
     reasoningTokens += Number(tokens.reasoning ?? 0);
-    const cache = readObjectRecord(tokens.cache);
-    cacheReadTokens += Number(cache?.read ?? 0);
-    cacheWriteTokens += Number(cache?.write ?? 0);
   }
 
   return buildTokenUsage({
     inputTokens,
     outputTokens,
     reasoningTokens,
-    cacheReadTokens,
-    cacheWriteTokens,
   });
 };
 
