@@ -5,7 +5,7 @@ import type { TFunction } from 'i18next';
 import { ActionMenu, Dialog, DialogContent, DialogTitle, LLMProviderLogo, ScrollArea } from '@/shared/ui';
 import { cn, isImeKeyEvent } from '@/shared/utils';
 import type { ArchivedProjectListItem, ArchivedSessionListItem, ConversationProjectResult, ConversationSearchResults, LLMProvider, Project, RecentConversationListItem, ReleaseInfo, SearchProgress, SessionTitleSearchResult, SidebarProjectListProps, SidebarSearchMode } from '@/shared/types';
-import { formatCompactAge, getAllSessions } from '@/modules/sidebar/utils/sidebarProjectFormatting';
+import { formatCompactAge, getAllSessions, PROVIDER_LABELS } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import { buildSessionOwnershipMenuItems } from '@/modules/sidebar/utils/sessionOwnershipMenuItems';
 import { useCopyProviderSessionId } from '@/modules/sidebar/hooks/useCopyProviderSessionId';
 import { useSessionParentPicker } from '@/modules/sidebar/context/SessionParentPickerContext';
@@ -1551,7 +1551,7 @@ export default function SidebarContent({
                                     : String(session.id))}
                               </p>
                               <div className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground/70">
-                                <span className="uppercase tracking-wide">{session.__provider}</span>
+                                <span className="tracking-wide">{PROVIDER_LABELS[session.__provider] ?? session.__provider}</span>
                                 <span aria-hidden>·</span>
                                 <span className="tabular-nums">
                                   {formatCompactAge(
@@ -1663,7 +1663,7 @@ export default function SidebarContent({
                                 {session.sessionTitle}
                               </p>
                               <div className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground/70">
-                                <span className="uppercase tracking-wide">{session.provider}</span>
+                                <span className="tracking-wide">{PROVIDER_LABELS[session.provider] ?? session.provider}</span>
                                 {session.lastActivity && (
                                   <>
                                     <span aria-hidden>·</span>
