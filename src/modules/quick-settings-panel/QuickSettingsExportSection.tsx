@@ -1,10 +1,11 @@
-import { ChevronDown, ChevronRight, Download, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, Loader2, Share2Icon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
   createCachedDiffCalculator,
   downloadTranscriptExport,
+  ShareTranscriptDialog,
   type TranscriptExportFormat,
 } from '@/modules/chat';
 import { SETTING_ROW_CLASS } from '@/shared/constants';
@@ -14,6 +15,8 @@ import type { ChatMessage, LLMProvider, Project } from '@/shared/types';
 type QuickSettingsExportSectionProps = {
   messages: ChatMessage[];
   sessionTitle?: string;
+  /** Published with the whole-session share; null for a not-yet-persisted session. */
+  sessionId?: string | null;
   provider: LLMProvider;
   selectedProject: Project | null;
   /** Controlled expand state — expanding loads the full transcript via the panel hook. */
@@ -58,6 +61,7 @@ function estimateTextBytes(messages: ChatMessage[]): number {
 export default function QuickSettingsExportSection({
   messages,
   sessionTitle,
+  sessionId,
   provider,
   selectedProject,
   isOpen,
@@ -67,6 +71,9 @@ export default function QuickSettingsExportSection({
   const { t } = useTranslation('settings');
   const [pendingFormat, setPendingFormat] = useState<TranscriptExportFormat | null>(null);
   const [failed, setFailed] = useState(false);
+  // The publish dialog owns its own build/upload lifecycle; this only tracks
+  // whether it is on screen, so closing it never disturbs the export rows.
+  const [shareOpen, setShareOpen] = useState(false);
 
   const createDiff = createCachedDiffCalculator();
   const exportInput = {
@@ -167,6 +174,17 @@ export default function QuickSettingsExportSection({
                   )}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => setShareOpen(true)}
+                disabled={isBusy}
+                className={`${SETTING_ROW_CLASS} w-full ${isBusy ? 'cursor-default opacity-60' : 'cursor-pointer'}`}
+              >
+                <span className="flex items-center gap-2 text-sm text-foreground">
+                  <Share2Icon className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                  {t('quickSettings.export.share')}
+                </span>
+              </button>
               {failed && (
                 <p role="alert" className="text-xs text-destructive">
                   {t('transcript.selection.exportFailed', { ns: 'chat' })}
@@ -175,6 +193,17 @@ export default function QuickSettingsExportSection({
             </>
           )}
         </div>
+      )}
+
+      {shareOpen && (
+        <ShareTranscriptDialog
+          onClose={() => setShareOpen(false)}
+          messages={messages}
+          sessionTitle={exportInput.sessionTitle}
+          provider={provider}
+          selectedProject={selectedProject}
+          sessionId={sessionId}
+        />
       )}
     </div>
   );

@@ -368,6 +368,38 @@ CREATE TABLE IF NOT EXISTS auth_events (
 );
 `;
 
+/**
+ * Frozen snapshots published at `/s/:token`.
+ *
+ * A share is a copy, not a pointer: the HTML file holds everything the viewer
+ * sees, so the link keeps working after the session is renamed, continued, or
+ * deleted. `session_id` is therefore deliberately not a foreign key.
+ *
+ * `token_hash` is what the public route looks a link up by; `token` keeps the
+ * plaintext so the settings list can show and re-copy a link after the creation
+ * dialog is gone. The trade is deliberate: this database already holds
+ * `jwt_secret`, so a copy of it can mint a login anyway, and a share token adds
+ * nothing to that. `file_name` is the share id, so the token never appears in a
+ * path. Expiry and revocation are checked on every read; the row is kept after
+ * revocation so a second DELETE still answers "already revoked" rather than
+ * "unknown".
+ */
+export const SHARED_TRANSCRIPTS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS shared_transcripts (
+    share_id TEXT PRIMARY KEY,
+    token_hash TEXT NOT NULL UNIQUE,
+    token TEXT,
+    session_id TEXT,
+    title TEXT NOT NULL DEFAULT '',
+    file_name TEXT NOT NULL,
+    byte_size INTEGER NOT NULL DEFAULT 0,
+    message_count INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    expires_at TEXT NOT NULL,
+    revoked_at TEXT
+);
+`;
+
 export const INIT_SCHEMA_SQL = `
 -- Initialize authentication database
 PRAGMA foreign_keys = ON;
@@ -428,4 +460,8 @@ ${AUTH_EVENTS_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_auth_events_created_at ON auth_events(created_at);
 CREATE INDEX IF NOT EXISTS idx_auth_events_type ON auth_events(event_type);
 CREATE INDEX IF NOT EXISTS idx_auth_events_username ON auth_events(username);
+
+${SHARED_TRANSCRIPTS_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_shared_transcripts_session
+ON shared_transcripts(session_id, created_at);
 `;

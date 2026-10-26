@@ -44,6 +44,8 @@ export type {
   SessionDraftRecord,
 } from '@/modules/database/repositories/session-drafts.db.js';
 export { sessionsDb } from '@/modules/database/repositories/sessions.db.js';
+// sharedTranscriptsDb: used by the Shares module to persist published snapshots.
+export { sharedTranscriptsDb } from './repositories/shared-transcripts.db.js';
 // sessionReadStateDb: used by User to persist each user's per-session read watermark.
 export { sessionReadStateDb } from '@/modules/database/repositories/session-read-state.db.js';
 export { userDb } from '@/modules/database/repositories/users.js';

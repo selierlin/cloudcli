@@ -20,6 +20,28 @@ type BuildTranscriptHtmlInput = {
   exportedAt: Date;
   /** The whole conversation when `messages` is only the picked rows. */
   totalMessages?: ChatMessage[];
+  /**
+   * True when `messages` is a picked subset even if `totalMessages` is absent.
+   *
+   * `totalMessages` is only supplied while the whole history is in memory; a
+   * paginated session cannot name a total, but it still has to say that the
+   * document is not the whole conversation.
+   */
+  isExcerpt?: boolean;
+  /**
+   * Whether the document carries its own behaviour: the theme toggle, the
+   * print-unfold script and the copy buttons.
+   *
+   * A downloaded file keeps it. A published snapshot (`/s/:token`) does not:
+   * that page is served under a CSP that forbids scripts, so a handler would
+   * only produce a button that does nothing. Rendering the document without its
+   * scripts is also what lets that policy stay strict — the policy, not the
+   * markup, is what stops an uploaded document from running code on the app's
+   * own origin, where the reader's token lives.
+   *
+   * Defaults to true.
+   */
+  interactive?: boolean;
 };
 
 /**
@@ -336,6 +358,7 @@ export async function buildTranscriptHtml(input: BuildTranscriptHtmlInput): Prom
   // stray space in the tag.
   const rootAttributeList = rootAttributes ? ` ${rootAttributes}` : '';
   const exportedAt = escapeHtml(input.exportedAt.toLocaleString());
+  const interactive = input.interactive !== false;
   // The header counts the conversation, not the plumbing: one question that
   // ran twenty tool calls is still one message and one answer.
   const messageKeys = buildTranscriptMessageKeys(messages);
@@ -348,19 +371,28 @@ export async function buildTranscriptHtml(input: BuildTranscriptHtmlInput): Prom
   // no longer drops the user back into English.
   const t = i18n.getFixedT(null, 'chat');
   const lang = escapeHtml(i18n.language || 'en');
-  // A partial export has to say so: the header's own count describes the file,
-  // and a reader would otherwise take four picked rows for the whole session.
+  // A snapshot that cannot run scripts must not show their trigger either.
+  const themeToggle = interactive
+    ? `<button type="button" class="chat-export-theme-toggle" onclick="document.documentElement.classList.toggle('dark')">${t('export.toggleTheme')}</button>`
+    : '';
+  // An excerpt has to say so: the header counts what the file holds, and a
+  // reader would otherwise take four picked rows for the whole session. The
+  // total only exists while the whole history is in memory, so an excerpt
+  // without one states its own size rather than inventing a denominator.
   const totalVisibleCount = (() => {
-    if (!input.totalMessages) return messageCount;
+    if (!input.totalMessages) return null;
     const keys = buildTranscriptMessageKeys(input.totalMessages);
     return countVisibleTranscriptMessages(
       input.totalMessages,
       (message) => keys.get(message) ?? getTranscriptMessageKey(message),
     );
   })();
-  const messageSummary = totalVisibleCount > messageCount
-    ? t('export.partialMessages', { count: messageCount, total: totalVisibleCount })
-    : t('export.messages', { count: messageCount });
+  let messageSummary = t('export.messages', { count: messageCount });
+  if (totalVisibleCount !== null && totalVisibleCount > messageCount) {
+    messageSummary = t('export.partialMessages', { count: messageCount, total: totalVisibleCount });
+  } else if (input.isExcerpt) {
+    messageSummary = t('export.excerptMessages', { count: messageCount });
+  }
   // Whoever receives the file has none of the app's context around it: name the
   // tool that produced the transcript, the project it belongs to, and the
   // window it covers. Each part is optional, so an export missing one keeps the
@@ -501,10 +533,11 @@ ${styles}
       <p class="chat-export-meta">${messageSummary} · ${t('export.exportedAt', { time: exportedAt })}</p>
       ${contextLine ? `<p class="chat-export-meta">${contextLine}</p>` : ''}
     </div>
-    <button type="button" class="chat-export-theme-toggle" onclick="document.documentElement.classList.toggle('dark')">${t('export.toggleTheme')}</button>
+    ${themeToggle}
   </header>
   ${body}
 </div>
+${interactive ? `
 <script>
 /* Printing hides a closed <details> completely — the body is not laid out. A
    transcript that keeps its runs folded would therefore print as bare summary
@@ -595,6 +628,7 @@ ${styles}
   });
 })();
 </script>
+` : ''}
 </body>
 </html>`;
 }

@@ -78,7 +78,20 @@ describe('markdown export', () => {
 
     // Without the total, three picked rows are indistinguishable from a
     // three-message conversation that was exported whole.
-    expect(markdown).toContain('1 of 3 messages selected');
+    expect(markdown).toContain('Excerpt · 1 of 3 messages');
+  });
+
+  it('still says excerpt when the session total is unknown', async () => {
+    const markdown = await buildTranscriptExport('markdown', {
+      ...input,
+      messages: [userMessage],
+      isExcerpt: true,
+    }, exportedAt);
+
+    // A paginated session has no trustworthy total. It must not borrow the
+    // file's own count and read as a whole three-message conversation.
+    expect(markdown).toContain('Excerpt · 1 messages');
+    expect(markdown).toContain('· exported');
   });
 
   it('counts the whole conversation when nothing was picked', async () => {
@@ -88,7 +101,7 @@ describe('markdown export', () => {
     }, exportedAt);
 
     expect(markdown).toContain('3 messages · exported');
-    expect(markdown).not.toContain('selected');
+    expect(markdown).not.toContain('Excerpt');
   });
 
   it('fences content that already contains a fence', async () => {
@@ -759,6 +772,27 @@ describe('html export message footer', () => {
     assert.ok(narration);
     assert.equal(narration.closest('.chat-message')?.querySelector('[data-export-copy]'), null);
   });
+
+  // A published snapshot is served from the app's own origin under a CSP with
+  // no `script-src`, so anything the document tries to run is blocked. Shipping
+  // the handlers anyway would leave the reader with a theme button and copy
+  // buttons that look live and do nothing.
+  it('renders a non-interactive document without scripts or their triggers', async () => {
+    const html = await buildTranscriptExport('html', { ...input, interactive: false }, exportedAt);
+
+    assert.equal(html.includes('<script'), false);
+    assert.equal(html.includes('onclick='), false);
+    assert.equal(html.includes('chat-export-theme-toggle"'), false);
+    // The transcript itself is unaffected: only the behaviour goes away.
+    assert.ok(html.includes('Please rename the helper'));
+  });
+
+  it('keeps the scripts for a downloaded file', async () => {
+    const html = await buildTranscriptExport('html', input, exportedAt);
+
+    assert.ok(html.includes('<script'));
+    assert.ok(html.includes('onclick='));
+  });
 });
 
 
@@ -810,6 +844,22 @@ describe('html export header context', () => {
       summary.includes(chatT('export.partialMessages', { count: 1, total: 2 })),
       'a picked subset never claims to be the whole conversation',
     );
+  });
+
+  it('still says excerpt when the session total is unknown', async () => {
+    const doc = parseExport(
+      await buildTranscriptExport('html', {
+        ...input,
+        messages: [userMessage],
+        isExcerpt: true,
+      }, exportedAt),
+    );
+    const summary = doc.querySelector('.chat-export-meta')?.textContent ?? '';
+
+    // A paginated session cannot name the conversation's size; the document
+    // says so without printing a total that would be the file's own count.
+    assert.ok(summary.includes(chatT('export.excerptMessages', { count: 1 })));
+    assert.equal(summary.includes(chatT('export.partialMessages', { count: 1, total: 1 })), false);
   });
 
   it('counts the whole conversation when nothing was picked', async () => {

@@ -87,7 +87,8 @@
       "title": "导出对话",
       "loading": "正在加载聊天记录…",
       "generating": "正在生成 {{format}}…",
-      "sizeHint": "文本约 {{size}}（不含图片），生成需要几秒"
+      "sizeHint": "文本约 {{size}}（不含图片），生成需要几秒",
+      "share": "分享链接…"
     },
     "theme": "主题",
     "showRawParameters": "显示原始参数",
@@ -152,7 +153,8 @@
     "plugins": "插件",
     "network": "网络",
     "about": "关于",
-    "loginLog": "登录日志"
+    "loginLog": "登录日志",
+    "shares": "分享链接"
   },
   "browser": {
     "title": "浏览器",
@@ -1250,5 +1252,25 @@
       "register": "注册",
       "agent_auth_failure": "API key 校验失败"
     }
+  },
+  "shares": {
+    "description": "已发布的对话链接。撤销后链接立即失效，服务器上的快照文件也会一并删除。",
+    "empty": "还没有分享过链接。可以在导出区或选择消息后点「分享」创建。",
+    "loading": "正在加载…",
+    "loadFailed": "加载分享列表失败",
+    "retry": "重试",
+    "copy": "复制",
+    "copied": "已复制",
+    "open": "打开",
+    "revoke": "撤销",
+    "revoking": "撤销中…",
+    "revokedAt": "于 {{time}} 撤销",
+    "expiresAt": "{{time}} 过期",
+    "messageCount": "{{count}} 条消息",
+    "statusActive": "有效",
+    "statusRevoked": "已撤销",
+    "untitled": "未命名对话",
+    "linkUnavailable": "这条分享创建于旧版本，链接无法再次显示，只能撤销。",
+    "confirmRevoke": "撤销后该链接立即失效且无法恢复。确定撤销？"
   }
 }

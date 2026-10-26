@@ -10,6 +10,7 @@ import {
   PUSH_SUBSCRIPTIONS_TABLE_SCHEMA_SQL,
   SESSION_DRAFTS_TABLE_SCHEMA_SQL,
   SESSION_READ_STATE_TABLE_SCHEMA_SQL,
+  SHARED_TRANSCRIPTS_TABLE_SCHEMA_SQL,
   SUPERSEDED_PROVIDER_SESSIONS_TABLE_SCHEMA_SQL,
   SCHEDULED_MESSAGES_TABLE_SCHEMA_SQL,
   SESSIONS_TABLE_SCHEMA_SQL,
@@ -482,6 +483,20 @@ const addSessionModelColumn = (db: Database): void => {
 };
 
 /**
+ * Adds the `token` column that lets the settings list show a share link again.
+ *
+ * Shares created before this column existed stay NULL: their token was never
+ * kept, so the list can only offer revoke for them.
+ */
+const addSharedTranscriptTokenColumn = (db: Database): void => {
+  if (!tableExists(db, 'shared_transcripts')) {
+    return;
+  }
+  const columnNames = getTableInfo(db, 'shared_transcripts').map((column) => column.name);
+  addColumnToTableIfNotExists(db, 'shared_transcripts', columnNames, 'token', 'TEXT');
+};
+
+/**
  * Adds the `effort` column that records a session's reasoning-effort choice.
  *
  * Existing rows stay NULL so clients can continue falling back to their
@@ -721,6 +736,9 @@ export const runMigrations = (db: Database) => {
     addSessionIsEphemeralColumn(db);
     ensureProjectsForSessionPaths(db);
     db.exec(SCHEDULED_MESSAGES_TABLE_SCHEMA_SQL);
+    db.exec(SHARED_TRANSCRIPTS_TABLE_SCHEMA_SQL);
+    addSharedTranscriptTokenColumn(db);
+    db.exec('CREATE INDEX IF NOT EXISTS idx_shared_transcripts_session ON shared_transcripts(session_id, created_at)');
 
     db.exec('CREATE INDEX IF NOT EXISTS idx_session_ids_lookup ON sessions(session_id)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_provider_session_id ON sessions(provider_session_id)');

@@ -123,7 +123,27 @@
       "exportMarkdown": "Export Markdown",
       "generating": "Generating {{format}}…",
       "exportFailed": "Export failed — no file was written",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "share": "Share"
+    },
+    "share": {
+      "title": "Share conversation",
+      "description": "Publish {{count}} messages as a public link.",
+      "building": "Building the snapshot…",
+      "warning": "Anyone with the link can open it — no sign-in required.",
+      "create": "Create link",
+      "creating": "Creating…",
+      "linkLabel": "Share link",
+      "copy": "Copy link",
+      "copied": "Copied",
+      "expires": "Expires {{date}}",
+      "manageHint": "You can view and revoke it later under Settings → Shared Links.",
+      "revoke": "Revoke link",
+      "revoking": "Revoking…",
+      "revoked": "The link was revoked. Anyone holding it can no longer open it.",
+      "error": "Sharing failed. Please try again.",
+      "retry": "Retry",
+      "close": "Close"
     }
   },
   "json": {
@@ -535,8 +555,9 @@
       "label": "JSON (.json)",
       "description": "Every message, unformatted, for tooling."
     },
+    "excerptMessages": "Excerpt · {{count}} messages",
     "messages": "{{count}} messages",
-    "partialMessages": "{{count}} of {{total}} messages selected",
+    "partialMessages": "Excerpt · {{count}} of {{total}} messages",
     "projectName": "Project {{name}}",
     "exportedAt": "exported {{time}}",
     "toggleTheme": "Toggle theme"

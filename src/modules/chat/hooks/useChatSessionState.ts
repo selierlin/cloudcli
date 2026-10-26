@@ -3,7 +3,7 @@ import type { MutableRefObject } from 'react';
 
 import { api } from '@/shared/api';
 import type { MarkSessionIdle, SessionActivityMap,Project,ProjectSession,LLMProvider,NormalizedMessage,ChatMessage,DiffCalculator,TranscriptRevealRequest } from '@/shared/types';
-import type { SessionStore } from '@/modules/chat/hooks/useSessionStore';
+import type { SessionSlot, SessionStore } from '@/modules/chat/hooks/useSessionStore';
 import { SESSION_MESSAGES_PAGE_SIZE } from '@/modules/chat/utils/sessionMessagePagination';
 import { createMessageHistoryRefreshCoordinator } from '@/modules/chat/utils/messageHistoryRefreshCoordinator';
 import { createCachedDiffCalculator } from '@/modules/chat/utils/messageTransforms';
@@ -13,6 +13,18 @@ import { readSelectedProvider } from '@/shared/selectedProvider';
 import type { SearchTarget } from '@/modules/chat/utils/searchTargetLocator';
 
 const INITIAL_VISIBLE_MESSAGES = 100;
+
+/**
+ * Whether rows after the loaded window still wait to be fetched.
+ *
+ * A transcript can be partial in two independent directions: opening on the
+ * latest page leaves older rows behind (`hasMore`), and a search jump opens a
+ * window in the middle whose continuation cursor points forward. Anything that
+ * claims "this is the whole transcript" has to check both.
+ */
+const hasNewerPageLeft = (slot: Pick<SessionSlot, 'turnPageInfo'>): boolean => (
+  Boolean(slot.turnPageInfo?.newerCursor)
+);
 
 /**
  * Height a page must insert above the reader before the pager latches its
@@ -294,6 +306,12 @@ export function useChatSessionState({
   const [isLoadingSessionMessages, setIsLoadingSessionMessages] = useState(false);
   const [isLoadingMoreMessages, setIsLoadingMoreMessages] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  // The forward half of "is this the whole transcript". Kept beside
+  // `hasMoreMessages` because every writer sets the two from the same slot;
+  // export and share need both ends to call a selection complete, and a row
+  // count cannot stand in for either (the UI drops control rows and folds tool
+  // results into their call).
+  const [hasNewerMessages, setHasNewerMessages] = useState(false);
   const [totalMessages, setTotalMessages] = useState(0);
   const [isUserScrolledUp, setIsUserScrolledUpState] = useState(false);
   const [tokenBudget, setTokenBudget] = useState<Record<string, unknown> | null>(null);
@@ -442,6 +460,7 @@ export function useChatSessionState({
     setPendingUserMessage(null);
     messagesOffsetRef.current = 0;
     setHasMoreMessages(false);
+    setHasNewerMessages(false);
     setTotalMessages(0);
 
     setTokenBudget(null);
@@ -509,6 +528,7 @@ export function useChatSessionState({
     const slot = result.slot;
     if (slot && activeSessionIdRef.current === sessionId) {
       setHasMoreMessages(slot.hasMore);
+      setHasNewerMessages(hasNewerPageLeft(slot));
       setTotalMessages(slot.total);
       messagesOffsetRef.current = slot.offset;
       if (slot.tokenUsage !== undefined) {
@@ -839,6 +859,7 @@ export function useChatSessionState({
         });
         const { slot, prependedCount } = result;
         setHasMoreMessages(slot.hasMore);
+        setHasNewerMessages(hasNewerPageLeft(slot));
         setTotalMessages(slot.total);
         messagesOffsetRef.current = slot.offset;
         if (slot.tokenUsage !== undefined) {
@@ -899,6 +920,7 @@ export function useChatSessionState({
         ),
       });
       setHasMoreMessages(slot.hasMore);
+      setHasNewerMessages(hasNewerPageLeft(slot));
       setTotalMessages(slot.total);
       messagesOffsetRef.current = slot.offset;
       if (slot.tokenUsage !== undefined) {
@@ -1178,6 +1200,7 @@ export function useChatSessionState({
       setCurrentSessionId(null);
       messagesOffsetRef.current = 0;
       setHasMoreMessages(false);
+      setHasNewerMessages(false);
       setTotalMessages(0);
       setTokenBudget(null);
       lastLoadedSessionKeyRef.current = null;
@@ -1211,6 +1234,7 @@ export function useChatSessionState({
     // Reset pagination/scroll state
     messagesOffsetRef.current = 0;
     setHasMoreMessages(false);
+    setHasNewerMessages(false);
     setTotalMessages(0);
     setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
     setAllMessagesLoaded(false);
@@ -1241,6 +1265,7 @@ export function useChatSessionState({
     }).then(slot => {
       if (slot) {
         setHasMoreMessages(slot.hasMore);
+        setHasNewerMessages(hasNewerPageLeft(slot));
         setTotalMessages(slot.total);
         messagesOffsetRef.current = slot.offset;
         if (slot.tokenUsage !== undefined) {
@@ -1348,11 +1373,11 @@ export function useChatSessionState({
               ),
             });
             if (slot) {
-              const hasNewerMessages = Boolean(slot.turnPageInfo?.newerCursor);
+              const loadedEveryDirection = !slot.hasMore && !slot.turnPageInfo?.newerCursor;
               setHasMoreMessages(slot.hasMore);
+              setHasNewerMessages(hasNewerPageLeft(slot));
               setTotalMessages(slot.total);
               messagesOffsetRef.current = slot.offset;
-              const loadedEveryDirection = !slot.hasMore && !hasNewerMessages;
               setAllMessagesLoaded(loadedEveryDirection);
               allMessagesLoadedRef.current = loadedEveryDirection;
             } else if (!isActiveRef.current) {
@@ -1619,6 +1644,7 @@ export function useChatSessionState({
         armScrollRestore(scrollRestoreState);
 
         setHasMoreMessages(false);
+        setHasNewerMessages(false);
         setTotalMessages(slot.total);
         messagesOffsetRef.current = slot.offset;
         setVisibleMessageCount(Infinity);
@@ -1696,6 +1722,7 @@ export function useChatSessionState({
     isLoadingSessionMessages,
     isLoadingMoreMessages,
     hasMoreMessages,
+    hasNewerMessages,
     totalMessages,
     isUserScrolledUp,
     setIsUserScrolledUp,

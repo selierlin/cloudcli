@@ -110,7 +110,27 @@
       "exportMarkdown": "导出 Markdown",
       "generating": "正在生成 {{format}}…",
       "exportFailed": "导出失败，未生成文件",
-      "cancel": "取消"
+      "cancel": "取消",
+      "share": "分享"
+    },
+    "share": {
+      "title": "分享对话",
+      "description": "将 {{count}} 条消息生成一个公开链接。",
+      "building": "正在生成快照…",
+      "warning": "任何拿到链接的人都能打开，无需登录。",
+      "create": "创建链接",
+      "creating": "正在创建…",
+      "linkLabel": "分享链接",
+      "copy": "复制链接",
+      "copied": "已复制",
+      "expires": "{{date}} 失效",
+      "manageHint": "之后可以在「设置 → 分享链接」里查看和撤销。",
+      "revoke": "撤销链接",
+      "revoking": "正在撤销…",
+      "revoked": "链接已撤销，持有者将无法再打开。",
+      "error": "分享失败，请重试。",
+      "retry": "重试",
+      "close": "关闭"
     }
   },
   "json": {
@@ -514,8 +534,9 @@
       "label": "JSON (.json)",
       "description": "全部消息原样输出，供工具使用。"
     },
+    "excerptMessages": "会话节选 · {{count}} 条消息",
     "messages": "{{count}} 条消息",
-    "partialMessages": "选中 {{count}} / 共 {{total}} 条消息",
+    "partialMessages": "会话节选 · {{count}} / 共 {{total}} 条消息",
     "projectName": "项目 {{name}}",
     "exportedAt": "导出于 {{time}}",
     "toggleTheme": "切换主题"

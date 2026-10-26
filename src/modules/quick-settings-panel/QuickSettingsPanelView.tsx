@@ -29,6 +29,18 @@ type QuickSettingsPanelViewProps = {
 /** Matches the `w-80` class on the mobile overlay, whose width never reads the stored desktop width. */
 const MOBILE_PANEL_WIDTH = 320;
 
+/**
+ * Whether a click landed in a modal dialog rendered above the panel.
+ *
+ * Dialogs portal to `document.body` (`DialogContent`), so nothing inside one is
+ * a descendant of `panelRef`; without this the panel treats every click in its
+ * own share dialog as an outside click. The hook sits on the portal root rather
+ * than on `[role="dialog"]` because the overlay is a sibling of the card.
+ */
+const isInDialogLayer = (target: EventTarget | null): boolean => (
+  target instanceof Element && target.closest('[data-dialog-layer]') !== null
+);
+
 /** Exported as QuickSettingsPanel and rendered by the project-workspace module as its quick settings drawer — an overlay by default, docked into the workspace row when pinned. */
 function QuickSettingsPanelView({ selectedProject, onInsertCommand }: QuickSettingsPanelViewProps) {
   const { t } = useTranslation('settings');
@@ -112,6 +124,13 @@ function QuickSettingsPanelView({ selectedProject, onInsertCommand }: QuickSetti
       if (event.key !== 'Escape' || event.defaultPrevented || isImeKeyEvent(event)) {
         return;
       }
+      // A dialog opened from the panel is the topmost layer and owns Escape.
+      // Asking the document (not the event target) matters: the portal focuses
+      // its first field on the next frame, so for that frame focus is still on
+      // the panel while the dialog is already on screen.
+      if (document.querySelector('[data-dialog-layer]')) {
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       close();
@@ -135,6 +154,11 @@ function QuickSettingsPanelView({ selectedProject, onInsertCommand }: QuickSetti
       if (!target) return;
       if (panelRef.current?.contains(target)) return;
       if (handleRef.current?.contains(target)) return;
+      // A dialog opened from the panel is above it, not away from it. Treating
+      // its clicks as outside ones closes the panel underneath — in docked mode
+      // that unmounts the dialog mid-gesture, so the button the user pressed
+      // never runs its handler.
+      if (isInDialogLayer(target)) return;
       close();
     };
 
@@ -179,6 +203,7 @@ function QuickSettingsPanelView({ selectedProject, onInsertCommand }: QuickSetti
           <QuickSettingsContent
             messages={chatMessages}
             sessionTitle={selectedSession?.title}
+            sessionId={selectedSession?.id ?? null}
             provider={selectedSession?.__provider ?? selectedSession?.provider ?? 'claude'}
             selectedProject={selectedProject}
             exportExpanded={exportExpanded}

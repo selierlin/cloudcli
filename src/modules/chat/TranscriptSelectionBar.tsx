@@ -1,4 +1,4 @@
-import { DownloadIcon, Loader2, XIcon } from 'lucide-react';
+import { DownloadIcon, Loader2, Share2Icon, XIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import type { PartialExportFormat } from '@/modules/chat/utils/chatExport';
@@ -11,19 +11,22 @@ type TranscriptSelectionBarProps = {
   /** Format currently being built, if any; both buttons stay disabled meanwhile. */
   busyFormat: PartialExportFormat | null;
   onExport: (format: PartialExportFormat) => void;
+  /** Opens the publish dialog for the picked rows. */
+  onShare: () => void;
   onCancel: () => void;
 };
 
 /**
  * Rendered by chat's ChatInterface above the composer while the reader is
  * picking turns for a partial export. It is the only confirmation surface for
- * the mode: the count, the two formats, and the way out.
+ * the mode: the count, the two formats, publishing, and the way out.
  */
 export default function TranscriptSelectionBar({
   selectedCount,
   failed = false,
   busyFormat,
   onExport,
+  onShare,
   onCancel,
 }: TranscriptSelectionBarProps) {
   const { t } = useTranslation('chat');
@@ -66,6 +69,15 @@ export default function TranscriptSelectionBar({
             : format.label}
         </button>
       ))}
+      <button
+        type="button"
+        onClick={onShare}
+        disabled={isBusy || selectedCount === 0}
+        className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-foreground transition-colors hover:bg-muted disabled:cursor-default disabled:opacity-50"
+      >
+        <Share2Icon className="h-3.5 w-3.5" aria-hidden="true" />
+        {t('transcript.selection.share')}
+      </button>
       <button
         type="button"
         onClick={onCancel}

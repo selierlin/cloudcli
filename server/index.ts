@@ -56,6 +56,7 @@ import {
 } from './modules/scheduled-messages/index.js';
 import browserUseRoutes from './modules/browser-use/browser-use.routes.js';
 import { assetsRoutes } from './modules/assets/index.js';
+import { publicSharesRoutes, sharesRoutes, sweepExpiredShares } from './modules/shares/index.js';
 import { themesRoutes } from './modules/themes/index.js';
 import { fileTreeRoutes } from './modules/file-tree/index.js';
 import { worktreesRoutes } from './modules/worktrees/index.js';
@@ -204,6 +205,13 @@ app.use('/api', validateApiKey);
 
 // Authentication routes (public)
 app.use('/api/auth', authRoutes);
+
+// Published transcript links. Public by design: the random token in the URL is
+// the only credential a recipient has, and it is checked per request.
+app.use('/s', publicSharesRoutes);
+
+// Publishing and revoking those links (protected)
+app.use('/api/shares', authenticateToken, sharesRoutes);
 
 // File Tree API Routes (protected)
 app.use('/api/file-tree', authenticateToken, fileTreeRoutes);
@@ -398,6 +406,15 @@ async function startServer() {
             authEventsDb.pruneOlderThan(90);
         } catch (error) {
             console.warn('[WARN] Could not prune auth_events:', getErrorMessage(error));
+        }
+
+        // Best-effort share retention: expired snapshots are also swept on
+        // every listing and on every open, but a link nobody touches would keep
+        // its HTML on disk past its stated expiry. Runs once per boot.
+        try {
+            await sweepExpiredShares();
+        } catch (error) {
+            console.warn('[WARN] Could not sweep expired shares:', getErrorMessage(error));
         }
 
         // Seed the app-side MCP catalog from the harnesses' existing user-scope

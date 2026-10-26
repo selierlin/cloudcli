@@ -38,6 +38,7 @@ import { downloadTranscriptExport } from '@/modules/chat/utils/chatExport';
 import type { PartialExportFormat } from '@/modules/chat/utils/chatExport';
 import { buildTailAnchoredMessageKeys, getTranscriptMessageKey } from '@/modules/chat/utils/messageKeys';
 import { collectSelectedMessages } from '@/modules/chat/utils/transcriptSelection';
+import { countVisibleTranscriptMessages } from '@/modules/chat/utils/executionProcess';
 import {
   useProcessingSessions,
   useSessionProtectionActions,
@@ -47,6 +48,7 @@ import ChatComposer from '@/modules/chat/composer/ChatComposer';
 import CommandResultModal from '@/modules/chat/modals/CommandResultModal';
 import ScrollToBottomAffordance from '@/modules/chat/ScrollToBottomAffordance';
 import TranscriptSelectionBar from '@/modules/chat/TranscriptSelectionBar';
+import ShareTranscriptDialog from '@/modules/chat/ShareTranscriptDialog';
 
 type ChatInterfaceProps = {
   isActive: boolean;
@@ -211,6 +213,7 @@ function ChatInterface({
     isLoadingSessionMessages,
     isLoadingMoreMessages,
     hasMoreMessages,
+    hasNewerMessages,
     totalMessages,
     isUserScrolledUp,
     tokenBudget,
@@ -753,6 +756,9 @@ function ChatInterface({
   // Set when the last attempt threw; the bar reports it until the next attempt
   // or until the reader leaves the mode.
   const [selectionExportFailed, setSelectionExportFailed] = useState(false);
+  // Publishing has its own confirmation flow, so it stays open independently of
+  // the export buttons and never touches the downloaded file.
+  const [shareSelectionOpen, setShareSelectionOpen] = useState(false);
 
   // Same tail-anchored keys the pane renders, so a row picked before older
   // history is prepended keeps pointing at the same row.
@@ -781,6 +787,28 @@ function ChatInterface({
       ? []
       : collectSelectedMessages(chatMessages, exportRowKeys, getExportMessageKey)),
     [chatMessages, exportRowKeys, getExportMessageKey],
+  );
+  // The exported header names the conversation's size, so the denominator has
+  // to be the session, not the page. A paginated session keeps only a window in
+  // memory (a search hit can even leave newer rows out); there the export says
+  // "excerpt" without a total instead of publishing a number that is too small.
+  //
+  // Both directions have to be checked, and neither can be read off a count:
+  // `chatMessages` drops control rows and folds tool results into their call,
+  // while `totalMessages` counts the server's rows, so the two never match for
+  // a session that used a tool.
+  const wholeTranscriptLoaded = !hasMoreMessages && !hasNewerMessages;
+  // "I picked everything" is a different question from "the whole transcript is
+  // in memory", and array lengths cannot answer it: the pickable rows are a
+  // strict subset of the transcript (process rows are picked through their
+  // turn), and rows above the loaded window's first turn belong to no turn at
+  // all. Compare the two tallies the header itself uses instead, so picking
+  // every row a reader would count reads as the whole conversation.
+  const selectionIsWholeTranscript = useMemo(
+    () => wholeTranscriptLoaded
+      && countVisibleTranscriptMessages(selectedExportMessages, getExportMessageKey)
+        === countVisibleTranscriptMessages(chatMessages, getExportMessageKey),
+    [chatMessages, getExportMessageKey, selectedExportMessages, wholeTranscriptLoaded],
   );
 
   // Turning the mode on gives every pickable row a mark, which narrows its
@@ -831,8 +859,13 @@ function ChatInterface({
         createDiff,
         // The file names its own subset, so the reader can tell a pick from a
         // short conversation.
-        totalMessages: chatMessages,
+        totalMessages: wholeTranscriptLoaded ? chatMessages : undefined,
+        isExcerpt: !selectionIsWholeTranscript,
       }, t('export.filePrefix', { defaultValue: 'conversation' }));
+      // Same rule as sharing: the file exists now, so the picking has done its
+      // job and the transcript goes back to the reader instead of leaving them
+      // in a mode with nothing left to do.
+      handleCancelExportSelection();
     } catch (error) {
       // The bar is the only confirmation surface this mode has, so a failure
       // has to be said there: resetting the busy state silently would look
@@ -845,12 +878,15 @@ function ChatInterface({
   }, [
     chatMessages,
     createDiff,
+    handleCancelExportSelection,
     provider,
     selectedExportMessages,
     selectedProject,
     selectedSession?.title,
     selectionExportFormat,
+    selectionIsWholeTranscript,
     t,
+    wholeTranscriptLoaded,
   ]);
 
   // Picking rows is a mode, not a panel: the composer must not accept text,
@@ -966,6 +1002,7 @@ function ChatInterface({
                 failed={selectionExportFailed}
                 busyFormat={selectionExportFormat}
                 onExport={(format) => { void handleExportSelectedRows(format); }}
+                onShare={() => setShareSelectionOpen(true)}
                 onCancel={handleCancelExportSelection}
               />
             </div>
@@ -1104,6 +1141,23 @@ function ChatInterface({
         currentSessionId={currentSessionId || selectedSession?.id || null}
         onSelectProviderModel={selectProviderModel}
       />
+
+      {shareSelectionOpen && (
+        <ShareTranscriptDialog
+          onClose={() => setShareSelectionOpen(false)}
+          // Publishing finishes the pick, so the reader leaves the mode as soon
+          // as the link exists instead of coming back to a transcript they can
+          // no longer type into.
+          onShared={handleCancelExportSelection}
+          messages={selectedExportMessages}
+          sessionTitle={selectedSession?.title || t('export.untitled', { defaultValue: 'Conversation' })}
+          provider={provider}
+          selectedProject={selectedProject}
+          sessionId={selectedSession?.id ?? null}
+          totalMessages={wholeTranscriptLoaded ? chatMessages : undefined}
+          isExcerpt={!selectionIsWholeTranscript}
+        />
+      )}
     </PermissionContext.Provider>
   );
 }

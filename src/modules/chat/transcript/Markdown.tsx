@@ -103,12 +103,19 @@ const MarkdownTable = ({ children, scrollHint }: { children?: React.ReactNode; s
   return (
     // The outer wrapper owns `relative` + `group` so the copy button stays
     // pinned to the visible top-right corner while the table scrolls beneath it.
-    <div className="group relative my-3" data-export-copy-group={isExporting ? 'table' : undefined}>
+    // The export shows that button permanently, so the last header cell gets
+    // extra room on wide screens; on a phone the table is wider than the
+    // viewport and the icon would sit on top of the first characters, so it is
+    // hidden there and the message-level copy stays the way to grab the table.
+    <div
+      className={`group relative my-3${isExporting ? ' sm:[&_thead_th:last-child]:pr-10' : ''}`}
+      data-export-copy-group={isExporting ? 'table' : undefined}
+    >
       <CopyButton
         getText={() => childrenToTSV(children)}
         copyLabel={t('codeBlock.copy', { defaultValue: 'Copy' })}
         copiedLabel={t('codeBlock.copied', { defaultValue: 'Copied' })}
-        className="absolute right-2 top-2 z-10 bg-muted/80 backdrop-blur-sm"
+        className={`absolute right-2 top-2 z-10 bg-muted/80 backdrop-blur-sm${isExporting ? ' max-sm:hidden' : ''}`}
       />
       <div className="markdown-table-wrapper overflow-x-auto rounded-lg border border-border">
         {/* my-0 cancels Tailwind Typography's table margin, which would show as blank bands inside the border */}

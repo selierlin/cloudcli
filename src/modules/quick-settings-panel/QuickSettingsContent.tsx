@@ -24,6 +24,8 @@ import QuickSettingsSection from '@/modules/quick-settings-panel/QuickSettingsSe
 type QuickSettingsContentProps = {
   messages: ChatMessage[];
   sessionTitle?: string;
+  /** Published with the whole-session share; null for a not-yet-persisted session. */
+  sessionId?: string | null;
   provider: LLMProvider;
   selectedProject: Project | null;
   exportExpanded: boolean;
@@ -38,6 +40,7 @@ const FONT_SELECT_CLASS =
 export default function QuickSettingsContent({
   messages,
   sessionTitle,
+  sessionId,
   provider,
   selectedProject,
   exportExpanded,
@@ -116,6 +119,7 @@ export default function QuickSettingsContent({
       <QuickSettingsExportSection
         messages={messages}
         sessionTitle={sessionTitle}
+        sessionId={sessionId}
         provider={provider}
         selectedProject={selectedProject}
         isOpen={exportExpanded}

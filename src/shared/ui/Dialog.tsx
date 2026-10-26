@@ -176,7 +176,12 @@ export const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps
     if (!open) return null;
 
     return createPortal(
-      <div className={cn('fixed inset-0 z-50', wrapperClassName)}>
+      // `data-dialog-layer` marks the whole portal root, overlay included, so a
+      // layer that dismisses itself on an outside click (the quick settings
+      // panel) can tell "a dialog is on top of me" apart from "the user clicked
+      // away". `role="dialog"` alone would miss the overlay: it is a sibling of
+      // the content card, not an ancestor.
+      <div data-dialog-layer="" className={cn('fixed inset-0 z-50', wrapperClassName)}>
         {/* Overlay */}
         <div
           className="fixed inset-0 animate-dialog-overlay-show bg-overlay/50 backdrop-blur-sm"

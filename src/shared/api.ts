@@ -353,6 +353,15 @@ export const api = {
     cancel: (id: string) => del(`/api/scheduled-messages/${encodeURIComponent(id)}`),
   },
 
+  // Published transcript links. Creation uploads the already-built HTML, so the
+  // server never has to render a transcript; revoking deletes the readable copy.
+  shares: {
+    create: (body: { html: string; title: string; sessionId?: string | null; messageCount?: number }) =>
+      post('/api/shares', body),
+    list: () => get('/api/shares'),
+    revoke: (shareId: string) => del(`/api/shares/${encodeURIComponent(shareId)}`),
+  },
+
   // Workspace file tree
   readFile: (projectId: string, filePath: string) =>
     get(`/api/file-tree/projects/${projectId}/file${query({ filePath })}`),

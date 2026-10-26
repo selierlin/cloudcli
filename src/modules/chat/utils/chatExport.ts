@@ -8,6 +8,7 @@
  */
 
 import type { ChatMessage, DiffLine, LLMProvider, Project } from '@/shared/types';
+import { api, readApiJson } from '@/shared/api';
 import { buildTranscriptHtml } from '@/modules/chat/export/buildTranscriptHtml';
 import { buildTranscriptMarkdown } from '@/modules/chat/export/buildTranscriptMarkdown';
 
@@ -15,6 +16,15 @@ export type TranscriptExportFormat = 'html' | 'markdown' | 'json';
 
 /** The formats a turn-selection export offers; JSON stays a whole-session view. */
 export type PartialExportFormat = Extract<TranscriptExportFormat, 'html' | 'markdown'>;
+
+/** A live `/s/...` link returned after publishing a transcript snapshot. */
+export type SharedTranscriptLink = {
+  shareId: string;
+  /** Absolute, origin included, so it can be pasted into any chat client. */
+  url: string;
+  /** ISO timestamp; the link stops working at this moment. */
+  expiresAt: string;
+};
 
 export type TranscriptExportInput = {
   messages: ChatMessage[];
@@ -24,6 +34,20 @@ export type TranscriptExportInput = {
   createDiff: (oldStr: string, newStr: string) => DiffLine[];
   /** The whole conversation, when `messages` is only the rows the user picked. */
   totalMessages?: ChatMessage[];
+  /**
+   * True when `messages` is a picked subset even if `totalMessages` is absent.
+   *
+   * A paginated session only has its loaded window in memory, so callers omit
+   * `totalMessages` rather than pass a count that understates the conversation;
+   * this flag keeps the document saying that it is an excerpt.
+   */
+  isExcerpt?: boolean;
+  /**
+   * Whether the document may carry its own scripts. A published snapshot sets
+   * this to `false`: `/s/:token` runs under a CSP that forbids scripts, so a
+   * theme toggle or a copy button would render and then do nothing.
+   */
+  interactive?: boolean;
 };
 
 const EXTENSIONS: Record<TranscriptExportFormat, string> = {
@@ -106,6 +130,7 @@ export async function buildTranscriptExport(
       exportedAt,
       createDiff: input.createDiff,
       totalMessages: input.totalMessages,
+      isExcerpt: input.isExcerpt,
     });
   }
 
@@ -117,6 +142,8 @@ export async function buildTranscriptExport(
     sessionTitle: input.sessionTitle,
     exportedAt,
     totalMessages: input.totalMessages,
+    isExcerpt: input.isExcerpt,
+    interactive: input.interactive,
   });
 }
 
@@ -130,4 +157,33 @@ export async function downloadTranscriptExport(
   const filename = `${toExportFileStem(input.sessionTitle, exportedAt, fileNamePrefix)}.${EXTENSIONS[format]}`;
 
   downloadBlob(new Blob([content], { type: MIME_TYPES[format] }), filename);
+}
+
+/**
+ * Uploads an already-built HTML snapshot and returns its public link.
+ *
+ * The server stores the document verbatim, which is what makes a link and a
+ * downloaded file identical and lets it keep working after the conversation
+ * changes. The dialog builds first so the reader sees the size and confirms
+ * before anything becomes publicly reachable.
+ */
+export async function publishTranscriptHtml(
+  html: string,
+  meta: { title: string; sessionId?: string | null; messageCount: number },
+): Promise<SharedTranscriptLink> {
+  const response = await api.shares.create({
+    html,
+    title: meta.title,
+    sessionId: meta.sessionId ?? null,
+    messageCount: meta.messageCount,
+  });
+  const payload = await readApiJson<{
+    share: { shareId: string; urlPath: string; expiresAt: string };
+  }>(response);
+
+  return {
+    shareId: payload.share.shareId,
+    url: `${window.location.origin}${payload.share.urlPath}`,
+    expiresAt: payload.share.expiresAt,
+  };
 }

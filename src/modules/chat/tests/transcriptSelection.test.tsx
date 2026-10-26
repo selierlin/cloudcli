@@ -292,6 +292,7 @@ describe('the selection bar', () => {
         selectedCount={2}
         busyFormat={null}
         onExport={onExport}
+        onShare={() => {}}
         onCancel={() => {}}
       />,
     );
@@ -301,12 +302,39 @@ describe('the selection bar', () => {
     expect(onExport).toHaveBeenCalledWith('html');
   });
 
+  test('offers sharing the picked rows only when there is something to share', () => {
+    const onShare = vi.fn();
+    const { rerender } = render(
+      <TranscriptSelectionBar
+        selectedCount={2}
+        busyFormat={null}
+        onExport={() => {}}
+        onShare={onShare}
+        onCancel={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }));
+    expect(onShare).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <TranscriptSelectionBar
+        selectedCount={0}
+        busyFormat={null}
+        onExport={() => {}}
+        onShare={onShare}
+        onCancel={() => {}}
+      />,
+    );
+    expect((screen.getByRole('button', { name: 'Share' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   test('disables both formats while one is being rendered', () => {
     render(
       <TranscriptSelectionBar
         selectedCount={1}
         busyFormat="html"
         onExport={() => {}}
+        onShare={() => {}}
         onCancel={() => {}}
       />,
     );
@@ -324,6 +352,7 @@ describe('the selection bar', () => {
         failed
         busyFormat={null}
         onExport={() => {}}
+        onShare={() => {}}
         onCancel={() => {}}
       />,
     );

@@ -87,7 +87,8 @@
       "title": "Export",
       "loading": "Loading conversation…",
       "generating": "Generating {{format}}…",
-      "sizeHint": "About {{size}} of text (images excluded) — generating may take a few seconds"
+      "sizeHint": "About {{size}} of text (images excluded) — generating may take a few seconds",
+      "share": "Share link…"
     },
     "theme": "Theme",
     "showRawParameters": "Show raw parameters",
@@ -152,7 +153,8 @@
     "plugins": "Plugins",
     "network": "Network",
     "about": "About",
-    "loginLog": "Login Log"
+    "loginLog": "Login Log",
+    "shares": "Shared Links"
   },
   "browser": {
     "title": "Browser",
@@ -1449,5 +1451,25 @@
       "register": "Register",
       "agent_auth_failure": "API key rejected"
     }
+  },
+  "shares": {
+    "description": "Published conversation links. Revoking one takes it down immediately and deletes the stored snapshot.",
+    "empty": "Nothing has been shared yet. Use Share in the export panel or while selecting messages.",
+    "loading": "Loading…",
+    "loadFailed": "Could not load shared links",
+    "retry": "Retry",
+    "copy": "Copy",
+    "copied": "Copied",
+    "open": "Open",
+    "revoke": "Revoke",
+    "revoking": "Revoking…",
+    "revokedAt": "revoked {{time}}",
+    "expiresAt": "expires {{time}}",
+    "messageCount": "{{count}} messages",
+    "statusActive": "Active",
+    "statusRevoked": "Revoked",
+    "untitled": "Untitled conversation",
+    "linkUnavailable": "This link was published by an older version, so it cannot be shown again — only revoked.",
+    "confirmRevoke": "Revoking stops this link immediately and cannot be undone. Revoke it?"
   }
 }
