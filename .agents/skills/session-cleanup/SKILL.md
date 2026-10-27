@@ -25,11 +25,14 @@ disable-model-invocation: true
 3. **干跑 → 贴清单 → 等确认 → `--apply`**，不要边发现边删。精读线例外：§3.3 的清单本身即干跑输出，用户在那个回话里点「删」即确认。
 4. **活的东西一律不碰**：其它 harness 正在跑的会话（`-newermt '-10 minutes'` 兜底）、`auth.db-wal`/`auth.db-shm`、目录仍在的空项目行、WorkBuddy **应用本体**会话，以及**当前这次对话自己的会话行**——名字常常正好等于本次命令原文、transcript mtime 就在刚刚。**`purge.py` 没有这条守卫**，必须人工排除：名字等于本次命令、或 transcript mtime 在 10 分钟内，一律跳过。
 5. **删前查 fork**：`select count(*) from sessions where forked_from_session_id=<sid>`，有下游就停下问。
-6. 收尾必做**回归核对**：被删数=预期、其余行 `jsonl_path` 未变、其余 transcript 0 丢失、`pragma integrity_check` = ok。**zcode / opencode 另核它们库的 `session` 表行数**。
-7. **同题 ≠ 同内容**（2026-10-24 新增）。同 provider、同项目、同题目，只说明可以排在一起读，**不构成删的理由**。
+6. **删目录必须正向匹配 UUID，不许用排除法**（2026-10-27 新增，代价是永久数据丢失）。
+   - `~/.workbuddy/projects/<project>/` 下**混着非会话目录**，最要命的是 `memory/`（WorkBuddy 持久记忆库）。它「不叫 psid + 无同名 jsonl + 不在 sessions 表」——排除法三条全中，但它是**最不能删**的。已实际误删过 16 个项目的 `memory/`，`rmtree` 不走废纸篓、无快照，正文不可恢复。
+   - 规则：目录名必须匹配 `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` 才进入删除候选；**禁止对 `~/.workbuddy/projects/`、`~/.claude/projects/` 这类项目级容器做 `find -delete` 或整目录递归删**。详见 `references/cleanup.md` §反判据失效。
+7. 收尾必做**回归核对**：被删数=预期、其余行 `jsonl_path` 未变、其余 transcript 0 丢失、`pragma integrity_check` = ok。**zcode / opencode 另核它们库的 `session` 表行数**。
+8. **同题 ≠ 同内容**（2026-10-24 新增）。同 provider、同项目、同题目，只说明可以排在一起读，**不构成删的理由**。
    - 实测教训：把三条同题会话（ov 查「按摩订单已完成无核销」）按「题目重复」打包判删。它们各自 18~36 轮、5.8~9.6 MB，主题之外挂着被否方案、坑、权宜值。当时写的「重复」是**题目**重复，不是**内容**比对过。
    - fork 父子：**读可以复用前缀**（子会话前半段是父的原样复制），**判定必须各自独立**。
-8. **没读过的不许进判据**（2026-10-24 新增）。任何处置的理由必须能指到「读了第几轮」。指不到 → 处置栏留空，不许填「删」。
+9. **没读过的不许进判据**（2026-10-24 新增）。任何处置的理由必须能指到「读了第几轮」。指不到 → 处置栏留空，不许填「删」。
 
 ## 1. 两种节奏
 
@@ -175,7 +178,7 @@ read: 1-15 / 40        # 每段读完更新，也是被压缩后的恢复锚点
 
 **zcode / opencode 是共享库**：app 行只是索引，删它不删 provider 库 ⇒ 会话必然复活。两个 provider 必须**两侧都清**才叫删干净。
 
-**沉淀库**：本地权威副本 `~/.memory-bank/<project>/entries/*.md`；OV 检索镜像 `viking://resources/<project>/session-sediments/`。
+**沉淀库**：`~/.memory-bank/<project>/entries/*.md` 是**本机产出**的副本（只覆盖本机，不是全集）；`viking://resources/<project>/session-sediments/` 是跨机器**唯一共享汇聚层**。别机条目本机没有属正常态，不做反向补齐（见 session-sediment §多机环境）。
 **db dict**：`~/Projects/lemobar/ToC-Admin/docs/db-dictionary/`（OV 镜像 `viking://resources/ToC-Admin/2026-09-20-db-dictionary/`）。只收 ToC-Admin 业务库，cloudcli 自己的库仍落 memory-bank。
 
 **服务**：`~/.cloudcli/local-server.json` 里有端口（本机现值 3011）。删完 UI 若还列着旧会话，那是服务端 `sessionHistoryCache` 内存缓存，重启即消。

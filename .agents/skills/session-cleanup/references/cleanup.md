@@ -31,14 +31,17 @@
 
 比秒杀区宽一档：不需要读会话内容，只看磁盘与库的结构性垃圾。
 
-- **A 历史备份**：`~/.cloudcli/auth.db.before-*.backup*` 堆积。只留**最近两个**，其余连 `-shm`/`-wal` 边车一起删。**绝不动**活库的 `auth.db-wal`/`auth.db-shm`。
+- **A 历史备份**：`~/.cloudcli/auth.db.before-*.backup*` 堆积。只留**最近一份**（即本轮快照），其余连 `-shm`/`-wal` 边车一起删。**绝不动**活库的 `auth.db-wal`/`auth.db-shm`。
 - **B 空项目行**（`projects`，0 会话）：目录**已不存在**的删行；目录在、只是暂时没会话的**保留**。
 - **C 孤儿会话行**：`jsonl_path` 为空的（transcript 已丢）删——**zcode 除外**（它本来就恒 NULL，见下）。
 - **D provider 侧空目录**：`~/.claude/projects`、`~/.workbuddy/projects`、`~/.pi`、`~/.omp`、`~/.codex`、`~/.dsh` 等下的空目录。**必须加 `! -newermt '-10 minutes'`**——用户常同时开着别的 harness 会话，正在跑的目录会被误清。
 - **E 仓库产物**（`test-results/`、`playwright-report/`、`dist/`、`dist-server/`）：**别动**，属部署/构建产物。
+- **F bench 跑批会话**：项目路径含 `harness-bench`，且 user 轮**全部**命中 `scripts/harness-bench/run-bench.mjs` 的固定 `prompt`（S1 光速 / S2 工程分数 / S3 只有 `hi` / S4 JSON / S5 长城 / S6 `toolfile.txt` / S7 `sum.js` / S8 长文密码 / S11 记忆编号 `BENCH-9942` …），无一条自由输入 → 整批可删（2026-10-26 一次清掉 473 条）。**先报总条数让用户确认**；bench 工作目录（`/tmp/harness-bench/*`）可一并删，删完再按 B 清掉对应空项目行。
 
 ```bash
 # D：只删 10 分钟以上没动的空目录
+# 安全前提是 -empty：memory/ 这类非空目录不会被命中。
+# 绝不能去掉 -empty，也不能换成 -name '*' 之类的「按名字删」——那样会把 memory/ 一起带走。
 for d in ~/.claude/projects ~/.workbuddy/projects ~/.pi ~/.omp ~/.codex ~/.dsh; do
   [ -d "$d" ] || continue
   find "$d" -mindepth 1 -depth -type d -empty ! -newermt '-10 minutes' -delete 2>/dev/null || true
@@ -79,6 +82,22 @@ done
 - 一条会话若有 superseded 记录，删它会**连带删掉那几条 superseded 的 jsonl 文件**（App 语义）——这一步不能省。
 
 判据一句话：**「名字不在我库里」≠「该删」，先问它有没有对应的主文件。**
+
+### 反判据失效：先正向证明它是 psid，再谈删
+
+上面这条「无同名 `.jsonl` ＝ 死残留」是**排除法**，它只在「目录名一定是 psid」的前提下成立。这个前提不成立：
+
+- `~/.workbuddy/projects/<project>/` 下**混着非会话数据**。已确认的一类是 **`memory/`**——WorkBuddy 的持久记忆库（`MEMORY.md` + 主题 `.md`，自动记忆系统落点）。它既不叫 psid、也没有同名 `.jsonl`、更不在 `sessions` 表里，**三条排除法全部命中，但它是最不该删的东西**。
+- 后果不可逆：`shutil.rmtree` 不走废纸篓，~/.workbuddy 下无第二份副本，APFS 本地快照/Time Machine 常常也没有（本案就没有）。删掉 = 正文永久丢失，只剩 `MEMORY.md` 索引行。
+- 实际发生过：一次「清 workbuddy 死残留」按排除法扫，把 16 个项目的 `memory/` 全删了，约 1.4 MB、含本项目全部记忆。
+
+**改为白名单式判据**（三条同时满足才可删）：
+
+1. 目录名**匹配 UUID 形态** `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` —— 不匹配就跳过，文件名叫 `memory`、`drafts`、`subagents`、`.cache` 的一律不碰；
+2. 无同名 `.jsonl`；
+3. 既不在 `sessions` 也不在 `superseded_provider_sessions`，且 mtime 早于 10 分钟。
+
+**不要对 `~/.workbuddy/projects/` 用 `find -type d -delete` / 递归删除脚本**，只按上述三条逐个 `rmtree`。同类风险存在于别的 harness 目录：`~/.claude/projects/` 下也按项目分目录，凡遇到「项目级目录里除了会话还有别的子目录」的布局，都必须先 `ls` 看清再动手。
 
 `scripts/purge.py` 在删 WorkBuddy 会话时会顺手 `rmtree` 同名目录，并跳过「仍是别的在库会话 psid」的目录。
 
