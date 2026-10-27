@@ -676,14 +676,16 @@ export const api = {
       unsubscribe: (endpoint: string) => post('/api/settings/push/unsubscribe', { endpoint }),
     },
 
-    // Login audit trail (login/logout/register events).
-    authEvents: (params: {
+    // Login audit trail (login/logout/register events). `signal` lets the login
+    // log tab cancel a filter query the next keystroke already superseded.
+    authEvents: ({ signal, ...params }: {
       limit?: number;
       offset?: number;
       eventType?: string;
       username?: string;
       ip?: string;
-    }) => get(`/api/settings/auth-events${query(params)}`),
+      signal?: AbortSignal;
+    }) => get(`/api/settings/auth-events${query(params)}`, { signal }),
   },
 
   // Notification channel endpoints and connectivity tests. Web Push and the

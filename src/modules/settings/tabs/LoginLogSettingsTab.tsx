@@ -23,7 +23,7 @@ const formatLocalTime = (utc: string): string => {
 /** Used by the Settings dialog's Login Log tab to render the login audit trail. */
 export default function LoginLogSettingsTab() {
   const { t } = useTranslation('settings');
-  const { events, total, offset, limit, filters, loading, setOffset, updateFilters, refresh } =
+  const { events, total, offset, limit, filters, loading, initialLoading, setOffset, updateFilters, refresh } =
     useLoginLogSettings();
 
   // Platform deployments have no login flow, so no audit rows can exist; show a
@@ -91,6 +91,7 @@ export default function LoginLogSettingsTab() {
             />
           </label>
           <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}>
+            {loading && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
             {t('loginLog.refresh', { defaultValue: 'Refresh' })}
           </Button>
         </div>
@@ -107,7 +108,7 @@ export default function LoginLogSettingsTab() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {initialLoading ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
                     <Loader2 className="mx-auto h-4 w-4 animate-spin" />
