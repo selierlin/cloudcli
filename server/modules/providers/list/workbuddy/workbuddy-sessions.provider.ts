@@ -1,5 +1,6 @@
-import { existsSync, promises as fsp } from 'node:fs';
+import { createReadStream, existsSync, promises as fsp } from 'node:fs';
 import path from 'node:path';
+import { createInterface } from 'node:readline';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import type { IProviderSessions } from '@/shared/interfaces.js';
@@ -30,6 +31,37 @@ function resolveTranscriptPath(engineSessionId: string, cwd: string): string | n
     }
   }
   return null;
+}
+
+/**
+ * Yields a transcript's lines without materializing the file as one string.
+ *
+ * WorkBuddy transcripts grow past V8's 512 MiB single-string cap
+ * (`MAX_STRING_LENGTH`), where `readFile(..., 'utf8')` rejects with
+ * `ERR_STRING_TOO_LONG` and the conversation looked empty. A file that vanished
+ * before the stream opened ends quietly, because "no transcript yet" already
+ * reads as an empty history; every other read failure is surfaced instead of
+ * being disguised as an empty conversation.
+ */
+async function* streamTranscriptLines(filePath: string): AsyncGenerator<string> {
+  const fileStream = createReadStream(filePath, { encoding: 'utf8' });
+  const lineReader = createInterface({ input: fileStream, crlfDelay: Infinity });
+  try {
+    for await (const line of lineReader) {
+      yield line;
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return;
+    }
+    throw new AppError('The WorkBuddy transcript could not be read.', {
+      code: 'HISTORY_SOURCE_UNREADABLE',
+      statusCode: 409,
+    });
+  } finally {
+    lineReader.close();
+    fileStream.destroy();
+  }
 }
 
 /** Reads the first `text` field of one content block type in a message. */
@@ -929,21 +961,12 @@ export class WorkbuddySessionsProvider implements IProviderSessions {
       }));
     };
 
-    let fileContent: string;
-    try {
-      fileContent = await fsp.readFile(filePath, 'utf8');
-    } catch {
-      return collector.toResult();
-    }
-
-    const lines = fileContent.split(/\r?\n/);
-
     // Assistant replies (and mid-turn function calls) carry an OpenAI-compatible
     // `message.usage` block. Collecting the events lets the summarizer pick the
     // newest one, which is the session's current context occupation.
     const usageEvents: AnyRecord[] = [];
 
-    for (const line of lines) {
+    for await (const line of streamTranscriptLines(filePath)) {
       if (!line.trim()) {
         continue;
       }

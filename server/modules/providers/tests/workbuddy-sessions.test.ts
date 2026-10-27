@@ -773,3 +773,44 @@ test('fetchHistory maps top-level reasoning events to thinking', async () => {
     assert.equal(thinking[0]?.content, '先想想方案');
   });
 });
+
+test('fetchHistory surfaces an unreadable transcript instead of an empty conversation', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const engineSessionId = 'wb-unreadable';
+    const appSessionId = 'app-wb-unreadable';
+    const transcriptPath = path.join(sessionsRoot, encodeCwd(cwd), `${engineSessionId}.jsonl`);
+    // A directory at the transcript path satisfies `existsSync` but fails every
+    // read, standing in for permission and corruption failures. Reporting an
+    // empty history here would look like the conversation lost its content.
+    await mkdir(transcriptPath, { recursive: true });
+    sessionsDb.createSession(appSessionId, 'workbuddy', cwd, 'Unreadable', new Date().toISOString(), new Date().toISOString(), transcriptPath);
+    sessionsDb.assignProviderSessionId(appSessionId, engineSessionId);
+
+    await assert.rejects(
+      () => new WorkbuddySessionsProvider().fetchHistory(appSessionId),
+      { code: 'HISTORY_SOURCE_UNREADABLE' },
+    );
+  });
+});
+
+test('fetchHistory reads a CRLF transcript whose last row has no trailing newline', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const engineSessionId = 'wb-crlf';
+    const appSessionId = 'app-wb-crlf';
+    const time = Date.now();
+    const transcriptPath = path.join(sessionsRoot, encodeCwd(cwd), `${engineSessionId}.jsonl`);
+    await mkdir(path.dirname(transcriptPath), { recursive: true });
+    await writeFile(transcriptPath, [
+      userMessage('crlf hello', time),
+      assistantMessage('crlf reply', time + 100),
+    ].map((event) => JSON.stringify(event)).join('\r\n'));
+    sessionsDb.createAppSession(appSessionId, 'workbuddy', cwd, 'CRLF');
+    sessionsDb.assignProviderSessionId(appSessionId, engineSessionId);
+
+    const result = await new WorkbuddySessionsProvider().fetchHistory(appSessionId);
+
+    assert.equal(result.total, 3);
+    assert.equal(result.messages[0]?.content, 'crlf hello');
+    assert.equal(result.messages[2]?.content, 'crlf reply');
+  });
+});
