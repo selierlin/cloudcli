@@ -82,6 +82,43 @@ done
 
 `scripts/purge.py` 在删 WorkBuddy 会话时会顺手 `rmtree` 同名目录，并跳过「仍是别的在库会话 psid」的目录。
 
+## WorkBuddy 的 trace 与心跳（`purge.py` 不覆盖）
+
+这两个位置不在 `purge.py` 的处理范围里，但能比 transcript 还大。
+
+- **trace**：`~/.workbuddy/traces/<pid>/trace_<uuid>.json`（一个进程一个目录）。实测 2026-10-26 清一条 546 MB 的 transcript 时，该会话专属 trace **46 个共 337 MB**。
+- **心跳**：`~/.workbuddy/sessions/<pid>.json`，字段 `pid` / `sessionId` / `lastHeartbeat` / `kind`。进程退出后文件仍留着。
+
+**归属判定靠文件内容，不靠文件名**：trace 是 JSON，读全文抽 UUID 集合——
+
+- 集合里**只有**该会话 id ⇒ 专属，可删；
+- 同时含多个会话 id ⇒ 同批并发跑共用，删了会误伤别人的记录，**必须保留**（那次 8 个共 24 MB 全部保留）。
+
+```bash
+# 先筛再删：只打印，不删除
+python3 - <<'EOF'
+import glob, os, re
+target = "<session-id>"
+pat = r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+only, shared = [], []
+for f in glob.glob(os.path.expanduser("~/.workbuddy/traces/*/trace_*.json")):
+    ids = set(re.findall(pat, open(f, errors="ignore").read()))
+    if target in ids:
+        (only if ids == {target} else shared).append((f, os.path.getsize(f)))
+print("专属", len(only), sum(s for _, s in only) // 1024 // 1024, "MB")
+print("共用保留", len(shared), sum(s for _, s in shared) // 1024 // 1024, "MB")
+EOF
+```
+
+**心跳按 pid 判活**，`kill -0` 失败（进程已退）才删；pid 还活着的一律不动——那可能是正在跑的会话。
+
+```bash
+for f in ~/.workbuddy/sessions/*.json; do
+  pid=$(basename "$f" .json)
+  kill -0 "$pid" 2>/dev/null || echo "dead $f $(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["sessionId"])' "$f")"
+done
+```
+
 ## zcode / opencode 的特殊口径（**单侧删除必然复活**）
 
 这两个 provider 把所有会话放在**一个共享 sqlite 库**里，没有各自的 transcript 文件：
@@ -156,7 +193,8 @@ print("integrity_check:", c.execute("pragma integrity_check").fetchone()[0])
 
 - 活动目录被误清 → 记得 `! -newermt '-10 minutes'`。
 - 孤儿行（`jsonl_path` 为空）不是 zcode 独有；判 zcode 要看 `provider`。
-- WorkBuddy 活会话误删（见上）。
+- **WorkBuddy 活会话误删**（见上）。
+- **trace / 心跳不在 `purge.py` 范围**：删完大会话要单独筛 `~/.workbuddy/traces/<pid>/`，共用文件不能删（见「WorkBuddy 的 trace 与心跳」）。
 - superseded 漏删 → 旧 transcript 被 watcher 重新索引成新会话。
 - 备份命名不统一 → 收尾找不到对应快照。
 - 服务在跑也能写 WAL 库，**不要**为清理停服务。
