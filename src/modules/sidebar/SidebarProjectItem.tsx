@@ -167,7 +167,12 @@ function SidebarProjectItem({
   };
 
   const selectAndToggleProject = () => {
-    if (selectedProject?.projectId !== project.projectId) {
+    // Selecting a project opens it through the controller's selection effect,
+    // so selecting a group that is already open would re-expand it right after
+    // this collapse. Only the opening direction moves the selection; collapsing
+    // a group leaves the current selection alone, which is also what the
+    // preference-off accordion does.
+    if (!isExpanded && selectedProject?.projectId !== project.projectId) {
       onProjectSelect(project);
     }
 

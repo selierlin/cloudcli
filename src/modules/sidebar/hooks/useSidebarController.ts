@@ -235,9 +235,8 @@ export function useSidebarController({
     // Auto-expand the newly selected project. With the preference off this
     // collapses the rest, matching `toggleProject`'s accordion behavior so
     // cross-project navigation from the conversations view cannot accumulate
-    // several expanded projects. With it on the selection is only added, or the
-    // feature would never show two open groups: `selectAndToggleProject` selects
-    // the project it opens, so every second group would close on selection.
+    // several expanded projects. With it on the selection is only added, so a
+    // group the user opened stays open when another one is selected.
     // Depending on the full `selectedProject` object (or `selectedSession`)
     // causes websocket-driven list refreshes to re-open projects users
     // manually collapsed.
