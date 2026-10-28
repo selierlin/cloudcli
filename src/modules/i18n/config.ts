@@ -46,6 +46,7 @@ import esCodeEditor from '@/modules/i18n/locales/es/codeEditor.json';
 import esTasks from '@/modules/i18n/locales/es/tasks.json';
 // oxlint-disable-next-line importx/order
 import esBrowser from '@/modules/i18n/locales/es/browser.json';
+import esGit from '@/modules/i18n/locales/es/git.json';
 
 import koCommon from '@/modules/i18n/locales/ko/common.json';
 import koSettings from '@/modules/i18n/locales/ko/settings.json';
@@ -231,6 +232,7 @@ i18n
         codeEditor: esCodeEditor,
         tasks: esTasks,
         browser: esBrowser,
+        git: esGit,
       },
       ko: {
         common: koCommon,

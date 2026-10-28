@@ -90,6 +90,27 @@ export function createUserRouter(service: ReturnType<typeof createUserService>):
     }
   });
 
+  // Queueing appends to the scope's queued message on the server, so the merge
+  // is made against what is stored rather than against a page's possibly stale
+  // copy of it.
+  router.post('/drafts/queued-message', (req, res, next) => {
+    try {
+      const body = req.body as { scope?: unknown; queuedMessage?: unknown };
+      res.json(service.appendQueuedMessage(readUserId(req), body?.scope, body?.queuedMessage));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete('/drafts/queued-message', (req, res, next) => {
+    try {
+      const body = req.body as { scope?: unknown };
+      res.json(service.clearQueuedMessage(readUserId(req), body?.scope));
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Read watermarks follow the same body-carried-session-id shape as drafts:
   // session ids are not guaranteed URL-path-safe, so they never ride the path.
   router.get('/read-state', (req, res, next) => {

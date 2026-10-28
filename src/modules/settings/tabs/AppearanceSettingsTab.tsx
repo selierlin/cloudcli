@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
 import { ThemeModeSelector } from '@/shared/ui';
+import { useUiPreferences, useSetUiPreference } from '@/shared/context/UiPreferencesContext';
 import {
   CODE_FONT_FAMILY_OPTIONS,
   CODE_FONT_SIZE_OPTIONS,
@@ -45,6 +46,8 @@ export default function AppearanceSettingsTab({
 }: AppearanceSettingsTabProps) {
   const { t } = useTranslation('settings');
   const fontSettings = useChatFontSettings();
+  const preferences = useUiPreferences();
+  const setPreference = useSetUiPreference();
 
   return (
     <div className="space-y-8">
@@ -94,6 +97,21 @@ export default function AppearanceSettingsTab({
               <option value="name">{t('appearanceSettings.projectSorting.alphabetical')}</option>
               <option value="date">{t('appearanceSettings.projectSorting.recentActivity')}</option>
             </select>
+          </SettingsRow>
+        </SettingsCard>
+      </SettingsSection>
+
+      <SettingsSection title={t('appearanceSettings.keepProjectsExpanded.section', { defaultValue: 'Sidebar' })}>
+        <SettingsCard>
+          <SettingsRow
+            label={t('appearanceSettings.keepProjectsExpanded.label', { defaultValue: 'Keep projects expanded' })}
+            description={t('appearanceSettings.keepProjectsExpanded.description', { defaultValue: 'Open several projects together and remember them after reloading.' })}
+          >
+            <SettingsToggle
+              checked={preferences.keepProjectsExpanded}
+              onChange={(value) => setPreference('keepProjectsExpanded', value)}
+              ariaLabel={t('appearanceSettings.keepProjectsExpanded.label', { defaultValue: 'Keep projects expanded' })}
+            />
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>

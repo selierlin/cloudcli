@@ -22,6 +22,11 @@ vi.mock('@/shared/api', () => ({
       drafts: async () => new Response(JSON.stringify({ success: true, drafts: [] }), { status: 200 }),
       saveDraft: async () => new Response('{}', { status: 200 }),
       deleteDraft: async () => new Response('{}', { status: 200 }),
+      appendQueuedMessage: async (_scope: string, queuedMessage: unknown) => new Response(
+        JSON.stringify({ success: true, queuedMessage, appended: false }),
+        { status: 200 },
+      ),
+      clearQueuedMessage: async () => new Response('{}', { status: 200 }),
     },
   },
 }));
@@ -31,7 +36,7 @@ vi.mock('@/modules/sidebar/SessionOptions', () => ({
 }));
 
 const { default: SidebarSessionItem } = await import('@/modules/sidebar/SidebarSessionItem');
-const { writeDraftText, writeQueuedMessage, resetChatDrafts } = await import('@/shared/chatDrafts');
+const { writeDraftText, appendQueuedMessage, resetChatDrafts } = await import('@/shared/chatDrafts');
 
 const t = ((key: string) => key) as unknown as SidebarProjectListProps['t'];
 const NOW = new Date('2026-08-21T10:00:00.000Z');
@@ -127,8 +132,8 @@ test('blank input never draws the pen', () => {
   assert.equal(container.querySelector('[aria-label="tooltips.draftIndicator"]'), null);
 });
 
-test('a queued message counts as an unsent draft', () => {
-  writeQueuedMessage('s1', { content: 'queued' });
+test('a queued message counts as an unsent draft', async () => {
+  await appendQueuedMessage('s1', { content: 'queued', attachments: [] });
 
   const { container } = renderRow();
 

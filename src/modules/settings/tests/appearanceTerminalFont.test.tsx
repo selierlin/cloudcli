@@ -6,6 +6,7 @@ import { beforeEach, test, vi } from 'vitest';
 
 import AppearanceSettingsTab from '@/modules/settings/tabs/AppearanceSettingsTab';
 import { ThemeProvider } from '@/shared/context/ThemeContext';
+import { UiPreferencesProvider } from '@/shared/context/UiPreferencesContext';
 import { readFontSettings } from '@/shared/fontSettings';
 import { resetUserPreferences } from '@/shared/userSettings';
 
@@ -46,15 +47,17 @@ function renderTab() {
   const noop = () => {};
   return render(
     <ThemeProvider>
-      <AppearanceSettingsTab
-        projectSortOrder="name"
-        onProjectSortOrderChange={noop}
-        codeEditorSettings={{ wordWrap: false, showMinimap: false, lineNumbers: true, fontSize: '13' }}
-        onCodeEditorWordWrapChange={noop}
-        onCodeEditorShowMinimapChange={noop}
-        onCodeEditorLineNumbersChange={noop}
-        onCodeEditorFontSizeChange={noop}
-      />
+      <UiPreferencesProvider>
+        <AppearanceSettingsTab
+          projectSortOrder="name"
+          onProjectSortOrderChange={noop}
+          codeEditorSettings={{ wordWrap: false, showMinimap: false, lineNumbers: true, fontSize: '13' }}
+          onCodeEditorWordWrapChange={noop}
+          onCodeEditorShowMinimapChange={noop}
+          onCodeEditorLineNumbersChange={noop}
+          onCodeEditorFontSizeChange={noop}
+        />
+      </UiPreferencesProvider>
     </ThemeProvider>,
   );
 }

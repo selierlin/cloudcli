@@ -216,6 +216,11 @@
       "light": "Clair",
       "dark": "Sombre",
       "system": "Suivre l'apparence du système"
+    },
+    "keepProjectsExpanded": {
+      "section": "Barre latérale",
+      "label": "Garder les projets dépliés",
+      "description": "Ouvrir plusieurs projets ensemble et les retrouver dépliés après rechargement."
     }
   },
   "mcpForm": {

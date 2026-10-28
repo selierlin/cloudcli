@@ -145,6 +145,8 @@
     "modelMenu": "選擇模型與思考強度",
     "otherModels": "其他",
     "permissionHeading": "{{provider}} 的操作應如何核准？",
+    "permissionCycleHint": "在輸入框中按 Tab 切換模式",
+    "permissionTriggerLabel": "{{mode}}：{{heading}}",
     "editing": {
       "title": "正在取代先前的訊息",
       "filesNotReverted": "已修改的檔案不會還原",

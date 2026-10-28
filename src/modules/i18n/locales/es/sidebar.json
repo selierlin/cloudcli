@@ -212,7 +212,8 @@
     "archiveSessions_one": "Archivar {{count}} sesión",
     "archiveSessions_other": "Archivar {{count}} sesiones",
     "archiveSessionsNotice_one": "Archivar mantiene la sesión fuera de la lista activa y conserva su historial.",
-    "archiveSessionsNotice_other": "Archivar mantiene las sesiones fuera de la lista activa y conserva su historial."
+    "archiveSessionsNotice_other": "Archivar mantiene las sesiones fuera de la lista activa y conserva su historial.",
+    "archiveSessionsNotice_many": "Archivar mantiene las sesiones fuera de la lista activa y conserva su historial."
   },
   "archived": {
     "manageSessions": "Gestionar sesiones",

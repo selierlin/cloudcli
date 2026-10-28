@@ -18,6 +18,7 @@ export type UiPreferences = {
   voiceInputEnabled: boolean;
   /** Read-aloud (text-to-speech) is offered on assistant replies. */
   voiceOutputEnabled: boolean;
+  keepProjectsExpanded: boolean;
 };
 
 export type UiPreferenceKey = keyof UiPreferences;
@@ -33,6 +34,7 @@ const DEFAULTS: UiPreferences = {
   sidebarVisible: true,
   voiceInputEnabled: false,
   voiceOutputEnabled: false,
+  keepProjectsExpanded: false,
 };
 
 const PREFERENCE_KEYS = Object.keys(DEFAULTS) as UiPreferenceKey[];
