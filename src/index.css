@@ -873,12 +873,32 @@
     *::-webkit-scrollbar-corner {
       background: transparent;
     }
+
+    /* Auto-hidden bars (`useAutoHideScrollbar`): the container keeps its
+       gutter, so nothing reflows — only the paint is dropped, until the user
+       scrolls or reaches for the bar. Both rules carry `:root` so they outrank
+       the theme boards (`:root ::-webkit-scrollbar-thumb`), which matters for
+       the ones that draw the bar with a gradient, a border or a sunken well;
+       and they only ever describe the idle state, so the moment the attribute
+       goes away the theme paints again exactly as it wrote it. */
+    :root [data-scrollbar-idle]::-webkit-scrollbar-thumb,
+    :root [data-scrollbar-idle]::-webkit-scrollbar-track {
+      background: transparent;
+      border-color: transparent;
+      box-shadow: none;
+    }
   }
 
   @supports not selector(::-webkit-scrollbar) {
     * {
       scrollbar-width: thin;
       scrollbar-color: hsl(var(--scrollbar-thumb)) transparent;
+    }
+
+    /* Same idea for Firefox, which has no scrollbar pseudo-elements: keep the
+       gutter, paint nothing while the container rests. */
+    :root [data-scrollbar-idle] {
+      scrollbar-color: transparent transparent;
     }
   }
 

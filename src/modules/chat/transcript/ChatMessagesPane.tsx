@@ -11,6 +11,7 @@ import type { BackgroundTaskSummary,
   ProviderModelActions,
   ProviderModelsDefinition,
 } from '@/shared/types';
+import { useAutoHideScrollbar } from '@/shared/hooks/useAutoHideScrollbar';
 import {
   buildTailAnchoredMessageKeys,
   getIntrinsicMessageKey,
@@ -294,6 +295,9 @@ function ChatMessagesPane({
   // keeps the transcript rows glued to it so the content beside the input
   // follows the input instead of being clipped behind it.
   useBottomEdgeResizeCompensation(scrollContainerRef, programmaticScrollTopRef);
+  // The transcript is read far more than it is scrolled, so its bar only shows
+  // while it moves — including while a streaming reply drags it along.
+  useAutoHideScrollbar(scrollContainerRef);
   // Retains user ownership and visible duration across lazy row unmounts.
   const [disclosureRegistry, dispatchDisclosure] = useReducer(disclosureRegistryReducer, {
     sessionId,
