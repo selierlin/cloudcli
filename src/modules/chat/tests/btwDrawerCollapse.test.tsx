@@ -10,10 +10,10 @@ vi.mock('react-i18next', () => ({
 }));
 
 /**
- * Collapsing is the overlay's escape hatch from covering 420px of the
- * transcript. It must not exist where the transcript is already visible
- * (docked) or where the drawer is the whole column (sheet), and collapsing must
- * never be confused with closing, which deletes the branch.
+ * Collapsing is how the reader gets the main conversation back without ending
+ * the branch: it has to exist in every layout, including the phone sheet, where
+ * the panel would otherwise block the composer entirely. Collapsing must never
+ * be confused with closing, which deletes the branch.
  */
 
 const makeBtw = (): BtwController => ({
@@ -30,7 +30,7 @@ const renderDrawer = ({
   placement = 'overlay' as SideAskPlacement,
   minimized = false,
   isProcessing = false,
-  onMinimize,
+  onMinimize = () => {},
   onRestore = () => {},
 }: {
   placement?: SideAskPlacement;
@@ -67,20 +67,17 @@ const renderDrawer = ({
   />,
 );
 
-test('an overlay can be collapsed', () => {
-  const onMinimize = vi.fn();
-  renderDrawer({ onMinimize });
+test.each<SideAskPlacement>(['docked', 'overlay', 'sheet'])(
+  'a %s drawer can be collapsed',
+  (placement) => {
+    const onMinimize = vi.fn();
+    renderDrawer({ placement, onMinimize });
 
-  fireEvent.click(screen.getByRole('button', { name: 'sideAsk.minimize' }));
+    fireEvent.click(screen.getByRole('button', { name: 'sideAsk.minimize' }));
 
-  expect(onMinimize).toHaveBeenCalledTimes(1);
-});
-
-test('a docked drawer offers no collapse, because nothing is covered', () => {
-  renderDrawer({ placement: 'docked' });
-
-  expect(screen.queryByRole('button', { name: 'sideAsk.minimize' })).toBeNull();
-});
+    expect(onMinimize).toHaveBeenCalledTimes(1);
+  },
+);
 
 test('a collapsed drawer leaves a tab that names the branch and restores it', () => {
   const onRestore = vi.fn();

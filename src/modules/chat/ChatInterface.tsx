@@ -375,15 +375,15 @@ function ChatInterface({
   // Tool prompts belonging to the copy. Kept apart from the viewed
   // conversation's list so neither surface shows the other's requests.
   const [sideAskPermissionRequests, setSideAskPermissionRequests] = useState<PendingPermissionRequest[]>([]);
-  // Set when the reader tucks the floating drawer away to read the transcript.
-  // Docking and the phone sheet ignore it: in both, the transcript is already
-  // visible and a collapsed tab would only add a way to lose the panel.
+  // Set when the reader tucks the drawer away to work in the main conversation
+  // again. Available in every layout: on a phone the full-width sheet would
+  // otherwise keep the main composer out of reach for as long as the branch
+  // lives, and a docked panel still costs 420px the reader may not want to pay.
   const [sideAskMinimized, setSideAskMinimized] = useState(false);
   // Whether the drawer sits beside the transcript or floats over it, decided by
   // the chat column's own width rather than the viewport's — the sidebar can be
   // dragged and the editor can take half the page.
   const sideAskLayout = useSideAskPlacement();
-  const sideAskCanMinimize = sideAskLayout.placement === 'overlay';
 
   const sideAskSourceSessionId = currentSessionId || selectedSession?.id || null;
 
@@ -1123,8 +1123,8 @@ function ChatInterface({
             open={sideAskOpen}
             btw={btw}
             placement={sideAskLayout.placement}
-            minimized={sideAskMinimized && sideAskCanMinimize}
-            onMinimize={sideAskCanMinimize ? () => setSideAskMinimized(true) : undefined}
+            minimized={sideAskMinimized}
+            onMinimize={() => setSideAskMinimized(true)}
             onRestore={() => setSideAskMinimized(false)}
             sourceTitle={selectedSession?.title || selectedSession?.summary || selectedSession?.name || ''}
             provider={provider}

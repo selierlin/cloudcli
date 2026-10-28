@@ -21,11 +21,11 @@ type BtwDrawerProps = {
   btw: BtwController;
   /** Whether the drawer sits beside the transcript, floats over it, or fills it. */
   placement: SideAskPlacement;
-  /** True while the reader has tucked an overlay away to read the transcript. */
+  /** True while the reader has tucked the panel away to use the main conversation. */
   minimized: boolean;
-  /** Collapses the overlay into the edge tab. Absent in docked and sheet layouts. */
-  onMinimize?: () => void;
-  /** Brings a collapsed overlay back. */
+  /** Collapses the panel into the edge tab, whichever layout it is in. */
+  onMinimize: () => void;
+  /** Brings a collapsed panel back. */
   onRestore: () => void;
   /** Title of the conversation this branch came from, for the header. */
   sourceTitle: string;
@@ -63,10 +63,14 @@ type BtwDrawerProps = {
  *
  * Rendered by ChatInterface. On a wide enough chat column it is docked beside
  * the transcript and the transcript shrinks, so neither side covers the other;
- * on a narrower one it floats over the transcript, where it can be collapsed
- * into an edge tab (the alternative is reading with 420px of the page blocked);
- * on a phone it takes the whole column and shrinks by `--keyboard-height`, the
- * offset the workspace shell already maintains for the virtual keyboard.
+ * on a narrower one it floats over the transcript; on a phone it takes the
+ * whole column and shrinks by `--keyboard-height`, the offset the workspace
+ * shell already maintains for the virtual keyboard.
+ *
+ * Any of the three can be collapsed into an edge tab. That matters most on a
+ * phone, where the sheet would otherwise put the main composer out of reach for
+ * as long as the branch lives, and on a laptop where the reader wants the
+ * transcript at full width without discarding the branch.
  *
  * The floating and sheet layouts are positioned inside the chat column rather
  * than against the viewport: the column already carries the shell's safe-area
@@ -174,19 +178,17 @@ export default function BtwDrawer({
               {anchorLabel ?? t('sideAsk.anchorDefault')}
             </p>
           </div>
-          {onMinimize && (
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7 flex-shrink-0"
-              title={t('sideAsk.minimize')}
-              aria-label={t('sideAsk.minimize')}
-              onClick={onMinimize}
-            >
-              <PanelRightClose className="h-4 w-4" />
-            </Button>
-          )}
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7 flex-shrink-0"
+            title={t('sideAsk.minimize')}
+            aria-label={t('sideAsk.minimize')}
+            onClick={onMinimize}
+          >
+            <PanelRightClose className="h-4 w-4" />
+          </Button>
           <Button
             type="button"
             size="icon"

@@ -30,6 +30,7 @@ const renderDrawer = (onClose: () => void) => render(
     btw={makeBtw()}
     placement="overlay"
     minimized={false}
+    onMinimize={() => {}}
     onRestore={() => {}}
     sourceTitle="Source conversation"
     provider="claude"
