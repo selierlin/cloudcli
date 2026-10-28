@@ -833,3 +833,71 @@ test('mcpCatalogService seeds the catalog only once', async () => {
   assert.deepEqual(providers.rawReads, []);
   assert.equal(catalog.listCatalogEntries().length, 1);
 });
+
+test('mcpCatalogService upsertManagedEntry creates a cloudcli- entry with empty switches and projects nothing', async () => {
+  const { catalog, providers, service } = createService();
+
+  const entry = await service.upsertManagedEntry({
+    name: 'cloudcli-browser',
+    transport: 'stdio',
+    config: { command: 'node' },
+  });
+
+  assert.equal(entry.name, 'cloudcli-browser');
+  assert.ok(Object.values(entry.enabled).every((enabled) => enabled === false));
+  assert.deepEqual(providers.upserts, [], 'a managed definition is not projected on its own');
+  assert.equal(catalog.listCatalogEntries().length, 1);
+});
+
+test('mcpCatalogService upsertManagedEntry preserves existing switches when refreshing the definition', async () => {
+  const { catalog, providers, service } = createService();
+  const created = await service.upsertManagedEntry({
+    name: 'cloudcli-browser',
+    transport: 'stdio',
+    config: { command: 'node' },
+  });
+  await service.toggleCatalogApp(created.id, 'claude', true);
+
+  const refreshed = await service.upsertManagedEntry({
+    name: 'cloudcli-browser',
+    transport: 'stdio',
+    config: { command: 'node', args: ['--browser'] },
+  });
+
+  // The per-harness switch the user set survives the refresh.
+  assert.equal(refreshed.enabled.claude, true);
+  // …while the definition itself is updated.
+  assert.deepEqual(refreshed.config.args, ['--browser']);
+  assert.equal(catalog.listCatalogEntries().length, 1, 'refresh updates, never duplicates');
+});
+
+test('mcpCatalogService upsertCatalogEntry rejects creating a managed cloudcli- entry', async () => {
+  const { service } = createService();
+
+  await assert.rejects(
+    () => service.upsertCatalogEntry({ name: 'cloudcli-foo', transport: 'stdio', config: {} }),
+    (error: unknown) =>
+      error instanceof AppError
+      && error.code === 'MCP_CATALOG_MANAGED_ENTRY'
+      && error.statusCode === 403,
+  );
+});
+
+test('mcpCatalogService rejects editing and deleting a managed entry through the matrix paths', async () => {
+  const { service } = createService();
+  const managed = await service.upsertManagedEntry({
+    name: 'cloudcli-browser',
+    transport: 'stdio',
+    config: { command: 'node' },
+  });
+
+  await assert.rejects(
+    () => service.upsertCatalogEntry({ id: managed.id, name: 'cloudcli-browser', transport: 'stdio', config: {} }),
+    (error: unknown) => error instanceof AppError && error.code === 'MCP_CATALOG_MANAGED_ENTRY',
+  );
+
+  await assert.rejects(
+    () => service.deleteCatalogEntry(managed.id),
+    (error: unknown) => error instanceof AppError && error.code === 'MCP_CATALOG_MANAGED_ENTRY',
+  );
+});

@@ -76,6 +76,24 @@ type McpCatalogWriteResult = {
 
 const CATALOG_SCOPE: McpScope = 'user';
 
+/**
+ * Catalog entries owned by a CloudCLI feature rather than added by the user.
+ *
+ * Mirrors the `cloudcli-` reservation the app uses for feature-managed MCP
+ * servers written straight into harness configs (e.g. the Browser tab): a
+ * catalog entry whose name carries this prefix is a definition the app owns.
+ * Such an entry is frozen from the matrix — not editable or deletable — so a
+ * user cannot desync it from the feature toggle; only its per-harness switch is
+ * writable.
+ */
+const MANAGED_NAME_PREFIX = 'cloudcli-';
+const isManagedCatalogName = (name: string): boolean => name.startsWith(MANAGED_NAME_PREFIX);
+
+const managedEntryError = (): AppError => new AppError(
+  `"${MANAGED_NAME_PREFIX}"-prefixed entries are owned by CloudCLI and cannot be changed here.`,
+  { code: 'MCP_CATALOG_MANAGED_ENTRY', statusCode: 403 },
+);
+
 const isUniqueConstraintError = (error: unknown): boolean => (
   error !== null
   && error !== undefined
@@ -377,13 +395,38 @@ export const createMcpCatalogService = (
      */
     async upsertCatalogEntry(input: UpsertMcpCatalogEntryInput): Promise<McpCatalogWriteResult> {
       if (!input.id) {
+        // A `cloudcli-` name is reserved for CloudCLI feature entries; a user
+        // entry with that prefix would be frozen from the matrix immediately.
+        if (isManagedCatalogName(input.name)) {
+          throw managedEntryError();
+        }
         return { entry: redactCatalogEntry(createCatalogEntry(input)), outcomes: [] };
       }
 
       const previous = readCatalogEntry(input.id);
+      if (isManagedCatalogName(previous.name)) {
+        throw managedEntryError();
+      }
       const entry = updateCatalogEntry(input.id, input, previous);
       // The projection writes the raw definition; only the response is redacted.
       return { entry: redactCatalogEntry(entry), outcomes: await projectEntry(entry, previous.name) };
+    },
+
+    /**
+     * Creates or refreshes a CloudCLI-managed catalog entry (e.g. the Browser
+     * feature server), without projecting it into any harness.
+     *
+     * The feature owns the definition; the per-harness switches are the user's
+     * manual matrix selection and are always preserved across an update, so a
+     * later toggle of the feature never wipes who had it enabled. A fresh entry
+     * starts with every harness off.
+     */
+    async upsertManagedEntry(draft: { name: string; transport: McpTransport; config: McpCatalogConfig }): Promise<McpCatalogEntry> {
+      const existing = catalog.findCatalogEntryByName(draft.name);
+      if (existing) {
+        return redactCatalogEntry(catalog.updateCatalogEntry(existing.id, draft) ?? existing);
+      }
+      return redactCatalogEntry(catalog.createCatalogEntry(draft));
     },
 
     /**
@@ -399,6 +442,9 @@ export const createMcpCatalogService = (
       outcomes: McpCatalogProjectionOutcome[];
     }> {
       const entry = readCatalogEntry(id);
+      if (isManagedCatalogName(entry.name)) {
+        throw managedEntryError();
+      }
       const outcomes: McpCatalogProjectionOutcome[] = [];
       let failed = false;
       for (const provider of providers.listProviders()) {

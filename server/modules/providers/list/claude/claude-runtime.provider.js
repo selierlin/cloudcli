@@ -1174,6 +1174,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
   // right total when the turn's `result` is the first to state the window.
   let reportedContextWindow = getReportedClaudeContextWindow(providerSessionId) ?? null;
   let mainThreadModel = null;
+  let lastSentMainThreadModel = null;
   let lastSentTokenBudget = null;
 
   // A new turn supersedes any earlier one still holding this session's process
@@ -1491,6 +1492,21 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         && message.message.model !== '<synthetic>'
       ) {
         mainThreadModel = message.message.model;
+        // The stream deltas themselves never carry the answering model, and the
+        // terminal assistant row that does is stripped of its streamed text
+        // blocks, so the frontend streaming footer would stay unlabeled for the
+        // whole turn. Surface it the instant it is known, before any rendering
+        // depend on it.
+        if (mainThreadModel !== lastSentMainThreadModel) {
+          lastSentMainThreadModel = mainThreadModel;
+          deltaBatcher.send(createNormalizedMessage({
+            kind: 'status',
+            text: 'model',
+            model: mainThreadModel,
+            sessionId: capturedSessionId || sessionId || null,
+            provider: 'claude',
+          }));
+        }
       }
 
       // Only a turn's `result` states the window of the model that served it.

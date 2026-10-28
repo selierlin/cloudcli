@@ -15,8 +15,6 @@ const router = express.Router();
  */
 export const BROWSER_USE_ERROR_CODES = {
   STATUS_LOAD_FAILED: 'BROWSER_USE_STATUS_LOAD_FAILED',
-  SETTINGS_LOAD_FAILED: 'BROWSER_USE_SETTINGS_LOAD_FAILED',
-  SETTINGS_SAVE_FAILED: 'BROWSER_USE_SETTINGS_SAVE_FAILED',
   RUNTIME_INSTALL_FAILED: 'BROWSER_USE_RUNTIME_INSTALL_FAILED',
   SESSIONS_LOAD_FAILED: 'BROWSER_USE_SESSIONS_LOAD_FAILED',
   SESSION_STOP_FAILED: 'BROWSER_USE_SESSION_STOP_FAILED',
@@ -53,35 +51,6 @@ router.get('/status', async (_req, res) => {
       500,
       BROWSER_USE_ERROR_CODES.STATUS_LOAD_FAILED,
       'Failed to load Browser status.',
-      error instanceof Error ? error.message : undefined,
-    );
-  }
-});
-
-router.get('/settings', async (_req, res) => {
-  try {
-    res.json({ success: true, data: { settings: await browserUseService.getSettings() } });
-  } catch (error) {
-    sendError(
-      res,
-      500,
-      BROWSER_USE_ERROR_CODES.SETTINGS_LOAD_FAILED,
-      'Failed to load Browser settings.',
-      error instanceof Error ? error.message : undefined,
-    );
-  }
-});
-
-router.put('/settings', async (req, res) => {
-  try {
-    const settings = await browserUseService.updateSettings(req.body || {});
-    res.json({ success: true, data: { settings } });
-  } catch (error) {
-    sendError(
-      res,
-      400,
-      BROWSER_USE_ERROR_CODES.SETTINGS_SAVE_FAILED,
-      'Failed to save Browser settings.',
       error instanceof Error ? error.message : undefined,
     );
   }

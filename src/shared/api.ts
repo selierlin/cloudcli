@@ -743,8 +743,6 @@ export const api = {
 
   browserUse: {
     status: () => get('/api/browser-use/status'),
-    settings: () => get('/api/browser-use/settings'),
-    saveSettings: (settings: unknown) => put('/api/browser-use/settings', settings),
     sessions: () => get('/api/browser-use/sessions'),
     stopSession: (sessionId: string) => post(`/api/browser-use/sessions/${sessionId}/stop`),
     deleteSession: (sessionId: string) => del(`/api/browser-use/sessions/${sessionId}`),

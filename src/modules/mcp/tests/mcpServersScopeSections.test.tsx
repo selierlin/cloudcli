@@ -165,6 +165,30 @@ test('mirrors catalog entries as matrix-managed rows and offers the matrix jump'
   assert.equal(onOpenMcpMatrix.mock.calls.length, 1);
 });
 
+test('labels a cloudcli-managed catalog entry with the managed badge and hides its config', async () => {
+  respondWithServers({ user: [] });
+  respondWithCatalog([{
+    id: 'entry-browser',
+    name: 'cloudcli-browser',
+    transport: 'stdio',
+    config: { command: '/usr/bin/node', args: ['/app/browser-use-mcp.js'] },
+    enabled: { claude: true },
+    createdAt: '2026-01-01 00:00:00',
+    updatedAt: '2026-01-01 00:00:00',
+  }]);
+
+  const { container } = await renderServers(/cloudcli-browser/);
+
+  const row = rowFor(container, 'cloudcli-browser');
+  // A CloudCLI feature-owned entry keeps the "已托管" badge rather than the
+  // matrix-owned one, and its connection details stay hidden as noise.
+  assert.match(row.textContent ?? '', /mcpServers\.managed\.badge/);
+  assert.doesNotMatch(row.textContent ?? '', /mcpServers\.userScope\.managedBadge/);
+  assert.doesNotMatch(row.textContent ?? '', /\n\/usr\/bin\/node/, 'the runtime command must stay hidden');
+  assert.doesNotMatch(row.textContent ?? '', /browser-use-mcp\.js/, 'the args must stay hidden');
+  assert.equal(countActions(row), 0);
+});
+
 test('shows a catalog entry once even when the harness file still carries it', async () => {
   respondWithServers({
     user: [

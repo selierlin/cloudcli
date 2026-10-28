@@ -22,7 +22,6 @@ import { api, readApiJson } from '@/shared/api';
 import type { SettingsMainTab } from '@/shared/types';
 
 type BrowserUseStatus = {
-  enabled: boolean;
   available: boolean;
   playwrightInstalled: boolean;
   chromiumInstalled: boolean;
@@ -101,9 +100,9 @@ function getStatusTone(status: BrowserUseSession['status']): string {
 }
 
 function getRuntimeTone(status: BrowserUseStatus | null, installing: boolean): string {
-  if (!status?.enabled) return 'border-border bg-muted text-muted-foreground';
-  if (status.available) return 'border-primary/30 bg-primary/5 text-foreground';
-  if (status.installInProgress || installing) return 'border-primary/30 bg-primary/5 text-foreground';
+  if (status?.available || status?.installInProgress || installing) {
+    return 'border-primary/30 bg-primary/5 text-foreground';
+  }
   return 'border-border bg-background text-muted-foreground';
 }
 
@@ -136,14 +135,12 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
   );
 
   const activeSessions = sessions.filter((session) => session.status === 'ready');
-  const needsBrowserBinaries = Boolean(status?.enabled && (!status.playwrightInstalled || !status.chromiumInstalled));
-  const runtimeLabel = !status?.enabled
-    ? t('runtime.disabled')
-    : status.available
-      ? t('runtime.ready')
-      : status.installInProgress || isInstalling
-        ? t('runtime.installing')
-        : t('runtime.setupRequired');
+  const needsBrowserBinaries = Boolean(status && (!status.playwrightInstalled || !status.chromiumInstalled));
+  const runtimeLabel = status?.available
+    ? t('runtime.ready')
+    : status?.installInProgress || isInstalling
+      ? t('runtime.installing')
+      : t('runtime.setupRequired');
 
   const cursorStyle = selectedSession?.cursor && selectedSession.viewport
     ? {
@@ -215,6 +212,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
     try {
       const response = await api.browserUse.installRuntime();
       await readApiJson(response);
+      window.dispatchEvent(new Event('browserRuntimeChanged'));
     } finally {
       setIsInstalling(false);
     }
@@ -264,10 +262,10 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
           </div>
           <div className="min-w-0">
             <div className="text-sm font-semibold text-foreground">
-              {status?.enabled ? t('empty.title') : t('empty.disabledTitle')}
+              {status?.available ? t('empty.title') : t('empty.disabledTitle')}
             </div>
             <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">
-              {status?.enabled
+              {status?.available
                 ? t('empty.agentDescription')
                 : t('empty.disabledDescription')}
             </p>

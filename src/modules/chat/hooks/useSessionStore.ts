@@ -57,6 +57,13 @@ export type SessionSlot = {
   hasMore: boolean;
   offset: number;
   tokenUsage: unknown;
+  /**
+   * Model reported mid-stream by the backend via a `status/model` frame, held
+   * here until it can be stamped onto the live streaming row (which may not
+   * have been created yet when the frame arrives).
+   * @internal
+   */
+  pendingStreamingModel?: string;
   /** Continuation state for the active snapshot when this slot was loaded through Turn pagination. */
   turnPageInfo: TurnHistoryPageInfo | null;
   /** Byte budget repeated on continuation requests so every page uses the same policy. */
@@ -86,6 +93,7 @@ function createEmptySlot(): SessionSlot {
     // history refresh overwrote the value fetched from the token-usage
     // endpoint with it.
     tokenUsage: undefined,
+    pendingStreamingModel: undefined,
     _historyMutationQueue: Promise.resolve(),
   };
 }
@@ -1148,6 +1156,9 @@ export function useSessionStore() {
         kind: 'stream_delta',
         streamChannel: update.channel,
         content: update.text,
+        // Model reported mid-stream (a `status/model` frame may arrive before
+        // this row exists); whatever is on the row already wins once it's set.
+        model: slot.pendingStreamingModel ?? next[idx]?.model,
       };
       if (idx >= 0) {
         next[idx] = msg;
@@ -1233,6 +1244,29 @@ export function useSessionStore() {
   }, [notify]);
 
   /**
+   * Stamp the answering model onto a session's live streaming row. The backend
+   * sends it as a `status/model` frame the moment the model is known, which may
+   * precede the first `stream_delta`; a too-early frame is held on the slot and
+   * applied by the next `updateStreamingBatch`.
+   */
+  const setStreamingModel = useCallback((sessionId: string, model: string) => {
+    const slot = getSlot(sessionId);
+    if (model === slot.pendingStreamingModel) return;
+    slot.pendingStreamingModel = model;
+    const streamId = `__streaming_${sessionId}`;
+    const idx = slot.realtimeMessages.findIndex(m => m.id === streamId);
+    if (idx >= 0) {
+      // New array reference so recomputeMergedIfNeeded (a reference-equality
+      // guard) actually re-runs on the stamped row.
+      const next = [...slot.realtimeMessages];
+      next[idx] = { ...next[idx], model };
+      slot.realtimeMessages = next;
+      recomputeMergedIfNeeded(slot);
+    }
+    notify(sessionId);
+  }, [getSlot, notify]);
+
+  /**
    * Get merged messages for a session (for rendering).
    */
   const getMessages = useCallback((sessionId: string): NormalizedMessage[] => {
@@ -1298,6 +1332,7 @@ export function useSessionStore() {
     updateStreamingBatch,
     updateStreaming,
     finalizeStreaming,
+    setStreamingModel,
     getMessages,
     getSessionSlot,
     dropSession,
@@ -1305,7 +1340,7 @@ export function useSessionStore() {
   }), [
     fetchFromServer, fetchMore, fetchNewer, appendRealtime, truncateAt, refreshLatestFromServer,
     setActiveSession, isStale, updateStreamingBatch, updateStreaming, finalizeStreaming,
-    getMessages, getSessionSlot, dropSession, setObservedSession,
+    setStreamingModel, getMessages, getSessionSlot, dropSession, setObservedSession,
   ]);
 }
 

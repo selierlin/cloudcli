@@ -2,18 +2,22 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { api } from '@/shared/api';
 
-/** Tracks whether the Browser Use workspace is enabled in server settings. */
+/**
+ * Whether the Browser Use workspace tab is usable, which is exactly whether the
+ * Playwright/Chromium runtime is available. The old on/off toggle is gone: there
+ * is nothing else to enable, so availability tracks the runtime install state.
+ */
 export function useBrowserUseEnabled() {
   const [browserUseEnabled, setBrowserUseEnabled] = useState(false);
 
-  const loadBrowserUseSettings = useCallback(async () => {
+  const loadBrowserUseStatus = useCallback(async () => {
     try {
-      const response = await api.browserUse.settings();
+      const response = await api.browserUse.status();
       const data = await response.json();
       setBrowserUseEnabled(Boolean(
         response.ok
         && data?.success !== false
-        && data?.data?.settings?.enabled,
+        && data?.data?.available,
       ));
     } catch {
       setBrowserUseEnabled(false);
@@ -21,10 +25,14 @@ export function useBrowserUseEnabled() {
   }, []);
 
   useEffect(() => {
-    void loadBrowserUseSettings();
-    window.addEventListener('browserUseSettingsChanged', loadBrowserUseSettings);
-    return () => window.removeEventListener('browserUseSettingsChanged', loadBrowserUseSettings);
-  }, [loadBrowserUseSettings]);
+    void loadBrowserUseStatus();
+    // The runtime can be installed from the settings page or the panel; that is
+    // the only way availability changes, so reload when it is reported. If the
+    // workspace is already mounted with the tab hidden, this brings the tab in
+    // without requiring a remount.
+    window.addEventListener('browserRuntimeChanged', loadBrowserUseStatus);
+    return () => window.removeEventListener('browserRuntimeChanged', loadBrowserUseStatus);
+  }, [loadBrowserUseStatus]);
 
   return browserUseEnabled;
 }

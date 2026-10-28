@@ -993,3 +993,27 @@ test('opens the column menu above the dialog layer too', async () => {
 
   assertMenuOutranksDialog(document.querySelector('[role="menu"]'));
 });
+
+test('locks a cloudcli-managed entry to only its per-harness switches', async () => {
+  respondWith([
+    ...ENTRIES,
+    entry('9', 'cloudcli-browser', 'stdio', { command: '/usr/bin/node' }, ['claude']),
+  ]);
+  const container = await renderMatrix();
+
+  const row = rowFor(container, 'cloudcli-browser');
+  assert.ok(!row.querySelector('button[aria-label="mcpMatrix.row.edit"]'), 'managed row must not offer edit');
+
+  // The per-harness cell is still switchable.
+  assert.equal(cellFor(row, 'Claude').getAttribute('data-state'), 'on');
+  assert.equal(labelsInState(row, 'off').length, 6);
+
+  // The row menu keeps the batch switches but drops delete.
+  fireEvent.click(buttonFor(container, 'mcpMatrix.row.menuLabel:{"name":"cloudcli-browser"}'));
+  const items = Array.from(document.querySelectorAll('[role="menuitem"]')).map((item) => item.textContent ?? '');
+  assert.ok(items.some((text) => text.startsWith('mcpMatrix.row.enableAll')), 'batch enable must remain');
+  assert.ok(
+    !items.some((text) => text.startsWith('mcpMatrix.row.delete')),
+    'managed row must not offer delete',
+  );
+});

@@ -8,7 +8,8 @@ import path from 'node:path';
 import spawn from 'cross-spawn';
 
 import { appConfigDb } from '@/modules/database/index.js';
-import { providerMcpService } from '@/modules/providers/index.js';
+import { mcpCatalogService, providerMcpService, providerRegistry } from '@/modules/providers/index.js';
+import type { LLMProvider } from '@/shared/types.js';
 import { getModuleDirectory } from '@/shared/utils.js';
 
 import { getBrowserUseRuntime } from './browser-use-runtime.js';
@@ -17,8 +18,9 @@ const require = createRequire(import.meta.url);
 const __dirname = getModuleDirectory(import.meta.url);
 const MAX_SESSIONS_PER_OWNER = Number.parseInt(process.env.CLOUDCLI_BROWSER_USE_MAX_SESSIONS_PER_OWNER || '3', 10);
 const SESSION_TTL_MS = Number.parseInt(process.env.CLOUDCLI_BROWSER_USE_SESSION_TTL_MS || String(30 * 60 * 1000), 10);
-const BROWSER_USE_SETTINGS_KEY = 'browser_use_settings';
 const BROWSER_USE_MCP_TOKEN_KEY = 'browser_use_mcp_token';
+/** One-shot flag: the legacy per-harness direct-write layout has been converged into the MCP catalog. */
+const BROWSER_MCP_RECONCILED_KEY = 'browser.mcp.reconciled';
 
 type BrowserUseRuntime = ReturnType<typeof getBrowserUseRuntime>;
 type BrowserUseSessionStatus = 'ready' | 'stopped' | 'unavailable';
@@ -56,10 +58,6 @@ type RuntimeHandle = {
   page?: any;
 };
 
-type BrowserUseSettings = {
-  enabled: boolean;
-};
-
 type RuntimeReadiness = {
   playwright: any | null;
   playwrightInstalled: boolean;
@@ -77,40 +75,11 @@ let installPromise: Promise<{ success: boolean; message: string }> | null = null
 let lastInstallMessage: string | null = null;
 let runtimeProbeCache: { value: RuntimeProbe; updatedAt: number } | null = null;
 
-const DEFAULT_SETTINGS: BrowserUseSettings = {
-  enabled: false,
-};
 const AGENT_OWNER_ID = 'agent';
 const PROFILE_ROOT = path.join(os.homedir(), '.cloudcli', 'browser-use', 'profiles');
 const MCP_SERVER_NAME = 'cloudcli-browser';
 const LEGACY_MCP_SERVER_NAMES = ['cloudcli-browser-use'];
 const RUNTIME_READINESS_CACHE_TTL_MS = 30_000;
-
-function readSettings(): BrowserUseSettings {
-  try {
-    const raw = appConfigDb.get(BROWSER_USE_SETTINGS_KEY);
-    if (!raw) {
-      return DEFAULT_SETTINGS;
-    }
-
-    const parsed = JSON.parse(raw) as Partial<BrowserUseSettings>;
-    return {
-      enabled: parsed.enabled === true,
-    };
-  } catch (error: any) {
-    console.warn('[Browser] Failed to read settings:', error?.message || error);
-    return DEFAULT_SETTINGS;
-  }
-}
-
-function writeSettings(settings: BrowserUseSettings): BrowserUseSettings {
-  const normalized = {
-    enabled: settings.enabled === true,
-  };
-
-  appConfigDb.set(BROWSER_USE_SETTINGS_KEY, JSON.stringify(normalized));
-  return normalized;
-}
 
 function getOrCreateMcpToken(): string {
   const existing = appConfigDb.get(BROWSER_USE_MCP_TOKEN_KEY);
@@ -122,11 +91,7 @@ function getOrCreateMcpToken(): string {
   return token;
 }
 
-function getSetupMessage(settings: BrowserUseSettings, readiness: RuntimeReadiness): string {
-  if (!settings.enabled) {
-    return 'Browser is disabled in settings.';
-  }
-
+function getSetupMessage(readiness: RuntimeReadiness): string {
   if (!readiness.playwrightInstalled) {
     return 'Install Playwright and Chromium to use browser sessions.';
   }
@@ -164,14 +129,6 @@ function getMcpCommand(): { command: string; args: string[] } {
 function getMcpApiUrl(): string {
   const port = process.env.SERVER_PORT || process.env.PORT || '3001';
   return `http://127.0.0.1:${port}/api/browser-use-mcp`;
-}
-
-async function removeMcpServerFromAllProviders(name: string) {
-  const results = await providerMcpService.removeMcpServerFromAllProviders({
-    name,
-    scope: 'user',
-  });
-  return results.map((result) => ({ ...result, name }));
 }
 
 function normalizeProfileName(profileName?: string | null): string | null {
@@ -435,33 +392,19 @@ async function getActionPoint(page: any, input: { selector?: string; text?: stri
 }
 
 export const browserUseService = {
-  async getSettings() {
-    return readSettings();
-  },
-
-  async updateSettings(settings: Partial<BrowserUseSettings>) {
-    const current = readSettings();
-    const nextSettings = {
-      enabled: typeof settings.enabled === 'boolean' ? settings.enabled : current.enabled,
-    };
-
-    const next = writeSettings(nextSettings);
-    if (next.enabled) {
-      await this.registerAgentMcp();
-    } else if (current.enabled) {
-      await this.unregisterAgentMcp();
-      await this.stopAllSessions();
-    }
-    return next;
-  },
-
   async getStatus() {
-    const settings = readSettings();
+    // The one-shot legacy layout migration normally runs at server startup (see
+    // index.ts startServer). This stays as a safety net: when that boot run
+    // failed, the flag is unset and the first status call retries it; once the
+    // flag is set, this returns immediately and status stays read-only.
+    await this.ensureReconciled();
     const readiness = getRuntimeReadiness();
-    const available = settings.enabled && readiness.playwrightInstalled && readiness.chromiumInstalled;
+    const available = readiness.playwrightInstalled && readiness.chromiumInstalled;
+    // Once the runtime is ready, a CloudCLI feature server appears in the MCP
+    // catalog; which harnesses actually get it is decided in the MCP matrix.
+    await this.ensureMcpDefinitionWhenReady(readiness);
 
     return {
-      enabled: settings.enabled,
       runtime: getBrowserUseRuntime(),
       available,
       playwrightInstalled: readiness.playwrightInstalled,
@@ -470,36 +413,130 @@ export const browserUseService = {
       sessionCount: sessions.size,
       message: available
         ? 'Browser runtime is available.'
-        : getSetupMessage(settings, readiness),
+        : getSetupMessage(readiness),
     };
   },
 
-  async registerAgentMcp() {
+  /**
+   * Makes the Browser feature appear in the MCP catalog exactly when the runtime
+   * is ready (option (b)): nothing is written before Playwright/Chromium exist,
+   * and once created the entry persists even if the runtime is later removed, so
+   * the user's per-harness matrix selection is never wiped.
+   */
+  async ensureMcpDefinitionWhenReady(readiness: RuntimeReadiness) {
+    if (!readiness.playwrightInstalled || !readiness.chromiumInstalled) {
+      return;
+    }
+    const exists = mcpCatalogService.listCatalog().some((entry) => entry.name === MCP_SERVER_NAME);
+    if (!exists) {
+      await this.syncCatalogEntry();
+    }
+  },
+
+  /**
+   * The catalog definition for the Browser feature MCP server. The runtime
+   * command, the minted auth token and the backend HTTP URL are all owned by the
+   * Browser module; the catalog merely stores them as the SSOT definition.
+   */
+  getCatalogDraft() {
     const { command, args } = getMcpCommand();
-    await Promise.all(LEGACY_MCP_SERVER_NAMES.map((name) => removeMcpServerFromAllProviders(name)));
-    const results = await providerMcpService.addMcpServerToAllProviders({
+    return {
       name: MCP_SERVER_NAME,
-      scope: 'user',
-      transport: 'stdio',
-      command,
-      args,
-      env: {
-        CLOUDCLI_BROWSER_USE_MCP_TOKEN: getOrCreateMcpToken(),
-        CLOUDCLI_BROWSER_USE_API_URL: getMcpApiUrl(),
+      transport: 'stdio' as const,
+      config: {
+        command,
+        args,
+        env: {
+          CLOUDCLI_BROWSER_USE_MCP_TOKEN: getOrCreateMcpToken(),
+          CLOUDCLI_BROWSER_USE_API_URL: getMcpApiUrl(),
+        },
       },
-    });
-    return { name: MCP_SERVER_NAME, command, args, results };
+    };
+  },
+
+  /**
+   * Ensures the Browser MCP definition exists in the catalog (preserving the
+   * user's per-agent matrix selection), without projecting it anywhere — which
+   * harnesses actually get the tools is decided in the MCP matrix.
+   */
+  async syncCatalogEntry() {
+    return mcpCatalogService.upsertManagedEntry(this.getCatalogDraft());
+  },
+
+  /** Strips legacy direct-write entries the old on/off path left in harness configs. */
+  async unregisterAgentMcp() {
+    const results: Array<{ provider: LLMProvider; removed: boolean; error?: string }> = [];
+    for (const name of [MCP_SERVER_NAME, ...LEGACY_MCP_SERVER_NAMES]) {
+      results.push(...await providerMcpService.removeMcpServerFromAllProviders({ name, scope: 'user' }));
+    }
+    return { name: MCP_SERVER_NAME, results };
+  },
+
+  /**
+   * One-shot migration from the old "write to every harness" layout to a single
+   * catalog definition the user toggles per harness in the MCP matrix.
+   *
+   * It mirrors whichever harnesses still carry a direct-write `cloudcli-browser`
+   * entry into the catalog's per-harness switches (so no harness silently loses
+   * the tools it already had), then removes those now-redundant direct writes so
+   * the definition lives in exactly one place and the "mirrored" badge no longer
+   * splits between the matrix and the file.
+   */
+  async reconcileMcp() {
+    const readiness = getRuntimeReadiness();
+    // Mirror and migrate legacy direct-writes into the catalog only when the
+    // runtime is actually available (option (b)). When it is not, we skip the
+    // migration entirely (flag left unset, existing direct-writes left in
+    // place): stripping them here would delete the very per-harness choices the
+    // mirror below is meant to preserve, and a later install would then repopulate
+    // the matrix empty. A runtime install/launch triggers reconcile again (via
+    // getStatus), so nothing is orphaned by the wait.
+    if (readiness.playwrightInstalled && readiness.chromiumInstalled) {
+      const entry = await this.syncCatalogEntry();
+      const mirrored = await this.findProvidersWithDirectWrite();
+      for (const provider of providerRegistry.listProviders()) {
+        const desired = mirrored.has(provider.id);
+        if (entry.enabled[provider.id] === desired) {
+          continue;
+        }
+        await mcpCatalogService.toggleCatalogApp(entry.id, provider.id, desired);
+      }
+      // The migration is only "done" once the runtime-backed mirror has run and
+      // the per-harness switches are preserved. Marking it done without the
+      // mirror (see the else path) would freeze the flag early and let a later
+      // install overwrite the user's original per-harness choice with an empty
+      // matrix, so the flag is set solely here.
+      await this.unregisterAgentMcp();
+      appConfigDb.set(BROWSER_MCP_RECONCILED_KEY, 'true');
+    }
+  },
+
+  /** Idempotent guard so the one-shot reconcile runs at most once. */
+  async ensureReconciled() {
+    if (appConfigDb.get(BROWSER_MCP_RECONCILED_KEY)) {
+      return;
+    }
+    await this.reconcileMcp();
+  },
+
+  /** Which harnesses still hold a legacy direct-write `cloudcli-browser` entry, best-effort. */
+  async findProvidersWithDirectWrite(): Promise<Set<LLMProvider>> {
+    const found = new Set<LLMProvider>();
+    for (const provider of providerRegistry.listProviders()) {
+      try {
+        const servers = await provider.mcp.listRawServersForScope('user');
+        if (servers.some((server) => server.name === MCP_SERVER_NAME)) {
+          found.add(provider.id);
+        }
+      } catch {
+        // Best-effort: a harness we cannot read simply is not part of the mirror set.
+      }
+    }
+    return found;
   },
 
   getMcpToken() {
     return getOrCreateMcpToken();
-  },
-
-  async unregisterAgentMcp() {
-    const results = (await Promise.all(
-      [MCP_SERVER_NAME, ...LEGACY_MCP_SERVER_NAMES].map((name) => removeMcpServerFromAllProviders(name)),
-    )).flat();
-    return { name: MCP_SERVER_NAME, results };
   },
 
   async installRuntime() {
@@ -522,11 +559,6 @@ export const browserUseService = {
     authTokenFile?: string | null;
     authOrigin?: string | null;
   }) {
-    const settings = readSettings();
-    if (!settings.enabled) {
-      throw new Error('Browser agent tools are disabled.');
-    }
-
     await expireStaleSessions();
     const profileName = normalizeProfileName(options?.profileName);
     const authToken = readAuthTokenFile(options?.authTokenFile);
@@ -560,8 +592,8 @@ export const browserUseService = {
     }
 
     const readiness = getRuntimeReadiness();
-    if (!settings.enabled || !readiness.playwrightInstalled || !readiness.chromiumInstalled || !readiness.playwright) {
-      session.message = getSetupMessage(settings, readiness);
+    if (!readiness.playwrightInstalled || !readiness.chromiumInstalled || !readiness.playwright) {
+      session.message = getSetupMessage(readiness);
       sessions.set(session.id, session);
       return publicSession(session);
     }
@@ -620,10 +652,6 @@ export const browserUseService = {
   },
 
   async listAgentSessions() {
-    const settings = readSettings();
-    if (!settings.enabled) {
-      return [];
-    }
     await expireStaleSessions();
     return [...sessions.values()]
       .filter((session) => session.ownerId === AGENT_OWNER_ID)
@@ -631,10 +659,6 @@ export const browserUseService = {
   },
 
   async getAgentSession(sessionId: string) {
-    const settings = readSettings();
-    if (!settings.enabled) {
-      throw new Error('Browser agent tools are disabled.');
-    }
     const session = sessions.get(sessionId);
     if (!session || session.ownerId !== AGENT_OWNER_ID) {
       throw new Error('Browser session not found.');

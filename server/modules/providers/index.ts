@@ -1,3 +1,7 @@
+// providerRegistry: the module-level registry of every provider implementation
+// (built eagerly at load, safe to enumerate during startup) for modules that need
+// to walk all harnesses, e.g. the Browser feature's MCP migration.
+export { providerRegistry } from './provider.registry.js';
 export { sessionSynchronizerService } from './services/session-synchronizer.service.js';
 export { providerSkillsService } from './services/skills.service.js';
 export { providerMcpService } from './services/mcp.service.js';

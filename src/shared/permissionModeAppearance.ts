@@ -75,8 +75,13 @@ export const PERMISSION_MODE_ACCENT_CLASSES: Record<
     hover: 'hover:bg-orange-100 dark:hover:bg-orange-900/25',
   },
   primary: {
-    foreground: 'text-primary',
-    label: 'text-primary',
+    // Plan and read-only are primary in light mode (a deliberate, low-risk
+    // sibling to auto's blue). In dark mode `--primary` is still the brand hue,
+    // which would paint them blue and blur the line with auto — so they drop to
+    // a neutral grey there instead. Settings' mode cards and the composer menu
+    // both read this `label`, so the two surfaces cannot drift.
+    foreground: 'text-primary dark:text-gray-400',
+    label: 'text-primary dark:text-gray-400',
     surface: 'border-primary/20 bg-primary/5',
     hover: 'hover:bg-primary/10',
   },

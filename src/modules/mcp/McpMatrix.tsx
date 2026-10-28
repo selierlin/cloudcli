@@ -423,26 +423,33 @@ export default function McpMatrix() {
               </tr>
             </thead>
             <tbody>
-              {visibleEntries.map((entry) => (
-                <tr key={entry.id}>
-                  <th
-                    scope="row"
-                    className="sticky left-0 z-10 border-t border-border bg-background px-3 py-2 text-left font-medium text-foreground"
-                  >
-                    <div className="flex min-w-0 items-center gap-1.5">
-                      <span className="truncate">{entry.name}</span>
-                      <TransportIcon transport={entry.transport} />
-                      <button
-                        type="button"
-                        onClick={() => setFormTarget({ entry })}
-                        title={t('mcpMatrix.row.edit')}
-                        aria-label={t('mcpMatrix.row.edit')}
-                        className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </th>
+              {visibleEntries.map((entry) => {
+                // A CloudCLI feature-owned entry (the Browser server) is a frozen
+                // definition: its config can only be changed by the feature, so the
+                // matrix offers only the per-harness switch, never edit or delete.
+                const isManaged = entry.name.startsWith('cloudcli-');
+                return (
+                  <tr key={entry.id}>
+                    <th
+                      scope="row"
+                      className="sticky left-0 z-10 border-t border-border bg-background px-3 py-2 text-left font-medium text-foreground"
+                    >
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate">{entry.name}</span>
+                        <TransportIcon transport={entry.transport} />
+                        {!isManaged && (
+                          <button
+                            type="button"
+                            onClick={() => setFormTarget({ entry })}
+                            title={t('mcpMatrix.row.edit')}
+                            aria-label={t('mcpMatrix.row.edit')}
+                            className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </th>
                   {MCP_MATRIX_PROVIDERS.map((provider) => {
                     const write = cellWrites[getMcpCellKey(entry.id, provider)];
                     const disabled = getCellDisabledReason(entry, provider) !== null;
@@ -480,19 +487,20 @@ export default function McpMatrix() {
                           icon: Minus,
                           onSelect: () => handleRowBatch(entry, false),
                         },
-                        {
+                        ...(isManaged ? [] : [{
                           key: 'delete',
                           label: t('mcpMatrix.row.delete'),
                           icon: Trash2,
                           isDanger: true,
                           showDividerBefore: true,
                           onSelect: () => handleDelete(entry),
-                        },
+                        }]),
                       ]}
                     />
                   </td>
                 </tr>
-              ))}
+              );
+            })}
             </tbody>
           </table>
         </div>

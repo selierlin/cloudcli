@@ -75,7 +75,7 @@ const getServerKey = (server: ProviderMcpServer): string => (
 // Servers prefixed with `cloudcli-` are written and removed automatically by a
 // CloudCLI feature toggle (e.g. the Browser tab), not added by the user. They are
 // shown read-only so users don't edit/delete them out of sync with the feature.
-const isManagedServer = (server: ProviderMcpServer): boolean => server.name.startsWith('cloudcli-');
+const isManagedServer = (server: Pick<ProviderMcpServer, 'name'>): boolean => server.name.startsWith('cloudcli-');
 
 /**
  * Who owns editing a row, which is what its read-only badge and hint name.
@@ -208,15 +208,22 @@ export default function McpServers({ selectedProvider, currentProjects, onOpenMc
     // — which also keeps it visible when the projection into the file failed.
     const catalogRows: McpServerRow[] = catalogEntries
       .filter((entry) => entry.enabled[selectedProvider])
-      .map((entry) => ({
-        key: `catalog:${entry.id}`,
-        name: entry.name,
-        transport: entry.transport,
-        scope: 'user',
-        details: entry.config,
-        owner: 'matrix',
-        showDetails: true,
-      }));
+      .map((entry) => {
+        // A catalog entry owned by a CloudCLI feature (e.g. the Browser tab)
+        // stays under the "已托管" badge and hides noisy connection details,
+        // just like the file-scope rows it used to live alongside; only the row
+        // itself is projected by the matrix, not hand-editable here.
+        const cloudcliManaged = isManagedServer(entry);
+        return {
+          key: `catalog:${entry.id}`,
+          name: entry.name,
+          transport: entry.transport,
+          scope: 'user',
+          details: entry.config,
+          owner: cloudcliManaged ? 'cloudcli' : 'matrix',
+          showDetails: !cloudcliManaged,
+        };
+      });
 
     const fileRows: McpServerRow[] = servers.flatMap((server) => {
       const cloudcliManaged = isManagedServer(server);

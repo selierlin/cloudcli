@@ -432,6 +432,17 @@ async function startServer() {
             console.warn('[WARN] Could not seed the MCP catalog:', getErrorMessage(error));
         }
 
+        // Migrate the old per-harness direct-write Browser layout into the MCP
+        // catalog. Requires the catalog seed above; guarded by an app_config flag
+        // so it runs once ever; a failure only skips this boot's migration and is
+        // retried by the first getStatus (which keeps ensureReconciled as the
+        // safety net rather than the trigger).
+        try {
+            await browserUseService.reconcileMcp();
+        } catch (error) {
+            console.warn('[WARN] Could not reconcile the Browser MCP layout:', getErrorMessage(error));
+        }
+
         // Apply the stored global proxy to process.env before any session can
         // spawn, so every harness inherits the same decision.
         applyProxyToProcessEnv();
