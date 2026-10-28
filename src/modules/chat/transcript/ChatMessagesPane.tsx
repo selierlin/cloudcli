@@ -297,7 +297,7 @@ function ChatMessagesPane({
   useBottomEdgeResizeCompensation(scrollContainerRef, programmaticScrollTopRef);
   // The transcript is read far more than it is scrolled, so its bar only shows
   // while it moves — including while a streaming reply drags it along.
-  useAutoHideScrollbar(scrollContainerRef);
+  const autoHideScrollbarRef = useAutoHideScrollbar(scrollContainerRef);
   // Retains user ownership and visible duration across lazy row unmounts.
   const [disclosureRegistry, dispatchDisclosure] = useReducer(disclosureRegistryReducer, {
     sessionId,
@@ -479,7 +479,7 @@ function ChatMessagesPane({
 
   return (
     <div
-      ref={scrollContainerRef}
+      ref={autoHideScrollbarRef}
       onWheel={onWheel}
       onTouchMove={onTouchMove}
       className={`chat-messages-pane relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden pt-3 sm:pt-4 ${

@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 
 import { ThemeModeSelector } from '@/shared/ui';
 import { SETTING_ROW_CLASS } from '@/shared/constants';
+import { useAutoHideScrollbar } from '@/shared/hooks/useAutoHideScrollbar';
 import { useThemeOptions } from '@/shared/hooks/useThemeOptions';
 import {
   CODE_FONT_FAMILY_OPTIONS,
@@ -62,9 +63,10 @@ export default function QuickSettingsContent({
   // in the settings dialog, which is why the shared options come through a
   // plain select here.
   const { options, selectedId, setThemeId } = useThemeOptions();
+  const autoHideScrollbarRef = useAutoHideScrollbar();
 
   return (
-    <div className="flex-1 space-y-6 overflow-y-auto overflow-x-hidden bg-background p-4">
+    <div ref={autoHideScrollbarRef} className="flex-1 space-y-6 overflow-y-auto overflow-x-hidden bg-background p-4">
       <QuickSettingsSection title={t('quickSettings.sections.appearance')}>
         <div className={SETTING_ROW_CLASS}>
           <span className="flex items-center gap-2 text-sm text-foreground">

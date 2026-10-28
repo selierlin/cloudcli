@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import { useAutoHideScrollbar } from '@/shared/hooks/useAutoHideScrollbar';
 import type { SlashCommand } from '@/shared/types';
 import { isSkillCommand } from '@/shared/utils';
 
@@ -49,6 +50,7 @@ export default function QuickSettingsCommandsTab({
   onInsertCommand,
 }: QuickSettingsCommandsTabProps) {
   const { t } = useTranslation('settings');
+  const autoHideScrollbarRef = useAutoHideScrollbar();
   // The search box text; local because it only narrows this list. It lives as
   // long as the tab does, so a filter survives closing and reopening the panel.
   const [query, setQuery] = useState('');
@@ -120,7 +122,7 @@ export default function QuickSettingsCommandsTab({
           />
         </label>
       </div>
-      <div className="flex-1 space-y-4 overflow-y-auto overflow-x-hidden p-3">
+      <div ref={autoHideScrollbarRef} className="flex-1 space-y-4 overflow-y-auto overflow-x-hidden p-3">
         {renderBody()}
       </div>
     </div>

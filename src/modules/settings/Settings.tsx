@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { ProviderLoginModal } from '@/modules/provider-auth';
+import { useAutoHideScrollbar } from '@/shared/hooks/useAutoHideScrollbar';
 import { Button } from '@/shared/ui';
 import { isImeKeyEvent } from '@/shared/utils';
 import SettingsSidebar from '@/modules/settings/SettingsSidebar';
@@ -97,6 +98,9 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
     subscribe: pushSubscribe,
     unsubscribe: pushUnsubscribe,
   } = useWebPush();
+  // The dialog's content column is long and read in bursts; its bar only shows
+  // while it moves.
+  const autoHideScrollbarRef = useAutoHideScrollbar();
 
   const handleEnablePush = async () => {
     await pushSubscribe();
@@ -252,7 +256,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
           <SettingsSidebar activeTab={activeTab} onChange={setActiveTab} />
 
           {/* Content */}
-          <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <main ref={autoHideScrollbarRef} className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
             <div
               key={activeTab}
               className="settings-content-enter min-w-0 space-y-6 overflow-x-hidden p-4 md:space-y-8 md:p-6"

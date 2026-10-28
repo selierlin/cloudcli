@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Loader2, MessageSquare } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import { useAutoHideScrollbar } from '@/shared/hooks/useAutoHideScrollbar';
 import type { SessionOutlineItem } from '@/shared/types';
 
 type QuickSettingsOutlineProps = {
@@ -21,6 +22,7 @@ export default function QuickSettingsOutline({
   onJumpToMessage,
 }: QuickSettingsOutlineProps) {
   const { t } = useTranslation('settings');
+  const autoHideScrollbarRef = useAutoHideScrollbar();
 
   // Newest first, so recent questions are immediately visible.
   const rows = useMemo(() => [...items].reverse(), [items]);
@@ -43,7 +45,7 @@ export default function QuickSettingsOutline({
   }
 
   return (
-    <div className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden p-2">
+    <div ref={autoHideScrollbarRef} className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden p-2">
       {rows.map((item, index) => {
         // Server snippet is already capped at 80 chars; this slice is a
         // defensive safety net preserving the old jump contract exactly.

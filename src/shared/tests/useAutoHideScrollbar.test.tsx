@@ -14,7 +14,7 @@ import { useAutoHideScrollbar } from '@/shared/hooks/useAutoHideScrollbar';
 
 const RIGHT_EDGE = 300;
 
-const setup = () => {
+const makeNode = () => {
   const element = document.createElement('div');
   document.body.appendChild(element);
   element.getBoundingClientRect = () => ({
@@ -28,8 +28,13 @@ const setup = () => {
     height: 400,
     toJSON: () => ({}),
   });
-  const ref = { current: element } as RefObject<HTMLElement>;
-  const view = renderHook(() => useAutoHideScrollbar(ref));
+  return element;
+};
+
+const setup = (externalRef?: RefObject<HTMLElement>) => {
+  const element = makeNode();
+  const view = renderHook(() => useAutoHideScrollbar(externalRef));
+  act(() => view.result.current(element));
   return { element, ...view };
 };
 
@@ -94,11 +99,31 @@ test('leaving the container puts the bar back to rest', () => {
   expect(element.hasAttribute('data-scrollbar-idle')).toBe(true);
 });
 
-test('stops listening once the container is gone', () => {
-  const { element, unmount } = setup();
+test('a container that mounts late still gets wired up', () => {
+  const { result } = renderHook(() => useAutoHideScrollbar());
+  // First commit renders a spinner instead of the list, so the ref is null.
+  act(() => result.current(null));
+
+  const element = makeNode();
+  act(() => result.current(element));
+
+  expect(element.hasAttribute('data-scrollbar-idle')).toBe(true);
+  act(() => element.dispatchEvent(new Event('scroll')));
+  expect(element.hasAttribute('data-scrollbar-idle')).toBe(false);
+});
+
+test('mirrors the node into the caller own ref object', () => {
+  const externalRef = { current: null } as RefObject<HTMLElement>;
+  const { element } = setup(externalRef);
+
+  expect(externalRef.current).toBe(element);
+});
+
+test('stops listening once the node goes away', () => {
+  const { element, result } = setup();
   element.removeAttribute('data-scrollbar-idle');
 
-  unmount();
+  act(() => result.current(null));
   act(() => element.dispatchEvent(new Event('scroll')));
   act(() => vi.advanceTimersByTime(700));
 
