@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import { Check, ChevronRight, Copy, Edit3, MoreHorizontal, Star, Trash2, X } from 'lucide-react';
+import { Check, ChevronRight, Copy, Edit3, Folder, MoreHorizontal, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { ActionMenu, type ActionMenuItem } from '@/shared/ui';
@@ -144,6 +144,12 @@ function SidebarProjectItem({
       },
     },
     {
+      key: 'favorite',
+      label: isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites'),
+      icon: Star,
+      onSelect: () => onToggleStarProject(project.projectId),
+    },
+    {
       key: 'rename',
       label: t('tooltips.renameProject'),
       icon: Edit3,
@@ -238,22 +244,24 @@ function SidebarProjectItem({
             <div className="flex items-center justify-between">
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 <button
-                  // The touch layout has no hover to reveal the star, so it
-                  // stays visible. The yellow wash is gone for the same reason
-                  // it is gone on the dense row: the filled star already says
-                  // "starred", and `sortProjects` puts the project at the top.
+                  // The folder is the touch layout's counterpart to the dense
+                  // row's leading glyph, and here it is the one favoriting
+                  // target: a phone has no hover to reveal a hidden control, so
+                  // the button stays visible. Amber when starred — matching the
+                  // dense row — muted otherwise.
                   className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-n-gray-500/10 transition-all duration-150 active:scale-90 dark:bg-n-gray-900/30"
                   onClick={(event) => {
                     event.stopPropagation();
                     toggleStarProject();
                   }}
+                  aria-label={isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites')}
                   title={isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites')}
                 >
-                  <Star
+                  <Folder
                     className={cn(
-                      'w-4 h-4 transition-colors',
+                      'h-4 w-4 transition-colors',
                       isStarred
-                        ? 'text-yellow-600 dark:text-yellow-400 fill-current'
+                        ? 'text-amber-500 fill-amber-500'
                         : 'text-muted-foreground',
                     )}
                   />
@@ -381,7 +389,7 @@ function SidebarProjectItem({
         // button so keyboard users can reach it.
         <div
           className={cn(
-            'sticky top-0 z-10 flex w-full cursor-pointer items-center justify-between gap-2 rounded-md p-2 text-sm font-normal transition-colors hover:bg-accent/50',
+            'group/project sticky top-0 z-10 flex w-full cursor-pointer items-center justify-between gap-2 rounded-md border-b border-border/30 p-2 text-sm font-normal transition-colors hover:bg-accent/50',
             // A starred row used to wash itself yellow, which said the same
             // thing as the filled star and added a third row background next to
             // selected/normal.
@@ -389,43 +397,27 @@ function SidebarProjectItem({
           )}
           onClick={selectAndToggleProject}
         >
-          <div className="flex min-w-0 flex-1 items-center gap-3">
-            <div
-              role="button"
-              tabIndex={0}
+          <div className="flex min-w-0 flex-1 items-center">
+            {/* The leading folder is the row's identity glyph, and — like on the
+                compact card — here it is the favoriting control too: click it
+                to pin/unpin. Amber when starred, muted otherwise. */}
+            <button
+              type="button"
               aria-label={isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites')}
-              className={cn(
-                // The star only earns row real estate when the row is hovered or
-                // the project is actually starred; twelve grey stars at rest read
-                // as a dotted column. The 24px slot stays reserved so hovering
-                // never shifts the name sideways.
-                'w-6 h-6 flex items-center justify-center rounded cursor-pointer transition-all duration-200',
-                isStarred
-                  ? 'hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
-                  : 'opacity-0 hover:bg-accent group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100',
-              )}
+              title={isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites')}
+              className="mr-2 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               onClick={(event) => {
                 event.stopPropagation();
                 toggleStarProject();
               }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  toggleStarProject();
-                }
-              }}
-              title={isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites')}
             >
-              <Star
+              <Folder
                 className={cn(
-                  '!h-3 !w-3 transition-colors',
-                  isStarred
-                    ? 'text-yellow-600 dark:text-yellow-400 fill-current'
-                    : 'text-muted-foreground',
+                  'h-4 w-4 transition-colors',
+                  isStarred ? 'text-amber-500 fill-amber-500' : 'text-muted-foreground',
                 )}
               />
-            </div>
+            </button>
             <div className="min-w-0 flex-1 text-left">
               {isEditing ? (
                 <div className="space-y-1">
