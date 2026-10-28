@@ -1147,7 +1147,11 @@ export default function SidebarContent({
         t={t}
       />
 
-      <ScrollArea ref={autoHideScrollbarRef} className="flex-1 overflow-y-auto overscroll-contain md:px-1.5 md:py-2">
+      {/* The right inset lives on the far side of the scroller, so a classic
+          bar inset by it would leave a strip of bare background between itself
+          and the sidebar's edge. Keeping only the left inset puts the bar flush
+          against that edge, and the rows gain back the six pixels. */}
+      <ScrollArea ref={autoHideScrollbarRef} className="flex-1 overflow-y-auto overscroll-contain md:py-2 md:pl-1.5">
         {showConversationSearch ? (
           isSearching && !conversationResults ? (
             <div className="px-4 py-12 text-center md:py-8">
