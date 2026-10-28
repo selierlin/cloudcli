@@ -491,13 +491,7 @@ export function useChatRealtimeHandlers({
         }
 
         case 'status': {
-          if (msg.text === 'model' && typeof msg.model === 'string' && msg.model && sid) {
-            // The answering model arrives mid-stream so the footer can label the
-            // reply before it finishes; without this the terminal assistant row
-            // that carries the model is stripped of its streamed text and the
-            // label only appears after a history re-fetch.
-            sessionStore.setStreamingModel(sid, msg.model);
-          } else if (msg.text === 'token_budget' && msg.tokenBudget) {
+          if (msg.text === 'token_budget' && msg.tokenBudget) {
             // The counter shows the viewed session's context; budgets from
             // other concurrently running sessions must not overwrite it.
             if (sid === activeViewSessionId) {
