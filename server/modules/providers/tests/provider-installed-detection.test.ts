@@ -9,10 +9,15 @@ import { CodexProviderAuth } from '@/modules/providers/list/codex/codex-auth.pro
 import { CursorProviderAuth } from '@/modules/providers/list/cursor/cursor-auth.provider.js';
 import type { IProviderAuth } from '@/shared/interfaces.js';
 
-// cross-spawn reports a missing binary on the spawnSync result instead of
-// throwing, so these probes must inspect result.error. Each case is exercised
-// with PATH pointing at a temporary directory whose only content is either
-// nothing or a stub launcher, which keeps the test independent of the host.
+// The shared probe runs `<command> --version` through cross-spawn, which reports
+// a missing binary on the result instead of throwing, so `installed` has to come
+// from that result. Each case is exercised with PATH pointing at a temporary
+// directory whose only content is either nothing or a stub launcher, which keeps
+// the test independent of the host.
+//
+// Codex is the exception: chats run the `@openai/codex` package resolved from
+// node_modules by the SDK, so a `codex` on PATH is neither required nor
+// consulted. It is covered by its own test below.
 type ProviderCase = {
   command: string;
   create: () => IProviderAuth;
@@ -20,7 +25,6 @@ type ProviderCase = {
 
 const PROVIDER_CASES: ProviderCase[] = [
   { command: 'cursor-agent', create: () => new CursorProviderAuth() },
-  { command: 'codex', create: () => new CodexProviderAuth() },
   { command: 'claude', create: () => new ClaudeProviderAuth() },
 ];
 
@@ -84,3 +88,15 @@ for (const { command, create } of PROVIDER_CASES) {
     },
   );
 }
+
+// Codex resolves its launcher from the `@openai/codex` dependency, which the SDK
+// loads out of node_modules, so PATH plays no part. Asserting the positive case
+// is what pins that contract: a probe that went back to PATH would answer false
+// here, and a missing dependency would answer false even with a codex on PATH.
+test('getStatus: codex reports installed with no codex on PATH', async () => {
+  await withPathDir(async () => {}, async () => {
+    const status = await new CodexProviderAuth().getStatus();
+
+    assert.equal(status.installed, true);
+  });
+});

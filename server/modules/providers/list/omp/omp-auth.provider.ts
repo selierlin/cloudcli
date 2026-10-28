@@ -1,7 +1,8 @@
 import { execFile, execFileSync } from 'node:child_process';
 
 import type { IProviderAuth } from '@/shared/interfaces.js';
-import type { ProviderAuthStatus } from '@/shared/types.js';
+import type { CliVersionProbe, ProviderAuthStatus } from '@/shared/types.js';
+import { parseCliVersion, probeCliVersion } from '@/shared/utils.js';
 
 // Status polling must not shell out (or block the event loop) on every call:
 // the command resolution and both probes are each cached briefly.
@@ -14,7 +15,7 @@ const CONFIG_PROBE_TIMEOUT_MS = 5_000;
 type CommandResolution = { command: string | null; source: 'override' | 'path' | 'missing' };
 
 let resolution: { value: CommandResolution; resolvedAt: number } | null = null;
-let versionProbe: { ok: boolean; checkedAt: number } | null = null;
+let versionProbe: { value: CliVersionProbe; checkedAt: number } | null = null;
 let configProbe: { status: 'ready' | 'unconfigured' | 'unknown'; checkedAt: number } | null = null;
 
 /**
@@ -76,17 +77,21 @@ export function resetOmpCommandForTests(): void {
  * synchronous probe would freeze the Node event loop for the timeout window on
  * every status query) and cached so the settings UI can poll freely.
  */
-async function checkVersion(command: string): Promise<boolean> {
+async function checkVersion(command: string): Promise<CliVersionProbe> {
   if (versionProbe && Date.now() - versionProbe.checkedAt < VERSION_PROBE_TTL_MS) {
-    return versionProbe.ok;
+    return versionProbe.value;
   }
-  const ok = await new Promise<boolean>((resolve) => {
-    execFile(command, ['--version'], { timeout: VERSION_PROBE_TIMEOUT_MS }, (error) => {
-      resolve(!error);
+  const value = await new Promise<CliVersionProbe>((resolve) => {
+    execFile(command, ['--version'], { timeout: VERSION_PROBE_TIMEOUT_MS }, (error, stdout) => {
+      // A resolved launcher that fails to run is still installed; the exit
+      // status is what tells the caller it misbehaved.
+      resolve(error
+        ? { installed: true, exitCode: null, version: null }
+        : { installed: true, exitCode: 0, version: parseCliVersion(stdout) });
     });
   });
-  versionProbe = { ok, checkedAt: Date.now() };
-  return ok;
+  versionProbe = { value, checkedAt: Date.now() };
+  return value;
 }
 
 /**
@@ -136,11 +141,11 @@ export class OmpProviderAuth implements IProviderAuth {
    */
   async getStatus(): Promise<ProviderAuthStatus> {
     const { command } = resolveCommand();
-    const installed = command !== null;
 
-    if (!installed) {
+    if (!command) {
       return {
         installed: false,
+        installedVersion: null,
         provider: 'omp',
         authenticated: false,
         authVerified: false,
@@ -150,10 +155,12 @@ export class OmpProviderAuth implements IProviderAuth {
       };
     }
 
-    const versionOk = await checkVersion(command);
-    if (!versionOk) {
+    const probe = await checkVersion(command);
+    const installedVersion = probe.version;
+    if (probe.exitCode !== 0) {
       return {
         installed: true,
+        installedVersion,
         provider: 'omp',
         authenticated: false,
         authVerified: false,
@@ -166,6 +173,7 @@ export class OmpProviderAuth implements IProviderAuth {
     const configured = await checkConfigured(command);
     return {
       installed: true,
+      installedVersion,
       provider: 'omp',
       authenticated: configured === 'ready',
       // OMP has no credential-status query, so credentials stay unverified.
@@ -178,5 +186,18 @@ export class OmpProviderAuth implements IProviderAuth {
           ? 'Could not read omp configuration (omp config list failed)'
           : 'omp has no default model configured (run `omp` in a terminal to sign in and pick a model)',
     };
+  }
+
+  /**
+   * Synchronous by contract: the CLI update service calls this without
+   * awaiting. Status polling keeps using the cached async probe above so it
+   * never blocks the event loop.
+   */
+  checkInstalled(): CliVersionProbe {
+    const { command } = resolveCommand();
+    if (!command) {
+      return { installed: false, exitCode: null, version: null };
+    }
+    return probeCliVersion(command);
   }
 }

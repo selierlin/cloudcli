@@ -1,9 +1,9 @@
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
 import type { IProviderAuth } from '@/shared/interfaces.js';
-import type { ProviderAuthStatus } from '@/shared/types.js';
+import type { CliVersionProbe, ProviderAuthStatus } from '@/shared/types.js';
+import { probeCliVersion } from '@/shared/utils.js';
 
 import { getDshHarnessRoot, getDshHome } from './dsh-models.provider.js';
 
@@ -17,11 +17,13 @@ export class DshProviderAuth implements IProviderAuth {
    * or the legacy harness `.env`).
    */
   async getStatus(): Promise<ProviderAuthStatus> {
-    const installed = this.checkInstalled();
+    const probe = this.checkInstalled();
+    const installed = probe.installed;
     const authenticated = installed && this.checkCredentials();
 
     return {
       installed,
+      installedVersion: probe.version,
       provider: 'dsh',
       authenticated,
       email: null,
@@ -32,13 +34,8 @@ export class DshProviderAuth implements IProviderAuth {
     };
   }
 
-  private checkInstalled(): boolean {
-    try {
-      execFileSync('dsh', ['--version'], { stdio: 'ignore', timeout: 5000 });
-      return true;
-    } catch {
-      return false;
-    }
+  checkInstalled(): CliVersionProbe {
+    return probeCliVersion('dsh');
   }
 
   private checkCredentials(): boolean {

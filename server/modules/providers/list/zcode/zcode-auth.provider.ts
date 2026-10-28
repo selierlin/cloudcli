@@ -5,8 +5,8 @@ import path from 'node:path';
 
 import { getZcodeConfigPath, getZcodeHomeDir, readZcodeConfig } from '@/modules/providers/list/zcode/zcode-models.provider.js';
 import type { IProviderAuth } from '@/shared/interfaces.js';
-import type { AnyRecord, ProviderAuthStatus } from '@/shared/types.js';
-import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
+import type { AnyRecord, CliVersionProbe, ProviderAuthStatus } from '@/shared/types.js';
+import { probeCliVersion, readObjectRecord, readOptionalString } from '@/shared/utils.js';
 
 /**
  * Candidate locations of the ZCode CLI bundle shipped inside the desktop app.
@@ -215,11 +215,13 @@ export class ZcodeProviderAuth implements IProviderAuth {
     }
 
     const { command } = resolveZcodeCommand();
+    const probe = this.checkInstalled();
     let status: ProviderAuthStatus;
 
     if (!command) {
       status = {
         installed: false,
+        installedVersion: null,
         provider: 'zcode',
         authenticated: false,
         authVerified: false,
@@ -232,6 +234,7 @@ export class ZcodeProviderAuth implements IProviderAuth {
       const authenticated = config !== null && isConfigAuthenticated(config);
       status = {
         installed: true,
+        installedVersion: probe.version,
         provider: 'zcode',
         authenticated,
         authVerified: authenticated,
@@ -245,5 +248,18 @@ export class ZcodeProviderAuth implements IProviderAuth {
 
     authStatus = { value: status, checkedAt: Date.now() };
     return status;
+  }
+
+  /**
+   * Probes the same launcher the runtime spawns. The bundled CLI needs its
+   * config hint only to load providers, not to print a version, so the plain
+   * probe is enough here.
+   */
+  checkInstalled(): CliVersionProbe {
+    const { command, baseArgs } = resolveZcodeCommand();
+    if (!command) {
+      return { installed: false, exitCode: null, version: null };
+    }
+    return probeCliVersion(command, [...baseArgs, '--version']);
   }
 }

@@ -2,7 +2,8 @@ import { execFile, execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 
 import type { IProviderAuth } from '@/shared/interfaces.js';
-import type { ProviderAuthStatus } from '@/shared/types.js';
+import type { CliVersionProbe, ProviderAuthStatus } from '@/shared/types.js';
+import { parseCliVersion, probeCliVersion } from '@/shared/utils.js';
 
 /** Embedded CodeBuddy engine shipped inside the WorkBuddy desktop app. */
 const WORKBUDDY_EMBEDDED_CLI = '/Applications/WorkBuddy.app/Contents/Resources/app.asar.unpacked/cli/bin/codebuddy';
@@ -17,7 +18,7 @@ type CommandSource = 'override' | 'path' | 'embedded' | 'missing';
 type CommandResolution = { command: string | null; source: CommandSource };
 
 let resolution: { value: CommandResolution; resolvedAt: number } | null = null;
-let versionProbe: { ok: boolean; checkedAt: number } | null = null;
+let versionProbe: { value: CliVersionProbe; checkedAt: number } | null = null;
 
 /**
  * Resolves the `codebuddy` executable: an explicit `CODEBUDDY_COMMAND` env
@@ -91,17 +92,21 @@ export function resetWorkbuddyCommandForTests(): void {
  * synchronous probe would freeze the Node event loop for the timeout window on
  * every status query) and cached so the settings UI can poll freely.
  */
-async function checkVersion(command: string): Promise<boolean> {
+async function checkVersion(command: string): Promise<CliVersionProbe> {
   if (versionProbe && Date.now() - versionProbe.checkedAt < VERSION_PROBE_TTL_MS) {
-    return versionProbe.ok;
+    return versionProbe.value;
   }
-  const ok = await new Promise<boolean>((resolve) => {
-    execFile(command, ['--version'], { timeout: VERSION_PROBE_TIMEOUT_MS }, (error) => {
-      resolve(!error);
+  const value = await new Promise<CliVersionProbe>((resolve) => {
+    execFile(command, ['--version'], { timeout: VERSION_PROBE_TIMEOUT_MS }, (error, stdout) => {
+      // A resolved launcher that fails to run is still installed; the exit
+      // status is what tells the caller it misbehaved.
+      resolve(error
+        ? { installed: true, exitCode: null, version: null }
+        : { installed: true, exitCode: 0, version: parseCliVersion(stdout) });
     });
   });
-  versionProbe = { ok, checkedAt: Date.now() };
-  return ok;
+  versionProbe = { value, checkedAt: Date.now() };
+  return value;
 }
 
 /** Provider registry auth adapter for the WorkBuddy (embedded CodeBuddy) CLI. */
@@ -112,20 +117,32 @@ export class WorkbuddyProviderAuth implements IProviderAuth {
    */
   async getStatus(): Promise<ProviderAuthStatus> {
     const { command } = resolveCommand();
-    const installed = command !== null;
-
-    const versionOk = installed ? await checkVersion(command) : false;
+    const probe = command ? await checkVersion(command) : null;
 
     return {
-      installed,
+      installed: probe !== null,
+      installedVersion: probe?.version ?? null,
       provider: 'workbuddy',
-      authenticated: versionOk,
+      authenticated: probe?.exitCode === 0,
       authVerified: false,
       email: null,
-      method: versionOk ? 'workbuddy_desktop' : null,
-      error: installed
-        ? (versionOk ? undefined : 'codebuddy CLI is present but failed to run')
-        : 'codebuddy CLI not found (install WorkBuddy.app or add codebuddy to PATH)',
+      method: probe?.exitCode === 0 ? 'workbuddy_desktop' : null,
+      error: probe === null
+        ? 'codebuddy CLI not found (install WorkBuddy.app or add codebuddy to PATH)'
+        : (probe.exitCode === 0 ? undefined : 'codebuddy CLI is present but failed to run'),
     };
+  }
+
+  /**
+   * Synchronous by contract: the CLI update service calls this without
+   * awaiting. Status polling keeps using the cached async probe above so it
+   * never blocks the event loop.
+   */
+  checkInstalled(): CliVersionProbe {
+    const { command } = resolveCommand();
+    if (!command) {
+      return { installed: false, exitCode: null, version: null };
+    }
+    return probeCliVersion(command);
   }
 }
