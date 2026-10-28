@@ -1,5 +1,5 @@
 {
-  "total": 461,
+  "total": 463,
   "byUsage": {
     "active bg: gray-950": 1,
     "active bg: neutral-900": 1,
@@ -79,7 +79,7 @@
     "dark text: gray-200": 3,
     "dark text: gray-300": 51,
     "dark text: gray-400": 3,
-    "dark text: gray-500": 32,
+    "dark text: gray-500": 33,
     "dark text: gray-600": 4,
     "dark text: gray-900": 1,
     "dark text: neutral-100": 1,
@@ -106,7 +106,7 @@
     "placeholder: gray-400": 1,
     "shadow: black/[0.025]": 1,
     "text: gray-300": 3,
-    "text: gray-400": 59,
+    "text: gray-400": 60,
     "text: gray-500": 2,
     "text: gray-600": 1,
     "text: gray-700": 57,

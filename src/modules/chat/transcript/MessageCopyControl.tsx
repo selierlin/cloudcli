@@ -197,9 +197,9 @@ const MessageCopyControl = ({
     void copyInFormat(format);
   };
 
-  const toneClass = messageType === 'user'
-    ? 'text-muted-foreground hover:text-foreground'
-    : 'text-n-gray-400 hover:text-foreground dark:text-n-gray-500';
+  // A question's copy sits in the same quiet footer an answer's does, so both
+  // turns read the same tone; only the format choice differs.
+  const toneClass = 'text-n-gray-400 hover:text-foreground dark:text-n-gray-500';
   const copyTitle = copied ? t('copyMessage.copied') : t('copyMessage.copy');
   const rootClassName = 'relative inline-flex items-center';
 

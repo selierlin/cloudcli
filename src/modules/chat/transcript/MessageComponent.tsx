@@ -270,51 +270,56 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
             {message.files && message.files.length > 0 && (
               <ChatMessageFiles files={message.files} />
             )}
-            {userCopyContent.trim().length > 0 || (!message.images?.length && !message.files?.length) ? (
-              <div className="group max-w-full rounded-2xl rounded-br-md border border-border/60 bg-muted/60 px-3 py-2 text-foreground shadow-sm sm:px-4">
-                <div
-                  dir="auto"
-                  className="break-words font-serif text-sm"
-                  // The footer's export copy button reads this subtree.
-                  data-export-copy-source={isExportUserCopy ? 'message' : undefined}
-                >
-                  <Markdown
-                    breaks
-                    className="prose prose-sm max-w-none font-serif dark:prose-invert"
+            {/* The bubble and the controls are two blocks: the controls sit
+                under the bubble like an answer's footer, so edit and copy read
+                as actions on the question rather than as part of what was
+                sent. An attachment-only turn draws no bubble but keeps the
+                footer, so its timestamp still shows. */}
+            <div className="flex min-w-0 max-w-full flex-col items-end gap-1">
+              {(userCopyContent.trim().length > 0 || (!message.images?.length && !message.files?.length)) && (
+                <div className="group max-w-full rounded-2xl rounded-br-md border border-border/60 bg-muted/60 px-3 py-2 text-foreground shadow-sm sm:px-4">
+                  <div
+                    dir="auto"
+                    className="break-words font-serif text-sm"
+                    // The footer's export copy button reads this subtree.
+                    data-export-copy-source={isExportUserCopy ? 'message' : undefined}
                   >
-                    {message.content}
-                  </Markdown>
-                </div>
-                <div className="mt-1 flex items-center justify-end gap-1 text-xs text-muted-foreground">
-                  {canEditUserMessage && (
-                    <button
-                      type="button"
-                      onClick={() => onEditMessage?.(message)}
-                      title={t('message.editAndResend')}
-                      aria-label={t('message.editAndResend')}
-                      className="rounded p-1 opacity-0 transition-[opacity,transform] duration-150 active:scale-90 hover:bg-muted focus-visible:opacity-100 group-hover:opacity-100"
+                    <Markdown
+                      breaks
+                      className="prose prose-sm max-w-none font-serif dark:prose-invert"
                     >
-                      <PencilIcon className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                  {shouldShowUserCopyControl && (
-                    <MessageCopyControl content={userCopyContent} messageType="user" />
-                  )}
-                  {isExportUserCopy && (
-                    <ExportCopyButton
-                      label={t('copyMessage.copy')}
-                      className="inline-flex items-center rounded p-1 text-muted-foreground transition-colors duration-150 hover:text-foreground"
-                    />
-                  )}
-                  <span>{formattedTime}</span>
+                      {message.content}
+                    </Markdown>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              /* Attachment-only turn: no text bubble, but the timestamp still shows */
-              <div className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
+              )}
+              {/* Inset to the bubble's own padding so the controls line up with
+                  the text they act on, and clear the fixed panel toggle that
+                  sits over the chat's right edge. */}
+              <div className="flex items-center justify-end gap-1 px-3 text-[11px] text-n-gray-400 dark:text-n-gray-500 sm:px-4">
+                {canEditUserMessage && (
+                  <button
+                    type="button"
+                    onClick={() => onEditMessage?.(message)}
+                    title={t('message.editAndResend')}
+                    aria-label={t('message.editAndResend')}
+                    className="rounded px-1 py-0.5 transition-[color,transform] duration-150 hover:text-foreground active:scale-90 active:opacity-60"
+                  >
+                    <PencilIcon className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                {shouldShowUserCopyControl && (
+                  <MessageCopyControl content={userCopyContent} messageType="user" />
+                )}
+                {isExportUserCopy && (
+                  <ExportCopyButton
+                    label={t('copyMessage.copy')}
+                    className="inline-flex items-center rounded p-1 transition-colors duration-150 hover:text-foreground"
+                  />
+                )}
                 <span>{formattedTime}</span>
               </div>
-            )}
+            </div>
           </div>
         </div>
       ) : message.compact ? (
