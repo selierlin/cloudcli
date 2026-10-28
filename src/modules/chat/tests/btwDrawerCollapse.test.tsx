@@ -98,3 +98,14 @@ test('a collapsed branch that is still running says so', () => {
   const tab = screen.getByRole('button', { name: 'sideAsk.restore' });
   expect(tab.querySelector('[class*="animate-pulse"]')).not.toBeNull();
 });
+
+test('the panel leaves the keyboard offset to the workspace shell', () => {
+  renderDrawer({ placement: 'sheet' });
+
+  // The shell already sits on `bottom: var(--keyboard-height)`, so the column
+  // ends above the keyboard. Subtracting the height here as well lifted the
+  // composer into the middle of the transcript on iOS.
+  const drawer = screen.getByRole('complementary');
+  expect(drawer.getAttribute('style')).toBeNull();
+  expect(drawer.className).toContain('h-full');
+});

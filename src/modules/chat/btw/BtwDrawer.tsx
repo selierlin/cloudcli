@@ -64,8 +64,7 @@ type BtwDrawerProps = {
  * Rendered by ChatInterface. On a wide enough chat column it is docked beside
  * the transcript and the transcript shrinks, so neither side covers the other;
  * on a narrower one it floats over the transcript; on a phone it takes the
- * whole column and shrinks by `--keyboard-height`, the offset the workspace
- * shell already maintains for the virtual keyboard.
+ * whole column. The shell lifts all three with the virtual keyboard.
  *
  * Any of the three can be collapsed into an edge tab. That matters most on a
  * phone, where the sheet would otherwise put the main composer out of reach for
@@ -138,6 +137,10 @@ export default function BtwDrawer({
   const closeFailure = btw.closeFailure;
   const docked = placement === 'docked';
 
+  // Neither the floating nor the sheet layout subtracts `--keyboard-height`:
+  // the workspace shell already sits on `bottom: var(--keyboard-height)`, so
+  // this panel's column ends above the keyboard. Subtracting again lifted the
+  // composer into the middle of the transcript on iOS.
   return (
     // `data-slot` is how ChatInterface's global Escape handler tells a press
     // inside this drawer from one in the conversation behind it; the selector
@@ -155,14 +158,11 @@ export default function BtwDrawer({
           onClose();
         }
       }}
-      style={docked ? undefined : {
-        height: 'calc(100% - var(--keyboard-height, 0px))',
-      }}
       className={docked
         ? 'relative flex h-full w-[420px] flex-shrink-0 flex-col border-l border-border bg-background'
         : placement === 'overlay'
-          ? 'absolute right-0 top-0 z-40 flex w-[420px] flex-col border-l border-border bg-background shadow-xl'
-          : 'absolute right-0 top-0 z-40 flex w-full flex-col border-l border-border bg-background shadow-xl'}
+          ? 'absolute right-0 top-0 z-40 flex h-full w-[420px] flex-col border-l border-border bg-background shadow-xl'
+          : 'absolute right-0 top-0 z-40 flex h-full w-full flex-col border-l border-border bg-background shadow-xl'}
     >
       <header className="flex-shrink-0 border-b border-border/70 px-3 py-2">
         <div className="flex items-start gap-2">
