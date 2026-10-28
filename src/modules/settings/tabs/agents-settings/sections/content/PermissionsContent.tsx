@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import ClaudeSettingsFileRules from '@/modules/settings/tabs/agents-settings/sections/content/ClaudeSettingsFileRules';
 import { usePermissionModeCopy } from '@/shared/hooks/usePermissionModeCopy';
 import { usePermissionModes } from '@/shared/hooks/useProviderCapabilities';
-import { getPermissionModeAppearance } from '@/shared/permissionModeAppearance';
+import { getPermissionModeAppearance, PERMISSION_MODE_ACCENT_CLASSES } from '@/shared/permissionModeAppearance';
 import { Button, Input } from '@/shared/ui';
 import type { LLMProvider, PermissionMode } from '@/shared/types';
 
@@ -548,29 +548,21 @@ type PermissionModeCardProps = {
 
 /**
  * Settings' skin for one mode. The icon, name and description come from the
- * shared appearance/copy modules; only the card's own accent classes live here.
+ * shared appearance/copy modules, and the selected accent is the same palette
+ * the composer's trigger uses — only the card's own shape lives here.
  */
 function PermissionModeCard({ agent, mode, selectedMode, onSelect }: PermissionModeCardProps) {
   const { label, description } = usePermissionModeCopy(agent, mode);
   const appearance = getPermissionModeAppearance(mode);
+  const accent = PERMISSION_MODE_ACCENT_CLASSES[appearance.accent];
   const ModeIcon = appearance.icon;
-
-  const toneClasses = {
-    neutral: 'border-border bg-accent',
-    info: 'border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-900/20',
-    success: 'border-green-400 bg-green-50 dark:border-green-600 dark:bg-green-900/20',
-    warning: 'border-orange-400 bg-orange-50 dark:border-orange-600 dark:bg-orange-900/20',
-    // The panel has no primary-tinted container; plan and read-only keep the
-    // blue treatment they have always had here.
-    primary: 'border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-900/20',
-  }[appearance.accent];
 
   const isSelected = selectedMode === mode;
 
   return (
     <div
       className={`cursor-pointer rounded-lg border p-4 transition-all ${isSelected
-        ? toneClasses
+        ? accent.surface
         : 'border-border bg-card/50 active:border-border active:bg-accent/50'
         }`}
       onClick={() => onSelect(mode)}
@@ -586,7 +578,7 @@ function PermissionModeCard({ agent, mode, selectedMode, onSelect }: PermissionM
         <div>
           <div className="flex items-center gap-2 font-medium text-foreground">
             {label}
-            <ModeIcon className="h-4 w-4" />
+            <ModeIcon className={`h-4 w-4 ${isSelected ? accent.label : 'text-muted-foreground'}`} />
           </div>
           <div className="text-sm text-muted-foreground">{description}</div>
         </div>
