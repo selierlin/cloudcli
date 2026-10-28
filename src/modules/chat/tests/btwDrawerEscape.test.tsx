@@ -28,6 +28,9 @@ const renderDrawer = (onClose: () => void) => render(
   <BtwDrawer
     open
     btw={makeBtw()}
+    placement="overlay"
+    minimized={false}
+    onRestore={() => {}}
     sourceTitle="Source conversation"
     provider="claude"
     selectedProject={null}

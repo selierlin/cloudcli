@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { MessageSquareDashed, X } from 'lucide-react';
+import { MessageSquareDashed, PanelRightClose, X } from 'lucide-react';
 
 import type {
   ChatMessage,
@@ -11,6 +11,7 @@ import type {
 import { Button } from '@/shared/ui';
 import { isImeKeyEvent } from '@/shared/utils';
 import type { BtwController } from '@/modules/chat/hooks/useBtwSession';
+import type { SideAskPlacement } from '@/modules/chat/hooks/useSideAskPlacement';
 import { btwFailureMessageKey } from '@/modules/chat/utils/btwFailureMessage';
 import BtwComposer from '@/modules/chat/btw/BtwComposer';
 import BtwMessageList from '@/modules/chat/btw/BtwMessageList';
@@ -18,6 +19,14 @@ import BtwMessageList from '@/modules/chat/btw/BtwMessageList';
 type BtwDrawerProps = {
   open: boolean;
   btw: BtwController;
+  /** Whether the drawer sits beside the transcript, floats over it, or fills it. */
+  placement: SideAskPlacement;
+  /** True while the reader has tucked an overlay away to read the transcript. */
+  minimized: boolean;
+  /** Collapses the overlay into the edge tab. Absent in docked and sheet layouts. */
+  onMinimize?: () => void;
+  /** Brings a collapsed overlay back. */
+  onRestore: () => void;
   /** Title of the conversation this branch came from, for the header. */
   sourceTitle: string;
   provider: LLMProvider;
@@ -52,18 +61,25 @@ type BtwDrawerProps = {
  * The side-question drawer: a hidden branch of the open conversation, shown on
  * its own so a question asked here never enters the main transcript.
  *
- * Rendered by ChatInterface. Desktop keeps it beside the conversation (no
- * backdrop, so the main input stays usable); narrow viewports take the whole
- * screen and shrink by `--keyboard-height`, the offset the workspace shell
- * already maintains for the virtual keyboard.
+ * Rendered by ChatInterface. On a wide enough chat column it is docked beside
+ * the transcript and the transcript shrinks, so neither side covers the other;
+ * on a narrower one it floats over the transcript, where it can be collapsed
+ * into an edge tab (the alternative is reading with 420px of the page blocked);
+ * on a phone it takes the whole column and shrinks by `--keyboard-height`, the
+ * offset the workspace shell already maintains for the virtual keyboard.
  *
- * Because it is positioned against the viewport rather than inside the shell,
- * it has to clear the notch itself: the shell's safe-area handling lives on
- * `#root` and on `.fixed.inset-0`, neither of which covers `fixed top-0`.
+ * The floating and sheet layouts are positioned inside the chat column rather
+ * than against the viewport: the column already carries the shell's safe-area
+ * padding, and anchoring to the viewport would let the panel slide over the
+ * editor sidebar when that is open.
  */
 export default function BtwDrawer({
   open,
   btw,
+  placement,
+  minimized,
+  onMinimize,
+  onRestore,
   sourceTitle,
   provider,
   selectedProject,
@@ -92,9 +108,31 @@ export default function BtwDrawer({
     return null;
   }
 
+  if (minimized) {
+    // The branch is still alive — only its panel is gone — so the tab stays in
+    // the transcript's own corner and carries the run indicator: a copy left
+    // working behind a hidden panel would otherwise be invisible.
+    return (
+      <button
+        type="button"
+        onClick={onRestore}
+        title={t('sideAsk.restore')}
+        aria-label={t('sideAsk.restore')}
+        className="absolute right-0 top-1/2 z-20 flex -translate-y-1/2 flex-col items-center gap-1 rounded-l-md border border-r-0 border-border bg-background px-1 py-2 text-[11px] text-muted-foreground shadow-sm hover:text-foreground"
+      >
+        <MessageSquareDashed className="h-3.5 w-3.5" />
+        <span style={{ writingMode: 'vertical-rl' }}>{t('sideAsk.title')}</span>
+        {isProcessing && (
+          <span className="h-1.5 w-1.5 rounded-full bg-primary motion-safe:animate-pulse" />
+        )}
+      </button>
+    );
+  }
+
   const hasSession = Boolean(btw.sessionId);
   const busy = btw.creating || btw.closing;
   const closeFailure = btw.closeFailure;
+  const docked = placement === 'docked';
 
   return (
     // `data-slot` is how ChatInterface's global Escape handler tells a press
@@ -113,15 +151,14 @@ export default function BtwDrawer({
           onClose();
         }
       }}
-      style={{
+      style={docked ? undefined : {
         height: 'calc(100% - var(--keyboard-height, 0px))',
-        // Landscape on a notched phone puts the inset on the side the drawer
-        // is pinned to; #root pads for it, but a fixed element anchors to the
-        // viewport and never sees that padding.
-        paddingTop: 'env(safe-area-inset-top, 0px)',
-        paddingRight: 'env(safe-area-inset-right, 0px)',
       }}
-      className="fixed right-0 top-0 z-40 flex w-full flex-col border-l border-border bg-background shadow-xl sm:w-[420px]"
+      className={docked
+        ? 'relative flex h-full w-[420px] flex-shrink-0 flex-col border-l border-border bg-background'
+        : placement === 'overlay'
+          ? 'absolute right-0 top-0 z-40 flex w-[420px] flex-col border-l border-border bg-background shadow-xl'
+          : 'absolute right-0 top-0 z-40 flex w-full flex-col border-l border-border bg-background shadow-xl'}
     >
       <header className="flex-shrink-0 border-b border-border/70 px-3 py-2">
         <div className="flex items-start gap-2">
@@ -137,6 +174,19 @@ export default function BtwDrawer({
               {anchorLabel ?? t('sideAsk.anchorDefault')}
             </p>
           </div>
+          {onMinimize && (
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 flex-shrink-0"
+              title={t('sideAsk.minimize')}
+              aria-label={t('sideAsk.minimize')}
+              onClick={onMinimize}
+            >
+              <PanelRightClose className="h-4 w-4" />
+            </Button>
+          )}
           <Button
             type="button"
             size="icon"

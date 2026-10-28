@@ -646,6 +646,8 @@
     "title": "侧边提问",
     "badge": "不保存",
     "close": "关闭",
+    "minimize": "收起",
+    "restore": "继续侧边提问",
     "saveAsSession": "另存为会话",
     "refork": "重新开始",
     "creating": "正在派生会话…",

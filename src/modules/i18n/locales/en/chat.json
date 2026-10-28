@@ -681,6 +681,8 @@
     "title": "Side question",
     "badge": "Not saved",
     "close": "Close",
+    "minimize": "Collapse",
+    "restore": "Resume side question",
     "saveAsSession": "Keep as session",
     "refork": "Start over",
     "creating": "Branching the conversation…",

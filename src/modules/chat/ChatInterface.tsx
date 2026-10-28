@@ -33,6 +33,7 @@ import { forkFailureMessageKey } from '@/modules/chat/utils/forkFailureMessage';
 import { buildChatSendOptions } from '@/modules/chat/utils/sendOptions';
 import { useBtwSession } from '@/modules/chat/hooks/useBtwSession';
 import type { BtwAnchorRequest } from '@/modules/chat/hooks/useBtwSession';
+import { useSideAskPlacement } from '@/modules/chat/hooks/useSideAskPlacement';
 import BtwDrawer from '@/modules/chat/btw/BtwDrawer';
 import { downloadTranscriptExport } from '@/modules/chat/utils/chatExport';
 import type { PartialExportFormat } from '@/modules/chat/utils/chatExport';
@@ -374,6 +375,15 @@ function ChatInterface({
   // Tool prompts belonging to the copy. Kept apart from the viewed
   // conversation's list so neither surface shows the other's requests.
   const [sideAskPermissionRequests, setSideAskPermissionRequests] = useState<PendingPermissionRequest[]>([]);
+  // Set when the reader tucks the floating drawer away to read the transcript.
+  // Docking and the phone sheet ignore it: in both, the transcript is already
+  // visible and a collapsed tab would only add a way to lose the panel.
+  const [sideAskMinimized, setSideAskMinimized] = useState(false);
+  // Whether the drawer sits beside the transcript or floats over it, decided by
+  // the chat column's own width rather than the viewport's — the sidebar can be
+  // dragged and the editor can take half the page.
+  const sideAskLayout = useSideAskPlacement();
+  const sideAskCanMinimize = sideAskLayout.placement === 'overlay';
 
   const sideAskSourceSessionId = currentSessionId || selectedSession?.id || null;
 
@@ -428,6 +438,7 @@ function ChatInterface({
     setSideAskOpen(false);
     setSideAskAnchor(null);
     setSideAskPermissionRequests([]);
+    setSideAskMinimized(false);
   }, [btw]);
 
   // The drawer's "start over": discard the copy and fork a fresh one at the
@@ -450,6 +461,7 @@ function ChatInterface({
     setSideAskOpen(false);
     setSideAskAnchor(null);
     setSideAskPermissionRequests([]);
+    setSideAskMinimized(false);
     const promotedProvider = selectedSession?.__provider;
     if (promotedProvider && selectedProject) {
       // The conversations feed does not receive `session_upserted`, so the new
@@ -497,6 +509,7 @@ function ChatInterface({
     }
     setSideAskAnchor(nextAnchor);
     setSideAskOpen(true);
+    setSideAskMinimized(false);
   }, [btw]);
 
   // The cut point, resolved against the transcript the reader can see: the
@@ -919,7 +932,10 @@ function ChatInterface({
 
   return (
     <PermissionContext.Provider value={permissionContextValue}>
-      <div className="flex h-full min-h-0 flex-col">
+      {/* The drawer is a sibling of the conversation, not an overlay on it: at
+          this width the transcript gives up 420px instead of losing it. */}
+      <div ref={sideAskLayout.ref} className="relative flex h-full min-h-0">
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
         <MarkdownWorkspaceContext.Provider value={markdownWorkspaceValue}>
           <TranscriptSessionContext.Provider value={transcriptSessionValue}>
             <ChatMessagesPane
@@ -1106,6 +1122,10 @@ function ChatInterface({
           <BtwDrawer
             open={sideAskOpen}
             btw={btw}
+            placement={sideAskLayout.placement}
+            minimized={sideAskMinimized && sideAskCanMinimize}
+            onMinimize={sideAskCanMinimize ? () => setSideAskMinimized(true) : undefined}
+            onRestore={() => setSideAskMinimized(false)}
             sourceTitle={selectedSession?.title || selectedSession?.summary || selectedSession?.name || ''}
             provider={provider}
             selectedProject={selectedProject}
@@ -1130,6 +1150,7 @@ function ChatInterface({
           />
         </TranscriptSessionContext.Provider>
       </MarkdownWorkspaceContext.Provider>
+      </div>
 
       <CommandResultModal
         payload={commandModalPayload}
