@@ -295,8 +295,10 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               )}
               {/* Inset to the bubble's own padding so the controls line up with
                   the text they act on, and clear the fixed panel toggle that
-                  sits over the chat's right edge. */}
-              <div className="flex items-center justify-end gap-1 px-3 text-[11px] text-n-gray-400 dark:text-n-gray-500 sm:px-4">
+                  sits over the chat's right edge. Not selectable: a triple
+                  click that reached the timestamp would otherwise copy the row
+                  as "text" plus three line breaks instead of the text alone. */}
+              <div className="flex select-none items-center justify-end gap-1 px-3 text-[11px] text-n-gray-400 dark:text-n-gray-500 sm:px-4">
                 {canEditUserMessage && (
                   <button
                     type="button"

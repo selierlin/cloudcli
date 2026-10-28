@@ -49,6 +49,10 @@ test('a question keeps its controls outside the bubble', () => {
   // the way an answer's copy control is.
   assert.equal(edit.className.includes('opacity-0'), false);
   assert.equal(edit.className.includes('group-hover'), false);
+  // A triple click that ran into the timestamp used to copy the question with
+  // three trailing line breaks. The footer is chrome, so it stays out of text
+  // selection entirely.
+  assert.equal(footer.className.includes('select-none'), true);
   // Copy and the timestamp share the row with edit.
   assert.equal(
     footer.querySelectorAll('button').length,
