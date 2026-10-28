@@ -19,6 +19,9 @@
     "README.md"
   ],
   "homepage": "https://cloudcli.ai",
+  "engines": {
+    "node": ">=26"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/siteboon/claudecodeui.git"

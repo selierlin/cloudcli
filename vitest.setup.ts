@@ -1,5 +1,23 @@
 import { cleanup } from '@testing-library/react';
+import { transferableAbortController } from 'node:util';
 import { afterEach } from 'vitest';
+
+// jsdom publishes its own `AbortController`/`AbortSignal`, which live in the
+// test realm rather than Node's. Code that bridges the two — React Router's
+// `navigate()` hands a signal to the `Request` constructor, and undici only
+// accepts its own `AbortSignal` — then fails with `Expected signal (...) to be
+// an instance of AbortSignal`. Taking the classes off a controller that Node
+// itself built keeps both sides in one realm; browser behaviour is unchanged,
+// since a browser has only one realm to begin with.
+const nodeAbort = transferableAbortController();
+for (const name of ['AbortController', 'AbortSignal'] as const) {
+  const implementation = name === 'AbortController' ? nodeAbort.constructor : nodeAbort.signal.constructor;
+  Object.defineProperty(globalThis, name, {
+    value: implementation,
+    configurable: true,
+    writable: true,
+  });
+}
 
 // The suite asserts English copy. The app follows the saved language and falls
 // back to zh-CN, so a clean profile would silently translate every assertion

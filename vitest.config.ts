@@ -25,5 +25,15 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.ts'],
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     restoreMocks: true,
+    // Node 26 ships a `localStorage` global that stays `undefined` unless
+    // `--localstorage-file` is passed, and being an own accessor on globalThis
+    // it wins over the one jsdom installs: the very first setup file line would
+    // then throw `setItem of undefined` and every suite would collect nothing.
+    // Turning Node's storage off hands the name back to jsdom.
+    poolOptions: {
+      forks: {
+        execArgv: ['--no-experimental-webstorage'],
+      },
+    },
   },
 });
