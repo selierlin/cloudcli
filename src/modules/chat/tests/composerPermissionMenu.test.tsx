@@ -56,6 +56,51 @@ test('the default mode is named too', () => {
   assert.match(getByRole('button').textContent ?? '', /Default Mode/);
 });
 
+test('a provider with its own mode names uses them, so settings and the composer agree', () => {
+  // Settings names Codex's modes "Default" / "Accept Edits" / "Bypass
+  // Permissions"; the composer used to call the same modes "Default Mode" /
+  // "Accept Edits" / "Bypass Permissions" from a second, unrelated string set.
+  const codex = render(
+    <ComposerPermissionMenu
+      permissionMode="default"
+      permissionModes={['default', 'acceptEdits', 'bypassPermissions']}
+      onSelectPermissionMode={() => {}}
+      providerLabel="Codex"
+      provider="codex"
+    />,
+  );
+  assert.equal(codex.getByRole('button').textContent, 'Default');
+  codex.unmount();
+
+  // Claude has no permission panel, so it keeps the shared names.
+  const claude = render(
+    <ComposerPermissionMenu
+      permissionMode="default"
+      permissionModes={[...MODES]}
+      onSelectPermissionMode={() => {}}
+      providerLabel="Claude"
+      provider="claude"
+    />,
+  );
+  assert.equal(claude.getByRole('button').textContent, 'Default Mode');
+});
+
+test('a provider whose default mode means something else is named in its own terms', () => {
+  // ZCode's `default` maps to `--mode build`, which denies both edits and
+  // commands; the shared "Default Mode" name would describe the opposite.
+  const { getByRole } = render(
+    <ComposerPermissionMenu
+      permissionMode="default"
+      permissionModes={['default', 'acceptEdits', 'bypassPermissions', 'plan']}
+      onSelectPermissionMode={() => {}}
+      providerLabel="ZCode"
+      provider="zcode"
+    />,
+  );
+
+  assert.equal(getByRole('button').textContent, 'Read-only');
+});
+
 const renderMenu = (permissionMode: PermissionMode, permissionModes: PermissionMode[] = [...MODES]) =>
   render(
     <ComposerPermissionMenu

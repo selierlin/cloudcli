@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 
 import { api } from '@/shared/api';
-import type { LLMProvider } from '@/shared/types';
+import { FALLBACK_PERMISSION_MODES } from '@/shared/permissionModes';
+import type { LLMProvider, PermissionMode } from '@/shared/types';
 
 /**
  * The backend-owned answer to "what can this provider actually do".
@@ -12,6 +13,7 @@ import type { LLMProvider } from '@/shared/types';
 type ProviderCapabilityRow = {
   provider: LLMProvider;
   supportsSessionForking?: boolean;
+  permissionModes?: PermissionMode[];
 };
 
 /**
@@ -83,4 +85,38 @@ export function useSessionForkingProviders(): Set<LLMProvider> {
   }, []);
 
   return providers;
+}
+
+/**
+ * The modes `provider` accepts, for settings' permission panel.
+ *
+ * Returns the mirrored list until the matrix arrives, so the panel never
+ * renders an empty mode picker — and never a mode the runtime would reject.
+ */
+export function usePermissionModes(provider: LLMProvider): PermissionMode[] {
+  // Held as the whole matrix rather than as this provider's list, so switching
+  // providers re-derives during render instead of needing a state reset.
+  const [capabilities, setCapabilities] = useState(cachedCapabilities);
+
+  useEffect(() => {
+    if (capabilities) {
+      return;
+    }
+
+    let cancelled = false;
+    void loadCapabilities().then((loaded) => {
+      if (!cancelled) {
+        setCapabilities(loaded);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [capabilities]);
+
+  const reported = capabilities?.[provider]?.permissionModes;
+  return reported && reported.length > 0
+    ? reported
+    : (FALLBACK_PERMISSION_MODES[provider] ?? ['default']);
 }

@@ -230,6 +230,7 @@
     "noModelsMatch": "没有匹配的模型",
     "permissionHeading": "{{provider}} 的操作应如何获得批准？",
     "permissionCycleHint": "在输入框中按 Tab 切换模式",
+    "skipPermissionsOverride": "设置中已开启“跳过权限确认”，本次将以无限制模式运行。",
     "permissionTriggerLabel": "{{mode}}：{{heading}}",
     "editing": {
       "title": "正在替换先前的消息",

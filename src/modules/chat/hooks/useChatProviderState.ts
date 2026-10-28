@@ -10,6 +10,7 @@ import type { PendingPermissionRequest, PermissionMode,
   ProviderModelOption,
   ProviderModelsDefinition } from '@/shared/types';
 import { DEFAULT_EFFORT_VALUE, PROVIDER_MODELS_CHANGED_EVENT, PROVIDER_PERMISSION_PREFERENCE_KEYS, WORKBUDDY_SETTINGS_STORAGE_KEY } from '@/shared/constants';
+import { FALLBACK_PERMISSION_MODES } from '@/shared/permissionModes';
 import { readSelectedProvider, writeSelectedProvider } from '@/shared/selectedProvider';
 import { LLM_PROVIDERS } from '@/shared/providerModelSettings';
 import type { ProviderModelSettings } from '@/shared/providerModelSettings';
@@ -69,29 +70,6 @@ const saveProviderModelSelection = (
 
 /** Legacy localStorage key holding the user's default model for one provider. */
 const providerModelStorageKey = (provider: LLMProvider): string => `${provider}-model`;
-
-/**
- * Fallback permission-mode matrix used only until the backend capability
- * matrix (`GET /api/providers/capabilities`) has loaded. The backend is the
- * source of truth; this mirror exists so the composer renders sensibly on
- * first paint and when the capabilities request fails.
- */
-const FALLBACK_PERMISSION_MODES: Record<LLMProvider, PermissionMode[]> = {
-  claude: ['default', 'auto', 'acceptEdits', 'bypassPermissions', 'plan'],
-  cursor: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
-  codex: ['default', 'acceptEdits', 'bypassPermissions'],
-  opencode: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
-  dsh: ['default', 'auto'],
-  // `default`/`acceptEdits`/`plan` wait for an approver that `-p` never has;
-  // only the self-answering modes can finish a workbuddy turn.
-  workbuddy: ['auto', 'bypassPermissions'],
-  pi: ['default', 'readonly'],
-  zcode: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
-  omp: ['default', 'readonly'],
-  // `default` routes OpenClaw's ACP permission requests to the chat UI;
-  // `auto` answers them with the bridge's allow-once option.
-  openclaw: ['default', 'auto'],
-};
 
 type ProviderCapabilities = {
   provider: LLMProvider;

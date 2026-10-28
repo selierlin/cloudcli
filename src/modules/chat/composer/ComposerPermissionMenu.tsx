@@ -1,91 +1,59 @@
 import { memo, useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import {
-  AlertTriangle,
-  Bot,
-  ClipboardList,
-  EyeOff,
-  Hand,
-  ShieldQuestion,
-  Smile,
-  type LucideIcon,
-} from 'lucide-react';
 
 import type { LLMProvider, PermissionMode } from '@/shared/types';
 import { useComposerMenuAnchor } from '@/modules/chat/hooks/useComposerMenuAnchor';
 import { usePermissionNameFit } from '@/modules/chat/hooks/usePermissionNameFit';
+import { PROVIDER_PERMISSION_PREFERENCE_KEYS } from '@/shared/constants';
+import { usePermissionModeCopy } from '@/shared/hooks/usePermissionModeCopy';
+import { getPermissionModeAppearance } from '@/shared/permissionModeAppearance';
+import { readUserPreference } from '@/shared/userSettings';
 import {
   ComposerMenuHeading,
   ComposerMenuItem,
   ComposerMenuSurface,
 } from '@/modules/chat/composer/ComposerMenuPrimitives';
 
-type ModeAppearance = {
-  icon: LucideIcon;
-  /** English name, the fallback for the `codex.modes.<mode>` translation. */
-  label: string;
-  trigger: string;
-  item: string;
+/**
+ * Composer-only skin per accent. The mode's icon, name, description and accent
+ * come from the shared appearance/copy modules, so the same mode reads
+ * identically here and in settings; only these container classes are local.
+ */
+const TRIGGER_CLASSES: Record<string, string> = {
+  neutral: 'border-border/60 bg-muted/50 text-muted-foreground hover:bg-muted',
+  info: 'border-blue-300/60 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-600/40 dark:bg-blue-900/15 dark:text-blue-300 dark:hover:bg-blue-900/25',
+  success: 'border-green-300/60 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-600/40 dark:bg-green-900/15 dark:text-green-300 dark:hover:bg-green-900/25',
+  warning: 'border-orange-300/60 bg-orange-50 text-orange-700 hover:bg-orange-100 dark:border-orange-600/40 dark:bg-orange-900/15 dark:text-orange-300 dark:hover:bg-orange-900/25',
+  primary: 'border-primary/20 bg-primary/5 text-primary hover:bg-primary/10',
+};
+
+const ITEM_CLASSES: Record<string, string> = {
+  neutral: 'text-foreground',
+  info: 'text-blue-700 dark:text-blue-300',
+  success: 'text-green-700 dark:text-green-300',
+  warning: 'text-orange-600 dark:text-orange-400',
+  primary: 'text-primary',
 };
 
 /**
- * Presentation only. Which modes exist for a provider comes from the backend
- * capability matrix, so an unknown mode still renders through UNKNOWN_MODE.
+ * Whether the settings' "skip permissions" toggle will override the mode
+ * picked here. Claude and cursor runtimes force bypass under it; for every
+ * other provider the toggle is inert, so there is nothing to announce.
+ *
+ * Read during render rather than passed down: this menu is memoized, so the
+ * read costs one preference parse per menu render, and the hint is
+ * informational — a stale one until the next menu render is harmless.
  */
-const MODE_APPEARANCE: Record<PermissionMode, ModeAppearance> = {
-  default: {
-    icon: Hand,
-    label: 'Default Mode',
-    trigger: 'border-border/60 bg-muted/50 text-muted-foreground hover:bg-muted',
-    item: 'text-foreground',
-  },
-  auto: {
-    icon: Bot,
-    label: 'Auto Mode',
-    trigger:
-      'border-blue-300/60 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-600/40 dark:bg-blue-900/15 dark:text-blue-300 dark:hover:bg-blue-900/25',
-    item: 'text-blue-700 dark:text-blue-300',
-  },
-  acceptEdits: {
-    icon: Smile,
-    label: 'Accept Edits',
-    trigger:
-      'border-green-300/60 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-600/40 dark:bg-green-900/15 dark:text-green-300 dark:hover:bg-green-900/25',
-    item: 'text-green-700 dark:text-green-300',
-  },
-  bypassPermissions: {
-    icon: AlertTriangle,
-    label: 'Bypass Permissions',
-    trigger:
-      'border-orange-300/60 bg-orange-50 text-orange-700 hover:bg-orange-100 dark:border-orange-600/40 dark:bg-orange-900/15 dark:text-orange-300 dark:hover:bg-orange-900/25',
-    item: 'text-orange-600 dark:text-orange-400',
-  },
-  plan: {
-    icon: ClipboardList,
-    label: 'Plan Mode',
-    trigger: 'border-primary/20 bg-primary/5 text-primary hover:bg-primary/10',
-    item: 'text-primary',
-  },
-  readonly: {
-    // Blue treatment, matching Claude's plan mode so read-only reads as the
-    // "no side effects" sibling of planning.
-    icon: EyeOff,
-    label: 'Read-only',
-    trigger: 'border-primary/20 bg-primary/5 text-primary hover:bg-primary/10',
-    item: 'text-primary',
-  },
-};
+const isModeOverriddenBySettings = (provider: LLMProvider | string | undefined): boolean => {
+  if (provider !== 'claude' && provider !== 'cursor') {
+    return false;
+  }
 
-const UNKNOWN_MODE: ModeAppearance = {
-  icon: ShieldQuestion,
-  label: '',
-  trigger: 'border-border/60 bg-muted/50 text-muted-foreground hover:bg-muted',
-  item: 'text-foreground',
+  return Boolean(
+    readUserPreference<{ skipPermissions?: boolean }>(PROVIDER_PERMISSION_PREFERENCE_KEYS[provider], {}).skipPermissions,
+  );
 };
-
-const getAppearance = (mode: PermissionMode | string): ModeAppearance =>
-  MODE_APPEARANCE[mode as PermissionMode] ?? UNKNOWN_MODE;
 
 type ComposerPermissionMenuProps = {
   permissionMode: PermissionMode;
@@ -93,7 +61,7 @@ type ComposerPermissionMenuProps = {
   permissionModes: PermissionMode[];
   onSelectPermissionMode: (mode: PermissionMode) => void;
   providerLabel: string;
-  /** Provider id, used to look up provider-specific mode descriptions. */
+  /** Provider id, used to look up the provider's own mode names and descriptions. */
   provider?: LLMProvider | string;
 };
 
@@ -112,9 +80,7 @@ function ComposerPermissionMenu({
   const [isOpen, setIsOpen] = useState(false);
   const close = useCallback(() => setIsOpen(false), []);
   const { triggerRef, menuRef, anchor, updateAnchor } = useComposerMenuAnchor(isOpen, close, 22 * 16);
-  const modeLabel = (mode: PermissionMode) =>
-    t(`codex.modes.${mode}`, { defaultValue: getAppearance(mode).label || mode });
-  const activeModeLabel = modeLabel(permissionMode);
+  const activeModeLabel = usePermissionModeCopy(provider, permissionMode).label;
   // The name is shown only where the composer has room for it, so it never
   // pushes the model menu and the send button onto a second row. Plan mode,
   // the one that changes nothing, keeps its name wherever it fits inside the
@@ -129,7 +95,7 @@ function ComposerPermissionMenu({
     return null;
   }
 
-  const activeAppearance = getAppearance(permissionMode);
+  const activeAppearance = getPermissionModeAppearance(permissionMode);
   const ActiveIcon = activeAppearance.icon;
   const heading = t('composer.permissionHeading', {
     provider: providerLabel,
@@ -145,7 +111,7 @@ function ComposerPermissionMenu({
           updateAnchor();
           setIsOpen((current) => !current);
         }}
-        className={`flex h-8 min-w-8 max-w-40 shrink-0 items-center justify-center gap-1.5 rounded-lg border text-xs font-medium transition-colors sm:max-w-48 ${isNameShown ? 'px-2' : 'w-8'} ${activeAppearance.trigger}`}
+        className={`flex h-8 min-w-8 max-w-40 shrink-0 items-center justify-center gap-1.5 rounded-lg border text-xs font-medium transition-colors sm:max-w-48 ${isNameShown ? 'px-2' : 'w-8'} ${TRIGGER_CLASSES[activeAppearance.accent]}`}
         aria-haspopup="menu"
         aria-expanded={isOpen}
         // The mode name leads the accessible name, so what a screen reader
@@ -165,31 +131,25 @@ function ComposerPermissionMenu({
       {isOpen && anchor && createPortal(
         <ComposerMenuSurface anchor={anchor} menuRef={menuRef} ariaLabel={heading}>
           <ComposerMenuHeading>{heading}</ComposerMenuHeading>
-          {permissionModes.map((mode) => {
-            const appearance = getAppearance(mode);
-            const ModeIcon = appearance.icon;
-            // A provider-scoped key (e.g. `codex.descriptions.pi.default`)
-            // overrides the shared mode description when the provider's
-            // semantics differ from the Claude-style default wording.
-            const sharedDescription = t(`codex.descriptions.${mode}`, { defaultValue: '' });
-            const description = provider
-              ? t(`codex.descriptions.${provider}.${mode}`, { defaultValue: sharedDescription })
-              : sharedDescription;
-            return (
-              <ComposerMenuItem
-                key={mode}
-                icon={<ModeIcon className="h-4 w-4" />}
-                label={modeLabel(mode)}
-                description={description || undefined}
-                isSelected={mode === permissionMode}
-                onSelect={() => {
-                  onSelectPermissionMode(mode);
-                  setIsOpen(false);
-                }}
-                className={appearance.item}
-              />
-            );
-          })}
+          {permissionModes.map((mode) => (
+            <PermissionMenuItem
+              key={mode}
+              mode={mode}
+              provider={provider}
+              isSelected={mode === permissionMode}
+              onSelect={() => {
+                onSelectPermissionMode(mode);
+                setIsOpen(false);
+              }}
+            />
+          ))}
+          {permissionMode !== 'plan' && isModeOverriddenBySettings(provider) && (
+            <ComposerMenuHeading>
+              {t('composer.skipPermissionsOverride', {
+                defaultValue: 'Settings has "Skip permissions" on, so this turn runs as Bypass Permissions.',
+              })}
+            </ComposerMenuHeading>
+          )}
           <ComposerMenuHeading>
             {t('composer.permissionCycleHint', { defaultValue: 'Press Tab in the message box to switch modes' })}
           </ComposerMenuHeading>
@@ -197,6 +157,31 @@ function ComposerPermissionMenu({
         document.body,
       )}
     </>
+  );
+}
+
+type PermissionMenuItemProps = {
+  mode: PermissionMode;
+  provider?: LLMProvider | string;
+  isSelected: boolean;
+  onSelect: () => void;
+};
+
+/** Its own component so each row can look up its copy: hooks cannot run inside the menu's map. */
+function PermissionMenuItem({ mode, provider, isSelected, onSelect }: PermissionMenuItemProps) {
+  const { label, description } = usePermissionModeCopy(provider, mode);
+  const appearance = getPermissionModeAppearance(mode);
+  const ModeIcon = appearance.icon;
+
+  return (
+    <ComposerMenuItem
+      icon={<ModeIcon className="h-4 w-4" />}
+      label={label}
+      description={description || undefined}
+      isSelected={isSelected}
+      onSelect={onSelect}
+      className={ITEM_CLASSES[appearance.accent]}
+    />
   );
 }
 
