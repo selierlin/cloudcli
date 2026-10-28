@@ -26,3 +26,42 @@ export const FALLBACK_PERMISSION_MODES: Record<LLMProvider, PermissionMode[]> = 
   // `auto` answers them with the bridge's allow-once option.
   openclaw: ['default', 'auto'],
 };
+
+/**
+ * The modes that need their own name, because the shared name would describe a
+ * different mechanism.
+ *
+ * Unifying names is only right when the thing behind the name is the same.
+ * `bypassPermissions` is one thing everywhere, so it is called one thing
+ * everywhere. `auto` is not: Claude's `auto` is a model classifier that can
+ * still deny a call, WorkBuddy's approves inside the engine with its guardrails
+ * intact, and DSH/OpenClaw's answers an ACP request with "allow once". Naming
+ * all three "Auto" told the user they were the same switch.
+ *
+ * The same applies to `default` where it is not the harness default: ZCode's is
+ * a read-only build mode, Pi's and OMP's run autonomously, DSH's and OpenClaw's
+ * ask in chat.
+ *
+ * A provider may always override a *description* — that is how provider-specific
+ * nuance is explained. Only a *title* is gated by this table.
+ */
+export const PROVIDER_SPECIFIC_MODE_NAMES = {
+  claude: ['auto'],
+  workbuddy: ['auto'],
+  dsh: ['default', 'auto'],
+  openclaw: ['default', 'auto'],
+  pi: ['default'],
+  omp: ['default'],
+  zcode: ['default'],
+} as const satisfies Partial<Record<LLMProvider, readonly PermissionMode[]>>;
+
+/** Whether `provider`'s `mode` has semantics of its own, and so its own name. */
+export const hasProviderSpecificModeName = (
+  provider: LLMProvider | string | undefined,
+  mode: PermissionMode | string,
+): boolean => {
+  if (!provider) return false;
+
+  const declared = (PROVIDER_SPECIFIC_MODE_NAMES as Record<string, readonly string[]>)[provider];
+  return declared?.includes(mode) ?? false;
+};

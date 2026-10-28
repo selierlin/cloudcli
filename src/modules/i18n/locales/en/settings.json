@@ -804,19 +804,19 @@
       },
       "auto": {
         "title": "Auto",
-        "description": "A model classifier decides per tool call whether to approve or deny. Hands-off, but safer than Bypass — denials still happen."
+        "description": "Each harness decides who approves; check its own note after switching."
       },
       "acceptEdits": {
-        "title": "Accept Edits",
-        "description": "All commands run automatically within the workspace. Full auto mode with sandboxed execution."
+        "title": "Allow edits",
+        "description": "File edits are approved automatically; whether commands run is up to the harness."
       },
       "bypassPermissions": {
-        "title": "Bypass Permissions",
+        "title": "Full access",
         "description": "Full system access with no restrictions. All commands run automatically with full disk and network access. Use with caution."
       },
       "plan": {
-        "title": "Plan",
-        "description": "Only produces an execution plan; no commands are executed"
+        "title": "Plan only",
+        "description": "Only produces an execution plan; no files are changed and no commands run"
       },
       "readonly": {
         "title": "Read-only",
@@ -893,6 +893,9 @@
       "modes": {
         "default": {
           "description": "Runs commands within the workspace sandbox. Codex decides when approval is needed; requests cannot be approved in this non-interactive integration."
+        },
+        "acceptEdits": {
+          "description": "All commands run automatically inside the workspace sandbox, with no approval prompt."
         }
       },
       "technicalDetails": "Technical details",
@@ -908,7 +911,8 @@
       "description": "Controls how WorkBuddy handles file modifications and command execution",
       "modes": {
         "auto": {
-          "description": "The engine approves its own permission checks in process; its guardrails still apply."
+          "description": "The engine approves its own permission checks in process; its guardrails still apply.",
+          "title": "Auto-approve"
         }
       }
     },
@@ -949,11 +953,12 @@
       "description": "Controls how CloudCLI answers DSH permission requests",
       "modes": {
         "default": {
-          "title": "Ask in chat",
+          "title": "Ask each time",
           "description": "Show each DSH permission request in the chat composer for an Allow once or Deny decision."
         },
         "auto": {
-          "description": "Answer DSH permission requests with Allow once. This does not change DSH's own sandbox policy."
+          "description": "Answer DSH permission requests with Allow once. This does not change DSH's own sandbox policy.",
+          "title": "Auto-answer"
         }
       }
     },
@@ -975,11 +980,12 @@
       "description": "Controls how CloudCLI answers OpenClaw permission requests",
       "modes": {
         "default": {
-          "title": "Ask in chat",
+          "title": "Ask each time",
           "description": "Show each OpenClaw permission request in the chat composer for an Allow once or Deny decision."
         },
         "auto": {
-          "description": "Answer OpenClaw permission requests with Allow once. This does not change OpenClaw's own approval policy."
+          "description": "Answer OpenClaw permission requests with Allow once. This does not change OpenClaw's own approval policy.",
+          "title": "Auto-answer"
         }
       }
     },
@@ -1003,6 +1009,14 @@
     },
     "actions": {
       "add": "Add"
+    },
+    "claude": {
+      "modes": {
+        "auto": {
+          "title": "Smart approval",
+          "description": "A model classifier decides per tool call whether to approve it. No manual confirmation, but some calls are still denied."
+        }
+      }
     }
   },
   "mcpServers": {

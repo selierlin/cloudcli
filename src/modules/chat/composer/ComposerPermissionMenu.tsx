@@ -146,7 +146,7 @@ function ComposerPermissionMenu({
           {permissionMode !== 'plan' && isModeOverriddenBySettings(provider) && (
             <ComposerMenuHeading>
               {t('composer.skipPermissionsOverride', {
-                defaultValue: 'Settings has "Skip permissions" on, so this turn runs as Bypass Permissions.',
+                defaultValue: 'Settings has "Skip permissions" on, so this turn runs with Full access.',
               })}
             </ComposerMenuHeading>
           )}

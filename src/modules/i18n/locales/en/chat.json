@@ -214,7 +214,7 @@
     "noModelsMatch": "No matching models",
     "permissionHeading": "How should {{provider}} actions be approved?",
     "permissionCycleHint": "Press Tab in the message box to switch modes",
-    "skipPermissionsOverride": "Settings has \"Skip permissions\" on, so this turn runs as Bypass Permissions.",
+    "skipPermissionsOverride": "Settings has \"Skip permissions\" on, so this turn runs with Full access.",
     "permissionTriggerLabel": "{{mode}}: {{heading}}",
     "editing": {
       "title": "Replacing an earlier message",

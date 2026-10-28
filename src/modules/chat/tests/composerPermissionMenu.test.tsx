@@ -28,7 +28,7 @@ test('the composer names the mode the next message runs in', () => {
     />,
   );
 
-  assert.equal(getByRole('button').textContent, 'Plan');
+  assert.equal(getByRole('button').textContent, 'Plan only');
 });
 
 test('a screen reader hears the mode the button shows', () => {
@@ -41,7 +41,7 @@ test('a screen reader hears the mode the button shows', () => {
     />,
   );
 
-  assert.ok(getByRole('button', { name: /^Plan: / }));
+  assert.ok(getByRole('button', { name: /^Plan only: / }));
 });
 
 test('the default mode is named too', () => {
@@ -85,7 +85,7 @@ test('a mode means the same thing in every harness, so it is named the same ever
         provider={provider}
       />,
     );
-    assert.equal(getByRole('button').textContent, 'Bypass Permissions', `${provider ?? 'no provider'}`);
+    assert.equal(getByRole('button').textContent, 'Full access', `${provider ?? 'no provider'}`);
     unmount();
   }
 });
@@ -123,9 +123,9 @@ test('every mode leads the accessible name, a mode with no translation by its id
   const expected: Array<[PermissionMode, string]> = [
     ['default', 'Default'],
     ['auto', 'Auto'],
-    ['acceptEdits', 'Accept Edits'],
-    ['bypassPermissions', 'Bypass Permissions'],
-    ['plan', 'Plan'],
+    ['acceptEdits', 'Allow edits'],
+    ['bypassPermissions', 'Full access'],
+    ['plan', 'Plan only'],
     [unknownMode, 'dontAsk'],
   ];
 
@@ -246,7 +246,7 @@ test('plan mode keeps its name wherever it fits inside the composer', () => {
   // and with the name they still fit inside it. Default mode stays an icon.
   layOutComposer(416);
   const plan = renderInFooter('plan');
-  assert.equal(plan.getByRole('button').textContent, 'Plan');
+  assert.equal(plan.getByRole('button').textContent, 'Plan only');
   plan.unmount();
 
   const other = renderInFooter('default');
@@ -258,7 +258,7 @@ test('plan mode keeps its name wherever it fits inside the composer', () => {
   layOutComposer(300);
   const narrow = renderInFooter('plan');
   assert.equal(narrow.getByRole('button').textContent, '');
-  assert.ok(narrow.getByRole('button', { name: /^Plan: / }));
+  assert.ok(narrow.getByRole('button', { name: /^Plan only: / }));
 });
 
 test('typing the first character neither takes the name away nor brings it in', () => {

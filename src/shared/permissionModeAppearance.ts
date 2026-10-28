@@ -21,9 +21,9 @@ type PermissionModeAppearance = {
 const APPEARANCE: Record<PermissionMode, PermissionModeAppearance> = {
   default: { icon: Hand, accent: 'neutral', fallbackLabel: 'Default' },
   auto: { icon: Bot, accent: 'info', fallbackLabel: 'Auto' },
-  acceptEdits: { icon: Smile, accent: 'success', fallbackLabel: 'Accept Edits' },
-  bypassPermissions: { icon: AlertTriangle, accent: 'warning', fallbackLabel: 'Bypass Permissions' },
-  plan: { icon: ClipboardList, accent: 'primary', fallbackLabel: 'Plan Mode' },
+  acceptEdits: { icon: Smile, accent: 'success', fallbackLabel: 'Allow edits' },
+  bypassPermissions: { icon: AlertTriangle, accent: 'warning', fallbackLabel: 'Full access' },
+  plan: { icon: ClipboardList, accent: 'primary', fallbackLabel: 'Plan only' },
   // Primary as well, matching plan mode: read-only is the "no side effects"
   // sibling of planning.
   readonly: { icon: EyeOff, accent: 'primary', fallbackLabel: 'Read-only' },

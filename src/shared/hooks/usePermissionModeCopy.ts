@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
 import { getPermissionModeAppearance } from '@/shared/permissionModeAppearance';
+import { hasProviderSpecificModeName } from '@/shared/permissionModes';
 import type { LLMProvider, PermissionMode } from '@/shared/types';
 
 /**
@@ -9,17 +10,19 @@ import type { LLMProvider, PermissionMode } from '@/shared/types';
  * Used by chat's composer permission menu, the side-ask header and settings'
  * per-provider permission panel, so all three say the same thing.
  *
- * Two layers, and only two:
+ * Two layers:
  *
- * 1. `permissions.modes.<mode>` — the canonical name and description of the
- *    mode itself. Every provider reads this, so `bypassPermissions` is called
- *    the same thing in every harness.
- * 2. `permissions.<provider>.modes.<mode>` — an override, used *only* where the
- *    same enum value means something else for that provider. `default` is the
- *    one that really differs: Claude's is an allowlist, Pi's runs autonomously,
- *    ZCode's build mode is read-only. Overrides stay out of the naming layer
- *    otherwise; a second name for a shared mode is what let "无限制" and
- *    "无限制模式" describe the same thing in two panels.
+ * 1. `permissions.modes.<mode>` — the canonical name and description. Every
+ *    provider reads this, so `bypassPermissions` is called the same thing in
+ *    every harness. That is only right when the mechanism is the same.
+ * 2. `permissions.<provider>.modes.<mode>` — an override. A description is
+ *    always allowed: provider-specific nuance belongs there. A *title* is only
+ *    read for the (provider, mode) pairs declared in
+ *    `PROVIDER_SPECIFIC_MODE_NAMES`, i.e. where the shared name would describe
+ *    a different mechanism — `auto` is a classifier in Claude, in-process
+ *    approval in WorkBuddy and an ACP "allow once" answer in DSH/OpenClaw.
+ *    Without that gate, every provider would drift back into its own word for
+ *    the same switch; with it, a second name is a deliberate, reviewed choice.
  */
 export function usePermissionModeCopy(
   provider: LLMProvider | string | undefined,
@@ -27,8 +30,9 @@ export function usePermissionModeCopy(
 ): { label: string; description: string } {
   const { t } = useTranslation();
   const appearance = getPermissionModeAppearance(mode);
+  const namedPerProvider = hasProviderSpecificModeName(provider, mode);
 
-  const providerLabel = provider
+  const providerLabel = provider && namedPerProvider
     ? t(`permissions.${provider}.modes.${mode}.title`, { ns: 'settings', defaultValue: '' })
     : '';
   const label = providerLabel

@@ -787,19 +787,19 @@
       },
       "auto": {
         "title": "自动",
-        "description": "由模型分类器针对每次工具调用决定批准或拒绝。无需手动操作，但比绕过权限更安全——仍可能被拒绝。"
+        "description": "由具体 harness 决定谁在批准，切换后请查看对应说明。"
       },
       "acceptEdits": {
-        "title": "接受编辑",
-        "description": "工作区内的所有命令自动运行。完全自动模式，具有沙盒执行功能。"
+        "title": "允许改文件",
+        "description": "文件编辑自动通过，不再逐个确认；命令是否放行由该 harness 决定。"
       },
       "bypassPermissions": {
-        "title": "绕过权限",
+        "title": "全部放行",
         "description": "完全的系统访问，无限制。所有命令自动运行，具有完整的磁盘和网络访问权限。请谨慎使用。"
       },
       "plan": {
         "title": "仅计划",
-        "description": "计划模式 - 不执行任何命令"
+        "description": "只生成执行计划，不修改文件也不运行命令。"
       },
       "readonly": {
         "title": "只读",
@@ -876,6 +876,9 @@
       "modes": {
         "default": {
           "description": "在工作区沙箱内运行命令。Codex 决定何时需要批准；此非交互式集成无法批准请求。"
+        },
+        "acceptEdits": {
+          "description": "在工作区沙箱内自动执行所有命令，不再请求批准。"
         }
       },
       "technicalDetails": "技术详情",
@@ -891,7 +894,8 @@
       "description": "控制 WorkBuddy 如何处理文件修改和命令执行",
       "modes": {
         "auto": {
-          "description": "引擎在进程内自行批准权限检查，护栏仍然生效。"
+          "description": "引擎在进程内自行批准权限检查，护栏仍然生效。",
+          "title": "自动批准"
         }
       }
     },
@@ -932,11 +936,12 @@
       "description": "控制 CloudCLI 如何响应 DSH 的权限请求",
       "modes": {
         "default": {
-          "title": "在聊天中询问",
+          "title": "每次询问",
           "description": "DSH 发起权限请求时，在聊天输入区显示“允许一次 / 拒绝”。"
         },
         "auto": {
-          "description": "DSH 发起权限请求时自动选择“允许一次”。这不会修改 DSH 自身的沙箱策略。"
+          "description": "DSH 发起权限请求时自动选择“允许一次”。这不会修改 DSH 自身的沙箱策略。",
+          "title": "自动应答"
         }
       }
     },
@@ -958,11 +963,12 @@
       "description": "控制 CloudCLI 如何响应 OpenClaw 的权限请求",
       "modes": {
         "default": {
-          "title": "在聊天中询问",
+          "title": "每次询问",
           "description": "OpenClaw 发起权限请求时，在聊天输入区显示“允许一次 / 拒绝”。"
         },
         "auto": {
-          "description": "OpenClaw 发起权限请求时自动选择“允许一次”。这不会修改 OpenClaw 自身的审批策略。"
+          "description": "OpenClaw 发起权限请求时自动选择“允许一次”。这不会修改 OpenClaw 自身的审批策略。",
+          "title": "自动应答"
         }
       }
     },
@@ -986,6 +992,14 @@
     },
     "actions": {
       "add": "添加"
+    },
+    "claude": {
+      "modes": {
+        "auto": {
+          "title": "智能审批",
+          "description": "由模型分类器逐次判断每个工具调用是否放行。无需手动确认，但仍可能拒绝部分操作。"
+        }
+      }
     }
   },
   "mcpServers": {

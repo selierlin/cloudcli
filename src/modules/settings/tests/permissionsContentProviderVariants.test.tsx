@@ -61,7 +61,9 @@ test('openclaw renders its own auto-allow picker, not the codex fallback', () =>
 
   assert.ok(screen.getByText('permissions.openclaw.permissionMode'));
   assert.ok(screen.getByText(/permissions\.openclaw\.modes\.default\.title/));
-  assert.ok(screen.getByText(/permissions\.modes\.auto\.title/));
+  // OpenClaw's `auto` answers the harness's own request, which is not what
+  // Claude's classifier or WorkBuddy's in-process approval does.
+  assert.ok(screen.getByText(/permissions\.openclaw\.modes\.auto\.title/));
   assert.equal(screen.queryByText('permissions.codex.permissionMode'), null);
 });
 
@@ -69,7 +71,7 @@ test('workbuddy offers only the two modes that can finish a turn', () => {
   render(<PermissionsContent agent="workbuddy" permissionMode="auto" onPermissionModeChange={() => {}} />);
 
   assert.ok(screen.getByText('permissions.workbuddy.permissionMode'));
-  assert.ok(screen.getByText(/permissions\.modes\.auto\.title/));
+  assert.ok(screen.getByText(/permissions\.workbuddy\.modes\.auto\.title/));
   assert.ok(screen.getByText(/permissions\.modes\.bypassPermissions\.title/));
   // `default`, `acceptEdits` and `plan` wait for an approver `-p` never has.
   assert.equal(modeTitles(), 2);
