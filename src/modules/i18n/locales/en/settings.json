@@ -825,7 +825,7 @@
     },
     "skipPermissions": {
       "label": "Skip permission prompts (use with caution)",
-      "claudeDescription": "Equivalent to --dangerously-skip-permissions flag",
+      "claudeDescription": "Equivalent to the --dangerously-skip-permissions flag. While it is on, the mode picked in chat is ignored and every turn runs with Full access — except Plan only.",
       "cursorDescription": "Equivalent to -f flag in Cursor CLI"
     },
     "allowedTools": {

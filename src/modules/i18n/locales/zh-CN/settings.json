@@ -808,7 +808,7 @@
     },
     "skipPermissions": {
       "label": "跳过权限提示（请谨慎使用）",
-      "claudeDescription": "等同于 --dangerously-skip-permissions 标志",
+      "claudeDescription": "等同于 --dangerously-skip-permissions 标志。开启后聊天里选中的模式会被忽略，每一轮都以「全部放行」运行（仅计划除外）",
       "cursorDescription": "等同于 Cursor CLI 中的 -f 标志"
     },
     "allowedTools": {
