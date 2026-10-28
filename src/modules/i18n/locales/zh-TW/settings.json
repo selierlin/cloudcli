@@ -266,6 +266,11 @@
       "light": "淺色",
       "dark": "深色",
       "system": "跟隨系統外觀"
+    },
+    "keepProjectsExpanded": {
+      "section": "側邊欄",
+      "label": "保持專案展開",
+      "description": "同時展開多個專案，重新整理頁面後仍保持展開。"
     }
   },
   "mcpForm": {

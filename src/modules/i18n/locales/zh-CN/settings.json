@@ -416,6 +416,11 @@
       "light": "浅色",
       "dark": "深色",
       "system": "跟随系统外观"
+    },
+    "keepProjectsExpanded": {
+      "section": "侧边栏",
+      "label": "保持项目展开",
+      "description": "同时展开多个项目，刷新页面后仍保持展开。"
     }
   },
   "mcpForm": {
