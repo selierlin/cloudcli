@@ -13,7 +13,7 @@ import {
   writeUserPreferences,
 } from '@/shared/userSettings';
 import { useProviderAuthStatus } from '@/modules/provider-auth';
-import type { AgentProvider, ClaudePermissionsState, CodeEditorSettingsState, CodexPermissionMode, CursorPermissionsState, DshPermissionMode, LLMProvider, NotificationPreferencesState, OpenclawPermissionMode, OmpPermissionMode, PermissionMode, PiPermissionMode, ProjectSortOrder, SettingsMainTab, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
+import type { AgentProvider, ClaudePermissionsState, CodeEditorSettingsState, CodexPermissionMode, CursorPermissionsState, DshPermissionMode, LLMProvider, NotificationPreferencesState, OpenCodePermissionMode, OpenclawPermissionMode, OmpPermissionMode, PermissionMode, PiPermissionMode, ProjectSortOrder, SettingsMainTab, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
 
 const DEFAULT_CURSOR_PERMISSIONS: CursorPermissionsState = {
   allowedCommands: [],
@@ -72,6 +72,10 @@ type OpenclawSettingsStorage = {
   permissionMode?: OpenclawPermissionMode;
 };
 
+type OpenCodeSettingsStorage = {
+  permissionMode?: OpenCodePermissionMode;
+};
+
 type NotificationPreferencesResponse = {
   success?: boolean;
   preferences?: NotificationPreferencesState;
@@ -98,13 +102,9 @@ const toCodexPermissionMode = (value: unknown): CodexPermissionMode => {
   return 'default';
 };
 
-const toWorkbuddyPermissionMode = (value: unknown): WorkbuddyPermissionMode => {
-  if (value === 'acceptEdits' || value === 'bypassPermissions' || value === 'plan') {
-    return value;
-  }
-
-  return 'default';
-};
+const toWorkbuddyPermissionMode = (value: unknown): WorkbuddyPermissionMode => (
+  value === 'bypassPermissions' ? 'bypassPermissions' : 'auto'
+);
 
 const toDshPermissionMode = (value: unknown): DshPermissionMode => (
   value === 'auto' ? 'auto' : 'default'
@@ -139,12 +139,20 @@ const toOpenclawPermissionMode = (value: unknown): OpenclawPermissionMode => (
   value === 'auto' ? 'auto' : 'default'
 );
 
+const toOpenCodePermissionMode = (value: unknown): OpenCodePermissionMode => {
+  if (value === 'acceptEdits' || value === 'bypassPermissions' || value === 'plan') {
+    return value;
+  }
+
+  return 'default';
+};
+
 const readWorkbuddyPermissionMode = (): WorkbuddyPermissionMode => {
   try {
     const stored = JSON.parse(localStorage.getItem(WORKBUDDY_SETTINGS_STORAGE_KEY) || '{}') as WorkbuddySettingsStorage;
     return toWorkbuddyPermissionMode(stored.permissionMode);
   } catch {
-    return 'default';
+    return 'auto';
   }
 };
 
@@ -248,6 +256,8 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
   const [ompPermissionMode, setOmpPermissionModeState] = useState<OmpPermissionMode>('default');
   /** OpenClaw's stored default mode, edited by the openclaw permission panel and used as the composer's fallback for OpenClaw chats. */
   const [openclawPermissionMode, setOpenclawPermissionModeState] = useState<OpenclawPermissionMode>('default');
+  /** OpenCode's stored default mode; OpenCode had a composer picker but no permission panel, so the setting had nowhere to be edited. */
+  const [opencodePermissionMode, setOpenCodePermissionModeState] = useState<OpenCodePermissionMode>('default');
 
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginProvider, setLoginProvider] = useState<ActiveLoginProvider>('');
@@ -290,6 +300,8 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
       setOmpPermissionModeState(toOmpPermissionMode(savedOmpSettings.permissionMode));
       const savedOpenclawSettings = readUserPreference<OpenclawSettingsStorage>('openclawPermissions', {});
       setOpenclawPermissionModeState(toOpenclawPermissionMode(savedOpenclawSettings.permissionMode));
+      const savedOpenCodeSettings = readUserPreference<OpenCodeSettingsStorage>('opencodePermissions', {});
+      setOpenCodePermissionModeState(toOpenCodePermissionMode(savedOpenCodeSettings.permissionMode));
 
       try {
         const notificationResponse = await api.settings.notificationPreferences();
@@ -313,12 +325,13 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
       setCursorPermissions(createEmptyCursorPermissions());
       setNotificationPreferences(createDefaultNotificationPreferences());
       setCodexPermissionModeState('default');
-      setWorkbuddyPermissionModeState('default');
+      setWorkbuddyPermissionModeState('auto');
       setZcodePermissionModeState('acceptEdits');
       setPiPermissionModeState('default');
       setDshPermissionModeState('default');
       setOmpPermissionModeState('default');
       setOpenclawPermissionModeState('default');
+      setOpenCodePermissionModeState('default');
       setProjectSortOrder('date');
     }
   }, []);
@@ -380,6 +393,9 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
         openclawPermissions: {
           permissionMode: openclawPermissionMode,
         },
+        opencodePermissions: {
+          permissionMode: opencodePermissionMode,
+        },
       });
       localStorage.setItem(WORKBUDDY_SETTINGS_STORAGE_KEY, JSON.stringify({ permissionMode: workbuddyPermissionMode }));
 
@@ -406,6 +422,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     dshPermissionMode,
     ompPermissionMode,
     openclawPermissionMode,
+    opencodePermissionMode,
     cursorPermissions.allowedCommands,
     cursorPermissions.disallowedCommands,
     cursorPermissions.skipPermissions,
@@ -524,6 +541,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
   const setDshPermissionMode = usePermissionModeSetter<DshPermissionMode>('dsh', setDshPermissionModeState);
   const setOmpPermissionMode = usePermissionModeSetter<OmpPermissionMode>('omp', setOmpPermissionModeState);
   const setOpenclawPermissionMode = usePermissionModeSetter<OpenclawPermissionMode>('openclaw', setOpenclawPermissionModeState);
+  const setOpenCodePermissionMode = usePermissionModeSetter<OpenCodePermissionMode>('opencode', setOpenCodePermissionModeState);
 
   // Clear save status after 2 seconds
   useEffect(() => {
@@ -576,6 +594,8 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     setOmpPermissionMode,
     openclawPermissionMode,
     setOpenclawPermissionMode,
+    opencodePermissionMode,
+    setOpenCodePermissionMode,
     providerAuthStatus,
     openLoginForProvider,
     showLoginModal,

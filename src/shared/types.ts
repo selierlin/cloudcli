@@ -1702,8 +1702,8 @@ export type AgentCategory = 'account' | 'permissions' | 'mcp' | 'skills';
 /** How much Codex may do without asking, from prompting on every edit to bypassing permission checks entirely; persisted as the Codex agent's permission setting. */
 export type CodexPermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions';
 
-/** Permission mode persisted for WorkBuddy's embedded CodeBuddy engine. */
-export type WorkbuddyPermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
+/** Permission mode persisted for WorkBuddy's embedded CodeBuddy engine; only the modes that answer their own permission checks, because `-p` has no approver. */
+export type WorkbuddyPermissionMode = 'auto' | 'bypassPermissions';
 
 /** Permission mode persisted for the DSH ACP gateway: ask in chat or auto-answer allow-once. */
 export type DshPermissionMode = 'default' | 'auto';
@@ -1719,6 +1719,9 @@ export type OmpPermissionMode = 'default' | 'readonly';
 
 /** Permission mode persisted for the OpenClaw ACP gateway: ask in chat or auto-answer allow-once. */
 export type OpenclawPermissionMode = 'default' | 'auto';
+
+/** Permission mode persisted for the OpenCode agent, mirroring its `--agent plan` / `--auto` / `OPENCODE_PERMISSION` controls. */
+export type OpenCodePermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
 
 /** A project as the settings dialog needs it - a required identifier in `name` plus optional display name and paths - passed down to the MCP and skills panels so they can scope configuration to a project. */
 export type AgentSettingsProject = {

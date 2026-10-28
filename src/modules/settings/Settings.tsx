@@ -79,6 +79,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
     setOmpPermissionMode,
     openclawPermissionMode,
     setOpenclawPermissionMode,
+    opencodePermissionMode,
+    setOpenCodePermissionMode,
     providerAuthStatus,
     openLoginForProvider,
     showLoginModal,
@@ -313,6 +315,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
                   onOmpPermissionModeChange={setOmpPermissionMode}
                   openclawPermissionMode={openclawPermissionMode}
                   onOpenclawPermissionModeChange={setOpenclawPermissionMode}
+                  opencodePermissionMode={opencodePermissionMode}
+                  onOpenCodePermissionModeChange={setOpenCodePermissionMode}
                   projects={projects}
                   onOpenMcpMatrix={handleOpenMcpMatrix}
                 />

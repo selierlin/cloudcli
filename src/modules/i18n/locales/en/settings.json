@@ -887,11 +887,16 @@
       }
     },
     "workbuddy": {
+      "permissionMode": "Permission Mode",
       "description": "Controls how WorkBuddy handles file modifications and command execution",
       "modes": {
-        "plan": {
-          "title": "Plan",
-          "description": "Analyzes and produces an execution plan without modifying files or running commands."
+        "auto": {
+          "title": "Auto-approve",
+          "description": "The engine approves its own permission checks in process; its guardrails still apply."
+        },
+        "bypassPermissions": {
+          "title": "Unrestricted",
+          "description": "Full system access with no restrictions. Every command runs automatically with full disk and network access. Use with caution."
         }
       }
     },
@@ -972,6 +977,10 @@
           "description": "Answer OpenClaw permission requests with Allow once. This does not change OpenClaw's own approval policy."
         }
       }
+    },
+    "opencode": {
+      "permissionMode": "Permission Mode",
+      "description": "Controls how OpenCode approves file edits and command execution"
     },
     "actions": {
       "add": "Add"

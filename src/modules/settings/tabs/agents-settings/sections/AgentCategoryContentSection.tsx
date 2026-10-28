@@ -1,10 +1,13 @@
-import type { AgentCategory, AgentContextByProvider, AgentProvider, AgentSettingsProject, ClaudePermissionsState, CodexPermissionMode, CursorPermissionsState, DshPermissionMode, McpProject, OpenclawPermissionMode, OmpPermissionMode, PiPermissionMode, SkillsProject, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
+import type { AgentCategory, AgentContextByProvider, AgentProvider, AgentSettingsProject, ClaudePermissionsState, CodexPermissionMode, CursorPermissionsState, DshPermissionMode, LLMProvider, McpProject, OpenCodePermissionMode, OpenclawPermissionMode, OmpPermissionMode, PermissionMode, PiPermissionMode, SkillsProject, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
 import { McpServers } from '@/modules/mcp';
 import { ProviderSkills } from '@/modules/skills';
 import AccountContent from '@/modules/settings/tabs/agents-settings/sections/content/AccountContent';
 import PermissionsContent from '@/modules/settings/tabs/agents-settings/sections/content/PermissionsContent';
 import ProviderQuotaSection from '@/modules/settings/tabs/agents-settings/sections/content/ProviderQuotaSection';
 import ProviderSettingsSourceSection from '@/modules/settings/tabs/agents-settings/sections/content/ProviderSettingsSourceSection';
+
+/** Providers rendered by the shared permission-mode picker; claude and cursor have their own allowlist panels. */
+type ModePickerProvider = Exclude<LLMProvider, 'claude' | 'cursor'>;
 
 type AgentCategoryContentSectionProps = {
   selectedAgent: AgentProvider;
@@ -28,6 +31,8 @@ type AgentCategoryContentSectionProps = {
   onOmpPermissionModeChange: (value: OmpPermissionMode) => void;
   openclawPermissionMode: OpenclawPermissionMode;
   onOpenclawPermissionModeChange: (value: OpenclawPermissionMode) => void;
+  opencodePermissionMode: OpenCodePermissionMode;
+  onOpenCodePermissionModeChange: (value: OpenCodePermissionMode) => void;
   projects: AgentSettingsProject[];
   /** Opens the MCP matrix tab, which is where user-scope MCP servers are edited now. */
   onOpenMcpMatrix?: () => void;
@@ -56,9 +61,36 @@ export default function AgentCategoryContentSection({
   onOmpPermissionModeChange,
   openclawPermissionMode,
   onOpenclawPermissionModeChange,
+  opencodePermissionMode,
+  onOpenCodePermissionModeChange,
   projects,
   onOpenMcpMatrix,
 }: AgentCategoryContentSectionProps) {
+  // Keyed by provider rather than branched per provider: a provider added to
+  // LLMProvider without a mode here is a compile error, instead of the blank
+  // (or wrong) panel opencode and workbuddy shipped with.
+  const permissionModeByAgent: Record<ModePickerProvider, PermissionMode> = {
+    codex: codexPermissionMode,
+    workbuddy: workbuddyPermissionMode,
+    zcode: zcodePermissionMode,
+    pi: piPermissionMode,
+    dsh: dshPermissionMode,
+    omp: ompPermissionMode,
+    openclaw: openclawPermissionMode,
+    opencode: opencodePermissionMode,
+  };
+
+  const setPermissionModeByAgent: Record<ModePickerProvider, (mode: PermissionMode) => void> = {
+    codex: (mode) => onCodexPermissionModeChange(mode as CodexPermissionMode),
+    workbuddy: (mode) => onWorkbuddyPermissionModeChange(mode as WorkbuddyPermissionMode),
+    zcode: (mode) => onZcodePermissionModeChange(mode as ZcodePermissionMode),
+    pi: (mode) => onPiPermissionModeChange(mode as PiPermissionMode),
+    dsh: (mode) => onDshPermissionModeChange(mode as DshPermissionMode),
+    omp: (mode) => onOmpPermissionModeChange(mode as OmpPermissionMode),
+    openclaw: (mode) => onOpenclawPermissionModeChange(mode as OpenclawPermissionMode),
+    opencode: (mode) => onOpenCodePermissionModeChange(mode as OpenCodePermissionMode),
+  };
+
   return (
     <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-4">
       {selectedCategory === 'account' && (
@@ -111,59 +143,11 @@ export default function AgentCategoryContentSection({
         />
       )}
 
-      {selectedCategory === 'permissions' && selectedAgent === 'codex' && (
+      {selectedCategory === 'permissions' && selectedAgent !== 'claude' && selectedAgent !== 'cursor' && (
         <PermissionsContent
-          agent="codex"
-          permissionMode={codexPermissionMode}
-          onPermissionModeChange={(value) => onCodexPermissionModeChange(value as CodexPermissionMode)}
-        />
-      )}
-
-      {selectedCategory === 'permissions' && selectedAgent === 'workbuddy' && (
-        <PermissionsContent
-          agent="workbuddy"
-          permissionMode={workbuddyPermissionMode}
-          onPermissionModeChange={onWorkbuddyPermissionModeChange}
-        />
-      )}
-
-      {selectedCategory === 'permissions' && selectedAgent === 'zcode' && (
-        <PermissionsContent
-          agent="zcode"
-          permissionMode={zcodePermissionMode}
-          onPermissionModeChange={onZcodePermissionModeChange}
-        />
-      )}
-
-      {selectedCategory === 'permissions' && selectedAgent === 'pi' && (
-        <PermissionsContent
-          agent="pi"
-          permissionMode={piPermissionMode}
-          onPermissionModeChange={onPiPermissionModeChange}
-        />
-      )}
-
-      {selectedCategory === 'permissions' && selectedAgent === 'dsh' && (
-        <PermissionsContent
-          agent="dsh"
-          permissionMode={dshPermissionMode}
-          onPermissionModeChange={onDshPermissionModeChange}
-        />
-      )}
-
-      {selectedCategory === 'permissions' && selectedAgent === 'omp' && (
-        <PermissionsContent
-          agent="omp"
-          permissionMode={ompPermissionMode}
-          onPermissionModeChange={onOmpPermissionModeChange}
-        />
-      )}
-
-      {selectedCategory === 'permissions' && selectedAgent === 'openclaw' && (
-        <PermissionsContent
-          agent="openclaw"
-          permissionMode={openclawPermissionMode}
-          onPermissionModeChange={onOpenclawPermissionModeChange}
+          agent={selectedAgent}
+          permissionMode={permissionModeByAgent[selectedAgent]}
+          onPermissionModeChange={setPermissionModeByAgent[selectedAgent]}
         />
       )}
 

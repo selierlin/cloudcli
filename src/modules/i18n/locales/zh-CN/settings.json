@@ -870,11 +870,16 @@
       }
     },
     "workbuddy": {
+      "permissionMode": "权限模式",
       "description": "控制 WorkBuddy 如何处理文件修改和命令执行",
       "modes": {
-        "plan": {
-          "title": "仅计划",
-          "description": "只分析并生成执行计划，不实际修改文件或运行命令。"
+        "auto": {
+          "title": "自动批准",
+          "description": "引擎在进程内自行批准权限检查，护栏仍然生效。"
+        },
+        "bypassPermissions": {
+          "title": "无限制",
+          "description": "完全系统访问，无任何限制。所有命令自动运行，具有完整的磁盘和网络访问权限。请谨慎使用。"
         }
       }
     },
@@ -955,6 +960,10 @@
           "description": "OpenClaw 发起权限请求时自动选择“允许一次”。这不会修改 OpenClaw 自身的审批策略。"
         }
       }
+    },
+    "opencode": {
+      "permissionMode": "权限模式",
+      "description": "控制 OpenCode 如何批准文件编辑与命令执行"
     },
     "actions": {
       "add": "添加"
