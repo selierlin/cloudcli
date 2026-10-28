@@ -115,9 +115,12 @@
       "noMatches": "没有与搜索匹配的命令。",
       "loadError": "无法加载命令。",
       "groups": {
+        "frequent": "常用命令",
+        "projectSkills": "项目级技能",
+        "userSkills": "用户级技能",
+        "otherSkills": "技能",
         "builtIn": "内置",
-        "custom": "自定义",
-        "skills": "技能"
+        "custom": "自定义"
       },
       "insertTitle": "将 {{command}} 插入聊天"
     }

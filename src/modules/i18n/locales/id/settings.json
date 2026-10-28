@@ -102,9 +102,12 @@
       "noMatches": "Tidak ada perintah yang cocok dengan pencarian Anda.",
       "loadError": "Perintah tidak dapat dimuat.",
       "groups": {
+        "frequent": "Sering digunakan",
+        "projectSkills": "Skill proyek",
+        "userSkills": "Skill pengguna",
+        "otherSkills": "Skill",
         "builtIn": "Bawaan",
-        "custom": "Kustom",
-        "skills": "Skill"
+        "custom": "Kustom"
       },
       "insertTitle": "Sisipkan {{command}} ke chat"
     }

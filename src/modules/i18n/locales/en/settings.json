@@ -115,9 +115,12 @@
       "noMatches": "No commands match your search.",
       "loadError": "Commands could not be loaded.",
       "groups": {
+        "frequent": "Frequently Used",
+        "projectSkills": "Project Skills",
+        "userSkills": "User Skills",
+        "otherSkills": "Skills",
         "builtIn": "Built-in",
-        "custom": "Custom",
-        "skills": "Skills"
+        "custom": "Custom"
       },
       "insertTitle": "Insert {{command}} into the chat"
     }

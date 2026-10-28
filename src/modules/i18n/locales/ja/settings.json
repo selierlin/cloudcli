@@ -92,9 +92,12 @@
       "noMatches": "検索に一致するコマンドはありません。",
       "loadError": "コマンドを読み込めませんでした。",
       "groups": {
+        "frequent": "よく使う",
+        "projectSkills": "プロジェクトスキル",
+        "userSkills": "ユーザースキル",
+        "otherSkills": "スキル",
         "builtIn": "組み込み",
-        "custom": "カスタム",
-        "skills": "スキル"
+        "custom": "カスタム"
       },
       "insertTitle": "{{command}} をチャットに挿入"
     }

@@ -92,9 +92,12 @@
       "noMatches": "Keine Befehle entsprechen deiner Suche.",
       "loadError": "Befehle konnten nicht geladen werden.",
       "groups": {
+        "frequent": "Häufig verwendet",
+        "projectSkills": "Projekt-Skills",
+        "userSkills": "Benutzer-Skills",
+        "otherSkills": "Skills",
         "builtIn": "Integriert",
-        "custom": "Benutzerdefiniert",
-        "skills": "Skills"
+        "custom": "Benutzerdefiniert"
       },
       "insertTitle": "{{command}} in den Chat einfügen"
     }

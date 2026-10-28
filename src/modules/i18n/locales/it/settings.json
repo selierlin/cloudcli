@@ -92,9 +92,12 @@
       "noMatches": "Nessun comando corrisponde alla ricerca.",
       "loadError": "Impossibile caricare i comandi.",
       "groups": {
+        "frequent": "Usati spesso",
+        "projectSkills": "Skill di progetto",
+        "userSkills": "Skill utente",
+        "otherSkills": "Skill",
         "builtIn": "Integrati",
-        "custom": "Personalizzati",
-        "skills": "Skill"
+        "custom": "Personalizzati"
       },
       "insertTitle": "Inserisci {{command}} nella chat"
     }

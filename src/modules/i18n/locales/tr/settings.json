@@ -92,9 +92,12 @@
       "noMatches": "Aramanızla eşleşen komut yok.",
       "loadError": "Komutlar yüklenemedi.",
       "groups": {
+        "frequent": "Sık kullanılan",
+        "projectSkills": "Proje becerileri",
+        "userSkills": "Kullanıcı becerileri",
+        "otherSkills": "Beceriler",
         "builtIn": "Yerleşik",
-        "custom": "Özel",
-        "skills": "Beceriler"
+        "custom": "Özel"
       },
       "insertTitle": "{{command}} komutunu sohbete ekle"
     }

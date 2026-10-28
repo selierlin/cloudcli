@@ -102,9 +102,12 @@
       "noMatches": "אין פקודות שתואמות לחיפוש.",
       "loadError": "לא ניתן לטעון את הפקודות.",
       "groups": {
+        "frequent": "בשימוש תכוף",
+        "projectSkills": "Skills של פרויקט",
+        "userSkills": "Skills של משתמש",
+        "otherSkills": "Skills",
         "builtIn": "מובנות",
-        "custom": "מותאמות אישית",
-        "skills": "Skills"
+        "custom": "מותאמות אישית"
       },
       "insertTitle": "הוספת {{command}} לצ'אט"
     }

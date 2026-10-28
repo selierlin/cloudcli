@@ -92,9 +92,12 @@
       "noMatches": "沒有符合搜尋的指令。",
       "loadError": "無法載入指令。",
       "groups": {
+        "frequent": "常用指令",
+        "projectSkills": "專案層級技能",
+        "userSkills": "使用者層級技能",
+        "otherSkills": "技能",
         "builtIn": "內建",
-        "custom": "自訂",
-        "skills": "技能"
+        "custom": "自訂"
       },
       "insertTitle": "將 {{command}} 插入聊天"
     }

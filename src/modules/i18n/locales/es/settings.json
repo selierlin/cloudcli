@@ -110,9 +110,12 @@
       "noMatches": "Ningún comando coincide con tu búsqueda.",
       "loadError": "No se pudieron cargar los comandos.",
       "groups": {
+        "frequent": "Usados con frecuencia",
+        "projectSkills": "Skills de proyecto",
+        "userSkills": "Skills de usuario",
+        "otherSkills": "Skills",
         "builtIn": "Integrados",
-        "custom": "Personalizados",
-        "skills": "Skills"
+        "custom": "Personalizados"
       },
       "insertTitle": "Insertar {{command}} en el chat"
     }

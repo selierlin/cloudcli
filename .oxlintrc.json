@@ -116,6 +116,7 @@
           "src/shared/sessionReadState.ts",
           "src/shared/sessionLastViewed.ts",
           "src/shared/quickReplies.ts",
+          "src/shared/commandUsage.ts",
           "src/shared/syntaxHighlighter.ts",
           "src/shared/syntaxTheme.ts",
           "src/shared/cssAtRules.ts",

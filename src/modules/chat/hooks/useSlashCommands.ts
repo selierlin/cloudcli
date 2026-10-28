@@ -1,29 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { Dispatch, KeyboardEvent, RefObject, SetStateAction } from 'react';
 
-import {
-  readUserPreference,
-  subscribeToUserPreferences,
-  writeUserPreference,
-} from '@/shared/userSettings';
+import { subscribeToUserPreferences } from '@/shared/userSettings';
+import { readCommandUsage, recordCommandUsage } from '@/shared/commandUsage';
 import { useProjectSlashCommands } from '@/shared/hooks/useProjectSlashCommands';
 import type { LLMProvider, Project, SlashCommand } from '@/shared/types';
 import { isImeKeyEvent, isSkillCommand } from '@/shared/utils';
 
 const COMMAND_QUERY_DEBOUNCE_MS = 150;
-
-/**
- * Stable fallback for the `commandUsage` preference, used both as a read
- * default and as the `getSnapshot` result when nothing has been recorded yet.
- *
- * It has to be a module-level constant rather than a `{}` literal: `getSnapshot`
- * returning a fresh object on every call reads as an endless change and
- * re-renders forever.
- */
-const EMPTY_COMMAND_USAGE: Record<string, number> = {};
-
-const readCommandUsage = (): Record<string, number> =>
-  readUserPreference('commandUsage', EMPTY_COMMAND_USAGE);
 
 type UseSlashCommandsOptions = {
   selectedProject: Project | null;
@@ -165,14 +149,7 @@ export function useSlashCommands({
         return;
       }
 
-      // Copy before changing. `readUserPreference` hands back the very object
-      // the store holds, and `writeUserPreference` short-circuits when the new
-      // value stringifies equal to the old one — so mutating that object in
-      // place would make this write a silent no-op: the count would look right
-      // in memory but never reach the mirror, the server or the subscribers.
-      const next = { ...readCommandUsage() };
-      next[command.name] = (next[command.name] ?? 0) + 1;
-      writeUserPreference('commandUsage', next);
+      recordCommandUsage(command.name);
     },
     [selectedProject],
   );
