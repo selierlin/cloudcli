@@ -548,8 +548,9 @@ type PermissionModeCardProps = {
 
 /**
  * Settings' skin for one mode. The icon, name and description come from the
- * shared appearance/copy modules, and the selected accent is the same palette
- * the composer's trigger uses — only the card's own shape lives here.
+ * shared appearance/copy modules; the name carries the same accent text colour
+ * a menu row gets in the composer, and the selected card adds the trigger's
+ * surface. Only the card's shape and the radio live here.
  */
 function PermissionModeCard({ agent, mode, selectedMode, onSelect }: PermissionModeCardProps) {
   const { label, description } = usePermissionModeCopy(agent, mode);
@@ -576,9 +577,9 @@ function PermissionModeCard({ agent, mode, selectedMode, onSelect }: PermissionM
           className="mt-1 h-4 w-4 text-green-600"
         />
         <div>
-          <div className="flex items-center gap-2 font-medium text-foreground">
+          <div className={`flex items-center gap-2 font-medium ${accent.label}`}>
             {label}
-            <ModeIcon className={`h-4 w-4 ${isSelected ? accent.label : 'text-muted-foreground'}`} />
+            <ModeIcon className="h-4 w-4" />
           </div>
           <div className="text-sm text-muted-foreground">{description}</div>
         </div>
