@@ -431,6 +431,31 @@
   },
   "permissions": {
     "title": "İzin Ayarları",
+    "modes": {
+      "default": {
+        "title": "Varsayılan",
+        "description": "Sadece güvenilir komutlar (ls, cat, grep, git status, vb.) otomatik çalışır. Diğer komutlar atlanır. Çalışma alanına yazabilir."
+      },
+      "auto": {
+        "title": "Otomatik",
+        "description": "Bir model sınıflandırıcı her araç çağrısında onaylamaya veya reddetmeye karar verir. Müdahale gerektirmez ama İzinleri Atla'dan daha güvenlidir; reddetmeler yine de olur."
+      },
+      "acceptEdits": {
+        "title": "Düzenlemeleri Kabul Et",
+        "description": "Tüm komutlar çalışma alanı içinde otomatik çalışır. Sandbox'lu çalıştırma ile tam otomatik mod."
+      },
+      "bypassPermissions": {
+        "title": "İzinleri Atla",
+        "description": "Kısıtlama olmadan tam sistem erişimi. Tüm komutlar tam disk ve ağ erişimiyle otomatik çalışır. Dikkatli kullan."
+      },
+      "plan": {
+        "title": "Sadece planla",
+        "description": "Planlama modu — hiçbir komut çalıştırılmaz"
+      },
+      "readonly": {
+        "title": "Salt okunur"
+      }
+    },
     "skipPermissions": {
       "label": "İzin istemlerini atla (dikkatli kullan)",
       "claudeDescription": "--dangerously-skip-permissions bayrağının eşdeğeri",
@@ -500,16 +525,7 @@
       "description": "Codex'in dosya değişiklikleri ve komut çalıştırmayı nasıl ele aldığını kontrol eder",
       "modes": {
         "default": {
-          "title": "Varsayılan",
           "description": "Komutları çalışma alanı korumalı ortamında çalıştırır. Onay gerektiğine Codex karar verir; bu etkileşimsiz entegrasyonda istekler onaylanamaz."
-        },
-        "acceptEdits": {
-          "title": "Düzenlemeleri Kabul Et",
-          "description": "Tüm komutlar çalışma alanı içinde otomatik çalışır. Sandbox'lu çalıştırma ile tam otomatik mod."
-        },
-        "bypassPermissions": {
-          "title": "İzinleri Atla",
-          "description": "Kısıtlama olmadan tam sistem erişimi. Tüm komutlar tam disk ve ağ erişimiyle otomatik çalışır. Dikkatli kullan."
         }
       },
       "technicalDetails": "Teknik ayrıntılar",
@@ -521,13 +537,7 @@
       }
     },
     "workbuddy": {
-      "description": "WorkBuddy'nin dosya değişikliklerini ve komut yürütmeyi nasıl işlediğini kontrol eder",
-      "modes": {
-        "plan": {
-          "title": "Sadece planla",
-          "description": "Dosyaları değiştirmeden veya komut çalıştırmadan analiz eder ve bir yürütme planı üretir."
-        }
-      }
+      "description": "WorkBuddy'nin dosya değişikliklerini ve komut yürütmeyi nasıl işlediğini kontrol eder"
     },
     "actions": {
       "add": "Ekle"

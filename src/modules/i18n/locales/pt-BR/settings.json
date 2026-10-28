@@ -430,6 +430,31 @@
   },
   "permissions": {
     "title": "Configurações de permissão",
+    "modes": {
+      "default": {
+        "title": "Padrão",
+        "description": "Apenas comandos confiáveis (ls, cat, grep, git status, etc.) rodam automaticamente. Outros comandos são ignorados. Pode gravar no espaço de trabalho."
+      },
+      "auto": {
+        "title": "Automático",
+        "description": "Um classificador do modelo decide por chamada de tool se aprova ou nega. Sem intervenção, mas mais seguro que Ignorar — negações ainda ocorrem."
+      },
+      "acceptEdits": {
+        "title": "Aceitar edições",
+        "description": "Todos os comandos executam automaticamente dentro do espaço de trabalho. Modo totalmente automático com execução em sandbox."
+      },
+      "bypassPermissions": {
+        "title": "Ignorar permissões",
+        "description": "Acesso total ao sistema sem restrições. Todos os comandos executam automaticamente com acesso total a disco e rede. Use com cautela."
+      },
+      "plan": {
+        "title": "Apenas planejar",
+        "description": "Modo planejamento — nenhum comando é executado"
+      },
+      "readonly": {
+        "title": "Somente leitura"
+      }
+    },
     "skipPermissions": {
       "label": "Pular solicitações de permissão (use com cautela)",
       "claudeDescription": "Equivale à flag --dangerously-skip-permissions",
@@ -499,16 +524,7 @@
       "description": "Controla como o Codex lida com modificações de arquivos e execução de comandos",
       "modes": {
         "default": {
-          "title": "Padrão",
           "description": "Executa comandos dentro do sandbox do espaço de trabalho. O Codex decide quando a aprovação é necessária; solicitações não podem ser aprovadas nesta integração não interativa."
-        },
-        "acceptEdits": {
-          "title": "Aceitar edições",
-          "description": "Todos os comandos executam automaticamente dentro do espaço de trabalho. Modo totalmente automático com execução em sandbox."
-        },
-        "bypassPermissions": {
-          "title": "Ignorar permissões",
-          "description": "Acesso total ao sistema sem restrições. Todos os comandos executam automaticamente com acesso total a disco e rede. Use com cautela."
         }
       },
       "technicalDetails": "Detalhes técnicos",

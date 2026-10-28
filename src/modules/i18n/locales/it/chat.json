@@ -108,24 +108,6 @@
   "usageLimit": {
     "resetAt": "Limite di utilizzo Claude raggiunto. Il tuo limite verrà ripristinato alle **{{time}} {{timezone}}** - {{date}}"
   },
-  "codex": {
-    "permissionMode": "Modalità permessi",
-    "modes": {
-      "default": "Modalità predefinita",
-      "auto": "Modalità automatica",
-      "acceptEdits": "Accetta modifiche",
-      "bypassPermissions": "Ignora permessi",
-      "plan": "Modalità piano"
-    },
-    "descriptions": {
-      "default": "Solo i comandi attendibili (ls, cat, grep, git status, ecc.) vengono eseguiti automaticamente. Gli altri comandi vengono saltati. Può scrivere nell'area di lavoro.",
-      "auto": "Un classificatore basato su un modello decide a ogni chiamata di uno strumento se approvarla o negarla. Senza interventi, ma più sicura di Ignora permessi: i rifiuti possono comunque capitare.",
-      "acceptEdits": "Tutti i comandi vengono eseguiti automaticamente nell'area di lavoro. Modalità completamente automatica con esecuzione sandboxed.",
-      "bypassPermissions": "Accesso completo al sistema senza restrizioni. Tutti i comandi vengono eseguiti automaticamente con accesso completo a disco e rete. Usa con cautela.",
-      "plan": "Modalità pianificazione - nessun comando viene eseguito"
-    },
-    "technicalDetails": "Dettagli tecnici"
-  },
   "input": {
     "placeholder": "Digita / per i comandi, @ per i file, o chiedi qualcosa a {{provider}}...",
     "placeholderDefault": "Scrivi il tuo messaggio...",

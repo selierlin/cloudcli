@@ -19,8 +19,8 @@ type PermissionModeAppearance = {
 };
 
 const APPEARANCE: Record<PermissionMode, PermissionModeAppearance> = {
-  default: { icon: Hand, accent: 'neutral', fallbackLabel: 'Default Mode' },
-  auto: { icon: Bot, accent: 'info', fallbackLabel: 'Auto Mode' },
+  default: { icon: Hand, accent: 'neutral', fallbackLabel: 'Default' },
+  auto: { icon: Bot, accent: 'info', fallbackLabel: 'Auto' },
   acceptEdits: { icon: Smile, accent: 'success', fallbackLabel: 'Accept Edits' },
   bypassPermissions: { icon: AlertTriangle, accent: 'warning', fallbackLabel: 'Bypass Permissions' },
   plan: { icon: ClipboardList, accent: 'primary', fallbackLabel: 'Plan Mode' },

@@ -430,6 +430,31 @@
   },
   "permissions": {
     "title": "Impostazioni permessi",
+    "modes": {
+      "default": {
+        "title": "Predefinito",
+        "description": "Solo i comandi attendibili (ls, cat, grep, git status, ecc.) vengono eseguiti automaticamente. Gli altri comandi vengono saltati. Può scrivere nell'area di lavoro."
+      },
+      "auto": {
+        "title": "Automatico",
+        "description": "Un classificatore basato su un modello decide a ogni chiamata di uno strumento se approvarla o negarla. Senza interventi, ma più sicura di Ignora permessi: i rifiuti possono comunque capitare."
+      },
+      "acceptEdits": {
+        "title": "Accetta modifiche",
+        "description": "Tutti i comandi vengono eseguiti automaticamente nell'area di lavoro. Modalità completamente automatica con esecuzione sandboxed."
+      },
+      "bypassPermissions": {
+        "title": "Ignora permessi",
+        "description": "Accesso completo al sistema senza restrizioni. Tutti i comandi vengono eseguiti automaticamente con accesso completo a disco e rete. Usa con cautela."
+      },
+      "plan": {
+        "title": "Solo pianifica",
+        "description": "Modalità pianificazione - nessun comando viene eseguito"
+      },
+      "readonly": {
+        "title": "Sola lettura"
+      }
+    },
     "skipPermissions": {
       "label": "Salta richieste di permesso (usa con cautela)",
       "claudeDescription": "Equivalente al flag --dangerously-skip-permissions",
@@ -499,16 +524,7 @@
       "description": "Controlla come Codex gestisce le modifiche ai file e l'esecuzione dei comandi",
       "modes": {
         "default": {
-          "title": "Predefinito",
           "description": "Esegue i comandi nella sandbox dello spazio di lavoro. Codex decide quando è necessaria l’approvazione; le richieste non possono essere approvate in questa integrazione non interattiva."
-        },
-        "acceptEdits": {
-          "title": "Accetta modifiche",
-          "description": "Tutti i comandi vengono eseguiti automaticamente nell'area di lavoro. Modalità completamente automatica con esecuzione sandboxed."
-        },
-        "bypassPermissions": {
-          "title": "Ignora permessi",
-          "description": "Accesso completo al sistema senza restrizioni. Tutti i comandi vengono eseguiti automaticamente con accesso completo a disco e rete. Usa con cautela."
         }
       },
       "technicalDetails": "Dettagli tecnici",
@@ -520,13 +536,7 @@
       }
     },
     "workbuddy": {
-      "description": "Controlla come WorkBuddy gestisce le modifiche ai file e l'esecuzione dei comandi",
-      "modes": {
-        "plan": {
-          "title": "Solo pianifica",
-          "description": "Analizza e produce un piano di esecuzione senza modificare file o eseguire comandi."
-        }
-      }
+      "description": "Controlla come WorkBuddy gestisce le modifiche ai file e l'esecuzione dei comandi"
     },
     "actions": {
       "add": "Aggiungi"

@@ -168,36 +168,6 @@
   "usageLimit": {
     "resetAt": "Claude usage limit reached. Your limit will reset at **{{time}} {{timezone}}** - {{date}}"
   },
-  "codex": {
-    "permissionMode": "Permission Mode",
-    "modes": {
-      "default": "Default Mode",
-      "auto": "Auto Mode",
-      "acceptEdits": "Accept Edits",
-      "bypassPermissions": "Bypass Permissions",
-      "plan": "Plan Mode",
-      "readonly": "Read-only"
-    },
-    "descriptions": {
-      "default": "Only trusted commands (ls, cat, grep, git status, etc.) run automatically. Other commands are skipped. Can write to workspace.",
-      "auto": "A model classifier decides per tool call whether to approve or deny. Hands-off, but safer than Bypass — denials still happen.",
-      "acceptEdits": "All commands run automatically within the workspace. Full auto mode with sandboxed execution.",
-      "bypassPermissions": "Full system access with no restrictions. All commands run automatically with full disk and network access. Use with caution.",
-      "plan": "Planning mode - no commands are executed",
-      "readonly": "Only read-only tools (read, grep, find, ls) are allowed; the model cannot modify files.",
-      "pi": {
-        "default": "Pi runs tool calls autonomously without per-call approval."
-      },
-      "zcode": {
-        "bypassPermissions": "YOLO mode auto-approves every tool call, including shell execution. The CLI may exit with a permission-denied retry loop if too many calls are rejected. Switch back to Accept Edits for safety."
-      },
-      "dsh": {
-        "default": "DSH asks for permission in the chat composer before running the requested action.",
-        "auto": "CloudCLI automatically answers DSH permission requests with Allow once; DSH sandbox rules still apply."
-      }
-    },
-    "technicalDetails": "Technical details"
-  },
   "voice": {
     "input": "Voice input",
     "stopRecording": "Stop recording",

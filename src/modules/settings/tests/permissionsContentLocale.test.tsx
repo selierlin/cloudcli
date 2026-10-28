@@ -30,8 +30,10 @@ test('workbuddy is named by its own strings, not codex\'s', async () => {
 
   assert.ok(screen.getByText(zhSettings.permissions.workbuddy.permissionMode));
   assert.ok(screen.getByText(zhSettings.permissions.workbuddy.description));
-  assert.ok(screen.getByText(zhSettings.permissions.workbuddy.modes.auto.title));
-  assert.ok(screen.getByText(zhSettings.permissions.workbuddy.modes.bypassPermissions.title));
+  // Its two modes are shared ones, so they are named by the canonical table —
+  // the same words the composer and every other provider's panel use.
+  assert.ok(screen.getByText(zhSettings.permissions.modes.auto.title));
+  assert.ok(screen.getByText(zhSettings.permissions.modes.bypassPermissions.title));
   // Codex's panel text would mean this is the fallback arm again.
   assert.equal(screen.queryByText(zhSettings.permissions.codex.description), null);
   assert.equal(screen.queryByText('默认'), null);

@@ -6,6 +6,7 @@ import { afterEach, test, vi } from 'vitest';
 import type { PermissionMode } from '@/shared/types';
 import { i18n } from '@/modules/i18n';
 import frChat from '@/modules/i18n/locales/fr/chat.json';
+import frSettings from '@/modules/i18n/locales/fr/settings.json';
 import ComposerPermissionMenu from '@/modules/chat/composer/ComposerPermissionMenu';
 import { PromptInputFooter, PromptInputTools } from '@/modules/chat/composer/PromptInput';
 
@@ -27,7 +28,7 @@ test('the composer names the mode the next message runs in', () => {
     />,
   );
 
-  assert.match(getByRole('button').textContent ?? '', /Plan Mode/);
+  assert.equal(getByRole('button').textContent, 'Plan');
 });
 
 test('a screen reader hears the mode the button shows', () => {
@@ -40,7 +41,7 @@ test('a screen reader hears the mode the button shows', () => {
     />,
   );
 
-  assert.ok(getByRole('button', { name: /^Plan Mode/ }));
+  assert.ok(getByRole('button', { name: /^Plan: / }));
 });
 
 test('the default mode is named too', () => {
@@ -53,41 +54,46 @@ test('the default mode is named too', () => {
     />,
   );
 
-  assert.match(getByRole('button').textContent ?? '', /Default Mode/);
+  assert.equal(getByRole('button').textContent, 'Default');
 });
 
-test('a provider with its own mode names uses them, so settings and the composer agree', () => {
-  // Settings names Codex's modes "Default" / "Accept Edits" / "Bypass
-  // Permissions"; the composer used to call the same modes "Default Mode" /
-  // "Accept Edits" / "Bypass Permissions" from a second, unrelated string set.
-  const codex = render(
-    <ComposerPermissionMenu
-      permissionMode="default"
-      permissionModes={['default', 'acceptEdits', 'bypassPermissions']}
-      onSelectPermissionMode={() => {}}
-      providerLabel="Codex"
-      provider="codex"
-    />,
-  );
-  assert.equal(codex.getByRole('button').textContent, 'Default');
-  codex.unmount();
+test('a mode means the same thing in every harness, so it is named the same everywhere', () => {
+  // The complaint this guards against: `bypassPermissions` read "Unrestricted"
+  // for one provider, "Bypass Permissions" for another and "无限制模式" for a
+  // third, depending on which panel it was drawn in.
+  const providers = [
+    undefined,
+    'claude',
+    'cursor',
+    'codex',
+    'opencode',
+    'workbuddy',
+    'zcode',
+    'pi',
+    'dsh',
+    'omp',
+    'openclaw',
+  ] as const;
 
-  // Claude has no permission panel, so it keeps the shared names.
-  const claude = render(
-    <ComposerPermissionMenu
-      permissionMode="default"
-      permissionModes={[...MODES]}
-      onSelectPermissionMode={() => {}}
-      providerLabel="Claude"
-      provider="claude"
-    />,
-  );
-  assert.equal(claude.getByRole('button').textContent, 'Default Mode');
+  for (const provider of providers) {
+    const { getByRole, unmount } = render(
+      <ComposerPermissionMenu
+        permissionMode="bypassPermissions"
+        permissionModes={['bypassPermissions']}
+        onSelectPermissionMode={() => {}}
+        providerLabel="Any"
+        provider={provider}
+      />,
+    );
+    assert.equal(getByRole('button').textContent, 'Bypass Permissions', `${provider ?? 'no provider'}`);
+    unmount();
+  }
 });
 
 test('a provider whose default mode means something else is named in its own terms', () => {
   // ZCode's `default` maps to `--mode build`, which denies both edits and
-  // commands; the shared "Default Mode" name would describe the opposite.
+  // commands; the shared "Default" name would describe the opposite. `default`
+  // is the only mode any provider is allowed to rename.
   const { getByRole } = render(
     <ComposerPermissionMenu
       permissionMode="default"
@@ -115,11 +121,11 @@ test('every mode leads the accessible name, a mode with no translation by its id
   // A provider may report a mode this menu has no name for; it is named by its id.
   const unknownMode = 'dontAsk' as PermissionMode;
   const expected: Array<[PermissionMode, string]> = [
-    ['default', 'Default Mode'],
-    ['auto', 'Auto Mode'],
+    ['default', 'Default'],
+    ['auto', 'Auto'],
     ['acceptEdits', 'Accept Edits'],
     ['bypassPermissions', 'Bypass Permissions'],
-    ['plan', 'Plan Mode'],
+    ['plan', 'Plan'],
     [unknownMode, 'dontAsk'],
   ];
 
@@ -217,14 +223,14 @@ test('the mode is named where the composer has room, and only the icon is left w
   // 678px is the composer at 1024px with the sidebar open.
   layOutComposer(678);
   const { getByRole } = renderInFooter('default');
-  const trigger = getByRole('button', { name: /^Default Mode: / });
-  assert.equal(trigger.textContent, 'Default Mode');
+  const trigger = getByRole('button', { name: /^Default: / });
+  assert.equal(trigger.textContent, 'Default');
 
   // The code editor docked beside the chat at 1280px leaves 330px. Even on its
   // own row the named trigger would push the send button out of the composer.
   resizeComposer({ room: 330 });
   assert.equal(trigger.textContent, '');
-  assert.ok(getByRole('button', { name: /^Default Mode: / }), 'the accessible name still says which mode');
+  assert.ok(getByRole('button', { name: /^Default: / }), 'the accessible name still says which mode');
 
   // Docked at 1440px everything fits on one row, with 7px to spare: the name
   // would move the controls onto a second row, so it stays hidden.
@@ -232,7 +238,7 @@ test('the mode is named where the composer has room, and only the icon is left w
   assert.equal(trigger.textContent, '');
 
   resizeComposer({ room: 678 });
-  assert.equal(trigger.textContent, 'Default Mode');
+  assert.equal(trigger.textContent, 'Default');
 });
 
 test('plan mode keeps its name wherever it fits inside the composer', () => {
@@ -240,19 +246,19 @@ test('plan mode keeps its name wherever it fits inside the composer', () => {
   // and with the name they still fit inside it. Default mode stays an icon.
   layOutComposer(416);
   const plan = renderInFooter('plan');
-  assert.equal(plan.getByRole('button').textContent, 'Plan Mode');
+  assert.equal(plan.getByRole('button').textContent, 'Plan');
   plan.unmount();
 
   const other = renderInFooter('default');
   assert.equal(other.getByRole('button').textContent, '');
   other.unmount();
 
-  // Docked at 1280px (330px) even Plan Mode's name would push the send button
-  // out, so plan mode falls back to the icon too.
-  layOutComposer(330);
+  // A phone-width composer (300px) has no room for the name even on a row of
+  // its own, so plan mode falls back to the icon too.
+  layOutComposer(300);
   const narrow = renderInFooter('plan');
   assert.equal(narrow.getByRole('button').textContent, '');
-  assert.ok(narrow.getByRole('button', { name: /^Plan Mode: / }));
+  assert.ok(narrow.getByRole('button', { name: /^Plan: / }));
 });
 
 test('typing the first character neither takes the name away nor brings it in', () => {
@@ -261,12 +267,12 @@ test('typing the first character neither takes the name away nor brings it in', 
   // it stays as long as it fits.
   layOutComposer(580, 174);
   const roomy = renderInFooter('default');
-  assert.equal(roomy.getByRole('button').textContent, 'Default Mode');
+  assert.equal(roomy.getByRole('button').textContent, 'Default');
   resizeComposer({ tools: 210 });
-  assert.equal(roomy.getByRole('button').textContent, 'Default Mode');
+  assert.equal(roomy.getByRole('button').textContent, 'Default');
   roomy.unmount();
 
-  layOutComposer(540, 174);
+  layOutComposer(500, 174);
   const tight = renderInFooter('default');
   assert.equal(tight.getByRole('button').textContent, '');
   resizeComposer({ tools: 210 });
@@ -282,18 +288,18 @@ test('the trigger and the menu speak the user\'s language', async () => {
     const trigger = getByRole('button');
     const heading = frChat.composer.permissionHeading.replace('{{provider}}', 'Claude');
 
-    assert.equal(trigger.textContent, frChat.codex.modes.plan);
+    assert.equal(trigger.textContent, frSettings.permissions.modes.plan.title);
     assert.equal(
       trigger.getAttribute('aria-label'),
-      frChat.composer.permissionTriggerLabel.replace('{{mode}}', frChat.codex.modes.plan).replace('{{heading}}', heading),
+      frChat.composer.permissionTriggerLabel.replace('{{mode}}', frSettings.permissions.modes.plan.title).replace('{{heading}}', heading),
     );
-    assert.match(trigger.getAttribute('aria-label') ?? '', /^Mode planification : /);
+    assert.match(trigger.getAttribute('aria-label') ?? '', /^Planifier : /);
 
     fireEvent.click(trigger);
     const rows = getAllByRole('menuitemradio');
     assert.equal(rows.length, MODES.length);
     MODES.forEach((mode, index) => {
-      assert.ok(rows[index].textContent?.startsWith(frChat.codex.modes[mode]), `${mode} row is in French`);
+      assert.ok(rows[index].textContent?.startsWith(frSettings.permissions.modes[mode].title), `${mode} row is in French`);
     });
     assert.equal(getByRole('menu').lastElementChild?.textContent, frChat.composer.permissionCycleHint);
   } finally {

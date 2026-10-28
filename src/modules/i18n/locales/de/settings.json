@@ -430,6 +430,31 @@
   },
   "permissions": {
     "title": "Berechtigungseinstellungen",
+    "modes": {
+      "default": {
+        "title": "Standard",
+        "description": "Nur vertrauenswürdige Befehle (ls, cat, grep, git status usw.) werden automatisch ausgeführt. Andere Befehle werden übersprungen. Kann in den Arbeitsbereich schreiben."
+      },
+      "auto": {
+        "title": "Automatisch",
+        "description": "Ein Klassifikator-Modell entscheidet bei jedem Tool-Aufruf, ob er genehmigt oder abgelehnt wird. Ohne Eingreifen, aber sicherer als das Umgehen der Berechtigungen – Ablehnungen kommen weiterhin vor."
+      },
+      "acceptEdits": {
+        "title": "Bearbeitungen akzeptieren",
+        "description": "Alle Befehle werden automatisch innerhalb des Arbeitsbereichs ausgeführt. Vollautomatischer Modus mit isolierter Ausführung."
+      },
+      "bypassPermissions": {
+        "title": "Berechtigungen umgehen",
+        "description": "Vollständiger Systemzugriff ohne Einschränkungen. Alle Befehle werden automatisch mit vollem Festplatten- und Netzwerkzugriff ausgeführt. Mit Vorsicht verwenden."
+      },
+      "plan": {
+        "title": "Nur planen",
+        "description": "Planungsmodus – keine Befehle werden ausgeführt"
+      },
+      "readonly": {
+        "title": "Nur lesen"
+      }
+    },
     "skipPermissions": {
       "label": "Berechtigungsaufforderungen überspringen (mit Vorsicht verwenden)",
       "claudeDescription": "Entspricht dem Flag --dangerously-skip-permissions",
@@ -499,16 +524,7 @@
       "description": "Steuert, wie Codex Dateiänderungen und Befehlsausführung handhabt",
       "modes": {
         "default": {
-          "title": "Standard",
           "description": "Führt Befehle in der Workspace-Sandbox aus. Codex entscheidet, wann eine Genehmigung nötig ist; Anfragen können in dieser nicht interaktiven Integration nicht genehmigt werden."
-        },
-        "acceptEdits": {
-          "title": "Bearbeitungen akzeptieren",
-          "description": "Alle Befehle werden automatisch innerhalb des Arbeitsbereichs ausgeführt. Vollautomatischer Modus mit isolierter Ausführung."
-        },
-        "bypassPermissions": {
-          "title": "Berechtigungen umgehen",
-          "description": "Vollständiger Systemzugriff ohne Einschränkungen. Alle Befehle werden automatisch mit vollem Festplatten- und Netzwerkzugriff ausgeführt. Mit Vorsicht verwenden."
         }
       },
       "technicalDetails": "Technische Details",
@@ -520,13 +536,7 @@
       }
     },
     "workbuddy": {
-      "description": "Steuert, wie WorkBuddy Dateiänderungen und Befehlsausführung handhabt",
-      "modes": {
-        "plan": {
-          "title": "Nur planen",
-          "description": "Analysiert und erstellt einen Ausführungsplan, ohne Dateien zu ändern oder Befehle auszuführen."
-        }
-      }
+      "description": "Steuert, wie WorkBuddy Dateiänderungen und Befehlsausführung handhabt"
     },
     "actions": {
       "add": "Hinzufügen"

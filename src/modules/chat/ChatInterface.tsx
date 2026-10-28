@@ -18,6 +18,7 @@ import type {
   SessionNavigationOptions,
 } from '@/shared/types';
 import { useChatProviderState } from '@/modules/chat/hooks/useChatProviderState';
+import { usePermissionModeCopy } from '@/shared/hooks/usePermissionModeCopy';
 import { useScheduledMessages } from '@/modules/chat/composer/useScheduledMessages';
 import { useChatSessionState } from '@/modules/chat/hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '@/modules/chat/hooks/useChatRealtimeHandlers';
@@ -535,10 +536,12 @@ function ChatInterface({
         : null)
     : null;
 
+  // Named through the same module as the composer menu and settings, so this
+  // header cannot reintroduce a second word for the same mode.
+  const permissionModeCopy = usePermissionModeCopy(provider, permissionMode);
+
   const sideAskPermissionModeLabel = t('sideAsk.permissionMode', {
-    mode: t(`codex.modes.${provider}.${permissionMode}`, {
-      defaultValue: t(`codex.modes.${permissionMode}`, { defaultValue: permissionMode }),
-    }),
+    mode: permissionModeCopy.label,
   });
 
   // On WebSocket reconnect, request a bounded persisted-tail sync (deferred

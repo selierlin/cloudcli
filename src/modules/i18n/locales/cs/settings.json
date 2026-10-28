@@ -387,6 +387,31 @@
   },
   "permissions": {
     "title": "Nastavení oprávnění",
+    "modes": {
+      "default": {
+        "title": "Výchozí",
+        "description": "Automaticky se spouštějí jen důvěryhodné příkazy (ls, cat, grep, git status atd.). Ostatní příkazy se přeskočí. Může zapisovat do pracovního prostoru."
+      },
+      "auto": {
+        "title": "Automaticky",
+        "description": "O schválení nebo zamítnutí každého volání nástroje rozhoduje klasifikátor založený na modelu. Bez vašich zásahů, ale bezpečnější než režim Obejít oprávnění – k zamítnutím stále dochází."
+      },
+      "acceptEdits": {
+        "title": "Přijímat úpravy",
+        "description": "Všechny příkazy se v pracovním prostoru spouštějí automaticky. Plně automatický režim se spouštěním v sandboxu."
+      },
+      "bypassPermissions": {
+        "title": "Obejít oprávnění",
+        "description": "Plný přístup k systému bez omezení. Všechny příkazy se spouštějí automaticky s plným přístupem k disku a síti. Používejte opatrně."
+      },
+      "plan": {
+        "title": "Jen plán",
+        "description": "Režim plánování – nespouštějí se žádné příkazy"
+      },
+      "readonly": {
+        "title": "Jen pro čtení"
+      }
+    },
     "skipPermissions": {
       "label": "Přeskočit dotazy na oprávnění (používejte opatrně)",
       "claudeDescription": "Odpovídá přepínači --dangerously-skip-permissions",
@@ -456,16 +481,7 @@
       "description": "Určuje, jak Codex zachází s úpravami souborů a spouštěním příkazů",
       "modes": {
         "default": {
-          "title": "Výchozí",
           "description": "Spouští příkazy v sandboxu pracovního prostoru. Codex sám rozhoduje, kdy je potřeba schválení; v této neinteraktivní integraci však žádosti nelze schválit."
-        },
-        "acceptEdits": {
-          "title": "Přijímat úpravy",
-          "description": "Všechny příkazy se spouštějí automaticky v rámci pracovního prostoru. Plně automatický režim se spouštěním v sandboxu."
-        },
-        "bypassPermissions": {
-          "title": "Obejít oprávnění",
-          "description": "Plný přístup k systému bez omezení. Všechny příkazy se spouštějí automaticky s plným přístupem k disku a síti. Používejte opatrně."
         }
       },
       "technicalDetails": "Technické podrobnosti",

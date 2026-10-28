@@ -101,24 +101,6 @@
   "usageLimit": {
     "resetAt": "Batas penggunaan Claude tercapai. Batas akan direset pada **{{time}} {{timezone}}** - {{date}}"
   },
-  "codex": {
-    "permissionMode": "Mode Izin",
-    "modes": {
-      "default": "Mode Default",
-      "auto": "Mode Otomatis",
-      "acceptEdits": "Terima Edit",
-      "bypassPermissions": "Lewati Izin",
-      "plan": "Mode Rencana"
-    },
-    "descriptions": {
-      "default": "Hanya perintah tepercaya (ls, cat, grep, git status, dll.) yang berjalan otomatis. Perintah lain dilewati. Dapat menulis ke workspace.",
-      "auto": "Model classifier memutuskan setiap pemanggilan tool akan disetujui atau ditolak. Berjalan otomatis, tetapi lebih aman daripada Bypass — penolakan masih dapat terjadi.",
-      "acceptEdits": "Semua perintah berjalan otomatis di dalam workspace. Mode otomatis penuh dengan eksekusi dalam sandbox.",
-      "bypassPermissions": "Akses penuh ke sistem tanpa pembatasan. Semua perintah berjalan otomatis dengan akses penuh ke disk dan jaringan. Gunakan dengan hati-hati.",
-      "plan": "Mode perencanaan - tidak ada perintah yang dijalankan"
-    },
-    "technicalDetails": "Detail teknis"
-  },
   "voice": {
     "input": "Input suara",
     "stopRecording": "Hentikan rekaman",

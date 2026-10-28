@@ -527,9 +527,9 @@ function ProviderModePicker({ agent, permissionMode, onPermissionModeChange }: P
               {t('permissions.codex.technicalDetails')}
             </summary>
             <div className="mt-2 space-y-2 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
-              <p><strong>{t('permissions.codex.modes.default.title')}:</strong> {t('permissions.codex.technicalInfo.default')}</p>
-              <p><strong>{t('permissions.codex.modes.acceptEdits.title')}:</strong> {t('permissions.codex.technicalInfo.acceptEdits')}</p>
-              <p><strong>{t('permissions.codex.modes.bypassPermissions.title')}:</strong> {t('permissions.codex.technicalInfo.bypassPermissions')}</p>
+              <p><strong>{t('permissions.modes.default.title')}:</strong> {t('permissions.codex.technicalInfo.default')}</p>
+              <p><strong>{t('permissions.modes.acceptEdits.title')}:</strong> {t('permissions.codex.technicalInfo.acceptEdits')}</p>
+              <p><strong>{t('permissions.modes.bypassPermissions.title')}:</strong> {t('permissions.codex.technicalInfo.bypassPermissions')}</p>
               <p className="text-xs opacity-75">{t('permissions.codex.technicalInfo.overrideNote')}</p>
             </div>
           </details>

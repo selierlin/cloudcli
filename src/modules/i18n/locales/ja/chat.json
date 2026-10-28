@@ -102,24 +102,6 @@
   "usageLimit": {
     "resetAt": "Claudeの使用制限に達しました。制限は**{{time}} {{timezone}}** - {{date}}にリセットされます"
   },
-  "codex": {
-    "permissionMode": "権限モード",
-    "modes": {
-      "default": "デフォルトモード",
-      "auto": "自動モード",
-      "acceptEdits": "編集を許可",
-      "bypassPermissions": "権限をバイパス",
-      "plan": "プランモード"
-    },
-    "descriptions": {
-      "default": "信頼されたコマンド（ls、cat、grep、git statusなど）のみ自動実行。その他のコマンドはスキップ。ワークスペースへの書き込みは可能。",
-      "auto": "モデルの分類器がツール呼び出しごとに承認か拒否かを判断します。手動での承認は不要ですが、「権限をバイパス」より安全です。拒否されることもあります。",
-      "acceptEdits": "ワークスペース内ですべてのコマンドを自動実行。サンドボックス環境での完全自動モード。",
-      "bypassPermissions": "制限なしの完全なシステムアクセス。すべてのコマンドがディスクとネットワークへの完全なアクセスで自動実行されます。注意して使用してください。",
-      "plan": "プランニングモード - コマンドは実行されません"
-    },
-    "technicalDetails": "技術的な詳細"
-  },
   "input": {
     "placeholder": "/ でコマンド、@ でファイル指定、または {{provider}} に何でも聞いてください...",
     "placeholderDefault": "メッセージを入力...",

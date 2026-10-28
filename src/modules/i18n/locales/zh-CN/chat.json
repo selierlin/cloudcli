@@ -155,36 +155,6 @@
   "usageLimit": {
     "resetAt": "Claude 使用限制已达到。您的限制将在 **{{time}} {{timezone}}** - {{date}} 重置"
   },
-  "codex": {
-    "permissionMode": "权限模式",
-    "modes": {
-      "default": "默认模式",
-      "auto": "自动模式",
-      "acceptEdits": "编辑模式",
-      "bypassPermissions": "无限制模式",
-      "plan": "计划模式",
-      "readonly": "只读模式"
-    },
-    "descriptions": {
-      "default": "只有受信任的命令（ls、cat、grep、git status 等）自动运行。其他命令将被跳过。可以写入工作区。",
-      "auto": "由模型分类器针对每次工具调用决定批准或拒绝。无需手动操作，但比无限制模式更安全——仍可能被拒绝。",
-      "acceptEdits": "工作区内的所有命令自动运行。完全自动模式，具有沙盒执行功能。",
-      "bypassPermissions": "完全的系统访问，无限制。所有命令自动运行，具有完整的磁盘和网络访问权限。请谨慎使用。",
-      "plan": "计划模式 - 不执行任何命令",
-      "readonly": "仅允许只读工具（read、grep、find、ls）执行，无法修改文件。",
-      "pi": {
-        "default": "Pi 自动执行工具调用，无需逐次审批。"
-      },
-      "zcode": {
-        "bypassPermissions": "YOLO 模式会自动批准每一次工具调用（包括 Shell 执行）。如果多次拒绝，CLI 可能进入重试循环并退出。请谨慎使用，建议切回编辑模式（Accept Edits）以保证安全。"
-      },
-      "dsh": {
-        "default": "DSH 请求权限时，会在聊天输入区等待你选择“允许一次”或“拒绝”。",
-        "auto": "CloudCLI 会自动以“允许一次”响应 DSH 的权限请求；DSH 自身沙箱规则仍然生效。"
-      }
-    },
-    "technicalDetails": "技术细节"
-  },
   "voice": {
     "input": "语音输入",
     "stopRecording": "停止录音",
@@ -230,7 +200,7 @@
     "noModelsMatch": "没有匹配的模型",
     "permissionHeading": "{{provider}} 的操作应如何获得批准？",
     "permissionCycleHint": "在输入框中按 Tab 切换模式",
-    "skipPermissionsOverride": "设置中已开启“跳过权限确认”，本次将以无限制模式运行。",
+    "skipPermissionsOverride": "设置中已开启“跳过权限确认”，本次将以绕过权限运行。",
     "permissionTriggerLabel": "{{mode}}：{{heading}}",
     "editing": {
       "title": "正在替换先前的消息",

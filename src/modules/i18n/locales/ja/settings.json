@@ -430,6 +430,31 @@
   },
   "permissions": {
     "title": "権限設定",
+    "modes": {
+      "default": {
+        "title": "デフォルト",
+        "description": "信頼されたコマンド（ls、cat、grep、git statusなど）のみ自動実行。その他のコマンドはスキップ。ワークスペースへの書き込みは可能。"
+      },
+      "auto": {
+        "title": "自動",
+        "description": "モデルの分類器がツール呼び出しごとに承認か拒否かを判断します。手動での承認は不要ですが、「権限をバイパス」より安全です。拒否されることもあります。"
+      },
+      "acceptEdits": {
+        "title": "編集を許可",
+        "description": "ワークスペース内ですべてのコマンドを自動実行。サンドボックス環境での完全自動モード。"
+      },
+      "bypassPermissions": {
+        "title": "権限をバイパス",
+        "description": "制限なしの完全なシステムアクセス。すべてのコマンドがディスクとネットワークへの完全なアクセスで自動実行されます。注意して使用してください。"
+      },
+      "plan": {
+        "title": "プランのみ",
+        "description": "プランニングモード - コマンドは実行されません"
+      },
+      "readonly": {
+        "title": "読み取り専用"
+      }
+    },
     "skipPermissions": {
       "label": "権限プロンプトをスキップ（注意して使用）",
       "claudeDescription": "--dangerously-skip-permissions フラグに相当",
@@ -499,16 +524,7 @@
       "description": "Codexがファイルの変更やコマンドの実行を処理する方法を制御します",
       "modes": {
         "default": {
-          "title": "デフォルト",
           "description": "ワークスペースのサンドボックス内でコマンドを実行します。承認が必要かどうかはCodexが判断します。この非対話型の連携では承認リクエストを許可できません。"
-        },
-        "acceptEdits": {
-          "title": "編集を許可",
-          "description": "ワークスペース内ですべてのコマンドを自動実行。サンドボックス環境での完全自動モード。"
-        },
-        "bypassPermissions": {
-          "title": "権限をバイパス",
-          "description": "制限なしの完全なシステムアクセス。すべてのコマンドがディスクとネットワークへの完全なアクセスで自動実行されます。注意して使用してください。"
         }
       },
       "technicalDetails": "技術的な詳細",
@@ -520,13 +536,7 @@
       }
     },
     "workbuddy": {
-      "description": "WorkBuddyがファイルの変更やコマンドの実行を処理する方法を制御します",
-      "modes": {
-        "plan": {
-          "title": "プランのみ",
-          "description": "ファイルの変更やコマンド実行を伴わず、分析して実行計画のみを生成します。"
-        }
-      }
+      "description": "WorkBuddyがファイルの変更やコマンドの実行を処理する方法を制御します"
     },
     "actions": {
       "add": "追加"

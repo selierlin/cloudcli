@@ -125,24 +125,6 @@
   "usageLimit": {
     "resetAt": "Byl dosažen limit využití Claude. Limit se obnoví v **{{time}} {{timezone}}** – {{date}}"
   },
-  "codex": {
-    "permissionMode": "Režim oprávnění",
-    "modes": {
-      "default": "Výchozí režim",
-      "auto": "Automatický režim",
-      "acceptEdits": "Přijímat úpravy",
-      "bypassPermissions": "Obejít oprávnění",
-      "plan": "Režim plánování"
-    },
-    "descriptions": {
-      "default": "Automaticky se spouštějí jen důvěryhodné příkazy (ls, cat, grep, git status atd.). Ostatní příkazy se přeskočí. Může zapisovat do pracovního prostoru.",
-      "auto": "O schválení nebo zamítnutí každého volání nástroje rozhoduje klasifikátor založený na modelu. Bez vašich zásahů, ale bezpečnější než režim Obejít oprávnění – k zamítnutím stále dochází.",
-      "acceptEdits": "Všechny příkazy se v pracovním prostoru spouštějí automaticky. Plně automatický režim se spouštěním v sandboxu.",
-      "bypassPermissions": "Plný přístup k systému bez omezení. Všechny příkazy se spouštějí automaticky s plným přístupem k disku a síti. Používejte opatrně.",
-      "plan": "Režim plánování – nespouštějí se žádné příkazy"
-    },
-    "technicalDetails": "Technické podrobnosti"
-  },
   "voice": {
     "input": "Hlasový vstup",
     "stopRecording": "Zastavit nahrávání",

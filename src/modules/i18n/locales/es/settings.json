@@ -491,6 +491,31 @@
   },
   "permissions": {
     "title": "Ajustes de permisos",
+    "modes": {
+      "default": {
+        "title": "Por defecto",
+        "description": "Solo los comandos de confianza (ls, cat, grep, git status, etc.) se ejecutan automáticamente. Los demás comandos se omiten. Puede escribir en el espacio de trabajo."
+      },
+      "auto": {
+        "title": "Automático",
+        "description": "Un clasificador del modelo decide en cada llamada si aprobar o denegar. Sin intervención, pero más seguro que Omitir — las denegaciones siguen ocurriendo."
+      },
+      "acceptEdits": {
+        "title": "Aceptar ediciones",
+        "description": "Todos los comandos se ejecutan automáticamente dentro del espacio de trabajo. Modo automático completo con ejecución en sandbox."
+      },
+      "bypassPermissions": {
+        "title": "Omitir permisos",
+        "description": "Acceso completo al sistema sin restricciones. Todos los comandos se ejecutan automáticamente con acceso total a disco y red. Úsalo con precaución."
+      },
+      "plan": {
+        "title": "Solo planificar",
+        "description": "Modo de planificación: no se ejecutan comandos"
+      },
+      "readonly": {
+        "title": "Solo lectura"
+      }
+    },
     "skipPermissions": {
       "label": "Omitir avisos de permisos (usar con precaución)",
       "claudeDescription": "Equivalente al flag --dangerously-skip-permissions",
@@ -560,16 +585,7 @@
       "description": "Controla cómo Codex gestiona las modificaciones de archivos y la ejecución de comandos",
       "modes": {
         "default": {
-          "title": "Por defecto",
           "description": "Ejecuta comandos en el entorno aislado del espacio de trabajo. Codex decide cuándo se necesita aprobación; las solicitudes no pueden aprobarse en esta integración no interactiva."
-        },
-        "acceptEdits": {
-          "title": "Aceptar ediciones",
-          "description": "Todos los comandos se ejecutan automáticamente dentro del espacio de trabajo. Modo automático completo con ejecución en sandbox."
-        },
-        "bypassPermissions": {
-          "title": "Omitir permisos",
-          "description": "Acceso completo al sistema sin restricciones. Todos los comandos se ejecutan automáticamente con acceso total a disco y red. Úsalo con precaución."
         }
       },
       "technicalDetails": "Detalles técnicos",
@@ -581,13 +597,7 @@
       }
     },
     "workbuddy": {
-      "description": "Controla cómo WorkBuddy gestiona las modificaciones de archivos y la ejecución de comandos",
-      "modes": {
-        "plan": {
-          "title": "Solo planificar",
-          "description": "Analiza y genera un plan de ejecución sin modificar archivos ni ejecutar comandos."
-        }
-      }
+      "description": "Controla cómo WorkBuddy gestiona las modificaciones de archivos y la ejecución de comandos"
     },
     "actions": {
       "add": "Añadir"

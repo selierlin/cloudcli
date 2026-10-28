@@ -417,6 +417,31 @@
   },
   "permissions": {
     "title": "Pengaturan Izin",
+    "modes": {
+      "default": {
+        "title": "Default",
+        "description": "Hanya perintah tepercaya (ls, cat, grep, git status, dll.) yang berjalan otomatis. Perintah lain dilewati. Dapat menulis ke workspace."
+      },
+      "auto": {
+        "title": "Otomatis",
+        "description": "Model classifier memutuskan setiap pemanggilan tool akan disetujui atau ditolak. Berjalan otomatis, tetapi lebih aman daripada Bypass — penolakan masih dapat terjadi."
+      },
+      "acceptEdits": {
+        "title": "Terima Edit",
+        "description": "Semua perintah berjalan otomatis di dalam workspace. Mode otomatis penuh dengan eksekusi dalam sandbox."
+      },
+      "bypassPermissions": {
+        "title": "Lewati Izin",
+        "description": "Akses penuh ke sistem tanpa pembatasan. Semua perintah berjalan otomatis dengan akses penuh ke disk dan jaringan. Gunakan dengan hati-hati."
+      },
+      "plan": {
+        "title": "Hanya rencana",
+        "description": "Mode perencanaan - tidak ada perintah yang dijalankan"
+      },
+      "readonly": {
+        "title": "Hanya baca"
+      }
+    },
     "skipPermissions": {
       "label": "Lewati prompt izin (gunakan dengan hati-hati)",
       "claudeDescription": "Setara dengan flag --dangerously-skip-permissions",
@@ -486,16 +511,7 @@
       "description": "Mengatur cara Codex menangani modifikasi file dan eksekusi perintah",
       "modes": {
         "default": {
-          "title": "Default",
           "description": "Menjalankan perintah di dalam sandbox workspace. Codex menentukan kapan persetujuan diperlukan; permintaan tidak dapat disetujui dalam integrasi non-interaktif ini."
-        },
-        "acceptEdits": {
-          "title": "Terima Edit",
-          "description": "Semua perintah berjalan otomatis di dalam workspace. Mode otomatis penuh dengan eksekusi dalam sandbox."
-        },
-        "bypassPermissions": {
-          "title": "Lewati Izin",
-          "description": "Akses penuh ke sistem tanpa pembatasan. Semua perintah berjalan otomatis dengan akses penuh ke disk dan jaringan. Gunakan dengan hati-hati."
         }
       },
       "technicalDetails": "Detail teknis",

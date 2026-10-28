@@ -11,16 +11,26 @@ import PermissionsContent from '@/modules/settings/tabs/agents-settings/sections
  * provider's modes or another provider's heading: that is the "blank/wrong
  * panel" defect OMP, OpenClaw, workbuddy and OpenCode each shipped with.
  *
- * The fake `t` echoes keys, so these assertions are independent of the locale
- * files and prove which provider's copy rendered.
+ * The fake `t` echoes the key for strings that exist in the English locale and
+ * returns the caller's defaultValue for those that do not — the same
+ * present/absent split i18next makes, which is what decides whether a provider
+ * override or the canonical name wins.
  */
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) =>
-      options ? `${key}:${JSON.stringify(options)}` : key,
-    i18n: { language: 'en' },
-  }),
-}));
+vi.mock('react-i18next', async () => {
+  const english = (await import('@/modules/i18n/locales/en/settings.json')).default as Record<string, unknown>;
+  const has = (key: string): boolean => key.split('.').reduce<unknown>(
+    (node, part) => (node !== null && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined),
+    english,
+  ) !== undefined;
+
+  return {
+    useTranslation: () => ({
+      t: (key: string, options?: Record<string, unknown>) =>
+        has(key) ? key : (options?.defaultValue ?? key),
+      i18n: { language: 'en' },
+    }),
+  };
+});
 
 const modeTitles = () => screen.getAllByRole('radio').length;
 
@@ -39,7 +49,10 @@ test('omp renders its own read-only picker, not the codex fallback', () => {
   render(<PermissionsContent agent="omp" permissionMode="default" onPermissionModeChange={() => {}} />);
 
   assert.ok(screen.getByText('permissions.omp.permissionMode'));
-  assert.ok(screen.getByText(/permissions\.omp\.modes\.readonly\.title/));
+  // `default` is the one mode OMP renames; `readonly` is a shared mode, so it
+  // reads the canonical title like every other provider's read-only.
+  assert.ok(screen.getByText(/permissions\.omp\.modes\.default\.title/));
+  assert.ok(screen.getByText(/permissions\.modes\.readonly\.title/));
   assert.equal(screen.queryByText('permissions.codex.permissionMode'), null);
 });
 
@@ -47,7 +60,8 @@ test('openclaw renders its own auto-allow picker, not the codex fallback', () =>
   render(<PermissionsContent agent="openclaw" permissionMode="default" onPermissionModeChange={() => {}} />);
 
   assert.ok(screen.getByText('permissions.openclaw.permissionMode'));
-  assert.ok(screen.getByText(/permissions\.openclaw\.modes\.auto\.title/));
+  assert.ok(screen.getByText(/permissions\.openclaw\.modes\.default\.title/));
+  assert.ok(screen.getByText(/permissions\.modes\.auto\.title/));
   assert.equal(screen.queryByText('permissions.codex.permissionMode'), null);
 });
 
@@ -55,8 +69,8 @@ test('workbuddy offers only the two modes that can finish a turn', () => {
   render(<PermissionsContent agent="workbuddy" permissionMode="auto" onPermissionModeChange={() => {}} />);
 
   assert.ok(screen.getByText('permissions.workbuddy.permissionMode'));
-  assert.ok(screen.getByText(/permissions\.workbuddy\.modes\.auto\.title/));
-  assert.ok(screen.getByText(/permissions\.workbuddy\.modes\.bypassPermissions\.title/));
+  assert.ok(screen.getByText(/permissions\.modes\.auto\.title/));
+  assert.ok(screen.getByText(/permissions\.modes\.bypassPermissions\.title/));
   // `default`, `acceptEdits` and `plan` wait for an approver `-p` never has.
   assert.equal(modeTitles(), 2);
   assert.equal(screen.queryByText(/permissions\.workbuddy\.modes\.default/), null);
@@ -67,7 +81,7 @@ test('opencode has a permissions panel of its own', () => {
   render(<PermissionsContent agent="opencode" permissionMode="default" onPermissionModeChange={() => {}} />);
 
   assert.ok(screen.getByText('permissions.opencode.permissionMode'));
-  assert.ok(screen.getByText(/permissions\.opencode\.modes\.default\.title/));
+  assert.ok(screen.getByText(/permissions\.modes\.default\.title/));
   assert.equal(modeTitles(), 4);
 });
 

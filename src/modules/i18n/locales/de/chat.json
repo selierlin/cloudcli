@@ -108,24 +108,6 @@
   "usageLimit": {
     "resetAt": "Claude-Nutzungslimit erreicht. Dein Limit wird um **{{time}} {{timezone}}** zurückgesetzt - {{date}}"
   },
-  "codex": {
-    "permissionMode": "Berechtigungsmodus",
-    "modes": {
-      "default": "Standardmodus",
-      "auto": "Automatikmodus",
-      "acceptEdits": "Bearbeitungen akzeptieren",
-      "bypassPermissions": "Berechtigungen umgehen",
-      "plan": "Planungsmodus"
-    },
-    "descriptions": {
-      "default": "Nur vertrauenswürdige Befehle (ls, cat, grep, git status usw.) werden automatisch ausgeführt. Andere Befehle werden übersprungen. Kann in den Arbeitsbereich schreiben.",
-      "auto": "Ein Klassifikator-Modell entscheidet bei jedem Tool-Aufruf, ob er genehmigt oder abgelehnt wird. Ohne Eingreifen, aber sicherer als das Umgehen der Berechtigungen – Ablehnungen kommen weiterhin vor.",
-      "acceptEdits": "Alle Befehle werden automatisch innerhalb des Arbeitsbereichs ausgeführt. Vollautomatischer Modus mit isolierter Ausführung.",
-      "bypassPermissions": "Vollständiger Systemzugriff ohne Einschränkungen. Alle Befehle werden automatisch mit vollem Festplatten- und Netzwerkzugriff ausgeführt. Mit Vorsicht verwenden.",
-      "plan": "Planungsmodus – keine Befehle werden ausgeführt"
-    },
-    "technicalDetails": "Technische Details"
-  },
   "input": {
     "placeholder": "/ für Befehle, @ für Dateien eingeben oder {{provider}} etwas fragen...",
     "placeholderDefault": "Nachricht eingeben...",

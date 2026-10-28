@@ -438,6 +438,31 @@
   },
   "permissions": {
     "title": "Paramètres de permission",
+    "modes": {
+      "default": {
+        "title": "Par défaut",
+        "description": "Seules les commandes de confiance (ls, cat, grep, git status, etc.) s'exécutent automatiquement. Les autres commandes sont ignorées. Peut écrire dans l'espace de travail."
+      },
+      "auto": {
+        "title": "Auto",
+        "description": "Un classifieur de modèle décide pour chaque appel d'outil d'approuver ou refuser. Mode mains libres, mais plus sûr que le contournement — des refus peuvent toujours se produire."
+      },
+      "acceptEdits": {
+        "title": "Accepter les modifications",
+        "description": "Toutes les commandes s'exécutent automatiquement dans l'espace de travail. Mode entièrement automatique avec exécution sandboxée."
+      },
+      "bypassPermissions": {
+        "title": "Contourner les permissions",
+        "description": "Accès système complet sans restrictions. Toutes les commandes s'exécutent automatiquement avec accès disque et réseau complet. À utiliser avec précaution."
+      },
+      "plan": {
+        "title": "Planifier",
+        "description": "Mode planification - aucune commande n'est exécutée"
+      },
+      "readonly": {
+        "title": "Lecture seule"
+      }
+    },
     "skipPermissions": {
       "label": "Ignorer les invites de permission (à utiliser avec précaution)",
       "claudeDescription": "Équivalent au flag --dangerously-skip-permissions",
@@ -507,16 +532,7 @@
       "description": "Contrôle comment Codex gère les modifications de fichiers et l'exécution des commandes",
       "modes": {
         "default": {
-          "title": "Par défaut",
           "description": "Exécute les commandes dans le bac à sable de l’espace de travail. Codex décide quand une approbation est nécessaire ; les demandes ne peuvent pas être approuvées dans cette intégration non interactive."
-        },
-        "acceptEdits": {
-          "title": "Accepter les modifications",
-          "description": "Toutes les commandes s'exécutent automatiquement dans l'espace de travail. Mode entièrement automatique avec exécution sandboxée."
-        },
-        "bypassPermissions": {
-          "title": "Contourner les permissions",
-          "description": "Accès système complet sans restrictions. Toutes les commandes s'exécutent automatiquement avec accès disque et réseau complet. À utiliser avec précaution."
         }
       },
       "technicalDetails": "Détails techniques",
@@ -528,13 +544,7 @@
       }
     },
     "workbuddy": {
-      "description": "Contrôle comment WorkBuddy gère les modifications de fichiers et l'exécution de commandes",
-      "modes": {
-        "plan": {
-          "title": "Planifier",
-          "description": "Analyse et produit un plan d'exécution sans modifier les fichiers ni exécuter de commandes."
-        }
-      }
+      "description": "Contrôle comment WorkBuddy gère les modifications de fichiers et l'exécution de commandes"
     },
     "actions": {
       "add": "Ajouter"

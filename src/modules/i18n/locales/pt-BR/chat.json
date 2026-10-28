@@ -113,24 +113,6 @@
   "usageLimit": {
     "resetAt": "Limite de uso do Claude atingido. Seu limite será reiniciado em **{{time}} {{timezone}}** - {{date}}"
   },
-  "codex": {
-    "permissionMode": "Modo de permissão",
-    "modes": {
-      "default": "Modo padrão",
-      "auto": "Modo automático",
-      "acceptEdits": "Aceitar edições",
-      "bypassPermissions": "Ignorar permissões",
-      "plan": "Modo planejamento"
-    },
-    "descriptions": {
-      "default": "Apenas comandos confiáveis (ls, cat, grep, git status, etc.) rodam automaticamente. Outros comandos são ignorados. Pode gravar no espaço de trabalho.",
-      "auto": "Um classificador do modelo decide por chamada de tool se aprova ou nega. Sem intervenção, mas mais seguro que Ignorar — negações ainda ocorrem.",
-      "acceptEdits": "Todos os comandos executam automaticamente dentro do espaço de trabalho. Modo totalmente automático com execução em sandbox.",
-      "bypassPermissions": "Acesso total ao sistema sem restrições. Todos os comandos executam automaticamente com acesso total a disco e rede. Use com cautela.",
-      "plan": "Modo planejamento — nenhum comando é executado"
-    },
-    "technicalDetails": "Detalhes técnicos"
-  },
   "voice": {
     "input": "Entrada de voz",
     "stopRecording": "Parar gravação",

@@ -222,13 +222,13 @@
         "timeSensitive": "时效性",
         "passive": "静默"
       },
-    "enabled": "已启用",
-    "test": "测试",
-    "remove": "删除",
-    "add": "添加设备",
-    "publicBaseUrl": "手机访问地址（可选）",
-    "publicBaseUrlHint": "填手机访问 CloudCLI 用的地址。状态图标从它下载；点击通知会用它打开 App 里的对应会话。",
-    "empty": "还没有配置 Bark 设备。",
+      "enabled": "已启用",
+      "test": "测试",
+      "remove": "删除",
+      "add": "添加设备",
+      "publicBaseUrl": "手机访问地址（可选）",
+      "publicBaseUrlHint": "填手机访问 CloudCLI 用的地址。状态图标从它下载；点击通知会用它打开 App 里的对应会话。",
+      "empty": "还没有配置 Bark 设备。",
       "testOk": "Bark 已接受测试通知。",
       "testFailed": "Bark 拒绝了测试：{{message}}",
       "note": "Device Key 只保存在本服务器，并且只会发往上面的 Bark 服务。如果该服务不在可信内网，请使用 HTTPS。"
@@ -780,6 +780,32 @@
   },
   "permissions": {
     "title": "权限设置",
+    "modes": {
+      "default": {
+        "title": "默认",
+        "description": "只有受信任的命令（ls、cat、grep、git status 等）自动运行。其他命令将被跳过。可以写入工作区。"
+      },
+      "auto": {
+        "title": "自动",
+        "description": "由模型分类器针对每次工具调用决定批准或拒绝。无需手动操作，但比绕过权限更安全——仍可能被拒绝。"
+      },
+      "acceptEdits": {
+        "title": "接受编辑",
+        "description": "工作区内的所有命令自动运行。完全自动模式，具有沙盒执行功能。"
+      },
+      "bypassPermissions": {
+        "title": "绕过权限",
+        "description": "完全的系统访问，无限制。所有命令自动运行，具有完整的磁盘和网络访问权限。请谨慎使用。"
+      },
+      "plan": {
+        "title": "仅计划",
+        "description": "计划模式 - 不执行任何命令"
+      },
+      "readonly": {
+        "title": "只读",
+        "description": "仅允许只读工具（read、grep、find、ls）执行，无法修改文件。"
+      }
+    },
     "skipPermissions": {
       "label": "跳过权限提示（请谨慎使用）",
       "claudeDescription": "等同于 --dangerously-skip-permissions 标志",
@@ -849,16 +875,7 @@
       "description": "控制 Codex 如何处理文件修改和命令执行",
       "modes": {
         "default": {
-          "title": "默认",
           "description": "在工作区沙箱内运行命令。Codex 决定何时需要批准；此非交互式集成无法批准请求。"
-        },
-        "acceptEdits": {
-          "title": "接受编辑",
-          "description": "所有命令在工作区内自动运行。具有沙箱执行的全自动模式。"
-        },
-        "bypassPermissions": {
-          "title": "绕过权限",
-          "description": "完全系统访问，无任何限制。所有命令自动运行，具有完整的磁盘和网络访问权限。请谨慎使用。"
         }
       },
       "technicalDetails": "技术详情",
@@ -874,12 +891,7 @@
       "description": "控制 WorkBuddy 如何处理文件修改和命令执行",
       "modes": {
         "auto": {
-          "title": "自动批准",
           "description": "引擎在进程内自行批准权限检查，护栏仍然生效。"
-        },
-        "bypassPermissions": {
-          "title": "无限制",
-          "description": "完全系统访问，无任何限制。所有命令自动运行，具有完整的磁盘和网络访问权限。请谨慎使用。"
         }
       }
     },
@@ -892,15 +904,12 @@
           "description": "ZCode 的 build 模式：不编辑文件、不执行命令，仅做计划。"
         },
         "acceptEdits": {
-          "title": "接受编辑",
           "description": "自动批准文件编辑和安全命令；副作用写入与高危命令仍需确认。"
         },
         "bypassPermissions": {
-          "title": "绕过权限",
           "description": "自动批准所有工具，包括任意命令执行。请谨慎使用。"
         },
         "plan": {
-          "title": "仅计划",
           "description": "只生成执行计划，不修改文件或运行命令。"
         }
       }
@@ -914,7 +923,6 @@
           "description": "Pi 自主运行工具，无审批关卡。"
         },
         "readonly": {
-          "title": "只读",
           "description": "只允许只读工具（read、grep、find、ls），Pi 无法修改文件。"
         }
       }
@@ -928,7 +936,6 @@
           "description": "DSH 发起权限请求时，在聊天输入区显示“允许一次 / 拒绝”。"
         },
         "auto": {
-          "title": "自动允许请求",
           "description": "DSH 发起权限请求时自动选择“允许一次”。这不会修改 DSH 自身的沙箱策略。"
         }
       }
@@ -942,7 +949,6 @@
           "description": "OMP 自主运行工具，无审批关卡。"
         },
         "readonly": {
-          "title": "只读",
           "description": "只允许只读工具（read、grep、glob），OMP 无法修改文件。"
         }
       }
@@ -956,14 +962,27 @@
           "description": "OpenClaw 发起权限请求时，在聊天输入区显示“允许一次 / 拒绝”。"
         },
         "auto": {
-          "title": "自动允许请求",
           "description": "OpenClaw 发起权限请求时自动选择“允许一次”。这不会修改 OpenClaw 自身的审批策略。"
         }
       }
     },
     "opencode": {
       "permissionMode": "权限模式",
-      "description": "控制 OpenCode 如何批准文件编辑与命令执行"
+      "description": "控制 OpenCode 如何批准文件编辑与命令执行",
+      "modes": {
+        "default": {
+          "description": "由你的 opencode.json 规则决定。非交互运行时，需要询问的规则无法得到答复，所以该操作会被拒绝。"
+        },
+        "acceptEdits": {
+          "description": "放行文件编辑，其余规则仍由 opencode.json 决定。"
+        },
+        "bypassPermissions": {
+          "description": "以 --auto 运行：OpenCode 自行批准工具调用。你的 opencode.json 规则仍然生效。"
+        },
+        "plan": {
+          "description": "运行 OpenCode 的 plan agent：只分析，不执行工具。"
+        }
+      }
     },
     "actions": {
       "add": "添加"

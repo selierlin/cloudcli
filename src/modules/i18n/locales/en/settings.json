@@ -222,13 +222,13 @@
         "timeSensitive": "Time sensitive",
         "passive": "Passive"
       },
-    "enabled": "Enabled",
-    "test": "Test",
-    "remove": "Remove",
-    "add": "Add device",
-    "publicBaseUrl": "Phone-facing address (optional)",
-    "publicBaseUrlHint": "Use the address your phone opens CloudCLI at. Status icons are fetched from it, and tapping the notification opens that session in the app.",
-    "empty": "No Bark device configured yet.",
+      "enabled": "Enabled",
+      "test": "Test",
+      "remove": "Remove",
+      "add": "Add device",
+      "publicBaseUrl": "Phone-facing address (optional)",
+      "publicBaseUrlHint": "Use the address your phone opens CloudCLI at. Status icons are fetched from it, and tapping the notification opens that session in the app.",
+      "empty": "No Bark device configured yet.",
       "testOk": "Bark accepted the test notification.",
       "testFailed": "Bark rejected the test: {{message}}",
       "note": "The device key is stored on this server and sent only to the Bark server above. Use HTTPS if that server is not on a trusted network."
@@ -797,6 +797,32 @@
   },
   "permissions": {
     "title": "Permission Settings",
+    "modes": {
+      "default": {
+        "title": "Default",
+        "description": "Only trusted commands (ls, cat, grep, git status, etc.) run automatically. Other commands are skipped. Can write to workspace."
+      },
+      "auto": {
+        "title": "Auto",
+        "description": "A model classifier decides per tool call whether to approve or deny. Hands-off, but safer than Bypass — denials still happen."
+      },
+      "acceptEdits": {
+        "title": "Accept Edits",
+        "description": "All commands run automatically within the workspace. Full auto mode with sandboxed execution."
+      },
+      "bypassPermissions": {
+        "title": "Bypass Permissions",
+        "description": "Full system access with no restrictions. All commands run automatically with full disk and network access. Use with caution."
+      },
+      "plan": {
+        "title": "Plan",
+        "description": "Only produces an execution plan; no commands are executed"
+      },
+      "readonly": {
+        "title": "Read-only",
+        "description": "Only read-only tools (read, grep, find, ls) are allowed; the model cannot modify files."
+      }
+    },
     "skipPermissions": {
       "label": "Skip permission prompts (use with caution)",
       "claudeDescription": "Equivalent to --dangerously-skip-permissions flag",
@@ -866,16 +892,7 @@
       "description": "Controls how Codex handles file modifications and command execution",
       "modes": {
         "default": {
-          "title": "Default",
           "description": "Runs commands within the workspace sandbox. Codex decides when approval is needed; requests cannot be approved in this non-interactive integration."
-        },
-        "acceptEdits": {
-          "title": "Accept Edits",
-          "description": "All commands run automatically within the workspace. Full auto mode with sandboxed execution."
-        },
-        "bypassPermissions": {
-          "title": "Bypass Permissions",
-          "description": "Full system access with no restrictions. All commands run automatically with full disk and network access. Use with caution."
         }
       },
       "technicalDetails": "Technical details",
@@ -891,12 +908,7 @@
       "description": "Controls how WorkBuddy handles file modifications and command execution",
       "modes": {
         "auto": {
-          "title": "Auto-approve",
           "description": "The engine approves its own permission checks in process; its guardrails still apply."
-        },
-        "bypassPermissions": {
-          "title": "Unrestricted",
-          "description": "Full system access with no restrictions. Every command runs automatically with full disk and network access. Use with caution."
         }
       }
     },
@@ -909,15 +921,12 @@
           "description": "ZCode's build mode: no file edits and no commands run; planning only."
         },
         "acceptEdits": {
-          "title": "Accept Edits",
           "description": "Auto-approves file edits and safe commands; side-effecting writes and high-risk commands still require approval."
         },
         "bypassPermissions": {
-          "title": "Bypass Permissions",
           "description": "Auto-approves every tool, including arbitrary command execution. Use with caution."
         },
         "plan": {
-          "title": "Plan",
           "description": "Only produces an execution plan without modifying files or running commands."
         }
       }
@@ -931,7 +940,6 @@
           "description": "Pi runs tools on its own with no approval gate."
         },
         "readonly": {
-          "title": "Read-only",
           "description": "Only read-only tools (read, grep, find, ls) are allowed; Pi cannot modify files."
         }
       }
@@ -945,7 +953,6 @@
           "description": "Show each DSH permission request in the chat composer for an Allow once or Deny decision."
         },
         "auto": {
-          "title": "Auto-allow requests",
           "description": "Answer DSH permission requests with Allow once. This does not change DSH's own sandbox policy."
         }
       }
@@ -959,7 +966,6 @@
           "description": "OMP runs tools on its own with no approval gate."
         },
         "readonly": {
-          "title": "Read-only",
           "description": "Only read-only tools (read, grep, glob) are allowed; OMP cannot modify files."
         }
       }
@@ -973,14 +979,27 @@
           "description": "Show each OpenClaw permission request in the chat composer for an Allow once or Deny decision."
         },
         "auto": {
-          "title": "Auto-allow requests",
           "description": "Answer OpenClaw permission requests with Allow once. This does not change OpenClaw's own approval policy."
         }
       }
     },
     "opencode": {
       "permissionMode": "Permission Mode",
-      "description": "Controls how OpenCode approves file edits and command execution"
+      "description": "Controls how OpenCode approves file edits and command execution",
+      "modes": {
+        "default": {
+          "description": "Your opencode.json rules decide. In a non-interactive run an ask rule cannot be answered, so the action is denied."
+        },
+        "acceptEdits": {
+          "description": "File edits are allowed through; every other rule still comes from opencode.json."
+        },
+        "bypassPermissions": {
+          "description": "Runs with --auto: OpenCode approves its own tool calls. Your opencode.json rules still apply."
+        },
+        "plan": {
+          "description": "Runs OpenCode's plan agent: analyses without executing tools."
+        }
+      }
     },
     "actions": {
       "add": "Add"

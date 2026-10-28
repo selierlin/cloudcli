@@ -485,6 +485,31 @@
   },
   "permissions": {
     "title": "權限設定",
+    "modes": {
+      "default": {
+        "title": "預設",
+        "description": "只有受信任的指令（ls、cat、grep、git status 等）自動執行。其他指令將被略過。可以寫入工作區。"
+      },
+      "auto": {
+        "title": "自動",
+        "description": "由模型分類器針對每次工具呼叫決定核准或拒絕。免手動操作，但比 Bypass 安全——仍可能發生拒絕。"
+      },
+      "acceptEdits": {
+        "title": "接受編輯",
+        "description": "工作區內的所有指令自動執行。完全自動模式，具有沙箱執行功能。"
+      },
+      "bypassPermissions": {
+        "title": "略過權限",
+        "description": "完全的系統存取，無限制。所有指令自動執行，具有完整的磁碟和網路存取權限。請謹慎使用。"
+      },
+      "plan": {
+        "title": "僅計畫",
+        "description": "計畫模式 - 不執行任何指令"
+      },
+      "readonly": {
+        "title": "唯讀"
+      }
+    },
     "skipPermissions": {
       "label": "略過權限提示（請謹慎使用）",
       "claudeDescription": "等同於 --dangerously-skip-permissions 旗標",
@@ -554,16 +579,7 @@
       "description": "控制 Codex 如何處理檔案修改和指令執行",
       "modes": {
         "default": {
-          "title": "預設",
           "description": "在工作區沙箱內執行指令。Codex 決定何時需要核准；此非互動式整合無法核准請求。"
-        },
-        "acceptEdits": {
-          "title": "接受編輯",
-          "description": "所有指令在工作區內自動執行。具有沙箱執行的全自動模式。"
-        },
-        "bypassPermissions": {
-          "title": "略過權限",
-          "description": "完全系統存取，無任何限制。所有指令自動執行，具有完整的磁碟和網路存取權限。請謹慎使用。"
         }
       },
       "technicalDetails": "技術詳情",
@@ -575,13 +591,7 @@
       }
     },
     "workbuddy": {
-      "description": "控制 WorkBuddy 如何處理檔案修改和指令執行",
-      "modes": {
-        "plan": {
-          "title": "僅計畫",
-          "description": "僅分析並產生執行計畫，不實際修改檔案或執行指令。"
-        }
-      }
+      "description": "控制 WorkBuddy 如何處理檔案修改和指令執行"
     },
     "actions": {
       "add": "新增"
