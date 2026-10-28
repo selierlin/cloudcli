@@ -549,8 +549,9 @@ type PermissionModeCardProps = {
 /**
  * Settings' skin for one mode. The icon, name and description come from the
  * shared appearance/copy modules; the name carries the same accent text colour
- * a menu row gets in the composer, and the selected card adds the trigger's
- * surface. Only the card's shape and the radio live here.
+ * a menu row gets in the composer. Selection itself stays neutral — the mode's
+ * hue already says which mode it is, so reusing it for "selected" would read as
+ * "this one is active" at a glance.
  */
 function PermissionModeCard({ agent, mode, selectedMode, onSelect }: PermissionModeCardProps) {
   const { label, description } = usePermissionModeCopy(agent, mode);
@@ -563,7 +564,7 @@ function PermissionModeCard({ agent, mode, selectedMode, onSelect }: PermissionM
   return (
     <div
       className={`cursor-pointer rounded-lg border p-4 transition-all ${isSelected
-        ? accent.surface
+        ? 'border-border bg-accent'
         : 'border-border bg-card/50 active:border-border active:bg-accent/50'
         }`}
       onClick={() => onSelect(mode)}

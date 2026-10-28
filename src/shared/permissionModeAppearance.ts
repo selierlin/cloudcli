@@ -36,11 +36,13 @@ const UNKNOWN: PermissionModeAppearance = { icon: ShieldQuestion, accent: 'neutr
 /**
  * The one accent palette per mode.
  *
- * The composer's trigger and settings' mode card draw the same mode, so they
- * must not keep two palettes: that is how plan mode came to be primary-tinted
- * in chat and blue in settings. Colour values live here; each surface decides
- * how much of the palette to use (the trigger fills a pill, the card tints a
- * selected row).
+ * The composer's trigger, the composer's menu rows and settings' mode cards draw
+ * the same mode, so they must not keep separate palettes: that is how plan mode
+ * came to be primary-tinted in chat and blue in settings. Colour values live
+ * here; each surface takes the slice it needs — the trigger fills a pill
+ * (`surface` + `foreground` + `hover`), a menu row or a card's title takes
+ * `label`. Settings does not tint a selected card with the mode's hue: the hue
+ * already names the mode, so selection stays neutral.
  */
 export const PERMISSION_MODE_ACCENT_CLASSES: Record<
   PermissionModeAccent,
