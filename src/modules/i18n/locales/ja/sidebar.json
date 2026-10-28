@@ -72,6 +72,8 @@
     "deleteProject": "サイドバーからプロジェクトを除去 (Delete)",
     "addToFavorites": "お気に入りに追加",
     "removeFromFavorites": "お気に入りから削除",
+    "copyProjectPath": "プロジェクトパスをコピー",
+    "projectPathCopied": "プロジェクトパスをコピーしました",
     "editSessionName": "セッション名を手動で編集",
     "deleteSession": "このセッションを完全に削除",
     "activeSessionIndicator": "最近アクティブなセッション（過去2分以内）",

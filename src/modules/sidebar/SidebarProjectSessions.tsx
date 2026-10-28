@@ -295,11 +295,16 @@ export default function SidebarProjectSessions({
       onDragLeave={handleListDragLeave}
       onDrop={handleListDrop}
     >
+      {/* The actions sit in the same card as the session rows below them. Bare
+          text between the pinned project row and a stack of cards read as a
+          floating label rather than as the first row of the list; the card
+          gives the block a top edge without the primary-coloured border that
+          made it look like a second search field. */}
       {isCompact ? (
-        <div className="grid grid-cols-2 gap-1 px-3 pb-1 pt-1">
+        <div className="mx-3 mb-1 grid grid-cols-2 gap-1 rounded-lg border border-border/30 bg-card p-0.5">
           {!isManaging && (
             <button
-              className="flex h-8 items-center justify-center gap-2 rounded-md border border-primary/25 bg-card text-xs font-medium text-foreground transition-all duration-150 hover:bg-accent active:scale-[0.98] active:bg-accent/80"
+              className="flex h-9 items-center justify-center gap-2 rounded-md text-xs font-medium text-foreground transition-all duration-150 hover:bg-accent active:scale-[0.98] active:bg-accent/80"
               onClick={() => {
                 onNewSession(project);
               }}
@@ -310,9 +315,9 @@ export default function SidebarProjectSessions({
           )}
           {!isManaging && (
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="h-8 text-xs"
+              className="h-9 text-xs text-muted-foreground hover:text-foreground"
               onClick={() => onManagingChange(true)}
               disabled={!hasSessions}
             >
@@ -321,21 +326,14 @@ export default function SidebarProjectSessions({
           )}
         </div>
       ) : (
-        <div className="flex gap-1">
+        <div className="flex gap-1 rounded-md border border-border/30 bg-card p-0.5">
           {!isManaging && (
-            // A row-weight button, not a solid `bg-primary` one: this row
-            // repeats once per expanded project, and N full-strength primary
-            // bars made the sidebar's loudest colour its least important
-            // action. The surface is `bg-card` rather than a tinted `primary`
-            // wash because a 10% accent over a warm light page (kanagawa's
-            // beige, gruvbox's sand) reads as a grey, disabled block; the
-            // accent survives on the border and the icon instead. Label stays
-            // `text-foreground` for the same reason `text-primary` fails AA on
-            // some light themes.
+            // The accent stays on the plus icon; the label is `text-foreground`
+            // because `text-primary` fails AA on some light themes.
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 flex-1 justify-start gap-2 border border-primary/25 bg-card text-xs font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground active:bg-accent/80"
+              className="h-9 flex-1 justify-start gap-2 px-2 text-xs font-medium text-foreground hover:bg-accent hover:text-foreground active:bg-accent/80"
               onClick={() => onNewSession(project)}
             >
               <Plus className="h-3 w-3 text-primary" />
@@ -344,9 +342,9 @@ export default function SidebarProjectSessions({
           )}
           {!isManaging && (
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="h-8 text-xs"
+              className="h-9 px-2.5 text-xs text-muted-foreground hover:text-foreground"
               onClick={() => onManagingChange(true)}
               disabled={!hasSessions}
             >

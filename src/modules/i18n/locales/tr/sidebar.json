@@ -73,6 +73,8 @@
     "deleteProject": "Projeyi kenar çubuğundan kaldır (Delete)",
     "addToFavorites": "Favorilere ekle",
     "removeFromFavorites": "Favorilerden çıkar",
+    "copyProjectPath": "Proje yolunu kopyala",
+    "projectPathCopied": "Proje yolu kopyalandı",
     "editSessionName": "Oturum adını elle düzenle",
     "deleteSession": "Bu oturumu kalıcı olarak sil",
     "activeSessionIndicator": "Yakın zamanda etkin oturum (son 2 dakika)",

@@ -50,6 +50,8 @@
     "deleteProject": "הסרת הפרויקט מסרגל הצד (Delete)",
     "addToFavorites": "הוספה למועדפים",
     "removeFromFavorites": "הסרה מהמועדפים",
+    "copyProjectPath": "העתק נתיב פרויקט",
+    "projectPathCopied": "נתיב הפרויקט הועתק",
     "editSessionName": "עריכה ידנית של שם הסשן",
     "deleteSession": "מחיקת הסשן לצמיתות",
     "activeSessionIndicator": "סשן שהיה פעיל לאחרונה (10 הדקות האחרונות)",

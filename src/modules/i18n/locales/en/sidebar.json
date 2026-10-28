@@ -82,6 +82,8 @@
     "deleteProject": "Remove project from sidebar (Delete)",
     "addToFavorites": "Add to favorites",
     "removeFromFavorites": "Remove from favorites",
+    "copyProjectPath": "Copy project path",
+    "projectPathCopied": "Project path copied",
     "editSessionName": "Manually edit session name",
     "deleteSession": "Delete this session permanently",
     "save": "Save",

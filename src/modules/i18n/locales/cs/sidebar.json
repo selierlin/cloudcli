@@ -43,6 +43,8 @@
     "deleteProject": "Odstranit projekt z postranního panelu (Delete)",
     "addToFavorites": "Přidat do oblíbených",
     "removeFromFavorites": "Odstranit z oblíbených",
+    "copyProjectPath": "Kopírovat cestu projektu",
+    "projectPathCopied": "Cesta projektu zkopírována",
     "editSessionName": "Ručně upravit název relace",
     "deleteSession": "Trvale smazat tuto relaci",
     "activeSessionIndicator": "Nedávno aktivní relace (posledních 10 minut)",

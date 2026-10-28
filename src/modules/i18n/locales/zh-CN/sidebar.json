@@ -82,6 +82,8 @@
     "deleteProject": "从侧边栏移除项目 (Delete)",
     "addToFavorites": "添加到收藏",
     "removeFromFavorites": "从收藏移除",
+    "copyProjectPath": "复制项目路径",
+    "projectPathCopied": "项目路径已复制",
     "editSessionName": "手动编辑会话名称",
     "deleteSession": "永久删除此会话",
     "save": "保存",

@@ -88,7 +88,9 @@ const renderRow = ({ isExpanded, isSelected }: RowOptions) => {
     />,
   );
 
-  const row = view.getByRole('button', { name: /project two/ });
+  // Exact name: the row's accessible name is the project name, while the
+  // overflow menu next to it is named "<project> · More".
+  const row = view.getByRole('button', { name: 'project two' });
   return { ...view, row, onProjectSelect, onToggleProject };
 };
 

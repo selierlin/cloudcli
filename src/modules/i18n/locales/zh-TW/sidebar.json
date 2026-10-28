@@ -73,6 +73,8 @@
     "deleteProject": "從側邊欄移除專案 (Delete)",
     "addToFavorites": "加入收藏",
     "removeFromFavorites": "從收藏移除",
+    "copyProjectPath": "複製專案路徑",
+    "projectPathCopied": "專案路徑已複製",
     "editSessionName": "手動編輯工作階段名稱",
     "deleteSession": "永久刪除此工作階段",
     "save": "儲存",

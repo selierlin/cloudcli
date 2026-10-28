@@ -1,9 +1,9 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import { Check, ChevronRight, Edit3, Star, Trash2, X } from 'lucide-react';
+import { Check, ChevronRight, Copy, Edit3, MoreHorizontal, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { Button } from '@/shared/ui';
-import { cn, isImeKeyEvent } from '@/shared/utils';
+import { ActionMenu } from '@/shared/ui';
+import { cn, copyTextToClipboard, isImeKeyEvent } from '@/shared/utils';
 import type { LLMProvider, MCPServerStatus, Project, ProjectSession, SessionAttentionLevel, SessionWithProvider } from '@/shared/types';
 import { getTaskIndicatorStatus } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import TaskIndicator from '@/modules/sidebar/TaskIndicator';
@@ -123,6 +123,9 @@ function SidebarProjectItem({
   // Keeps this row pinned to its clicked viewport offset while the previously
   // expanded project collapses above it.
   const beginAnchor = useExpandScrollAnchor(isExpanded, rootRef);
+  // "Copy path" keeps the menu open and flips its own label, the way the
+  // session menus report a copy; closing the menu clears it.
+  const [pathCopied, setPathCopied] = useState(false);
 
   useEffect(() => {
     if (!isEditing || !mobileRenameInputRef.current) {
@@ -182,18 +185,21 @@ function SidebarProjectItem({
   return (
     <div
       ref={rootRef}
+      // Marks the block boundary for useRevealPinnedBlockStart, which reads the
+      // pinned header and the block's own top edge from the DOM.
+      data-sidebar-project-block=""
       className={cn('md:space-y-1', isDeleting && 'opacity-50 pointer-events-none')}
     >
-      <div className="sticky top-0 z-10 md:group group">
+      {/* The opaque background is what makes this row's `hover:bg-accent/50`
+          safe: without it a pinned header turns translucent on hover and the
+          sessions scrolling underneath it show through the row. */}
+      <div className="sticky top-0 z-10 bg-background md:group group">
         {isCompact && (
         <div className="bg-background">
           <div
             className={cn(
               'p-3 mx-3 my-1 rounded-lg bg-card border border-border/50 active:scale-[0.98] transition-all duration-150',
               isSelected && 'bg-primary/5 border-primary/20',
-              isStarred &&
-                !isSelected &&
-                'bg-yellow-50/50 dark:bg-yellow-900/5 border-yellow-200/30 dark:border-yellow-800/30',
             )}
             onClick={toggleProject}
           >
@@ -329,32 +335,45 @@ function SidebarProjectItem({
         )}
 
         {!isCompact && (
-        <Button
-          variant="ghost"
+        // A plain container, not a <Button>: the star and the overflow menu are
+        // real controls, and a <button> may not contain them. The whole row
+        // still toggles on click; the name area carries its own focusable
+        // button so keyboard users can reach it.
+        <div
           className={cn(
-            'sticky top-0 z-10 flex w-full justify-between p-2 h-auto font-normal hover:bg-accent/50',
-            isSelected
-              ? 'bg-accent text-accent-foreground'
-              : isStarred
-                ? 'bg-background hover:bg-accent/50'
-                : 'bg-background',
-            isStarred &&
-              !isSelected &&
-              'bg-yellow-50/50 dark:bg-yellow-900/10 hover:bg-yellow-100/50 dark:hover:bg-yellow-900/20',
+            'sticky top-0 z-10 flex w-full cursor-pointer items-center justify-between gap-2 rounded-md p-2 text-sm font-normal transition-colors hover:bg-accent/50',
+            // A starred row used to wash itself yellow, which said the same
+            // thing as the filled star and added a third row background next to
+            // selected/normal.
+            isSelected ? 'bg-accent text-accent-foreground' : 'bg-background',
           )}
           onClick={selectAndToggleProject}
         >
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <div
+              role="button"
+              tabIndex={0}
+              aria-label={isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites')}
               className={cn(
+                // The star only earns row real estate when the row is hovered or
+                // the project is actually starred; twelve grey stars at rest read
+                // as a dotted column. The 24px slot stays reserved so hovering
+                // never shifts the name sideways.
                 'w-6 h-6 flex items-center justify-center rounded cursor-pointer transition-all duration-200',
                 isStarred
                   ? 'hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
-                  : 'opacity-40 hover:opacity-100 hover:bg-accent',
+                  : 'opacity-0 hover:bg-accent group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100',
               )}
               onClick={(event) => {
                 event.stopPropagation();
                 toggleStarProject();
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  toggleStarProject();
+                }
               }}
               title={isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites')}
             >
@@ -393,20 +412,29 @@ function SidebarProjectItem({
                   </div>
                 </div>
               ) : (
-                <div>
-                  <div className="truncate text-sm font-normal text-foreground" title={project.displayName}>
+                <button
+                  type="button"
+                  aria-label={project.displayName}
+                  className="w-full min-w-0 rounded text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    selectAndToggleProject();
+                  }}
+                >
+                  <span className="block truncate text-sm font-normal text-foreground" title={project.displayName}>
                     {project.displayName}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {sessionCountDisplay}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {/* An empty project has nothing to count, and a leading "0"
+                        on nine of the twelve rows reads as broken metadata. */}
+                    {totalSessionCount > 0 && <span className="opacity-60">{sessionCountDisplay} · </span>}
                     {project.fullPath !== project.displayName && (
-                      <span className="ml-1 opacity-60" title={project.fullPath}>
-                        {' - '}
+                      <span className="opacity-60" title={project.fullPath}>
                         {project.fullPath.length > 25 ? `...${project.fullPath.slice(-22)}` : project.fullPath}
                       </span>
                     )}
-                  </div>
-                </div>
+                  </span>
+                </button>
               )}
             </div>
           </div>
@@ -436,25 +464,57 @@ function SidebarProjectItem({
               </>
             ) : (
               <>
-                <div
-                  className="touch:opacity-100 flex h-6 w-6 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-accent group-hover:opacity-100"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onStartEditingProject(project);
-                  }}
-                  title={t('tooltips.renameProject')}
-                >
-                  <Edit3 className="!h-3 !w-3" />
-                </div>
-                <div
-                  className="touch:opacity-100 flex h-6 w-6 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-red-50 group-hover:opacity-100 dark:hover:bg-red-900/20"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onDeleteProject(project);
-                  }}
-                  title={t('tooltips.deleteProject')}
-                >
-                  <Trash2 className="!h-3 !w-3 text-red-600 dark:text-red-400" />
+                {/* Rename and delete used to sit here as two always-visible
+                    icons — a third of the row, with the destructive one in red
+                    for every project. One "…" keeps both reachable and stops
+                    the row from advertising its own deletion.
+                    The wrapper swallows the click because the row toggles on
+                    click and ActionMenu has no onClick for its trigger. */}
+                <div onClick={(event) => event.stopPropagation()}>
+                  <ActionMenu
+                    label={t('search.modeMore', 'More')}
+                    // The row is also a button; a generic "More" would give a
+                    // screen reader three identical menu triggers per list.
+                    ariaLabel={`${project.displayName} · ${t('search.modeMore', 'More')}`}
+                    icon={MoreHorizontal}
+                    iconOnly
+                    portal
+                    variant="ghost"
+                    size="icon"
+                    triggerClassName="h-6 w-6 touch:opacity-100 text-muted-foreground opacity-0 transition-opacity hover:bg-accent group-hover:opacity-100 focus-visible:opacity-100"
+                    onOpenChange={(open) => {
+                      if (!open) setPathCopied(false);
+                    }}
+                    items={[
+                      {
+                        key: 'copy-path',
+                        // The absolute path, not the shortened label the row
+                        // shows: this is pasted into a terminal or an editor.
+                        label: pathCopied
+                          ? t('tooltips.projectPathCopied')
+                          : t('tooltips.copyProjectPath'),
+                        icon: pathCopied ? Check : Copy,
+                        closeOnSelect: false,
+                        onSelect: () => {
+                          void copyTextToClipboard(project.fullPath).then(setPathCopied);
+                        },
+                      },
+                      {
+                        key: 'rename',
+                        label: t('tooltips.renameProject'),
+                        icon: Edit3,
+                        onSelect: () => onStartEditingProject(project),
+                      },
+                      {
+                        key: 'delete',
+                        label: t('tooltips.deleteProject'),
+                        icon: Trash2,
+                        onSelect: () => onDeleteProject(project),
+                        isDanger: true,
+                        showDividerBefore: true,
+                      },
+                    ]}
+                  />
                 </div>
                 <ChevronRight className={cn(
                   'mr-1.5 h-4 w-4 text-muted-foreground transition-all duration-200 group-hover:text-foreground',
@@ -463,7 +523,7 @@ function SidebarProjectItem({
               </>
             )}
           </div>
-        </Button>
+        </div>
         )}
       </div>
 

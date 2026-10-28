@@ -75,6 +75,8 @@
     "deleteProject": "Убрать проект из боковой панели (Delete)",
     "addToFavorites": "Добавить в избранное",
     "removeFromFavorites": "Удалить из избранного",
+    "copyProjectPath": "Копировать путь проекта",
+    "projectPathCopied": "Путь проекта скопирован",
     "editSessionName": "Вручную редактировать имя сеанса",
     "deleteSession": "Удалить этот сеанс навсегда",
     "activeSessionIndicator": "Недавно активный сеанс (последние 2 минуты)",

@@ -73,6 +73,8 @@
     "deleteProject": "Quitar proyecto de la barra lateral (Supr)",
     "addToFavorites": "Añadir a favoritos",
     "removeFromFavorites": "Quitar de favoritos",
+    "copyProjectPath": "Copiar ruta del proyecto",
+    "projectPathCopied": "Ruta del proyecto copiada",
     "editSessionName": "Editar manualmente el nombre de la sesión",
     "deleteSession": "Eliminar esta sesión de forma permanente",
     "activeSessionIndicator": "Sesión activa recientemente (últimos 2 minutos)",

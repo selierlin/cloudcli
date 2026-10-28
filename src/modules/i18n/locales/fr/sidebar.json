@@ -73,6 +73,8 @@
     "deleteProject": "Retirer le projet de la barre latérale (Suppr)",
     "addToFavorites": "Ajouter aux favoris",
     "removeFromFavorites": "Retirer des favoris",
+    "copyProjectPath": "Copier le chemin du projet",
+    "projectPathCopied": "Chemin du projet copié",
     "editSessionName": "Modifier manuellement le nom de la session",
     "deleteSession": "Supprimer définitivement cette session",
     "activeSessionIndicator": "Session récemment active (2 dernières minutes)",

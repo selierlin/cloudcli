@@ -49,6 +49,8 @@
     "deleteProject": "Hapus proyek dari sidebar (Delete)",
     "addToFavorites": "Tambahkan ke favorit",
     "removeFromFavorites": "Hapus dari favorit",
+    "copyProjectPath": "Salin jalur proyek",
+    "projectPathCopied": "Jalur proyek disalin",
     "editSessionName": "Edit nama sesi secara manual",
     "deleteSession": "Hapus sesi ini secara permanen",
     "activeSessionIndicator": "Sesi baru-baru ini aktif (10 menit terakhir)",

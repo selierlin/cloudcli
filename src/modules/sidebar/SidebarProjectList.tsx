@@ -1,6 +1,9 @@
+import { useRef } from 'react';
+
 import type { SidebarProjectListProps } from '@/shared/types';
 import SidebarProjectItem from '@/modules/sidebar/SidebarProjectItem';
 import SidebarProjectsState from '@/modules/sidebar/SidebarProjectsState';
+import { useRevealPinnedBlockStart } from '@/modules/sidebar/hooks/useRevealPinnedBlockStart';
 
 
 /** Rendered by SidebarContent to list the filtered projects, delegating each row to SidebarProjectItem. */
@@ -46,6 +49,12 @@ export default function SidebarProjectList({
   onSaveEditingSession,
   t,
 }: SidebarProjectListProps) {
+  // A load can restore the sidebar's offset inside an expanded block; this
+  // pulls it back to the block's first row. List-level rather than per-row so a
+  // reload costs one observer, not one per project.
+  const listRef = useRef<HTMLDivElement>(null);
+  useRevealPinnedBlockStart(listRef);
+
   const state = (
     <SidebarProjectsState
       isLoading={isLoading}
@@ -59,7 +68,7 @@ export default function SidebarProjectList({
   const showProjects = !isLoading && projects.length > 0 && filteredProjects.length > 0;
 
   return (
-      <div className="pb-safe-area-inset-bottom md:space-y-1">
+      <div ref={listRef} className="pb-safe-area-inset-bottom md:space-y-1">
         {!showProjects
           ? state
           : filteredProjects.map((project) => {

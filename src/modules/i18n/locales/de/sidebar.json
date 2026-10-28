@@ -73,6 +73,8 @@
     "deleteProject": "Projekt aus Seitenleiste entfernen (Entf)",
     "addToFavorites": "Zu Favoriten hinzufügen",
     "removeFromFavorites": "Aus Favoriten entfernen",
+    "copyProjectPath": "Projektpfad kopieren",
+    "projectPathCopied": "Projektpfad kopiert",
     "editSessionName": "Sitzungsname manuell bearbeiten",
     "deleteSession": "Diese Sitzung dauerhaft löschen",
     "activeSessionIndicator": "Kürzlich aktive Sitzung (letzte 2 Minuten)",
