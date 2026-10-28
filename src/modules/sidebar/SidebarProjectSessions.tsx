@@ -299,12 +299,12 @@ export default function SidebarProjectSessions({
         <div className="grid grid-cols-2 gap-1 px-3 pb-1 pt-1">
           {!isManaging && (
             <button
-              className="flex h-8 items-center justify-center gap-2 rounded-md bg-primary text-xs font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-[0.98]"
+              className="flex h-8 items-center justify-center gap-2 rounded-md border border-primary/25 bg-card text-xs font-medium text-foreground transition-all duration-150 hover:bg-accent active:scale-[0.98] active:bg-accent/80"
               onClick={() => {
                 onNewSession(project);
               }}
             >
-              <Plus className="h-3 w-3" />
+              <Plus className="h-3 w-3 text-primary" />
               {t('sessions.newSession')}
             </button>
           )}
@@ -323,13 +323,22 @@ export default function SidebarProjectSessions({
       ) : (
         <div className="flex gap-1">
           {!isManaging && (
+            // A row-weight button, not a solid `bg-primary` one: this row
+            // repeats once per expanded project, and N full-strength primary
+            // bars made the sidebar's loudest colour its least important
+            // action. The surface is `bg-card` rather than a tinted `primary`
+            // wash because a 10% accent over a warm light page (kanagawa's
+            // beige, gruvbox's sand) reads as a grey, disabled block; the
+            // accent survives on the border and the icon instead. Label stays
+            // `text-foreground` for the same reason `text-primary` fails AA on
+            // some light themes.
             <Button
-              variant="default"
+              variant="ghost"
               size="sm"
-              className="h-8 flex-1 justify-start gap-2 bg-primary text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              className="h-8 flex-1 justify-start gap-2 border border-primary/25 bg-card text-xs font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground active:bg-accent/80"
               onClick={() => onNewSession(project)}
             >
-              <Plus className="h-3 w-3" />
+              <Plus className="h-3 w-3 text-primary" />
               {t('sessions.newSession')}
             </Button>
           )}
