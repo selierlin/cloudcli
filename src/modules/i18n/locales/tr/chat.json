@@ -141,7 +141,6 @@
     },
     "clickToChangeMode": "İzin modunu değiştirmek için tıkla (veya girdide Tab tuşuna bas)",
     "showAllCommands": "Tüm komutları göster",
-    "clearInput": "Girdiyi temizle",
     "scrollToBottom": "En alta git",
     "queue": {
       "append": "Sıradaki mesaja ekle",

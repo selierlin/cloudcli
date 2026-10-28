@@ -169,7 +169,6 @@
     },
     "clickToChangeMode": "Haz clic para cambiar el modo de permisos (o pulsa Tab en el campo de texto)",
     "showAllCommands": "Mostrar todos los comandos",
-    "clearInput": "Limpiar entrada",
     "scrollToBottom": "Ir al final",
     "queue": {
       "sendNext": "Poner en cola el siguiente mensaje",

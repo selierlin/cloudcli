@@ -155,7 +155,6 @@
     },
     "clickToChangeMode": "Clique para alterar modo de permissão (ou pressione Tab na entrada)",
     "showAllCommands": "Mostrar todos os comandos",
-    "clearInput": "Limpar entrada",
     "scrollToBottom": "Rolar para o final",
     "queue": {
       "sendNext": "Enfileirar próxima mensagem",

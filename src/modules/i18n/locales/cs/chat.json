@@ -167,7 +167,6 @@
     },
     "clickToChangeMode": "Kliknutím změníte režim oprávnění (nebo stiskněte Tab ve vstupním poli)",
     "showAllCommands": "Zobrazit všechny příkazy",
-    "clearInput": "Vymazat vstup",
     "scrollToBottom": "Posunout na konec",
     "queue": {
       "sendNext": "Zařadit další zprávu do fronty",
