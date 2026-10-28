@@ -101,6 +101,28 @@ test('opt-in multi-open groups survive reloads and toggle independently', () => 
   assert.equal(restored.result.current.isProjectExpanded('project-2'), true);
 });
 
+test('selecting a second project adds it instead of collapsing the first', () => {
+  // `selectAndToggleProject` selects a row and opens it in one click, so the
+  // selection effect must not treat that as "collapse everything else" while
+  // the preference is on.
+  const controller = renderController({ keepProjectsExpanded: true, selectedProject: PROJECTS[0] });
+  assert.equal(controller.result.current.isProjectExpanded(PROJECT.projectId), true);
+  act(() => controller.result.current.toggleProject('project-2'));
+  controller.rerender({ keepProjectsExpanded: true, selectedProject: PROJECTS[1] });
+  assert.equal(controller.result.current.isProjectExpanded(PROJECT.projectId), true);
+  assert.equal(controller.result.current.isProjectExpanded('project-2'), true);
+  assert.deepEqual(JSON.parse(localStorage.getItem(STORAGE_KEY)!), ['project-1', 'project-2']);
+});
+
+test('selecting another project still collapses the rest with the preference off', () => {
+  const controller = renderController({ selectedProject: PROJECTS[0] });
+  assert.equal(controller.result.current.isProjectExpanded(PROJECT.projectId), true);
+  act(() => controller.result.current.toggleProject('project-2'));
+  controller.rerender({ selectedProject: PROJECTS[1] });
+  assert.equal(controller.result.current.isProjectExpanded(PROJECT.projectId), false);
+  assert.equal(controller.result.current.isProjectExpanded('project-2'), true);
+});
+
 test('hydrating the preference restores groups before writing browser storage', () => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(['saved-1', 'saved-2']));
   const controller = renderController();

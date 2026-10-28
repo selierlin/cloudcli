@@ -232,9 +232,12 @@ export function useSidebarController({
   }, [projects]);
 
   useEffect(() => {
-    // Auto-expand the newly selected project and collapse the rest, matching
-    // `toggleProject`'s accordion behavior so cross-project session navigation
-    // from the conversations view cannot accumulate several expanded projects.
+    // Auto-expand the newly selected project. With the preference off this
+    // collapses the rest, matching `toggleProject`'s accordion behavior so
+    // cross-project navigation from the conversations view cannot accumulate
+    // several expanded projects. With it on the selection is only added, or the
+    // feature would never show two open groups: `selectAndToggleProject` selects
+    // the project it opens, so every second group would close on selection.
     // Depending on the full `selectedProject` object (or `selectedSession`)
     // causes websocket-driven list refreshes to re-open projects users
     // manually collapsed.
@@ -248,10 +251,21 @@ export function useSidebarController({
     if (isInitialSelection && keepProjectsExpanded && restoredExpandedProjects.current !== null) return;
 
     setExpandedProjects((prev) => {
+      // The preference-off branch keeps its original test: a projects-mode
+      // search expands every match, so `prev` can hold several groups while the
+      // accordion is still on, and selecting one of them must collapse the rest.
       if (prev.size === 1 && prev.has(selectedProjectId)) {
         return prev;
       }
-      return new Set([selectedProjectId]);
+      if (!keepProjectsExpanded) {
+        return new Set([selectedProjectId]);
+      }
+      if (prev.has(selectedProjectId)) {
+        return prev;
+      }
+      const next = new Set(prev);
+      next.add(selectedProjectId);
+      return next;
     });
   }, [selectedProject?.projectId, keepProjectsExpanded]);
 
