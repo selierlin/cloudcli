@@ -69,7 +69,11 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
   },
   cursor: {
     provider: 'cursor',
-    permissionModes: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
+    // The CLI exposes one permission switch, `--force` (always allow), and the
+    // runtime maps `bypassPermissions` onto it. `acceptEdits` and `plan` have
+    // no flag to ride, so offering them here would have shown the user a
+    // picker whose other two options changed nothing.
+    permissionModes: ['default', 'bypassPermissions'],
     defaultPermissionMode: 'default',
     supportsImages: true,
     supportsFiles: true,

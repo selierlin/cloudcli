@@ -44,6 +44,7 @@ async function spawnCursor(command, options = {}, ws, context) {
       cwd,
       toolsSettings,
       skipPermissions,
+      permissionMode,
       sessionSummary,
       images,
       files
@@ -123,8 +124,11 @@ async function spawnCursor(command, options = {}, ws, context) {
       baseArgs.push('--output-format', 'stream-json');
     }
 
-    // Add skip permissions flag if enabled
-    if (skipPermissions || settings.skipPermissions) {
+    // `-f` is the CLI's only permission switch, so it carries both the
+    // settings' skip-permissions toggle and the composer's bypass mode. The
+    // composer used to pass `permissionMode` that nothing read, which made its
+    // picker look like it worked.
+    if (skipPermissions || settings.skipPermissions || permissionMode === 'bypassPermissions') {
       baseArgs.push('-f');
     }
 
