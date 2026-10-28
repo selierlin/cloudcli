@@ -2,7 +2,7 @@ import { memo, useEffect, useRef, useState } from 'react';
 import { Check, ChevronRight, Copy, Edit3, MoreHorizontal, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { ActionMenu } from '@/shared/ui';
+import { ActionMenu, type ActionMenuItem } from '@/shared/ui';
 import { cn, copyTextToClipboard, isImeKeyEvent } from '@/shared/utils';
 import type { LLMProvider, MCPServerStatus, Project, ProjectSession, SessionAttentionLevel, SessionWithProvider } from '@/shared/types';
 import { getTaskIndicatorStatus } from '@/modules/sidebar/utils/sidebarProjectFormatting';
@@ -107,7 +107,9 @@ function SidebarProjectItem({
   const isSelected = selectedProject?.projectId === project.projectId;
   const totalSessionCount = Number(project.sessionMeta?.total ?? sessions.length);
   const sessionCountDisplay = getSessionCountDisplay(project, sessions);
-  const sessionCountLabel = `${sessionCountDisplay} session${totalSessionCount === 1 ? '' : 's'}`;
+  // Both layouts show the tail of the path rather than its head: the last two
+  // segments are what tells two checkouts of the same repo apart.
+  const pathLabel = project.fullPath.length > 25 ? `...${project.fullPath.slice(-22)}` : project.fullPath;
   const taskStatus = getTaskIndicatorStatus(project, mcpServerStatus);
   // Batch-manage mode lives here rather than in the session list so the row's
   // aggregate can hide alongside it (D4); the list reads and toggles it through
@@ -126,6 +128,36 @@ function SidebarProjectItem({
   // "Copy path" keeps the menu open and flips its own label, the way the
   // session menus report a copy; closing the menu clears it.
   const [pathCopied, setPathCopied] = useState(false);
+  // Shared by both layouts: the touch card used to keep rename and delete as
+  // two always-visible icons of its own, which is how the phone ended up with a
+  // red delete button on every project while desktop had a single "…".
+  const projectMenuItems: ActionMenuItem[] = [
+    {
+      key: 'copy-path',
+      // The absolute path, not the shortened label the row shows: this is
+      // pasted into a terminal or an editor.
+      label: pathCopied ? t('tooltips.projectPathCopied') : t('tooltips.copyProjectPath'),
+      icon: pathCopied ? Check : Copy,
+      closeOnSelect: false,
+      onSelect: () => {
+        void copyTextToClipboard(project.fullPath).then(setPathCopied);
+      },
+    },
+    {
+      key: 'rename',
+      label: t('tooltips.renameProject'),
+      icon: Edit3,
+      onSelect: () => onStartEditingProject(project),
+    },
+    {
+      key: 'delete',
+      label: t('tooltips.deleteProject'),
+      icon: Trash2,
+      onSelect: () => onDeleteProject(project),
+      isDanger: true,
+      showDividerBefore: true,
+    },
+  ];
 
   useEffect(() => {
     if (!isEditing || !mobileRenameInputRef.current) {
@@ -206,12 +238,11 @@ function SidebarProjectItem({
             <div className="flex items-center justify-between">
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 <button
-                  className={cn(
-                    'w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-all duration-150 border',
-                    isStarred
-                      ? 'bg-yellow-500/10 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800'
-                      : 'bg-n-gray-500/10 dark:bg-n-gray-900/30 border-border',
-                  )}
+                  // The touch layout has no hover to reveal the star, so it
+                  // stays visible. The yellow wash is gone for the same reason
+                  // it is gone on the dense row: the filled star already says
+                  // "starred", and `sortProjects` puts the project at the top.
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-n-gray-500/10 transition-all duration-150 active:scale-90 dark:bg-n-gray-900/30"
                   onClick={(event) => {
                     event.stopPropagation();
                     toggleStarProject();
@@ -269,7 +300,17 @@ function SidebarProjectItem({
                           />
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">{sessionCountLabel}</p>
+                      {/* Same second line as the dense row: a bare "9 sessions"
+                          was untranslated English that said nothing the count
+                          alone does not. */}
+                      <p className="truncate text-xs text-muted-foreground">
+                        {totalSessionCount > 0 && <span className="opacity-60">{sessionCountDisplay} · </span>}
+                        {project.fullPath !== project.displayName && (
+                          <span className="opacity-60" title={project.fullPath}>
+                            {pathLabel}
+                          </span>
+                        )}
+                      </p>
                     </>
                   )}
                 </div>
@@ -300,25 +341,24 @@ function SidebarProjectItem({
                   </>
                 ) : (
                   <>
-                    <button
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-500/10 active:scale-90 dark:border-red-800 dark:bg-red-900/30"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onDeleteProject(project);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
-                    </button>
-
-                    <button
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 active:scale-90 dark:border-primary/30 dark:bg-primary/20"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onStartEditingProject(project);
-                      }}
-                    >
-                      <Edit3 className="h-4 w-4 text-primary" />
-                    </button>
+                    {/* Same "…" as the dense row, always visible: a touch card
+                        has no hover state to reveal a hidden trigger. */}
+                    <div onClick={(event) => event.stopPropagation()}>
+                      <ActionMenu
+                        label={t('search.modeMore', 'More')}
+                        ariaLabel={`${project.displayName} · ${t('search.modeMore', 'More')}`}
+                        icon={MoreHorizontal}
+                        iconOnly
+                        portal
+                        variant="ghost"
+                        size="icon"
+                        triggerClassName="h-8 w-8 text-muted-foreground"
+                        onOpenChange={(open) => {
+                          if (!open) setPathCopied(false);
+                        }}
+                        items={projectMenuItems}
+                      />
+                    </div>
 
                     <div className="flex h-6 w-6 items-center justify-center rounded-md bg-muted/30">
                       <ChevronRight className={cn(
@@ -430,7 +470,7 @@ function SidebarProjectItem({
                     {totalSessionCount > 0 && <span className="opacity-60">{sessionCountDisplay} · </span>}
                     {project.fullPath !== project.displayName && (
                       <span className="opacity-60" title={project.fullPath}>
-                        {project.fullPath.length > 25 ? `...${project.fullPath.slice(-22)}` : project.fullPath}
+                        {pathLabel}
                       </span>
                     )}
                   </span>
@@ -485,35 +525,7 @@ function SidebarProjectItem({
                     onOpenChange={(open) => {
                       if (!open) setPathCopied(false);
                     }}
-                    items={[
-                      {
-                        key: 'copy-path',
-                        // The absolute path, not the shortened label the row
-                        // shows: this is pasted into a terminal or an editor.
-                        label: pathCopied
-                          ? t('tooltips.projectPathCopied')
-                          : t('tooltips.copyProjectPath'),
-                        icon: pathCopied ? Check : Copy,
-                        closeOnSelect: false,
-                        onSelect: () => {
-                          void copyTextToClipboard(project.fullPath).then(setPathCopied);
-                        },
-                      },
-                      {
-                        key: 'rename',
-                        label: t('tooltips.renameProject'),
-                        icon: Edit3,
-                        onSelect: () => onStartEditingProject(project),
-                      },
-                      {
-                        key: 'delete',
-                        label: t('tooltips.deleteProject'),
-                        icon: Trash2,
-                        onSelect: () => onDeleteProject(project),
-                        isDanger: true,
-                        showDividerBefore: true,
-                      },
-                    ]}
+                    items={projectMenuItems}
                   />
                 </div>
                 <ChevronRight className={cn(
