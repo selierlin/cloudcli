@@ -132,7 +132,7 @@ export default function AgentsSettingsTab({
   }, [selectedCategory, visibleCategories]);
 
   return (
-    <div className="-mx-4 -mb-4 -mt-2 flex min-h-[300px] min-w-0 flex-col overflow-hidden md:-mx-6 md:-mb-6 md:-mt-2 md:min-h-[500px]">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <AgentSelectorSection
         agents={visibleAgents}
         selectedAgent={selectedAgent}

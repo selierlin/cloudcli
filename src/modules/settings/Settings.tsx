@@ -259,7 +259,15 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
           <main ref={autoHideScrollbarRef} className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
             <div
               key={activeTab}
-              className="settings-content-enter min-w-0 space-y-6 overflow-x-hidden p-4 md:space-y-8 md:p-6"
+              className={
+                // The agents tab draws a full-height panel that scrolls on its
+                // own, so it must not sit inside this page's padding: with the
+                // padding it ended 24px above the panel's last row, and that
+                // row ("Technical details") was clipped by the page's edge.
+                activeTab === 'agents'
+                  ? 'settings-content-enter flex h-full min-h-0 min-w-0 flex-col overflow-x-hidden pt-4'
+                  : 'settings-content-enter min-w-0 space-y-6 overflow-x-hidden p-4 md:space-y-8 md:p-6'
+              }
               style={{
                 // Reserve room below the last row for the on-screen keyboard and
                 // home-indicator safe area so bottom inputs can always be scrolled
