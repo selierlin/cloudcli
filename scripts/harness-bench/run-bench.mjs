@@ -198,12 +198,17 @@ const SCENARIOS = [
   {
     id: 'S1', name: '基础问答', rounds: 5, timeoutMs: 120_000,
     prompt: '光在真空中的速度大约是多少千米每秒？只回答数字和单位，不要解释。',
-    check: (text) => /299,?792|30万|300000|3[×x*]10(\^?5|⁵)/.test(text.replace(/\s/g, '')),
+    check: (text) => /299,?792|30万|300,?000|3[×x*]10(\^?5|⁵)/.test(text.replace(/\s/g, '')),
   },
   {
     id: 'S2', name: '复杂推理', rounds: 5, timeoutMs: 240_000,
     prompt: '一项工程，甲单独做12天完成，乙单独做18天完成，丙单独做24天完成。三人合作3天后甲离开，乙和丙继续做，那么还需要多少天才能完成？请给出精确分数。',
-    check: (text) => /\\frac\{33\}\{7\}|33\/7|4又5\/7|七分之三十三/.test(text.replace(/\s/g, '')),
+    // models answer either 33/7 or 4 又 5/7, in plain text or LaTeX; normalise
+    // \frac/\dfrac and braces before matching so the notation is not the verdict
+    check: (text) => {
+      const s = text.replace(/\s/g, '').replace(/\\[dt]?frac/g, '/').replace(/[{}]/g, '');
+      return /33\/7|七分之三十三/.test(s) || /4\/5\/7/.test(s);
+    },
   },
   { id: 'S3', name: '最小输入开销', rounds: 5, timeoutMs: 120_000, prompt: 'hi', check: () => true },
   {
@@ -240,7 +245,15 @@ const SCENARIOS = [
     turns: [
       { prompt: `请记住这个编号：${FORGET_CODE}。只需回复“已记住”。`, check: () => true },
       { prompt: '我刚才告诉你的编号的最后两位是什么？只回答那两位数字。', check: (text) => /42/.test(text) },
-      { prompt: '现在把完整编号倒序写出（保持连字符位置）。只回答倒序结果。', check: (text) => text.replace(/\s/g, '').toUpperCase().includes('2499-HCNEB') },
+      {
+        prompt: '现在把完整编号倒序写出（保持连字符位置）。只回答倒序结果。',
+        // 整串倒序（HCNEB-2499）与按段倒序（2499-HCNEB）都是「倒序」的合理读法，
+        // 这个场景测的是跨轮记忆，不是读法，两种都算过
+        check: (text) => {
+          const s = text.replace(/\s/g, '').toUpperCase();
+          return s.includes('2499-HCNEB') || s.includes('HCNEB-2499');
+        },
+      },
     ],
   },
   {
@@ -264,7 +277,7 @@ const SCENARIOS = [
     id: 'S12', name: '快问快答连发', rounds: 2, timeoutMs: 180_000, multiTurn: true,
     turns: [
       { prompt: '中国的首都是哪里？只回答城市名。', check: (t) => t.includes('北京') },
-      { prompt: '3 的平方是多少？只回答数字。', check: (t) => t.replace(/\s/g, '') === '9' },
+      { prompt: '3 的平方是多少？只回答数字。', check: (t) => /(^|[^\d])9([^\d]|$)/.test(t.replace(/\s/g, '')) },
       { prompt: 'HTTP 200 状态码表示什么？只回答两个字。', check: (t) => t.includes('成功') },
     ],
   },

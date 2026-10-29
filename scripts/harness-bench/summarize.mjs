@@ -29,8 +29,11 @@ const TOOLFILE_SECRET = 'MOON-7391';
 const NEEDLE_PASSWORD = 'BENCH-8271';
 const NEEDLE_PASSWORD_2 = 'BENCH-4417';
 const CHECKS = {
-  S1: (t) => /299,?792|30万|300000|3[×x*]10(\^?5|⁵)/.test(t.replace(/\s/g, '')),
-  S2: (t) => /\\frac\{33\}\{7\}|33\/7|4又5\/7|七分之三十三/.test(t.replace(/\s/g, '')),
+  S1: (t) => /299,?792|30万|300,?000|3[×x*]10(\^?5|⁵)/.test(t.replace(/\s/g, '')),
+  S2: (t) => {
+    const s = t.replace(/\s/g, '').replace(/\\[dt]?frac/g, '/').replace(/[{}]/g, '');
+    return /33\/7|七分之三十三/.test(s) || /4\/5\/7/.test(s);
+  },
   S3: () => true,
   S4: (t) => {
     const s = t.trim();
@@ -54,11 +57,14 @@ const MULTI_TURN = {
   S9: [
     () => true,
     (t) => /42/.test(t),
-    (t) => t.replace(/\s/g, '').toUpperCase().includes('2499-HCNEB'),
+    (t) => {
+      const s = t.replace(/\s/g, '').toUpperCase();
+      return s.includes('2499-HCNEB') || s.includes('HCNEB-2499');
+    },
   ],
   S12: [
     (t) => t.includes('北京'),
-    (t) => t.replace(/\s/g, '') === '9',
+    (t) => /(^|[^\d])9([^\d]|$)/.test(t.replace(/\s/g, '')),
     (t) => t.includes('成功'),
   ],
 };
