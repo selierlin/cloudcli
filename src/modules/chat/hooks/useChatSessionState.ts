@@ -87,6 +87,15 @@ const ANCHOR_SETTLE_MAX_MS = 2500;
 const TOUCH_UP_INTENT_MIN_TRAVEL_PX = 10;
 
 /**
+ * How long the transcript's overflow stays taken away when a jump to the tail
+ * has to cancel a coast. WKWebView drops its deceleration animation when the
+ * scroller stops being scrollable and picks the position up again once it is
+ * restored, so the window only has to cover the write plus one frame — and stay
+ * short enough that a finger arriving inside it never notices the freeze.
+ */
+const COAST_RELEASE_MS = 50;
+
+/**
  * Finds the rendered row for a resolved search target.
  *
  * Only an exact timestamp match counts while retries remain: the widened window
@@ -401,6 +410,8 @@ export function useChatSessionState({
   const pendingScrollRestoreRef = useRef<ScrollRestoreState | null>(null);
   /** The queued frame of the restore's pinned-row settle loop. */
   const anchorSettleFrameRef = useRef<number | null>(null);
+  /** Pending restore of the transcript's overflow after a coast was cancelled. */
+  const coastReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /**
    * Live state of the restore's pinned-row settle loop: the wrapper row to
    * hold at `anchorOffset` while prepended placeholder rows settle to real
@@ -786,6 +797,32 @@ export function useChatSessionState({
   }, [cancelAnchorSettle]);
 
   /**
+   * Takes the transcript's scrollable overflow away for a beat, then hands it
+   * back.
+   *
+   * A `scrollTop` write made while WKWebView is coasting is applied and then
+   * carried on from: the view reaches the target and glides away again — and
+   * reading `scrollTop` back cannot tell, because the read reports the write
+   * rather than the coast, which is why the follow loop believes it settled.
+   * Dropping the scrollable overflow is what makes the native animation let go.
+   */
+  const haltTranscriptCoast = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    // A second press inside the release window is the same intent, and
+    // re-freezing would capture `hidden` as the value to restore, leaving the
+    // transcript permanently unscrollable.
+    if (coastReleaseTimerRef.current !== null) return;
+
+    const restoreTo = container.style.overflowY;
+    container.style.overflowY = 'hidden';
+    coastReleaseTimerRef.current = setTimeout(() => {
+      coastReleaseTimerRef.current = null;
+      container.style.overflowY = restoreTo;
+    }, COAST_RELEASE_MS);
+  }, []);
+
+  /**
    * The reader asked for the tail with the affordance above the composer.
    *
    * Both latches are dropped before the write, exactly as a send does: leaving
@@ -793,19 +830,23 @@ export function useChatSessionState({
    * precisely on the offset this writer recorded and `handleScroll` excludes a
    * landing on our own write from the evidence that the reader moved down — the
    * latch would survive and the affordance would stay on screen. Clearing it also
-   * hands the position to `followTranscriptLayout`, which is what re-pins the
-   * tail when WKWebView's deceleration keeps overwriting the single write.
+   * hands the position to `followTranscriptLayout`, which keeps the tail pinned
+   * while the rows above it settle.
+   *
+   * The press usually arrives mid-coast, so the deceleration is cancelled first;
+   * a write on its own would be jumped over and then glided away from.
    */
   const scrollToBottomAndReset = useCallback(() => {
     setIsUserScrolledUp(false);
     upwardIntentRef.current = false;
+    haltTranscriptCoast();
     scrollToBottom();
     if (allMessagesLoaded) {
       setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
       setAllMessagesLoaded(false);
       allMessagesLoadedRef.current = false;
     }
-  }, [allMessagesLoaded, scrollToBottom, setIsUserScrolledUp]);
+  }, [allMessagesLoaded, haltTranscriptCoast, scrollToBottom, setIsUserScrolledUp]);
 
   /**
    * Takes the viewport back to the tail because the reader asked for it in the
@@ -1589,6 +1630,10 @@ export function useChatSessionState({
   }, [activeSessionId, chatMessages, followTranscriptLayout, isActive, isLoadingMoreMessages, isUserScrolledUp]);
 
   useEffect(() => () => {
+    if (coastReleaseTimerRef.current !== null) {
+      clearTimeout(coastReleaseTimerRef.current);
+      coastReleaseTimerRef.current = null;
+    }
     if (followFrameRef.current !== null) {
       window.cancelAnimationFrame(followFrameRef.current);
       followFrameRef.current = null;
