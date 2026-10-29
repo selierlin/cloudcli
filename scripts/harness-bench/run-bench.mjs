@@ -37,6 +37,14 @@ const WS_BASE = 'ws://127.0.0.1:3011/ws';
 const ROOT = '/tmp/harness-bench';
 const BENCH_DIR = path.dirname(new URL(import.meta.url).pathname);
 
+// A loose check (e.g. "at most 50 characters") is satisfied by an empty string,
+// so an empty reply must never count as a pass: the runtime dropped the answer,
+// the model did not comply. Same rule as summarise.mjs, which re-applies it.
+const judge = (check, text) => {
+  const body = text ?? '';
+  return body.trim() !== '' && Boolean(check(body));
+};
+
 // ---------------------------------------------------------------- CLI args
 const args = process.argv.slice(2);
 const hasFlag = (name) => args.includes(name);
@@ -383,6 +391,8 @@ function runTurn({ sessionId, content, options, timeoutMs }) {
     let lastFrameMs = t0;
     let textChars = 0;
     let thinkingChars = 0;
+    let text = '';
+    let thinking = '';
     let toolUseCount = 0;
     let permissionCount = 0;
     let terminal = null;
@@ -411,9 +421,11 @@ function runTurn({ sessionId, content, options, timeoutMs }) {
         const len = (frame.content ?? '').length;
         if (frame.streamChannel === 'thinking') {
           thinkingChars += len;
+          thinking += frame.content ?? '';
           if (firstThinkingMs === null) firstThinkingMs = now - t0;
         } else {
           textChars += len;
+          text += frame.content ?? '';
           if (firstTextMs === null) firstTextMs = now - t0;
         }
       } else if (frame.kind === 'tool_use') {
@@ -426,6 +438,7 @@ function runTurn({ sessionId, content, options, timeoutMs }) {
         finish(resolve, {
           t0, firstTextMs, firstThinkingMs, totalMs: now - t0,
           textChars, thinkingChars, toolUseCount, permissionCount, terminal,
+          text, thinking,
         });
       }
     };
@@ -449,6 +462,22 @@ const createSession = async (provider, cwd) => {
 const fetchAssistantRows = async (sessionId) => {
   const body = await api(`/api/providers/sessions/${sessionId}/messages?pageMode=rows&limit=200`);
   return ((body.data ?? body).messages ?? []);
+};
+
+/**
+ * The `complete` frame can arrive before the row is persisted, which used to
+ * record a reply that the harness had actually produced as empty. Poll briefly
+ * (outside the measured window) and take only rows appended after `baseline`,
+ * so a turn that produced no text cannot inherit the previous turn's answer.
+ */
+const fetchTurnReply = async (sessionId, baseline) => {
+  const deadline = Date.now() + 3000;
+  for (;;) {
+    const rows = await fetchAssistantRows(sessionId);
+    const row = rows.slice(baseline).filter((r) => r.role === 'assistant' && r.kind === 'text').at(-1) ?? null;
+    if ((row?.content ?? '').trim() !== '' || Date.now() >= deadline) return { row, rows };
+    await new Promise((res) => setTimeout(res, 150));
+  }
 };
 
 const turnOptions = (p) => {
@@ -662,20 +691,25 @@ for (const item of pending) {
 
     if (s.multiTurn) {
       const sessionId = await createSession(item.provider, cwd);
+      let baseline = 0;
       for (let i = 0; i < s.turns.length; i++) {
         const t = s.turns[i];
         // `prepare` stages what this turn should end up with; the harness never
         // sees it change, so it has to track its own edits across turns.
         if (t.prepare) t.prepare(cwd);
         const metrics = await runTurn({ sessionId, content: t.prompt, options, timeoutMs: s.timeoutMs });
-        const rows = await fetchAssistantRows(sessionId);
-        const lastText = rows.filter((r) => r.role === 'assistant' && r.kind === 'text').at(-1);
+        const { row: lastText, rows } = await fetchTurnReply(sessionId, baseline);
+        baseline = rows.length;
+        const { text: streamed, thinking: _thinking, ...turnMetrics } = metrics;
+        // the row is authoritative when it exists; the stream is the fallback for
+        // the window where the row has not been persisted yet
+        const reply = (lastText?.content ?? '').trim() !== '' ? lastText.content : (streamed ?? '');
         const turnRecord = {
-          ...metrics,
+          ...turnMetrics,
           promptIndex: i,
-          replyText: (lastText?.content ?? '').slice(0, 500),
+          replyText: reply.slice(0, 500),
           recordedModel: lastText?.model ?? null,
-          checkPass: t.check ? t.check(lastText?.content ?? '') : null,
+          checkPass: t.check ? judge(t.check, reply) : null,
         };
         if (t.grade) {
           const grade = t.grade(cwd);
@@ -693,18 +727,19 @@ for (const item of pending) {
     } else {
       const sessionId = await createSession(item.provider, cwd);
       const metrics = await runTurn({ sessionId, content: s.prompt, options, timeoutMs: s.timeoutMs });
-      const rows = await fetchAssistantRows(sessionId);
-      const textRow = rows.filter((r) => r.role === 'assistant' && r.kind === 'text').at(-1);
+      const { row: textRow, rows } = await fetchTurnReply(sessionId, 0);
       const thinkingRows = rows.filter((r) => r.kind === 'thinking');
       const usage = await api(`/api/providers/sessions/${sessionId}/token-usage`).catch((e) => ({ error: String(e) }));
+      const { text: streamed, thinking: _thinking, ...turnMetrics } = metrics;
+      const reply = (textRow?.content ?? '').trim() !== '' ? textRow.content : (streamed ?? '');
 
-      record.replyText = (textRow?.content ?? '').slice(0, 800);
+      record.replyText = reply.slice(0, 800);
       record.recordedModel = textRow?.model ?? null;
-      record.checkPass = s.check ? s.check(textRow?.content ?? '') : null;
+      record.checkPass = s.check ? judge(s.check, reply) : null;
       record.thinkingRows = thinkingRows.length;
       record.thinkingContentChars = thinkingRows.reduce((n, r) => n + (r.content ?? '').length, 0);
       record.tokenUsageRaw = usage;
-      record.turn = metrics;
+      record.turn = turnMetrics;
 
       if (GRADERS[item.scenario]) {
         const grade = GRADERS[item.scenario](item.provider);

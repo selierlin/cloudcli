@@ -197,7 +197,9 @@ const verdict = (r) => {
   if (MULTI_TURN[sid]) {
     const turns = r.turns ?? [];
     const checks = MULTI_TURN[sid];
-    const pass = turns.length === checks.length && checks.every((c, i) => c(turns[i].replyText ?? ''));
+    const pass = turns.length === checks.length
+      && turns.every((t) => (t.replyText ?? '').trim() !== '')
+      && checks.every((c, i) => c(turns[i].replyText ?? ''));
     if (pass) return { pass: true, cls: 'pass' };
     const emptyTurn = turns.some((t) => (t.replyText ?? '').trim() === '');
     return { pass: false, cls: emptyTurn ? 'empty' : 'wrong' };
