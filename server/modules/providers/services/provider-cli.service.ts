@@ -65,8 +65,19 @@ const CLI_UPDATERS: Partial<Record<LLMProvider, CliUpdater>> = {
   },
 };
 
-/** Why the settings page offers no update: the CLI ships with CloudCLI, or the hosting platform manages the CLIs. */
-type CliUpdateUnavailableReason = 'bundled' | 'platform';
+/**
+ * Why the settings page offers no update: the CLI ships with CloudCLI, it is
+ * installed and updated apart from CloudCLI, or the hosting platform manages it.
+ */
+type CliUpdateUnavailableReason = 'bundled' | 'self-managed' | 'platform';
+
+/**
+ * Providers whose chats run a binary CloudCLI ships in its own dependencies, so
+ * a CloudCLI upgrade is the only way they change. Everything else without an
+ * updater is a CLI the user installed themselves (npm, Homebrew, a desktop
+ * app's bundle), and only that installation knows how to replace it.
+ */
+const BUNDLED_WITH_APP: ReadonlySet<LLMProvider> = new Set(['codex']);
 
 /** Why an update run went wrong, as read from its exit code and output. */
 type CliUpdateFailure = 'permission_denied' | 'timed_out' | 'failed';
@@ -403,9 +414,15 @@ export function createProviderCliService(dependencyOverrides: Partial<ProviderCl
       const running = updatesInProgress.get(provider.id);
       let { installed, version: installedVersion } = running?.before ?? provider.auth.checkInstalled();
       const update = resolveUpdateCommand(provider.id);
-      const updateUnavailableReason: CliUpdateUnavailableReason | null = dependencies.platformMode
-        ? 'platform'
-        : update ? null : 'bundled';
+      let updateUnavailableReason: CliUpdateUnavailableReason | null = null;
+      if (dependencies.platformMode) {
+        updateUnavailableReason = 'platform';
+      } else if (!update) {
+        // Claude reaches this branch only on Windows, where no CLI resolved and
+        // the SDK runs the binary it bundles: that one changes with CloudCLI.
+        const shipsWithApp = BUNDLED_WITH_APP.has(provider.id) || provider.id === 'claude';
+        updateUnavailableReason = shipsWithApp ? 'bundled' : 'self-managed';
+      }
 
       // The registry is only worth asking when the answer can lead to an update
       // of a CLI that is there.

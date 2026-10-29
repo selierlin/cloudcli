@@ -1665,7 +1665,7 @@ export type ProviderQuota = {
 
 //----------------- PROVIDER CLI VERSION ------------
 
-/** One provider CLI's version state from `GET /api/providers/:provider/cli`: the installed version, the newest npm release (null when the CLI is not on npm or the registry did not answer), the command the update action runs, or why there is none ('bundled': it ships with CloudCLI; 'platform': the hosting platform manages it), whether an update run is going on, and the most recent finished run since the server started. A page that sees `updateInProgress` polls until it turns false and then shows `lastUpdate` as that run's result. Loaded by useProviderCliVersion and rendered by the settings account view. */
+/** One provider CLI's version state from `GET /api/providers/:provider/cli`: the installed version, the newest npm release (null when the CLI is not on npm or the registry did not answer), the command the update action runs, or why there is none ('bundled': it ships with CloudCLI; 'self-managed': it is installed apart from CloudCLI, so only its own installer can replace it; 'platform': the hosting platform manages it), whether an update run is going on, and the most recent finished run since the server started. A page that sees `updateInProgress` polls until it turns false and then shows `lastUpdate` as that run's result. Loaded by useProviderCliVersion and rendered by the settings account view. */
 export type ProviderCliStatus = {
   provider: LLMProvider;
   installed: boolean;
@@ -1673,7 +1673,7 @@ export type ProviderCliStatus = {
   latestVersion: string | null;
   updateAvailable: boolean;
   updateCommand: string | null;
-  updateUnavailableReason: 'bundled' | 'platform' | null;
+  updateUnavailableReason: 'bundled' | 'self-managed' | 'platform' | null;
   updateInProgress: boolean;
   lastUpdate: ProviderCliUpdateResult | null;
 };

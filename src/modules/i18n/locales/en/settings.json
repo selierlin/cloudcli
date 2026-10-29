@@ -727,6 +727,7 @@
       "updateAvailable": "Update available: v{{version}}",
       "upToDate": "Up to date",
       "bundled": "Ships with CloudCLI and is updated together with it.",
+      "selfManaged": "Installed separately from CloudCLI. Update it the way it was installed — npm, Homebrew or its own app.",
       "platform": "Managed by the hosting platform.",
       "updateTo": "Update to v{{version}}",
       "runUpdater": "Run updater",

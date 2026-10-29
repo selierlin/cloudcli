@@ -428,7 +428,7 @@ test('getCliStatus does not ask the registry about a CLI that is not installed',
   });
 });
 
-test('Cursor has no npm release to compare with; Codex ships with CloudCLI; platform mode offers no update', async () => {
+test('Cursor has no npm release to compare with; Codex ships with CloudCLI; a fork CLI is self-managed; platform mode offers no update', async () => {
   await withIsolatedCliEnv(async (binDir) => {
     const cursor = await createFakeCli(binDir, 'cursor-agent');
     await cursor.set('version', '2026.07.20-8cc9c0b\n');
@@ -444,6 +444,11 @@ test('Cursor has no npm release to compare with; Codex ships with CloudCLI; plat
     assert.equal(codexStatus.updateCommand, null);
     assert.equal(codexStatus.updateUnavailableReason, 'bundled');
     await rejectsWithAppError(service.updateCli('codex'), 'PROVIDER_CLI_UPDATE_UNAVAILABLE', 400);
+
+    // The user installed this one themselves, so "ships with CloudCLI" would be wrong.
+    const dshStatus = await service.getCliStatus('dsh');
+    assert.equal(dshStatus.updateCommand, null);
+    assert.equal(dshStatus.updateUnavailableReason, 'self-managed');
 
     const platformService = createService({ platformMode: true });
     const platformStatus = await platformService.getCliStatus('cursor');

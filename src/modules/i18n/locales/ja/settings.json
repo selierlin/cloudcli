@@ -424,6 +424,7 @@
       "updateAvailable": "アップデートあり: v{{version}}",
       "upToDate": "最新です",
       "bundled": "CloudCLI に同梱されており、CloudCLI と一緒に更新されます。",
+      "selfManaged": "CloudCLI とは別にインストールされています。インストールした方法（npm、Homebrew、そのアプリ自身）で更新してください。",
       "platform": "ホスティングプラットフォームが管理しています。",
       "updateTo": "v{{version}} に更新",
       "runUpdater": "アップデーターを実行",

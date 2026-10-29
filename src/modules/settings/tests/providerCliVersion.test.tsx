@@ -226,6 +226,22 @@ describe('ProviderCliVersion', () => {
     )).toBeTruthy();
   });
 
+  it('says a CLI CloudCLI does not ship is the user\'s own install', async () => {
+    responses.status = [claudeStatus({
+      provider: 'dsh',
+      installedVersion: '0.1.5-rc.1',
+      latestVersion: null,
+      updateAvailable: false,
+      updateCommand: null,
+      updateUnavailableReason: 'self-managed',
+    })];
+    renderRow('0.1.5-rc.1');
+    expect(await screen.findByText(
+      'Installed separately from CloudCLI. Update it the way it was installed — npm, Homebrew or its own app.',
+    )).toBeTruthy();
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
   it('says the hosting platform manages the CLI and offers no update there', async () => {
     responses.status = [claudeStatus({
       latestVersion: null,
