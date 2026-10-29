@@ -1277,6 +1277,90 @@ describe('scroll ownership while the answer is streaming', () => {
     );
   });
 
+  it('latches a pull shorter than the near-bottom threshold', async () => {
+    const { container, result } = await renderAtBottom();
+
+    // The answer grew past the follow write, so the reader is at the bottom of
+    // the new geometry and the gap is 0.
+    container.setScrollHeight(6000);
+    container.element.scrollTop = 5500;
+    container.writes.length = 0;
+
+    // A slow drag that moves the viewport only 20px. That leaves the gap at
+    // 20px — inside the 50px near-bottom band — so a rule that required the gap
+    // to pass the threshold never latched, and the follow took the viewport
+    // back as soon as its gesture window expired.
+    const wheel = new Event('wheel');
+    Object.defineProperty(wheel, 'deltaY', { value: -20 });
+    act(() => {
+      container.element.dispatchEvent(wheel);
+    });
+
+    act(() => {
+      result.current.followTranscriptLayout();
+    });
+    assert.deepEqual(
+      container.writes,
+      [],
+      'the follow must stand down on the gesture itself',
+    );
+
+    container.element.scrollTop -= 20;
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+    assert.equal(
+      result.current.isUserScrolledUp,
+      true,
+      'a pull inside the near-bottom band is still the reader taking over',
+    );
+
+    // Past the old gesture window the latch must still hold, or the answer
+    // drags the reader back to the tail mid-read.
+    container.writes.length = 0;
+    vi.advanceTimersByTime(1500);
+    act(() => {
+      container.setScrollHeight(6400);
+      result.current.followTranscriptLayout();
+    });
+    assert.deepEqual(
+      container.writes,
+      [],
+      'the pull must stay latched instead of expiring by wall clock',
+    );
+  });
+
+  it('releases the short-pull latch when the reader reaches the bottom again', async () => {
+    const { container, result } = await renderAtBottom();
+    container.setScrollHeight(6000);
+    container.element.scrollTop = 5500;
+    container.writes.length = 0;
+
+    const pull = new Event('wheel');
+    Object.defineProperty(pull, 'deltaY', { value: -20 });
+    act(() => {
+      container.element.dispatchEvent(pull);
+    });
+    container.element.scrollTop -= 20;
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+    assert.equal(result.current.isUserScrolledUp, true);
+
+    // The reader pushes the transcript back down to the bottom. Nothing else
+    // may clear the latch, or a brief downward flick would hand the viewport
+    // back while the reader is still mid-history.
+    container.element.scrollTop = 5500;
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+    assert.equal(
+      result.current.isUserScrolledUp,
+      false,
+      'reaching the bottom is how the reader hands the viewport back',
+    );
+  });
+
   it('still hands ownership to a gesture the growing answer outruns', async () => {
     const { container, result } = await renderAtBottom();
 
