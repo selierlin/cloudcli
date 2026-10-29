@@ -62,14 +62,20 @@ const MULTI_TURN = {
     (t) => t.includes('成功'),
   ],
 };
-// Scenarios graded by executing a fixture checker after the turn.
-const GRADED = { S7: 's7', S13: 's13' };
+// Scenarios graded by executing a fixture checker after the turn. S19 is
+// multi-turn but graded the same way, once per turn (see TURN_GRADED).
+const GRADED = { S7: 's7', S13: 's13', S16: 's16', S17: 's17', S18: 's18', S20: 's20' };
+// Multi-turn scenarios whose verdict comes from running a checker per turn
+// rather than from matching the reply text.
+const TURN_GRADED = { S19: 3 };
 
 const SCENARIO_NAMES = {
   S1: '基础问答', S2: '复杂推理', S3: '最小输入开销', S4: 'JSON格式服从',
   S5: '字数上限服从', S6: '工具调用-读文件', S7: '真实代码任务', S8: '长上下文32k',
   S9: '多轮上下文', S10: 'Markdown完整性', S11: '极简回复', S12: '快问快答连发',
   S13: '多步工作任务', S14: '工具失败恢复', S15: '长上下文第二针',
+  S16: '定位修复', S17: '跨文件重命名', S18: '连环缺陷修复', S19: '多轮工具任务',
+  S20: '模糊需求排查',
 };
 // Scenarios whose cost is dominated by harness overhead rather than the model.
 const OVERHEAD_SCENARIOS = ['S3', 'S11'];
@@ -168,9 +174,19 @@ const verdict = (r) => {
   if (r.ok === false) return { pass: false, cls: 'error' };
   if (GRADED[sid]) {
     const g = r[GRADED[sid]];
-    const pass = Boolean(g?.pass) || /PASS/.test(g?.stdout ?? '');
+    // `pass` is authoritative when the grader reported one (it folds in checks
+    // like "the harness did not rewrite the checker"); stdout is the fallback
+    // for records written before that field existed.
+    const pass = g?.pass !== undefined ? Boolean(g.pass) : /PASS/.test(g?.stdout ?? '');
     if (pass) return { pass: true, cls: 'pass' };
     return { pass: false, cls: (r.turn?.terminal?.kind ?? 'complete') === 'complete' ? 'wrong' : 'error' };
+  }
+  if (TURN_GRADED[sid]) {
+    const turns = r.turns ?? [];
+    const pass = turns.length === TURN_GRADED[sid] && turns.every((t) => t.checkPass === true);
+    if (pass) return { pass: true, cls: 'pass' };
+    const ran = turns.some((t) => (t.gradeLog ?? '').trim() !== '');
+    return { pass: false, cls: ran ? 'wrong' : 'error' };
   }
   if (MULTI_TURN[sid]) {
     const turns = r.turns ?? [];
@@ -357,7 +373,9 @@ ${thinkTable}
 
 ## 质量 / 输出量
 
-pass 为程序判据重放结果（S7 / S13 = 事后运行 fixture 检查器；多轮场景 = 各轮全对才算过）。
+pass 为程序判据重放结果（S7 / S13 / S16 / S17 / S18 / S20 = 事后运行 fixture 检查器，
+其中 S16 / S18 / S20 还会校验检查器未被改写；S19 = 每轮跑一次检查器，全对才算过；
+其余多轮场景 = 各轮文案判据全对才算过）。
 
 ${qualityTable}
 

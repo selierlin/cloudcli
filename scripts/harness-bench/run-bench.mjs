@@ -12,7 +12,7 @@
  * The report must keep the two groups apart — same model name, two serving
  * stacks.
  *
- * Executes S1–S15 scenarios × 8 providers × N rounds, sequentially and
+ * Executes S1–S20 scenarios × 8 providers × N rounds, sequentially and
  * interleaved (round → provider → scenario) so server-side load drift hits
  * every provider evenly. Metrics come from chat websocket frame timestamps:
  * TTFT (first text/thinking delta), total turn time, channel char counts,
@@ -28,6 +28,7 @@
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -84,6 +85,97 @@ const FORGET_CODE = 'BENCH-9942';
 // "thinking a lot" shows up in wall time rather than in token count.
 const APP_CONFIG = `${JSON.stringify({ name: 'bench', retries: 3 }, null, 2)}\n`;
 const CHECK_JS = `const c = require('./config.json');\nconsole.log(c.retries === 5 ? 'PASS' : 'FAIL: ' + c.retries);\n`;
+
+// ------------------------------------------------------- S16–S20 fixtures
+// Everything below is a "real work" fixture: multi-file tree, no pointer to
+// the defect, and a checker the harness is not allowed to weaken.
+
+// S16: 18 modules, one of them wrong. check.js prints only the case index, so
+// locating the defect takes read(checker) → grep(symbol) → read(candidate),
+// which is what an actual repair costs. taxBase/taxRate/taxBand sit next to
+// each other so a naive "read everything" pass pays for it.
+const SVC_CASES = [
+  ['add(2, 3)', 5],
+  ['sub(9, 4)', 5],
+  ['mul(6, 7)', 42],
+  ['div(20, 4)', 5],
+  ['round2(3.14159)', 3.14],
+  ['taxBase(20000)', 18000],
+  ['taxRate(2)', 0.072],
+  ['taxBand(2)', 'B'],
+  ['clamp(15, 0, 10)', 10],
+  ['pct(25, 200)', 12.5],
+  ['sumBy([1, 2, 3])', 6],
+  ['avg([2, 4, 6])', 4],
+  ['maxOf([3, 9, 2])', 9],
+  ['minOf([3, 9, 2])', 2],
+  ['fmtMoney(1234.5)', '¥1,234.50'],
+  ['parseCents("¥1,234.50")', 123450],
+  ['discount(200, 15)', 170],
+  ['netTotal([200, 300])', 500],
+];
+const SVC_MODULES = {
+  m01: 'module.exports = { add: (a, b) => a + b };',
+  m02: 'module.exports = { sub: (a, b) => a - b };',
+  m03: 'module.exports = { mul: (a, b) => a * b };',
+  m04: 'module.exports = { div: (a, b) => a / b };',
+  m05: 'module.exports = { round2: (v) => Math.round(v * 100) / 100 };',
+  m06: 'module.exports = { taxBase: (v) => v * 0.9 };',
+  // the defect: band 2 is 7.2%, not 7%
+  m07: "module.exports = { taxRate: (band) => ({ 1: 0.03, 2: 0.07, 3: 0.15 }[band]) };",
+  m08: "module.exports = { taxBand: (band) => ({ 1: 'A', 2: 'B', 3: 'C' }[band]) };",
+  m09: 'module.exports = { clamp: (v, lo, hi) => Math.min(hi, Math.max(lo, v)) };',
+  m10: 'module.exports = { pct: (part, whole) => (part / whole) * 100 };',
+  m11: 'module.exports = { sumBy: (xs) => xs.reduce((a, b) => a + b, 0) };',
+  m12: 'module.exports = { avg: (xs) => xs.reduce((a, b) => a + b, 0) / xs.length };',
+  m13: 'module.exports = { maxOf: (xs) => Math.max(...xs) };',
+  m14: 'module.exports = { minOf: (xs) => Math.min(...xs) };',
+  m15:
+    "module.exports = { fmtMoney: (v) => '¥' + v.toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') };",
+  m16: "module.exports = { parseCents: (s) => Math.round(Number(String(s).replace(/[^\\d.]/g, '')) * 100) };",
+  m17: 'module.exports = { discount: (v, p) => v - (v * p) / 100 };',
+  m18: 'module.exports = { netTotal: (xs) => xs.reduce((a, b) => a + b, 0) };',
+};
+const SVC_INDEX = `const files = ${JSON.stringify(Object.keys(SVC_MODULES))};\nmodule.exports = Object.assign({}, ...files.map((f) => require('./' + f)));\n`;
+const SVC_CHECK = `const C = require('./lib');\nconst cases = [\n${SVC_CASES.map(([expr]) => `  () => C.${expr},`).join('\n')}\n];\nconst want = ${JSON.stringify(SVC_CASES.map(([, v]) => v))};\nfor (let i = 0; i < want.length; i++) {\n  const got = cases[i]();\n  if (got !== want[i]) {\n    console.log('FAIL #' + (i + 1));\n    process.exit(1);\n  }\n}\nconsole.log('PASS');\n`;
+
+// S17: rename a field across 5 files (json, two modules, test, readme). The
+// test reads the field itself, so leaving any mention behind breaks the build.
+const RENAME_FILES = {
+  'cfg.json': `${JSON.stringify({ retries: 3 }, null, 2)}\n`,
+  'src/reader.js': "const cfg = require('../cfg.json');\nmodule.exports = { attempts: () => cfg.retries };\n",
+  'src/stats.js':
+    "const cfg = require('../cfg.json');\nmodule.exports = { retriesLeft: (used) => cfg.retries - used };\n",
+  'src/loop.js':
+    "const { attempts } = require('./reader');\nmodule.exports = { run: (fn) => { for (let i = 0; i < attempts(); i++) fn(i); } };\n",
+  'src/index.js': "module.exports = require('./loop');\n",
+  'test/run.js':
+    "const cfg = require('../cfg.json');\nconst { run } = require('../src');\nlet n = 0;\nrun(() => n++);\nconsole.log(n === cfg.retries ? 'PASS' : 'FAIL ' + n);\n",
+  'README.md': '# rename 示例\n\n配置项 `retries` 控制重试次数，默认 3，取值为正整数。\n',
+};
+// the files that must mention the new name and no longer mention the old one
+const RENAME_TOUCHED = ['cfg.json', 'src/reader.js', 'src/stats.js', 'test/run.js', 'README.md'];
+
+// S18: two defects stacked behind an early-exit test, so the first run only
+// reveals the first one — repair necessarily costs two edit→run cycles.
+const TWOBUG_CALC = `const sumRange = (a, b) => {\n  let s = 0;\n  for (let i = a; i < b; i++) s += i;\n  return s;\n};\nconst avg = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;\nconst percent = (part, whole) => part / whole;\nmodule.exports = { sumRange, avg, percent };\n`;
+const TWOBUG_TEST = `const { sumRange, avg, percent } = require('./calc');\nconst checks = [\n  ['sumRange(1,5)', sumRange(1, 5), 15],\n  ['avg([2,4,6])', avg([2, 4, 6]), 4],\n  ['percent(1,4)', percent(1, 4), 25],\n];\nfor (const [name, got, want] of checks) {\n  if (got !== want) {\n    console.log('FAIL ' + name + ': got ' + got + ' want ' + want);\n    process.exit(1);\n  }\n}\nconsole.log('PASS');\n`;
+
+// S19: three turns on one session, each graded by running the checker against
+// an expectation file that the harness never sees change between turns.
+const FLOW_CONFIG = `${JSON.stringify({ timeout: 30, retries: 3 }, null, 2)}\n`;
+const FLOW_CHECK = `const got = require('./config.json');\nconst want = require('./expected.json');\nconst bad = Object.keys(want).filter((k) => got[k] !== want[k]);\nif (bad.length) {\n  console.log('FAIL ' + bad.map((k) => k + ': got ' + got[k] + ' want ' + want[k]).join('; '));\n  process.exit(1);\n}\nconsole.log('PASS');\n`;
+const FLOW_EXPECT = [
+  { timeout: 60, retries: 3 },
+  { timeout: 60, retries: 8 },
+  { timeout: 60, retries: 3 },
+];
+
+// S20: the prompt says only "it won't start". Fixing the port type exposes a
+// disabled flag, so the harness has to run the thing twice to finish.
+const BROKEN_START = `const settings = require('./settings');\nif (typeof settings.port !== 'number' || !Number.isFinite(settings.port)) {\n  console.log('FAIL: port must be a number, got ' + typeof settings.port);\n  process.exit(1);\n}\nif (settings.enabled !== true) {\n  console.log('FAIL: service is disabled');\n  process.exit(1);\n}\nconsole.log('STARTED ' + settings.port);\n`;
+const BROKEN_SETTINGS = `const config = require('./config.json');\nmodule.exports = { port: config.port, enabled: false };\n`;
+const BROKEN_CONFIG = `${JSON.stringify({ port: '8080' }, null, 2)}\n`;
 
 const buildLongText = () => {
   const lines = [];
@@ -167,7 +259,7 @@ const SCENARIOS = [
     },
   },
   {
-    // Five short questions in one session: catches harnesses that re-read or
+    // Three short questions in one session: catches harnesses that re-read or
     // re-plan the whole context on every short turn.
     id: 'S12', name: '快问快答连发', rounds: 2, timeoutMs: 180_000, multiTurn: true,
     turns: [
@@ -197,6 +289,53 @@ const SCENARIOS = [
     id: 'S15', name: '长上下文第二针', rounds: 2, timeoutMs: 300_000,
     prompt: LONG_TEXT + '\n\n上面文章中提到的「备用密码」是什么？只回答密码本身。',
     check: (text) => text.includes(NEEDLE_PASSWORD_2),
+  },
+  {
+    // Locate-then-fix: 18 modules, the prompt names no file and no symbol.
+    // Graded by running the checker, which must also be unchanged afterwards.
+    id: 'S16', name: '定位修复', rounds: 2, timeoutMs: 600_000,
+    prompt: '当前目录下 svc/ 是一个小工具库。运行 node svc/check.js，它会报一个失败的用例；请找出是哪段代码不对并修好它，直到输出 PASS。不要修改 svc/check.js 或 svc/lib/index.js。完成后只回复 DONE。',
+    check: null,
+  },
+  {
+    // Multi-file consistency: one rename across json + 2 modules + test + doc.
+    id: 'S17', name: '跨文件重命名', rounds: 2, timeoutMs: 420_000,
+    prompt: '当前目录下 rename/ 这个模块把配置项 retries 改名为 maxRetries：配置、代码、测试和文档都要同步，全仓库不能再出现旧的拼写。改完运行 node test/run.js 确认输出 PASS。完成后只回复 DONE。',
+    check: null,
+  },
+  {
+    // Two defects behind an early-exit test: one run reveals only the first.
+    id: 'S18', name: '连环缺陷修复', rounds: 2, timeoutMs: 420_000,
+    prompt: '当前目录下 twobug/ 的 node test.js 会失败。请把 calc.js 修好直到 test.js 输出 PASS。不要修改 test.js。完成后只回复 DONE。',
+    check: null,
+  },
+  {
+    // Three tool turns on one session; turn 3 asks to undo only one of the two
+    // earlier edits (a full revert fails), which needs the accumulated state.
+    id: 'S19', name: '多轮工具任务', rounds: 2, timeoutMs: 300_000, multiTurn: true,
+    turns: [
+      {
+        prompt: '把 app/config.json 里的 timeout 从 30 改成 60，然后运行 node app/check.js 确认输出 PASS。完成后只回复 DONE。',
+        prepare: (cwd) => writeFileSync(path.join(cwd, 'app', 'expected.json'), `${JSON.stringify(FLOW_EXPECT[0])}\n`, 'utf8'),
+        grade: (cwd) => runChecker(cwd, '.', 'app/check.js'),
+      },
+      {
+        prompt: '接着把同一份配置里的 retries 改成 8，再运行 node app/check.js 确认输出 PASS。完成后只回复 DONE。',
+        prepare: (cwd) => writeFileSync(path.join(cwd, 'app', 'expected.json'), `${JSON.stringify(FLOW_EXPECT[1])}\n`, 'utf8'),
+        grade: (cwd) => runChecker(cwd, '.', 'app/check.js'),
+      },
+      {
+        prompt: '现在把 retries 改回 3，timeout 保持 60 不变，再运行一次 node app/check.js。完成后只回复 DONE。',
+        prepare: (cwd) => writeFileSync(path.join(cwd, 'app', 'expected.json'), `${JSON.stringify(FLOW_EXPECT[2])}\n`, 'utf8'),
+        grade: (cwd) => runChecker(cwd, '.', 'app/check.js'),
+      },
+    ],
+  },
+  {
+    // Vague ask: "it won't start", no symptom, no file. Two layered faults.
+    id: 'S20', name: '模糊需求排查', rounds: 2, timeoutMs: 420_000,
+    prompt: '当前目录下 broken/ 这个服务起不来：执行 node broken/start.js 看看怎么回事，把发现的问题修掉，直到它输出 STARTED。不要修改 broken/start.js。完成后只回复 DONE。',
+    check: null,
   },
 ];
 
@@ -314,8 +453,24 @@ const turnOptions = (p) => {
 };
 
 // -------------------------------------------------------------- fixtures
+const sha = (file) => createHash('sha256').update(readFileSync(file)).digest('hex');
+
+/** Runs a fixture checker in <provider>/<dir> and reports stdout + pass. */
+const runChecker = (cwd, dir, entry, timeout = 60_000) => {
+  const r = spawnSync('node', [entry], { cwd: path.join(cwd, dir), encoding: 'utf8', timeout });
+  const stdout = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim();
+  return { stdout, pass: (r.stdout ?? '').includes('PASS') };
+};
+
+/**
+ * One directory per (provider, scenario). Scenarios used to share a directory
+ * per provider, which let a "rename everywhere" task rewrite another
+ * scenario's leftovers — the S17 smoke did exactly that to S13's `app/`.
+ */
+const workDir = (provider, scenario) => `${ROOT}/${provider}/${scenario}`;
+
 const setupFixtures = (provider, scenarioId) => {
-  const cwd = `${ROOT}/${provider}`;
+  const cwd = workDir(provider, scenarioId);
   mkdirSync(cwd, { recursive: true });
   if (scenarioId === 'S6') {
     writeFileSync(path.join(cwd, 'toolfile.txt'), `本次巡检口令：${TOOLFILE_SECRET}\n`, 'utf8');
@@ -329,11 +484,42 @@ const setupFixtures = (provider, scenarioId) => {
     writeFileSync(path.join(cwd, 'app', 'config.json'), APP_CONFIG, 'utf8');
     writeFileSync(path.join(cwd, 'app', 'check.js'), CHECK_JS, 'utf8');
   }
+  if (scenarioId === 'S16') {
+    mkdirSync(path.join(cwd, 'svc', 'lib'), { recursive: true });
+    for (const [name, src] of Object.entries(SVC_MODULES)) {
+      writeFileSync(path.join(cwd, 'svc', 'lib', `${name}.js`), `${src}\n`, 'utf8');
+    }
+    writeFileSync(path.join(cwd, 'svc', 'lib', 'index.js'), SVC_INDEX, 'utf8');
+    writeFileSync(path.join(cwd, 'svc', 'check.js'), SVC_CHECK, 'utf8');
+  }
+  if (scenarioId === 'S17') {
+    for (const [rel, src] of Object.entries(RENAME_FILES)) {
+      const file = path.join(cwd, 'rename', rel);
+      mkdirSync(path.dirname(file), { recursive: true });
+      writeFileSync(file, src, 'utf8');
+    }
+  }
+  if (scenarioId === 'S18') {
+    mkdirSync(path.join(cwd, 'twobug'), { recursive: true });
+    writeFileSync(path.join(cwd, 'twobug', 'calc.js'), TWOBUG_CALC, 'utf8');
+    writeFileSync(path.join(cwd, 'twobug', 'test.js'), TWOBUG_TEST, 'utf8');
+  }
+  if (scenarioId === 'S19') {
+    mkdirSync(path.join(cwd, 'app'), { recursive: true });
+    writeFileSync(path.join(cwd, 'app', 'config.json'), FLOW_CONFIG, 'utf8');
+    writeFileSync(path.join(cwd, 'app', 'check.js'), FLOW_CHECK, 'utf8');
+  }
+  if (scenarioId === 'S20') {
+    mkdirSync(path.join(cwd, 'broken'), { recursive: true });
+    writeFileSync(path.join(cwd, 'broken', 'start.js'), BROKEN_START, 'utf8');
+    writeFileSync(path.join(cwd, 'broken', 'settings.js'), BROKEN_SETTINGS, 'utf8');
+    writeFileSync(path.join(cwd, 'broken', 'config.json'), BROKEN_CONFIG, 'utf8');
+  }
   return cwd;
 };
 
 const gradeS7 = (provider) => {
-  const cwd = `${ROOT}/${provider}`;
+  const cwd = workDir(provider, 'S7');
   const r = spawnSync('node', ['sum.test.js'], { cwd, encoding: 'utf8', timeout: 30_000 });
   const result = { stdout: (r.stdout ?? '').trim(), pass: (r.stdout ?? '').includes('PASS') };
   // restore the buggy file so the next round starts from the bug again
@@ -342,13 +528,61 @@ const gradeS7 = (provider) => {
 };
 
 const gradeS13 = (provider) => {
-  const cwd = `${ROOT}/${provider}`;
+  const cwd = workDir(provider, 'S13');
   const r = spawnSync('node', ['app/check.js'], { cwd, encoding: 'utf8', timeout: 30_000 });
   const result = { stdout: (r.stdout ?? '').trim(), pass: (r.stdout ?? '').includes('PASS') };
   // restore the pre-edit config so the next round starts from 3 again
   writeFileSync(path.join(cwd, 'app', 'config.json'), APP_CONFIG, 'utf8');
   return result;
 };
+
+/** hash of a fixture constant, to detect a harness that edits the grader */
+const constHash = (src) => createHash('sha256').update(src).digest('hex');
+
+const gradeS16 = (provider) => {
+  const cwd = workDir(provider, 'S16');
+  const intact =
+    sha(path.join(cwd, 'svc', 'check.js')) === constHash(SVC_CHECK) &&
+    sha(path.join(cwd, 'svc', 'lib', 'index.js')) === constHash(SVC_INDEX);
+  const r = runChecker(cwd, 'svc', 'check.js');
+  return { stdout: r.stdout, pass: r.pass && intact, checkerIntact: intact };
+};
+
+const gradeS17 = (provider) => {
+  const cwd = workDir(provider, 'S17');
+  const r = runChecker(cwd, 'rename', 'test/run.js');
+  const stale = [];
+  const missing = [];
+  for (const rel of RENAME_TOUCHED) {
+    const file = path.join(cwd, 'rename', rel);
+    if (!existsSync(file)) { missing.push(rel); continue; }
+    const s = readFileSync(file, 'utf8');
+    if (/(^|[^A-Za-z])retries(?![\w])/.test(s)) stale.push(rel);
+    if (!s.includes('maxRetries')) missing.push(rel);
+  }
+  return {
+    stdout: `${r.stdout} stale=[${stale.join(',')}] missing=[${missing.join(',')}]`.trim(),
+    pass: r.pass && stale.length === 0 && missing.length === 0,
+    stale, missing,
+  };
+};
+
+const gradeS18 = (provider) => {
+  const cwd = workDir(provider, 'S18');
+  const intact = sha(path.join(cwd, 'twobug', 'test.js')) === constHash(TWOBUG_TEST);
+  const r = runChecker(cwd, 'twobug', 'test.js');
+  return { stdout: r.stdout, pass: r.pass && intact, checkerIntact: intact };
+};
+
+const gradeS20 = (provider) => {
+  const cwd = workDir(provider, 'S20');
+  const intact = sha(path.join(cwd, 'broken', 'start.js')) === constHash(BROKEN_START);
+  const r = spawnSync('node', ['broken/start.js'], { cwd, encoding: 'utf8', timeout: 60_000 });
+  const stdout = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim();
+  return { stdout, pass: stdout.includes('STARTED 8080') && intact, checkerIntact: intact };
+};
+
+const GRADERS = { S7: gradeS7, S13: gradeS13, S16: gradeS16, S17: gradeS17, S18: gradeS18, S20: gradeS20 };
 
 // ------------------------------------------------------------------ main
 const runId = RUN_ID ?? new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -385,7 +619,7 @@ if (!SMOKE && !NO_WARMUP && pending.length > 0) {
     if (!pending.some((x) => x.provider === p.id)) continue;
     process.stdout.write(`warmup ${p.id} ... `);
     try {
-      const cwd = `${ROOT}/${p.id}`;
+      const cwd = workDir(p.id, '_warmup');
       mkdirSync(cwd, { recursive: true });
       const sessionId = await createSession(p.id, cwd);
       await runTurn({ sessionId, content: 'hi', options: turnOptions(p), timeoutMs: 120_000 });
@@ -417,6 +651,9 @@ for (const item of pending) {
       const sessionId = await createSession(item.provider, cwd);
       for (let i = 0; i < s.turns.length; i++) {
         const t = s.turns[i];
+        // `prepare` stages what this turn should end up with; the harness never
+        // sees it change, so it has to track its own edits across turns.
+        if (t.prepare) t.prepare(cwd);
         const metrics = await runTurn({ sessionId, content: t.prompt, options, timeoutMs: s.timeoutMs });
         const rows = await fetchAssistantRows(sessionId);
         const lastText = rows.filter((r) => r.role === 'assistant' && r.kind === 'text').at(-1);
@@ -425,9 +662,20 @@ for (const item of pending) {
           promptIndex: i,
           replyText: (lastText?.content ?? '').slice(0, 500),
           recordedModel: lastText?.model ?? null,
-          checkPass: t.check(lastText?.content ?? ''),
+          checkPass: t.check ? t.check(lastText?.content ?? '') : null,
         };
+        if (t.grade) {
+          const grade = t.grade(cwd);
+          turnRecord.checkPass = grade.pass;
+          turnRecord.gradeLog = grade.stdout.slice(0, 200);
+        }
         turns.push(turnRecord);
+      }
+      // cumulative session usage: multi-turn cost only makes sense as a total
+      record.tokenUsageRaw = await api(`/api/providers/sessions/${sessionId}/token-usage`).catch((e) => ({ error: String(e) }));
+      // roll the per-turn verdicts up so the console line and the JSON agree
+      if (turns.length > 0 && turns.every((t) => typeof t.checkPass === 'boolean')) {
+        record.checkPass = turns.every((t) => t.checkPass);
       }
     } else {
       const sessionId = await createSession(item.provider, cwd);
@@ -445,14 +693,9 @@ for (const item of pending) {
       record.tokenUsageRaw = usage;
       record.turn = metrics;
 
-      if (item.scenario === 'S7') {
-        const grade = gradeS7(item.provider);
-        record.s7 = grade;
-        record.checkPass = grade.pass;
-      }
-      if (item.scenario === 'S13') {
-        const grade = gradeS13(item.provider);
-        record.s13 = grade;
+      if (GRADERS[item.scenario]) {
+        const grade = GRADERS[item.scenario](item.provider);
+        record[item.scenario.toLowerCase()] = grade;
         record.checkPass = grade.pass;
       }
     }
