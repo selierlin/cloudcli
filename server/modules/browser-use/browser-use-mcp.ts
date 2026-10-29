@@ -35,6 +35,25 @@ const readOptionalString = (value: unknown): string | undefined =>
 const readNumber = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 
+/**
+ * Viewport dimensions get a stricter reader than the other numeric inputs: the
+ * server clamps out-of-range values, but it also drops values it cannot parse,
+ * so a stringified number ("390" from a harness that does not honour the schema
+ * type) would silently fall back to the desktop default and the caller would
+ * verify a viewport it never asked for. Parse numeric strings and reject the
+ * rest loudly instead.
+ */
+const readViewportDimension = (value: unknown, name: string): number | undefined => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  const parsed = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+  if (typeof parsed !== 'number' || !Number.isFinite(parsed)) {
+    throw new Error(`${name} must be a finite number.`);
+  }
+  return parsed;
+};
+
 const apiUrl = (process.env.CLOUDCLI_BROWSER_USE_API_URL || 'http://127.0.0.1:3001/api/browser-use-mcp').replace(/\/$/, '');
 const apiToken = process.env.CLOUDCLI_BROWSER_USE_MCP_TOKEN || '';
 const API_TIMEOUT_MS = Number.parseInt(process.env.CLOUDCLI_BROWSER_USE_API_TIMEOUT_MS || '60000', 10);
@@ -71,13 +90,15 @@ const sessionIdSchema = {
 const tools: ToolDefinition[] = [
   {
     name: 'browser_create_session',
-    description: 'Create a temporary Browser session that the agent can control. Optionally provide a background profileName to reuse cookies and storage, or authTokenFile plus authOrigin to inject a login token before the app loads (the file is read by the server, so the token stays out of the transcript).',
+    description: 'Create a temporary Browser session that the agent can control. Optionally provide a background profileName to reuse cookies and storage, or authTokenFile plus authOrigin to inject a login token before the app loads (the file is read by the server, so the token stays out of the transcript). Optionally provide width and height to control the viewport size (e.g. a phone viewport like 390x844); they default to 1440x900. Widths below 768 also enable touch emulation (a coarse pointer), so touch-only branches are exercised; the layout width is unchanged.',
     inputSchema: {
       type: 'object',
       properties: {
         profileName: { type: 'string', description: 'Optional background profile name for persistent browser storage.' },
         authTokenFile: { type: 'string', description: 'Optional path to a file holding a bearer token to store in localStorage["auth-token"].' },
         authOrigin: { type: 'string', description: 'Origin the token is scoped to, e.g. http://127.0.0.1:3011. Required with authTokenFile.' },
+        width: { type: 'number', minimum: 1, maximum: 3840, description: 'Optional viewport width in CSS pixels (1-3840). Defaults to 1440. Below 768 enables touch emulation.' },
+        height: { type: 'number', minimum: 1, maximum: 2160, description: 'Optional viewport height in CSS pixels (1-2160). Defaults to 900.' },
       },
     },
   },
@@ -238,6 +259,8 @@ async function callTool(name: string, args: Record<string, unknown>) {
         profileName: readOptionalString(args.profileName),
         authTokenFile: readOptionalString(args.authTokenFile),
         authOrigin: readOptionalString(args.authOrigin),
+        width: readViewportDimension(args.width, 'width'),
+        height: readViewportDimension(args.height, 'height'),
       }));
     case 'browser_list_sessions':
       return jsonResponse(await callBrowserUseApi(name, {}));
