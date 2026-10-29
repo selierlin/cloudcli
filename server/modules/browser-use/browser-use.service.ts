@@ -19,6 +19,17 @@ const __dirname = getModuleDirectory(import.meta.url);
 const MAX_SESSIONS_PER_OWNER = Number.parseInt(process.env.CLOUDCLI_BROWSER_USE_MAX_SESSIONS_PER_OWNER || '3', 10);
 const SESSION_TTL_MS = Number.parseInt(process.env.CLOUDCLI_BROWSER_USE_SESSION_TTL_MS || String(30 * 60 * 1000), 10);
 const BROWSER_USE_MCP_TOKEN_KEY = 'browser_use_mcp_token';
+const DEFAULT_VIEWPORT = { width: 1440, height: 900 };
+/**
+ * Caller-supplied viewports are clamped instead of rejected: Chromium accepts
+ * device metrics far beyond anything a layout test needs, and an oversized
+ * viewport only fails later in `page.screenshot`, after the session is already
+ * registered. 4K is the widest layout these caps are meant to cover.
+ */
+const MAX_VIEWPORT_WIDTH = 3840;
+const MAX_VIEWPORT_HEIGHT = 2160;
+/** Width at which a session is treated as a phone viewport, matching the app's own mobile breakpoint. */
+const MOBILE_VIEWPORT_WIDTH = 768;
 /** One-shot flag: the legacy per-harness direct-write layout has been converged into the MCP catalog. */
 const BROWSER_MCP_RECONCILED_KEY = 'browser.mcp.reconciled';
 
@@ -391,6 +402,29 @@ async function getActionPoint(page: any, input: { selector?: string; text?: stri
   };
 }
 
+/**
+ * Fractional widths close to zero round to 0, and Chromium accepts 0 (and
+ * oversized values) in `newContext`/`newPage` without complaint — the failure
+ * surfaces only in `page.screenshot`, which cannot capture a 0-width or an
+ * over-sized page. So dimensions are rounded to whole pixels and clamped to the
+ * cap here, and anything below 1 (missing, not a number, or small enough to
+ * round to 0) falls back to the default instead of reaching Chromium.
+ * Consumed by `createAgentSession` and the module's unit tests.
+ */
+export function resolveViewport(width: unknown, height: unknown): { width: number; height: number } {
+  const dimension = (value: unknown, fallback: number, max: number): number => {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 1) {
+      return fallback;
+    }
+    return Math.min(Math.round(value), max);
+  };
+
+  return {
+    width: dimension(width, DEFAULT_VIEWPORT.width, MAX_VIEWPORT_WIDTH),
+    height: dimension(height, DEFAULT_VIEWPORT.height, MAX_VIEWPORT_HEIGHT),
+  };
+}
+
 export const browserUseService = {
   async getStatus() {
     // The one-shot legacy layout migration normally runs at server startup (see
@@ -558,8 +592,11 @@ export const browserUseService = {
     profileName?: string | null;
     authTokenFile?: string | null;
     authOrigin?: string | null;
+    width?: number | null;
+    height?: number | null;
   }) {
     await expireStaleSessions();
+    const viewport = resolveViewport(options?.width, options?.height);
     const profileName = normalizeProfileName(options?.profileName);
     const authToken = readAuthTokenFile(options?.authTokenFile);
     const authOrigin = String(options?.authOrigin || '').trim().replace(/\/$/, '');
@@ -582,7 +619,7 @@ export const browserUseService = {
       lastAction: 'create',
       message: null,
       profileName,
-      viewport: { width: 1440, height: 900 },
+      viewport,
       cursor: null,
     };
 
@@ -606,7 +643,13 @@ export const browserUseService = {
       args: ['--disable-dev-shm-usage'],
     };
     const contextOptions = {
-      viewport: { width: 1440, height: 900 },
+      viewport,
+      // A narrow viewport alone still reports a fine pointer, so the app's
+      // `(hover: none) and (pointer: coarse)` branches (touch targets,
+      // tap-to-reveal) would keep the desktop path and a "phone" check would
+      // pass for the wrong reason. hasTouch flips those without `isMobile`,
+      // which widens the layout to 980px on pages that ship no meta viewport.
+      ...(viewport.width < MOBILE_VIEWPORT_WIDTH ? { hasTouch: true } : {}),
       serviceWorkers: 'block',
     };
 
@@ -647,7 +690,17 @@ export const browserUseService = {
     session.message = 'Browser session is ready.';
     sessions.set(session.id, session);
     handles.set(session.id, { browser, context, page });
-    await captureSession(session, page);
+    try {
+      await captureSession(session, page);
+    } catch (error) {
+      // A failure here (screenshot of a page Chromium cannot capture) would
+      // otherwise leave a live context and a 'ready' session behind for a
+      // caller that never received the id, so it could neither use nor close
+      // it while it held one of the owner's session slots for the whole TTL.
+      sessions.delete(session.id);
+      await closeHandle(session.id);
+      throw error;
+    }
     return publicSession(session);
   },
 

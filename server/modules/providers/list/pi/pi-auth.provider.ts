@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import type { IProviderAuth } from '@/shared/interfaces.js';
-import type { ProviderAuthStatus } from '@/shared/types.js';
+import type { CliVersionProbe, ProviderAuthStatus } from '@/shared/types.js';
+import { parseCliVersion, probeCliVersion } from '@/shared/utils.js';
 import { getPiAgentDir } from '@/modules/providers/list/pi/pi-models.provider.js';
 
 // Status polling must not shell out (or block the event loop) on every call:
@@ -17,7 +18,7 @@ const AUTH_PROBE_TIMEOUT_MS = 5_000;
 type CommandResolution = { command: string | null; source: 'override' | 'path' | 'missing' };
 
 let resolution: { value: CommandResolution; resolvedAt: number } | null = null;
-let versionProbe: { ok: boolean; checkedAt: number } | null = null;
+let versionProbe: { value: CliVersionProbe; checkedAt: number } | null = null;
 let authProbe: { status: 'ready' | 'unauthenticated' | 'unknown'; checkedAt: number } | null = null;
 
 /**
@@ -79,17 +80,21 @@ export function resetPiCommandForTests(): void {
  * synchronous probe would freeze the Node event loop for the timeout window on
  * every status query) and cached so the settings UI can poll freely.
  */
-async function checkVersion(command: string): Promise<boolean> {
+async function checkVersion(command: string): Promise<CliVersionProbe> {
   if (versionProbe && Date.now() - versionProbe.checkedAt < VERSION_PROBE_TTL_MS) {
-    return versionProbe.ok;
+    return versionProbe.value;
   }
-  const ok = await new Promise<boolean>((resolve) => {
-    execFile(command, ['--version'], { timeout: VERSION_PROBE_TIMEOUT_MS }, (error) => {
-      resolve(!error);
+  const value = await new Promise<CliVersionProbe>((resolve) => {
+    execFile(command, ['--version'], { timeout: VERSION_PROBE_TIMEOUT_MS }, (error, stdout) => {
+      // A resolved launcher that fails to run is still installed; the exit
+      // status is what tells the caller it misbehaved.
+      resolve(error
+        ? { installed: true, exitCode: null, version: null }
+        : { installed: true, exitCode: 0, version: parseCliVersion(stdout) });
     });
   });
-  versionProbe = { ok, checkedAt: Date.now() };
-  return ok;
+  versionProbe = { value, checkedAt: Date.now() };
+  return value;
 }
 
 /** The provider `pi auth check` should probe — the configured default provider. */
@@ -164,11 +169,11 @@ export class PiProviderAuth implements IProviderAuth {
    */
   async getStatus(): Promise<ProviderAuthStatus> {
     const { command } = resolveCommand();
-    const installed = command !== null;
 
-    if (!installed) {
+    if (!command) {
       return {
         installed: false,
+        installedVersion: null,
         provider: 'pi',
         authenticated: false,
         authVerified: false,
@@ -178,10 +183,12 @@ export class PiProviderAuth implements IProviderAuth {
       };
     }
 
-    const versionOk = await checkVersion(command);
-    if (!versionOk) {
+    const probe = await checkVersion(command);
+    const installedVersion = probe.version;
+    if (probe.exitCode !== 0) {
       return {
         installed: true,
+        installedVersion,
         provider: 'pi',
         authenticated: false,
         authVerified: false,
@@ -194,6 +201,7 @@ export class PiProviderAuth implements IProviderAuth {
     const authStatus = await checkAuthenticated(command);
     return {
       installed: true,
+      installedVersion,
       provider: 'pi',
       authenticated: authStatus === 'ready',
       authVerified: authStatus === 'ready',
@@ -205,5 +213,18 @@ export class PiProviderAuth implements IProviderAuth {
           ? 'Could not verify pi credentials (pi auth check failed)'
           : 'pi is not authenticated (run `pi auth` in a terminal)',
     };
+  }
+
+  /**
+   * Synchronous by contract: the CLI update service calls this without
+   * awaiting. Status polling keeps using the cached async probe above so it
+   * never blocks the event loop.
+   */
+  checkInstalled(): CliVersionProbe {
+    const { command } = resolveCommand();
+    if (!command) {
+      return { installed: false, exitCode: null, version: null };
+    }
+    return probeCliVersion(command);
   }
 }

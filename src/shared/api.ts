@@ -483,6 +483,10 @@ export const api = {
       get(`/api/providers/${encodeURIComponent(provider)}/auth/status`),
     quota: (provider: string) =>
       get(`/api/providers/${encodeURIComponent(provider)}/quota`),
+    cliStatus: (provider: string) =>
+      get(`/api/providers/${encodeURIComponent(provider)}/cli`),
+    updateCli: (provider: string) =>
+      post(`/api/providers/${encodeURIComponent(provider)}/cli/update`),
     claudeSettingsPermissions: () => get('/api/providers/claude/settings-permissions'),
 
     models: (provider: string) => get(`/api/providers/${provider}/models`),

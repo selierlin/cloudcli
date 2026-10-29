@@ -63,15 +63,6 @@ const SEARCH_SCROLL_RETRY_DELAY_MS = 150;
 const SCROLL_UP_EPSILON_PX = 2;
 
 /**
- * How long a gesture that pulls the transcript down keeps counting as upward
- * intent. Streaming can grow the transcript faster than a slow drag moves the
- * viewport, so between two samples `scrollTop` may not fall at all even though
- * the reader is deliberately pulling away from the bottom; the gesture is then
- * the only evidence that the reader, not the layout, owns the viewport.
- */
-const SCROLL_UP_INTENT_WINDOW_MS = 800;
-
-/**
  * Pinned-row drift below which the restore's settle loop counts a frame as
  * stable. Matches the follow loop's tolerance for sub-pixel jitter.
  */
@@ -316,6 +307,14 @@ export function useChatSessionState({
   const [isUserScrolledUp, setIsUserScrolledUpState] = useState(false);
   const [tokenBudget, setTokenBudget] = useState<Record<string, unknown> | null>(null);
   const [visibleMessageCount, setVisibleMessageCount] = useState(INITIAL_VISIBLE_MESSAGES);
+  /**
+   * How many rows the last "load earlier" prepended. The transcript mounts that
+   * whole page on the commit which inserts it: a prepended row has never been
+   * measured, so its placeholder is only an estimate, and the scroll restore
+   * would otherwise compensate against geometry that changes under it once the
+   * lazy rows mount their real content.
+   */
+  const [prependedRowCount, setPrependedRowCount] = useState(0);
   const [allMessagesLoaded, setAllMessagesLoaded] = useState(false);
   const [isLoadingAllMessages, setIsLoadingAllMessages] = useState(false);
   const [loadAllJustFinished, setLoadAllJustFinished] = useState(false);
@@ -369,8 +368,15 @@ export function useChatSessionState({
    * that lands where we put the viewport is therefore ours, not the reader's.
    */
   const programmaticScrollTopRef = useRef<number | null>(null);
-  /** Deadline until which a reader gesture counts as upward intent. */
-  const upwardIntentUntilRef = useRef(0);
+  /**
+   * Whether the reader has asked for the viewport by pulling the transcript
+   * down. It is sticky on purpose: a pull of only a few pixels leaves the gap
+   * under the latch threshold, so a time-boxed window would expire while the
+   * reader is still holding the transcript away from the bottom and the follow
+   * would drag it back. Only a downward move that reaches the bottom, or a send,
+   * clears it.
+   */
+  const upwardIntentRef = useRef(false);
   /** `clientY` where the current touch drag began, or null between drags. */
   const touchOriginYRef = useRef<number | null>(null);
   /**
@@ -465,6 +471,7 @@ export function useChatSessionState({
 
     setTokenBudget(null);
     setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
+    setPrependedRowCount(0);
     setAllMessagesLoaded(false);
     allMessagesLoadedRef.current = false;
     setIsLoadingAllMessages(false);
@@ -647,7 +654,7 @@ export function useChatSessionState({
       // The restore's settle loop owns the viewport while it pins a row; a
       // follow write here would race it between frames.
       || anchorSettleRef.current !== null
-      || Date.now() < upwardIntentUntilRef.current
+      || upwardIntentRef.current
     );
     if (cannotFollow) return;
 
@@ -672,7 +679,7 @@ export function useChatSessionState({
         || pendingScrollRestoreRef.current
         || searchScrollActiveRef.current
         || anchorSettleRef.current !== null
-        || Date.now() < upwardIntentUntilRef.current
+        || upwardIntentRef.current
       ) {
         followUntilRef.current = 0;
         followGeometryRef.current = null;
@@ -793,8 +800,8 @@ export function useChatSessionState({
    *
    * Two things separate this from a bare `scrollToBottom()`. First, the intent
    * outranks a pull: a send clears the ownership latch *and* the gesture
-   * stand-down window, so a message typed right after scrolling up still lands
-   * on the tail rather than waiting out `SCROLL_UP_INTENT_WINDOW_MS`.
+   * stand-down latch, so a message typed while reading history still lands on
+   * the tail instead of staying pinned where the reader left it.
    *
    * Second, it does not settle for one write. The write that reaches the bottom
    * is measured against the geometry of that instant, and a long transcript
@@ -808,7 +815,7 @@ export function useChatSessionState({
    */
   const scrollToLatest = useCallback(() => {
     setIsUserScrolledUp(false);
-    upwardIntentUntilRef.current = 0;
+    upwardIntentRef.current = false;
     scrollToBottom();
     followTranscriptLayout();
   }, [followTranscriptLayout, scrollToBottom, setIsUserScrolledUp]);
@@ -887,6 +894,7 @@ export function useChatSessionState({
         // by the rows actually prepended, or the window top would fall further
         // behind the loaded content on every upward page.
         setVisibleMessageCount((prev) => prev + Math.max(prependedCount, SESSION_MESSAGES_PAGE_SIZE));
+        setPrependedRowCount(prependedCount);
         if (!slot.hasMore && !slot.turnPageInfo?.newerCursor) {
           allMessagesLoadedRef.current = true;
           setAllMessagesLoaded(true);
@@ -969,13 +977,34 @@ export function useChatSessionState({
       && container.scrollTop < previousTop - SCROLL_UP_EPSILON_PX
       && !landedOnOurOwnWrite
     );
-    const readerOwnsViewport = movedUp || Date.now() < upwardIntentUntilRef.current;
+    // A downward move is how the reader gives the viewport back. It has to be
+    // observed directly: the follow stops writing the moment the latch is set,
+    // so `scrollTop` can only rise again because the reader pushed it, and
+    // `nearBottom` alone would release the latch on the very next event after a
+    // pull shorter than the threshold — the viewport would still be a few pixels
+    // off the bottom and the follow would yank it back. A landing on our own
+    // write is excluded for the mirror-image reason: a shrinking pane (the
+    // keyboard rising) compensates `scrollTop` downward, and that is not the
+    // reader handing the viewport back either.
+    const movedDown = (
+      previousTop !== null
+      && container.scrollTop > previousTop + SCROLL_UP_EPSILON_PX
+      && !landedOnOurOwnWrite
+    );
+    const readerOwnsViewport = movedUp || upwardIntentRef.current;
     if (isUserScrolledUpRef.current) {
       // Latching stays sticky. The reader may keep reading further up while the
       // answer grows below them, and that growth must not read as "back at the
       // bottom" and drag them down.
-      if (nearBottom) setIsUserScrolledUp(false);
-    } else if (!nearBottom && readerOwnsViewport) {
+      if (nearBottom && movedDown) {
+        upwardIntentRef.current = false;
+        setIsUserScrolledUp(false);
+      }
+    } else if (readerOwnsViewport) {
+      // The gesture itself is enough. Requiring a gap past the threshold let a
+      // slow drag lose the race: the follow wrote the bottom back before the gap
+      // could grow, no latch was set, and the transcript snapped back once the
+      // gesture window expired.
       setIsUserScrolledUp(true);
     }
 
@@ -1095,13 +1124,14 @@ export function useChatSessionState({
 
     pendingInitialScrollRef.current = true;
     setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
+    setPrependedRowCount(0);
     topLoadLockRef.current = false;
     pendingScrollRestoreRef.current = null;
     cancelAnchorSettle();
     wasNearTopRef.current = false;
     lastScrollTopSampleRef.current = null;
     programmaticScrollTopRef.current = null;
-    upwardIntentUntilRef.current = 0;
+    upwardIntentRef.current = false;
     touchOriginYRef.current = null;
     setIsUserScrolledUp(false);
   }, [selectedProject?.projectId, selectedSession?.id, setIsUserScrolledUp, cancelAnchorSettle]);
@@ -1136,7 +1166,10 @@ export function useChatSessionState({
         || !isActiveRef.current
         || activeSessionIdRef.current !== scheduledSessionId
       ) return;
-      if (isUserScrolledUpRef.current) {
+      // Opening a session pins the tail while the transcript settles, but the
+      // reader's first gesture has to win: a pull that arrives during those
+      // frames must not be written back to the bottom.
+      if (isUserScrolledUpRef.current || upwardIntentRef.current) {
         pendingInitialScrollRef.current = false;
         return;
       }
@@ -1237,6 +1270,7 @@ export function useChatSessionState({
     setHasNewerMessages(false);
     setTotalMessages(0);
     setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
+    setPrependedRowCount(0);
     setAllMessagesLoaded(false);
     allMessagesLoadedRef.current = false;
     setIsLoadingAllMessages(false);
@@ -1511,6 +1545,10 @@ export function useChatSessionState({
       || pendingScrollRestoreRef.current !== null
       || searchScrollActiveRef.current
       || isUserScrolledUpRef.current
+      // The gesture is already known to be a pull, even if the `scroll` event
+      // that latches it has not been dispatched yet. Writing here would put the
+      // viewport back at the bottom before that event can measure the gap.
+      || upwardIntentRef.current
     );
     if (cannotFollow) {
       if (followFrameRef.current !== null) {
@@ -1565,13 +1603,26 @@ export function useChatSessionState({
     // puts `scrollTop` back at the bottom, and a fast stream can grow the
     // transcript faster than a slow drag moves it. Both leave a sample that
     // looks untouched, so the gesture is tracked separately.
+    //
+    // The intent is a latch, not a deadline: a pull shorter than the gap
+    // threshold leaves `scrollTop` a few pixels off the bottom, so a window
+    // would expire while the reader is still holding the transcript away from
+    // the bottom and the follow would snap it back. It is cleared by the
+    // opposite gesture (pushing the transcript back down) or, in `handleScroll`,
+    // when the reader actually reaches the bottom again.
     const armUpwardIntent = () => {
-      upwardIntentUntilRef.current = Date.now() + SCROLL_UP_INTENT_WINDOW_MS;
+      upwardIntentRef.current = true;
+    };
+    const releaseUpwardIntent = () => {
+      upwardIntentRef.current = false;
     };
     const handleWheel = (event: WheelEvent) => {
       readerInputSeqRef.current += 1;
       if (event.deltaY < 0) armUpwardIntent();
-      if (event.deltaY > 0 && isNearBottom()) void loadNewerMessages();
+      if (event.deltaY > 0) {
+        releaseUpwardIntent();
+        if (isNearBottom()) void loadNewerMessages();
+      }
     };
     const handleTouchStart = (event: TouchEvent) => {
       touchOriginYRef.current = event.touches[0]?.clientY ?? null;
@@ -1585,8 +1636,12 @@ export function useChatSessionState({
       if (originY !== null && currentY !== undefined && currentY - originY > TOUCH_UP_INTENT_MIN_TRAVEL_PX) {
         armUpwardIntent();
       }
-      if (originY !== null && currentY !== undefined && originY - currentY > TOUCH_UP_INTENT_MIN_TRAVEL_PX && isNearBottom()) {
-        void loadNewerMessages();
+      // Travelling back up is the reader returning to the tail. Releasing the
+      // latch itself still waits for the viewport to reach the bottom, so a
+      // brief downward flick mid-read does not hand the viewport back.
+      if (originY !== null && currentY !== undefined && originY - currentY > TOUCH_UP_INTENT_MIN_TRAVEL_PX) {
+        releaseUpwardIntent();
+        if (isNearBottom()) void loadNewerMessages();
       }
     };
     const handleTouchEnd = () => {
@@ -1729,6 +1784,7 @@ export function useChatSessionState({
     tokenBudget,
     setTokenBudget,
     visibleMessageCount,
+    prependedRowCount,
     visibleMessages,
     loadEarlierMessages,
     revealMessage,

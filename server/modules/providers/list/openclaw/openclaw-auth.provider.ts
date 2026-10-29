@@ -5,15 +5,14 @@ import path from 'node:path';
 
 import { readOpenclawConfig } from '@/modules/providers/list/openclaw/openclaw-models.provider.js';
 import type { IProviderAuth } from '@/shared/interfaces.js';
-import type { AnyRecord, ProviderAuthStatus } from '@/shared/types.js';
-import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
+import type { AnyRecord, CliVersionProbe, ProviderAuthStatus } from '@/shared/types.js';
+import { probeCliVersion, readObjectRecord, readOptionalString } from '@/shared/utils.js';
 
 /** Stable entry created by the machines' node-pin setup, tried after PATH. */
 const OPENCLAW_STABLE_BIN = path.join(os.homedir(), '.local', 'share', 'node', 'current', 'bin', 'openclaw');
 
 const RESOLUTION_TTL_MS = 30_000;
 const AUTH_STATUS_TTL_MS = 30_000;
-const VERSION_TIMEOUT_MS = 8_000;
 const STATUS_TIMEOUT_MS = 10_000;
 
 /** A resolved OpenClaw launcher: the executable plus any fixed leading arguments. */
@@ -176,12 +175,14 @@ export class OpenclawProviderAuth implements IProviderAuth {
     }
 
     const { command, baseArgs } = resolveOpenclawCommand();
-    const installed = command !== null && this.versionRuns(command, baseArgs);
+    const probe = command ? probeCliVersion(command, [...baseArgs, '--version']) : null;
+    const installed = probe !== null && probe.exitCode === 0;
     let status: ProviderAuthStatus;
 
     if (!command || !installed) {
       status = {
         installed: false,
+        installedVersion: null,
         provider: 'openclaw',
         authenticated: false,
         authVerified: false,
@@ -196,6 +197,7 @@ export class OpenclawProviderAuth implements IProviderAuth {
         : configHasInlineKey(readOpenclawConfig() ?? {});
       status = {
         installed: true,
+        installedVersion: probe?.version ?? null,
         provider: 'openclaw',
         authenticated,
         authVerified: authenticated,
@@ -211,17 +213,12 @@ export class OpenclawProviderAuth implements IProviderAuth {
     return status;
   }
 
-  /** True when `openclaw --version` succeeds within the timeout. */
-  private versionRuns(command: string, baseArgs: string[]): boolean {
-    try {
-      execFileSync(command, [...baseArgs, '--version'], {
-        encoding: 'utf8',
-        timeout: VERSION_TIMEOUT_MS,
-        stdio: ['ignore', 'pipe', 'ignore'],
-      });
-      return true;
-    } catch {
-      return false;
+  /** Runs `openclaw --version` against the same launcher the runtime spawns. */
+  checkInstalled(): CliVersionProbe {
+    const { command, baseArgs } = resolveOpenclawCommand();
+    if (!command) {
+      return { installed: false, exitCode: null, version: null };
     }
+    return probeCliVersion(command, [...baseArgs, '--version']);
   }
 }

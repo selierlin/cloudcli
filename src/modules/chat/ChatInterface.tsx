@@ -221,6 +221,7 @@ function ChatInterface({
     tokenBudget,
     setTokenBudget,
     visibleMessageCount,
+    prependedRowCount,
     visibleMessages,
     loadEarlierMessages,
     revealMessage,
@@ -697,7 +698,7 @@ function ChatInterface({
   }, [onNavigateToSession, onSessionForked, selectedProject, selectedSession?.__provider, selectedSession?.id, t]);
 
   const { scheduledMessages, schedule: scheduleMessage, cancel: cancelScheduledMessage } =
-    useScheduledMessages(currentSessionId || selectedSession?.id || null);
+    useScheduledMessages(currentSessionId || selectedSession?.id || null, subscribe);
 
   /**
    * Hands the composer's current text to the server to send later, and clears
@@ -976,6 +977,7 @@ function ChatInterface({
               totalMessages={totalMessages}
               sessionMessagesCount={chatMessages.length}
               visibleMessageCount={visibleMessageCount}
+              prependedRowCount={prependedRowCount}
               visibleMessages={visibleMessages}
               loadEarlierMessages={loadEarlierMessages}
               revealMessage={revealMessage}

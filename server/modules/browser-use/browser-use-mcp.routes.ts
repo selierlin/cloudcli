@@ -56,6 +56,8 @@ router.post('/tools/:toolName', async (req, res) => {
           profileName: typeof input.profileName === 'string' ? input.profileName : null,
           authTokenFile: typeof input.authTokenFile === 'string' ? input.authTokenFile : null,
           authOrigin: typeof input.authOrigin === 'string' ? input.authOrigin : null,
+          width: typeof input.width === 'number' ? input.width : null,
+          height: typeof input.height === 'number' ? input.height : null,
         });
         break;
       case 'browser_list_sessions':
