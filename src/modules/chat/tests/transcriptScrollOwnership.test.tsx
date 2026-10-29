@@ -667,6 +667,70 @@ describe('deferred scroll-to-bottom', () => {
   });
 });
 
+describe('tail affordance visibility', () => {
+  /**
+   * The ownership latch sets on the first pixel of an upward move so the follow
+   * loop never fights a drag, but that is far too eager to put a "back to
+   * bottom" button over the message the reader has only just started re-reading.
+   * The button therefore has its own two-threshold gap, and a drag that stays
+   * between the two must not make it blink.
+   */
+  it('waits until the reader has left the tail behind, then stays until they return', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
+    ]);
+    const store = createStore(messages);
+    const { result, rerender } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+    await act(async () => {
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: true });
+      await Promise.resolve();
+    });
+
+    const scrollTo = async (top: number): Promise<void> => {
+      container.element.scrollTop = top;
+      await act(async () => {
+        container.element.dispatchEvent(new Event('scroll'));
+        await Promise.resolve();
+      });
+    };
+
+    // The first sample only establishes where the viewport started.
+    await scrollTo(4500);
+
+    // A few pixels of upward drift are enough to stop following…
+    await scrollTo(4495);
+    assert.equal(result.current.isUserScrolledUp, true, 'the first pixel takes ownership');
+    assert.equal(result.current.showTailAffordance, false, 'but the button stays out of the way');
+
+    // …while the button needs a real gap, here 200px.
+    await scrollTo(4300);
+    assert.equal(result.current.showTailAffordance, true, 'a real gap brings the button out');
+
+    // Coming back to 70px is past the withdraw threshold, so it stays — the
+    // hysteresis is what keeps a coast resting there from flickering.
+    await scrollTo(4430);
+    assert.equal(result.current.showTailAffordance, true, 'the button holds inside the band');
+
+    await scrollTo(4470);
+    assert.equal(result.current.showTailAffordance, false, 'coming back withdraws it');
+
+    // Returning to the tail hands the viewport back, and the flag must not
+    // survive into the next drag or the button would appear on its first pixel.
+    await scrollTo(4300);
+    act(() => {
+      result.current.scrollToBottomAndReset();
+    });
+    await scrollTo(4499);
+    assert.equal(result.current.showTailAffordance, false, 'a jump to the tail resets the button');
+  });
+});
+
 describe('search jump ownership', () => {
   it('requests a bounded Turn seek instead of loading the full transcript', async () => {
     const messages = new Map<string, NormalizedMessage[]>([

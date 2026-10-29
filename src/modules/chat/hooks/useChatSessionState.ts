@@ -63,6 +63,20 @@ const SEARCH_SCROLL_RETRY_DELAY_MS = 150;
 const SCROLL_UP_EPSILON_PX = 2;
 
 /**
+ * How far the viewport has to end up past the tail before the back-to-bottom
+ * button is offered, and how close it has to come back before the button is
+ * withdrawn.
+ *
+ * The ownership latch cannot decide this on its own: it sets after the first
+ * couple of pixels so the follow loop never fights a drag, and a button at that
+ * point lands over the message the reader has only just started to re-read. Two
+ * thresholds rather than one keep a coast or a slow drag resting near the edge
+ * from blinking the button in and out.
+ */
+const TAIL_AFFORDANCE_SHOW_GAP_PX = 120;
+const TAIL_AFFORDANCE_HIDE_GAP_PX = 40;
+
+/**
  * Pinned-row drift below which the restore's settle loop counts a frame as
  * stable. Matches the follow loop's tolerance for sub-pixel jitter.
  */
@@ -305,6 +319,13 @@ export function useChatSessionState({
   const [hasNewerMessages, setHasNewerMessages] = useState(false);
   const [totalMessages, setTotalMessages] = useState(0);
   const [isUserScrolledUp, setIsUserScrolledUpState] = useState(false);
+  /**
+   * Whether the back-to-bottom button is on screen. Kept apart from
+   * `isUserScrolledUp` because that latch has to set on the first pixel of an
+   * upward move, while the button only belongs on screen once the reader has
+   * actually left the tail behind; see `TAIL_AFFORDANCE_SHOW_GAP_PX`.
+   */
+  const [showTailAffordance, setShowTailAffordance] = useState(false);
   const [tokenBudget, setTokenBudget] = useState<Record<string, unknown> | null>(null);
   const [visibleMessageCount, setVisibleMessageCount] = useState(INITIAL_VISIBLE_MESSAGES);
   /**
@@ -440,6 +461,11 @@ export function useChatSessionState({
         window.cancelAnimationFrame(followFrameRef.current);
         followFrameRef.current = null;
       }
+    } else {
+      // Giving the viewport back also withdraws the button, whoever asked for
+      // it: a jump to the tail can land without a `scroll` event, and leaving
+      // the flag set would show the button on the next pixel of an upward drag.
+      setShowTailAffordance(false);
     }
     setIsUserScrolledUpState(next);
   }, []);
@@ -992,6 +1018,18 @@ export function useChatSessionState({
     const nearBottom = isNearBottom();
     const previousTop = lastScrollTopSampleRef.current;
     lastScrollTopSampleRef.current = container.scrollTop;
+
+    // The button is offered only once the tail is properly out of view, and
+    // withdrawn only after the reader has come back close to it. The ownership
+    // latch below cannot answer this: it sets on the first pixel of an upward
+    // move, which is well before the reader has left anything behind to return
+    // to.
+    const gapPastTail = container.scrollHeight - container.scrollTop - container.clientHeight;
+    setShowTailAffordance((wasVisible) => (
+      wasVisible
+        ? gapPastTail > TAIL_AFFORDANCE_HIDE_GAP_PX
+        : gapPastTail > TAIL_AFFORDANCE_SHOW_GAP_PX
+    ));
 
     // A `scroll` event cannot say who moved the viewport. A follow write only
     // ever moves it down to the new bottom, and content arriving below a
@@ -1818,6 +1856,7 @@ export function useChatSessionState({
     totalMessages,
     isUserScrolledUp,
     setIsUserScrolledUp,
+    showTailAffordance,
     tokenBudget,
     setTokenBudget,
     visibleMessageCount,

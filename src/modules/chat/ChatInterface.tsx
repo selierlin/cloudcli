@@ -217,6 +217,7 @@ function ChatInterface({
     hasNewerMessages,
     totalMessages,
     isUserScrolledUp,
+    showTailAffordance,
     tokenBudget,
     setTokenBudget,
     visibleMessageCount,
@@ -953,6 +954,7 @@ function ChatInterface({
               isLoadingSessionMessages={isLoadingSessionMessages}
               isProcessing={isProcessing}
               isUserScrolledUp={isUserScrolledUp}
+              showTailAffordance={showTailAffordance}
               onScrollToBottom={scrollToBottomAndReset}
               onReasoningAutoCollapseStart={handleReasoningAutoCollapseStart}
               searchRevealRequest={searchRevealRequest}

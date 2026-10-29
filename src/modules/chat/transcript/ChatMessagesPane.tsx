@@ -156,6 +156,12 @@ type ChatMessagesPaneProps = {
   isProcessing?: boolean;
   /** Prevents disclosure layout changes while the user reads above the tail. */
   isUserScrolledUp?: boolean;
+  /**
+   * Whether the reader is far enough past the tail for the back-to-bottom
+   * button to be useful. Chat owns the gap thresholds; the pane only decides
+   * whether to draw.
+   */
+  showTailAffordance?: boolean;
   /** Fired by the tail affordance; chat owns the scroll writer. */
   onScrollToBottom: () => void;
   /** Asks the chat-owned scroll writer to follow an automatic reasoning collapse. */
@@ -246,6 +252,7 @@ function ChatMessagesPane({
   isLoadingSessionMessages,
   isProcessing = false,
   isUserScrolledUp = false,
+  showTailAffordance = false,
   onScrollToBottom,
   onReasoningAutoCollapseStart,
   searchRevealRequest,
@@ -824,7 +831,7 @@ function ChatMessagesPane({
           coast carried the view away from the jump anyway. Zero height and
           absolute placement keep it out of the transcript's geometry; when the
           pane is at its static end it is not rendered at all. */}
-      {isUserScrolledUp && !isExportSelecting && chatMessages.length > 0 && (
+      {showTailAffordance && !isExportSelecting && chatMessages.length > 0 && (
         <div data-transcript-tail-affordance className="pointer-events-none sticky bottom-0 z-20 h-0">
           <div className="absolute inset-x-0 bottom-11 flex justify-center">
             <ScrollToBottomAffordance
