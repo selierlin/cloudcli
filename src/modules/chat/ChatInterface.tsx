@@ -48,7 +48,6 @@ import {
 import ChatMessagesPane from '@/modules/chat/transcript/ChatMessagesPane';
 import ChatComposer from '@/modules/chat/composer/ChatComposer';
 import CommandResultModal from '@/modules/chat/modals/CommandResultModal';
-import ScrollToBottomAffordance from '@/modules/chat/ScrollToBottomAffordance';
 import TranscriptSelectionBar from '@/modules/chat/TranscriptSelectionBar';
 import ShareTranscriptDialog from '@/modules/chat/ShareTranscriptDialog';
 
@@ -954,6 +953,7 @@ function ChatInterface({
               isLoadingSessionMessages={isLoadingSessionMessages}
               isProcessing={isProcessing}
               isUserScrolledUp={isUserScrolledUp}
+              onScrollToBottom={scrollToBottomAndReset}
               onReasoningAutoCollapseStart={handleReasoningAutoCollapseStart}
               searchRevealRequest={searchRevealRequest}
               hasActivityIndicator={hasActivityIndicator}
@@ -1028,14 +1028,6 @@ function ChatInterface({
             </div>
           )}
 
-          {!exportSelectionActive && isUserScrolledUp && chatMessages.length > 0 && (
-            <div className="pointer-events-none absolute -top-11 left-0 right-0 z-20 flex justify-center">
-              <ScrollToBottomAffordance
-                isThinking={hasActivityIndicator}
-                onScrollToBottom={scrollToBottomAndReset}
-              />
-            </div>
-          )}
 
           <div ref={composerShellRef}>
           <ChatComposer

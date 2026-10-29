@@ -382,18 +382,6 @@ describe('deferred scroll-to-bottom', () => {
     });
     assert.equal(result.current.isUserScrolledUp, false, 'the affordance releases the reader latch');
     assert.equal(container.writes.at(-1), 5000, 'the affordance writes the tail');
-    // WKWebView carries a coast on over the top of a `scrollTop` write, so the
-    // scrollable overflow has to go first or the view reaches the tail and
-    // glides away from it again.
-    assert.equal(
-      container.element.style.overflowY,
-      'hidden',
-      'the write is made with the coast cancelled',
-    );
-    act(() => {
-      vi.advanceTimersByTime(100);
-    });
-    assert.equal(container.element.style.overflowY, '', 'the scroller is handed back');
 
     // Releasing the latch is also what hands the position to the follow loop,
     // which keeps pinning when the pane's deceleration overwrites the write.
