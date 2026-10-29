@@ -307,6 +307,14 @@ export function useChatSessionState({
   const [isUserScrolledUp, setIsUserScrolledUpState] = useState(false);
   const [tokenBudget, setTokenBudget] = useState<Record<string, unknown> | null>(null);
   const [visibleMessageCount, setVisibleMessageCount] = useState(INITIAL_VISIBLE_MESSAGES);
+  /**
+   * How many rows the last "load earlier" prepended. The transcript mounts that
+   * whole page on the commit which inserts it: a prepended row has never been
+   * measured, so its placeholder is only an estimate, and the scroll restore
+   * would otherwise compensate against geometry that changes under it once the
+   * lazy rows mount their real content.
+   */
+  const [prependedRowCount, setPrependedRowCount] = useState(0);
   const [allMessagesLoaded, setAllMessagesLoaded] = useState(false);
   const [isLoadingAllMessages, setIsLoadingAllMessages] = useState(false);
   const [loadAllJustFinished, setLoadAllJustFinished] = useState(false);
@@ -463,6 +471,7 @@ export function useChatSessionState({
 
     setTokenBudget(null);
     setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
+    setPrependedRowCount(0);
     setAllMessagesLoaded(false);
     allMessagesLoadedRef.current = false;
     setIsLoadingAllMessages(false);
@@ -885,6 +894,7 @@ export function useChatSessionState({
         // by the rows actually prepended, or the window top would fall further
         // behind the loaded content on every upward page.
         setVisibleMessageCount((prev) => prev + Math.max(prependedCount, SESSION_MESSAGES_PAGE_SIZE));
+        setPrependedRowCount(prependedCount);
         if (!slot.hasMore && !slot.turnPageInfo?.newerCursor) {
           allMessagesLoadedRef.current = true;
           setAllMessagesLoaded(true);
@@ -1114,6 +1124,7 @@ export function useChatSessionState({
 
     pendingInitialScrollRef.current = true;
     setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
+    setPrependedRowCount(0);
     topLoadLockRef.current = false;
     pendingScrollRestoreRef.current = null;
     cancelAnchorSettle();
@@ -1259,6 +1270,7 @@ export function useChatSessionState({
     setHasNewerMessages(false);
     setTotalMessages(0);
     setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
+    setPrependedRowCount(0);
     setAllMessagesLoaded(false);
     allMessagesLoadedRef.current = false;
     setIsLoadingAllMessages(false);
@@ -1772,6 +1784,7 @@ export function useChatSessionState({
     tokenBudget,
     setTokenBudget,
     visibleMessageCount,
+    prependedRowCount,
     visibleMessages,
     loadEarlierMessages,
     revealMessage,

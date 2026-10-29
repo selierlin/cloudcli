@@ -221,6 +221,7 @@ function ChatInterface({
     tokenBudget,
     setTokenBudget,
     visibleMessageCount,
+    prependedRowCount,
     visibleMessages,
     loadEarlierMessages,
     revealMessage,
@@ -976,6 +977,7 @@ function ChatInterface({
               totalMessages={totalMessages}
               sessionMessagesCount={chatMessages.length}
               visibleMessageCount={visibleMessageCount}
+              prependedRowCount={prependedRowCount}
               visibleMessages={visibleMessages}
               loadEarlierMessages={loadEarlierMessages}
               revealMessage={revealMessage}

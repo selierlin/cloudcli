@@ -182,6 +182,9 @@ type ChatMessagesPaneProps = {
   totalMessages: number;
   sessionMessagesCount: number;
   visibleMessageCount: number;
+  /** Rows the last "load earlier" prepended; the transcript mounts them on the
+   *  commit that inserts them so the scroll restore measures real geometry. */
+  prependedRowCount?: number;
   visibleMessages: ChatMessage[];
   loadEarlierMessages: () => void;
   revealMessage: (message: ChatMessage) => void;
@@ -263,6 +266,7 @@ function ChatMessagesPane({
   totalMessages,
   sessionMessagesCount,
   visibleMessageCount,
+  prependedRowCount = 0,
   visibleMessages,
   loadEarlierMessages,
   revealMessage,
@@ -365,6 +369,13 @@ function ChatMessagesPane({
       messageKeyMap.get(message) ?? getIntrinsicMessageKey(message) ?? 'message-generated',
     [messageKeyMap],
   );
+  // Rows that were just prepended by "load earlier" have never been measured,
+  // so their placeholders carry only an estimate. Mounting that whole page on
+  // the commit which inserts it means the scroll restore measures real geometry
+  // instead of correcting the estimate afterwards: the correction lands
+  // 150-300px off, because the reader is already dragging and the anchor-settle
+  // loop stands down on the first touchmove.
+  const mountPrependedRows = prependedRowCount > 0;
   const executionProjection = useMemo(
     () =>
       deriveExecutionProcessProjection(visibleMessages, getMessageKey, {
@@ -608,7 +619,8 @@ function ChatMessagesPane({
                   // Rows near the tail mount their content on first commit so the
                   // initial scroll-to-bottom measures real heights; older rows
                   // start as placeholders and mount when scrolled toward.
-                  const initiallyNearViewport = index >= rowCount - INITIAL_MOUNTED_TAIL_ROWS;
+                  const initiallyNearViewport = index >= rowCount - INITIAL_MOUNTED_TAIL_ROWS
+                    || (mountPrependedRows && index < prependedRowCount);
 
                   if (isToolGroupItem(item)) {
                     const groupPrevMessage = prevMessage;
