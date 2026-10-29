@@ -1,8 +1,17 @@
+import { useEffect, useRef } from 'react';
 import { ArrowDownIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 /** Per-dot animation offsets. The stagger is what reads as motion rather than a row of dots. */
 const THINKING_DOT_DELAYS = ['0ms', '150ms', '300ms'];
+
+/**
+ * How long after a touch press the button treats any further event as part of
+ * that same press. WebKit delivers a resting tap's `click` a few hundred
+ * milliseconds after the touch, and delivers `pointerdown` and `touchstart` for
+ * the same finger a moment apart; without a window both would double-fire.
+ */
+const TOUCH_PRESS_WINDOW_MS = 700;
 
 type ScrollToBottomAffordanceProps = {
   /**
@@ -19,15 +28,57 @@ type ScrollToBottomAffordanceProps = {
  * Rendered by chat's ChatInterface above the composer. It is the sole way back to
  * the bottom once the user has scrolled away, so its accessible name describes the
  * action and never changes; the glyph only reports whether the turn is still running.
+ *
+ * A press that lands while the transcript is still coasting is answered from the
+ * touch itself rather than from `click`: WebKit spends that touch on stopping the
+ * scroll view — "brake first" — and never synthesizes the click, which left the
+ * button inert until the pane came to rest.
  */
 export default function ScrollToBottomAffordance({ isThinking, onScrollToBottom }: ScrollToBottomAffordanceProps) {
   const { t } = useTranslation('chat');
   const label = t('input.scrollToBottom', { defaultValue: 'Scroll to bottom' });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  // Timestamp of the last touch that already asked for the tail, so the rest of
+  // that one press (`touchstart` after `pointerdown`, then the click) is folded
+  // into a single request instead of repeating it.
+  const lastTouchPressAtRef = useRef(0);
+
+  useEffect(() => {
+    const button = buttonRef.current;
+    if (!button) return;
+
+    const requestTail = (): void => {
+      const now = Date.now();
+      if (now - lastTouchPressAtRef.current < TOUCH_PRESS_WINDOW_MS) return;
+      lastTouchPressAtRef.current = now;
+      onScrollToBottom();
+    };
+    // Bound twice because which of the two survives deceleration differs between
+    // WebKit releases; the window above makes the pair harmless.
+    const handlePointerDown = (event: PointerEvent): void => {
+      if (event.pointerType === 'touch') requestTail();
+    };
+
+    button.addEventListener('pointerdown', handlePointerDown);
+    button.addEventListener('touchstart', requestTail, { passive: true });
+    return () => {
+      button.removeEventListener('pointerdown', handlePointerDown);
+      button.removeEventListener('touchstart', requestTail);
+    };
+  }, [onScrollToBottom]);
+
+  const handleClick = (): void => {
+    // Touch input never reaches here on the tail request: either the press was
+    // already served above, or iOS swallowed the click while scrolling.
+    if (Date.now() - lastTouchPressAtRef.current < TOUCH_PRESS_WINDOW_MS) return;
+    onScrollToBottom();
+  };
 
   return (
     <button
+      ref={buttonRef}
       type="button"
-      onClick={onScrollToBottom}
+      onClick={handleClick}
       aria-label={label}
       title={label}
       data-state={isThinking ? 'thinking' : 'idle'}

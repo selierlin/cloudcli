@@ -121,4 +121,40 @@ describe('ScrollToBottomAffordance', () => {
 
     expect(parts.onScrollToBottom).toHaveBeenCalledTimes(1);
   });
+
+  // WebKit spends a touch that lands on a coasting pane on stopping the scroll
+  // view and synthesizes no click for it, so the request has to be made on the
+  // touch itself or the button stays inert until the pane comes to rest.
+  it('answers a touch press without waiting for a click', () => {
+    const parts = renderAffordance(false);
+
+    fireEvent.touchStart(parts.button);
+
+    expect(parts.onScrollToBottom).toHaveBeenCalledTimes(1);
+  });
+
+  it('counts the click of a resting tap as the press that already happened', () => {
+    const parts = renderAffordance(false);
+
+    fireEvent.touchStart(parts.button);
+    fireEvent.click(parts.button);
+
+    expect(parts.onScrollToBottom).toHaveBeenCalledTimes(1);
+  });
+
+  it('serves a later press again once the touch press is over', () => {
+    const parts = renderAffordance(false);
+    const now = vi.spyOn(Date, 'now');
+
+    now.mockReturnValue(1_000);
+    fireEvent.touchStart(parts.button);
+    now.mockReturnValue(1_000);
+    fireEvent.click(parts.button);
+    // Past the window, the same button answers again — the guard must not latch.
+    now.mockReturnValue(2_000);
+    fireEvent.click(parts.button);
+
+    expect(parts.onScrollToBottom).toHaveBeenCalledTimes(2);
+    now.mockRestore();
+  });
 });
