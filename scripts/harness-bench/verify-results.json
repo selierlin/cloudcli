@@ -1,0 +1,112 @@
+[
+  {
+    "provider": "claude",
+    "requested": "haiku",
+    "effort": "(default)",
+    "elapsedMs": 8141,
+    "terminalKind": "complete",
+    "frameModels": [],
+    "historyModels": [
+      "glm-5-3-flash"
+    ],
+    "reply": "[亮]，1+1 等于 2。",
+    "ok": false,
+    "sessionId": "c1c8d19e-4493-4b00-b145-e7c38ecf21b9"
+  },
+  {
+    "provider": "codex",
+    "requested": "glm-5.3-flash",
+    "effort": "high",
+    "elapsedMs": 20415,
+    "terminalKind": "complete",
+    "frameModels": [],
+    "historyModels": [],
+    "reply": "[亮] 1+1 等于 2。",
+    "ok": false,
+    "sessionId": "dd0fa5b0-2179-445e-881d-8b0682ca812c"
+  },
+  {
+    "provider": "opencode",
+    "requested": "volcano-ark/glm-5.3-flash",
+    "effort": "(default)",
+    "elapsedMs": 9670,
+    "terminalKind": "complete",
+    "frameModels": [],
+    "historyModels": [
+      "glm-5.3-flash"
+    ],
+    "reply": "[亮]，1+1 等于 2。",
+    "ok": true,
+    "sessionId": "ff8bd57a-9ac0-4570-a51c-563aa54e8c43"
+  },
+  {
+    "provider": "dsh",
+    "requested": "volcano-ark/glm-5.3-flash",
+    "effort": "(default)",
+    "elapsedMs": 2797,
+    "terminalKind": "complete",
+    "frameModels": [],
+    "historyModels": [
+      "deepseek-v4-flash"
+    ],
+    "reply": "1+1等于2。",
+    "ok": false,
+    "sessionId": "348c7c14-09d6-46fc-ac43-fda6363f7355"
+  },
+  {
+    "provider": "pi",
+    "requested": "volcano-ark/glm-5.3-flash",
+    "effort": "high",
+    "elapsedMs": 8623,
+    "terminalKind": "complete",
+    "frameModels": [],
+    "historyModels": [
+      "glm-5.3-flash"
+    ],
+    "reply": "[亮]，1+1 等于 2。",
+    "ok": true,
+    "sessionId": "6f1942c8-49f1-444f-abae-48a75c22ebe1"
+  },
+  {
+    "provider": "zcode",
+    "requested": "volcano-ark/glm-5.3-flash",
+    "effort": "(default)",
+    "elapsedMs": 19752,
+    "terminalKind": "complete",
+    "frameModels": [],
+    "historyModels": [
+      "glm-5.3-flash"
+    ],
+    "reply": "[亮]，1+1 等于 2。",
+    "ok": true,
+    "sessionId": "c5a36ad6-3476-4904-a152-e302fa49c5fe"
+  },
+  {
+    "provider": "omp",
+    "requested": "volcano-ark/glm-5.3-flash",
+    "effort": "high",
+    "elapsedMs": 6908,
+    "terminalKind": "complete",
+    "frameModels": [],
+    "historyModels": [
+      "glm-5.3-flash"
+    ],
+    "reply": "[亮]，1+1 等于 2。",
+    "ok": true,
+    "sessionId": "372e2474-6a3a-495c-b7e1-275edf12cb24"
+  },
+  {
+    "provider": "workbuddy",
+    "requested": "glm-5.3-flash",
+    "effort": "high",
+    "elapsedMs": 9174,
+    "terminalKind": "complete",
+    "frameModels": [],
+    "historyModels": [
+      "glm-5.3-flash"
+    ],
+    "reply": "亮，1+1 等于 2。",
+    "ok": true,
+    "sessionId": "7e3d48b5-4f55-46fd-9b88-2d7b3170d15c"
+  }
+]
