@@ -125,6 +125,23 @@ function createGeometryAwareRow(
   };
 }
 
+/**
+ * jsdom has no hit testing at all — `document.elementFromPoint` is not even
+ * defined — so the native bridge's landing check has to be scripted. The
+ * returned restore runs whether or not the case threw.
+ */
+function stubElementFromPoint(hit: Element | null): () => void {
+  const original = Object.getOwnPropertyDescriptor(document, 'elementFromPoint');
+  Object.defineProperty(document, 'elementFromPoint', {
+    configurable: true,
+    value: () => hit,
+  });
+  return () => {
+    if (original) Object.defineProperty(document, 'elementFromPoint', original);
+    else delete (document as unknown as { elementFromPoint?: unknown }).elementFromPoint;
+  };
+}
+
 type SlotOverrides = {
   hasMore?: boolean;
   total?: number;
@@ -392,7 +409,7 @@ describe('deferred scroll-to-bottom', () => {
     assert.equal(container.writes.at(-1), 5400, 'the follow loop keeps the tail pinned');
   });
 
-  it('rewrites the tail when the coast puts its own offset back', async () => {
+  it('answers a native tail press that landed on the affordance', async () => {
     const messages = new Map<string, NormalizedMessage[]>([
       [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
     ]);
@@ -412,36 +429,26 @@ describe('deferred scroll-to-bottom', () => {
     });
     container.writes.length = 0;
 
+    // A press that lands while iOS is decelerating reaches no DOM listener, so
+    // the native side hands its point over instead and the hit test decides.
+    const affordance = document.createElement('div');
+    affordance.setAttribute('data-transcript-tail-affordance', '');
+    document.body.appendChild(affordance);
+    const restoreHitTest = stubElementFromPoint(affordance);
+
     act(() => {
-      result.current.scrollToBottomAndReset();
+      const host = window as Window & { __cloudcliTailTap?: (x: number, y: number) => void };
+      host.__cloudcliTailTap?.(120, 700);
     });
 
-    // The press landed mid-coast: the deceleration running in the UI process
-    // writes its own offset back over the request on the next frame, which is
-    // why a pane that stopped where the touch braked it needs a second press.
-    act(() => {
-      container.element.scrollTop = 1500;
-      runAnimationFrame();
-    });
-    assert.equal(container.writes.at(-1), 5000, 'the burst rewrites the tail over the coast');
+    assert.equal(result.current.isUserScrolledUp, false, 'the native press releases the reader latch');
+    assert.equal(container.writes.at(-1), 5000, 'the native press writes the tail');
 
-    // The burst is on a clock, so the frame that follows the window leaves the
-    // viewport where the reader put it. The follow loop has settled by then
-    // (two stable frames), so nothing but the burst is still writing.
-    act(() => {
-      runAnimationFrame();
-      runAnimationFrame();
-      runAnimationFrame();
-    });
-    act(() => {
-      vi.advanceTimersByTime(1000);
-      container.element.scrollTop = 1500;
-      runAnimationFrame();
-    });
-    assert.equal(container.writes.at(-1), 1500, 'the burst ends and stops rewriting');
+    restoreHitTest();
+    affordance.remove();
   });
 
-  it('stands the tail burst down when the reader takes over', async () => {
+  it('leaves a native press elsewhere on the pane to the brake it caused', async () => {
     const messages = new Map<string, NormalizedMessage[]>([
       [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
     ]);
@@ -461,15 +468,22 @@ describe('deferred scroll-to-bottom', () => {
     });
     container.writes.length = 0;
 
+    // A finger anywhere else is the reader stopping the scroll, not asking for
+    // the tail: the brake alone is the answer, and the viewport must stay put.
+    const messageRow = document.createElement('div');
+    document.body.appendChild(messageRow);
+    const restoreHitTest = stubElementFromPoint(messageRow);
+
     act(() => {
-      result.current.scrollToBottomAndReset();
-      // A wheel notch arriving inside the window is the reader steering, and
-      // must win over the writes the burst still owes the tail.
-      container.element.dispatchEvent(new WheelEvent('wheel', { deltaY: -120 }));
-      container.element.scrollTop = 1500;
-      runAnimationFrame();
+      const host = window as Window & { __cloudcliTailTap?: (x: number, y: number) => void };
+      host.__cloudcliTailTap?.(120, 300);
     });
-    assert.equal(container.writes.at(-1), 1500, 'the gesture stands the burst down');
+
+    assert.equal(result.current.isUserScrolledUp, true, 'the reader keeps the viewport');
+    assert.deepEqual(container.writes, [], 'the pane is not moved');
+
+    restoreHitTest();
+    messageRow.remove();
   });
 
   it('follows content growth inside the same message', async () => {

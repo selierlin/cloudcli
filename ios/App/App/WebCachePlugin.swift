@@ -197,6 +197,64 @@ final class HapticsPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 }
 
+/**
+ * 惯性滑行期间的点击回传。
+ *
+ * iOS 在滚动视图的减速动画一开始就停止向网页派发触摸事件：手指落在聊天区里
+ * 唯一看得见的反应是「刹车」——滚动立刻停住——页面的 touchstart、touchend 和
+ * click 一个都不会来。于是「滑行中点回底按钮」永远只刹住车，必须等停稳再点
+ * 一次，前端任何监听都救不了。
+ *
+ * 原生侧看得见这次点击，所以这里把每次点击的坐标交给
+ * `window.__cloudcliTailTap`，由页面用命中测试决定落点是不是回底按钮：页面
+ * 知道按钮在哪、也知道自己是不是正被读者拉走。为什么不在原生侧先按
+ * `isDecelerating` 过滤——聊天区是页面里的 overflow 滚动容器，不是
+ * `webView.scrollView`，那个属性对它是 false。其余点击在页面侧判空即返回。
+ */
+@objc(TailTapPlugin)
+final class TailTapPlugin: CAPPlugin, CAPBridgedPlugin {
+    let identifier = "TailTapPlugin"
+    let jsName = "TailTap"
+    let pluginMethods: [CAPPluginMethod] = []
+
+    override func load() {
+        guard let webView else { return }
+
+        let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
+        tap.delegate = self
+        // 这里只是旁听：点击照旧交给页面，也不能拖慢页面的 touchend。
+        tap.cancelsTouchesInView = false
+        tap.delaysTouchesEnded = false
+        webView.addGestureRecognizer(tap)
+    }
+
+    @objc private func handleTap(_ recognizer: UITapGestureRecognizer) {
+        guard let webView else { return }
+
+        // 页面用 CSS 像素做命中测试。App 关闭了缩放（viewport 的
+        // maximum-scale=1）且 webview 没有 contentInset，两者一一对应。
+        let point = recognizer.location(in: webView)
+        let scale = max(webView.scrollView.zoomScale, 0.01)
+        let x = Int((point.x / scale).rounded())
+        let y = Int((point.y / scale).rounded())
+
+        webView.evaluateJavaScript(
+            "window.__cloudcliTailTap && window.__cloudcliTailTap(\(x), \(y));",
+            completionHandler: nil
+        )
+    }
+}
+
+extension TailTapPlugin: UIGestureRecognizerDelegate {
+    /// 与网页自己的手势并存，不抢任何一方。
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
+    ) -> Bool {
+        true
+    }
+}
+
 final class CloudCLIBridgeViewController: CAPBridgeViewController {
     weak var serverSessionHandler: CloudCLIServerSessionHandling?
 
@@ -210,6 +268,7 @@ final class CloudCLIBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(WebCachePlugin())
         bridge?.registerPluginInstance(ServerSessionPlugin())
         bridge?.registerPluginInstance(HapticsPlugin())
+        bridge?.registerPluginInstance(TailTapPlugin())
     }
 
     func loadServer(_ url: URL) {

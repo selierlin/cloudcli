@@ -87,20 +87,6 @@ const ANCHOR_SETTLE_MAX_MS = 2500;
 const TOUCH_UP_INTENT_MIN_TRAVEL_PX = 10;
 
 /**
- * How long an explicit request for the tail keeps rewriting it.
- *
- * On iOS a press that lands while the transcript is coasting is spent on
- * stopping the scroll view: the write made from that press reaches the web
- * process's scroll position and is then overwritten, frame after frame, by the
- * deceleration still running in the UI process — so the pane stops where the
- * touch braked it and the reader has to press again once it is at rest.
- * Rewriting across a burst of frames outlives the brake, and the window is
- * short enough that a reader who starts dragging straight away wins on the
- * gesture counter instead of on the clock.
- */
-const TAIL_PIN_BURST_MS = 300;
-
-/**
  * Finds the rendered row for a resolved search target.
  *
  * Only an exact timestamp match counts while retries remain: the widened window
@@ -403,10 +389,6 @@ export function useChatSessionState({
   const readerInputSeqRef = useRef(0);
   /** The sole queued streaming follow write, shared across transcript updates. */
   const followFrameRef = useRef<number | null>(null);
-  /** The queued frame of an explicit tail request's write burst, if running. */
-  const tailPinFrameRef = useRef<number | null>(null);
-  /** When the running tail-request burst stops rewriting, in epoch ms. */
-  const tailPinUntilRef = useRef(0);
   /** Minimum deadline before an animated handoff may be considered settled. */
   const followUntilRef = useRef(0);
   /** Last post-write geometry observed by the single transcript follow loop. */
@@ -651,43 +633,6 @@ export function useChatSessionState({
     programmaticScrollTopRef.current = container.scrollTop;
   }, []);
 
-  /**
-   * Drives the viewport to the tail over the next few frames instead of once.
-   *
-   * The press that asks for the tail usually lands while iOS is still coasting,
-   * and that coast owns the position: the write reaches the web process's
-   * scroll offset and the deceleration running in the UI process puts its own
-   * offset back on the next frame, so a single write leaves the pane exactly
-   * where the touch braked it — visibly a viewport that stopped short, with the
-   * reader having to press a second time from rest. Rewriting per frame is what
-   * outlives the brake. A gesture arriving after this one is the reader
-   * steering, and stands the burst down on the shared gesture counter rather
-   * than on the clock.
-   */
-  const pinTailAcrossCoast = useCallback(() => {
-    if (!scrollContainerRef.current) return;
-    const inputSeq = readerInputSeqRef.current;
-    const until = Date.now() + TAIL_PIN_BURST_MS;
-    tailPinUntilRef.current = until;
-    scrollToBottom();
-    if (tailPinFrameRef.current !== null) return;
-
-    const tick = () => {
-      tailPinFrameRef.current = null;
-      if (
-        readerInputSeqRef.current !== inputSeq
-        || Date.now() >= until
-        || !scrollContainerRef.current
-      ) {
-        tailPinUntilRef.current = 0;
-        return;
-      }
-      scrollToBottom();
-      tailPinFrameRef.current = window.requestAnimationFrame(tick);
-    };
-    tailPinFrameRef.current = window.requestAnimationFrame(tick);
-  }, [scrollToBottom]);
-
   const followTranscriptLayout = useCallback((durationMs = 0) => {
     const scheduledSessionId = activeSessionIdRef.current;
     // The gesture term keeps this writer out of the reader's way. A wheel notch
@@ -850,21 +795,41 @@ export function useChatSessionState({
    * latch would survive and the affordance would stay on screen. Clearing it also
    * hands the position to `followTranscriptLayout`, which keeps the tail pinned
    * while the rows above it settle.
-   *
-   * The write is repeated across the next frames (`pinTailAcrossCoast`) because
-   * the press normally arrives mid-coast and the first write is overwritten by
-   * the deceleration the touch just braked.
    */
   const scrollToBottomAndReset = useCallback(() => {
     setIsUserScrolledUp(false);
     upwardIntentRef.current = false;
-    pinTailAcrossCoast();
+    scrollToBottom();
     if (allMessagesLoaded) {
       setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
       setAllMessagesLoaded(false);
       allMessagesLoadedRef.current = false;
     }
-  }, [allMessagesLoaded, pinTailAcrossCoast, setIsUserScrolledUp]);
+  }, [allMessagesLoaded, scrollToBottom, setIsUserScrolledUp]);
+
+  /**
+   * Answers a tail press that arrived while the transcript was coasting.
+   *
+   * iOS stops dispatching touches to the foreground page once its own
+   * deceleration starts, so such a press reaches no DOM listener at all: the
+   * only native reaction is the brake that stops the coast, which is why the
+   * affordance stayed inert until the pane came to rest. The app's native side
+   * (see `TailTapPlugin.swift`) forwards the point of every tap it sees, and the
+   * hit test below decides whether the finger landed on the affordance — a press
+   * anywhere else is the reader stopping the scroll, not asking for the tail.
+   */
+  useEffect(() => {
+    const host = window as Window & { __cloudcliTailTap?: (x: number, y: number) => void };
+    const handleTap = (x: number, y: number): void => {
+      const target = document.elementFromPoint(x, y);
+      if (!target?.closest('[data-transcript-tail-affordance]')) return;
+      scrollToBottomAndReset();
+    };
+    host.__cloudcliTailTap = handleTap;
+    return () => {
+      if (host.__cloudcliTailTap === handleTap) delete host.__cloudcliTailTap;
+    };
+  }, [scrollToBottomAndReset]);
 
   /**
    * Takes the viewport back to the tail because the reader asked for it in the
@@ -1063,12 +1028,7 @@ export function useChatSessionState({
       && container.scrollTop > previousTop + SCROLL_UP_EPSILON_PX
       && !landedOnOurOwnWrite
     );
-    // A fall while an explicit request for the tail is still driving the
-    // viewport is the coast writing its own offset back over that request, not
-    // the reader: the burst rewrites the tail on the next frame, and latching
-    // here would both flash the affordance and stand the burst's owner down.
-    const tailBurstActive = tailPinUntilRef.current > Date.now();
-    const readerOwnsViewport = (movedUp && !tailBurstActive) || upwardIntentRef.current;
+    const readerOwnsViewport = movedUp || upwardIntentRef.current;
     if (isUserScrolledUpRef.current) {
       // Latching stays sticky. The reader may keep reading further up while the
       // answer grows below them, and that growth must not read as "back at the
@@ -1665,11 +1625,6 @@ export function useChatSessionState({
       anchorSettleFrameRef.current = null;
     }
     anchorSettleRef.current = null;
-    if (tailPinFrameRef.current !== null) {
-      window.cancelAnimationFrame(tailPinFrameRef.current);
-      tailPinFrameRef.current = null;
-    }
-    tailPinUntilRef.current = 0;
   }, []);
 
   useEffect(() => {
