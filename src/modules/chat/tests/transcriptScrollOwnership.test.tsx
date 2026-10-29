@@ -352,6 +352,46 @@ describe('deferred scroll-to-bottom', () => {
     );
   });
 
+  it('takes the viewport back to the tail when the affordance is pressed', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
+    ]);
+    const store = createStore(messages);
+    const { result, rerender } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    act(() => {
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: true });
+      result.current.setIsUserScrolledUp(true);
+      runAnimationFrame();
+    });
+    assert.equal(result.current.isUserScrolledUp, true);
+    container.writes.length = 0;
+
+    // The jump lands exactly on the offset this writer records, and the scroll
+    // handler excludes a landing on our own write as evidence that the reader
+    // moved down — so the press itself has to release the latch, or the
+    // affordance would stay on screen after doing its job.
+    act(() => {
+      result.current.scrollToBottomAndReset();
+    });
+    assert.equal(result.current.isUserScrolledUp, false, 'the affordance releases the reader latch');
+    assert.equal(container.writes.at(-1), 5000, 'the affordance writes the tail');
+
+    // Releasing the latch is also what hands the position to the follow loop,
+    // which keeps pinning when the pane's deceleration overwrites the write.
+    act(() => {
+      container.setScrollHeight(5400);
+      runAnimationFrame();
+    });
+    assert.equal(container.writes.at(-1), 5400, 'the follow loop keeps the tail pinned');
+  });
+
   it('follows content growth inside the same message', async () => {
     const messages = new Map<string, NormalizedMessage[]>([
       [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],

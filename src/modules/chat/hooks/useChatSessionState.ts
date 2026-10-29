@@ -785,14 +785,27 @@ export function useChatSessionState({
     anchorSettleFrameRef.current = window.requestAnimationFrame(tick);
   }, [cancelAnchorSettle]);
 
+  /**
+   * The reader asked for the tail with the affordance above the composer.
+   *
+   * Both latches are dropped before the write, exactly as a send does: leaving
+   * `isUserScrolledUp` to the scroll handler cannot work, because the jump lands
+   * precisely on the offset this writer recorded and `handleScroll` excludes a
+   * landing on our own write from the evidence that the reader moved down — the
+   * latch would survive and the affordance would stay on screen. Clearing it also
+   * hands the position to `followTranscriptLayout`, which is what re-pins the
+   * tail when WKWebView's deceleration keeps overwriting the single write.
+   */
   const scrollToBottomAndReset = useCallback(() => {
+    setIsUserScrolledUp(false);
+    upwardIntentRef.current = false;
     scrollToBottom();
     if (allMessagesLoaded) {
       setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
       setAllMessagesLoaded(false);
       allMessagesLoadedRef.current = false;
     }
-  }, [allMessagesLoaded, scrollToBottom]);
+  }, [allMessagesLoaded, scrollToBottom, setIsUserScrolledUp]);
 
   /**
    * Takes the viewport back to the tail because the reader asked for it in the
