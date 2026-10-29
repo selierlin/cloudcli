@@ -392,6 +392,86 @@ describe('deferred scroll-to-bottom', () => {
     assert.equal(container.writes.at(-1), 5400, 'the follow loop keeps the tail pinned');
   });
 
+  it('rewrites the tail when the coast puts its own offset back', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
+    ]);
+    const store = createStore(messages);
+    const { result, rerender } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    act(() => {
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: true });
+      result.current.setIsUserScrolledUp(true);
+      runAnimationFrame();
+    });
+    container.writes.length = 0;
+
+    act(() => {
+      result.current.scrollToBottomAndReset();
+    });
+
+    // The press landed mid-coast: the deceleration running in the UI process
+    // writes its own offset back over the request on the next frame, which is
+    // why a pane that stopped where the touch braked it needs a second press.
+    act(() => {
+      container.element.scrollTop = 1500;
+      runAnimationFrame();
+    });
+    assert.equal(container.writes.at(-1), 5000, 'the burst rewrites the tail over the coast');
+
+    // The burst is on a clock, so the frame that follows the window leaves the
+    // viewport where the reader put it. The follow loop has settled by then
+    // (two stable frames), so nothing but the burst is still writing.
+    act(() => {
+      runAnimationFrame();
+      runAnimationFrame();
+      runAnimationFrame();
+    });
+    act(() => {
+      vi.advanceTimersByTime(1000);
+      container.element.scrollTop = 1500;
+      runAnimationFrame();
+    });
+    assert.equal(container.writes.at(-1), 1500, 'the burst ends and stops rewriting');
+  });
+
+  it('stands the tail burst down when the reader takes over', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
+    ]);
+    const store = createStore(messages);
+    const { result, rerender } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    act(() => {
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: true });
+      result.current.setIsUserScrolledUp(true);
+      runAnimationFrame();
+    });
+    container.writes.length = 0;
+
+    act(() => {
+      result.current.scrollToBottomAndReset();
+      // A wheel notch arriving inside the window is the reader steering, and
+      // must win over the writes the burst still owes the tail.
+      container.element.dispatchEvent(new WheelEvent('wheel', { deltaY: -120 }));
+      container.element.scrollTop = 1500;
+      runAnimationFrame();
+    });
+    assert.equal(container.writes.at(-1), 1500, 'the gesture stands the burst down');
+  });
+
   it('follows content growth inside the same message', async () => {
     const messages = new Map<string, NormalizedMessage[]>([
       [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
