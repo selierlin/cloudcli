@@ -91,6 +91,7 @@ const paneProps = (
   programmaticScrollTopRef: { current: null },
   onWheel: vi.fn(),
   onTouchMove: vi.fn(),
+  onScrollToBottom: vi.fn(),
   isLoadingSessionMessages: false,
   isProcessing: true,
   chatMessages: visibleMessages,

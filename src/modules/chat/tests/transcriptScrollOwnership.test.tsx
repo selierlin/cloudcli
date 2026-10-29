@@ -125,6 +125,23 @@ function createGeometryAwareRow(
   };
 }
 
+/**
+ * jsdom has no hit testing at all — `document.elementFromPoint` is not even
+ * defined — so the native bridge's landing check has to be scripted. The
+ * returned restore runs whether or not the case threw.
+ */
+function stubElementFromPoint(hit: Element | null): () => void {
+  const original = Object.getOwnPropertyDescriptor(document, 'elementFromPoint');
+  Object.defineProperty(document, 'elementFromPoint', {
+    configurable: true,
+    value: () => hit,
+  });
+  return () => {
+    if (original) Object.defineProperty(document, 'elementFromPoint', original);
+    else delete (document as unknown as { elementFromPoint?: unknown }).elementFromPoint;
+  };
+}
+
 type SlotOverrides = {
   hasMore?: boolean;
   total?: number;
@@ -352,6 +369,123 @@ describe('deferred scroll-to-bottom', () => {
     );
   });
 
+  it('takes the viewport back to the tail when the affordance is pressed', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
+    ]);
+    const store = createStore(messages);
+    const { result, rerender } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    act(() => {
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: true });
+      result.current.setIsUserScrolledUp(true);
+      runAnimationFrame();
+    });
+    assert.equal(result.current.isUserScrolledUp, true);
+    container.writes.length = 0;
+
+    // The jump lands exactly on the offset this writer records, and the scroll
+    // handler excludes a landing on our own write as evidence that the reader
+    // moved down — so the press itself has to release the latch, or the
+    // affordance would stay on screen after doing its job.
+    act(() => {
+      result.current.scrollToBottomAndReset();
+    });
+    assert.equal(result.current.isUserScrolledUp, false, 'the affordance releases the reader latch');
+    assert.equal(container.writes.at(-1), 5000, 'the affordance writes the tail');
+
+    // Releasing the latch is also what hands the position to the follow loop,
+    // which keeps pinning when the pane's deceleration overwrites the write.
+    act(() => {
+      container.setScrollHeight(5400);
+      runAnimationFrame();
+    });
+    assert.equal(container.writes.at(-1), 5400, 'the follow loop keeps the tail pinned');
+  });
+
+  it('answers a native tail press that landed on the affordance', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
+    ]);
+    const store = createStore(messages);
+    const { result, rerender } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    act(() => {
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: true });
+      result.current.setIsUserScrolledUp(true);
+      runAnimationFrame();
+    });
+    container.writes.length = 0;
+
+    // A press that lands while iOS is decelerating reaches no DOM listener, so
+    // the native side hands its point over instead and the hit test decides.
+    const affordance = document.createElement('div');
+    affordance.setAttribute('data-transcript-tail-affordance', '');
+    document.body.appendChild(affordance);
+    const restoreHitTest = stubElementFromPoint(affordance);
+
+    act(() => {
+      const host = window as Window & { __cloudcliTailTap?: (x: number, y: number) => void };
+      host.__cloudcliTailTap?.(120, 700);
+    });
+
+    assert.equal(result.current.isUserScrolledUp, false, 'the native press releases the reader latch');
+    assert.equal(container.writes.at(-1), 5000, 'the native press writes the tail');
+
+    restoreHitTest();
+    affordance.remove();
+  });
+
+  it('leaves a native press elsewhere on the pane to the brake it caused', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
+    ]);
+    const store = createStore(messages);
+    const { result, rerender } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    act(() => {
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: true });
+      result.current.setIsUserScrolledUp(true);
+      runAnimationFrame();
+    });
+    container.writes.length = 0;
+
+    // A finger anywhere else is the reader stopping the scroll, not asking for
+    // the tail: the brake alone is the answer, and the viewport must stay put.
+    const messageRow = document.createElement('div');
+    document.body.appendChild(messageRow);
+    const restoreHitTest = stubElementFromPoint(messageRow);
+
+    act(() => {
+      const host = window as Window & { __cloudcliTailTap?: (x: number, y: number) => void };
+      host.__cloudcliTailTap?.(120, 300);
+    });
+
+    assert.equal(result.current.isUserScrolledUp, true, 'the reader keeps the viewport');
+    assert.deepEqual(container.writes, [], 'the pane is not moved');
+
+    restoreHitTest();
+    messageRow.remove();
+  });
+
   it('follows content growth inside the same message', async () => {
     const messages = new Map<string, NormalizedMessage[]>([
       [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
@@ -530,6 +664,70 @@ describe('deferred scroll-to-bottom', () => {
 
     act(() => runAnimationFrame());
     assert.deepEqual(container.writes, []);
+  });
+});
+
+describe('tail affordance visibility', () => {
+  /**
+   * The ownership latch sets on the first pixel of an upward move so the follow
+   * loop never fights a drag, but that is far too eager to put a "back to
+   * bottom" button over the message the reader has only just started re-reading.
+   * The button therefore has its own two-threshold gap, and a drag that stays
+   * between the two must not make it blink.
+   */
+  it('waits until the reader has left the tail behind, then stays until they return', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, [buildMessage(0, '2026-01-01T00:00:00.000Z')]],
+    ]);
+    const store = createStore(messages);
+    const { result, rerender } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+    await act(async () => {
+      rerender({ session: { id: SESSION_A } as ProjectSession, isActive: true });
+      await Promise.resolve();
+    });
+
+    const scrollTo = async (top: number): Promise<void> => {
+      container.element.scrollTop = top;
+      await act(async () => {
+        container.element.dispatchEvent(new Event('scroll'));
+        await Promise.resolve();
+      });
+    };
+
+    // The first sample only establishes where the viewport started.
+    await scrollTo(4500);
+
+    // A few pixels of upward drift are enough to stop following…
+    await scrollTo(4495);
+    assert.equal(result.current.isUserScrolledUp, true, 'the first pixel takes ownership');
+    assert.equal(result.current.showTailAffordance, false, 'but the button stays out of the way');
+
+    // …while the button needs a real gap, here 200px.
+    await scrollTo(4300);
+    assert.equal(result.current.showTailAffordance, true, 'a real gap brings the button out');
+
+    // Coming back to 70px is past the withdraw threshold, so it stays — the
+    // hysteresis is what keeps a coast resting there from flickering.
+    await scrollTo(4430);
+    assert.equal(result.current.showTailAffordance, true, 'the button holds inside the band');
+
+    await scrollTo(4470);
+    assert.equal(result.current.showTailAffordance, false, 'coming back withdraws it');
+
+    // Returning to the tail hands the viewport back, and the flag must not
+    // survive into the next drag or the button would appear on its first pixel.
+    await scrollTo(4300);
+    act(() => {
+      result.current.scrollToBottomAndReset();
+    });
+    await scrollTo(4499);
+    assert.equal(result.current.showTailAffordance, false, 'a jump to the tail resets the button');
   });
 });
 

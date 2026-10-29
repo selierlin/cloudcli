@@ -121,4 +121,16 @@ describe('ScrollToBottomAffordance', () => {
 
     expect(parts.onScrollToBottom).toHaveBeenCalledTimes(1);
   });
+
+  // The press that lands on a coasting pane never reaches the page: iOS spends
+  // it on braking its own scroll view. That case is answered natively, so the
+  // component itself must stay a plain button — a touch listener here would be
+  // dead weight and would double-fire on the taps that do arrive.
+  it('leaves a touch press to the click the browser synthesizes from it', () => {
+    const parts = renderAffordance(false);
+
+    fireEvent.touchStart(parts.button);
+
+    expect(parts.onScrollToBottom).not.toHaveBeenCalled();
+  });
 });

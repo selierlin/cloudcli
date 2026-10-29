@@ -197,6 +197,115 @@ final class HapticsPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 }
 
+/**
+ * 惯性滑行期间的按下旁听器。
+ *
+ * 触摸在 UIKit 层始终是派发的——不派发就没法「刹车」——被吞掉的是 WebKit 转交
+ * 页面的那一段，以及所有需要识别成功的手势：减速期间落下的第一次按下会被
+ * WebKit 取消，`UITapGestureRecognizer` 因此一次都识别不出来，等它识别等于
+ * 等页面停稳。
+ *
+ * 所以这里不参与识别：`touchesBegan` 记下起点，抬手（或触摸被 WebKit 取消，
+ * 那正是要救的一次）时若手指没怎么移动，就把坐标交出去。它从不进入
+ * recognized，既不抢手势也不延迟页面自己的 touchend。
+ */
+final class CoastPressRecognizer: UIGestureRecognizer {
+    /// 一次按下-抬起（期间没有明显移动）的回调，坐标是识别器所在 view 的坐标系。
+    var onPress: ((CGPoint) -> Void)?
+
+    /// 超过这个位移就算拖拽，不再是一次点击。
+    private static let slop: CGFloat = 10
+
+    private var startPoint: CGPoint = .zero
+    private var isTapCandidate = false
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        guard let touch = touches.first, let view else {
+            isTapCandidate = false
+            return
+        }
+        startPoint = touch.location(in: view)
+        isTapCandidate = true
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+        guard isTapCandidate, let touch = touches.first, let view else { return }
+        let point = touch.location(in: view)
+        if hypot(point.x - startPoint.x, point.y - startPoint.y) > Self.slop {
+            isTapCandidate = false
+        }
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        deliver()
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+        deliver()
+    }
+
+    private func deliver() {
+        let candidate = isTapCandidate
+        isTapCandidate = false
+        state = .failed
+        guard candidate else { return }
+        onPress?(startPoint)
+    }
+}
+
+/**
+ * 把这类按下交给页面。
+ *
+ * 页面知道回底按钮在哪、也知道自己是不是正被读者拉着，所以坐标原样送过去，
+ * 由 `window.__cloudcliTailTap` 用命中测试决定是否回收到底；落在别处就是读者
+ * 在刹车，判空即返回。
+ */
+@objc(TailTapPlugin)
+final class TailTapPlugin: CAPPlugin, CAPBridgedPlugin {
+    let identifier = "TailTapPlugin"
+    let jsName = "TailTap"
+    let pluginMethods: [CAPPluginMethod] = []
+
+    override func load() {
+        guard let webView else { return }
+
+        let press = CoastPressRecognizer()
+        press.delegate = self
+        press.cancelsTouchesInView = false
+        press.delaysTouchesBegan = false
+        press.delaysTouchesEnded = false
+        press.onPress = { [weak self] point in
+            self?.forward(point)
+        }
+        webView.addGestureRecognizer(press)
+    }
+
+    private func forward(_ point: CGPoint) {
+        guard let webView else { return }
+
+        // 页面用 CSS 像素做命中测试。App 关掉了页面缩放（viewport 的
+        // maximum-scale=1），且 webview 没有 contentInset，两者一一对应。
+        let scale = max(webView.scrollView.zoomScale, 0.01)
+        let x = Int((point.x / scale).rounded())
+        let y = Int((point.y / scale).rounded())
+
+        webView.evaluateJavaScript(
+            "window.__cloudcliTailTap && window.__cloudcliTailTap(\(x), \(y));",
+            completionHandler: nil
+        )
+    }
+}
+
+extension TailTapPlugin: UIGestureRecognizerDelegate {
+    /// 与网页自己的手势并存，不抢任何一方。
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
+    ) -> Bool {
+        true
+    }
+}
+
 final class CloudCLIBridgeViewController: CAPBridgeViewController {
     weak var serverSessionHandler: CloudCLIServerSessionHandling?
 
@@ -210,6 +319,7 @@ final class CloudCLIBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(WebCachePlugin())
         bridge?.registerPluginInstance(ServerSessionPlugin())
         bridge?.registerPluginInstance(HapticsPlugin())
+        bridge?.registerPluginInstance(TailTapPlugin())
     }
 
     func loadServer(_ url: URL) {

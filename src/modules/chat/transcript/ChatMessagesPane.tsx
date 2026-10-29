@@ -39,6 +39,7 @@ import MessageComponent from '@/modules/chat/transcript/MessageComponent';
 import ProviderSelectionEmptyState from '@/modules/chat/transcript/ProviderSelectionEmptyState';
 import ToolGroupContainer from '@/modules/chat/transcript/ToolGroupContainer';
 import LoadAllMessagesOverlay from '@/modules/chat/transcript/LoadAllMessagesOverlay';
+import ScrollToBottomAffordance from '@/modules/chat/ScrollToBottomAffordance';
 import ExecutionProcessSummary from '@/modules/chat/transcript/ExecutionProcessSummary';
 import UserMessageStickyHeader from '@/modules/chat/transcript/UserMessageStickyHeader';
 import { deriveUserMessageAnchors } from '@/modules/chat/utils/userMessageAnchors';
@@ -155,6 +156,14 @@ type ChatMessagesPaneProps = {
   isProcessing?: boolean;
   /** Prevents disclosure layout changes while the user reads above the tail. */
   isUserScrolledUp?: boolean;
+  /**
+   * Whether the reader is far enough past the tail for the back-to-bottom
+   * button to be useful. Chat owns the gap thresholds; the pane only decides
+   * whether to draw.
+   */
+  showTailAffordance?: boolean;
+  /** Fired by the tail affordance; chat owns the scroll writer. */
+  onScrollToBottom: () => void;
   /** Asks the chat-owned scroll writer to follow an automatic reasoning collapse. */
   onReasoningAutoCollapseStart?: () => void;
   /** Search hit that must be visible before the scroll/highlight step runs. */
@@ -243,6 +252,8 @@ function ChatMessagesPane({
   isLoadingSessionMessages,
   isProcessing = false,
   isUserScrolledUp = false,
+  showTailAffordance = false,
+  onScrollToBottom,
   onReasoningAutoCollapseStart,
   searchRevealRequest,
   hasActivityIndicator = false,
@@ -813,6 +824,23 @@ function ChatMessagesPane({
           </>
         )}
       </div>
+      {/* The tail affordance is laid out inside the scroller on purpose: iOS
+          spends a touch on the transcript on braking its own coast, but only
+          when the touch hit-tests into the scrolling content. As a sibling
+          above the composer it received the touch and answered it while the
+          coast carried the view away from the jump anyway. Zero height and
+          absolute placement keep it out of the transcript's geometry; when the
+          pane is at its static end it is not rendered at all. */}
+      {showTailAffordance && !isExportSelecting && chatMessages.length > 0 && (
+        <div data-transcript-tail-affordance className="pointer-events-none sticky bottom-0 z-20 h-0">
+          <div className="absolute inset-x-0 bottom-11 flex justify-center">
+            <ScrollToBottomAffordance
+              isThinking={hasActivityIndicator}
+              onScrollToBottom={onScrollToBottom}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -19,6 +19,12 @@ type ScrollToBottomAffordanceProps = {
  * Rendered by chat's ChatInterface above the composer. It is the sole way back to
  * the bottom once the user has scrolled away, so its accessible name describes the
  * action and never changes; the glyph only reports whether the turn is still running.
+ *
+ * Only `click` is bound here. A press that lands while the transcript is still
+ * coasting never reaches the page at all — iOS spends it on braking its own
+ * scroll view and stops dispatching touches to the foreground page — so that
+ * case is answered natively, by `TailTapPlugin.swift` calling
+ * `window.__cloudcliTailTap`.
  */
 export default function ScrollToBottomAffordance({ isThinking, onScrollToBottom }: ScrollToBottomAffordanceProps) {
   const { t } = useTranslation('chat');
