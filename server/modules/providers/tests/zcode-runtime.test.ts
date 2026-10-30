@@ -180,7 +180,7 @@ test('preserves the spaces between English words across streamed deltas', async 
   assert.equal(text, 'Hello world, this is a test.');
 });
 
-test('resume passes --resume, maps acceptEdits to edit, and does not re-announce', async () => {
+test('resume passes --resume, maps acceptEdits to guarded, and does not re-announce', async () => {
   const captured: Captured[] = [];
   const argsFile = path.join(await makeTempDir('zcode-args-'), 'args.json');
   useMockCli();
@@ -200,7 +200,7 @@ test('resume passes --resume, maps acceptEdits to edit, and does not re-announce
   assert.ok(args.includes('--resume'));
   assert.ok(args.includes('sess_existing'));
   assert.ok(args.includes('--mode'));
-  assert.equal(args[args.indexOf('--mode') + 1], 'edit');
+  assert.equal(args[args.indexOf('--mode') + 1], 'guarded');
   assert.ok(args.includes('--output-format'));
   assert.ok(args.includes('--no-color'));
   assert.ok(args.includes('--cwd'));
@@ -213,7 +213,7 @@ test('resume passes --resume, maps acceptEdits to edit, and does not re-announce
     .map((entry) => entry.content)
     .join('');
   assert.ok(text.includes('RESUMED:sess_existing'), `text: ${text}`);
-  assert.ok(text.includes('MODE:edit'));
+  assert.ok(text.includes('MODE:guarded'));
 });
 
 test('tool success closes through tool.updated/result and a success batch does not reopen it', async () => {

@@ -32,8 +32,10 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
-const BASE = 'http://127.0.0.1:3011';
-const WS_BASE = 'ws://127.0.0.1:3011/ws';
+// `BENCH_BASE` lets a run target a throwaway instance (see the deploy skill)
+// without editing this file; it defaults to the daemon the app itself talks to.
+const BASE = process.env.BENCH_BASE ?? 'http://127.0.0.1:3011';
+const WS_BASE = `${BASE.replace(/^http/, 'ws')}/ws`;
 const ROOT = '/tmp/harness-bench';
 const BENCH_DIR = path.dirname(new URL(import.meta.url).pathname);
 
@@ -434,7 +436,14 @@ function runTurn({ sessionId, content, options, timeoutMs }) {
         permissionCount += 1;
         ws.send(JSON.stringify({ type: 'chat.permission-response', requestId: frame.requestId, allow: true }));
       } else if (frame.kind === 'complete' || frame.kind === 'error' || frame.kind === 'protocol_error') {
-        terminal = { kind: frame.kind, error: frame.error ?? null, exitCode: frame.exitCode };
+        // Providers put the diagnostic in `content` (ZCode/pi emit
+        // `{kind:'error', content}`), so keep it or the failure reason is lost.
+        terminal = {
+          kind: frame.kind,
+          error: frame.error ?? null,
+          content: frame.content ?? null,
+          exitCode: frame.exitCode,
+        };
         finish(resolve, {
           t0, firstTextMs, firstThinkingMs, totalMs: now - t0,
           textChars, thinkingChars, toolUseCount, permissionCount, terminal,

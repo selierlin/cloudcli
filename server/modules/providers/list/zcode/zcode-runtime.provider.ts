@@ -23,13 +23,19 @@ import { findZcodeSessionForRun } from './zcode-sessions.provider.js';
 /**
  * Maps CloudCLI permission modes onto ZCode's `--mode` values.
  *
- * Verified against 0.16.5. `edit` auto-approves file edits and non-destructive
- * commands while denying side-effecting writes and high-risk commands; `build`
- * denies both; `plan` only plans; `yolo` auto-approves everything.
+ * A `--prompt` run installs ZCode's `DenyPermissionBroker`: nothing outside the
+ * CLI can answer a `permission.requested`, so every approval-requiring tool
+ * (Bash, MCP tools) resolves to `deny` with "No permission client configured".
+ * `build` and `edit` therefore do not stop at side-effecting writes — they
+ * refuse ordinary shell commands too, and 3 denials trip the circuit breaker.
+ *
+ * Verified against 0.17.0: `guarded` runs ordinary tools (Bash, file writes)
+ * and still denies dangerous commands (e.g. `rm -rf`), which is the closest
+ * headless equivalent of `acceptEdits`; `yolo` auto-approves everything.
  */
 const PERMISSION_MODE_MAP: Record<string, string> = {
   default: 'build',
-  acceptEdits: 'edit',
+  acceptEdits: 'guarded',
   bypassPermissions: 'yolo',
   plan: 'plan',
 };
@@ -115,7 +121,7 @@ function reportsLoadedModel(event: AnyRecord): boolean {
 function denialGuidance(toolName: string): string {
   return [
     `ZCode cannot prompt for approval in headless mode, so ${toolName} was denied and this task may not complete.`,
-    'For file-editing work, switch to acceptEdits (edit) mode.',
+    'Switch to acceptEdits (guarded) mode so ordinary tools can run headless.',
     'Only choose bypassPermissions (yolo) — which auto-approves every tool, including arbitrary command execution — if you trust this task.',
   ].join(' ');
 }
