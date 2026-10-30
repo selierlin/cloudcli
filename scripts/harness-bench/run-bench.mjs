@@ -91,6 +91,20 @@ const PROVIDERS = [
   { id: 'workbuddy', channel: 'workbuddy', model: 'glm-5.3-flash', effort: 'high' },
 ];
 
+// Channel is only a model prefix for these four: the CLI talks OpenAI chat
+// completions whichever upstream is behind it, so pointing them at copilot is
+// the cheapest way to measure the same harness on the other stack. claude
+// (anthropic messages) and codex (responses) have no endpoint there, and dsh
+// pins its channel in the ACP profile, so those three are excluded.
+const COPILOT_MIRROR = new Set(['opencode', 'pi', 'zcode', 'omp']);
+if (process.env.BENCH_CHANNEL === 'copilot') {
+  for (const p of PROVIDERS) {
+    if (!COPILOT_MIRROR.has(p.id)) continue;
+    p.channel = 'workbuddy';
+    p.model = `workbuddy/${p.model.split('/').pop()}`;
+  }
+}
+
 // -------------------------------------------------------------- scenarios
 // rounds: 5 default; expensive scenarios (S7 real code task, S8 32k context) 3.
 const TOOLFILE_SECRET = 'MOON-7391';
