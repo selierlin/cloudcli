@@ -31,8 +31,18 @@ const NEEDLE_PASSWORD_2 = 'BENCH-4417';
 const CHECKS = {
   S1: (t) => /299,?792|30万|300,?000|3[×x*]10(\^?5|⁵)/.test(t.replace(/\s/g, '')),
   S2: (t) => {
-    const s = t.replace(/\s/g, '').replace(/\\[dt]?frac/g, '/').replace(/[{}]/g, '');
-    return /33\/7|七分之三十三/.test(s) || /4\/5\/7/.test(s);
+    const s = t.replace(/\\left|\\right/g, '');
+    const values = [];
+    for (const m of s.matchAll(/(\d+)?\s*\\(?:d?frac|tfrac)\s*\{(\d+)\}\s*\{(\d+)\}/g)) {
+      values.push(Number(m[1] ?? 0) + Number(m[2]) / Number(m[3]));
+    }
+    for (const m of s.matchAll(/(?<![\d.])(\d+)\s*\/\s*(\d+)(?![\d.])/g)) {
+      values.push(Number(m[1]) / Number(m[2]));
+    }
+    for (const m of s.matchAll(/(\d+)\s*又\s*(\d+)\s*\/\s*(\d+)/g)) {
+      values.push(Number(m[1]) + Number(m[2]) / Number(m[3]));
+    }
+    return values.some((v) => Math.abs(v - 33 / 7) < 1e-6);
   },
   S3: () => true,
   S4: (t) => {

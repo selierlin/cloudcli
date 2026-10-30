@@ -331,11 +331,21 @@ const SCENARIOS = [
   {
     id: 'S2', name: '复杂推理', rounds: 5, timeoutMs: 240_000,
     prompt: '一项工程，甲单独做12天完成，乙单独做18天完成，丙单独做24天完成。三人合作3天后甲离开，乙和丙继续做，那么还需要多少天才能完成？请给出精确分数。',
-    // models answer either 33/7 or 4 又 5/7, in plain text or LaTeX; normalise
-    // \frac/\dfrac and braces before matching so the notation is not the verdict
+    // 答案可能是 33/7、\frac{33}{7}、4\frac{5}{7}、4 又 5/7。旧实现把 \frac 换成
+    // "/" 再删花括号，\frac{33}{7} 会变成 "/337"，正确答案反而判错。改成按数值比较。
     check: (text) => {
-      const s = text.replace(/\s/g, '').replace(/\\[dt]?frac/g, '/').replace(/[{}]/g, '');
-      return /33\/7|七分之三十三/.test(s) || /4\/5\/7/.test(s);
+      const s = text.replace(/\\left|\\right/g, '');
+      const values = [];
+      for (const m of s.matchAll(/(\d+)?\s*\\(?:d?frac|tfrac)\s*\{(\d+)\}\s*\{(\d+)\}/g)) {
+        values.push(Number(m[1] ?? 0) + Number(m[2]) / Number(m[3]));
+      }
+      for (const m of s.matchAll(/(?<![\d.])(\d+)\s*\/\s*(\d+)(?![\d.])/g)) {
+        values.push(Number(m[1]) / Number(m[2]));
+      }
+      for (const m of s.matchAll(/(\d+)\s*又\s*(\d+)\s*\/\s*(\d+)/g)) {
+        values.push(Number(m[1]) + Number(m[2]) / Number(m[3]));
+      }
+      return values.some((v) => Math.abs(v - 33 / 7) < 1e-6);
     },
   },
   { id: 'S3', name: '最小输入开销', rounds: 5, timeoutMs: 120_000, prompt: 'hi', check: () => true },

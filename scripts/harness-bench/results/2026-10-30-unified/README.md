@@ -71,20 +71,22 @@ opencode 和 pi 是仅有的两家四轮合计在两分钟内的；其余六家�
 | --- | --- | --- | --- | --- |
 | claude | 71 | 0 | 0 | 0 |
 | pi | 71 | 0 | 0 | 0 |
+| omp | 71 | 0 | 0 | 0 |
 | workbuddy | 71 | 0 | 0 | 0 |
 | opencode | 70 | 0 | 1 | 0 |
 | dsh | 70 | 0 | 1 | 0 |
-| zcode | 69 | 0 | 2 | 0 |
-| omp | 68 | 0 | 3 | 0 |
-| codex | 67 | 0 | 4 | 0 |
+| zcode | 70 | 0 | 1 | 0 |
+| codex | 69 | 0 | 2 | 0 |
 
 仍然没有空回复、没有运行失败，全部失败都是「答错」，是模型能力问题，不是产品或判据问题。
 
 丢分位置很集中：
 
-- **复杂推理（S2）**：codex 1/5、omp 2/5、opencode 4/5、zcode 4/5；claude/dsh/pi/workbuddy 全对
+- **复杂推理（S2）**：codex 3/5、opencode 4/5、zcode 4/5；其余五家全对
 - **S21 第 4 轮**：dsh 两轮里挂了一轮（`buy3pay2` 免掉的不是最便宜件，得到 ¥3.00，应为 ¥5.00）
-- 其余 19 个场景八家基本满分
+- 其余 19 个场景八家满分
+
+> 选型建议与逐家画像见同目录 `WHICH-HARNESS.md`。
 
 ## 四、判读要点
 
@@ -110,6 +112,12 @@ opencode 和 pi 是仅有的两家四轮合计在两分钟内的；其余六家�
 - S21 八家两轮都是在**带**该全局指令的情况下跑的（无干净口径对照），
   但 S21 用文件判据，指令只影响回复文案、不影响判负。
 - 每轮新起一个 CLI 进程，读作「单次调用成本」；单机、单模型、单时间窗口，无置信区间。
+- zcode 的 6 个格式场景也有干净口径一份（`../2026-10-30-zcode-fmt`，26/26 全过），
+  替换掉了原先在指令开着时跑的那批——那批的 S11 会把「只回复一个字：好」答成「好，亮，还有什么…」。
+- 记录里的 `checkPass` 是**采集当时**判据给出的结论；`REPORT.md` / `summary.json` 用当前判据
+  对 `replyText` 重算，两者在个别条目上不一致（历史判据改过）。以重算结果为准。
+- S2 的判据在 2026-10-30 从字符串匹配改成数值比较：旧写法把 `\frac{33}{7}` 归一化成 `/337`，
+  正确答案被判错，codex 因此从 3/5 被压到 1/5、omp 从 4/5 压到 2/5。
 
 ## 六、复现
 
@@ -120,6 +128,9 @@ node scripts/harness-bench/run-bench.mjs --providers dsh --run-id 2026-10-30-dsh
 # dsh 六个格式场景（关指令 → 跑 → 立即还原，shasum 应为 bd553858bb9dea7788245415a8563dec0ca208db）
 : > ~/dotfiles/agents/.agents/AGENTS.md
 node scripts/harness-bench/run-bench.mjs --providers dsh --scenarios S1,S4,S5,S10,S11,S12 --run-id 2026-10-30-dsh-fmt
+
+# zcode 六个格式场景（同样先关指令）
+node scripts/harness-bench/run-bench.mjs --providers zcode --scenarios S1,S4,S5,S10,S11,S12 --run-id 2026-10-30-zcode-fmt
 
 # S21 八家
 node scripts/harness-bench/run-bench.mjs --scenarios S21 --run-id 2026-10-30-s21
