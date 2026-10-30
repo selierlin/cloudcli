@@ -73,7 +73,7 @@ const MULTI_TURN = {
 const GRADED = { S7: 's7', S13: 's13', S16: 's16', S17: 's17', S18: 's18', S20: 's20' };
 // Multi-turn scenarios whose verdict comes from running a checker per turn
 // rather than from matching the reply text.
-const TURN_GRADED = { S19: 3 };
+const TURN_GRADED = { S19: 3, S21: 4 };
 
 const SCENARIO_NAMES = {
   S1: '基础问答', S2: '复杂推理', S3: '最小输入开销', S4: 'JSON格式服从',
@@ -81,7 +81,7 @@ const SCENARIO_NAMES = {
   S9: '多轮上下文', S10: 'Markdown完整性', S11: '极简回复', S12: '快问快答连发',
   S13: '多步工作任务', S14: '工具失败恢复', S15: '长上下文第二针',
   S16: '定位修复', S17: '跨文件重命名', S18: '连环缺陷修复', S19: '多轮工具任务',
-  S20: '模糊需求排查',
+  S20: '模糊需求排查', S21: '多轮重构任务',
 };
 // Scenarios whose cost is dominated by harness overhead rather than the model.
 const OVERHEAD_SCENARIOS = ['S3', 'S11'];
@@ -360,8 +360,9 @@ const report = `# harness 横向对比（glm-5.3-flash）— run ${runId}
 ${channelTable}
 
 \`workbuddy\` 指 copilot.tencent.com（WorkBuddy 自己的上游），\`ark\` 指火山方舟。
-claude 只说 anthropic messages、codex 只说 responses，这两家在 copilot 上没有可用端点；
-dsh 在 copilot 上会被 \`role: developer\` 拦掉（400 code 11128）。**跨组的耗时只能读作「本机现状」，不能横向比快慢。**
+claude 只说 anthropic messages、codex 只说 responses，这两家在 copilot 上没有可用端点，只能留在 ark；
+其余六家都走同一个 copilot 上游（dsh 需在 ACP profile 里关掉身份句，否则 system prompt 首句会被渠道校验拦成 400 code 11128）。
+**跨组的耗时只能读作「本机现状」，不能横向比快慢。**
 
 ## 时效（中位数 ms）
 

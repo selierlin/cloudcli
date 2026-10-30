@@ -77,7 +77,8 @@ const PROVIDERS = [
   { id: 'claude', channel: 'ark', model: 'glm-5.3-flash', effort: null },
   { id: 'codex', channel: 'ark', model: 'glm-5.3-flash', effort: 'high' },
   { id: 'opencode', channel: 'workbuddy', model: 'workbuddy/glm-5.3-flash', effort: null },
-  { id: 'dsh', channel: 'ark', model: null, effort: null },
+  // dsh 的模型由 ACP profile 钉住，不传 model；通道随 profile 走 workbuddy。
+  { id: 'dsh', channel: 'workbuddy', model: null, effort: null },
   { id: 'pi', channel: 'workbuddy', model: 'workbuddy/glm-5.3-flash', effort: 'high' },
   { id: 'zcode', channel: 'workbuddy', model: 'workbuddy/glm-5.3-flash', effort: null },
   { id: 'omp', channel: 'workbuddy', model: 'workbuddy/glm-5.3-flash', effort: 'high' },
@@ -186,6 +187,123 @@ const FLOW_EXPECT = [
 const BROKEN_START = `const settings = require('./settings');\nif (typeof settings.port !== 'number' || !Number.isFinite(settings.port)) {\n  console.log('FAIL: port must be a number, got ' + typeof settings.port);\n  process.exit(1);\n}\nif (settings.enabled !== true) {\n  console.log('FAIL: service is disabled');\n  process.exit(1);\n}\nconsole.log('STARTED ' + settings.port);\n`;
 const BROKEN_SETTINGS = `const config = require('./config.json');\nmodule.exports = { port: config.port, enabled: false };\n`;
 const BROKEN_CONFIG = `${JSON.stringify({ port: '8080' }, null, 2)}\n`;
+
+// S21: four turns on one session, each one landing on top of the previous.
+// Unlike S19 (config values) every turn changes code that the next turn must
+// keep working, and turn 3 renames a module, so a harness that forgets an
+// earlier turn fails immediately instead of drifting silently.
+const S21_FILES = {
+  'svc/money.js': `const fenToYuan = (fen) => fen / 100;\n\nmodule.exports = { fenToYuan };\n`,
+  'svc/cart.js': `const { fenToYuan } = require('./money');\n\nclass Cart {\n  constructor() {\n    this.items = [];\n  }\n\n  add(name, priceFen, qty = 1) {\n    this.items.push({ name, priceFen, qty });\n    return this;\n  }\n\n  totalFen() {\n    return this.items.reduce((sum, item) => sum + item.priceFen * item.qty, 0);\n  }\n\n  total() {\n    return fenToYuan(this.totalFen());\n  }\n}\n\nmodule.exports = { Cart };\n`,
+  'svc/index.js': `module.exports = { ...require('./money'), ...require('./cart') };\n`,
+  'svc/demo.js': `const { Cart } = require('./index');\n\nconst cart = new Cart().add('键盘', 29900, 1).add('鼠标', 5900, 2);\nconsole.log('demo total: ' + cart.total());\n`,
+  'svc/test.js': `const { Cart } = require('./index');\n\nconst cart = new Cart().add('a', 1999, 2);\nconsole.log(cart.total() === 39.98 ? 'PASS' : 'FAIL total=' + cart.total());\n`,
+  'README.md': '# svc\n\n购物车金额模块。`svc/index.js` 是唯一公开入口，外部代码只 require 它。\n金额一律以「分」为整数存储，展示时才转成元。\n\n自测：`node svc/test.js`\n',
+};
+
+const S21_GRADER = `import { createRequire } from 'node:module';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+
+const require = createRequire(import.meta.url);
+const project = process.argv[2];
+const turn = Number(process.argv[3]);
+const fails = [];
+const eq = (label, got, want) => {
+  if (got !== want) fails.push(label + ' got ' + JSON.stringify(got) + ' want ' + JSON.stringify(want));
+};
+const load = () => require(path.join(project, 'svc', 'index.js'));
+
+const cartOf = (mod, ...specs) => {
+  const cart = new mod.Cart();
+  for (const [price, qty] of specs) cart.add('x', price, qty);
+  return cart;
+};
+
+try {
+  const mod = load();
+  if (!('Cart' in mod)) fails.push('svc/index.js must still export Cart');
+
+  if (turn >= 1) {
+    eq('formatYuan(1234)', mod.formatYuan(1234), '¥12.34');
+    eq('formatYuan(5)', mod.formatYuan(5), '¥0.05');
+    eq('formatYuan(0)', mod.formatYuan(0), '¥0.00');
+    eq('formatYuan(199999)', mod.formatYuan(199999), '¥1999.99');
+    eq('total() string', cartOf(mod, [1999, 2]).total(), '¥39.98');
+  }
+
+  if (turn >= 2) {
+    const c = cartOf(mod, [1000, 1]);
+    eq('no discount', c.total(), '¥10.00');
+    c.setDiscount(15);
+    eq('discount 15%', c.total(), '¥8.50');
+    const d = cartOf(mod, [999, 1]);
+    d.setDiscount(33);
+    eq('discount rounds', d.total(), '¥6.69');
+    d.setDiscount(0);
+    eq('discount reset', d.total(), '¥9.99');
+  }
+
+  if (turn >= 3) {
+    const discountPath = path.join(project, 'svc', 'discount.js');
+    if (!existsSync(discountPath)) {
+      fails.push('svc/discount.js is missing');
+    } else {
+      const discount = require(discountPath);
+      const fn = discount.applyDiscount ?? discount.default;
+      if (typeof fn !== 'function') fails.push('svc/discount.js must export applyDiscount');
+      else eq('applyDiscount(1000,15)', fn(1000, 15), 850);
+    }
+    const money = require(path.join(project, 'svc', 'money.js'));
+    if ('applyDiscount' in money) fails.push('discount logic must move out of svc/money.js');
+    const c = cartOf(mod, [999, 1]);
+    c.setDiscount(33);
+    eq('behaviour after refactor', c.total(), '¥6.69');
+  }
+
+  if (turn >= 4) {
+    const a = cartOf(mod, [100, 1], [200, 1], [300, 1]);
+    a.setPromotion('buy3pay2');
+    eq('buy3pay2 cheapest free', a.total(), '¥5.00');
+    a.setDiscount(10);
+    eq('promo then discount', a.total(), '¥4.50');
+    a.setPromotion(null);
+    a.setDiscount(0);
+    eq('promotion off', a.total(), '¥6.00');
+    const b = cartOf(mod, [100, 6]);
+    b.setPromotion('buy3pay2');
+    eq('two free out of six', b.total(), '¥4.00');
+    const c = cartOf(mod, [100, 4]);
+    c.setPromotion('buy3pay2');
+    eq('one free out of four', c.total(), '¥3.00');
+  }
+} catch (error) {
+  fails.push('threw: ' + (error && error.message));
+}
+
+console.log(fails.length === 0 ? 'PASS' : 'FAIL ' + fails.join('; '));
+`;
+
+// Writes the S21 grader outside the project dir, so the harness cannot read the
+// expected values out of the workspace it is editing.
+const writeS21Grader = (cwd) => {
+  const dir = path.join(cwd, '..', '_graders');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, 's21.mjs'), S21_GRADER, 'utf8');
+  return path.join(dir, 's21.mjs');
+};
+
+/**
+ * Runs the out-of-tree S21 grader for one turn. Every turn re-asserts the
+ * features of the earlier turns, so dropping an earlier requirement fails here
+ * rather than showing up as a silent regression.
+ */
+const runS21Grader = (cwd, turn) => {
+  const grader = path.join(cwd, '..', '_graders', 's21.mjs');
+  const r = spawnSync('node', [grader, cwd, String(turn)], { encoding: 'utf8', timeout: 60_000 });
+  const stdout = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim();
+  return { stdout, pass: stdout.startsWith('PASS') };
+};
 
 const buildLongText = () => {
   const lines = [];
@@ -359,6 +477,30 @@ const SCENARIOS = [
     id: 'S20', name: '模糊需求排查', rounds: 2, timeoutMs: 420_000,
     prompt: '当前目录下 broken/ 这个服务起不来：执行 node broken/start.js 看看怎么回事，把发现的问题修掉，直到它输出 STARTED。不要修改 broken/start.js。完成后只回复 DONE。',
     check: null,
+  },
+  {
+    // Four turns that build on each other: format -> discount -> module split ->
+    // promotion stacking. Each turn re-asserts all earlier behaviour, so a
+    // harness that loses track of turn 1 fails at turn 4.
+    id: 'S21', name: '多轮重构任务', rounds: 2, timeoutMs: 300_000, multiTurn: true,
+    turns: [
+      {
+        prompt: '当前目录是 svc/ 购物车模块（svc/index.js 是唯一公开入口）。先做金额展示：在 svc/money.js 里新增 formatYuan(fen)，把「分」格式化为 ¥12.34 形式的字符串（四舍五入到分，整元也保留两位小数）；再把 Cart.total() 改成返回它的结果。改完运行 node svc/test.js 自查，测试要跟着改到通过。完成后只回复 DONE。',
+        grade: (cwd) => runS21Grader(cwd, 1),
+      },
+      {
+        prompt: '接着给 Cart 加 setDiscount(percent)：percent 是 0~100 的折扣百分比，结算时先抹掉对应比例（四舍五入到分）再格式化，默认 0；不调用时行为与现在一致。改完运行 node svc/test.js 自查。完成后只回复 DONE。',
+        grade: (cwd) => runS21Grader(cwd, 2),
+      },
+      {
+        prompt: '现在重构：把折扣计算抽到新文件 svc/discount.js，导出 applyDiscount(fen, percent) 返回打折后的分数（整数）；svc/money.js 只保留金额格式化、不再含折扣逻辑；Cart 通过 discount.js 计算。对外行为和 svc/index.js 的导出一律不变。改完运行 node svc/test.js 自查。完成后只回复 DONE。',
+        grade: (cwd) => runS21Grader(cwd, 3),
+      },
+      {
+        prompt: '最后加促销：Cart.setPromotion(p)，p 取 "buy3pay2" 或 null（默认 null）。"buy3pay2" 表示每满 3 件免掉其中最便宜的 1 件——把 qty 展开成单件、跨商品统一按单价从低到高排队。结算顺序固定：先按促销减免，再按 setDiscount 的百分比打折；setPromotion(null) 恢复原价。改完运行 node svc/test.js 自查。完成后只回复 DONE。',
+        grade: (cwd) => runS21Grader(cwd, 4),
+      },
+    ],
   },
 ];
 
@@ -565,6 +707,14 @@ const setupFixtures = (provider, scenarioId) => {
     writeFileSync(path.join(cwd, 'broken', 'start.js'), BROKEN_START, 'utf8');
     writeFileSync(path.join(cwd, 'broken', 'settings.js'), BROKEN_SETTINGS, 'utf8');
     writeFileSync(path.join(cwd, 'broken', 'config.json'), BROKEN_CONFIG, 'utf8');
+  }
+  if (scenarioId === 'S21') {
+    for (const [rel, src] of Object.entries(S21_FILES)) {
+      const file = path.join(cwd, rel);
+      mkdirSync(path.dirname(file), { recursive: true });
+      writeFileSync(file, src, 'utf8');
+    }
+    writeS21Grader(cwd);
   }
   return cwd;
 };
