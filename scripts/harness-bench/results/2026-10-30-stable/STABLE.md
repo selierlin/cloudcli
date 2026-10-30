@@ -98,9 +98,9 @@ S21 四轮合计的 prompt token（input + cacheRead，中位）：
 | --- | --- | --- | --- |
 | **pi** | **11,405** | 99% | 1× |
 | omp | 12,423 | 97% | 1.1× |
-| claude | 38,898 | 50% | 3.4× |
-| workbuddy | 66,270 | 50% | 5.8× |
-| zcode | 79,230 | 50% | 6.9× |
+| claude | 19,506 | 99% | 1.7× |
+| workbuddy | 33,182 | 100% | 2.9× |
+| zcode | 39,678 | 100% | 3.5× |
 | codex | 265,355 | **0%** | 23× |
 | opencode | **346,539** | **0%** | **30×** |
 | dsh | 不上报 | — | — |
@@ -109,7 +109,10 @@ opencode 和 codex 完全不带缓存标记，多轮任务里每一轮都重发�
 第二轮里 opencode 在 copilot 上还能跑到 111 秒，是因为那条上游的 prefill 足够快，
 把这个成本吃掉了 —— 换到 ark 就现形。**长会话的成本问题，前两轮完全没看见。**
 
-S17 上同样的排序：pi 5.8k、omp 10.1k、claude 30.9k、codex 44.7k、zcode 53.1k、workbuddy 57.4k、opencode 84.0k。
+S17 上同样的排序：pi 5.9k、omp 10.1k、claude 15.5k、zcode 26.6k、workbuddy 28.9k、codex 44.7k、opencode 84.0k。
+
+口径：统一用 `tokenUsageRaw.data.breakdown.input`（总 prompt）。八家的 `inputTokens` 语义不一致 ——
+pi / omp 报的是未命中缓存部分，claude / zcode / workbuddy 报的是总 prompt，直接相加会把后者算成两倍。
 
 ## 四、质量：只剩两个真弱点
 
@@ -146,7 +149,7 @@ S17 上同样的排序：pi 5.8k、omp 10.1k、claude 30.9k、codex 44.7k、zcod
 | 你的处境 | 选择 | 依据 |
 | --- | --- | --- |
 | 上游可自选（推荐） | **pi** | 两套上游、五个场景、名次合计 9，成本 1×，质量 33/33 |
-| 上游可自选，但要跑很久的会话 | **pi**，需要更稳换 **claude** | S21 pi 133s / claude 143s，但 claude 成本 3.4×、cache 只有 50% |
+| 上游可自选，但要跑很久的会话 | **pi**，需要更稳换 **claude** | S21 pi 133s / claude 143s，claude 成本 1.7×（cache 99%，中位） |
 | 被锁在 copilot / workbuddy 上游 | **opencode**（短活）或 **pi**（长活） | copilot 上 opencode S17 19s 最快，但 S21 仍需 101s；pi 99s 更稳且便宜 |
 | 被锁在 ark 上游 | **pi / omp** | 名次合计 9 / 10；omp 的 S21 104s 是全场最快 |
 | 有数学推导 | claude / pi | codex S2 三轮 21/25，错法一致 |
