@@ -2,15 +2,13 @@
  * harness-bench runner: cross-harness comparison on one shared model
  * (glm-5.3-flash).
  *
- * Channel split is dictated by what each CLI speaks, not by preference:
- * copilot.tencent.com (WorkBuddy's own upstream) only serves OpenAI chat
- * completions, so the harnesses that can talk to it run there; claude needs
- * the anthropic messages API and codex needs the responses API, so both stay
- * on volcano-ark. dsh is on ark as well: copilot rejects `role: developer`
- * outright (400 code 11128) and dsh's `compat.supportsDeveloperRole` does not
- * take effect, so its runs on copilot fail at the first request.
- * The report must keep the two groups apart — same model name, two serving
- * stacks.
+ * Channel split is dictated by what each CLI speaks, not by preference.
+ * volcano-ark serves the anthropic messages API (claude), the responses API
+ * (codex) and OpenAI chat completions (the rest), so seven of the eight
+ * harnesses run there. workbuddy is the one exception: it is WorkBuddy's own
+ * client and its switchable upstreams are copilot.tencent.com only.
+ * Same model name (glm-5.3-flash) everywhere; workbuddy therefore still runs on
+ * a different serving stack and must be read apart from the rest.
  *
  * Executes S1–S20 scenarios × 8 providers × N rounds, sequentially and
  * interleaved (round → provider → scenario) so server-side load drift hits
@@ -66,6 +64,13 @@ const ROUND_OVERRIDE = (() => {
   const i = args.indexOf('--rounds');
   return i >= 0 ? Number(args[i + 1]) : undefined;
 })();
+// Both exist to test whether a measured ranking survives a second run:
+// shuffling provider order per round removes the fixed-position bias (the same
+// provider always runs first, so it also always eats the moment right after a
+// long scenario), and a canary turn before and after the plan exposes upstream
+// drift across the whole batch independent of any scenario.
+const SHUFFLE = hasFlag('--shuffle');
+const CANARY = hasFlag('--canary');
 
 // -------------------------------------------------------------- providers
 // effort only where the harness exposes a switch for this model; the
@@ -76,12 +81,13 @@ const ROUND_OVERRIDE = (() => {
 const PROVIDERS = [
   { id: 'claude', channel: 'ark', model: 'glm-5.3-flash', effort: null },
   { id: 'codex', channel: 'ark', model: 'glm-5.3-flash', effort: 'high' },
-  { id: 'opencode', channel: 'workbuddy', model: 'workbuddy/glm-5.3-flash', effort: null },
-  // dsh 的模型由 ACP profile 钉住，不传 model；通道随 profile 走 workbuddy。
-  { id: 'dsh', channel: 'workbuddy', model: null, effort: null },
-  { id: 'pi', channel: 'workbuddy', model: 'workbuddy/glm-5.3-flash', effort: 'high' },
-  { id: 'zcode', channel: 'workbuddy', model: 'workbuddy/glm-5.3-flash', effort: null },
-  { id: 'omp', channel: 'workbuddy', model: 'workbuddy/glm-5.3-flash', effort: 'high' },
+  { id: 'opencode', channel: 'ark', model: 'volcano-ark/glm-5.3-flash', effort: null },
+  // dsh 的模型由 ACP profile 钉住，不传 model；通道随 profile 走。
+  { id: 'dsh', channel: 'ark', model: null, effort: null },
+  { id: 'pi', channel: 'ark', model: 'volcano-ark/glm-5.3-flash', effort: 'high' },
+  { id: 'zcode', channel: 'ark', model: 'volcano-ark/glm-5.3-flash', effort: null },
+  { id: 'omp', channel: 'ark', model: 'volcano-ark/glm-5.3-flash', effort: 'high' },
+  // workbuddy 是 WorkBuddy 自己的客户端，上游只能是自己的 copilot，无法切 ark。
   { id: 'workbuddy', channel: 'workbuddy', model: 'glm-5.3-flash', effort: 'high' },
 ];
 
@@ -809,8 +815,20 @@ if (SMOKE) scenarios = scenarios.filter((s) => ['S1', 'S3', 'S4'].includes(s.id)
 const roundsOf = (s) => ROUND_OVERRIDE ?? (SMOKE ? 1 : s.rounds);
 const plan = [];
 const maxRounds = Math.max(...scenarios.map((s) => roundsOf(s)));
+// deterministic per-round shuffle (Park–Miller), so an interrupted run resumes
+// in the same order it would have used
+const shuffleFor = (list, seed) => {
+  const out = [...list];
+  let s = (seed * 48271 + 11) % 2147483647;
+  for (let i = out.length - 1; i > 0; i--) {
+    s = (s * 48271) % 2147483647;
+    const j = s % (i + 1);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+};
 for (let round = 1; round <= maxRounds; round++) {
-  for (const p of providers) {
+  for (const p of SHUFFLE ? shuffleFor(providers, round) : providers) {
     for (const s of scenarios) {
       if (round <= roundsOf(s)) plan.push({ provider: p.id, scenario: s.id, round });
     }
@@ -823,6 +841,34 @@ const resultFile = (provider, scenarioId, round, turn = 0) =>
 const pending = plan.filter((item) => !existsSync(resultFile(item.provider, item.scenario, item.round)));
 console.log(`plan: ${plan.length} turns, ${pending.length} pending, ${plan.length - pending.length} already done`);
 const tBegin = Date.now();
+
+// canary: the same trivial turn for every provider before and after the plan.
+// A large pre→post gap means the upstream moved during the batch and the
+// absolute times in it are not comparable; the ranking usually still is.
+const runCanary = async (phase) => {
+  const dir = path.join(resultsDir, '_canary');
+  mkdirSync(dir, { recursive: true });
+  for (const p of providers) {
+    if (typeof ONLY_PROVIDERS !== 'undefined' && ONLY_PROVIDERS && !ONLY_PROVIDERS.includes(p.id)) continue;
+    const id = `${phase}_${p.id}`;
+    const file = path.join(dir, `${id}.json`);
+    if (existsSync(file)) continue;
+    const startedAt = new Date().toISOString();
+    try {
+      const cwd = workDir(p.id, `_canary-${phase}`);
+      mkdirSync(cwd, { recursive: true });
+      const sessionId = await createSession(p.id, cwd);
+      const m = await runTurn({ sessionId, content: '回复两个字：收到', options: turnOptions(p), timeoutMs: 120_000 });
+      writeFileSync(file, JSON.stringify({ phase, provider: p.id, startedAt, totalMs: m.totalMs, firstTextMs: m.firstTextMs ?? null }, null, 2));
+      console.log(`canary ${id} ${m.totalMs}ms`);
+    } catch (err) {
+      writeFileSync(file, JSON.stringify({ phase, provider: p.id, startedAt, error: String(err.message ?? err).slice(0, 200) }));
+      console.log(`canary ${id} FAIL`);
+    }
+  }
+};
+
+if (CANARY) await runCanary('pre');
 
 // warmup: one discarded minimal turn per provider (bridge spawn, first connect)
 if (!SMOKE && !NO_WARMUP && pending.length > 0) {
@@ -933,3 +979,5 @@ for (const item of pending) {
 }
 
 console.log(`\nbench done in ${Math.round((Date.now() - tBegin) / 1000)}s → ${resultsDir}`);
+
+if (CANARY) await runCanary('post');
