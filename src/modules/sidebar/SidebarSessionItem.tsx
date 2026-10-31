@@ -470,9 +470,9 @@ function SidebarSessionItem({
                   >
                     <GitBranch className="h-5 w-5 flex-shrink-0" />
                     <span>
-                      <span className="block text-sm font-medium">Fork session</span>
+                      <span className="block text-sm font-medium">{t('sessions.forkSession')}</span>
                       <span className="mt-0.5 block text-xs text-muted-foreground">
-                        Continue from a copy, leaving this one untouched.
+                        {t('sessions.forkSessionDescription')}
                       </span>
                     </span>
                   </button>

@@ -51,6 +51,8 @@ const SESSION: SessionWithProvider = {
 const t = ((key: string) => key) as TFunction;
 // The row localizes the options trigger; the stub `t` returns the key verbatim.
 const OPTIONS_TRIGGER = 'sessions.sessionOptionsFor';
+// Same stub, so the fork action's accessible name carries both of its keys.
+const FORK_TRIGGER = /sessions\.forkSession/;
 const noop = () => {};
 
 const rowProps = (
@@ -98,7 +100,7 @@ test.each<LLMProvider>(['claude', 'codex'])('mobile offers a fork for a supporte
   render(<SidebarSessionItem {...rowProps({ session: { ...SESSION, __provider: provider } })} />);
   const sheet = await openOptions();
 
-  assert.ok(sheet.getByRole('button', { name: /Fork session/ }));
+  assert.ok(sheet.getByRole('button', { name: FORK_TRIGGER }));
   assert.ok(sheet.getByRole('button', { name: 'sessions.renameSession' }));
   assert.ok(sheet.getByRole('button', { name: 'sessions.archiveOrDeleteSession' }));
 });
@@ -110,7 +112,7 @@ test('forking from the mobile sheet passes the owning session once and dismisses
   render(<SidebarSessionItem {...rowProps({ onForkSession, onProjectSelect, onSessionSelect })} />);
   const sheet = await openOptions();
 
-  fireEvent.click(sheet.getByRole('button', { name: /Fork session/ }));
+  fireEvent.click(sheet.getByRole('button', { name: FORK_TRIGGER }));
 
   assert.deepEqual(onForkSession.mock.calls, [[SESSION]]);
   assert.equal(onProjectSelect.mock.calls.length, 0);
@@ -123,34 +125,34 @@ test.each<LLMProvider>(['cursor', 'opencode'])('mobile withholds a fork when %s 
   render(<SidebarSessionItem {...rowProps({ session: { ...SESSION, __provider: provider } })} />);
   const sheet = await openOptions();
 
-  assert.equal(sheet.queryByRole('button', { name: /Fork session/ }), null);
+  assert.equal(sheet.queryByRole('button', { name: FORK_TRIGGER }), null);
 });
 
 test('mobile withholds a fork when its caller provides no fork handler', async () => {
   render(<SidebarSessionItem {...rowProps({ onForkSession: undefined })} />);
   const sheet = await openOptions();
 
-  assert.equal(sheet.queryByRole('button', { name: /Fork session/ }), null);
+  assert.equal(sheet.queryByRole('button', { name: FORK_TRIGGER }), null);
 });
 
 test('mobile withholds a fork while the session is running, including when it starts with the sheet open', async () => {
   const props = rowProps({ isProcessing: true });
   const { rerender } = render(<SidebarSessionItem {...props} />);
   const sheet = await openOptions();
-  assert.equal(sheet.queryByRole('button', { name: /Fork session/ }), null);
+  assert.equal(sheet.queryByRole('button', { name: FORK_TRIGGER }), null);
 
   rerender(<SidebarSessionItem {...props} isProcessing={false} />);
-  assert.ok(sheet.getByRole('button', { name: /Fork session/ }));
+  assert.ok(sheet.getByRole('button', { name: FORK_TRIGGER }));
 
   rerender(<SidebarSessionItem {...props} />);
-  assert.equal(sheet.queryByRole('button', { name: /Fork session/ }), null);
+  assert.equal(sheet.queryByRole('button', { name: FORK_TRIGGER }), null);
 });
 
 test('background work alone keeps the mobile fork available, matching the desktop rule', async () => {
   render(<SidebarSessionItem {...rowProps({ hasBackgroundWork: true })} />);
   const sheet = await openOptions();
 
-  assert.ok(sheet.getByRole('button', { name: /Fork session/ }));
+  assert.ok(sheet.getByRole('button', { name: FORK_TRIGGER }));
 });
 
 test('bulk selection withholds the mobile options trigger', () => {
