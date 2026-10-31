@@ -5,7 +5,8 @@
   "refresh": "Refresh browser sessions",
   "error": {
     "load": "Failed to load Browser",
-    "action": "Browser action failed"
+    "action": "Browser action failed",
+    "installFailed": "Browser-Laufzeit konnte nicht installiert werden"
   },
   "runtime": {
     "disabled": "Disabled",
@@ -65,5 +66,16 @@
     "minutesAgo": "{{count}}m ago",
     "hoursAgo": "{{count}}h ago",
     "daysAgo": "{{count}}d ago"
+  },
+  "input": {
+    "placeholder": "Text eingeben und mit Enter an die Seite senden",
+    "send": "Senden",
+    "enter": "Enter",
+    "tab": "Tab",
+    "backspace": "Rücktaste",
+    "hint": "Klicke auf den Screenshot, um in der Seite zu klicken, oder fokussiere ihn und nutze die Pfeiltasten (Shift für größere Schritte), dann Enter oder Leertaste."
+  },
+  "surface": {
+    "ariaLabel": "Browser-Screenshot. Mit den Pfeiltasten den Zeiger bewegen, Enter oder Leertaste zum Klicken."
   }
 }

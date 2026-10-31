@@ -5,7 +5,8 @@
   "refresh": "刷新浏览器会话",
   "error": {
     "load": "加载浏览器失败",
-    "action": "浏览器操作失败"
+    "action": "浏览器操作失败",
+    "installFailed": "浏览器运行时安装失败"
   },
   "runtime": {
     "disabled": "已禁用",
@@ -65,5 +66,16 @@
     "minutesAgo": "{{count}} 分钟前",
     "hoursAgo": "{{count}} 小时前",
     "daysAgo": "{{count}} 天前"
+  },
+  "input": {
+    "placeholder": "输入文字，按 Enter 发送到页面",
+    "send": "发送",
+    "enter": "Enter",
+    "tab": "Tab",
+    "backspace": "Backspace",
+    "hint": "点击截图可在页面中点击；也可聚焦后用方向键移动指针（按住 Shift 移动更快），再按 Enter 或空格。"
+  },
+  "surface": {
+    "ariaLabel": "浏览器截图。用方向键移动指针，按 Enter 或空格点击。"
   }
 }

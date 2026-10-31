@@ -5,7 +5,8 @@
   "refresh": "Refresh browser sessions",
   "error": {
     "load": "Failed to load Browser",
-    "action": "Browser action failed"
+    "action": "Browser action failed",
+    "installFailed": "브라우저 런타임을 설치하지 못했습니다"
   },
   "runtime": {
     "disabled": "Disabled",
@@ -65,5 +66,16 @@
     "minutesAgo": "{{count}}m ago",
     "hoursAgo": "{{count}}h ago",
     "daysAgo": "{{count}}d ago"
+  },
+  "input": {
+    "placeholder": "텍스트를 입력한 뒤 Enter를 눌러 페이지로 전송합니다",
+    "send": "보내기",
+    "enter": "Enter",
+    "tab": "Tab",
+    "backspace": "Backspace",
+    "hint": "스크린샷을 클릭하면 페이지를 클릭할 수 있습니다. 또는 포커스한 뒤 화살표 키(Shift로 더 크게 이동)로 이동하고 Enter 또는 Space로 클릭하세요."
+  },
+  "surface": {
+    "ariaLabel": "브라우저 스크린샷. 화살표 키로 포인터를 이동하고 Enter 또는 Space로 클릭하세요."
   }
 }

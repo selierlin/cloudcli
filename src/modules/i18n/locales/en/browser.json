@@ -5,7 +5,8 @@
   "refresh": "Refresh browser sessions",
   "error": {
     "load": "Failed to load Browser",
-    "action": "Browser action failed"
+    "action": "Browser action failed",
+    "installFailed": "Failed to install browser runtime"
   },
   "runtime": {
     "disabled": "Disabled",
@@ -65,5 +66,16 @@
     "minutesAgo": "{{count}}m ago",
     "hoursAgo": "{{count}}h ago",
     "daysAgo": "{{count}}d ago"
+  },
+  "input": {
+    "placeholder": "Type text, then press Enter to send it to the page",
+    "send": "Send",
+    "enter": "Enter",
+    "tab": "Tab",
+    "backspace": "Backspace",
+    "hint": "Click the screenshot to click in the page, or focus it and use the arrow keys (Shift for larger steps) then Enter or Space."
+  },
+  "surface": {
+    "ariaLabel": "Browser screenshot. Use arrow keys to move the pointer, Enter or Space to click."
   }
 }

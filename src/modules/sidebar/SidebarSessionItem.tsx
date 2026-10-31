@@ -1,12 +1,13 @@
 import { memo, useState } from 'react';
 import type { DragEvent } from 'react';
-import { Check, Edit2, Loader2, MoreHorizontal, Pin, PinOff, Trash2, X } from 'lucide-react';
+import { Check, Edit2, GitBranch, Loader2, MoreHorizontal, Pin, PinOff, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Badge, Dialog, DialogContent, DialogTitle, LLMProviderLogo, Tooltip, buttonVariants } from '@/shared/ui';
 import { cn, isImeKeyEvent } from '@/shared/utils';
 import { SESSION_OWNERSHIP_DRAG_MIME } from '@/shared/constants';
 import type { LLMProvider, Project, ProjectSession, SessionAttentionLevel, SessionWithProvider } from '@/shared/types';
+import { useSessionForkingProviders } from '@/shared/hooks/useProviderCapabilities';
 import { PROVIDER_LABELS, createSessionViewModel, formatCompactAge } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import { ActivitySlot, AttentionSlot, DraftSlot } from '@/modules/sidebar/SessionStatusIndicators';
 import { useCompactSidebar } from '@/modules/sidebar/hooks/useCompactSidebar';
@@ -63,7 +64,7 @@ type SidebarSessionItemProps = {
   t: TFunction;
 };
 
-/** Rendered by SidebarProjectSessions for one session row, including its rename, copy and delete controls. */
+/** Rendered by SidebarProjectSessions for one session row, including its rename, copy, fork and delete controls. */
 function SidebarSessionItem({
   project,
   session,
@@ -112,6 +113,11 @@ function SidebarSessionItem({
   // which owns its own.
   const { copyState, copyLabel, setOptionsOpen, handleCopyAction, isCopyPending, CopyStateIcon } =
     useProviderSessionIdCopy(session.id, providerLabel, t);
+
+  // The mobile sheet follows the same capability and running-session rules as
+  // the desktop SessionOptions menu. The capability request is shared by rows.
+  const forkableProviders = useSessionForkingProviders();
+  const canFork = Boolean(onForkSession) && forkableProviders.has(session.__provider) && !isProcessing;
 
   // Sessions are owned by a project identified by `projectId` (DB primary key)
   // after the projectName → projectId migration.
@@ -453,6 +459,25 @@ function SidebarSessionItem({
                   t={t}
                 />
 
+                {canFork && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileOptionsOpen(false);
+                      onForkSession?.(session);
+                    }}
+                    className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-border bg-muted/35 px-4 py-3 text-left text-foreground transition-colors active:bg-muted"
+                  >
+                    <GitBranch className="h-5 w-5 flex-shrink-0" />
+                    <span>
+                      <span className="block text-sm font-medium">Fork session</span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        Continue from a copy, leaving this one untouched.
+                      </span>
+                    </span>
+                  </button>
+                )}
+
                 {!isProcessing && (
                   <button
                     type="button"
@@ -522,6 +547,7 @@ function SidebarSessionItem({
 
             if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
             event.preventDefault();
+            if (event.detail > 1) return;
             onSessionSelect(session, project.projectId);
           }}
         >
@@ -552,6 +578,12 @@ function SidebarSessionItem({
                 <div
                   className={cn('min-w-0 truncate text-sm text-foreground', isUnread ? 'font-bold' : 'font-normal')}
                   title={sessionView.sessionName}
+                  onDoubleClick={(event) => {
+                    if (isManaging || isEditing || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onStartEditingSession(project.projectId, session.id, sessionView.sessionName);
+                  }}
                 >
                   {sessionView.sessionName}
                 </div>

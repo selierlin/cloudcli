@@ -5,7 +5,8 @@
   "refresh": "Refresh browser sessions",
   "error": {
     "load": "Failed to load Browser",
-    "action": "Browser action failed"
+    "action": "Browser action failed",
+    "installFailed": "No se pudo instalar el runtime del navegador"
   },
   "runtime": {
     "disabled": "Disabled",
@@ -65,5 +66,16 @@
     "minutesAgo": "{{count}}m ago",
     "hoursAgo": "{{count}}h ago",
     "daysAgo": "{{count}}d ago"
+  },
+  "input": {
+    "placeholder": "Escribe texto y pulsa Enter para enviarlo a la página",
+    "send": "Enviar",
+    "enter": "Enter",
+    "tab": "Tab",
+    "backspace": "Retroceso",
+    "hint": "Haz clic en la captura para hacer clic en la página, o enfócala y usa las flechas (Shift para pasos mayores), luego Enter o Espacio."
+  },
+  "surface": {
+    "ariaLabel": "Captura del navegador. Usa las flechas para mover el puntero, Enter o Espacio para hacer clic."
   }
 }

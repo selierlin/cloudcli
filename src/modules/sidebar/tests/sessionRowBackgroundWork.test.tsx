@@ -20,6 +20,10 @@ import type { Project, SessionAttentionLevel, SessionWithProvider, SidebarProjec
 
 const recordedOptionsProps: Record<string, unknown>[] = [];
 
+vi.mock('@/shared/hooks/useProviderCapabilities', () => ({
+  useSessionForkingProviders: () => new Set(),
+}));
+
 vi.mock('@/modules/sidebar/SessionOptions', () => ({
   default: (props: Record<string, unknown>) => {
     recordedOptionsProps.push(props);

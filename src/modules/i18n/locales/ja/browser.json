@@ -5,7 +5,8 @@
   "refresh": "Refresh browser sessions",
   "error": {
     "load": "Failed to load Browser",
-    "action": "Browser action failed"
+    "action": "Browser action failed",
+    "installFailed": "ブラウザランタイムのインストールに失敗しました"
   },
   "runtime": {
     "disabled": "Disabled",
@@ -65,5 +66,16 @@
     "minutesAgo": "{{count}}m ago",
     "hoursAgo": "{{count}}h ago",
     "daysAgo": "{{count}}d ago"
+  },
+  "input": {
+    "placeholder": "テキストを入力し、Enter でページに送信します",
+    "send": "送信",
+    "enter": "Enter",
+    "tab": "Tab",
+    "backspace": "Backspace",
+    "hint": "スクリーンショットをクリックするとページ内をクリックできます。フォーカスして矢印キー（Shift で大きく移動）で移動し、Enter または Space でクリックします。"
+  },
+  "surface": {
+    "ariaLabel": "ブラウザのスクリーンショット。矢印キーでポインタを移動し、Enter または Space でクリックします。"
   }
 }

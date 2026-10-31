@@ -5,7 +5,8 @@
   "refresh": "Refresh browser sessions",
   "error": {
     "load": "Failed to load Browser",
-    "action": "Browser action failed"
+    "action": "Browser action failed",
+    "installFailed": "Не удалось установить среду выполнения браузера"
   },
   "runtime": {
     "disabled": "Disabled",
@@ -65,5 +66,16 @@
     "minutesAgo": "{{count}}m ago",
     "hoursAgo": "{{count}}h ago",
     "daysAgo": "{{count}}d ago"
+  },
+  "input": {
+    "placeholder": "Введите текст и нажмите Enter, чтобы отправить его на страницу",
+    "send": "Отправить",
+    "enter": "Enter",
+    "tab": "Tab",
+    "backspace": "Backspace",
+    "hint": "Щёлкните по снимку, чтобы кликнуть на странице, или сфокусируйте его и используйте стрелки (Shift — крупнее шаг), затем Enter или пробел."
+  },
+  "surface": {
+    "ariaLabel": "Снимок браузера. Стрелки перемещают указатель, Enter или пробел — клик."
   }
 }

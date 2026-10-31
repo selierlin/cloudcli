@@ -5,7 +5,8 @@
   "refresh": "Refresh browser sessions",
   "error": {
     "load": "Failed to load Browser",
-    "action": "Browser action failed"
+    "action": "Browser action failed",
+    "installFailed": "Tarayıcı çalışma zamanı yüklenemedi"
   },
   "runtime": {
     "disabled": "Disabled",
@@ -65,5 +66,16 @@
     "minutesAgo": "{{count}}m ago",
     "hoursAgo": "{{count}}h ago",
     "daysAgo": "{{count}}d ago"
+  },
+  "input": {
+    "placeholder": "Metni yazın, sayfaya göndermek için Enter'a basın",
+    "send": "Gönder",
+    "enter": "Enter",
+    "tab": "Tab",
+    "backspace": "Geri silme",
+    "hint": "Sayfada tıklamak için ekran görüntüsüne tıklayın; ya da ona odaklanıp ok tuşlarıyla (daha büyük adımlar için Shift) ilerleyin, ardından Enter veya Boşluk'a basın."
+  },
+  "surface": {
+    "ariaLabel": "Tarayıcı ekran görüntüsü. İmleci taşımak için ok tuşlarını, tıklamak için Enter veya Boşluk'u kullanın."
   }
 }

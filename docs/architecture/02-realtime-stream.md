@@ -153,6 +153,12 @@ specific and are covered by the Provider integration SOP.
 | Pi | yes, text and thinking | yes | yes |
 | WorkBuddy | yes, text and thinking | yes, on `message_stop` | yes |
 
+**OpenCode's deltas are relayed, not native.** The `@opencode-ai/sdk` event stream carries
+`message.part.delta` with a `field` of `'text'` for both the answer and the reasoning —
+the part it belongs to decides which channel it feeds. Its runtime keeps a `partID →
+part.type` map and forwards each delta to the shared batcher, so a reasoning delta can
+never leak into the transcript as answer text.
+
 Every “yes” in the last column means the runtime uses the same 50ms / 2048-character
 `createDeltaBatcher`. Runtime fixtures must prove that each channel's emitted deltas join
 exactly to its final text; a cumulative-full-text frame would duplicate content in the
@@ -351,16 +357,20 @@ feeding it a summed `result.usage` is what made it bounce before commit `ab13376
 
 The other arm of the `status` branch — the one that writes `statusText` and `canInterrupt`
 into the activity map — **has no producer today.** All three `status` emitters
-(`claude-runtime.provider.js:968`, `codex-runtime.provider.js:406`,
-`opencode-runtime.provider.js:338`) send `text: 'token_budget'`. The arm is live code
+(`claude-runtime.provider.ts`, `codex-runtime.provider.ts`,
+`opencode-runtime.provider.ts`) send `text: 'token_budget'`. The arm is live code
 kept for a provider that reports progress text; do not delete it expecting nothing to
 change, and do not assume the status text you see in the UI came from it.
 
 ## Permission requests
 
-Claude is the only provider with interactive tool approvals. Its runtime's `canUseTool`
+Two providers ask for interactive tool approvals: Claude and OpenCode. Claude's runtime's
+`canUseTool`
 callback emits `permission_request` with a `requestId` and blocks until the client answers
-with `chat.permission-response`. When an answer arrives it emits `permission_resolved`
+with `chat.permission-response`. OpenCode's runtime relays the `permission.asked` event of
+the per-turn `opencode serve` the same way; its answer maps onto OpenCode's `once` /
+`always` / `reject`, and a request whose context already carries `always` rules renders
+without the "remember this" option. When an answer arrives it emits `permission_resolved`
 with the same id; if the run ends or the request times out it emits `permission_cancelled`
 instead. The distinction matters because the answer itself travels only on the inbound
 socket: without the outbound `permission_resolved`, the `permission_request` sitting in

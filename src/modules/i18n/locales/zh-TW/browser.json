@@ -5,7 +5,8 @@
   "refresh": "重新整理瀏覽器工作階段",
   "error": {
     "load": "載入瀏覽器失敗",
-    "action": "瀏覽器操作失敗"
+    "action": "瀏覽器操作失敗",
+    "installFailed": "瀏覽器執行階段安裝失敗"
   },
   "runtime": {
     "disabled": "已停用",
@@ -65,5 +66,16 @@
     "minutesAgo": "{{count}} 分鐘前",
     "hoursAgo": "{{count}} 小時前",
     "daysAgo": "{{count}} 天前"
+  },
+  "input": {
+    "placeholder": "輸入文字，按 Enter 傳送到頁面",
+    "send": "傳送",
+    "enter": "Enter",
+    "tab": "Tab",
+    "backspace": "Backspace",
+    "hint": "點擊截圖可在頁面中點擊；也可聚焦後用方向鍵移動指標（按住 Shift 移動更快），再按 Enter 或空白鍵。"
+  },
+  "surface": {
+    "ariaLabel": "瀏覽器截圖。用方向鍵移動指標，按 Enter 或空白鍵點擊。"
   }
 }
