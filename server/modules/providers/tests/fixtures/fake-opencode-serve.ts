@@ -20,8 +20,9 @@ import http from 'node:http';
 type PermissionRule = { permission: string; pattern: string; action: string };
 
 type Step =
-  | { type: 'text'; text: string }
-  | { type: 'reasoning'; text: string }
+  /** `deltas` splits the text into that many incremental updates before the finished part. */
+  | { type: 'text'; text: string; deltas?: number }
+  | { type: 'reasoning'; text: string; deltas?: number }
   | {
     type: 'permission';
     id: string;
@@ -93,12 +94,22 @@ const emit = (type: string, properties: Record<string, unknown>) => {
   }
 };
 
-const emitPart = (sessionID: string, part: Record<string, unknown>) => {
+const emitPart = (sessionID: string, part: Record<string, unknown>, id?: string) => {
   emit('message.part.updated', {
     sessionID,
-    part: { id: `prt_${++partCounter}`, sessionID, messageID: 'msg_assistant', ...part },
+    part: { id: id ?? `prt_${++partCounter}`, sessionID, messageID: 'msg_assistant', ...part },
     time: Date.now(),
   });
+};
+
+/** Splits `text` into `count` chunks that join back to it exactly. */
+const splitInto = (text: string, count: number): string[] => {
+  const size = Math.ceil(text.length / count);
+  const chunks: string[] = [];
+  for (let index = 0; index < text.length; index += size) {
+    chunks.push(text.slice(index, index + size));
+  }
+  return chunks;
 };
 
 const sendJson = (res: http.ServerResponse, status: number, body: unknown) => {
@@ -153,7 +164,18 @@ async function runTurn(sessionID: string): Promise<void> {
     }
 
     if (step.type === 'text' || step.type === 'reasoning') {
-      emitPart(sessionID, { type: step.type, text: step.text, time: { start: now, end: Date.now() } });
+      if (!step.deltas) {
+        emitPart(sessionID, { type: step.type, text: step.text, time: { start: now, end: Date.now() } });
+        continue;
+      }
+      // The part appears empty first, streams its deltas, then reports the
+      // finished text — the order a real `opencode serve` uses.
+      const partID = `prt_${++partCounter}`;
+      emitPart(sessionID, { type: step.type, text: '', time: { start: now } }, partID);
+      for (const delta of splitInto(step.text, step.deltas)) {
+        emit('message.part.delta', { sessionID, messageID: 'msg_assistant', partID, field: 'text', delta });
+      }
+      emitPart(sessionID, { type: step.type, text: step.text, time: { start: now, end: Date.now() } }, partID);
       continue;
     }
 

@@ -261,6 +261,40 @@ test('a new session runs on a private, authenticated server that stops with the 
   assert.ok(await waitForExit(turn.serverPid!), 'the turn\'s server process is gone');
 });
 
+test('streaming parts relay incremental deltas on the channel their part belongs to', async () => {
+  const turn = await runTurn({
+    scenario: {
+      newSessionId: 'ses_stream',
+      steps: [
+        { type: 'reasoning', text: 'weighing the options', deltas: 4 },
+        { type: 'text', text: 'the final answer', deltas: 4 },
+      ],
+    },
+  });
+
+  assert.equal(turn.error, null);
+  const deltas = turn.frames.filter((frame) => frame.kind === 'stream_delta');
+  assert.ok(deltas.length > 0, 'the turn streams deltas');
+
+  // `message.part.delta` reports `field: 'text'` for reasoning too, so the
+  // part's type has to pick the channel: joined per channel, each delta run
+  // must reproduce its part exactly and never leak into the other one.
+  const joined = (channel: string) => deltas
+    .filter((frame) => (frame.streamChannel === 'thinking' ? 'thinking' : 'text') === channel)
+    .map((frame) => frame.content)
+    .join('');
+  assert.equal(joined('thinking'), 'weighing the options');
+  assert.equal(joined('text'), 'the final answer');
+
+  // Deltas land before the part that finishes them, never after its seal.
+  const lastDelta = turn.frames.reduce(
+    (last, frame, index) => (frame.kind === 'stream_delta' ? index : last),
+    -1,
+  );
+  const seal = turn.frames.findIndex((frame) => frame.kind === 'stream_end');
+  assert.ok(seal > lastDelta, 'the deltas are flushed before stream_end');
+});
+
 test('an attachment-only message sends the attachment list as the prompt', async () => {
   const turn = await runTurn({
     command: '',

@@ -18,6 +18,12 @@
  *   AskUserQuestion prompt; the picked labels go back as the answers, and
  *   Dismiss rejects the question.
  *
+ * While a turn runs, `message.part.delta` carries the answer and the reasoning
+ * trace token by token (`field` is `'text'` for both, so the part's type picks
+ * the channel). The runtime relays each one as a `stream_delta` through the
+ * shared batcher; finished parts are then forwarded whole, exactly as the
+ * `opencode run` capture did, and the client collapses the echo.
+ *
  * A server per turn, rather than one shared server, is deliberate: OpenCode
  * reads its config, credentials and MCP servers when a project is first opened
  * and does not notice later edits, so a long-lived server would keep running
@@ -63,6 +69,7 @@ import {
 } from '@/modules/notifications/index.js';
 import {
   createCompleteMessage,
+  createDeltaBatcher,
   createNormalizedMessage,
   getOpenCodeDatabasePath,
   readObjectRecord,
@@ -71,6 +78,7 @@ import {
 } from '@/shared/utils.js';
 import type {
   AnyRecord,
+  NormalizedMessage,
   ProviderModelsDefinition,
   ProviderPermissionDecision,
   ProviderRuntimeContext,
@@ -150,6 +158,18 @@ const MAX_REMEMBERED_APPROVAL_SESSIONS = 500;
 type OpenCodePermissionReply = 'once' | 'always' | 'reject';
 
 type OpenCodeServer = { url: string; close(): void };
+
+/**
+ * One incremental update of a part. `field` is `'text'` for the answer and for
+ * the reasoning trace alike, so it cannot be used to pick a channel.
+ */
+type OpenCodePartDelta = {
+  sessionID: string;
+  messageID: string;
+  partID: string;
+  field: string;
+  delta: string;
+};
 
 /** One running turn, keyed in `activeTurns` by the session it runs for. */
 type OpenCodeTurn = {
@@ -827,7 +847,25 @@ async function runOpenCodeTurn(
   // "Always allow" is remembered per chat; direct callers without an app id
   // fall back to the OpenCode session.
   const approvalsKey = () => appSessionId ?? turn.providerSessionId ?? turn.key;
-  const send = (message: unknown) => writer.send(message);
+  // Every outbound frame goes through the batcher so ordering is preserved by
+  // construction: a buffered delta is flushed before any non-delta frame, never
+  // after the `stream_end` that seals its row or the `complete` that ends the
+  // run. A delta that surfaces after the run ended would resurrect the client's
+  // finalized placeholder, so it is dropped instead of sent.
+  let terminalSent = false;
+  const deltaBatcher = createDeltaBatcher((message) => {
+    if (message.kind === 'stream_delta' && (terminalSent || turnEnded)) {
+      return;
+    }
+    writer.send(message);
+  });
+  const send = (message: unknown) => {
+    const frame = message as NormalizedMessage;
+    if (frame.kind === 'complete' || frame.kind === 'error') {
+      terminalSent = true;
+    }
+    deltaBatcher.send(frame);
+  };
   const sentErrors = new Set<string>();
   const sendError = (content: string) => {
     // OpenCode can report one failure more than once (a prompt that fails
@@ -1060,7 +1098,39 @@ async function runOpenCodeTurn(
    * Subagent sessions are left out, as `run` left them out: their work shows
    * inside the `task` call that spawned them.
    */
+  /**
+   * Which channel each streaming part feeds. `message.part.delta` reports
+   * `field: 'text'` for the answer and for the reasoning trace alike, so the
+   * part's own type is the only thing that tells them apart.
+   */
+  const streamingParts = new Map<string, 'text' | 'reasoning'>();
+
+  /**
+   * Relays one `message.part.delta` as a `stream_delta` frame. Deltas for a part
+   * the runtime has not seen the type of are dropped rather than guessed: a
+   * reasoning delta rendered as answer text is worse than a late one.
+   */
+  const forwardDelta = (delta: OpenCodePartDelta) => {
+    const partType = streamingParts.get(delta.partID);
+    if (!partType || !delta.delta || userMessageIds.has(delta.messageID)) {
+      return;
+    }
+    send(createNormalizedMessage({
+      kind: 'stream_delta',
+      streamChannel: partType === 'reasoning' ? 'thinking' : 'text',
+      content: delta.delta,
+      sessionId: turnSessionId(),
+      provider: PROVIDER,
+    }));
+  };
+
   const forwardPart = (part: OpenCodePart) => {
+    const streamEnded = (part.type === 'text' || part.type === 'reasoning') && Boolean(part.time?.end);
+    if (!emittedParts.has(part.id) && !streamEnded) {
+      if (part.type === 'text') streamingParts.set(part.id, 'text');
+      else if (part.type === 'reasoning') streamingParts.set(part.id, 'reasoning');
+    }
+
     let lineType: string | null = null;
     if (part.type === 'text' && part.time?.end && !userMessageIds.has(part.messageID)) {
       lineType = 'text';
@@ -1094,8 +1164,20 @@ async function runOpenCodeTurn(
         return;
       }
       case 'message.part.updated': {
-        if (event.properties.part.sessionID === turn.providerSessionId) {
-          forwardPart(event.properties.part);
+        const { part } = event.properties;
+        if (part.sessionID === turn.providerSessionId) {
+          // The type is recorded before the part finishes, so every delta that
+          // precedes its `time.end` already knows its channel.
+          forwardPart(part);
+          if ((part.type === 'text' || part.type === 'reasoning') && part.time?.end) {
+            streamingParts.delete(part.id);
+          }
+        }
+        return;
+      }
+      case 'message.part.delta': {
+        if (event.properties.sessionID === turn.providerSessionId) {
+          forwardDelta(event.properties);
         }
         return;
       }
