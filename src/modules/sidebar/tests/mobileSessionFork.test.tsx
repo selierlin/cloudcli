@@ -49,6 +49,8 @@ const SESSION: SessionWithProvider = {
   __projectId: PROJECT.projectId,
 };
 const t = ((key: string) => key) as TFunction;
+// The row localizes the options trigger; the stub `t` returns the key verbatim.
+const OPTIONS_TRIGGER = 'sessions.sessionOptionsFor';
 const noop = () => {};
 
 const rowProps = (
@@ -87,7 +89,7 @@ const rowProps = (
 
 const openOptions = async () => {
   await act(async () => {
-    fireEvent.click(screen.getByRole('button', { name: 'Session options for Session one' }));
+    fireEvent.click(screen.getByRole('button', { name: OPTIONS_TRIGGER }));
   });
   return within(screen.getByRole('dialog'));
 };
@@ -97,8 +99,8 @@ test.each<LLMProvider>(['claude', 'codex'])('mobile offers a fork for a supporte
   const sheet = await openOptions();
 
   assert.ok(sheet.getByRole('button', { name: /Fork session/ }));
-  assert.ok(sheet.getByRole('button', { name: 'Rename session' }));
-  assert.ok(sheet.getByRole('button', { name: 'Archive or delete session' }));
+  assert.ok(sheet.getByRole('button', { name: 'sessions.renameSession' }));
+  assert.ok(sheet.getByRole('button', { name: 'sessions.archiveOrDeleteSession' }));
 });
 
 test('forking from the mobile sheet passes the owning session once and dismisses the sheet', async () => {
@@ -114,7 +116,7 @@ test('forking from the mobile sheet passes the owning session once and dismisses
   assert.equal(onProjectSelect.mock.calls.length, 0);
   assert.equal(onSessionSelect.mock.calls.length, 0);
   assert.equal(screen.queryByRole('dialog'), null);
-  assert.equal(screen.getByRole('button', { name: 'Session options for Session one' }).getAttribute('aria-expanded'), 'false');
+  assert.equal(screen.getByRole('button', { name: OPTIONS_TRIGGER }).getAttribute('aria-expanded'), 'false');
 });
 
 test.each<LLMProvider>(['cursor', 'opencode'])('mobile withholds a fork when %s is unsupported or absent from the matrix', async (provider) => {
@@ -154,5 +156,5 @@ test('background work alone keeps the mobile fork available, matching the deskto
 test('bulk selection withholds the mobile options trigger', () => {
   render(<SidebarSessionItem {...rowProps({ isManaging: true })} />);
 
-  assert.equal(screen.queryByRole('button', { name: 'Session options for Session one' }), null);
+  assert.equal(screen.queryByRole('button', { name: OPTIONS_TRIGGER }), null);
 });
