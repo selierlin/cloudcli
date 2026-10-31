@@ -6,6 +6,7 @@ import test from 'node:test';
 
 import { closeConnection, initializeDatabase, sessionReadStateDb, sessionsDb, userDb } from '@/modules/database/index.js';
 import {
+  broadcastSessionRemoved,
   broadcastSessionUpserted,
   broadcastSessionUpsertedBatch,
 } from '@/modules/websocket/services/session-upsert-broadcast.service.js';
@@ -293,4 +294,20 @@ test('a delta for a session the sole user has read reports not-unread', async ()
 
     assert.equal((connection.frames[0].session as Record<string, unknown>).isUnread, false);
   });
+});
+
+test('a removed session is announced as a bare id the client can drop', () => {
+  // No database: the frame carries nothing but the id, because the row is
+  // already gone by the time it is sent.
+  const connection = new FakeConnection();
+  connectedClients.add(connection as never);
+
+  broadcastSessionRemoved('aside-1');
+
+  assert.equal(connection.frames.length, 1);
+  assert.equal(connection.frames[0].kind, 'session_deleted');
+  assert.equal(connection.frames[0].sessionId, 'aside-1');
+  assert.equal(typeof connection.frames[0].timestamp, 'string');
+
+  connectedClients.clear();
 });

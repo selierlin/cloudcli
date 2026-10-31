@@ -51,6 +51,15 @@ export type BtwController = {
   refork: () => Promise<boolean>;
   /** Forgets the local copy after a promotion; never deletes it. */
   discard: () => void;
+  /**
+   * Forgets a copy the server no longer has, without issuing a DELETE.
+   *
+   * A sweep or a restart can reclaim the copy while this tab is offline, and
+   * the id then lives on only here: every send answers `SESSION_NOT_FOUND` and
+   * every close answers 404. The drawer keeps its empty state, so the next
+   * question forks a fresh copy.
+   */
+  handleSessionLost: () => void;
   clearCreateError: () => void;
 };
 
@@ -253,12 +262,15 @@ export function useBtwSession({
       }
 
       const response = await api.deleteBtwSession(id);
-      if (response.ok) {
+      const payload = await response.json().catch(() => null);
+      // Already gone is the goal, not a failure: the copy can be reclaimed
+      // while this tab was offline, and reporting that as a failure would keep
+      // the drawer open on an id no retry can ever delete.
+      if (response.ok || payload?.error?.code === 'SESSION_NOT_FOUND') {
         discard();
         return true;
       }
 
-      const payload = await response.json().catch(() => null);
       // The copy is still unwinding: keep it observable so the reader can stop
       // it or retry, instead of hiding the only control that can settle it.
       setCloseFailure(payload?.error?.code === 'BTW_STILL_RUNNING' ? 'still-running' : 'failed');
@@ -309,6 +321,18 @@ export function useBtwSession({
 
   const clearCreateError = useCallback(() => setCreateError(null), []);
 
+  const handleSessionLost = useCallback(() => {
+    if (!sessionIdRef.current) {
+      return;
+    }
+    // No DELETE: the row is already gone, and asking again would only log a
+    // 404. The notice explains why the transcript emptied, and the composer
+    // stays usable so the next question forks a fresh copy.
+    discard();
+    setCloseFailure(null);
+    setCreateError('BTW_SESSION_RECLAIMED');
+  }, [discard]);
+
   return {
     sessionId,
     creating,
@@ -322,6 +346,7 @@ export function useBtwSession({
     promote,
     refork,
     discard,
+    handleSessionLost,
     clearCreateError,
   };
 }

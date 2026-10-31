@@ -1017,3 +1017,37 @@ src/modules/chat/
 **测试**（`server/modules/websocket/tests/session-presence.test.ts`，4 条全绿）：多 watcher 时最后一个才算 idle、宽限期内重订阅取消回收、一个 socket 关掉多个会话各通知一次（重复订阅不重复通知）、集成路径（`chat.subscribe` 记 watcher → `close` 才通知）。**客户端那条重订阅没有自动化守卫**（`handleWebSocketReconnect` 是组件内联回调，现有测试只到 hook 层），只能靠这条记录兜住。
 
 **未验**：真机刷新后 2 分钟副本是否真被回收 —— 需要重启守护进程让新服务端生效。
+
+### 17.14 回滚 §17.13 的 2 分钟宽限期（2026-10-30）
+
+**起因**：用户报「侧边提问的会话关不掉（提示无法丢弃这条分支），发消息又报 `Session "726faf7d-…" was not found`」。日志给出一条完整链条：
+
+| 时间 | 事件 |
+|---|---|
+| 08:08:36 | `POST …/btw 201` 创建副本（workbuddy，fork 出 `7283577d….jsonl`） |
+| 08:12:06 | `[INFO] Chat client disconnected` —— 连接中断（合盖 / 切网） |
+| 08:14:03 | `[btw] Reclaimed aside session 726faf7d… after its drawer disconnected` —— §17.13 的 2 分钟到期 |
+| 08:17:58 | 同一页面 WS 重连（React 状态没丢，抽屉还开着） |
+| 08:18:59–08:19:03 | 三次 `DELETE …/btw 404` |
+
+**根因**：§17.13 假设「socket 断了但客户端会很快回来重订阅」，宽限期就是为这个假设设的。实际一次合盖/挂起就超过 2 分钟，客户端回来时副本已经删了，而抽屉的 id 只活在 React 状态里 —— 于是关闭永远 404、发送永远 `SESSION_NOT_FOUND`。**socket 存在与否不是抽屉是否打开的可靠证据。**
+
+**决定（用户拍板）**：不再按「无人订阅」回收。副本的回收时机收敛为两条：
+
+1. **下次服务重启**（启动时全量回收，抽屉不可能跨重启存活）；
+2. **30 分钟一次的 6 小时扫描**（兜住「浏览器早关了、服务跑了几天」的残留）。
+
+代价是一份刷新后遗留的隐藏行 + 一份 transcript 留在磁盘上，直到重启或满 6 小时 —— 它们对界面完全不可见（§17.13 已核实 `is_ephemeral` 在 `src/` 下零引用），这个代价远小于删掉用户正在看的对话。
+
+**改动**：
+
+- 删除 `server/modules/websocket/services/session-presence.service.ts` 与其 4 条测试；`chat-websocket.service.ts` 的 `watchSession` / `forgetConnection` 调用一并移除；`ephemeral-cleanup.service.ts` 只保留启动回收 + 周期扫描（`configureSessionPresence` 随模块删除）。
+- `ChatInterface.handleWebSocketReconnect` 里那条「顺带重订阅副本」保留 —— 它与回收无关，重连后抽屉要继续收流式帧。
+
+**配套的两条客户端容错**（这次事故的直接症状）：
+
+- **关闭幂等**：`useBtwSession.close()` 把 404 / `SESSION_NOT_FOUND` 当作「早已不在」→ `discard()` 并允许关闭。回执读 body 后再判，别只判 `response.ok`。
+- **丢失自愈**：新增 `handleSessionLost()`，由 realtime handler 的两条路径触发 —— 服务端 `session_deleted` 广播（清扫/启动回收时 `broadcastSessionRemoved` 发出）与 `chat.send` 被 `SESSION_NOT_FOUND` 拒绝。抽屉回到空态并显示「服务端已回收这条分支…」，下一次提问重新派生；`SESSION_NOT_FOUND` 不再往已消失的会话里塞一条英文协议错误。
+
+**未做的取舍**：没有让 `chat.subscribe` 对不存在的 session 回 `SESSION_NOT_FOUND`。乐观新建的会话可能在行落库前就订阅（侧边栏「新建会话即时出现」那条链路），误报会把协议错误写进正常会话；重启场景由上面第二条兜住，收益不值这个风险。
+

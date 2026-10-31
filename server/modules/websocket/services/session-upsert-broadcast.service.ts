@@ -156,5 +156,23 @@ export async function broadcastSessionUpsertedBatch(
   sendToConnectedClients(payloads);
 }
 
+/**
+ * Announces that a session row no longer exists, so a client still holding it
+ * can let go instead of failing every action with a 404.
+ *
+ * The only producer is the aside cleanup. A reclaimed copy is invisible in
+ * every sidebar, but the drawer that owned it keeps the id in React state, and
+ * nothing else on the wire would tell it the id is dead.
+ *
+ * Consumers: the providers module's aside cleanup.
+ */
+export function broadcastSessionRemoved(sessionId: string): void {
+  sendToConnectedClients([JSON.stringify({
+    kind: 'session_deleted',
+    sessionId,
+    timestamp: new Date().toISOString(),
+  })]);
+}
+
 /** @internal Exported for the broadcast tests, which assert the payload shape directly. */
 export { buildSessionUpsertedEvent };

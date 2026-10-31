@@ -442,6 +442,15 @@ function ChatInterface({
     setSideAskMinimized(false);
   }, [btw]);
 
+  // The copy was reclaimed server-side (an idle sweep or a restart). The drawer
+  // stays open on its empty state so the reader can ask again, and the pending
+  // tool approvals for a branch that no longer exists are dropped.
+  const forgetLostBtwSession = btw.handleSessionLost;
+  const handleSideAskGone = useCallback(() => {
+    forgetLostBtwSession();
+    setSideAskPermissionRequests([]);
+  }, [forgetLostBtwSession]);
+
   // The drawer's "start over": discard the copy and fork a fresh one at the
   // same cut point. Clearing the anchor here would quietly widen the context to
   // the newest message, and the reader would have to re-open the drawer from
@@ -508,6 +517,9 @@ function ChatInterface({
       }
       setSideAskPermissionRequests([]);
     }
+    // A notice from the previous copy (e.g. one the server reclaimed while the
+    // drawer was closed) must not sit above the branch about to open.
+    btw.clearCreateError();
     setSideAskAnchor(nextAnchor);
     setSideAskOpen(true);
     setSideAskMinimized(false);
@@ -594,6 +606,7 @@ function ChatInterface({
     sessionStore,
     sideAskSessionId: btw.sessionId,
     setSideAskPermissionRequests,
+    onSideAskSessionGone: handleSideAskGone,
   });
 
   // Lets other modules (the quick settings Commands tab) hand text to the

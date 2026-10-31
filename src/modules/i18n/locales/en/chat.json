@@ -679,6 +679,7 @@
       "titleInvalid": "That title is too long.",
       "stillRunning": "The side question is still running.",
       "sessionNotFound": "The original conversation is gone.",
+      "reclaimed": "The server reclaimed this branch while the connection was down, so its questions and answers are gone. Ask again to fork a new one.",
       "forkNotSupported": "This provider cannot branch a conversation.",
       "sourceNotReady": "This conversation has no transcript to branch yet.",
       "generic": "Could not start the side question."

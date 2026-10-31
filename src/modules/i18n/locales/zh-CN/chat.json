@@ -644,6 +644,7 @@
       "titleInvalid": "标题太长。",
       "stillRunning": "侧边提问仍在运行。",
       "sessionNotFound": "原会话已不存在。",
+      "reclaimed": "服务端已回收这条分支（连接中断期间被清理），问答内容已丢弃。重新提问会派生出新的分支。",
       "forkNotSupported": "该 provider 无法派生会话。",
       "sourceNotReady": "该会话还没有可派生的记录。",
       "generic": "无法开始侧边提问。"

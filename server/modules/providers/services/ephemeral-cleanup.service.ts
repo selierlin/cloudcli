@@ -1,31 +1,31 @@
-import { sessionsDb, sweepExpiredEphemeralForks } from '@/modules/database/index.js';
+import { sweepExpiredEphemeralForks } from '@/modules/database/index.js';
 import { btwService } from '@/modules/providers/services/btw.service.js';
-import { configureSessionPresence } from '@/modules/websocket/index.js';
 
 /**
  * Reclaims btw copies that outlived their drawer.
  *
  * A drawer deletes its copy when it closes, but the request can be lost (a
  * refresh, a crash, a dropped connection) and then nothing would ever remove
- * the row or the transcript. Three passes cover it:
+ * the row or the transcript. Two passes cover it:
  *
- * - **the socket**, which is the fast path: a copy nobody subscribes to any
- *   more is reclaimed after `IDLE_GRACE_MS`, which is short enough that a
- *   refreshed page does not leave a hidden transcript around and long enough
- *   that a reconnecting tab can cancel it;
- * - **startup**, which reclaims everything (no drawer can still be open across
- *   a restart);
- * - **a slow timer**, for copies that never got as far as a subscription — a
- *   server that runs for days while one browser tab was closed months ago.
+ * - **startup**, which reclaims everything: no drawer survives a restart;
+ * - **a slow timer**, for copies a long-running server still holds — one left by
+ *   a browser tab that was closed months ago.
+ *
+ * A third pass used to reclaim a copy once no chat socket watched it for two
+ * minutes. It was removed: a lost socket is not proof the drawer is gone. A
+ * laptop lid, a suspended phone or a network switch takes the subscription down
+ * while the branch stays on screen, and the sweep then deleted a conversation
+ * the reader was still looking at (the tab reconnected six minutes later to a
+ * session that no longer existed, and every action on it answered 404). Leaving
+ * the row until the next restart costs one hidden row and one transcript on
+ * disk, which the timer below still collects.
  *
  * Consumers: `server/index.ts` (start on boot, stop on shutdown) and the
  * Providers module barrel.
  */
 
-/** How long a copy may sit unwatched before the socket pass reclaims it. */
-const IDLE_GRACE_MS = 2 * 60 * 1_000;
-
-/** Only copies older than this are swept while the server is running. */
+/** How often the slow timer looks for copies nobody has touched in hours. */
 const SWEEP_INTERVAL_MS = 30 * 60 * 1_000;
 
 let sweepTimer: NodeJS.Timeout | null = null;
@@ -37,16 +37,6 @@ let sweepTimer: NodeJS.Timeout | null = null;
  * prevent the server from starting, and the next sweep retries it.
  */
 export async function initializeEphemeralCleanup(): Promise<void> {
-  // The socket pass only arms once the server can answer a subscription: an
-  // idle notification that arrives before the chat gateway is up would fire
-  // against copies a reconnecting tab is about to reclaim anyway.
-  configureSessionPresence({
-    graceMs: IDLE_GRACE_MS,
-    onIdle: (sessionId) => {
-      void reclaimIdleSession(sessionId);
-    },
-  });
-
   // Registrations whose fork never reported back can still have marked a row
   // hidden; dropping them first means the sweep below sees a truthful state.
   sweepExpiredEphemeralForks();
@@ -75,38 +65,12 @@ export async function initializeEphemeralCleanup(): Promise<void> {
 
 /** Stops the periodic sweep. Consumers: the server's shutdown path. */
 export function closeEphemeralCleanup(): void {
-  configureSessionPresence(null);
-
   if (!sweepTimer) {
     return;
   }
+
   clearInterval(sweepTimer);
   sweepTimer = null;
-}
-
-/**
- * Reclaims one copy whose drawer's socket went away and never came back.
- *
- * Re-read the row first: a normal close, a promotion or an earlier sweep may
- * have settled it already, and neither case should report an error. A copy that
- * is still unwinding throws 409 from the delete and is left for the periodic
- * sweep, exactly like a close that failed.
- */
-async function reclaimIdleSession(sessionId: string): Promise<void> {
-  const session = sessionsDb.getSessionById(sessionId);
-  if (!session?.is_ephemeral) {
-    return;
-  }
-
-  try {
-    await btwService.destroyBtwSession(sessionId);
-    console.log(`[btw] Reclaimed aside session ${sessionId} after its drawer disconnected`);
-  } catch (error) {
-    console.error('[btw] Failed to reclaim an idle aside session', {
-      sessionId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
 }
 
 /** One periodic pass: expire registrations, then reclaim long-idle copies. */

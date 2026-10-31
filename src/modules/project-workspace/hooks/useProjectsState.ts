@@ -1215,6 +1215,14 @@ export function useProjectsState({
         : null;
       const viewedSessionId = selectedSessionRef.current?.id ?? sessionId ?? null;
 
+      // A deleted session carries no new activity to mark: drop whatever
+      // attention flag it left behind instead of letting the generic mark below
+      // raise a notice for a row — an aside copy — that can never be reopened.
+      if (event.kind === 'session_deleted') {
+        clearSessionAttention(eventSessionId);
+        return;
+      }
+
       // Remember which permission requests are still open before the mark
       // below, so a later resolve/cancel can tell whether it was the last one.
       if (event.kind === 'permission_request' && eventSessionId) {

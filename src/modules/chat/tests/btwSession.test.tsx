@@ -191,6 +191,54 @@ test('closing while the first question is still being forked deletes the copy an
   assert.deepEqual(dropped, ['btw-1']);
 });
 
+test('a copy the server already reclaimed still closes', async () => {
+  const { store, dropped } = createStore();
+  const sent: Array<Record<string, unknown>> = [];
+  const view = renderBtw(store, sent);
+
+  await act(async () => {
+    await view.result.current.send('asked before the sweep');
+  });
+  // The sweep (or a restart) reclaimed it while this tab was offline.
+  deleteBtwSession.mockResolvedValue(jsonResponse({
+    success: false,
+    error: { code: 'SESSION_NOT_FOUND', message: 'Session "btw-1" was not found.' },
+  }, 404));
+
+  let closed = false;
+  await act(async () => {
+    closed = await view.result.current.close();
+  });
+
+  // Already gone is the goal state: a retry could never succeed, so reporting
+  // a failure here would trap the drawer on a dead id.
+  assert.equal(closed, true);
+  assert.equal(view.result.current.closeFailure, null);
+  assert.equal(view.result.current.sessionId, null);
+  assert.deepEqual(dropped, ['btw-1']);
+});
+
+test('a copy the server reclaimed is forgotten without issuing a delete', async () => {
+  const { store, dropped, observed } = createStore();
+  const sent: Array<Record<string, unknown>> = [];
+  const view = renderBtw(store, sent);
+
+  await act(async () => {
+    await view.result.current.send('one question');
+  });
+
+  act(() => {
+    view.result.current.handleSessionLost();
+  });
+
+  assert.equal(deleteBtwSession.mock.calls.length, 0, 'the row is gone; a DELETE would only 404');
+  assert.equal(view.result.current.sessionId, null);
+  assert.equal(view.result.current.closeFailure, null);
+  assert.equal(view.result.current.createError, 'BTW_SESSION_RECLAIMED');
+  assert.deepEqual(dropped, ['btw-1']);
+  assert.deepEqual(observed.at(-1), ['btw-1', false]);
+});
+
 test('promoting never issues a delete', async () => {
   const { store, dropped } = createStore();
   const sent: Array<Record<string, unknown>> = [];

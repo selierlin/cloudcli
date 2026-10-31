@@ -605,6 +605,31 @@ test('deleting a session drops its read watermark and its turn timings', async (
   assert.deepEqual(clearTurnDurations.mock.calls, [[OTHER_SESSION_ID]]);
 });
 
+test('a deleted session clears its attention flag instead of raising a new one', async () => {
+  const { result } = await renderProjectsState();
+
+  await act(async () => {
+    emit({ kind: 'permission_request', sessionId: OTHER_SESSION_ID, requestId: 'r1' });
+  });
+  assert.equal(result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID), 'action');
+
+  await act(async () => {
+    emit({ kind: 'session_deleted', sessionId: OTHER_SESSION_ID });
+  });
+  assert.equal(
+    result.current.sidebarSharedProps.attentionSessions.get(OTHER_SESSION_ID),
+    undefined,
+    'the row is gone; a deletion is not new activity that can be acted on',
+  );
+
+  // The aside copy behind the drawer is not in any sidebar list. It must not
+  // leave an attention flag nobody can ever render or clear.
+  await act(async () => {
+    emit({ kind: 'session_deleted', sessionId: 'aside-copy' });
+  });
+  assert.equal(result.current.sidebarSharedProps.attentionSessions.get('aside-copy'), undefined);
+});
+
 /**
  * The grace period. Looking at a session is not answering it, so opening one no
  * longer clears its notice: the flag follows the user back to the sidebar and

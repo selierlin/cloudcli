@@ -72,6 +72,15 @@ type UseChatRealtimeHandlersArgs = {
    */
   sideAskSessionId?: string | null;
   setSideAskPermissionRequests?: Dispatch<SetStateAction<PendingPermissionRequest[]>>;
+  /**
+   * Reports that the server no longer holds the open side-question copy.
+   *
+   * A copy outlives its socket but not an idle sweep or a restart, and the
+   * drawer keeps the id in React state with no other way to learn it died.
+   * Without this the drawer would sit on a dead id: every send rejected by
+   * `SESSION_NOT_FOUND` and every close answered with a 404.
+   */
+  onSideAskSessionGone?: (sessionId: string) => void;
 };
 
 /* ------------------------------------------------------------------ */
@@ -109,6 +118,7 @@ export function useChatRealtimeHandlers({
   sessionStore,
   sideAskSessionId,
   setSideAskPermissionRequests,
+  onSideAskSessionGone,
 }: UseChatRealtimeHandlersArgs) {
   // Session switches can send `chat.subscribe` before this effect has a chance
   // to rebind the websocket listener. Read the visible session id from a ref
@@ -251,6 +261,16 @@ export function useChatRealtimeHandlers({
 
         case 'protocol_error': {
           console.error('[Chat] Protocol error:', msg.code, msg.error);
+          // The drawer's copy is gone from the server (a sweep or a restart
+          // reclaimed it while this tab was away). No run can start, so drop
+          // the dead id and let the drawer explain it in its own words rather
+          // than appending a raw server line to a branch nobody can reopen.
+          if (sid && msg.code === 'SESSION_NOT_FOUND' && sid === sideAskSessionIdRef.current) {
+            onSessionIdle?.(sid);
+            endTurn(sid, null, Date.now());
+            onSideAskSessionGone?.(sid);
+            return;
+          }
           // The ✕ on a task whose end never reached this client (its process
           // went away, say): settle its card and chip instead of reporting a
           // failure the user can do nothing about.
@@ -316,6 +336,15 @@ export function useChatRealtimeHandlers({
         // list again. Not a transcript row.
         case 'scheduled_messages_changed':
           return;
+
+        // A reclaimed aside copy is invisible to the sidebar, so the only
+        // consumer is the drawer showing it.
+        case 'session_deleted': {
+          if (sid && sid === sideAskSessionIdRef.current) {
+            onSideAskSessionGone?.(sid);
+          }
+          return;
+        }
 
         default:
           break;
@@ -590,5 +619,6 @@ export function useChatRealtimeHandlers({
     onWebSocketReconnect,
     requestLatestMessages,
     sessionStore,
+    onSideAskSessionGone,
   ]);
 }

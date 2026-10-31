@@ -10,7 +10,7 @@ import {
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import { providerRuntimeService } from '@/modules/providers/services/provider-runtime.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
-import { broadcastSessionUpserted, chatRunRegistry } from '@/modules/websocket/index.js';
+import { broadcastSessionRemoved, broadcastSessionUpserted, chatRunRegistry } from '@/modules/websocket/index.js';
 import type { BackgroundTaskSummary, LLMProvider, NormalizedMessage } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 
@@ -358,6 +358,10 @@ async function reclaimEphemeralSessions(options: { staleOnly: boolean } = { stal
 
     try {
       await destroyBtwSession(row.session_id);
+      // A drawer can still be showing this copy (the sweep only takes copies a
+      // restart or six idle hours produced), and its id is held in React state
+      // with no other way to learn the row is gone.
+      broadcastSessionRemoved(row.session_id);
       reclaimed += 1;
     } catch (error) {
       // One stuck copy (a task that will not stop) must not abort the sweep; the

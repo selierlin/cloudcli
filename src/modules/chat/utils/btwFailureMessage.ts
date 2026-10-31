@@ -11,6 +11,9 @@ const MESSAGES: Record<string, string> = {
   BTW_TITLE_INVALID: 'sideAsk.errors.titleInvalid',
   BTW_STILL_RUNNING: 'sideAsk.errors.stillRunning',
   SESSION_NOT_FOUND: 'sideAsk.errors.sessionNotFound',
+  // Local-only: raised when the server says the open copy is gone, so the
+  // drawer can explain the emptied transcript instead of a bare protocol error.
+  BTW_SESSION_RECLAIMED: 'sideAsk.errors.reclaimed',
   FORK_NOT_SUPPORTED: 'sideAsk.errors.forkNotSupported',
   FORK_SOURCE_NOT_READY: 'sideAsk.errors.sourceNotReady',
 };
