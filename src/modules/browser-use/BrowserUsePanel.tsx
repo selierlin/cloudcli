@@ -125,6 +125,14 @@ function getRuntimeTone(status: BrowserUseStatus | null, installing: boolean): s
   return 'border-border bg-background text-muted-foreground';
 }
 
+function getStatusLabel(status: BrowserUseSession['status'] | undefined, t: TFunction): string {
+  if (!status) return t('sessions.noneStatus');
+  if (status === 'ready') return t('sessions.statusReady');
+  if (status === 'stopped') return t('sessions.statusStopped');
+  if (status === 'unavailable') return t('sessions.statusUnavailable');
+  return status;
+}
+
 function getStatusDot(status: BrowserUseSession['status']): string {
   if (status === 'ready') return 'bg-primary';
   if (status === 'stopped') return 'bg-muted-foreground/50';
@@ -253,7 +261,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
       }
       return true;
     } catch (err) {
-      setError(localizeApiError(err, 'browserUse.actionFailed', t));
+      setError(localizeApiError(err, 'error.action', t));
       return false;
     } finally {
       sessionOperationLockRef.current = false;
@@ -344,7 +352,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
             <div className="mt-1 truncate pl-3.5 text-xs text-muted-foreground">{getDomain(t, session.url)}</div>
           </div>
           <Badge variant="outline" className="shrink-0 border-border bg-background text-[10px] text-muted-foreground">
-            {session.status}
+            {getStatusLabel(session.status, t)}
           </Badge>
         </div>
         <div className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -581,7 +589,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
               <div className="mx-auto flex min-h-[500px] max-w-7xl flex-col overflow-hidden rounded-md border border-border bg-background shadow-sm">
                 <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-3 py-2">
                   <Badge variant="outline" className={selectedSession ? cn('text-[10px]', getStatusTone(selectedSession.status)) : 'text-[10px]'}>
-                    {selectedSession?.status || t('sessions.emptyBadge')}
+                    {selectedSession ? getStatusLabel(selectedSession.status, t) : t('sessions.emptyBadge')}
                   </Badge>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium text-foreground">
@@ -641,7 +649,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
               <div className="mt-3 space-y-2 text-xs text-muted-foreground">
                 <div className="flex items-center justify-between gap-3">
                   <span>{t('sessions.status')}</span>
-                  <span className="font-medium text-foreground">{selectedSession?.status || t('sessions.noneStatus')}</span>
+                  <span className="font-medium text-foreground">{getStatusLabel(selectedSession?.status, t)}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span>{t('sessions.lastAction')}</span>
