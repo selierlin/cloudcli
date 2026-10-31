@@ -552,7 +552,12 @@ const expectCheck = (spec) => {
   const end = spec.lastIndexOf('/');
   if (spec.startsWith('/') && end > 0) {
     const re = new RegExp(spec.slice(1, end), spec.slice(end + 1) || 'i');
-    return (text) => re.test(text);
+    // A `g`/`y` flag keeps lastIndex between calls, so the next record would
+    // start matching mid-string and could miss the same answer.
+    return (text) => {
+      re.lastIndex = 0;
+      return re.test(text);
+    };
   }
   const needle = spec.toLowerCase();
   return (text) => text.toLowerCase().includes(needle);
