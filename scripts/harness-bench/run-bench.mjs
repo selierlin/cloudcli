@@ -534,6 +534,35 @@ const SCENARIOS = [
   },
 ];
 
+// ------------------------------------------------------------- ad-hoc prompt
+// One arbitrary question across every provider, no fixtures, no setup. The
+// point is the metrics a single sentence can still produce: wall time, first
+// token, tool calls, thinking volume, cost. Accuracy needs a grader, so
+// `--expect` takes either a literal substring or /regex/flags; without it
+// checkPass stays null and the replies have to be read.
+const ADHOC_PROMPT = (() => {
+  const i = args.indexOf('--prompt');
+  return i >= 0 ? args[i + 1] : undefined;
+})();
+const ADHOC_EXPECT = (() => {
+  const i = args.indexOf('--expect');
+  return i >= 0 ? args[i + 1] : undefined;
+})();
+const expectCheck = (spec) => {
+  const end = spec.lastIndexOf('/');
+  if (spec.startsWith('/') && end > 0) {
+    const re = new RegExp(spec.slice(1, end), spec.slice(end + 1) || 'i');
+    return (text) => re.test(text);
+  }
+  const needle = spec.toLowerCase();
+  return (text) => text.toLowerCase().includes(needle);
+};
+const ADHOC_SCENARIO = ADHOC_PROMPT && {
+  id: 'S0', name: '临时提问', rounds: 3, timeoutMs: 300_000,
+  prompt: ADHOC_PROMPT,
+  check: ADHOC_EXPECT ? expectCheck(ADHOC_EXPECT) : undefined,
+};
+
 // ---------------------------------------------------------------- helpers
 const token = execFileSync('node', ['scripts/mint-auth-token.mjs', '--stdout'], {
   cwd: path.resolve(BENCH_DIR, '../..'),
@@ -816,6 +845,48 @@ const gradeS20 = (provider) => {
 const GRADERS = { S7: gradeS7, S13: gradeS13, S16: gradeS16, S17: gradeS17, S18: gradeS18, S20: gradeS20 };
 
 // ------------------------------------------------------------------ main
+const med = (xs) => {
+  const v = xs.filter(Number.isFinite).sort((a, b) => a - b);
+  if (!v.length) return null;
+  return v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2;
+};
+
+// An ad-hoc question has no fixed grader, so the table is the whole point: it
+// shows what one sentence still measures (time, first token, tool calls,
+// thinking, cost) and leaves accuracy as a pass rate only when --expect was
+// passed. Otherwise the replies are printed for a human to judge.
+function printAdhocTable() {
+  const fmt = (v, unit = '') => (v == null ? '—' : `${Math.round(v)}${unit}`);
+  console.log('\n--- 临时提问（中位） ---');
+  console.log('harness    总耗时   首字   思考首字  工具  思考字符   prompt   通过');
+  for (const p of providers) {
+    const rs = adhocRecords.filter((r) => r.provider === p.id);
+    if (!rs.length) continue;
+    const turns = rs.map((r) => r.turn ?? {});
+    const graded = rs.filter((r) => typeof r.checkPass === 'boolean');
+    console.log(
+      p.id.padEnd(10),
+      fmt(med(turns.map((t) => t.totalMs)), 'ms').padStart(8),
+      fmt(med(turns.map((t) => t.firstTextMs)), 'ms').padStart(8),
+      fmt(med(turns.map((t) => t.firstThinkingMs)), 'ms').padStart(8),
+      fmt(med(turns.map((t) => t.toolUseCount))).padStart(5),
+      fmt(med(turns.map((t) => t.thinkingChars))).padStart(8),
+      fmt(med(rs.map((r) => r.tokenUsageRaw?.data?.breakdown?.input))).padStart(8),
+      (graded.length ? `${graded.filter((r) => r.checkPass).length}/${graded.length}` : '未判').padStart(6),
+    );
+  }
+  console.log('\n--- 原始回复（各取前 160 字） ---');
+  for (const p of providers) {
+    for (const r of adhocRecords.filter((x) => x.provider === p.id)) {
+      const body = (r.replyText ?? '').replace(/\s+/g, ' ').slice(0, 160);
+      console.log(`${p.id} r${r.round}: ${r.ok ? body || '(空)' : `ERROR ${r.error}`}`);
+    }
+  }
+  console.log(`\n完整记录：${resultsDir}`);
+}
+
+const adhocRecords = [];
+
 const runId = RUN_ID ?? new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 const resultsDir = path.join(BENCH_DIR, 'results', runId);
 mkdirSync(resultsDir, { recursive: true });
@@ -824,6 +895,7 @@ console.log(`bench run ${runId} → ${resultsDir}`);
 const providers = ONLY_PROVIDERS ? PROVIDERS.filter((p) => ONLY_PROVIDERS.includes(p.id)) : PROVIDERS;
 let scenarios = ONLY_SCENARIOS ? SCENARIOS.filter((s) => ONLY_SCENARIOS.includes(s.id)) : SCENARIOS;
 if (SMOKE) scenarios = scenarios.filter((s) => ['S1', 'S3', 'S4'].includes(s.id));
+if (ADHOC_SCENARIO) scenarios = [ADHOC_SCENARIO];
 
 // execution plan: [ {provider, scenario, round} ] interleaved round → provider → scenario
 const roundsOf = (s) => ROUND_OVERRIDE ?? (SMOKE ? 1 : s.rounds);
@@ -904,7 +976,7 @@ if (!SMOKE && !NO_WARMUP && pending.length > 0) {
 let done = 0;
 for (const item of pending) {
   const p = providers.find((x) => x.id === item.provider);
-  const s = SCENARIOS.find((x) => x.id === item.scenario);
+  const s = scenarios.find((x) => x.id === item.scenario);
   const label = `${item.provider}/${item.scenario}/r${item.round}`;
   process.stdout.write(`[${++done}/${pending.length}] ${label} ... `);
 
@@ -986,6 +1058,7 @@ for (const item of pending) {
     console.log('FAIL ' + record.error);
   }
 
+  if (ADHOC_SCENARIO) adhocRecords.push(record);
   writeFileSync(resultFile(item.provider, item.scenario, item.round), JSON.stringify(record, null, 2));
 
   // small gap so consecutive turns never queue within the same millisecond
@@ -993,5 +1066,7 @@ for (const item of pending) {
 }
 
 console.log(`\nbench done in ${Math.round((Date.now() - tBegin) / 1000)}s → ${resultsDir}`);
+
+if (ADHOC_SCENARIO) printAdhocTable();
 
 if (CANARY) await runCanary('post');
