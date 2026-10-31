@@ -349,10 +349,23 @@ const failureRows = providers.map((p) => {
 const failureTable = table(['harness', '样本', '通过', '空回复', '答错', '运行失败'], failureRows);
 
 const streamingMissing = providers.filter((p) => cell(groups[p].S1, 'S1').ttft === null);
+/**
+ * The longest single turn, never the session total. Multi-turn scenarios store
+ * one entry per turn in `turns`, and `turnStat` sums them; using that here
+ * labelled a 4-turn session's cumulative time as one stalled turn, which put
+ * every harness into the "single turn over 60s" list.
+ */
+const longestTurnMs = (r) => {
+  const perTurn = Array.isArray(r.turns) && r.turns.length
+    ? r.turns.map((t) => t.totalMs)
+    : [r.turn?.totalMs];
+  const finite = perTurn.filter((x) => Number.isFinite(x));
+  return finite.length ? Math.max(...finite) : null;
+};
 const stalled = providers
   .map((p) => {
     const worst = Object.values(groups[p] ?? {}).flat()
-      .map((r) => turnStat(r, 'totalMs'))
+      .map(longestTurnMs)
       .filter((x) => Number.isFinite(x))
       .sort((a, b) => b - a)[0];
     return { p, worst };

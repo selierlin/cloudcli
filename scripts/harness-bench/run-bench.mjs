@@ -390,7 +390,7 @@ const SCENARIOS = [
   },
   {
     id: 'S7', name: '真实代码任务', rounds: 3, timeoutMs: 300_000,
-    prompt: '当前目录下 sum.js 的 sumRange(a, b) 函数有 bug：它应该返回 a 到 b（含两端）的整数和，但现在结果不对。请修复它，然后运行 node sum.test.js 确认输出 PASS。完成后只回复 DONE。',
+    prompt: '当前目录下 sum.js 的 sumRange(a, b) 函数有 bug：它应该返回 a 到 b（含两端）的整数和，但现在结果不对。请修复它，然后运行 node sum.test.js 确认输出 PASS。不要修改 sum.test.js。完成后只回复 DONE。',
     check: null, // graded by running the test after the turn
   },
   {
@@ -444,7 +444,7 @@ const SCENARIOS = [
     // but with one more hop so the "keeps thinking on real work" behaviour
     // shows up as wall time.
     id: 'S13', name: '多步工作任务', rounds: 2, timeoutMs: 480_000,
-    prompt: '当前目录下 app/config.json 里的 retries 当前是 3。请把它改成 5，然后运行 node app/check.js 确认输出 PASS。完成后只回复 DONE。',
+    prompt: '当前目录下 app/config.json 里的 retries 当前是 3。请把它改成 5，然后运行 node app/check.js 确认输出 PASS。不要修改 app/check.js。完成后只回复 DONE。',
     check: null, // graded by running the checker after the turn
   },
   {
@@ -486,19 +486,19 @@ const SCENARIOS = [
     id: 'S19', name: '多轮工具任务', rounds: 2, timeoutMs: 300_000, multiTurn: true,
     turns: [
       {
-        prompt: '把 app/config.json 里的 timeout 从 30 改成 60，然后运行 node app/check.js 确认输出 PASS。完成后只回复 DONE。',
+        prompt: '把 app/config.json 里的 timeout 从 30 改成 60，然后运行 node app/check.js 确认输出 PASS。不要修改 app/check.js。完成后只回复 DONE。',
         prepare: (cwd) => writeFileSync(path.join(cwd, 'app', 'expected.json'), `${JSON.stringify(FLOW_EXPECT[0])}\n`, 'utf8'),
-        grade: (cwd) => runChecker(cwd, '.', 'app/check.js'),
+        grade: gradeS19,
       },
       {
-        prompt: '接着把同一份配置里的 retries 改成 8，再运行 node app/check.js 确认输出 PASS。完成后只回复 DONE。',
+        prompt: '接着把同一份配置里的 retries 改成 8，再运行 node app/check.js 确认输出 PASS。不要修改 app/check.js。完成后只回复 DONE。',
         prepare: (cwd) => writeFileSync(path.join(cwd, 'app', 'expected.json'), `${JSON.stringify(FLOW_EXPECT[1])}\n`, 'utf8'),
-        grade: (cwd) => runChecker(cwd, '.', 'app/check.js'),
+        grade: gradeS19,
       },
       {
-        prompt: '现在把 retries 改回 3，timeout 保持 60 不变，再运行一次 node app/check.js。完成后只回复 DONE。',
+        prompt: '现在把 retries 改回 3，timeout 保持 60 不变，再运行一次 node app/check.js。不要修改 app/check.js。完成后只回复 DONE。',
         prepare: (cwd) => writeFileSync(path.join(cwd, 'app', 'expected.json'), `${JSON.stringify(FLOW_EXPECT[2])}\n`, 'utf8'),
-        grade: (cwd) => runChecker(cwd, '.', 'app/check.js'),
+        grade: gradeS19,
       },
     ],
   },
@@ -780,8 +780,11 @@ const setupFixtures = (provider, scenarioId) => {
 
 const gradeS7 = (provider) => {
   const cwd = workDir(provider, 'S7');
+  // The same guard S16/S18/S20 use: a harness that rewrites the test instead
+  // of fixing the bug would otherwise print PASS and take the point.
+  const intact = sha(path.join(cwd, 'sum.test.js')) === constHash(SUM_TEST);
   const r = spawnSync('node', ['sum.test.js'], { cwd, encoding: 'utf8', timeout: 30_000 });
-  const result = { stdout: (r.stdout ?? '').trim(), pass: (r.stdout ?? '').includes('PASS') };
+  const result = { stdout: (r.stdout ?? '').trim(), pass: (r.stdout ?? '').includes('PASS') && intact, checkerIntact: intact };
   // restore the buggy file so the next round starts from the bug again
   writeFileSync(path.join(cwd, 'sum.js'), SUM_JS, 'utf8');
   return result;
@@ -789,11 +792,23 @@ const gradeS7 = (provider) => {
 
 const gradeS13 = (provider) => {
   const cwd = workDir(provider, 'S13');
+  const intact = sha(path.join(cwd, 'app', 'check.js')) === constHash(CHECK_JS);
   const r = spawnSync('node', ['app/check.js'], { cwd, encoding: 'utf8', timeout: 30_000 });
-  const result = { stdout: (r.stdout ?? '').trim(), pass: (r.stdout ?? '').includes('PASS') };
+  const result = { stdout: (r.stdout ?? '').trim(), pass: (r.stdout ?? '').includes('PASS') && intact, checkerIntact: intact };
   // restore the pre-edit config so the next round starts from 3 again
   writeFileSync(path.join(cwd, 'app', 'config.json'), APP_CONFIG, 'utf8');
   return result;
+};
+
+/**
+ * S19 runs the same checker on all three turns, and the fixture is written once
+ * per round, so a rewritten checker would pass the whole round rather than one
+ * turn. Hash it before running, exactly like the single-turn graders.
+ */
+const gradeS19 = (cwd) => {
+  const intact = sha(path.join(cwd, 'app', 'check.js')) === constHash(FLOW_CHECK);
+  const r = runChecker(cwd, '.', 'app/check.js');
+  return { ...r, pass: r.pass && intact, checkerIntact: intact };
 };
 
 /** hash of a fixture constant, to detect a harness that edits the grader */
@@ -1016,6 +1031,9 @@ for (const item of pending) {
           const grade = t.grade(cwd);
           turnRecord.checkPass = grade.pass;
           turnRecord.gradeLog = grade.stdout.slice(0, 200);
+          // Keep the tamper verdict in the record, so a failed turn can be told
+          // apart from a harness that merely rewrote the checker.
+          if (grade.checkerIntact !== undefined) turnRecord.checkerIntact = grade.checkerIntact;
         }
         turns.push(turnRecord);
       }
