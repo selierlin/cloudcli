@@ -438,7 +438,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
           />
           {keyboardPoint && (
             <div
-              className="pointer-events-none absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-primary/70"
+              className="pointer-events-none absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-n-white bg-primary/70"
               style={{ left: `${keyboardPoint.x * 100}%`, top: `${keyboardPoint.y * 100}%` }}
             />
           )}

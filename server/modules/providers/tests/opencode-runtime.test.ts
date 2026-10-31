@@ -286,6 +286,11 @@ test('streaming parts relay incremental deltas on the channel their part belongs
   assert.equal(joined('thinking'), 'weighing the options');
   assert.equal(joined('text'), 'the final answer');
 
+  // The finished parts are not re-sent whole: their deltas already carried the
+  // text, and the client appends deltas rather than replacing them.
+  assert.equal(turn.frames.filter((frame) => frame.kind === 'text').length, 0);
+  assert.equal(turn.frames.filter((frame) => frame.kind === 'thinking').length, 0);
+
   // Deltas land before the part that finishes them, never after its seal.
   const lastDelta = turn.frames.reduce(
     (last, frame, index) => (frame.kind === 'stream_delta' ? index : last),

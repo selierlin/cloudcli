@@ -1104,6 +1104,8 @@ async function runOpenCodeTurn(
    * part's own type is the only thing that tells them apart.
    */
   const streamingParts = new Map<string, 'text' | 'reasoning'>();
+  /** The text already relayed for each streaming part, to avoid sending it twice. */
+  const streamedText = new Map<string, string>();
 
   /**
    * Relays one `message.part.delta` as a `stream_delta` frame. Deltas for a part
@@ -1115,6 +1117,7 @@ async function runOpenCodeTurn(
     if (!partType || !delta.delta || userMessageIds.has(delta.messageID)) {
       return;
     }
+    streamedText.set(delta.partID, (streamedText.get(delta.partID) ?? '') + delta.delta);
     send(createNormalizedMessage({
       kind: 'stream_delta',
       streamChannel: partType === 'reasoning' ? 'thinking' : 'text',
@@ -1125,6 +1128,16 @@ async function runOpenCodeTurn(
   };
 
   const forwardPart = (part: OpenCodePart) => {
+    // A streaming part whose deltas already carried its whole text is not sent
+    // again: the client appends deltas, so the finished part would double it.
+    if (
+      (part.type === 'text' || part.type === 'reasoning')
+      && part.time?.end
+      && streamedText.get(part.id) === part.text
+    ) {
+      return;
+    }
+
     const streamEnded = (part.type === 'text' || part.type === 'reasoning') && Boolean(part.time?.end);
     if (!emittedParts.has(part.id) && !streamEnded) {
       if (part.type === 'text') streamingParts.set(part.id, 'text');
@@ -1171,6 +1184,7 @@ async function runOpenCodeTurn(
           forwardPart(part);
           if ((part.type === 'text' || part.type === 'reasoning') && part.time?.end) {
             streamingParts.delete(part.id);
+            streamedText.delete(part.id);
           }
         }
         return;
