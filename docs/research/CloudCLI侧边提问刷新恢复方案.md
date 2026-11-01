@@ -230,13 +230,23 @@ type BtwSnapshot = {
 | `src/modules/chat/hooks/useBtwRestore.ts` | **新增**（D10）。状态机、前置条件、探测、§4.4 的 1–7 步、`pagehide`/`visibilitychange` 写出、ack idle 时的收口回调 | +130 |
 | `src/modules/chat/utils/streamingBufferRegistry.ts` | `seed(sessionId, text, thinking, provider)`：建 buffer 且 `published*` 同步置位，不触发首帧重发 | +25 |
 | `src/modules/chat/hooks/useSessionStore.ts` | `seedSession(sessionId, messages)`：一次 `recomputeMergedIfNeeded` + 一次 `notify`，复用 500 条上限 | +30 |
-| `src/modules/chat/hooks/useBtwSession.ts` | 新增 `restore({ sessionId, anchorInfo })`（同步写 ref + state）；三个出口调 `clearBtwSnapshot()`；`export type BtwAnchorInfo` | +40 |
-| `src/modules/chat/ChatInterface.tsx` | 接 `useBtwRestore`（传入 `sessionStore` / `lastSeqRef` / `streamBuffers` / `btw` / `sendMessage` / `selectedSession?.id`）；应用 `open/minimized/anchor`；保存 `forkSourceSessionId`；ack idle 的收口回调 | +35 |
-| `src/modules/chat/tests/btwSnapshot.test.ts` | **新增**（§6 A 组） | +120 |
-| `src/modules/chat/tests/btwRestore.test.tsx` | **新增**（§6 B 组） | +180 |
+| `src/modules/chat/hooks/useBtwSession.ts` | 新增 `restore({ sessionId, forkSourceSessionId, anchorInfo })`（同步写 ref + state）、`forkSourceSessionId` 字段；`discard()` 里调 `clearBtwSnapshot()`（覆盖关闭成功 / 转正 / 已回收 / 重新 fork 四个出口，关闭失败不经过它）；`export type BtwAnchorInfo` | +60 |
+| `src/modules/chat/hooks/useChatRealtimeHandlers.ts` | 新增可选 `onSideAskSubscribed(sessionId, isProcessing)`：`chat_subscribed` 且 sid 是抽屉副本时回调（经 ref 转发，避免重绑 socket 监听） | +12 |
+| `src/modules/chat/ChatInterface.tsx` | 接 `useBtwRestore`（传入 `sessionStore` / `lastSeqRef` / `streamBuffers` / `btw` / `sendMessage` / `sideAskSourceSessionId` / `isConnected` / `user`）；应用 `open/minimized/anchor`；把 ack 回调转给 realtime handlers | +40 |
+| `src/modules/chat/btw/BtwDrawer.tsx` | 新增 `restoredPartial`：顶栏一条原生 `<details>`「仅恢复了最近几轮」（Q4），默认折叠 | +12 |
+| `src/modules/i18n/locales/{zh-CN,en}/chat.json` | `sideAsk.restoredPartial` / `sideAsk.restoredPartialHint` | +4 |
+| `src/modules/chat/tests/btwSnapshot.test.ts` | **新增**（§6 A 组） | +180 |
+| `src/modules/chat/tests/btwRestore.test.tsx` | **新增**（§6 B 组） | +280 |
 | `src/modules/chat/tests/streamingBufferSeed.test.ts` | **新增**（§6 C 组） | +50 |
+| `src/modules/chat/tests/btwSession.test.tsx` | 追加：`BTW_STILL_RUNNING` 保留快照；关闭成功 / 转正 / 已回收清空快照 | +70 |
 
 服务端零改动 → **不需要** `npm run build:server`、不需要重启 daemon；只需 `npm run build:client`。
+
+### 5.1 实现中的三处落地差异
+
+1. **`forkSourceSessionId` 落在 `useBtwSession` 里**：快照要写"创建副本那一刻的来源"，渲染期的 `sideAskSourceSessionId` 会随选择变化，所以由 controller 冻结并暴露。恢复时用 `sideAskSourceSessionId`（而非 `selectedSession?.id`）比对——新会话在首条消息前没有 `selectedSession`，其时来源就是 `currentSessionId`。
+2. **恢复后一律 `minimized = true`**：§4.1 仍写 `minimized` 字段，但 §4.4 第 7 步按 D2 只恢复成边缘 tab，不按快照回放展开态。
+3. **ack 收口走 `onSideAskSubscribed`**：`useBtwRestore` 不自己订阅 socket，避免与 realtime handlers 抢同一帧；只在 `pendingSealRef === sid` 时动手，普通（非恢复）订阅的 idle ack 不受影响。
 
 ---
 
