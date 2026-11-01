@@ -286,6 +286,11 @@ def main():
 
         if args.apply:
             con.execute("delete from superseded_provider_sessions where session_id=?", (sid,))
+            # session_read_state 没有指向 sessions 的外键（schema.ts 的注释明说
+            # 「session delete must clear its rows explicitly」），应用层靠
+            # sessions.db.ts 的 reclaimReadStateFor 收敛；这里直接删行会绕过它，
+            # 于是「用户读过该会话」就必然留下读水位孤儿。
+            con.execute("delete from session_read_state where session_id=?", (sid,))
             con.execute("delete from sessions where session_id=?", (sid,))
             con.commit()  # 逐条落库：中途任何崩溃不回滚已删目标（文件删除不可逆，DB 必须跟上）
 
