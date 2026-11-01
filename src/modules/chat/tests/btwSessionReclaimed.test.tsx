@@ -38,6 +38,7 @@ const renderHandlers = () => {
     setPendingPermissionRequests: () => {},
     streamBuffers: {
       append: () => {},
+      seed: () => {},
       flushNow: () => {},
       drop: () => {},
       dropAll: () => {},

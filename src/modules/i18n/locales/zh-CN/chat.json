@@ -654,6 +654,8 @@
       "forkNotSupported": "该 provider 无法派生会话。",
       "sourceNotReady": "该会话还没有可派生的记录。",
       "generic": "无法开始侧边提问。"
-    }
+    },
+    "restoredPartial": "仅恢复了最近几轮",
+    "restoredPartialHint": "更早的消息没有随刷新保留，可以从这里继续提问。"
   }
 }

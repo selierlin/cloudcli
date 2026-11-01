@@ -81,6 +81,15 @@ type UseChatRealtimeHandlersArgs = {
    * `SESSION_NOT_FOUND` and every close answered with a 404.
    */
   onSideAskSessionGone?: (sessionId: string) => void;
+  /**
+   * Reports the ack of a subscription sent for the drawer's copy.
+   *
+   * A drawer restored after a reload subscribes again from its snapshot, and
+   * the ack is the only thing that says whether the turn it was showing is
+   * still running — the resumed stream continues it, an idle ack means it
+   * ended during the reload and the half row has to be settled locally.
+   */
+  onSideAskSubscribed?: (sessionId: string, isProcessing: boolean) => void;
 };
 
 /* ------------------------------------------------------------------ */
@@ -119,6 +128,7 @@ export function useChatRealtimeHandlers({
   sideAskSessionId,
   setSideAskPermissionRequests,
   onSideAskSessionGone,
+  onSideAskSubscribed,
 }: UseChatRealtimeHandlersArgs) {
   // Session switches can send `chat.subscribe` before this effect has a chance
   // to rebind the websocket listener. Read the visible session id from a ref
@@ -132,6 +142,9 @@ export function useChatRealtimeHandlers({
   // resubscribing the socket listener at that moment could drop live frames.
   const sideAskSessionIdRef = useRef<string | null>(sideAskSessionId ?? null);
   sideAskSessionIdRef.current = sideAskSessionId ?? null;
+  // Same reason: the drawer can be restored while this listener is bound.
+  const onSideAskSubscribedRef = useRef(onSideAskSubscribed);
+  onSideAskSubscribedRef.current = onSideAskSubscribed;
 
   // Keep the latest pending-permission snapshot available to the websocket
   // listener so back-to-back permission events can dedupe and re-arm the
@@ -253,8 +266,13 @@ export function useChatRealtimeHandlers({
 
           // The ack for the drawer's own subscribe seeds its banner from the
           // run's replay buffer, exactly as the viewed conversation's does.
-          if (sid === sideAskSessionIdRef.current && Array.isArray(msg.pendingPermissions)) {
-            setSideAskPermissionRequests?.(msg.pendingPermissions as PendingPermissionRequest[]);
+          if (sid === sideAskSessionIdRef.current) {
+            if (Array.isArray(msg.pendingPermissions)) {
+              setSideAskPermissionRequests?.(msg.pendingPermissions as PendingPermissionRequest[]);
+            }
+            // Tells a restored drawer whether the turn it was showing before
+            // the reload is still running.
+            onSideAskSubscribedRef.current?.(sid, Boolean(msg.isProcessing));
           }
           return;
         }

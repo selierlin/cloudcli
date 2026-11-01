@@ -28,6 +28,20 @@ type StreamBuffer = {
 export type StreamingBufferRegistry = {
   /** Appends a non-empty delta to one session/channel and schedules its latest state. */
   append: (sessionId: string, text: string, provider: LLMProvider, channel?: StreamChannel) => void;
+  /**
+   * Adopts prose that arrived before this buffer existed — a restored reload
+   * whose transcript already held half a reply.
+   *
+   * The text counts as *already published*: seeding must not push a frame, and
+   * the next `append` extends it, so the store row that replaces the restored
+   * one still carries the whole reply instead of only the new tail.
+   */
+  seed: (
+    sessionId: string,
+    text: string,
+    thinking: string,
+    provider: LLMProvider,
+  ) => void;
   /** Publishes every dirty channel synchronously without finalizing or dropping the buffer. */
   flushNow: (sessionId: string) => void;
   /** Cancels pending work and discards one session buffer without publishing it. */
@@ -175,6 +189,35 @@ export function createStreamingBufferRegistry(
     }
   };
 
+  const seed = (
+    sessionId: string,
+    text: string,
+    thinking: string,
+    provider: LLMProvider,
+  ): void => {
+    if (!sessionId) {
+      return;
+    }
+    // Any half-scheduled publish belongs to prose this seed is replacing.
+    drop(sessionId);
+    if (!text && !thinking) {
+      return;
+    }
+    buffers.set(sessionId, {
+      text,
+      thinking,
+      // Marked published, so `collectDirtyChannels` reports nothing until a
+      // real delta arrives; `lastPublishedAt` stays null so that first delta
+      // is not held back by the foreground interval.
+      publishedText: text,
+      publishedThinking: thinking,
+      provider,
+      frameId: null,
+      publishTimer: null,
+      lastPublishedAt: null,
+    });
+  };
+
   const flushNow = (sessionId: string): void => {
     const buffer = buffers.get(sessionId);
     if (!buffer) {
@@ -199,5 +242,5 @@ export function createStreamingBufferRegistry(
 
   const has = (sessionId: string): boolean => buffers.has(sessionId);
 
-  return { append, flushNow, drop, dropAll, has };
+  return { append, seed, flushNow, drop, dropAll, has };
 }

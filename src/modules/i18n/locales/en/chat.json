@@ -689,6 +689,8 @@
       "forkNotSupported": "This provider cannot branch a conversation.",
       "sourceNotReady": "This conversation has no transcript to branch yet.",
       "generic": "Could not start the side question."
-    }
+    },
+    "restoredPartial": "Only the latest turns were restored",
+    "restoredPartialHint": "Earlier messages were not kept across the reload; the branch continues from here."
   }
 }

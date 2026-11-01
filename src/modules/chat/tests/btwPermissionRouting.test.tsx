@@ -38,6 +38,7 @@ const renderHandlers = () => {
     },
     streamBuffers: {
       append: () => {},
+      seed: () => {},
       flushNow: () => {},
       drop: () => {},
       dropAll: () => {},

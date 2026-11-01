@@ -38,6 +38,11 @@ type BtwDrawerProps = {
   sourceIsProcessing: boolean;
   /** Human-readable cut point, e.g. "Context up to message 3". */
   anchorLabel: string | null;
+  /**
+   * Set when the branch came back from a reload that could not keep every
+   * turn, so the list starts partway through instead of looking complete.
+   */
+  restoredPartial?: boolean;
   /** Provider-specific clarification for a degraded anchor, if any. */
   anchorNotice: string | null;
   permissionModeLabel: string;
@@ -92,6 +97,7 @@ export default function BtwDrawer({
   sourceIsProcessing,
   anchorLabel,
   anchorNotice,
+  restoredPartial,
   permissionModeLabel,
   permissionRequests,
   onPermissionDecision,
@@ -258,6 +264,14 @@ export default function BtwDrawer({
           <p className="mt-1 rounded-md border border-border/70 bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
             {anchorNotice}
           </p>
+        )}
+
+        {/* A native disclosure: the fact matters, the explanation rarely does. */}
+        {restoredPartial && (
+          <details className="mt-1 rounded-md border border-border/70 bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
+            <summary className="cursor-pointer list-none">{t('sideAsk.restoredPartial')}</summary>
+            <p className="pt-1">{t('sideAsk.restoredPartialHint')}</p>
+          </details>
         )}
 
         {btw.createError && (

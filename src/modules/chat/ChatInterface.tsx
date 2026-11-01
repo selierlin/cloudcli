@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useTasksSettings } from '@/modules/task-master';
 import { usePaletteOpsRegister } from '@/modules/command-palette';
+import { useAuth } from '@/modules/auth';
 import { useWebSocket } from '@/shared/context/WebSocketContext';
 import PermissionContext from '@/modules/chat/context/PermissionContext';
 import { MarkdownWorkspaceContext } from '@/modules/chat/context/MarkdownWorkspaceContext';
@@ -34,6 +35,7 @@ import { forkFailureMessageKey } from '@/modules/chat/utils/forkFailureMessage';
 import { buildChatSendOptions } from '@/modules/chat/utils/sendOptions';
 import { useBtwSession } from '@/modules/chat/hooks/useBtwSession';
 import type { BtwAnchorRequest } from '@/modules/chat/hooks/useBtwSession';
+import { useBtwRestore } from '@/modules/chat/hooks/useBtwRestore';
 import { useSideAskPlacement } from '@/modules/chat/hooks/useSideAskPlacement';
 import BtwDrawer from '@/modules/chat/btw/BtwDrawer';
 import { downloadTranscriptExport } from '@/modules/chat/utils/chatExport';
@@ -118,7 +120,8 @@ function ChatInterface({
   onShowAllTasks,
 }: ChatInterfaceProps) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
-  const { subscribe } = useWebSocket();
+  const { subscribe, isConnected } = useWebSocket();
+  const { user } = useAuth();
   const { t } = useTranslation('chat');
   const processingSessions = useProcessingSessions();
   const {
@@ -381,6 +384,9 @@ function ChatInterface({
   // otherwise keep the main composer out of reach for as long as the branch
   // lives, and a docked panel still costs 420px the reader may not want to pay.
   const [sideAskMinimized, setSideAskMinimized] = useState(false);
+  // True when this drawer came back from a reload without its earliest turns.
+  // Only the restored drawer can say so, so it is cleared with every teardown.
+  const [sideAskRestoredPartial, setSideAskRestoredPartial] = useState(false);
   // Whether the drawer sits beside the transcript or floats over it, decided by
   // the chat column's own width rather than the viewport's — the sidebar can be
   // dragged and the editor can take half the page.
@@ -429,6 +435,39 @@ function ChatInterface({
     ? normalizedToChatMessages(sessionStore.getMessages(btw.sessionId))
     : EMPTY_CHAT_MESSAGES;
 
+  // Brings the drawer back after a reload: the copy is a hidden session whose
+  // id lives only in React state, so a refresh would otherwise strand it (and
+  // its transcript) until the sweep collects it. Auth and the socket are both
+  // prerequisites — a reload resolves them asynchronously, after the first
+  // render — and the snapshot only applies to the conversation it came from.
+  const handleBtwRestored = useCallback(({ anchor, minimized, truncated }: {
+    anchor: BtwAnchorRequest;
+    minimized: boolean;
+    truncated: boolean;
+  }) => {
+    setSideAskAnchor(anchor);
+    setSideAskMinimized(minimized);
+    setSideAskRestoredPartial(truncated);
+    setSideAskOpen(true);
+  }, []);
+
+  const { handleSubscribeAck: handleBtwSubscribeAck } = useBtwRestore({
+    btw,
+    sessionStore,
+    lastSeqRef,
+    streamBuffers,
+    sendMessage,
+    processing: sideAskProcessing,
+    // The same value the fork was created from: a brand-new conversation has
+    // no `selectedSession` yet, and its copy is keyed by `currentSessionId`.
+    sourceSessionId: sideAskSourceSessionId,
+    anchor: sideAskAnchor,
+    minimized: sideAskMinimized,
+    isAuthReady: Boolean(user),
+    isConnected,
+    onRestored: handleBtwRestored,
+  });
+
   const handleSideAskClose = useCallback(async () => {
     const closed = await btw.close();
     if (!closed) {
@@ -440,6 +479,7 @@ function ChatInterface({
     setSideAskAnchor(null);
     setSideAskPermissionRequests([]);
     setSideAskMinimized(false);
+    setSideAskRestoredPartial(false);
   }, [btw]);
 
   // The copy was reclaimed server-side (an idle sweep or a restart). The drawer
@@ -461,6 +501,8 @@ function ChatInterface({
       return;
     }
     setSideAskPermissionRequests([]);
+    // A fresh branch has its whole transcript again.
+    setSideAskRestoredPartial(false);
   }, [btw]);
 
   const handleSideAskPromote = useCallback(async () => {
@@ -472,6 +514,7 @@ function ChatInterface({
     setSideAskAnchor(null);
     setSideAskPermissionRequests([]);
     setSideAskMinimized(false);
+    setSideAskRestoredPartial(false);
     const promotedProvider = selectedSession?.__provider;
     if (promotedProvider && selectedProject) {
       // The conversations feed does not receive `session_upserted`, so the new
@@ -523,6 +566,7 @@ function ChatInterface({
     setSideAskAnchor(nextAnchor);
     setSideAskOpen(true);
     setSideAskMinimized(false);
+    setSideAskRestoredPartial(false);
   }, [btw]);
 
   // The cut point, resolved against the transcript the reader can see: the
@@ -607,6 +651,9 @@ function ChatInterface({
     sideAskSessionId: btw.sessionId,
     setSideAskPermissionRequests,
     onSideAskSessionGone: handleSideAskGone,
+    // The ack of a restored copy's subscribe says whether the turn that was
+    // generating before the reload is still going.
+    onSideAskSubscribed: handleBtwSubscribeAck,
   });
 
   // Lets other modules (the quick settings Commands tab) hand text to the
@@ -1133,6 +1180,7 @@ function ChatInterface({
             btw={btw}
             placement={sideAskLayout.placement}
             minimized={sideAskMinimized}
+            restoredPartial={sideAskRestoredPartial}
             onMinimize={() => setSideAskMinimized(true)}
             onRestore={() => setSideAskMinimized(false)}
             sourceTitle={selectedSession?.title || selectedSession?.summary || selectedSession?.name || ''}

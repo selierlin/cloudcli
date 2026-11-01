@@ -1076,6 +1076,27 @@ export function useSessionStore() {
   }, [getSlot, notify]);
 
   /**
+   * Restores a transcript that outlived a reload (the side question's
+   * snapshot) in one merge and one notify.
+   *
+   * Batched on purpose: replaying the rows through `appendRealtime` would merge
+   * and repaint once per row, which is quadratic for a long transcript and
+   * visibly janky on the frame the drawer comes back.
+   */
+  const seedSession = useCallback((sessionId: string, messages: NormalizedMessage[]) => {
+    const slot = getSlot(sessionId);
+    let seeded = upsertRealtimeMessages(slot.realtimeMessages, messages.map(
+      (message) => (message.sessionId === sessionId ? message : { ...message, sessionId }),
+    ));
+    if (seeded.length > MAX_REALTIME_MESSAGES) {
+      seeded = seeded.slice(-MAX_REALTIME_MESSAGES);
+    }
+    slot.realtimeMessages = seeded;
+    recomputeMergedIfNeeded(slot);
+    notify(sessionId);
+  }, [getSlot, notify]);
+
+  /**
    * Refreshes only the persisted tail and stitches it onto the contiguous
    * cached suffix. Large turns request a small offset bridge rather than the
    * whole transcript, and the final state is applied atomically.
@@ -1291,6 +1312,7 @@ export function useSessionStore() {
     fetchMore,
     fetchNewer,
     appendRealtime,
+    seedSession,
     truncateAt,
     refreshLatestFromServer,
     setActiveSession,
@@ -1303,7 +1325,7 @@ export function useSessionStore() {
     dropSession,
     setObservedSession,
   }), [
-    fetchFromServer, fetchMore, fetchNewer, appendRealtime, truncateAt, refreshLatestFromServer,
+    fetchFromServer, fetchMore, fetchNewer, appendRealtime, seedSession, truncateAt, refreshLatestFromServer,
     setActiveSession, isStale, updateStreamingBatch, updateStreaming, finalizeStreaming,
     getMessages, getSessionSlot, dropSession, setObservedSession,
   ]);

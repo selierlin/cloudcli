@@ -30,12 +30,14 @@ const renderDrawer = ({
   placement = 'overlay' as SideAskPlacement,
   minimized = false,
   isProcessing = false,
+  restoredPartial = false,
   onMinimize = () => {},
   onRestore = () => {},
 }: {
   placement?: SideAskPlacement;
   minimized?: boolean;
   isProcessing?: boolean;
+  restoredPartial?: boolean;
   onMinimize?: () => void;
   onRestore?: () => void;
 } = {}) => render(
@@ -44,6 +46,7 @@ const renderDrawer = ({
     btw={makeBtw()}
     placement={placement}
     minimized={minimized}
+    restoredPartial={restoredPartial}
     onMinimize={onMinimize}
     onRestore={onRestore}
     sourceTitle="Source conversation"
@@ -108,4 +111,22 @@ test('the panel leaves the keyboard offset to the workspace shell', () => {
   const drawer = screen.getByRole('complementary');
   expect(drawer.getAttribute('style')).toBeNull();
   expect(drawer.className).toContain('h-full');
+});
+
+test('a branch restored without its earliest turns says so, collapsed', () => {
+  renderDrawer({ restoredPartial: true });
+
+  // The reader has to know the list starts partway through, but the reason is
+  // a one-time footnote: it stays folded into the header until asked for.
+  const summary = screen.getByText('sideAsk.restoredPartial');
+  const disclosure = summary.closest('details');
+  expect(disclosure).not.toBeNull();
+  expect(disclosure?.hasAttribute('open')).toBe(false);
+  expect(disclosure?.textContent).toContain('sideAsk.restoredPartialHint');
+});
+
+test('a branch that came back whole stays quiet', () => {
+  renderDrawer();
+
+  expect(screen.queryByText('sideAsk.restoredPartial')).toBeNull();
 });

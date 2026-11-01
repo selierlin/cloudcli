@@ -32,6 +32,9 @@ vi.mock('@/modules/chat/composer/useScheduledMessages', () => ({
 vi.mock('@/shared/context/WebSocketContext', () => ({
   useWebSocket: () => ({ subscribe: harness.subscribe }),
 }));
+// ChatInterface gates the drawer's reload restore on an authenticated session;
+// this render only cares about the scheduled-message wiring.
+vi.mock('@/modules/auth', () => ({ useAuth: () => ({ user: null }) }));
 vi.mock('@/shared/context/SessionProtectionContext', () => ({
   useProcessingSessions: () => new Map(),
   useSessionProtectionActions: () => ({

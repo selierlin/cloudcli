@@ -6,6 +6,11 @@ import { beforeEach, test, vi } from 'vitest';
 import type { NormalizedMessage } from '@/shared/types';
 import type { SessionStore } from '@/modules/chat/hooks/useSessionStore';
 import { useBtwSession } from '@/modules/chat/hooks/useBtwSession';
+import {
+  BTW_SNAPSHOT_STORAGE_KEY,
+  readBtwSnapshot,
+  writeBtwSnapshot,
+} from '@/modules/chat/utils/btwSnapshot';
 
 /**
  * The drawer's lifecycle, driven through the real hook.
@@ -69,6 +74,7 @@ const renderBtw = (store: SessionStore, sent: Array<Record<string, unknown>>) =>
 }));
 
 beforeEach(() => {
+  window.sessionStorage.clear();
   btwSession.mockReset();
   deleteBtwSession.mockReset();
   promoteBtwSession.mockReset();
@@ -261,4 +267,72 @@ test('promoting never issues a delete', async () => {
   assert.equal(deleteBtwSession.mock.calls.length, 0);
   // The slot is dropped locally, but the row itself stays in the database.
   assert.deepEqual(dropped, ['btw-1']);
+});
+
+const seedSnapshot = () => {
+  writeBtwSnapshot({
+    forkSourceSessionId: 'source-1',
+    sessionId: 'btw-1',
+    lastSeq: 3,
+    anchor: null,
+    anchorInfo: null,
+    minimized: false,
+    messages: [],
+  });
+};
+
+test('a failed close keeps the snapshot, so the retry can still come back', async () => {
+  const { store } = createStore();
+  const sent: Array<Record<string, unknown>> = [];
+  const view = renderBtw(store, sent);
+
+  await act(async () => {
+    await view.result.current.send('still running?');
+  });
+  seedSnapshot();
+  deleteBtwSession.mockResolvedValue(jsonResponse({
+    success: false,
+    error: { code: 'BTW_STILL_RUNNING', message: 'still finishing' },
+  }, 409));
+
+  await act(async () => {
+    await view.result.current.close();
+  });
+
+  assert.ok(readBtwSnapshot(), 'the copy is still on screen; its snapshot has to outlive the failure');
+});
+
+test.each([
+  ['closed', async (controller: ReturnType<typeof renderBtw>['result']['current']) => {
+    deleteBtwSession.mockResolvedValue(jsonResponse({ success: true, data: { sessionId: 'btw-1' } }));
+    await controller.close();
+  }],
+  ['promoted', async (controller: ReturnType<typeof renderBtw>['result']['current']) => {
+    promoteBtwSession.mockResolvedValue(jsonResponse({
+      success: true,
+      data: { sessionId: 'btw-1', sessionName: 'Session (btw)' },
+    }));
+    await controller.promote();
+  }],
+  ['reclaimed', async (controller: ReturnType<typeof renderBtw>['result']['current']) => {
+    controller.handleSessionLost();
+  }],
+])('a %s copy leaves no snapshot behind', async (_label, teardown) => {
+  const { store } = createStore();
+  const sent: Array<Record<string, unknown>> = [];
+  const view = renderBtw(store, sent);
+
+  await act(async () => {
+    await view.result.current.send('one question');
+  });
+  seedSnapshot();
+  assert.ok(readBtwSnapshot());
+
+  await act(async () => {
+    await teardown(view.result.current);
+  });
+
+  // Restoring a copy that was closed, kept as a normal conversation, or
+  // reclaimed would bring back an id nothing can send into.
+  assert.equal(window.sessionStorage.getItem(BTW_SNAPSHOT_STORAGE_KEY), null);
 });

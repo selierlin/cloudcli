@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from 'react';
 import { api } from '@/shared/api';
 import type { LLMProvider, NormalizedMessage, QueuedSendOptions } from '@/shared/types';
 import type { SessionStore } from '@/modules/chat/hooks/useSessionStore';
+import { clearBtwSnapshot } from '@/modules/chat/utils/btwSnapshot';
 
 /**
  * Where the side-question transcript starts.
@@ -16,7 +17,7 @@ export type BtwAnchorRequest = {
   messageId?: string;
 } | null;
 
-type BtwAnchorInfo = {
+export type BtwAnchorInfo = {
   anchorForkId: string | null;
   anchorMessageId: string | null;
   anchorDegraded: boolean;
@@ -29,6 +30,13 @@ export type BtwCloseFailure = 'still-running' | 'failed';
 export type BtwController = {
   /** The hidden copy, once the first question has created it. */
   sessionId: string | null;
+  /**
+   * The conversation the copy was forked from, frozen when the fork happened.
+   *
+   * A reload has to decide whether the snapshot belongs to what is on screen
+   * now, and the source selected at read time is not that answer.
+   */
+  forkSourceSessionId: string | null;
   /** A create request is in flight; the composer stays disabled meanwhile. */
   creating: boolean;
   /** A delete request is in flight; the drawer stays open until it resolves. */
@@ -51,6 +59,18 @@ export type BtwController = {
   refork: () => Promise<boolean>;
   /** Forgets the local copy after a promotion; never deletes it. */
   discard: () => void;
+  /**
+   * Re-adopts a copy that outlived a reload, before anything is sent into it.
+   *
+   * Written straight into the ref as well as state: `ensureSession` reads the
+   * ref, and the subscription ack that follows is matched against the id React
+   * has rendered.
+   */
+  restore: (state: {
+    sessionId: string;
+    forkSourceSessionId: string;
+    anchorInfo: BtwAnchorInfo | null;
+  }) => void;
   /**
    * Forgets a copy the server no longer has, without issuing a DELETE.
    *
@@ -90,6 +110,7 @@ export function useBtwSession({
   buildOptions,
 }: UseBtwSessionArgs): BtwController {
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [forkSourceSessionId, setForkSourceSessionId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [closing, setClosing] = useState(false);
   const [closeFailure, setCloseFailure] = useState<BtwCloseFailure | null>(null);
@@ -120,8 +141,14 @@ export function useBtwSession({
       sessionStore.setObservedSession(id, false);
       sessionStore.dropSession(id);
     }
+    // Every path that forgets a copy also ends its restore snapshot: closing
+    // succeeded, the copy was promoted into a normal conversation, or the
+    // server reclaimed it. A close that failed keeps it, so a retry still has
+    // something to come back to.
+    clearBtwSnapshot();
     sessionIdRef.current = null;
     setSessionId(null);
+    setForkSourceSessionId(null);
     setAnchorInfo(null);
   }, [sessionStore]);
 
@@ -159,6 +186,9 @@ export function useBtwSession({
         const id = created.sessionId as string;
         sessionIdRef.current = id;
         setSessionId(id);
+        // Frozen here rather than derived at read time: a reload compares the
+        // snapshot against the conversation this fork actually came from.
+        setForkSourceSessionId(sourceSessionId);
         setAnchorInfo({
           anchorForkId: typeof created.anchorForkId === 'string' ? created.anchorForkId : null,
           anchorMessageId: typeof created.anchorMessageId === 'string' ? created.anchorMessageId : null,
@@ -321,6 +351,23 @@ export function useBtwSession({
 
   const clearCreateError = useCallback(() => setCreateError(null), []);
 
+  const restore = useCallback((state: {
+    sessionId: string;
+    forkSourceSessionId: string;
+    anchorInfo: BtwAnchorInfo | null;
+  }) => {
+    // The ref first: `ensureSession` and every in-flight continuation read it,
+    // and the subscription that follows this call is acknowledged against the
+    // rendered id.
+    sessionIdRef.current = state.sessionId;
+    setSessionId(state.sessionId);
+    setForkSourceSessionId(state.forkSourceSessionId);
+    setAnchorInfo(state.anchorInfo);
+    // A notice about a copy the server had reclaimed belongs to that copy.
+    setCreateError(null);
+    setCloseFailure(null);
+  }, []);
+
   const handleSessionLost = useCallback(() => {
     if (!sessionIdRef.current) {
       return;
@@ -335,6 +382,7 @@ export function useBtwSession({
 
   return {
     sessionId,
+    forkSourceSessionId,
     creating,
     closing,
     closeFailure,
@@ -346,6 +394,7 @@ export function useBtwSession({
     promote,
     refork,
     discard,
+    restore,
     handleSessionLost,
     clearCreateError,
   };
