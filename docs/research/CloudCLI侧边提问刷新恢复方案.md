@@ -22,6 +22,7 @@
 | D8 | 流式行 | 快照**保留** `stream_delta` 行作为当前可见文本，同时**seed 进 `streamBuffers`**；订阅 ack 报 idle 时 `finalizeStreaming` 收口（v1 漏了这条，会让正文回缩并定型成残缺版本） |
 | D9 | 探测失败 | 只有 **404** 才清快照；5xx / 网络 / 401 一律视为"本次无法确认"，保留快照、本轮不恢复 |
 | D10 | 代码落点 | 新增 `useBtwRestore` hook；`streamingBufferRegistry` 加 `seed`；`useSessionStore` 加批量 `seedSession`；`useBtwSession` 新增 `restore()` 并导出 `BtwAnchorInfo` |
+| D11 | iOS 原生壳 | **App 被杀进程后不恢复（接受）**。快照落 `sessionStorage`，它的命名空间绑在 WKWebView 的 UI 进程 session 上，冷启动是新的 WebView、新的 session，读不回来。不为此改用 `localStorage` / Capacitor Preferences，理由见 §7.7 |
 
 ---
 
@@ -310,9 +311,32 @@ codex / dsh 这类整段到达、由 `revealPacer` 播放的 provider，刷新�
 
 `sessionStorage` 同源约 5 MB，本方案自限 512 KB。旁问内容以明文停留在这个标签页的会话存储里——与主会话消息同级别暴露面（都不落 `localStorage`）。退登不主动清理，标签页关闭即消失。
 
-### 7.7 iOS 无 `pagehide`（部分覆盖）
+### 7.7 iOS 原生壳：杀进程即丢（接受，D11）
 
-靠 `visibilitychange` + 回合结束节流写兜住；最坏丢最后一次写入之后的内容。
+原生壳是 Capacitor 薄客户端（`capacitor.config.ts`），WKWebView 加载远程服务器 origin，用的是 `WKWebsiteDataStore.default()`（持久化）。三种情形要分开：
+
+| 情形 | 结果 | 原因 |
+|---|---|---|
+| 进后台再回来、未被杀 | **什么都不丢** | 页面没重载，抽屉还在内存里，快照根本不参与 |
+| App 内页面重载（WebContent 进程崩溃、或系统回收网页进程但 App 还活着） | **能恢复** | 同一个 UI 进程、同一个 session，等价于桌面 F5 |
+| 后台被系统回收 / 用户上划杀掉 → 重开 | **丢** | 冷启动是新的 WKWebView、新 UI 进程、新 session |
+
+关键是第三行：`sessionStorage` 的命名空间由 UI 进程生成的 session id 决定，**跨进程不成立**。字节就算还留在磁盘上也没人认领——iOS Safari 能跨重启保住标签页的 `sessionStorage`，是因为它显式做标签页恢复；WKWebView 没有这个入口，Capacitor 也没开。（对照：`localStorage` 是持久的，`auth-token` 与 iOS 冷启动会话恢复目标都靠这一点，见 `iOS冷启动会话恢复实施方案.md` 事实 6。）
+
+被杀之前必然先离开前台，所以 `visibilitychange` 那次写盘确实发生了（§4.2）——写到了，只是落点不跨进程。
+
+**为什么不顺手修**：
+
+- 冷启动回到同一 `/session/<id>`（既有 native 恢复）本来就是本方案的前置条件（`useBtwRestore.ts:163` 要求 `forkSourceSessionId === sourceSessionId`），所以**唯一缺口就是存储介质**，恢复链路在 iOS 上是通的——正因为它通，才需要明确说"不修"而不是"修不了"。
+- 换成 `localStorage` 会推翻 D1/§7.1：桌面多标签共享一个键，两份副本互相覆盖。要做就得加"镜像 + 唯一候选才采用"的判据，为的是一个语义上就可疑的场景。
+- 走 Capacitor Preferences 更稳，但保存路径刻意是同步的（`pagehide` / `visibilitychange` 里不能 `await`），得引入平台分支和异步写。
+- 语义上也不划算：副本是"这个标签页的隐藏副本"，App 被杀 ≈ 标签页没了。第二天冷启动弹回昨天的旁问，比丢失更令人困惑。
+
+**残留影响**：杀进程那次旁问的内容（以及服务端那条隐藏会话）对用户不可达，只能等 6 小时扫描或 daemon 重启回收。
+
+### 7.8 iOS 无 `pagehide`（部分覆盖）
+
+靠 `visibilitychange` + 回合结束节流写兜住；最坏丢最后一次写入之后的内容。这一条只影响"写盘时机"，不影响 §7.7 的跨进程结论。
 
 ---
 
@@ -329,6 +353,7 @@ codex / dsh 这类整段到达、由 `revealPacer` 播放的 provider，刷新�
 6. **run 在刷新窗口内结束**：`stream_end` 之后、`complete` 之前 `F5` → 恢复后不会卡在"生成中"；正文允许缺尾（§7.3 豁免）。
 7. 停掉 daemon（副本随重启回收）→ 起回来 → 刷新：恢复 tab 出现后点开发送，应提示"服务端已回收"并允许重新提问。
 8. 深链冷启动：新标签页打开 `/session/<id>`（无 `sessionStorage`）→ 不出现恢复 tab；同页再 `F5` → 正常恢复（验证状态机不依赖首帧）。
+9. **iOS 杀进程（反向验收，预期不恢复）**：App 内发起旁问 → 进后台 → 上划杀掉 → 重开。冷启动回到同一会话属正常，但**不应**出现恢复 tab（§7.7 / D11）。同一条路径若先在 App 内 `F5` 等价重载（WebContent 崩溃后自愈），则应能恢复——两者区别只在 UI 进程是否重启。
 
 ---
 
