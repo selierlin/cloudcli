@@ -1980,6 +1980,8 @@ export type SidebarProjectListProps = SessionRowActions & {
   loadingMoreProjects: Set<string>;
   isProjectStarred: (projectId: string) => boolean;
   onToggleProject: (projectId: string) => void;
+  /** Collapses every open project group at once; used by the mode-tabs row button when the keep-expanded preference is on. */
+  onCollapseAllProjects: () => void;
   onProjectSelect: (project: Project) => void;
   onToggleStarProject: (projectId: string) => void;
   onStartEditingProject: (project: Project) => void;

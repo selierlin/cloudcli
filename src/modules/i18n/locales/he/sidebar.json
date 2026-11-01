@@ -61,7 +61,8 @@
     "openCommandPalette": "פתיחת לוח הפקודות",
     "attentionRequiredIndicator": "הסשן דורש תשומת לב",
     "backgroundWorkIndicator": "עבודה פועלת ברקע",
-    "processingSessionIndicator": "הסשן בעיבוד"
+    "processingSessionIndicator": "הסשן בעיבוד",
+    "collapseAllProjects": "כיווץ כל הפרויקטים"
   },
   "navigation": {
     "chat": "צ'אט",

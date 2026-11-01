@@ -54,7 +54,8 @@
     "openCommandPalette": "Otevřít paletu příkazů",
     "attentionRequiredIndicator": "Relace vyžaduje pozornost",
     "backgroundWorkIndicator": "Na pozadí probíhá práce",
-    "processingSessionIndicator": "Probíhá zpracování relace"
+    "processingSessionIndicator": "Probíhá zpracování relace",
+    "collapseAllProjects": "Sbalit všechny projekty"
   },
   "navigation": {
     "chat": "Chat",

@@ -745,6 +745,17 @@ export function useSidebarController({
     [searchMode, keepProjectsExpanded],
   );
 
+  // One-click collapse of every open project group. With the preference on the
+  // selection effect would immediately re-open the selected project, so the
+  // selection ref is marked as current to suppress that re-expansion; the empty
+  // set persists to storage through the same effect as manual toggles.
+  const collapseAllProjects = useCallback(() => {
+    if (selectedProject?.projectId) {
+      selectionExpansion.current.projectId = selectedProject.projectId;
+    }
+    setExpandedProjects(new Set());
+  }, [selectedProject?.projectId]);
+
   const isProjectExpanded = useCallback(
     (projectId: string) =>
       searchMode === 'running'
@@ -1641,6 +1652,8 @@ export function useSidebarController({
     reloadRecentConversations,
     loadMoreRecentConversations,
     toggleProject,
+    collapseAllProjects,
+    expandedProjectsCount: expandedProjects.size,
     handleSessionClick,
     forkSession,
     updateSessionPinned,

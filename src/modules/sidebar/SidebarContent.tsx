@@ -877,6 +877,10 @@ type SidebarContentProps = {
   isRefreshing: boolean;
   onCreateProject: () => void;
   onCollapseSidebar: () => void;
+  /** How many project groups are open; drives the collapse-all button's visibility. */
+  expandedProjectsCount: number;
+  /** Collapses every open project group; the keep-expanded preference's one-click collapse. */
+  onCollapseAllProjects: () => void;
   updateAvailable: boolean;
   restartRequired: boolean;
   releaseInfo: ReleaseInfo | null;
@@ -927,6 +931,8 @@ export default function SidebarContent({
   isRefreshing,
   onCreateProject,
   onCollapseSidebar,
+  expandedProjectsCount,
+  onCollapseAllProjects,
   onShowSettings,
   updateAvailable,
   restartRequired,
@@ -1143,6 +1149,10 @@ export default function SidebarContent({
         isRefreshing={isRefreshing}
         onCreateProject={onCreateProject}
         onCollapseSidebar={onCollapseSidebar}
+        showCollapseAllProjects={
+          searchMode === 'projects' && projectListProps.projects.length > 0 && expandedProjectsCount > 1
+        }
+        onCollapseAllProjects={onCollapseAllProjects}
         onShowSettings={onShowSettings}
         t={t}
       />

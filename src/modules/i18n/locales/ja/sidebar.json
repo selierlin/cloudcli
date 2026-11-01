@@ -80,7 +80,8 @@
     "save": "保存",
     "cancel": "キャンセル",
     "openCommandPalette": "コマンドパレットを開く",
-    "attentionRequiredIndicator": "セッションが対応を必要としています"
+    "attentionRequiredIndicator": "セッションが対応を必要としています",
+    "collapseAllProjects": "すべてのプロジェクトを折りたたむ"
   },
   "navigation": {
     "chat": "チャット",

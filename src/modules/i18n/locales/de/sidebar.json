@@ -82,7 +82,8 @@
     "cancel": "Abbrechen",
     "clearSearch": "Suche leeren",
     "openCommandPalette": "Befehlspalette öffnen",
-    "attentionRequiredIndicator": "Sitzung erfordert Aufmerksamkeit"
+    "attentionRequiredIndicator": "Sitzung erfordert Aufmerksamkeit",
+    "collapseAllProjects": "Alle Projekte einklappen"
   },
   "navigation": {
     "chat": "Chat",

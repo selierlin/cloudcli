@@ -82,7 +82,8 @@
     "cancel": "Annulla",
     "clearSearch": "Cancella ricerca",
     "openCommandPalette": "Apri tavolozza comandi",
-    "attentionRequiredIndicator": "La sessione richiede attenzione"
+    "attentionRequiredIndicator": "La sessione richiede attenzione",
+    "collapseAllProjects": "Comprimi tutti i progetti"
   },
   "navigation": {
     "chat": "Chat",

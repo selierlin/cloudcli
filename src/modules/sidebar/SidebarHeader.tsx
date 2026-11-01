@@ -1,4 +1,4 @@
-import { Activity, Archive, Folder, FolderPlus, MessageSquare, Plus, RefreshCw, Search, X, PanelLeftClose } from 'lucide-react';
+import { Activity, Archive, Folder, FolderPlus, MessageSquare, Plus, RefreshCw, Search, X, PanelLeftClose, ChevronsDownUp } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button, Input } from '@/shared/ui';
@@ -28,6 +28,9 @@ type SidebarHeaderProps = {
   isRefreshing: boolean;
   onCreateProject: () => void;
   onCollapseSidebar: () => void;
+  /** Whether the collapse-all button shows: projects mode with several groups open. */
+  showCollapseAllProjects: boolean;
+  onCollapseAllProjects: () => void;
   onShowSettings: () => void;
   t: TFunction;
 };
@@ -81,6 +84,8 @@ export default function SidebarHeader({
   isRefreshing,
   onCreateProject,
   onCollapseSidebar,
+  showCollapseAllProjects,
+  onCollapseAllProjects,
   onShowSettings,
   t,
 }: SidebarHeaderProps) {
@@ -143,12 +148,27 @@ export default function SidebarHeader({
         {showSearchTools && (
           <div className="mt-2.5 space-y-2">
             {/* Search mode toggle */}
-            <SidebarModeTabs
-              searchMode={searchMode}
-              onSearchModeChange={onSearchModeChange}
-              runningSessionsCount={runningSessionsCount}
-              t={t}
-            />
+            <div className="flex items-center gap-1">
+              <div className="min-w-0 flex-1">
+                <SidebarModeTabs
+                  searchMode={searchMode}
+                  onSearchModeChange={onSearchModeChange}
+                  runningSessionsCount={runningSessionsCount}
+                  t={t}
+                />
+              </div>
+              {showCollapseAllProjects && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 flex-none rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
+                  onClick={onCollapseAllProjects}
+                  title={t('tooltips.collapseAllProjects')}
+                >
+                  <ChevronsDownUp className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/50" />
               <Input
@@ -212,12 +232,24 @@ export default function SidebarHeader({
         {/* Mobile search */}
         {showSearchTools && (
           <div className="mt-2.5 space-y-2">
-            <SidebarModeTabs
-              searchMode={searchMode}
-              onSearchModeChange={onSearchModeChange}
-              runningSessionsCount={runningSessionsCount}
-              t={t}
-            />
+            <div className="flex items-center gap-1">
+              <div className="min-w-0 flex-1">
+                <SidebarModeTabs
+                  searchMode={searchMode}
+                  onSearchModeChange={onSearchModeChange}
+                  runningSessionsCount={runningSessionsCount}
+                  t={t}
+                />
+              </div>
+              {showCollapseAllProjects && (
+                <button
+                  className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-muted/50 transition-all active:scale-95"
+                  onClick={onCollapseAllProjects}
+                >
+                  <ChevronsDownUp className="h-4 w-4 text-muted-foreground" />
+                </button>
+              )}
+            </div>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50" />
               <Input

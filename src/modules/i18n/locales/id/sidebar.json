@@ -58,7 +58,8 @@
     "cancel": "Batal",
     "clearSearch": "Hapus pencarian",
     "openCommandPalette": "Buka palet perintah",
-    "attentionRequiredIndicator": "Sesi memerlukan perhatian"
+    "attentionRequiredIndicator": "Sesi memerlukan perhatian",
+    "collapseAllProjects": "Ciutkan semua proyek"
   },
   "navigation": {
     "chat": "Chat",

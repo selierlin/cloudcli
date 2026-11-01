@@ -82,7 +82,8 @@
     "cancel": "İptal",
     "clearSearch": "Aramayı temizle",
     "openCommandPalette": "Komut paletini aç",
-    "attentionRequiredIndicator": "Oturum ilgi bekliyor"
+    "attentionRequiredIndicator": "Oturum ilgi bekliyor",
+    "collapseAllProjects": "Tüm projeleri daralt"
   },
   "navigation": {
     "chat": "Sohbet",

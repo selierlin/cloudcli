@@ -117,6 +117,8 @@ function Sidebar({
     reloadRecentConversations,
     loadMoreRecentConversations,
     toggleProject,
+    collapseAllProjects,
+    expandedProjectsCount,
     handleSessionClick,
     toggleStarProject,
     isProjectStarred,
@@ -245,6 +247,7 @@ function Sidebar({
     isProjectStarred,
     onRenameDraftChange: updateRenameDraft,
     onToggleProject: toggleProject,
+    onCollapseAllProjects: collapseAllProjects,
     onProjectSelect: handleProjectSelect,
     onToggleStarProject: toggleStarProject,
     onStartEditingProject: startEditingProject,
@@ -395,6 +398,8 @@ function Sidebar({
             isRefreshing={isRefreshing}
             onCreateProject={() => setShowNewProject(true)}
             onCollapseSidebar={handleCollapseSidebar}
+            expandedProjectsCount={expandedProjectsCount}
+            onCollapseAllProjects={collapseAllProjects}
             updateAvailable={updateAvailable}
             restartRequired={restartRequired}
             releaseInfo={releaseInfo}

@@ -99,7 +99,8 @@
     "projectAggregateAction": "该项目有 {{count}} 个会话需要你处理",
     "projectAggregateNotice": "该项目有新动态",
     "projectAggregateProcessing": "该项目有会话正在处理",
-    "projectAggregateBackground": "该项目有后台任务运行中"
+    "projectAggregateBackground": "该项目有后台任务运行中",
+    "collapseAllProjects": "收起全部项目"
   },
   "navigation": {
     "chat": "聊天",

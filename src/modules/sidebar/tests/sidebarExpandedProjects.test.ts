@@ -192,3 +192,17 @@ test('without saved expansion, initial project selection still opens normally', 
   const controller = renderController({ keepProjectsExpanded: true, selectedProject: PROJECT });
   assert.equal(controller.result.current.isProjectExpanded(PROJECT.projectId), true);
 });
+
+test('collapseAllProjects closes every group and keeps it closed across a reload', () => {
+  const first = renderController({ keepProjectsExpanded: true });
+  act(() => first.result.current.toggleProject('project-1'));
+  act(() => first.result.current.toggleProject('project-2'));
+  act(() => first.result.current.collapseAllProjects());
+  assert.equal(first.result.current.isProjectExpanded('project-1'), false);
+  assert.equal(first.result.current.isProjectExpanded('project-2'), false);
+  assert.deepEqual(JSON.parse(localStorage.getItem(STORAGE_KEY)!), []);
+  first.unmount();
+  const restored = renderController({ keepProjectsExpanded: true });
+  assert.equal(restored.result.current.isProjectExpanded('project-1'), false);
+  assert.equal(restored.result.current.isProjectExpanded('project-2'), false);
+});

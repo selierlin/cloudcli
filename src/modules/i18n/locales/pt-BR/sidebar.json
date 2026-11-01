@@ -60,7 +60,8 @@
     "clearSearch": "Limpar pesquisa",
     "openCommandPalette": "Abrir paleta de comandos",
     "attentionRequiredIndicator": "Sessão precisa de atenção",
-    "backgroundWorkIndicator": "Trabalho em segundo plano rodando"
+    "backgroundWorkIndicator": "Trabalho em segundo plano rodando",
+    "collapseAllProjects": "Recolher todos os projetos"
   },
   "navigation": {
     "chat": "Chat",
