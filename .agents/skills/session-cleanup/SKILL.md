@@ -21,6 +21,7 @@ disable-model-invocation: true
 ## 0. 铁律（先读这一节）
 
 1. **任何写操作前先做一致性快照**：`sqlite3 ~/.cloudcli/auth.db ".backup <path>"`，命名 `auth.db.before-<场景>-<YYYYMMDD-HHMMSS>.backup`。涉及 zcode / opencode 库时同样快照。服务在跑不用停（WAL 下直接写安全）。
+   - **快照要收敛**：每轮 `--apply` 前各做一份是必要的，但**收尾只留最新一份**，之前的删掉。一轮清理跑 20 条会话会留下 20 份快照，批量时轻易堆出几百 MB（实测一轮删 6 份旧快照释放 9.9 MB，再收敛一次又释放 1.6 MB）。前提是本次回归核对已通过（铁律 7）。
 2. **删除 = 物理删除**：DB 行（`sessions` + 该会话的 `superseded_provider_sessions`）+ `fs.unlink` 主 transcript 及**所有** superseded 路径；**zcode / opencode 还要删共享库里的行**（否则复活）。等价于应用内 `permanentlyDeleteArchivedSessions({force:true, deletedFromDisk:true})`。
 3. **干跑 → 贴清单 → 等确认 → `--apply`**，不要边发现边删。精读线例外：§3.3 的清单本身即干跑输出，用户在那个回话里点「删」即确认。
 4. **活的东西一律不碰**：其它 harness 正在跑的会话（`-newermt '-10 minutes'` 兜底）、`auth.db-wal`/`auth.db-shm`、目录仍在的空项目行、WorkBuddy **应用本体**会话，以及**当前这次对话自己的会话行**——名字常常正好等于本次命令原文、transcript mtime 就在刚刚。**`purge.py` 没有这条守卫**，必须人工排除：名字等于本次命令、或 transcript mtime 在 10 分钟内，一律跳过。
@@ -34,6 +35,12 @@ disable-model-invocation: true
    - fork 父子：**读可以复用前缀**（子会话前半段是父的原样复制），**判定必须各自独立**。
 9. **没读过的不许进判据**（2026-10-24 新增）。任何处置的理由必须能指到「读了第几轮」。指不到 → 处置栏留空，不许填「删」。
 10. **置顶豁免只管「未归档」的**（2026-10-31 调整）。`isPinned=1 AND isArchived=0` 的会话是长期参考，不清理。`isPinned=1 AND isArchived=1` 说明用户已主动把它归入归档区，**可以进清理/沉淀流程**；但仍须走完整判据（读完全部轮次 + ① ② ③），不因置顶自动删，也不因置顶自动留。
+   - 由来：原规则是「置顶绝不清理」。漏洞在于用户**自己把置顶会话归档**之后，按老规则它永远进不了任何流程 —— 既不算未归档的长期参考，也不被清理，成为永不处理的僵尸行。用 `isArchived` 做二次判据即可区分「长期参考」与「已完成待收尾」。
+11. **归属必须来自同一行，不许靠查询结果的先后顺序推断**（2026-11-01 新增，代价是一条 2.8 MB transcript 永久丢失）。
+   - 事故：一条 SQL 同时查两条会话、`select` 里没带 id 前缀，输出两行；按「先查的先出现」的直觉对应两个 id，**实际顺序相反** ⇒ 读的是 A 的 transcript，删的却是 B。读到的内容看着与预期主题相符，全程无人察觉，直到 `purge.py` 打印的 `file` 路径与手上正在读的路径不一致才暴露。
+   - 规则：批量查询**必须带 `substr(session_id,1,8)`**；`--apply` 前逐个核对 **三件套在同一行**：`session_id` ↔ `provider_session_id` ↔ `jsonl_path`。
+   - 最后一道闸：`purge.py` 输出的 `file` 路径必须与**先前实际读过的路径逐字相同**，否则停下。
+   - 删除不进废纸篓、`tmutil listlocalsnapshots` 通常为空 ⇒ 一旦删错**不可恢复**。
 
 ## 1. 两种节奏
 
