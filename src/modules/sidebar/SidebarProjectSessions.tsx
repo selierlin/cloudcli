@@ -1,6 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import type { DragEvent } from 'react';
-import { Plus } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button } from '@/shared/ui';
@@ -9,7 +8,6 @@ import { SESSION_OWNERSHIP_DRAG_MIME } from '@/shared/constants';
 import type { LLMProvider, Project, ProjectSession, SessionAttentionLevel, SessionWithProvider } from '@/shared/types';
 import SidebarSessionItem from '@/modules/sidebar/SidebarSessionItem';
 import SidebarBatchSessionActions from '@/modules/sidebar/SidebarBatchSessionActions';
-import { useCompactSidebar } from '@/modules/sidebar/hooks/useCompactSidebar';
 import { useSessionParentPicker } from '@/modules/sidebar/context/SessionParentPickerContext';
 import { groupSessionsByParent } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 
@@ -46,7 +44,6 @@ type SidebarProjectSessionsProps = {
   onDeleteSession: (sessionId: string, sessionTitle: string) => void;
   onForkSession?: (session: SessionWithProvider) => void;
   onLoadMoreSessions: (projectId: string) => void;
-  onNewSession: (project: Project) => void;
   t: TFunction;
 };
 
@@ -100,10 +97,8 @@ export default function SidebarProjectSessions({
   onDeleteSession,
   onForkSession,
   onLoadMoreSessions,
-  onNewSession,
   t,
 }: SidebarProjectSessionsProps) {
-  const isCompact = useCompactSidebar();
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
 
   // Sessions that started a response can no longer be archived in bulk, so
@@ -195,10 +190,10 @@ export default function SidebarProjectSessions({
     setDropTargetSessionId(null);
   }, [draggingSessionId, setSessionParent]);
 
-  // Blank space and the header buttons are the "move out" drop zone: a row stops
-  // the event on its way down (it is either a target itself or deliberately
-  // inert), so whatever reaches here is not over a session — which also means
-  // no row should be highlighted.
+  // Blank space between the rows is the "move out" drop zone: a row stops the
+  // event on its way down (it is either a target itself or deliberately inert),
+  // so whatever reaches here is not over a session — which also means no row
+  // should be highlighted.
   const handleListDragOver = (event: DragEvent<HTMLDivElement>) => {
     if (!draggingSessionId || !event.dataTransfer?.types.includes(SESSION_OWNERSHIP_DRAG_MIME)) {
       return;
@@ -295,65 +290,6 @@ export default function SidebarProjectSessions({
       onDragLeave={handleListDragLeave}
       onDrop={handleListDrop}
     >
-      {/* The actions sit in the same card as the session rows below them. Bare
-          text between the pinned project row and a stack of cards read as a
-          floating label rather than as the first row of the list; the card
-          gives the block a top edge without the primary-coloured border that
-          made it look like a second search field. */}
-      {isCompact ? (
-        <div className="mx-3 mb-1 grid grid-cols-2 gap-1 rounded-lg border border-border/30 bg-card p-0.5">
-          {!isManaging && (
-            <button
-              className="flex h-9 items-center justify-center gap-2 rounded-md text-xs font-medium text-foreground transition-all duration-150 hover:bg-accent active:scale-[0.98] active:bg-accent/80"
-              onClick={() => {
-                onNewSession(project);
-              }}
-            >
-              <Plus className="h-3 w-3 text-primary" />
-              {t('sessions.newSession')}
-            </button>
-          )}
-          {!isManaging && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-9 text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => onManagingChange(true)}
-              disabled={!hasSessions}
-            >
-              {t('sessions.manageSessions')}
-            </Button>
-          )}
-        </div>
-      ) : (
-        <div className="flex gap-1 rounded-md border border-border/30 bg-card p-0.5">
-          {!isManaging && (
-            // The accent stays on the plus icon; the label is `text-foreground`
-            // because `text-primary` fails AA on some light themes.
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-9 flex-1 justify-start gap-2 px-2 text-xs font-medium text-foreground hover:bg-accent hover:text-foreground active:bg-accent/80"
-              onClick={() => onNewSession(project)}
-            >
-              <Plus className="h-3 w-3 text-primary" />
-              {t('sessions.newSession')}
-            </Button>
-          )}
-          {!isManaging && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-9 px-2.5 text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => onManagingChange(true)}
-              disabled={!hasSessions}
-            >
-              {t('sessions.manageSessions')}
-            </Button>
-          )}
-        </div>
-      )}
-
       {/* A page emptied by deleting every loaded row still has sessions behind
           it on the server, so it keeps its "Load more" instead of "No sessions". */}
       {!initialSessionsLoaded ? (
