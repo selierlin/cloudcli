@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import React, { useRef } from 'react';
+import type { MutableRefObject } from 'react';
 import { act, render } from '@testing-library/react';
 
 import { useLazyRowObserver } from '@/modules/chat/hooks/useLazyRowObserver';
@@ -75,16 +76,22 @@ function Harness({
   isProcessCollapsed = false,
   renderRow = true,
   estimatedHeight,
+  scrollTopRef,
 }: {
   initiallyNearViewport: boolean;
   isProcessCollapsed?: boolean;
   renderRow?: boolean;
   estimatedHeight?: number;
+  /** Lets a test read back the writes the row registered. */
+  scrollTopRef?: MutableRefObject<number | null>;
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const ownScrollTopRef = useRef<number | null>(null);
+  const programmaticScrollTopRef = scrollTopRef ?? ownScrollTopRef;
   const lazyRows = useLazyRowObserver(scrollContainerRef);
   return (
-    <div ref={scrollContainerRef}>
+    // The real pane's class name is what the row anchors itself against.
+    <div ref={scrollContainerRef} className="chat-messages-pane">
       {renderRow && (
         <LazyMessageRow
           lazyRows={lazyRows}
@@ -93,6 +100,7 @@ function Harness({
           initiallyNearViewport={initiallyNearViewport}
           estimatedHeight={estimatedHeight}
           isProcessCollapsed={isProcessCollapsed}
+          programmaticScrollTopRef={programmaticScrollTopRef}
         >
           <span data-testid="row-content">expensive content</span>
         </LazyMessageRow>
@@ -187,6 +195,46 @@ describe('LazyMessageRow', () => {
 
     expect(queryByTestId('row-content')).not.toBeNull();
     expect(StubIntersectionObserver.instances).toHaveLength(0);
+  });
+
+  it('puts a lazily re-anchored row back where it sat and registers the write', () => {
+    vi.stubGlobal('IntersectionObserver', StubIntersectionObserver);
+
+    const scrollTopRef: MutableRefObject<number | null> = { current: null };
+    const { container } = render(
+      <Harness initiallyNearViewport scrollTopRef={scrollTopRef} />,
+    );
+    const observer = StubIntersectionObserver.instances[0];
+    const wrapper = observer.observed[0] as HTMLElement;
+    const pane = container.querySelector('.chat-messages-pane') as HTMLElement;
+
+    // jsdom has no layout, so the pane's scroll position and the row's screen
+    // position are both faked. The sequence matters: the row reads its own top
+    // to remember where it sat, reads its box to measure the placeholder, and
+    // the commit then lands with the browser having moved it 400px down — the
+    // re-anchor this correction exists to undo.
+    let scrollTop = 1000;
+    Object.defineProperty(pane, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => { scrollTop = value; },
+    });
+    let reads = 0;
+    Object.defineProperty(wrapper, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => {
+        reads += 1;
+        const top = reads <= 2 ? 500 : 900;
+        return { x: 0, y: top, top, left: 0, right: 640, bottom: top + 123, width: 640, height: 123, toJSON: () => ({}) };
+      },
+    });
+
+    fireIntersection(observer, wrapper, false);
+
+    expect(pane.scrollTop).toBe(1400);
+    // Registered, so `handleScroll` does not read the upward move as the reader
+    // pulling away and latch the follow off.
+    expect(scrollTopRef.current).toBe(1400);
   });
 
   it('removes and unmounts a collapsed process row while retaining its timestamp anchor', () => {

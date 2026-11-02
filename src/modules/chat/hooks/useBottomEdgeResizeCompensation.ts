@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import type { MutableRefObject, RefObject } from 'react';
 
+import { noteScrollWrite } from '@/shared/debug/scrollDiagnostics';
+
 /**
  * Used by the chat transcript pane to keep the transcript glued to the scroll
  * container's bottom edge when that edge moves. The virtual keyboard raising
@@ -38,6 +40,7 @@ export function useBottomEdgeResizeCompensation(
         // scrollable range, which is exact except at scrollTop 0 (short
         // transcripts cannot scroll at all).
         container.scrollTop -= delta;
+        noteScrollWrite('bottomEdge', container);
         programmaticScrollTopRef.current = container.scrollTop;
       }
       previousHeight = height;
