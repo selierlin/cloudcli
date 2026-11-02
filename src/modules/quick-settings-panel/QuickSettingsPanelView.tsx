@@ -11,7 +11,7 @@ import { useQuickSettingsPanelWidth } from '@/modules/quick-settings-panel/hooks
 import { useSessionOutlineData } from '@/modules/quick-settings-panel/hooks/useSessionOutlineData';
 import { useProjectMainState } from '@/modules/project-workspace';
 import type { Project, SlashCommand } from '@/shared/types';
-import { getQuickSettingsTabId, getQuickSettingsTabPanelId, isImeKeyEvent } from '@/shared/utils';
+import { getQuickSettingsTabId, getQuickSettingsTabPanelId, getSessionTitle, isImeKeyEvent } from '@/shared/utils';
 import QuickSettingsCommandsTab from '@/modules/quick-settings-panel/QuickSettingsCommandsTab';
 import QuickSettingsContent from '@/modules/quick-settings-panel/QuickSettingsContent';
 import QuickSettingsHandle from '@/modules/quick-settings-panel/QuickSettingsHandle';
@@ -202,7 +202,10 @@ function QuickSettingsPanelView({ selectedProject, onInsertCommand }: QuickSetti
         {activeTab === 'settings' ? (
           <QuickSettingsContent
             messages={chatMessages}
-            sessionTitle={selectedSession?.title}
+            sessionTitle={
+              // Empty when the session has no name, so the export section can use its own localized fallback.
+              getSessionTitle(selectedSession, '')
+            }
             sessionId={selectedSession?.id ?? null}
             provider={selectedSession?.__provider ?? selectedSession?.provider ?? 'claude'}
             selectedProject={selectedProject}

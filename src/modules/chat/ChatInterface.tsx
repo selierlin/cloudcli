@@ -8,7 +8,7 @@ import PermissionContext from '@/modules/chat/context/PermissionContext';
 import { MarkdownWorkspaceContext } from '@/modules/chat/context/MarkdownWorkspaceContext';
 import { TranscriptSessionContext } from '@/modules/chat/context/TranscriptSessionContext';
 import { api } from '@/shared/api';
-import { afterNextPaint, isImeKeyEvent } from '@/shared/utils';
+import { afterNextPaint, getSessionTitle, isImeKeyEvent } from '@/shared/utils';
 import type {
   ChatMessage,
   PendingPermissionRequest,
@@ -882,7 +882,7 @@ function ChatInterface({
       await afterNextPaint();
       await downloadTranscriptExport(format, {
         messages: selectedExportMessages,
-        sessionTitle: selectedSession?.title || t('export.untitled', { defaultValue: 'Conversation' }),
+        sessionTitle: getSessionTitle(selectedSession, t('export.untitled', { defaultValue: 'Conversation' })),
         provider,
         selectedProject,
         createDiff,
@@ -911,7 +911,7 @@ function ChatInterface({
     provider,
     selectedExportMessages,
     selectedProject,
-    selectedSession?.title,
+    selectedSession,
     selectionExportFormat,
     selectionIsWholeTranscript,
     t,
@@ -1180,7 +1180,7 @@ function ChatInterface({
           // no longer type into.
           onShared={handleCancelExportSelection}
           messages={selectedExportMessages}
-          sessionTitle={selectedSession?.title || t('export.untitled', { defaultValue: 'Conversation' })}
+          sessionTitle={getSessionTitle(selectedSession, t('export.untitled', { defaultValue: 'Conversation' }))}
           provider={provider}
           selectedProject={selectedProject}
           sessionId={selectedSession?.id ?? null}

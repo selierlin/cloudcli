@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
 import type { Project, ProjectSession } from '@/shared/types';
-import { getPageTitle } from '@/shared/utils';
+import { getPageTitle, getSessionTitle } from '@/shared/utils';
 
 const project: Project = {
   projectId: 'project-1',
@@ -50,4 +50,20 @@ test('falls back to the project title when no session is selected', () => {
 
 test('falls back to the app title when no project or session is selected', () => {
   assert.equal(getPageTitle(null, null), 'CloudCLI UI');
+});
+
+test('uses a title carried on the session object when it has no summary or name', () => {
+  const session: ProjectSession = {
+    id: 'session-1',
+    title: 'Export and share title',
+  };
+
+  assert.equal(getSessionTitle(session), 'Export and share title');
+});
+
+test('uses the caller-provided fallback instead of the English placeholder', () => {
+  // Chat exports and shares pass their own localized "untitled" wording, which
+  // is why a session with no name must not surface "New Session" in a zh-CN UI.
+  assert.equal(getSessionTitle({ id: 'session-1' }, '对话'), '对话');
+  assert.equal(getSessionTitle(null, '对话'), '对话');
 });
