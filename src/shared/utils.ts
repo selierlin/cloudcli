@@ -397,8 +397,9 @@ const DEFAULT_PAGE_TITLE = 'CloudCLI UI';
  * name the sessions API returns for every provider, Cursor included), else the `name` a
  * Cursor session object may carry locally, else the `title` some callers keep on the
  * object, else `fallback` when the caller supplied one, else the provider's placeholder.
- * Reads the same fields in the same order as the sidebar row, so the header, document
- * title, exports and sidebar never disagree about a session's name.
+ * The first two are the sidebar row's fields in the sidebar's order, so header, document
+ * title, exports and sidebar agree whenever the session has a name; `title` only covers
+ * objects built locally (the sessions API sends `summary`, never `title`).
  *
  * `fallback` is for surfaces that localize their own "untitled" wording (chat exports
  * and shares); omit it to keep the provider placeholder.
