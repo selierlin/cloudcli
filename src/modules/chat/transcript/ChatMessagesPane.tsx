@@ -539,7 +539,7 @@ function ChatMessagesPane({
           className="pointer-events-none sticky right-4 top-10 z-10 mb-2 flex items-start justify-between gap-2 sm:px-4"
         >
           {/* Running background work stays in view while the transcript scrolls under it. */}
-          <div className="pointer-events-auto min-w-0 pl-4 sm:pl-0">
+          <div className="pointer-events-auto min-w-0 pl-2 sm:pl-0">
             <BackgroundTasksStrip
               messages={chatMessages}
               tasks={backgroundTasks}
@@ -551,7 +551,10 @@ function ChatMessagesPane({
           </div>
         </div>
       )}
-      <div className="mx-auto w-full max-w-[62.5rem] space-y-3 px-4 sm:space-y-4">
+      {/* On phones the composer shell insets only 8px, so the transcript uses the
+          same 8px there: a wider gutter made every message column read narrower
+          than the input box below it. From `sm` both sides are 16px. */}
+      <div className="mx-auto w-full max-w-[62.5rem] space-y-3 px-2 sm:space-y-4 sm:px-4">
         {(isLoadingSessionMessages || isProcessing) && chatMessages.length === 0 ? (
           <div className="mt-8 text-center text-muted-foreground">
             <div className="flex items-center justify-center space-x-2">
