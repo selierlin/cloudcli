@@ -1680,4 +1680,88 @@ describe('scroll ownership while the answer is streaming', () => {
       'a fall that lands where our own writer put the viewport is not a pull',
     );
   });
+  describe('touching the transcript during the iOS rubber band', () => {
+  /**
+   * Past the end of the scrollable range, iOS stretches the content for the
+   * rubber band without ever reporting a `scrollTop` beyond `scrollHeight -
+   * clientHeight`. The events that region produces therefore look exactly like
+   * a write of our own landing on the clamp, and the drag's real evidence — the
+   * gap between the finger and the position — is invisible.
+   *
+   * Reading that as "our own write" let the follow keep writing
+   * `scrollTop = scrollHeight` with the finger still on the glass. Every write
+   * collapsed the stretched content back to the clamp, so the transcript jumped
+   * once per write before settling down and only then started tracking the
+   * finger. This is the reported "jumps once, then follows".
+   */
+  async function renderWithFingerDown() {
+    const { container, result } = await renderAtBottom();
+    act(() => {
+      container.element.dispatchEvent(new TouchEvent('touchstart'));
+    });
+    return { container, result };
+  }
+
+  it('does not write the bottom back while a finger is on the glass', async () => {
+    const { container, result } = await renderWithFingerDown();
+    // The reader is at the bottom and the last sample is that position, so a
+    // drag that leaves `scrollTop` there produces no fall for any rule to see.
+    container.writes.length = 0;
+
+    // The finger drags the content past the end. iOS parks `scrollTop` on the
+    // clamp while the content is visibly away from it, so the sample is
+    // identical to the one the last follow write produced.
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+
+    // An answer flush lands mid-drag and asks to follow.
+    act(() => {
+      container.setScrollHeight(6000);
+      result.current.followTranscriptLayout();
+    });
+
+    assert.deepEqual(
+      container.writes,
+      [],
+      'writing the bottom back mid-drag is what collapses the rubber band on the reader',
+    );
+  });
+
+  it('still follows once the finger lifts', async () => {
+    const { container, result } = await renderWithFingerDown();
+    container.element.scrollTop = 5000;
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+
+    act(() => {
+      container.element.dispatchEvent(new TouchEvent('touchend'));
+      result.current.setIsUserScrolledUp(false);
+    });
+    container.writes.length = 0;
+
+    // With the glass clear, a stationary position that happens to match our
+    // last write is our write again, and the answer keeps being followed.
+    container.element.scrollTop = 5000;
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+    assert.equal(
+      result.current.isUserScrolledUp,
+      false,
+      'lifting the finger must hand the viewport back to the follow',
+    );
+
+    act(() => {
+      container.setScrollHeight(6000);
+      result.current.followTranscriptLayout();
+    });
+    assert.equal(
+      container.writes.at(-1),
+      6000,
+      'the answer must be followed again after the gesture ends',
+    );
+  });
+});
 });
