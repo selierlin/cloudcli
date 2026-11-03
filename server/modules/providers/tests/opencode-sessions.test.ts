@@ -1157,6 +1157,39 @@ test('OpenCode synchronizer keeps a manual rename over the provider title', { co
   }
 });
 
+test('OpenCode synchronizer keeps a rename of a session it discovered on disk', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-sync-disk-renamed-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    await seedOpenCodeSession(tempRoot, workspacePath, {
+      sessionId: 'oc-disk-1',
+      title: 'OpenCode generated title',
+      firstUserText: 'OpenCode first user prompt',
+    });
+    await withIsolatedDatabase(async () => {
+      // A session first discovered here is keyed by the provider id for both
+      // `session_id` and `provider_session_id`; the sidebar still lets the user
+      // rename it, and that rename has to survive the provider's next scan.
+      await new OpenCodeSessionSynchronizer().synchronize();
+      assert.equal(sessionsDb.getSessionById('oc-disk-1')?.custom_name, 'OpenCode generated title');
+
+      sessionsDb.updateSessionCustomName('oc-disk-1', 'Renamed by the reader');
+
+      await new OpenCodeSessionSynchronizer().synchronize();
+
+      const renamed = sessionsDb.getSessionById('oc-disk-1');
+      assert.equal(renamed?.custom_name, 'Renamed by the reader');
+      assert.equal(renamed?.name_source, 'manual_rename');
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('OpenCode synchronizer keeps the stored title for indexed sessions', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-sync-indexed-'));
   const workspacePath = path.join(tempRoot, 'workspace');
