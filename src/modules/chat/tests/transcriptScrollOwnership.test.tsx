@@ -1763,5 +1763,29 @@ describe('scroll ownership while the answer is streaming', () => {
       'the answer must be followed again after the gesture ends',
     );
   });
+
+  it('takes the tail back when the answer went quiet under the finger', async () => {
+    const { container, result } = await renderWithFingerDown();
+    container.writes.length = 0;
+
+    // The answer flushes once more while the finger is still down and then goes
+    // quiet. Refusing that write is correct, but it leaves the follow with
+    // nothing to react to after the glass is clear, and a stationary finger
+    // emits no `scroll` event to release anything.
+    act(() => {
+      container.setScrollHeight(6000);
+      result.current.followTranscriptLayout();
+    });
+    assert.deepEqual(container.writes, [], 'a drag owns the viewport until it ends');
+
+    act(() => {
+      container.element.dispatchEvent(new TouchEvent('touchend'));
+    });
+    assert.equal(
+      container.writes.at(-1),
+      6000,
+      'lifting the finger must resume the follow on its own',
+    );
+  });
 });
 });

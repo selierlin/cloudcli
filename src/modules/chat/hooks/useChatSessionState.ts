@@ -1757,6 +1757,13 @@ export function useChatSessionState({
     const handleTouchEnd = () => {
       touchActiveRef.current = false;
       touchOriginYRef.current = null;
+      // Lifting the finger hands the viewport back. If the answer went quiet
+      // while the finger was down, nothing else asks for the tail again: every
+      // flush was refused by `touchActiveRef`, and a stationary finger emits no
+      // `scroll` event afterwards to release anything. A reader who is actually
+      // up in the transcript keeps their position — the latch and the upward
+      // intent both still stand the follow down.
+      if (!isUserScrolledUpRef.current) followTranscriptLayout();
     };
 
     container.addEventListener('wheel', handleWheel, { passive: true });
@@ -1772,7 +1779,7 @@ export function useChatSessionState({
       container.removeEventListener('touchend', handleTouchEnd);
       container.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [handleScroll, isNearBottom, loadNewerMessages]);
+  }, [followTranscriptLayout, handleScroll, isNearBottom, loadNewerMessages]);
 
   // "Load all" overlay visibility is driven by scroll-to-top in handleScroll;
   // timers are cleared on session change via the reset effect above.
