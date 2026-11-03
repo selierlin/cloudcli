@@ -1,8 +1,15 @@
+import { randomUUID } from 'node:crypto';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+
 type SystemUpdateCommandResult = {
   exitCode: number | null;
   output: string;
   errorOutput: string;
 };
+
+/** Upper bound for a client diagnostics payload; the recorder sends far less. */
+const MAX_CLIENT_DIAGNOSTICS_BYTES = 8 * 1024 * 1024;
 
 type SystemUpdateDependencies = {
   appRoot: string;
@@ -71,6 +78,39 @@ export function createSystemUpdateService(dependencies: SystemUpdateDependencies
           error: message,
         };
       }
+    },
+
+    /**
+     * Persists a client diagnostics report so it can be read from the machine
+     * running the server. The payload originates in the browser and is treated
+     * as opaque text: nothing here interprets it, and the name is generated so
+     * a report can never choose its own path.
+     */
+    async saveClientDiagnostics(report: unknown) {
+      if (report === null || typeof report !== 'object' || Array.isArray(report)) {
+        return { success: false as const, error: 'Report must be a JSON object' };
+      }
+
+      const serialized = JSON.stringify(report, null, 2);
+      if (Buffer.byteLength(serialized, 'utf8') > MAX_CLIENT_DIAGNOSTICS_BYTES) {
+        return { success: false as const, error: 'Report exceeds the size limit' };
+      }
+
+      const directory = path.join(dependencies.homeDirectory, '.cloudcli', 'diagnostics');
+      const fileName = `client-${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID().slice(0, 8)}.json`;
+      const filePath = path.join(directory, fileName);
+
+      try {
+        await mkdir(directory, { recursive: true });
+        await writeFile(filePath, serialized, 'utf8');
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        dependencies.logError('Failed to save client diagnostics:', message);
+        return { success: false as const, error: message };
+      }
+
+      dependencies.logInfo('Saved client diagnostics to:', filePath);
+      return { success: true as const, path: filePath };
     },
   };
 }

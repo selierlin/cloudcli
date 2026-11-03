@@ -316,6 +316,16 @@ If the provider is visible in the UI, update:
 - `src/components/provider-auth/view/ProviderLoginModal.tsx`
 - `src/components/mcp/constants.ts`
 
+### Streaming contract for token-stream providers
+
+- Emit deltas that concatenate in order to the final text, not cumulative
+  snapshots.
+- Route deltas through the shared `createDeltaBatcher`.
+- Publish the previous channel before switching between thinking and text.
+- Add a runtime fixture assertion that the concatenated deltas equal the final
+  text exactly. Frontend render throttling cannot fix duplicated cumulative
+  text.
+
 ## Minimal Wrapper Template
 
 ```ts
@@ -427,6 +437,41 @@ Requirements:
    - npx tsc --noEmit -p server/tsconfig.json
 ```
 
+## Frontend And Acceptance Checklist
+
+Use this checklist for the gates that the provider module layout does not
+cover. Skip an item only with an explicit reason in the handoff notes.
+
+Frontend:
+
+- [ ] Provider id, display name, logo, and i18n strings are wired.
+- [ ] Model, permission mode, effort, and provider-specific settings are exposed.
+- [ ] Streaming deltas merge by stable id without duplicating the full text.
+- [ ] Tool input, output, error, denied, cancelled, and stopped states render.
+- [ ] Task/Todo/Workflow items render only from structured provider data and
+      always reach a terminal state.
+- [ ] Session resume, history loading, and Token Usage render correctly, or the
+      UI shows `unsupported`.
+- [ ] Mobile and other alternate entry points are checked.
+
+Tests and acceptance:
+
+- [ ] Runtime unit tests cover normal output, failure, unknown events, invalid
+      JSON, and process exit.
+- [ ] Session/normalizer tests cover stable ids, deduplication, and pagination.
+- [ ] MCP, skills, auth, and path/URL safety tests pass.
+- [ ] API route tests pass.
+- [ ] WebSocket integration tests cover runtime → store → frontend state.
+- [ ] Frontend store/renderer tests cover terminal states and duplicate
+      suppression.
+- [ ] A real CLI smoke run covers one text turn and one tool lifecycle.
+- [ ] Large sessions, slow tasks, cancellation, and repeated triggers are
+      exercised.
+- [ ] Typecheck, lint, relevant unit tests, and builds pass.
+
+For read-only adapter verification and failure triage, follow
+`.agents/skills/provider-adapter-verification/SKILL.md`.
+
 ## Validation
 
 After adding or changing a provider, run the relevant checks:
@@ -460,3 +505,22 @@ alongside the implementation.
 - Forgetting that Claude plugin skills are discovered differently from normal
   user/project skill folders.
 - Assuming one provider's MCP config file format works for the others.
+
+## Definition Of Done
+
+A provider is not "fully integrated" until all of the following hold:
+
+- [ ] The capability matrix records what the provider supports and what it does
+      not.
+- [ ] Runtime handles normal output, errors, abnormal exit, and cancellation.
+- [ ] Tools and tasks use stable ids and always reach a terminal state.
+- [ ] Native Task/Todo/Workflow events are adapted; unsupported capabilities are
+      not faked.
+- [ ] Session create/resume/history and synchronization/watcher paths are
+      verified.
+- [ ] MCP, skills, auth, and permission boundaries are verified.
+- [ ] Token Usage is supported or explicitly returns `unsupported`.
+- [ ] Frontend message, tool, task, error, and cancellation states are verified.
+- [ ] Unit, API/WebSocket integration, and required end-to-end checks pass.
+- [ ] Logs redact secrets and unknown events remain diagnosable.
+- [ ] Provider README, public API docs/examples, and i18n are updated.

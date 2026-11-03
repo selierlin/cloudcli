@@ -43,21 +43,27 @@ settle loop is separate but now obeys the same synchronous user-intent ref.
    stale. A fall only counts when it did not land on the value the last programmatic writer
    left behind (`programmaticScrollTopRef`): two of our own writers move the viewport **up** —
    the pane-height compensation, and the follow itself when content collapses — so a fall that
-   goes exactly where we put it is not the reader's.
-5. **A deferred scroll must re-read intent at fire time.** The public setter writes
+   goes exactly where we put it is not the reader's. That exclusion is skipped while
+   `touchActiveRef` is set: see *The iOS rubber band* below.
+5. **A finger on the glass owns the viewport, in both directions.** `touchstart` sets
+   `touchActiveRef`, `touchend`/`touchcancel` clear it, and a session change clears it. While
+   it is set, `followTranscriptLayout` returns without writing, and no `scroll` sample is
+   attributed to our own writers. `isUserScrolledUp` cannot stand in for this: it only tracks
+   the *upward* direction, and a drag toward the bottom has nothing to scroll up to.
+6. **A deferred scroll must re-read intent at fire time.** The public setter writes
    `isUserScrolledUpRef` synchronously before updating React state, so a queued frame or
    timer can ask whether the user has scrolled away since it was armed. Adding deferred
    scrolling without that check reintroduces the bug
    `transcriptScrollOwnership.test.tsx` exists to catch.
-6. **The follow effect watches message identity, not only row count.** A streamed rewrite
+7. **The follow effect watches message identity, not only row count.** A streamed rewrite
    receives a fresh `chatMessages` array and schedules the same single follow frame as a
    newly appended row. Multiple updates before that frame coalesce; flipping the flag
    back to `false` also schedules one final bottom alignment.
-7. **A claim ref suppresses the other writers.** `pendingInitialScrollRef`,
+8. **A claim ref suppresses the other writers.** `pendingInitialScrollRef`,
    `pendingScrollRestoreRef`, `searchScrollActiveRef`, plus two latches at the top of the
    list, `topLoadLockRef` and `wasNearTopRef`. A session change clears or re-arms all five
    in one effect.
-8. **Row geometry does not change behind the user's back.** Lazy rows keep their measured
+9. **Row geometry does not change behind the user's back.** Lazy rows keep their measured
    height when their content unmounts, React keys are derived from intrinsic message fields
    rather than object identity, and `contain-intrinsic-size: auto` lets the browser
    remember each row's last rendered size.
@@ -79,7 +85,7 @@ settle loop is separate but now obeys the same synchronous user-intent ref.
 | `src/index.css` | `.chat-messages-pane` / `.chat-message` containment, mobile `touch-action`, document-level overscroll containment, `.search-highlight-flash`. |
 | `src/modules/project-workspace/hooks/useVisualViewportKeyboardOffset.ts` | Publishes `--keyboard-height` so the shell shrinks above the iOS keyboard. |
 | `src/shared/ui/ScrollArea.tsx` | **Not used by chat.** `FileTree.tsx` and `SidebarContent.tsx` only. |
-| `src/modules/chat/tests/transcriptScrollOwnership.test.tsx` | Pins the three ownership bugs — the deferred scroll, the cross-session search jump, and growth being mistaken for the reader scrolling up. |
+| `src/modules/chat/tests/transcriptScrollOwnership.test.tsx` | Pins the ownership bugs — the deferred scroll, the cross-session search jump, growth being mistaken for the reader scrolling up, and the follow writing during the iOS rubber band. |
 | `src/modules/chat/tests/lazyMessageRow.test.tsx` | Pins placeholder height and the hidden-tab zero-rect case. |
 | `src/modules/chat/tests/searchTargetLocator.test.ts` | Pins snippet-first resolution, the timestamp fallback and the window size. |
 
@@ -619,6 +625,39 @@ The pane's bottom padding switches between `pb-12 sm:pb-14` and `pb-3 sm:pb-4` d
 padding reserves space for it. That toggle changes the pane's usable height without emitting
 a scroll event.
 
+### The iOS rubber band
+
+Dragging the transcript past its end and letting go is the reader's deliberate gesture, and
+the bounce back is native behaviour we keep. What we must not do is move the content while
+their finger is on it.
+
+The rubber band is invisible to script in a way that matters: `scrollTop` **never** reports a
+value above `scrollHeight - clientHeight`, yet the content is visibly stretched past it, and
+the `scroll` events that region emits carry the clamp value. Because a follow write
+(`scrollTop = scrollHeight`) is clamped to exactly that same value, a sample taken during the
+rubber band is indistinguishable from the follow's own write landing.
+
+Reading it as our own write is what used to happen, and it produced the reported symptom: the
+follow kept writing `scrollTop = scrollHeight` throughout the drag, each write collapsed the
+stretched content back to the clamp, and the transcript jumped once per write — four times in
+the first 150 ms — before the drag finally settled down and started tracking the finger. That
+is the "jumps once, then follows" the reader described.
+
+Two rules follow, and both are needed:
+
+- **A finger on the glass owns the viewport** (`touchActiveRef`). While it is set,
+  `followTranscriptLayout` does not write at all, whatever content arrives. This is the
+  direction-agnostic rule, and it is the one that fixes the bug: it does not depend on any
+  sample, so it holds for the fraction of a second before `scrollTop` reports movement.
+- **A `scroll` sample taken with the finger down is never attributed to `programmaticScrollTopRef`.**
+  `landedOnOurOwnWrite` is false while `touchActiveRef` is set, so the ordinary
+  "did the reader move?" rules read the rubber band correctly instead of discarding it.
+
+Both rules are pinned by the *touching the transcript during the iOS rubber band* block in
+`transcriptScrollOwnership.test.tsx`, one test per direction: the first fails if a follow
+write escapes while a finger is down, the second fails if the finger-up path does not hand the
+viewport back.
+
 ## Gotchas and why the code looks like this
 
 - **Streaming text re-follows even when row count stays flat.** `updateStreamingBatch` in
@@ -706,6 +745,7 @@ a scroll event.
 | The ownership rule in `handleScroll`, `SCROLL_UP_EPSILON_PX`, `SCROLL_UP_INTENT_WINDOW_MS` or `TOUCH_UP_INTENT_MIN_TRAVEL_PX` | `transcriptScrollOwnership.test.tsx` → *"scroll ownership while the answer is streaming"* pins all three directions: the gap alone latches the follow off mid-answer, dropping the gesture window breaks a reader drag that a fast stream outruns, and dropping the stand-down in `followTranscriptLayout` lets a wheel notch be overwritten before it can be measured. |
 | The `< 100` top zone or the `> 20` lock release | `topLoadLockRef` must still need an explicit move away from the top, or paging runs away. |
 | `chatMessages` shape or identity | Streaming follow intentionally keys on array identity so same-row growth is visible; restore/reactivation still protects session and claim ownership. |
+| `touchActiveRef`, or any writer that runs while a finger may be down | `transcriptScrollOwnership.test.tsx` → *"touching the transcript during the iOS rubber band"* pins both directions: a follow write escaping mid-drag collapses the rubber band, and a gate that never releases stops the answer being followed for the rest of the answer. |
 | Anything that adds a deferred scroll | It must re-read `isUserScrolledUpRef` and session/claim refs at fire time, or `transcriptScrollOwnership.test.tsx` should fail. A writer that cannot stand down — the pane-height compensation — must report its write through `programmaticScrollTopRef` instead. |
 | `getIntrinsicMessageKey` or the key map in `ChatMessagesPane` | The prepend restore needs the anchor element to survive; unstable keys remount rows and drop it to the height-delta fallback. |
 | `LazyMessageRow` placeholder height, the `.chat-message` class placement, or the 1200 px observer margin | Prepend anchor scan, search-jump row lookup, and `lazyMessageRow.test.tsx`. |

@@ -40,6 +40,7 @@
     "unpinSession": "取消置顶会话",
     "pinnedSession": "已置顶会话",
     "manageSessions": "管理",
+    "organizeSessions": "整理会话",
     "selectAll": "全选",
     "deselectAll": "取消全选",
     "selectSession": "选择会话：{{name}}",

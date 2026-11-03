@@ -1099,15 +1099,15 @@ const seedOpenCodeSession = async (
   }
 };
 
-test('OpenCode synchronizer preserves the title assigned when CloudCLI creates a session', { concurrency: false }, async () => {
+test('OpenCode synchronizer adopts the title OpenCode generates for an app-created session', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-sync-app-'));
   const workspacePath = path.join(tempRoot, 'workspace');
   await mkdir(workspacePath, { recursive: true });
   const restoreHomeDir = patchHomeDir(tempRoot);
 
   try {
-    // Both provider-owned values differ from the CloudCLI title so either one
-    // leaking through would change the assertion below.
+    // Both provider-owned values differ from the CloudCLI title so the
+    // assertion proves it was OpenCode's own generated title that won.
     await seedOpenCodeSession(tempRoot, workspacePath, {
       sessionId: 'oc-app-1',
       title: 'OpenCode generated title',
@@ -1119,7 +1119,70 @@ test('OpenCode synchronizer preserves the title assigned when CloudCLI creates a
 
       await new OpenCodeSessionSynchronizer().synchronize();
 
-      assert.equal(sessionsDb.getSessionById('app-1')?.custom_name, 'Fix the checkout crash');
+      assert.equal(sessionsDb.getSessionById('app-1')?.custom_name, 'OpenCode generated title');
+      assert.equal(sessionsDb.getSessionById('app-1')?.name_source, 'provider_title');
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('OpenCode synchronizer keeps a manual rename over the provider title', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-sync-renamed-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    await seedOpenCodeSession(tempRoot, workspacePath, {
+      sessionId: 'oc-app-2',
+      title: 'OpenCode generated title',
+      firstUserText: 'OpenCode first user prompt',
+    });
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createAppSession('app-2', 'opencode', workspacePath, 'Fix the checkout crash');
+      sessionsDb.assignProviderSessionId('app-2', 'oc-app-2');
+      sessionsDb.updateSessionCustomName('app-2', 'Renamed by the reader');
+
+      await new OpenCodeSessionSynchronizer().synchronize();
+
+      const renamed = sessionsDb.getSessionById('app-2');
+      assert.equal(renamed?.custom_name, 'Renamed by the reader');
+      assert.equal(renamed?.name_source, 'manual_rename');
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('OpenCode synchronizer keeps a rename of a session it discovered on disk', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-sync-disk-renamed-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    await seedOpenCodeSession(tempRoot, workspacePath, {
+      sessionId: 'oc-disk-1',
+      title: 'OpenCode generated title',
+      firstUserText: 'OpenCode first user prompt',
+    });
+    await withIsolatedDatabase(async () => {
+      // A session first discovered here is keyed by the provider id for both
+      // `session_id` and `provider_session_id`; the sidebar still lets the user
+      // rename it, and that rename has to survive the provider's next scan.
+      await new OpenCodeSessionSynchronizer().synchronize();
+      assert.equal(sessionsDb.getSessionById('oc-disk-1')?.custom_name, 'OpenCode generated title');
+
+      sessionsDb.updateSessionCustomName('oc-disk-1', 'Renamed by the reader');
+
+      await new OpenCodeSessionSynchronizer().synchronize();
+
+      const renamed = sessionsDb.getSessionById('oc-disk-1');
+      assert.equal(renamed?.custom_name, 'Renamed by the reader');
+      assert.equal(renamed?.name_source, 'manual_rename');
     });
   } finally {
     restoreHomeDir();

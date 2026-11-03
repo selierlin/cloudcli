@@ -4,7 +4,7 @@
 > **日期**：2026-10-06（v1 定稿）／2026-10-07（v2 复审：批注回写 + 0.156.1 协议复核；v3：U7 量化 + D1 裁定；v4：S1/S2 实施；v5：S3 实施 + 真 CLI 端到端；v6：S5 删依赖 + 流式线 §11 回写）
 > **用途**：把 Codex provider 的运行时通道从 `@openai/codex-sdk`（内部走 `codex exec`，正文整段到达）换成 CLI 自带的 `codex app-server`（JSON-RPC，**正文有 token 级增量**），使 Codex 进入真流式路径，与 Claude/Cursor/OpenCode/Pi/OMP/WorkBuddy/ZCode 一致。
 > **审阅重点**：**§0.1「审阅靶子」**。本文档的事实部分（§2）由源码与二进制实测支撑，请优先攻机制与路线裁定，而不是措辞自洽。
-> **参考规范**：`server/modules/providers/README.md`（How To Add A Provider）、`docs/Provider接入与验收SOP.md`、`docs/research/流式输出体验优化技术方案.md`（§11 是本方案的直接前置，本方案要**改判**它的「不建议」结论）、同目录 `CloudCLI接入ZCode-Provider实施计划.md`（格式模板）
+> **参考规范**：`server/modules/providers/README.md`（How To Add A Provider）、`.agents/skills/provider-adapter-verification/SKILL.md`（适配验证）、`docs/research/流式输出体验优化技术方案.md`（§11 是本方案的直接前置，本方案要**改判**它的「不建议」结论）、同目录 `CloudCLI接入ZCode-Provider实施计划.md`（格式模板）
 > **关联代码**：`server/modules/providers/list/codex/`（10 文件）、`src/modules/chat/utils/revealPacer.ts`、`src/modules/chat/hooks/useSessionStore.ts`
 
 ---

@@ -17,5 +17,16 @@ export function createSystemRouter(
     }
   });
 
+  // Receives the on-device scroll diagnostics recording. Kept on the system
+  // router because the file lands beside the other operator-facing state.
+  router.post('/client-diagnostics', async (request, response, next) => {
+    try {
+      const result = await systemUpdateService.saveClientDiagnostics(request.body);
+      response.status(result.success ? 201 : 400).json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return router;
 }

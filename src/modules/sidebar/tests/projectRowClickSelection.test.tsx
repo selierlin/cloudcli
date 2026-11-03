@@ -48,6 +48,7 @@ type RowOptions = {
 const renderRow = ({ isExpanded, isSelected }: RowOptions) => {
   const onProjectSelect = vi.fn();
   const onToggleProject = vi.fn();
+  const onNewSession = vi.fn();
   const view = render(
     <SidebarProjectItem
       project={PROJECT}
@@ -80,7 +81,7 @@ const renderRow = ({ isExpanded, isSelected }: RowOptions) => {
       activeSessions={new Set()}
       backgroundSessionIds={new Set()}
       attentionSessions={new Map()}
-      onNewSession={noop}
+      onNewSession={onNewSession}
       onStartEditingSession={noop}
       onCancelEditingSession={noop}
       onSaveEditingSession={noop}
@@ -91,7 +92,7 @@ const renderRow = ({ isExpanded, isSelected }: RowOptions) => {
   // Exact name: the row's accessible name is the project name, while the
   // overflow menu next to it is named "<project> · More".
   const row = view.getByRole('button', { name: 'project two' });
-  return { ...view, row, onProjectSelect, onToggleProject };
+  return { ...view, row, onProjectSelect, onToggleProject, onNewSession };
 };
 
 afterEach(() => {
@@ -127,4 +128,20 @@ test('clicking the group that is already open and selected still collapses it', 
 
   assert.equal(onProjectSelect.mock.calls.length, 0);
   assert.equal(onToggleProject.mock.calls.length, 1);
+});
+
+// The "+" sits inside the row, which toggles on click: without its own
+// stopPropagation, starting a session would also collapse the group it is
+// starting from.
+test('the new-session control does not also toggle the group', () => {
+  const { getByRole, onProjectSelect, onToggleProject, onNewSession } = renderRow({
+    isExpanded: true,
+    isSelected: true,
+  });
+
+  fireEvent.click(getByRole('button', { name: 'sessions.newSession' }));
+
+  assert.equal(onNewSession.mock.calls.length, 1);
+  assert.equal(onToggleProject.mock.calls.length, 0);
+  assert.equal(onProjectSelect.mock.calls.length, 0);
 });

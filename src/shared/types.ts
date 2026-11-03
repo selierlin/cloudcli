@@ -1721,7 +1721,7 @@ export type AgentContext = {
 };
 
 /** Identifier of a top-level section in the settings dialog; use it whenever a tab is stored, compared or requested so deep links, the sidebar and the command palette all agree on the same set of names. */
-export type SettingsMainTab = 'agents' | 'appearance' | 'chat' | 'git' | 'api' | 'voice' | 'quickReplies' | 'tasks' | 'browser' | 'mcp' | 'notifications' | 'plugins' | 'network' | 'loginLog' | 'shares' | 'about';
+export type SettingsMainTab = 'agents' | 'appearance' | 'chat' | 'git' | 'api' | 'voice' | 'quickReplies' | 'tasks' | 'browser' | 'mcp' | 'notifications' | 'plugins' | 'network' | 'loginLog' | 'shares' | 'diagnostics' | 'about';
 
 /** The coding-agent CLI a settings screen is configuring, aliasing LLMProvider so agent-scoped settings read as being about an agent rather than a chat model. */
 export type AgentProvider = LLMProvider;

@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
-import { ThemeModeSelector } from '@/shared/ui';
+import { Select, ThemeModeSelector } from '@/shared/ui';
 import { useUiPreferences, useSetUiPreference } from '@/shared/context/UiPreferencesContext';
 import {
   CODE_FONT_FAMILY_OPTIONS,
@@ -21,8 +21,13 @@ import ThemeSelector from '@/modules/settings/ThemeSelector';
 import TokenPreviewSection from '@/modules/settings/TokenPreviewSection';
 import UserThemesSection from '@/modules/settings/UserThemesSection';
 
-const FONT_SELECT_CLASS =
-  'w-full touch-manipulation rounded-lg border border-input bg-card p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary sm:w-28';
+/**
+ * One width for every select in this tab, so the controls read as a column: wide
+ * enough for the longest font name ("Source Code Pro") once the arrow's space is
+ * reserved, and full-width on narrow screens, where a fixed width would crowd
+ * the label.
+ */
+const SELECT_CLASS = 'w-full sm:w-40';
 
 type AppearanceSettingsTabProps = {
   projectSortOrder: ProjectSortOrder;
@@ -89,14 +94,14 @@ export default function AppearanceSettingsTab({
             label={t('appearanceSettings.projectSorting.label')}
             description={t('appearanceSettings.projectSorting.description')}
           >
-            <select
+            <Select
+              className={SELECT_CLASS}
               value={projectSortOrder}
               onChange={(event) => onProjectSortOrderChange(event.target.value as ProjectSortOrder)}
-              className="w-full touch-manipulation rounded-lg border border-input bg-card p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary sm:w-36"
             >
               <option value="name">{t('appearanceSettings.projectSorting.alphabetical')}</option>
               <option value="date">{t('appearanceSettings.projectSorting.recentActivity')}</option>
-            </select>
+            </Select>
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
@@ -155,10 +160,10 @@ export default function AppearanceSettingsTab({
             label={t('appearanceSettings.codeEditor.fontSize.label')}
             description={t('appearanceSettings.codeEditor.fontSize.description')}
           >
-            <select
+            <Select
+              className={SELECT_CLASS}
               value={codeEditorSettings.fontSize}
               onChange={(event) => onCodeEditorFontSizeChange(event.target.value)}
-              className="w-full touch-manipulation rounded-lg border border-input bg-card p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary sm:w-28"
             >
               <option value="10">10px</option>
               <option value="11">11px</option>
@@ -169,7 +174,7 @@ export default function AppearanceSettingsTab({
               <option value="16">16px</option>
               <option value="18">18px</option>
               <option value="20">20px</option>
-            </select>
+            </Select>
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
@@ -180,40 +185,40 @@ export default function AppearanceSettingsTab({
             label={t('appearanceSettings.fontSettings.uiFontSize.label')}
             description={t('appearanceSettings.fontSettings.uiFontSize.description')}
           >
-            <select
+            <Select
+              className={SELECT_CLASS}
               value={fontSettings.uiFontSize}
               onChange={(event) => fontSettings.setUiFontSize(event.target.value)}
-              className={FONT_SELECT_CLASS}
             >
               {UI_FONT_SIZE_OPTIONS.map((size) => (
                 <option key={size} value={size}>{size}px</option>
               ))}
-            </select>
+            </Select>
           </SettingsRow>
 
           <SettingsRow
             label={t('appearanceSettings.fontSettings.terminalFontSize.label')}
             description={t('appearanceSettings.fontSettings.terminalFontSize.description')}
           >
-            <select
+            <Select
+              className={SELECT_CLASS}
               value={fontSettings.terminalFontSize}
               onChange={(event) => fontSettings.setTerminalFontSize(event.target.value)}
-              className={FONT_SELECT_CLASS}
             >
               {TERMINAL_FONT_SIZE_OPTIONS.map((size) => (
                 <option key={size} value={size}>{size}px</option>
               ))}
-            </select>
+            </Select>
           </SettingsRow>
 
           <SettingsRow
             label={t('appearanceSettings.fontSettings.terminalFontFamily.label')}
             description={t('appearanceSettings.fontSettings.terminalFontFamily.description')}
           >
-            <select
+            <Select
+              className={SELECT_CLASS}
               value={fontSettings.terminalFontFamily}
               onChange={(event) => fontSettings.setTerminalFontFamily(event.target.value as TerminalFontFamilyId)}
-              className={FONT_SELECT_CLASS}
             >
               {TERMINAL_FONT_FAMILY_OPTIONS.map((option) => (
                 <option key={option.id} value={option.id}>
@@ -222,56 +227,56 @@ export default function AppearanceSettingsTab({
                     : t(`appearanceSettings.fontSettings.codeFontFamilyOptions.${option.id}`)}
                 </option>
               ))}
-            </select>
+            </Select>
           </SettingsRow>
 
           <SettingsRow
             label={t('appearanceSettings.fontSettings.fontFamily.label')}
             description={t('appearanceSettings.fontSettings.fontFamily.description')}
           >
-            <select
+            <Select
+              className={SELECT_CLASS}
               value={fontSettings.fontFamily}
               onChange={(event) => fontSettings.setFontFamily(event.target.value as FontFamilyId)}
-              className={FONT_SELECT_CLASS}
             >
               {FONT_FAMILY_OPTIONS.map((option) => (
                 <option key={option.id} value={option.id}>
                   {t(`appearanceSettings.fontSettings.fontFamilyOptions.${option.id}`)}
                 </option>
               ))}
-            </select>
+            </Select>
           </SettingsRow>
 
           <SettingsRow
             label={t('appearanceSettings.fontSettings.codeFontSize.label')}
             description={t('appearanceSettings.fontSettings.codeFontSize.description')}
           >
-            <select
+            <Select
+              className={SELECT_CLASS}
               value={fontSettings.codeFontSize}
               onChange={(event) => fontSettings.setCodeFontSize(event.target.value)}
-              className={FONT_SELECT_CLASS}
             >
               {CODE_FONT_SIZE_OPTIONS.map((size) => (
                 <option key={size} value={size}>{size}px</option>
               ))}
-            </select>
+            </Select>
           </SettingsRow>
 
           <SettingsRow
             label={t('appearanceSettings.fontSettings.codeFontFamily.label')}
             description={t('appearanceSettings.fontSettings.codeFontFamily.description')}
           >
-            <select
+            <Select
+              className={SELECT_CLASS}
               value={fontSettings.codeFontFamily}
               onChange={(event) => fontSettings.setCodeFontFamily(event.target.value as CodeFontFamilyId)}
-              className={FONT_SELECT_CLASS}
             >
               {CODE_FONT_FAMILY_OPTIONS.map((option) => (
                 <option key={option.id} value={option.id}>
                   {t(`appearanceSettings.fontSettings.codeFontFamilyOptions.${option.id}`)}
                 </option>
               ))}
-            </select>
+            </Select>
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>

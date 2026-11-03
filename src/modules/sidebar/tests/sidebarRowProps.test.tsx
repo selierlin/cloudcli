@@ -221,7 +221,6 @@ const sessionsProps = (sessionRenameId: string | null, sessionRenameDraft: strin
   onSessionSelect: noop,
   onDeleteSession: noop,
   onLoadMoreSessions: noop,
-  onNewSession: noop,
   t,
 });
 

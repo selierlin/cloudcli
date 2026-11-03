@@ -1,5 +1,5 @@
-import { memo, useEffect, useRef, useState } from 'react';
-import { Check, ChevronRight, Copy, Edit3, Folder, MoreHorizontal, Star, Trash2, X } from 'lucide-react';
+import { memo, useEffect, useRef, useState, type MouseEvent } from 'react';
+import { Check, ChevronRight, Copy, Edit3, Folder, ListChecks, MoreHorizontal, Plus, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { ActionMenu, type ActionMenuItem } from '@/shared/ui';
@@ -128,42 +128,6 @@ function SidebarProjectItem({
   // "Copy path" keeps the menu open and flips its own label, the way the
   // session menus report a copy; closing the menu clears it.
   const [pathCopied, setPathCopied] = useState(false);
-  // Shared by both layouts: the touch card used to keep rename and delete as
-  // two always-visible icons of its own, which is how the phone ended up with a
-  // red delete button on every project while desktop had a single "…".
-  const projectMenuItems: ActionMenuItem[] = [
-    {
-      key: 'copy-path',
-      // The absolute path, not the shortened label the row shows: this is
-      // pasted into a terminal or an editor.
-      label: pathCopied ? t('tooltips.projectPathCopied') : t('tooltips.copyProjectPath'),
-      icon: pathCopied ? Check : Copy,
-      closeOnSelect: false,
-      onSelect: () => {
-        void copyTextToClipboard(project.fullPath).then(setPathCopied);
-      },
-    },
-    {
-      key: 'favorite',
-      label: isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites'),
-      icon: Star,
-      onSelect: () => onToggleStarProject(project.projectId),
-    },
-    {
-      key: 'rename',
-      label: t('tooltips.renameProject'),
-      icon: Edit3,
-      onSelect: () => onStartEditingProject(project),
-    },
-    {
-      key: 'delete',
-      label: t('tooltips.deleteProject'),
-      icon: Trash2,
-      onSelect: () => onDeleteProject(project),
-      isDanger: true,
-      showDividerBefore: true,
-    },
-  ];
 
   useEffect(() => {
     if (!isEditing || !mobileRenameInputRef.current) {
@@ -219,6 +183,65 @@ function SidebarProjectItem({
 
     toggleProject();
   };
+
+  // The row toggles on click, so the "+" has to keep its click to itself or it
+  // would also expand/collapse the group it is starting a session in.
+  const startNewSession = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    onNewSession(project);
+  };
+
+  // Shared by both layouts: the touch card used to keep rename and delete as
+  // two always-visible icons of its own, which is how the phone ended up with a
+  // red delete button on every project while desktop had a single "…".
+  const projectMenuItems: ActionMenuItem[] = [
+    {
+      key: 'copy-path',
+      // The absolute path, not the shortened label the row shows: this is
+      // pasted into a terminal or an editor.
+      label: pathCopied ? t('tooltips.projectPathCopied') : t('tooltips.copyProjectPath'),
+      icon: pathCopied ? Check : Copy,
+      closeOnSelect: false,
+      onSelect: () => {
+        void copyTextToClipboard(project.fullPath).then(setPathCopied);
+      },
+    },
+    {
+      key: 'favorite',
+      label: isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites'),
+      icon: Star,
+      onSelect: () => onToggleStarProject(project.projectId),
+    },
+    {
+      key: 'rename',
+      label: t('tooltips.renameProject'),
+      icon: Edit3,
+      onSelect: () => onStartEditingProject(project),
+    },
+    {
+      key: 'organize',
+      // Batch mode renders inside the session list, so a collapsed row has to
+      // open first: switching the mode on behind a closed group would look like
+      // the menu did nothing.
+      label: t('sessions.organizeSessions'),
+      icon: ListChecks,
+      disabled: sessions.length === 0,
+      onSelect: () => {
+        if (!isExpanded) {
+          toggleProject();
+        }
+        setIsManagingSessions(true);
+      },
+    },
+    {
+      key: 'delete',
+      label: t('tooltips.deleteProject'),
+      icon: Trash2,
+      onSelect: () => onDeleteProject(project),
+      isDanger: true,
+      showDividerBefore: true,
+    },
+  ];
 
   return (
     <div
@@ -349,8 +372,19 @@ function SidebarProjectItem({
                   </>
                 ) : (
                   <>
-                    {/* Same "…" as the dense row, always visible: a touch card
-                        has no hover state to reveal a hidden trigger. */}
+                    {/* The "+" and the "…" are always visible here: a touch
+                        card has no hover state to reveal a hidden control. */}
+                    <button
+                      type="button"
+                      aria-label={t('sessions.newSession')}
+                      title={t('sessions.newSession')}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-all duration-150 active:scale-90 active:bg-accent/80"
+                      onClick={startNewSession}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+
+                    {/* Same "…" as the dense row. */}
                     <div onClick={(event) => event.stopPropagation()}>
                       <ActionMenu
                         label={t('search.modeMore', 'More')}
@@ -496,6 +530,18 @@ function SidebarProjectItem({
               </>
             ) : (
               <>
+                {/* The "+" replaces the always-visible "New session" button the
+                    expanded list used to carry: starting a session is a
+                    row-level action, so it belongs on the row. */}
+                <button
+                  type="button"
+                  aria-label={t('sessions.newSession')}
+                  title={t('sessions.newSession')}
+                  className="touch:opacity-100 flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring group-hover:opacity-100"
+                  onClick={startNewSession}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
                 {/* Rename and delete used to sit here as two always-visible
                     icons — a third of the row, with the destructive one in red
                     for every project. One "…" keeps both reachable and stops
@@ -558,7 +604,6 @@ function SidebarProjectItem({
         onDeleteSession={onDeleteSession}
         onForkSession={onForkSession}
         onLoadMoreSessions={onLoadMoreSessions}
-        onNewSession={onNewSession}
         t={t}
       />
     </div>

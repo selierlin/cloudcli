@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Fragment, memo, useCallback, useLayoutEffect, useMemo, useReducer, useRef } from 'react';
+import { Fragment, Suspense, lazy, memo, useCallback, useLayoutEffect, useMemo, useReducer, useRef, useSyncExternalStore } from 'react';
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 
 import type { BackgroundTaskSummary,
@@ -12,6 +12,10 @@ import type { BackgroundTaskSummary,
   ProviderModelsDefinition,
 } from '@/shared/types';
 import { useAutoHideScrollbar } from '@/shared/hooks/useAutoHideScrollbar';
+import {
+  isDiagnosticsEnabled,
+  subscribeDiagnosticsEnabled,
+} from '@/shared/debug/diagnosticsPreference';
 import {
   buildTailAnchoredMessageKeys,
   getIntrinsicMessageKey,
@@ -51,6 +55,14 @@ import { BackgroundTasksStrip } from '@/modules/chat/transcript/BackgroundTasksS
  * near the viewport. Covers a bit more than one screen of typical rows.
  */
 const INITIAL_MOUNTED_TAIL_ROWS = 30;
+
+/**
+ * Split out of the main bundle: the recorder is a debugging surface, so a reader
+ * who never turns it on never downloads it.
+ */
+const ScrollDiagnosticsPanel = lazy(
+  () => import('@/shared/debug/ScrollDiagnosticsPanel'),
+);
 
 const clampEstimatedRowHeight = (height: number, maximum: number) =>
   Math.min(maximum, Math.max(64, Math.round(height)));
@@ -306,6 +318,12 @@ function ChatMessagesPane({
   const sessionId = selectedSession?.id ?? null;
   const sessionDisclosureKey = sessionId ?? 'no-session';
   const lazyRows = useLazyRowObserver(scrollContainerRef, sessionId);
+  // Off by default; flipped in Settings → Diagnostics, and read through a store
+  // so the panel appears without leaving the session.
+  const diagnosticsEnabled = useSyncExternalStore(
+    subscribeDiagnosticsEnabled,
+    isDiagnosticsEnabled,
+  );
   // Keyboard/composer/window resizes move the container's bottom edge; this
   // keeps the transcript rows glued to it so the content beside the input
   // follows the input instead of being clipped behind it.
@@ -521,7 +539,7 @@ function ChatMessagesPane({
           className="pointer-events-none sticky right-4 top-10 z-10 mb-2 flex items-start justify-between gap-2 sm:px-4"
         >
           {/* Running background work stays in view while the transcript scrolls under it. */}
-          <div className="pointer-events-auto min-w-0 pl-4 sm:pl-0">
+          <div className="pointer-events-auto min-w-0 pl-2 sm:pl-0">
             <BackgroundTasksStrip
               messages={chatMessages}
               tasks={backgroundTasks}
@@ -533,7 +551,10 @@ function ChatMessagesPane({
           </div>
         </div>
       )}
-      <div className="mx-auto w-full max-w-[62.5rem] space-y-3 px-4 sm:space-y-4">
+      {/* On phones the composer shell insets only 8px, so the transcript uses the
+          same 8px there: a wider gutter made every message column read narrower
+          than the input box below it. From `sm` both sides are 16px. */}
+      <div className="mx-auto w-full max-w-[62.5rem] space-y-3 px-2 sm:space-y-4 sm:px-4">
         {(isLoadingSessionMessages || isProcessing) && chatMessages.length === 0 ? (
           <div className="mt-8 text-center text-muted-foreground">
             <div className="flex items-center justify-center space-x-2">
@@ -688,6 +709,7 @@ function ChatMessagesPane({
                           initiallyNearViewport={initiallyNearViewport}
                           estimatedHeight={estimateToolGroupRowHeight(item.messages, toolCollapseAbove)}
                           isProcessCollapsed={shouldHideProcessItem}
+                          programmaticScrollTopRef={programmaticScrollTopRef}
                         >
                           <ToolGroupContainer
                             group={item}
@@ -782,6 +804,7 @@ function ChatMessagesPane({
                         estimatedHeight={estimateMessageRowHeight(item)}
                         isProcessCollapsed={shouldHideProcessItem}
                         dataAnchor={isUserAnchor ? messageKey : undefined}
+                        programmaticScrollTopRef={programmaticScrollTopRef}
                       >
                         <MessageComponent
                           message={item}
@@ -840,6 +863,11 @@ function ChatMessagesPane({
             />
           </div>
         </div>
+      )}
+      {diagnosticsEnabled && (
+        <Suspense fallback={null}>
+          <ScrollDiagnosticsPanel containerRef={scrollContainerRef} />
+        </Suspense>
       )}
     </div>
   );

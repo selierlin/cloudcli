@@ -219,7 +219,10 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
       data-message-timestamp={message.timestamp || undefined}
       onClick={isRowPickable ? () => onSelectExportRow?.(message, false) : undefined}
       className={`chat-message ${message.type} ${isGrouped ? 'grouped' : ''} ${
-        message.type === 'user' ? 'flex justify-end px-3 sm:px-0' : 'px-3 sm:px-0'
+        // No row-level gutter: the transcript container already insets to the
+        // composer's edge on phones and to the same 16px from `sm` up, so extra
+        // padding here made the message column narrower than the input box.
+        message.type === 'user' ? 'flex justify-end' : ''
       } ${
         isRowPickable
           // While picking, the row is the only target: every control inside it

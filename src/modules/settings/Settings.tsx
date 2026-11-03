@@ -21,6 +21,7 @@ import NotificationsSettingsTab from '@/modules/settings/tabs/NotificationsSetti
 import TasksSettingsTab from '@/modules/settings/tabs/tasks-settings/TasksSettingsTab';
 import { PluginSettingsTab } from '@/modules/plugins';
 import AboutTab from '@/modules/settings/tabs/AboutTab';
+import DiagnosticsTab from '@/modules/settings/tabs/DiagnosticsTab';
 import LoginLogSettingsTab from '@/modules/settings/tabs/LoginLogSettingsTab';
 import SharedTranscriptsSettingsTab from '@/modules/settings/tabs/SharedTranscriptsSettingsTab';
 import { useSettingsController } from '@/modules/settings/hooks/useSettingsController';
@@ -357,6 +358,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
               {activeTab === 'plugins' && <PluginSettingsTab />}
 
               {activeTab === 'network' && <NetworkSettingsTab />}
+
+              {activeTab === 'diagnostics' && <DiagnosticsTab />}
 
               {activeTab === 'about' && <AboutTab />}
             </div>

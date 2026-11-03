@@ -84,7 +84,6 @@ const renderList = (
       onSessionSelect={noop}
       onDeleteSession={noop}
       onLoadMoreSessions={noop}
-      onNewSession={noop}
       t={t}
     />
   );

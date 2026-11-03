@@ -40,6 +40,7 @@
     "unpinSession": "取消釘選工作階段",
     "pinnedSession": "已釘選工作階段",
     "manageSessions": "管理",
+    "organizeSessions": "整理工作階段",
     "selectAll": "全選",
     "deselectAll": "取消全選",
     "selectSession": "選取工作階段：{{name}}",

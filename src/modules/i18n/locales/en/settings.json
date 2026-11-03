@@ -155,6 +155,7 @@
     "notifications": "Notifications",
     "plugins": "Plugins",
     "network": "Network",
+    "diagnostics": "Diagnostics",
     "about": "About",
     "loginLog": "Login Log",
     "shares": "Shared Links"
@@ -1465,6 +1466,13 @@
     "loadStatusFailed": "Failed to load Browser status",
     "saveFailed": "Failed to save Browser settings",
     "installFailed": "Failed to install browser runtime"
+  },
+  "diagnostics": {
+    "title": "Diagnostics",
+    "description": "Record what this device actually does, for defects that only reproduce on a phone.",
+    "recorderLabel": "On-device recorder",
+    "recorderDescription": "Samples frames, DOM changes and scroll writes while you reproduce a problem. A 诊 button then appears in the chat.",
+    "howTo": "Open a chat, tap 诊, start a recording, reproduce the problem, then tap 上报. The report is saved on the machine running this server."
   },
   "about": {
     "tagline": "Open-source AI coding assistant interface",

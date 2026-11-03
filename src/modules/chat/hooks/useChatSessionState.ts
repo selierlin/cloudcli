@@ -10,6 +10,7 @@ import { createCachedDiffCalculator } from '@/modules/chat/utils/messageTransfor
 import { normalizedToChatMessages } from '@/modules/chat/hooks/useChatMessages';
 import { findSearchTargetIndex, resolveSearchWindowSize } from '@/modules/chat/utils/searchTargetLocator';
 import { readSelectedProvider } from '@/shared/selectedProvider';
+import { noteScrollWrite } from '@/shared/debug/scrollDiagnostics';
 import type { SearchTarget } from '@/modules/chat/utils/searchTargetLocator';
 
 const INITIAL_VISIBLE_MESSAGES = 100;
@@ -401,6 +402,19 @@ export function useChatSessionState({
   /** `clientY` where the current touch drag began, or null between drags. */
   const touchOriginYRef = useRef<number | null>(null);
   /**
+   * Whether a finger that has not lifted is resting on the pane.
+   *
+   * A gesture cannot always be read from `scrollTop`: during the iOS rubber
+   * band the content keeps moving visually while `scrollTop` stays clamped, so a
+   * drag through that region produces `scroll` events that look exactly like a
+   * write of our own landing on the clamp. Without this flag the follow treats
+   * the rubber band as its own write, keeps writing `scrollTop = scrollHeight`
+   * mid-drag, and every write collapses the stretched content back to the clamp
+   * — the transcript jumps once, repeatedly, before it settles down and only
+   * then starts tracking the finger.
+   */
+  const touchActiveRef = useRef(false);
+  /**
    * Bumped on every reader gesture (wheel or touch) as it arrives. The restore's
    * settle loop captures this at start and stands down only once it changes: a
    * touch's inertia tail keeps writing `scrollTop` for hundreds of ms with no
@@ -654,6 +668,7 @@ export function useChatSessionState({
     const container = scrollContainerRef.current;
     if (!container) return;
     container.scrollTop = container.scrollHeight;
+    noteScrollWrite('follow', container);
     // Read back instead of trusting the request: the browser clamps the write to
     // the scrollable range, and the sample has to match what it actually holds.
     programmaticScrollTopRef.current = container.scrollTop;
@@ -677,6 +692,12 @@ export function useChatSessionState({
       || pendingScrollRestoreRef.current !== null
       || searchScrollActiveRef.current
       || isUserScrolledUpRef.current
+      // A finger on the glass owns the viewport for as long as it is there, in
+      // either direction. `isUserScrolledUp` cannot cover the down direction
+      // (there is nothing to scroll up to), and the rubber band produces exactly
+      // the position our own write would, so nothing else can tell this drag
+      // apart from a flush that just landed.
+      || touchActiveRef.current
       // The restore's settle loop owns the viewport while it pins a row; a
       // follow write here would race it between frames.
       || anchorSettleRef.current !== null
@@ -701,6 +722,7 @@ export function useChatSessionState({
         !isActiveRef.current
         || activeSessionIdRef.current !== scheduledSessionId
         || isUserScrolledUpRef.current
+        || touchActiveRef.current
         || isLoadingMoreRef.current
         || pendingScrollRestoreRef.current
         || searchScrollActiveRef.current
@@ -794,6 +816,7 @@ export function useChatSessionState({
       if (Math.abs(drift) > ANCHOR_SETTLE_EPSILON_PX) {
         settle.stableFrames = 0;
         currentContainer.scrollTop += drift;
+        noteScrollWrite('anchorSettle', currentContainer);
       } else {
         settle.stableFrames += 1;
       }
@@ -1044,7 +1067,13 @@ export function useChatSessionState({
     // compensation moves it up when the pane grows, and a fast answer can push
     // the gap past the threshold before that write's own event is dispatched.
     const landedOnOurOwnWrite = (
-      programmaticScrollTopRef.current !== null
+      // A finger that has not lifted owns the viewport even when the position it
+      // produced is one we also wrote. In the rubber band `scrollTop` sits on
+      // the clamp for hundreds of ms while the content is visibly away from it,
+      // so `landedOnOurOwnWrite` is true the whole time and the gap-based rules
+      // below would go on calling the drag ours.
+      !touchActiveRef.current
+      && programmaticScrollTopRef.current !== null
       && Math.abs(container.scrollTop - programmaticScrollTopRef.current) <= SCROLL_UP_EPSILON_PX
     );
     const movedUp = (
@@ -1143,6 +1172,7 @@ export function useChatSessionState({
         );
         insertedAbove = nextAnchorOffset - anchorOffset;
         container.scrollTop += insertedAbove;
+        noteScrollWrite('restoreAnchor', container);
         // The page just mounted as estimated-height placeholders (see
         // ChatMessagesPane's lazy rows), so this compensation is measured
         // against estimated geometry. The settle loop re-pins the anchor while
@@ -1159,9 +1189,11 @@ export function useChatSessionState({
           0,
         );
         container.scrollTop = top + insertedAbove;
+        noteScrollWrite('restoreTail', container);
       } else {
         insertedAbove = Math.max(container.scrollHeight - height, 0);
         container.scrollTop = top + insertedAbove;
+        noteScrollWrite('restoreHeight', container);
       }
       // Latching the pager's guard belongs to this commit rather than to the
       // request that armed it: only here is the page's geometry known, and only
@@ -1208,6 +1240,7 @@ export function useChatSessionState({
     programmaticScrollTopRef.current = null;
     upwardIntentRef.current = false;
     touchOriginYRef.current = null;
+    touchActiveRef.current = false;
     setIsUserScrolledUp(false);
   }, [selectedProject?.projectId, selectedSession?.id, setIsUserScrolledUp, cancelAnchorSettle]);
 
@@ -1249,6 +1282,7 @@ export function useChatSessionState({
         return;
       }
       container.scrollTop = container.scrollHeight;
+      noteScrollWrite('initialScroll', container);
       if (container.scrollHeight === lastHeight) {
         stableCount++;
       } else {
@@ -1700,6 +1734,7 @@ export function useChatSessionState({
       }
     };
     const handleTouchStart = (event: TouchEvent) => {
+      touchActiveRef.current = true;
       touchOriginYRef.current = event.touches[0]?.clientY ?? null;
     };
     const handleTouchMove = (event: TouchEvent) => {
@@ -1720,7 +1755,15 @@ export function useChatSessionState({
       }
     };
     const handleTouchEnd = () => {
+      touchActiveRef.current = false;
       touchOriginYRef.current = null;
+      // Lifting the finger hands the viewport back. If the answer went quiet
+      // while the finger was down, nothing else asks for the tail again: every
+      // flush was refused by `touchActiveRef`, and a stationary finger emits no
+      // `scroll` event afterwards to release anything. A reader who is actually
+      // up in the transcript keeps their position — the latch and the upward
+      // intent both still stand the follow down.
+      if (!isUserScrolledUpRef.current) followTranscriptLayout();
     };
 
     container.addEventListener('wheel', handleWheel, { passive: true });
@@ -1736,7 +1779,7 @@ export function useChatSessionState({
       container.removeEventListener('touchend', handleTouchEnd);
       container.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [handleScroll, isNearBottom, loadNewerMessages]);
+  }, [followTranscriptLayout, handleScroll, isNearBottom, loadNewerMessages]);
 
   // "Load all" overlay visibility is driven by scroll-to-top in handleScroll;
   // timers are cleared on session change via the reset effect above.

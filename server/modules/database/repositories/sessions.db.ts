@@ -170,6 +170,12 @@ export const sessionsDb = {
    * `legacy_unknown` — survives the upsert. The four-word `initial_message`
    * title the app writes before any provider storage exists is provisional and
    * yields to whatever the provider derives from its own transcript.
+   *
+   * The name rules below never inspect which id the row is keyed by. A session
+   * first discovered on disk is stored with `session_id` equal to
+   * `provider_session_id`, yet the sidebar renames it exactly like an
+   * app-created row (see `renameSessionById`), so making the protection depend
+   * on the row's origin let the next scan overwrite that rename.
    */
   createSession(
     providerSessionId: string,
@@ -215,15 +221,13 @@ export const sessionsDb = {
            content_updated_at = COALESCE(?, content_updated_at),
            isArchived = CASE WHEN ? IS NOT NULL AND julianday(?) > julianday(updated_at) THEN 0 ELSE isArchived END,
            custom_name = CASE
-             WHEN session_id <> provider_session_id
-               AND custom_name IS NOT NULL
+             WHEN custom_name IS NOT NULL
                AND name_source IN ('manual_rename', 'claude_custom_title', 'fork', 'legacy_unknown')
                THEN custom_name
              ELSE COALESCE(?, custom_name)
            END,
            name_source = CASE
-             WHEN session_id <> provider_session_id
-               AND custom_name IS NOT NULL
+             WHEN custom_name IS NOT NULL
                AND name_source IN ('manual_rename', 'claude_custom_title', 'fork', 'legacy_unknown')
                THEN name_source
              ELSE COALESCE(?, name_source)
@@ -277,15 +281,13 @@ export const sessionsDb = {
          content_updated_at = COALESCE(excluded.content_updated_at, sessions.content_updated_at),
          isArchived = CASE WHEN ? IS NULL OR julianday(excluded.updated_at) > julianday(sessions.updated_at) THEN 0 ELSE sessions.isArchived END,
          custom_name = CASE
-           WHEN sessions.session_id <> sessions.provider_session_id
-             AND sessions.custom_name IS NOT NULL
+           WHEN sessions.custom_name IS NOT NULL
              AND sessions.name_source IN ('manual_rename', 'claude_custom_title', 'fork', 'legacy_unknown')
              THEN sessions.custom_name
            ELSE COALESCE(excluded.custom_name, sessions.custom_name)
          END,
          name_source = CASE
-           WHEN sessions.session_id <> sessions.provider_session_id
-             AND sessions.custom_name IS NOT NULL
+           WHEN sessions.custom_name IS NOT NULL
              AND sessions.name_source IN ('manual_rename', 'claude_custom_title', 'fork', 'legacy_unknown')
              THEN sessions.name_source
            ELSE COALESCE(excluded.name_source, sessions.name_source)

@@ -264,12 +264,15 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
       ?? sessionsDb.getSessionById(sessionId);
     const existingName = existingSession?.custom_name;
 
-    let nextName: string | undefined;
-    if (existingName && existingName !== fallbackTitle) {
-      nextName = existingName;
-    } else {
-      nextName = readOptionalString(row.title) ?? this.readFirstUserText(db, sessionId);
-    }
+    // OpenCode rewrites `session.title` once it has summarised the conversation,
+    // so the provider title must reach the repository on every pass: its
+    // name_source rules decide whether it lands. A manual rename survives, while
+    // the provisional four-word `initial_message` name yields. A missing title
+    // must not erase a usable name, so fall back to the current one, then to the
+    // session's first user text.
+    const nextName = readOptionalString(row.title)
+      ?? (existingName && existingName !== fallbackTitle ? existingName : undefined)
+      ?? this.readFirstUserText(db, sessionId);
 
     // OpenCode stores every session in one shared sqlite database, so jsonl_path
     // must stay null to avoid deleting opencode.db when one app session is removed.

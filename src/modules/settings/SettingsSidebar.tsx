@@ -1,4 +1,4 @@
-import { Bell, Bot, GitBranch, Globe, Info, Key, ListChecks, MessageSquare, Mic, MonitorPlay, Palette, Puzzle, ScrollText, Server, Share2, Zap } from 'lucide-react';
+import { Activity, Bell, Bot, GitBranch, Globe, Info, Key, ListChecks, MessageSquare, Mic, MonitorPlay, Palette, Puzzle, ScrollText, Server, Share2, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { cn } from '@/shared/utils';
@@ -32,6 +32,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'plugins', labelKey: 'mainTabs.plugins', icon: Puzzle },
   { id: 'network', labelKey: 'mainTabs.network', icon: Globe },
   { id: 'notifications', labelKey: 'mainTabs.notifications', icon: Bell },
+  { id: 'diagnostics', labelKey: 'mainTabs.diagnostics', icon: Activity },
   { id: 'about', labelKey: 'mainTabs.about', icon: Info },
 ];
 
