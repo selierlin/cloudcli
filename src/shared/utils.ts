@@ -604,23 +604,83 @@ type NativeServerSession = {
 };
 
 /**
- * Resolves the saved server an origin belongs to. Origins are compared through
- * `URL` rather than as raw strings so an entry stored with a trailing slash or a
- * path still matches the page's own origin. Used by the sidebar menu and the
- * workspace switcher to mark, or advance from, the server this WebView shows;
- * returns undefined for a hand-typed address that was never saved.
+ * Origins are compared through `URL` rather than as raw strings so an entry
+ * stored with a trailing slash or a path still matches the page's own origin.
+ */
+const isSavedServerOrigin = (server: SavedServer, origin: string): boolean => {
+  try {
+    return new URL(server.url).origin === origin;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Resolves the saved server an origin belongs to. Used by the sidebar menu and
+ * the workspace switcher to mark, or advance from, the server this WebView
+ * shows; returns undefined for a hand-typed address that was never saved.
  */
 export const findSavedServerByOrigin = (
   servers: readonly SavedServer[],
   origin: string,
-): SavedServer | undefined =>
-  servers.find((server) => {
-    try {
-      return new URL(server.url).origin === origin;
-    } catch {
-      return false;
+): SavedServer | undefined => servers.find((server) => isSavedServerOrigin(server, origin));
+
+/**
+ * Hues for telling saved servers apart at a glance. Fixed hex values rather
+ * than theme tokens: one server must keep one colour across light and dark, and
+ * in every WebView that reads the same list.
+ */
+const SERVER_COLOR_PALETTE = [
+  '#3b82f6',
+  '#10b981',
+  '#f59e0b',
+  '#ef4444',
+  '#8b5cf6',
+  '#06b6d4',
+  '#ec4899',
+  '#84cc16',
+] as const;
+
+/** FNV-1a over the origin — stable across reloads and identical in every WebView. */
+const hashServerOrigin = (origin: string): number => {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < origin.length; index += 1) {
+    hash ^= origin.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash;
+};
+
+/**
+ * One colour per saved server, in list order. Each origin starts from its hash
+ * slot and probes forward past collisions, so two servers that hash alike still
+ * end up distinguishable. Every WebView derives this from the same stored list,
+ * so the colours agree between servers; past eight entries the palette repeats
+ * rather than the probe looping forever.
+ */
+export const getServerColors = (servers: readonly SavedServer[]): string[] => {
+  const taken = new Set<number>();
+  return servers.map((server) => {
+    let slot = hashServerOrigin(server.url) % SERVER_COLOR_PALETTE.length;
+    if (taken.size >= SERVER_COLOR_PALETTE.length) {
+      return SERVER_COLOR_PALETTE[slot];
     }
+    while (taken.has(slot)) {
+      slot = (slot + 1) % SERVER_COLOR_PALETTE.length;
+    }
+    taken.add(slot);
+    return SERVER_COLOR_PALETTE[slot];
   });
+};
+
+/**
+ * The colour of the saved server this origin belongs to, or undefined when the
+ * page was opened from an address that was never saved.
+ */
+export const getServerColor = (servers: readonly SavedServer[], origin: string): string | undefined => {
+  const index = servers.findIndex((server) => isSavedServerOrigin(server, origin));
+  return index === -1 ? undefined : getServerColors(servers)[index];
+};
 
 /**
  * Switches the native shell to a saved server: records the target name for the

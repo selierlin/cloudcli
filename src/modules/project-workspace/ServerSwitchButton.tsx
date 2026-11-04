@@ -2,9 +2,29 @@ import { ArrowLeftRight, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import type { SavedServer } from '@/shared/types';
 import { useSavedServers } from '@/shared/hooks/useSavedServers';
-import { findSavedServerByOrigin, isCapacitorNativeShell, switchToSavedServer } from '@/shared/utils';
+import { findSavedServerByOrigin, getServerColor, isCapacitorNativeShell, switchToSavedServer } from '@/shared/utils';
 import { useRecentServerPair } from '@/modules/project-workspace/hooks/useRecentServerPair';
+
+/**
+ * The character shown inside the target swatch. A server saved without a name
+ * stores its URL, so fall back to the host — a bare "h" from "https://" would
+ * tell the user nothing.
+ */
+function getServerInitial(server: SavedServer): string {
+  const name = server.name?.trim();
+  let label = name && !/^https?:\/\//i.test(name) ? name : '';
+  if (!label) {
+    try {
+      label = new URL(server.url).hostname;
+    } catch {
+      // Keep the raw URL when it does not parse; its first character still helps.
+      label = server.url;
+    }
+  }
+  return Array.from(label)[0]?.toUpperCase() ?? '?';
+}
 
 /**
  * Rendered by WorkspaceHeader beside the workspace tab strip: one tap returns to
@@ -38,6 +58,10 @@ export default function ServerSwitchButton() {
 
   const nextLabel = targetServer.name || targetServer.url;
   const accessibleLabel = t('serverSwitch', { name: nextLabel });
+  // The swatch marks which server this view belongs to, so the two environments
+  // read differently at a glance. The tap itself still goes to the label above.
+  const currentColor = getServerColor(servers, window.location.origin);
+  const currentInitial = currentServer ? getServerInitial(currentServer) : undefined;
 
   const handleSwitch = async () => {
     if (isSwitching) {
@@ -63,6 +87,14 @@ export default function ServerSwitchButton() {
     >
       {isSwitching ? (
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+      ) : currentColor && currentInitial ? (
+        <span
+          aria-hidden="true"
+          className="flex h-5 w-5 items-center justify-center rounded-full border-2 bg-background text-[10px] font-semibold leading-none"
+          style={{ borderColor: currentColor, color: currentColor }}
+        >
+          {currentInitial}
+        </span>
       ) : (
         <ArrowLeftRight className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
       )}

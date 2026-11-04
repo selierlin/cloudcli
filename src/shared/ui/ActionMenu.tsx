@@ -13,6 +13,8 @@ export type ActionMenuItem = {
   label: string;
   description?: string;
   icon?: LucideIcon;
+  /** Draws a colour swatch ahead of the icon; the sidebar uses it to tag saved servers. */
+  color?: string;
   onSelect: () => void;
   disabled?: boolean;
   loading?: boolean;
@@ -36,6 +38,8 @@ type ActionMenuProps = {
   iconOnly?: boolean;
   portal?: boolean;
   header?: React.ReactNode;
+  /** Rendered between the trigger edge and the icon, for a status dot or swatch. */
+  leading?: React.ReactNode;
   onOpenChange?: (open: boolean) => void;
 };
 
@@ -55,6 +59,7 @@ export function ActionMenu({
   iconOnly = false,
   portal = false,
   header,
+  leading,
   onOpenChange,
 }: ActionMenuProps) {
   const [isOpen, setIsOpen] = React.useState(false);
@@ -223,7 +228,16 @@ export function ActionMenu({
               {item.loading ? (
                 <Loader2 className="mt-0.5 h-4 w-4 flex-shrink-0 animate-spin" />
               ) : (
-                Icon && <Icon className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <>
+                  {item.color && (
+                    <span
+                      aria-hidden="true"
+                      className="mt-1.5 h-2.5 w-2.5 flex-shrink-0 rounded-full"
+                      style={{ backgroundColor: item.color }}
+                    />
+                  )}
+                  {Icon && <Icon className="mt-0.5 h-4 w-4 flex-shrink-0" />}
+                </>
               )}
               <span className="min-w-0 flex-1">
                 <span className="block font-medium leading-5">{item.label}</span>
@@ -258,6 +272,7 @@ export function ActionMenu({
           toggleMenu();
         }}
       >
+        {leading}
         {TriggerIcon && <TriggerIcon className="h-4 w-4" />}
         {!iconOnly && (
           <>

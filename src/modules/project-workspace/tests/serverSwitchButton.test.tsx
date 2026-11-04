@@ -117,6 +117,18 @@ describe('ServerSwitchButton', () => {
     );
   });
 
+  it('marks this server, not the target, in a swatch of its own colour', async () => {
+    // Two servers look alike in the chat view, so the button carries the colour
+    // and initial of the one on screen; the aria-label says where the tap goes.
+    await renderSwitchButton([CURRENT, OTHER], [CURRENT.url, OTHER.url]);
+
+    const swatch = screen.getByRole('button').querySelector<HTMLElement>('span[aria-hidden="true"]');
+
+    expect(swatch?.textContent).toBe('C');
+    expect(swatch?.style.borderColor).toBeTruthy();
+    expect(screen.getByRole('button').getAttribute('aria-label')).toContain(OTHER.name);
+  });
+
   it('falls back to list order when the previous server was removed from the picker', async () => {
     await renderSwitchButton([CURRENT, OTHER], ['https://gone.example', CURRENT.url]);
 

@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/modules/auth';
 import { CLOUDCLI_PICKER_URL_KEY } from '@/shared/constants';
 import { useSavedServers } from '@/shared/hooks/useSavedServers';
-import { findSavedServerByOrigin, IS_PLATFORM, isCapacitorNativeShell, switchToSavedServer } from '@/shared/utils';
+import { findSavedServerByOrigin, getServerColors, IS_PLATFORM, isCapacitorNativeShell, switchToSavedServer } from '@/shared/utils';
 import { ActionMenu, Button, Dialog, DialogContent, DialogTitle, type ActionMenuItem } from '@/shared/ui';
 
 type WebCachePlugin = {
@@ -46,6 +46,10 @@ export default function SidebarServerMenu({ onShowSettings }: SidebarServerMenuP
   // `cloudcli.serverName` 标量——后者会被其它存活的 WebView 覆写，导致标题被锁死在旧值。
   const currentServer = findSavedServerByOrigin(servers, currentServerUrl);
   const menuLabel = currentServer?.name || currentServer?.url || t('app.title');
+  // One colour per server, shared with the workspace header's edge stripe so a
+  // switch is visible without reading the name.
+  const serverColors = getServerColors(servers);
+  const currentServerColor = currentServer ? serverColors[servers.indexOf(currentServer)] : undefined;
 
   useEffect(() => {
     if (!isNativeShell) {
@@ -122,6 +126,7 @@ export default function SidebarServerMenu({ onShowSettings }: SidebarServerMenuP
         label: server.name || server.url,
         description: server.url,
         icon: isCurrent ? Check : Server,
+        color: serverColors[index],
         onSelect: isCurrent ? () => undefined : () => void switchToSavedServer(server),
         showDividerBefore: index === 0,
       });
@@ -186,6 +191,15 @@ export default function SidebarServerMenu({ onShowSettings }: SidebarServerMenuP
         menuClassName="min-w-[236px]"
         portal
         header={menuHeader}
+        leading={
+          currentServerColor ? (
+            <span
+              aria-hidden="true"
+              className="h-2 w-2 flex-shrink-0 rounded-full"
+              style={{ backgroundColor: currentServerColor }}
+            />
+          ) : undefined
+        }
       />
 
       <Dialog open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
@@ -196,6 +210,13 @@ export default function SidebarServerMenu({ onShowSettings }: SidebarServerMenuP
           aria-haspopup="dialog"
           aria-expanded={isMobileMenuOpen}
         >
+          {currentServerColor && (
+            <span
+              aria-hidden="true"
+              className="h-2 w-2 flex-shrink-0 rounded-full"
+              style={{ backgroundColor: currentServerColor }}
+            />
+          )}
           <span className="truncate">{menuLabel}</span>
           <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
         </button>
