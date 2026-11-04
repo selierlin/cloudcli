@@ -258,22 +258,42 @@ test('the install route answers a git failure with its code and message instead 
     response.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
   });
 
-  // install() only takes https:// and git@ URLs; nothing listens on this port.
-  const url = `https://127.0.0.1:${await closedPort()}/acme/plugin.git`;
-  await withServer(app, async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/api/plugins/install`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
-    });
-    const body = await response.json() as { success: boolean; error: { code: string; message: string; details: GitErrorDetails } };
+  // install() only takes https:// and git@ URLs. The host stays 127.0.0.1 and
+  // the proxy points at a closed port, so this fails on a loopback connection
+  // with no DNS lookup, no network and no throwaway listener to race. Pointing
+  // the URL at the closed port itself would only reproduce Linux: macOS's git
+  // builds against LibreSSL and says "SSL_connect: SSL_ERROR_SYSCALL" there.
+  const savedProxy = Object.fromEntries(
+    ['https_proxy', 'http_proxy', 'no_proxy', 'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY']
+      .map((name) => [name, process.env[name]]),
+  );
+  const closed = await closedPort();
+  process.env.https_proxy = `http://127.0.0.1:${closed}`;
+  process.env.http_proxy = `http://127.0.0.1:${closed}`;
+  process.env.no_proxy = '';
+  process.env.NO_PROXY = '';
+  const url = 'https://git.example.test/acme/plugin.git';
+  try {
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/plugins/install`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      const body = await response.json() as { success: boolean; error: { code: string; message: string; details: GitErrorDetails } };
 
-    assert.equal(response.status, 502);
-    assert.equal(body.success, false);
-    assert.equal(body.error.code, 'PLUGIN_GIT_HOST_UNREACHABLE');
-    assert.match(body.error.message, /^Could not install the plugin: the git host could not be reached/);
-    assert.match(body.error.details.gitOutput, /Failed to connect to 127\.0\.0\.1/);
-  });
+      assert.equal(response.status, 502);
+      assert.equal(body.success, false);
+      assert.equal(body.error.code, 'PLUGIN_GIT_HOST_UNREACHABLE');
+      assert.match(body.error.message, /^Could not install the plugin: the git host could not be reached/);
+      assert.match(body.error.details.gitOutput, /Failed to connect to 127\.0\.0\.1/);
+    });
+  } finally {
+    for (const [name, value] of Object.entries(savedProxy)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
 });
 
 // git's stderr as measured with git 2.43 against GitHub, over HTTPS and SSH.
