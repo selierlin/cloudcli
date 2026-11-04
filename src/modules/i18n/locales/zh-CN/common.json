@@ -26,6 +26,7 @@
     "browser": "浏览器",
     "computer": "计算机"
   },
+  "serverSwitch": "切换到 {{name}}",
   "status": {
     "loading": "加载中...",
     "success": "成功",

@@ -348,6 +348,23 @@ export const WORKBUDDY_SETTINGS_STORAGE_KEY = 'workbuddy-settings';
  */
 export const CLOUDCLI_SERVERS_KEY = 'cloudcli.servers';
 
+/**
+ * Key holding the display name of the server the native shell is currently
+ * showing, written before every switch so the sidebar title and the launch
+ * splash can label the incoming server before its WebView has loaded. Only a
+ * fallback: the sidebar prefers reverse-looking it up by origin, because this
+ * scalar is shared across every live WebView and can be overwritten by a
+ * hidden sibling. `mobile/www/picker.js` writes the same literal.
+ */
+export const CLOUDCLI_SERVER_NAME_KEY = 'cloudcli.serverName';
+
+/**
+ * Key holding the URL of the server picker page, written by the picker when it
+ * connects. Remote pages read it to navigate "back to server list" without
+ * bundling the picker's address. `mobile/www/picker.js` writes the same literal.
+ */
+export const CLOUDCLI_PICKER_URL_KEY = 'cloudcli.pickerUrl';
+
 // ---------------------------
 
 //----------------- THEMES ------------

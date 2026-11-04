@@ -4,12 +4,10 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useAuth } from '@/modules/auth';
-import { CLOUDCLI_SERVERS_KEY } from '@/shared/constants';
-import { IS_PLATFORM, isCapacitorNativeShell } from '@/shared/utils';
+import { CLOUDCLI_PICKER_URL_KEY } from '@/shared/constants';
+import { useSavedServers } from '@/shared/hooks/useSavedServers';
+import { findSavedServerByOrigin, IS_PLATFORM, isCapacitorNativeShell, switchToSavedServer } from '@/shared/utils';
 import { ActionMenu, Button, Dialog, DialogContent, DialogTitle, type ActionMenuItem } from '@/shared/ui';
-
-const PICKER_URL_KEY = 'cloudcli.pickerUrl';
-const SERVER_NAME_KEY = 'cloudcli.serverName';
 
 type WebCachePlugin = {
   clear: () => Promise<void>;
@@ -17,13 +15,6 @@ type WebCachePlugin = {
 
 type ServerSessionPlugin = {
   showPicker: () => Promise<void>;
-  switchToServer: (options: { url: string }) => Promise<void>;
-};
-
-/** 选择页（mobile/www/picker.js）持久化到原生存储的已保存服务器条目。 */
-type SavedServer = {
-  name?: string;
-  url: string;
 };
 
 type CapacitorWindow = {
@@ -40,8 +31,9 @@ export default function SidebarServerMenu({ onShowSettings }: SidebarServerMenuP
   const { t } = useTranslation(['sidebar', 'auth']);
   const { user, logout } = useAuth();
   const [pickerUrl, setPickerUrl] = useState<string | null>(null);
-  // 已保存服务器列表，用于在服务器名称菜单里直接切换（而非先回到选择页）。
-  const [servers, setServers] = useState<SavedServer[]>([]);
+  // Saved servers come from the shared hook so the sidebar and the workspace
+  // switcher agree on the list, including its refresh after a picker edit.
+  const servers = useSavedServers();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
   const [isClearCacheDialogOpen, setIsClearCacheDialogOpen] = useState(false);
@@ -52,7 +44,7 @@ export default function SidebarServerMenu({ onShowSettings }: SidebarServerMenuP
   const currentServerUrl = typeof window !== 'undefined' ? window.location.origin : '';
   // 标题按当前 origin 在已保存服务器列表里反查，而不是读跨 origin 共享的
   // `cloudcli.serverName` 标量——后者会被其它存活的 WebView 覆写，导致标题被锁死在旧值。
-  const currentServer = servers.find((server) => server.url === currentServerUrl);
+  const currentServer = findSavedServerByOrigin(servers, currentServerUrl);
   const menuLabel = currentServer?.name || currentServer?.url || t('app.title');
 
   useEffect(() => {
@@ -61,7 +53,7 @@ export default function SidebarServerMenu({ onShowSettings }: SidebarServerMenuP
     }
 
     let disposed = false;
-    void Preferences.get({ key: PICKER_URL_KEY })
+    void Preferences.get({ key: CLOUDCLI_PICKER_URL_KEY })
       .then((result) => {
         if (!disposed && result.value) {
           setPickerUrl(result.value);
@@ -69,29 +61,6 @@ export default function SidebarServerMenu({ onShowSettings }: SidebarServerMenuP
       })
       .catch(() => {
         // 无法读取服务器选择页地址时，仅隐藏返回入口。
-      });
-
-    void Preferences.get({ key: CLOUDCLI_SERVERS_KEY })
-      .then((result) => {
-        if (disposed || !result.value) {
-          return;
-        }
-        try {
-          const parsed: unknown = JSON.parse(result.value);
-          if (Array.isArray(parsed)) {
-            setServers(
-              parsed.filter(
-                (item): item is SavedServer =>
-                  typeof item === 'object' && item !== null && typeof item.url === 'string',
-              ),
-            );
-          }
-        } catch {
-          // 服务器列表数据损坏时忽略，仅不展示快速切换。
-        }
-      })
-      .catch(() => {
-        // 无法读取服务器列表时，仅不展示快速切换。
       });
 
     return () => {
@@ -112,27 +81,6 @@ export default function SidebarServerMenu({ onShowSettings }: SidebarServerMenuP
 
     if (pickerUrl) {
       window.location.href = pickerUrl;
-    }
-  };
-
-  /**
-   * 直接切换到指定服务器：先写入目标服务器名称（splash 与侧栏标题读取自
-   * 原生存储），再调用原生 ServerSession.switchToServer 复用/加载对应 WebView。
-   */
-  const switchServer = async (server: SavedServer) => {
-    const serverSession = capacitor?.registerPlugin?.('ServerSession') as ServerSessionPlugin | undefined;
-    if (!serverSession) {
-      return;
-    }
-    try {
-      await Preferences.set({ key: SERVER_NAME_KEY, value: server.name || server.url });
-    } catch {
-      // 写入名称失败不阻断切换，仅目标页标题可能不准确。
-    }
-    try {
-      await serverSession.switchToServer({ url: server.url });
-    } catch {
-      // 原生切换失败时停留在当前服务器。
     }
   };
 
@@ -168,13 +116,13 @@ export default function SidebarServerMenu({ onShowSettings }: SidebarServerMenuP
   // 原生壳内直接列出已保存服务器，点击即可切换，无需先回到选择页。
   if (isNativeShell && pickerUrl && servers.length > 0) {
     servers.forEach((server, index) => {
-      const isCurrent = server.url === currentServerUrl;
+      const isCurrent = server === currentServer;
       menuItems.push({
         key: `server-${server.url}`,
         label: server.name || server.url,
         description: server.url,
         icon: isCurrent ? Check : Server,
-        onSelect: isCurrent ? () => undefined : () => void switchServer(server),
+        onSelect: isCurrent ? () => undefined : () => void switchToSavedServer(server),
         showDividerBefore: index === 0,
       });
     });

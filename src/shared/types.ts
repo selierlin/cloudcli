@@ -1900,6 +1900,21 @@ export type AuthEventRow = {
 
 // ---------------------------
 
+//----------------- NATIVE SERVER LIST ------------
+
+/**
+ * One entry of the server list the iOS picker stores in native preferences, read
+ * back by the sidebar menu and the workspace switcher. `url` is always a bare
+ * origin (the picker strips paths and trailing slashes), which is what makes an
+ * origin comparison against `window.location.origin` meaningful.
+ */
+export type SavedServer = {
+  name?: string;
+  url: string;
+};
+
+// ---------------------------
+
 //----------------- SHELL ------------
 
 /** Handle returned when touch text-selection is installed on an xterm terminal; call updateHandles after the terminal reflows and dispose when tearing the terminal down. */

@@ -1,7 +1,9 @@
+import { Preferences } from '@capacitor/preferences';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
-import type { CodeFontFamilyId, FontFamilyId, Project, ProjectSession, QuickSettingsTab, SlashCommand, TerminalFontFamilyId, ThemeManifest } from '@/shared/types';
+import type { CodeFontFamilyId, FontFamilyId, Project, ProjectSession, QuickSettingsTab, SavedServer, SlashCommand, TerminalFontFamilyId, ThemeManifest } from '@/shared/types';
+import { CLOUDCLI_SERVER_NAME_KEY } from '@/shared/constants';
 import { applyFavicon } from '@/shared/favicon';
 
 //----------------- DEPLOYMENT MODE ------------
@@ -593,3 +595,61 @@ export const getQuickSettingsTabId = (tab: QuickSettingsTab): string => `quick-s
 
 /** DOM id of the tabpanel a quick settings tab controls; pairs with `getQuickSettingsTabId`. */
 export const getQuickSettingsTabPanelId = (tab: QuickSettingsTab): string => `quick-settings-tabpanel-${tab}`;
+
+//----------------- NATIVE SERVER LIST ------------
+
+/** The subset of the native ServerSession plugin these helpers call. */
+type NativeServerSession = {
+  switchToServer: (options: { url: string }) => Promise<void>;
+};
+
+/**
+ * Resolves the saved server an origin belongs to. Origins are compared through
+ * `URL` rather than as raw strings so an entry stored with a trailing slash or a
+ * path still matches the page's own origin. Used by the sidebar menu and the
+ * workspace switcher to mark, or advance from, the server this WebView shows;
+ * returns undefined for a hand-typed address that was never saved.
+ */
+export const findSavedServerByOrigin = (
+  servers: readonly SavedServer[],
+  origin: string,
+): SavedServer | undefined =>
+  servers.find((server) => {
+    try {
+      return new URL(server.url).origin === origin;
+    } catch {
+      return false;
+    }
+  });
+
+/**
+ * Switches the native shell to a saved server: records the target name for the
+ * sidebar title and launch splash, then asks the ServerSession plugin to reuse
+ * or load that server's WebView. Resolves false when the bridge is missing or
+ * refused, so callers can leave the current server untouched instead of
+ * assuming the switch happened. A failed name write is ignored — it only costs
+ * the target page its title. Used by the sidebar menu and the workspace
+ * switcher, which must stay on this one path so a switch behaves identically
+ * wherever it is triggered.
+ */
+export const switchToSavedServer = async (server: SavedServer): Promise<boolean> => {
+  const serverSession = (
+    window as unknown as { Capacitor?: { registerPlugin?: (name: string) => unknown } }
+  ).Capacitor?.registerPlugin?.('ServerSession') as NativeServerSession | undefined;
+  if (!serverSession) {
+    return false;
+  }
+
+  try {
+    await Preferences.set({ key: CLOUDCLI_SERVER_NAME_KEY, value: server.name || server.url });
+  } catch {
+    // The switch itself is what matters; the title is cosmetic.
+  }
+
+  try {
+    await serverSession.switchToServer({ url: server.url });
+    return true;
+  } catch {
+    return false;
+  }
+};

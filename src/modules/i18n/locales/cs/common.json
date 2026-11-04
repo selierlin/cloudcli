@@ -27,6 +27,7 @@
     "computer": "Počítač",
     "views": "Zobrazení pracovního prostoru"
   },
+  "serverSwitch": "Přepnout na {{name}}",
   "status": {
     "loading": "Načítání...",
     "success": "Úspěch",

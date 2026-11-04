@@ -27,6 +27,7 @@
     "computer": "מחשב",
     "views": "תצוגות סביבת העבודה"
   },
+  "serverSwitch": "החלף אל {{name}}",
   "status": {
     "loading": "טוען…",
     "success": "הצלחה",

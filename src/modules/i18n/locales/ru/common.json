@@ -26,6 +26,7 @@
     "browser": "Browser",
     "computer": "Компьютер"
   },
+  "serverSwitch": "Переключиться на {{name}}",
   "status": {
     "loading": "Загрузка...",
     "success": "Успешно",

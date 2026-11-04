@@ -26,6 +26,7 @@
     "browser": "Browser",
     "computer": "Computer"
   },
+  "serverSwitch": "Passa a {{name}}",
   "status": {
     "loading": "Caricamento...",
     "success": "Completato",

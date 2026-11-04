@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import type { AppTab, Project, ProjectSession } from '@/shared/types';
 import { cn } from '@/shared/utils';
 import MobileMenuButton from '@/modules/project-workspace/MobileMenuButton';
+import ServerSwitchButton from '@/modules/project-workspace/ServerSwitchButton';
 import WorkspaceConnectionStatus from '@/modules/project-workspace/WorkspaceConnectionStatus';
 import WorkspaceTabs from '@/modules/project-workspace/WorkspaceTabs';
 import WorkspaceTitle from '@/modules/project-workspace/WorkspaceTitle';
@@ -111,49 +112,53 @@ export default function WorkspaceHeader({
         </div>
 
         <div className="-mx-3 min-w-0 sm:mx-0 sm:flex-1">
-          <div className="relative ml-auto w-fit max-w-full">
-            {canScrollLeft && (
-              <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-background via-background/90 to-transparent" />
-            )}
-            <div
-              ref={scrollRef}
-              onScroll={updateScrollState}
-              className={cn(
-                'scrollbar-hide max-w-full scroll-smooth overflow-x-auto overscroll-x-contain px-3 [-webkit-overflow-scrolling:touch]',
-                hasOverflow ? 'sm:px-9' : 'sm:pl-3 sm:pr-0',
+          <div className="ml-auto flex w-fit max-w-full items-center gap-1">
+            <div className="relative min-w-0">
+              {canScrollLeft && (
+                <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-background via-background/90 to-transparent" />
               )}
-            >
-              <WorkspaceTabs
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
-                shouldShowTasksTab={shouldShowTasksTab}
-                shouldShowBrowserTab={shouldShowBrowserTab}
-              />
-            </div>
-            {canScrollRight && (
-              <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-background via-background/90 to-transparent" />
-            )}
+              <div
+                ref={scrollRef}
+                onScroll={updateScrollState}
+                className={cn(
+                  'scrollbar-hide max-w-full scroll-smooth overflow-x-auto overscroll-x-contain px-3 [-webkit-overflow-scrolling:touch]',
+                  hasOverflow ? 'sm:px-9' : 'sm:pl-3 sm:pr-0',
+                )}
+              >
+                <WorkspaceTabs
+                  activeTab={activeTab}
+                  setActiveTab={setActiveTab}
+                  shouldShowTasksTab={shouldShowTasksTab}
+                  shouldShowBrowserTab={shouldShowBrowserTab}
+                />
+              </div>
+              {canScrollRight && (
+                <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-background via-background/90 to-transparent" />
+              )}
 
-            {canScrollLeft && (
-              <button
-                type="button"
-                onClick={() => scrollTabs(-1)}
-                aria-label={t('navigation.scrollTabsLeft', { defaultValue: 'Scroll tabs left' })}
-                className="absolute left-1 top-1/2 z-20 hidden h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md border border-border/70 bg-background/95 text-muted-foreground shadow-sm outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/60 sm:flex"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-            )}
-            {canScrollRight && (
-              <button
-                type="button"
-                onClick={() => scrollTabs(1)}
-                aria-label={t('navigation.scrollTabsRight', { defaultValue: 'Scroll tabs right' })}
-                className="absolute right-1 top-1/2 z-20 hidden h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md border border-border/70 bg-background/95 text-muted-foreground shadow-sm outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/60 sm:flex"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            )}
+              {canScrollLeft && (
+                <button
+                  type="button"
+                  onClick={() => scrollTabs(-1)}
+                  aria-label={t('navigation.scrollTabsLeft', { defaultValue: 'Scroll tabs left' })}
+                  className="absolute left-1 top-1/2 z-20 hidden h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md border border-border/70 bg-background/95 text-muted-foreground shadow-sm outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/60 sm:flex"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+              )}
+              {canScrollRight && (
+                <button
+                  type="button"
+                  onClick={() => scrollTabs(1)}
+                  aria-label={t('navigation.scrollTabsRight', { defaultValue: 'Scroll tabs right' })}
+                  className="absolute right-1 top-1/2 z-20 hidden h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md border border-border/70 bg-background/95 text-muted-foreground shadow-sm outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/60 sm:flex"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            <ServerSwitchButton />
           </div>
         </div>
       </div>

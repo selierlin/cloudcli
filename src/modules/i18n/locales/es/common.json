@@ -27,6 +27,7 @@
     "computer": "Equipo",
     "views": "Vistas del espacio de trabajo"
   },
+  "serverSwitch": "Cambiar a {{name}}",
   "status": {
     "loading": "Cargando...",
     "success": "Éxito",

@@ -26,6 +26,7 @@
     "browser": "Navigateur",
     "computer": "Ordinateur"
   },
+  "serverSwitch": "Passer à {{name}}",
   "status": {
     "loading": "Chargement...",
     "success": "Succès",

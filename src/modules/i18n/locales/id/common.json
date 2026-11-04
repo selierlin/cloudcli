@@ -26,6 +26,7 @@
     "browser": "Browser",
     "computer": "Komputer"
   },
+  "serverSwitch": "Ganti ke {{name}}",
   "status": {
     "loading": "Memuat...",
     "success": "Berhasil",

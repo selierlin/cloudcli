@@ -26,6 +26,7 @@
     "browser": "Browser",
     "computer": "Computer"
   },
+  "serverSwitch": "{{name}}(으)로 전환",
   "status": {
     "loading": "로딩 중...",
     "success": "성공",
