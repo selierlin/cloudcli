@@ -33,7 +33,16 @@ export function useBottomEdgeResizeCompensation(
     const observer = new ResizeObserver(() => {
       const height = container.clientHeight;
       const delta = height - previousHeight;
-      if (delta !== 0 && previousHeight > 0 && height > 0) {
+      // A pane that grew while already pinned to the tail owes nothing: the
+      // browser clamps `scrollTop` to the new maximum itself, and that clamp is
+      // the same correction written by hand below. Paying for it twice drags
+      // the transcript down by the delta and leaves it there — measured 34 px
+      // every time the keyboard rose, because the composer's safe-area padding
+      // collapses (the pane grows 34) a frame before the keyboard takes the
+      // rest. A shrink never clamps, so it is always paid in full.
+      const maxScrollTop = container.scrollHeight - height;
+      const clampedToTail = delta > 0 && container.scrollTop >= maxScrollTop - 1;
+      if (delta !== 0 && previousHeight > 0 && height > 0 && !clampedToTail) {
         // A shrink (negative delta) scrolls down by the same amount the bottom
         // edge rose, keeping the former bottom rows above it; a grow scrolls
         // back up symmetrically. The browser clamps the write to the

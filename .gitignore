@@ -174,3 +174,6 @@ scripts/harness-bench/results/**/*.json
 scripts/harness-bench/probe-*.mjs
 scripts/harness-bench/verify-*.mjs
 public/screenshots/
+
+# TypeScript incremental build state
+*.tsbuildinfo

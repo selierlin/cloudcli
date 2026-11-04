@@ -171,6 +171,33 @@ describe('useBottomEdgeResizeCompensation', () => {
     expect(container.writes).toEqual([1100, 1300]);
   });
 
+  /**
+   * Raising the keyboard shrinks the pane, but it also collapses the composer's
+   * safe-area padding one frame earlier, which *grows* the pane. A pane that
+   * grew while pinned to the tail has already been corrected: the browser clamps
+   * `scrollTop` to the new maximum on its own. Compensating that clamp again
+   * pushed the transcript a safe-area's worth of content out of place every time
+   * the keyboard opened — the row the reader had beside the input slid away
+   * before the keyboard even finished rising.
+   */
+  it('does not pay twice when a tail-pinned pane grows and the browser clamps', () => {
+    const container = createContainer(3000, 500);
+    container.setScrollTop(2500);
+    renderWithContainer(container.element);
+
+    // The composer padding collapses: pane 500 -> 534, and the clamp moved
+    // scrollTop from 2500 to the new maximum, 2466.
+    container.setClientHeight(534);
+    container.setScrollTop(2466);
+    fireContainerResize();
+    expect(container.writes).toEqual([]);
+
+    // Then the keyboard takes its 336: a plain shrink, paid in full.
+    container.setClientHeight(198);
+    fireContainerResize();
+    expect(container.currentScrollTop()).toBe(2802);
+  });
+
   it('records each write, so the ownership rule can tell it from a pull', () => {
     const container = createContainer(3000, 800);
     container.setScrollTop(1000);

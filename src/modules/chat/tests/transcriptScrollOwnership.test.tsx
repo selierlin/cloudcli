@@ -30,6 +30,17 @@ function runAnimationFrame(timestamp = 16): void {
   callbacks.forEach(callback => callback(timestamp));
 }
 
+/**
+ * Runs the frames the restore's settle loop needs to stand down on its own. It
+ * waits for a run of consecutive stable frames rather than one, because a
+ * platform write can land a frame or two behind the restore's own.
+ */
+function drainSettleLoop(): void {
+  for (let frame = 0; frame < 12; frame += 1) {
+    act(() => runAnimationFrame());
+  }
+}
+
 const project: Project = {
   projectId: 'project-1',
   path: '/repo',
@@ -58,21 +69,30 @@ const buildMessages = (count: number): NormalizedMessage[] => Array.from(
  * jsdom has no layout, so scrollHeight/clientHeight are always 0 and assigning
  * scrollTop emits nothing. These are the exact reads the scroll code makes.
  */
-function createContainer(scrollHeight: number, clientHeight: number) {
+function createContainer(
+  scrollHeight: number,
+  clientHeight: number,
+  options: { quantizeScrollTop?: boolean } = {},
+) {
   const element = document.createElement('div');
   const writes: number[] = [];
   let currentScrollHeight = scrollHeight;
   let currentClientHeight = clientHeight;
   let scrollTop = scrollHeight - clientHeight;
 
+  const writeScrollTop = (next: number) => {
+    // WebKit stores the offset on the device grid, so a fractional write comes
+    // back a pixel short of what was asked for.
+    scrollTop = options.quantizeScrollTop ? Math.trunc(next) : next;
+    writes.push(scrollTop);
+  };
+
   Object.defineProperty(element, 'scrollHeight', { get: () => currentScrollHeight });
   Object.defineProperty(element, 'clientHeight', { get: () => currentClientHeight });
   Object.defineProperty(element, 'scrollTop', {
+    configurable: true,
     get: () => scrollTop,
-    set: (next: number) => {
-      scrollTop = next;
-      writes.push(next);
-    },
+    set: writeScrollTop,
   });
 
   return {
@@ -85,6 +105,39 @@ function createContainer(scrollHeight: number, clientHeight: number) {
     /** Moves the pane's bottom edge, as the keyboard and composer do. */
     setClientHeight: (next: number) => {
       currentClientHeight = next;
+    },
+    /**
+     * Hands the offset to the platform: reads keep returning `value` and writes
+     * are dropped, the way a phone's scroll view holds its own offset through a
+     * deceleration. Each attempt is still recorded, so a case can count them.
+     */
+    pinScrollTop: (value: number) => {
+      Object.defineProperty(element, 'scrollTop', {
+        configurable: true,
+        get: () => value,
+        set: () => {
+          writes.push(value);
+        },
+      });
+    },
+    /**
+     * Hands the offset back after `pinScrollTop`: the platform's spring has
+     * finished and writes are accepted again.
+     */
+    releaseScrollTop: (value?: number) => {
+      if (value !== undefined) scrollTop = value;
+      Object.defineProperty(element, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: writeScrollTop,
+      });
+    },
+    /**
+     * Moves the offset the way a coast does — the platform owns it, so nothing
+     * is written and no attempt shows up in `writes`.
+     */
+    coastTo: (value: number) => {
+      scrollTop = value;
     },
   };
 }
@@ -110,17 +163,27 @@ function createGeometryAwareRow(
   row.setAttribute('data-message-timestamp', '2026-01-01T00:00:00.100Z');
   let settledMore = 0;
   let rowReads = 0;
+  let followsScroll = true;
   row.getBoundingClientRect = () => {
     rowReads += 1;
     const landed = rowReads <= 2 ? 0 : pageInsertion + settledMore;
-    const top = baselineOffset + landed - (container.element.scrollTop - initialTop);
-    return { top, bottom: top + 100 } as DOMRect;
+    const scrolled = followsScroll ? container.element.scrollTop - initialTop : 0;
+    const top = baselineOffset + landed - scrolled;
+    return { top, bottom: top + 100, height: 100 } as DOMRect;
   };
   return {
     row,
     /** Grows the height inserted above the row, as lazy rows settling do. */
     settleMore: (px: number) => {
       settledMore += px;
+    },
+    /**
+     * Leaves the rect where the last read put it, the way a node outside the
+     * scroll flow behaves: the transcript can clone a row into a sticky header
+     * or a hidden duplicate, and `scrollTop` never moves that copy.
+     */
+    detachFromScroll: () => {
+      followsScroll = false;
     },
   };
 }
@@ -1020,8 +1083,7 @@ describe('paging at the top of the loaded window', () => {
     // The settle loop the restore armed drains over the following frames
     // without writing anything (the geometry above is already stable), so it
     // cannot interfere with the pager guard exercised below.
-    act(() => runAnimationFrame());
-    act(() => runAnimationFrame());
+    drainSettleLoop();
     assert.equal(frameCallbacks.size, 0);
 
     // Still inside the top zone, so the guard holds this gesture off...
@@ -1034,8 +1096,13 @@ describe('paging at the top of the loaded window', () => {
       'a page with real content above the reader keeps the one-page-per-visit rule',
     );
 
-    // ...and releases on it, so the gesture after that is served: latching is
-    // only ever done by a page that can move the reader past the release point.
+    // ...and releases when the reader actually moves down through the page it
+    // inserted. A sample that lands back on the offset the restore wrote is not
+    // that move — only the reader can supply it.
+    await act(async () => {
+      container.element.scrollTop = 60;
+      container.element.dispatchEvent(new Event('scroll'));
+    });
     await act(async () => {
       container.element.dispatchEvent(new Event('scroll'));
     });
@@ -1047,6 +1114,170 @@ describe('paging at the top of the loaded window', () => {
 
     container.element.remove();
   });
+
+  it('keeps the reader\'s own drag out of the height it charges the page', async () => {
+    const tail = buildMessages(20);
+    const older = buildMessages(20).map((message, index) => ({
+      ...message,
+      id: `older-${index}`,
+    }));
+    const messages = new Map<string, NormalizedMessage[]>([[SESSION_A, tail]]);
+    const store = createStore(messages, { hasMore: true, total: 1941 });
+
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    document.body.appendChild(container.element);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+    await act(async () => undefined);
+
+    // The reader reaches the top zone and keeps dragging: the offset they leave
+    // behind at the commit belongs to them, not to the page. The row's rect
+    // follows the offset so the two are told apart by real geometry.
+    const capturedAt = 60;
+    let insertedAbove = 0;
+    const row = document.createElement('div');
+    row.setAttribute('data-message-timestamp', '2026-01-01T00:00:00.100Z');
+    row.getBoundingClientRect = () => {
+      const top = 120 + insertedAbove - (container.element.scrollTop - capturedAt);
+      return { top, bottom: top + 100, height: 100 } as DOMRect;
+    };
+    container.element.appendChild(row);
+    container.element.scrollTop = capturedAt;
+    container.writes.length = 0;
+
+    // Hold the page on the wire so the drag can happen between capture and
+    // commit — the window a phone keeps open for 150-450 ms.
+    let landPage: (() => void) | null = null;
+    store.fetchMore.mockImplementationOnce(() => new Promise((resolve) => {
+      landPage = () => resolve({
+        slot: {
+          fetchedAt: 1,
+          status: 'idle' as const,
+          total: 1941,
+          hasMore: true,
+          offset: tail.length + older.length,
+          turnPageInfo: null,
+        },
+        prependedCount: older.length,
+      });
+    }));
+
+    act(() => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+
+    // The reader drags 40 px further toward older rows while the page is in
+    // flight, and the page then lands with 2000 px of rows above them. The
+    // gesture is what makes the travel theirs: without it the same `scrollTop`
+    // change is a page's own compensation landing behind the request, and
+    // charging that to the reader pays it twice.
+    container.element.dispatchEvent(new WheelEvent('wheel', { deltaY: -40 }));
+    container.element.scrollTop = 20;
+    container.setScrollHeight(7000);
+    insertedAbove = 2000;
+    await act(async () => {
+      landPage?.();
+    });
+
+    assert.deepEqual(
+      container.writes,
+      [20, 2020],
+      `the restore must charge the page 2000 px, not the 180 the reader dragged; got ${JSON.stringify(container.writes)}`,
+    );
+
+    container.element.remove();
+    drainSettleLoop();
+  });
+
+  /**
+   * The pane sits past its top edge while the page is on the wire — the window a
+   * phone holds for a few hundred milliseconds after the finger leaves. Every
+   * rect is displaced by the spring itself and every write is dropped, so a page
+   * committed there measures an insertion of zero and then lands as a visible
+   * jump once the spring lets go. The commit has to wait for the edge.
+   */
+  it('holds a page that lands mid-spring until the edge comes back', async () => {
+    const tail = buildMessages(20);
+    const older = buildMessages(20).map((message, index) => ({
+      ...message,
+      id: `older-${index}`,
+    }));
+    const messages = new Map<string, NormalizedMessage[]>([[SESSION_A, tail]]);
+    const store = createStore(messages, { hasMore: true, total: 1941 });
+
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    document.body.appendChild(container.element);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+    await act(async () => undefined);
+
+    const { row } = createGeometryAwareRow(container, 100, 50);
+    container.element.appendChild(row);
+    container.element.scrollTop = 0;
+    container.writes.length = 0;
+
+    let landPage: (() => void) | null = null;
+    store.fetchMore.mockImplementationOnce(() => new Promise((resolve) => {
+      landPage = () => resolve({
+        slot: {
+          fetchedAt: 1,
+          status: 'idle' as const,
+          total: 1941,
+          hasMore: true,
+          offset: tail.length + older.length,
+          turnPageInfo: null,
+        },
+        prependedCount: older.length,
+      });
+    }));
+
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+    assert.equal(
+      store.fetchMore.mock.calls.length,
+      1,
+      'reaching the top of the window must request the next page',
+    );
+
+    // The finger lifts and the pane springs past its top edge: the platform
+    // holds the offset and drops anything written to it.
+    container.pinScrollTop(-80);
+    await act(async () => {
+      landPage?.();
+    });
+    assert.deepEqual(
+      container.writes,
+      [],
+      'a page must not be committed while the spring owns the offset',
+    );
+
+    // The spring lands. The page is committed on the next frame, measured
+    // against a rect the spring no longer shifts.
+    container.releaseScrollTop(0);
+    await act(async () => {
+      runAnimationFrame();
+    });
+    await act(async () => undefined);
+
+    assert.equal(
+      container.element.scrollTop,
+      50,
+      'the restore must move the reader down by the 50px the page inserted',
+    );
+
+    container.element.remove();
+    drainSettleLoop();
+  });
+
 });
 
 describe('render-window growth restore', () => {
@@ -1092,15 +1323,14 @@ describe('render-window growth restore', () => {
     // The settle loop the restore armed drains over the following frames
     // without writing anything — the geometry above the reader is stable —
     // and then stands down instead of leaving a frame armed.
-    act(() => runAnimationFrame());
-    act(() => runAnimationFrame());
+    drainSettleLoop();
     assert.deepEqual(container.writes, [4700]);
     assert.equal(frameCallbacks.size, 0);
 
     container.element.remove();
   });
 
-  it('widens without a restore when the transcript has no scrollable geometry', async () => {
+  it('widens without a restore when the transcript has not laid out', async () => {
     const messages = new Map<string, NormalizedMessage[]>([
       [SESSION_A, buildMessages(300)],
     ]);
@@ -1111,14 +1341,16 @@ describe('render-window growth restore', () => {
     });
 
     // The pane has mounted but nothing has measured yet: the box is exactly
-    // viewport-tall, so the capture has no baseline to hand over. A restore
-    // built from one would land on a clamped offset and then lose the viewport
-    // to the session-open scroll-to-bottom.
+    // viewport-tall and the rows in it are still zero-height. A restore built
+    // from one would land on a clamped offset and then lose the viewport to the
+    // session-open scroll-to-bottom.
     const container = createContainer(500, 500);
     document.body.appendChild(container.element);
     (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
 
-    const { row } = createGeometryAwareRow(container, 120, 200);
+    const row = document.createElement('div');
+    row.setAttribute('data-message-timestamp', '2026-01-01T00:00:00.100Z');
+    row.getBoundingClientRect = () => ({ top: 0, bottom: 0, height: 0 } as DOMRect);
     container.element.appendChild(row);
 
     // The reader is up in the transcript, which also keeps the initial
@@ -1134,8 +1366,58 @@ describe('render-window growth restore', () => {
     act(() => runAnimationFrame());
     act(() => runAnimationFrame());
 
-    assert.deepEqual(container.writes, [], 'a baseline with no geometry must not be armed');
+    assert.deepEqual(container.writes, [], 'a baseline with no measured row must not be armed');
     assert.equal(frameCallbacks.size, 0, 'and it must not leave a settle loop armed');
+
+    container.element.remove();
+  });
+
+  it('arms a restore for a transcript that fits the viewport', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, buildMessages(300)],
+    ]);
+    const store = createStore(messages);
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    // Nothing scrolls — every tool row is folded into a single line — but the
+    // reader is looking at real rows, and a page landing above them pushes that
+    // content 2685 px off the screen while `scrollTop` stays at 0. Fitting the
+    // viewport is not the same thing as not having laid out.
+    const container = createContainer(500, 500);
+    document.body.appendChild(container.element);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    // The rows above are already in place, so the height arrives with the lazy
+    // rows that measure afterwards.
+    const { row, settleMore } = createGeometryAwareRow(container, 120, 0);
+    container.element.appendChild(row);
+
+    act(() => {
+      result.current.setIsUserScrolledUp(true);
+    });
+
+    act(() => {
+      result.current.loadEarlierMessages();
+    });
+
+    assert.deepEqual(
+      container.writes,
+      [0],
+      'a transcript that fits the viewport still owes the reader a baseline',
+    );
+    assert.ok(frameCallbacks.size >= 1, 'and a settle loop to follow the rows it lands');
+
+    settleMore(200);
+    container.setScrollHeight(700);
+    act(() => runAnimationFrame());
+    assert.deepEqual(
+      container.writes,
+      [0, 200],
+      'the rows that then measure above the reader must be followed',
+    );
 
     container.element.remove();
   });
@@ -1236,6 +1518,7 @@ describe('restore settle loop', () => {
     // reader's position ~1600px below the viewport. The settle loop must follow
     // the pinned row down again.
     settleMore(500);
+    container.setScrollHeight(5700);
     act(() => runAnimationFrame());
     assert.deepEqual(
       container.writes,
@@ -1243,9 +1526,9 @@ describe('restore settle loop', () => {
       'a lazy row landing real height above the reader must be followed by the settle loop',
     );
 
-    // Two stable frames later the loop stands down and writes nothing more.
-    act(() => runAnimationFrame());
-    act(() => runAnimationFrame());
+    // Once the geometry holds for long enough that nothing can land behind the
+    // restore, the loop stands down and writes nothing more.
+    drainSettleLoop();
     assert.deepEqual(container.writes, [4700, 5200]);
     assert.equal(frameCallbacks.size, 0);
 
@@ -1305,7 +1588,7 @@ describe('restore settle loop', () => {
     container.element.remove();
   });
 
-  it('keeps pinning through a viewport move no gesture caused', async () => {
+  it('lets a coast keep the distance it travelled and corrects only the geometry', async () => {
     const messages = new Map<string, NormalizedMessage[]>([
       [SESSION_A, buildMessages(300)],
     ]);
@@ -1331,24 +1614,319 @@ describe('restore settle loop', () => {
     });
     assert.deepEqual(container.writes, [4700]);
 
-    // WebKit keeps driving a touch's coasting scroll animation for hundreds of
-    // ms after the finger lifts, overwriting the restore's write with no
-    // `touchmove` and no `wheel` behind it. That is not the reader steering, so
-    // the loop absorbs the move and re-pins the row to where the reader was.
-    container.element.scrollTop = 4300;
-    settleMore(500);
+    // One frame with nothing to correct, so the loop has an offset to compare
+    // the next one against.
+    act(() => runAnimationFrame());
+
+    // WebKit keeps the scroll view decelerating after the finger lifts, with no
+    // `touchmove` behind it, and any write made into that animation ends it —
+    // measured, 55 frozen frames (~1.3 s) on a fast flick against 1 on a slow
+    // one. The fling is what the reader asked for, so the loop watches it go.
+    container.coastTo(4610);
+    act(() => runAnimationFrame());
+    container.coastTo(4520);
     act(() => runAnimationFrame());
     assert.deepEqual(
       container.writes,
-      [4700, 4300, 5200],
-      'the coasting write must be absorbed and the pinned row re-pinned',
+      [4700],
+      're-pinning during a coast is a brake, not a correction',
     );
 
-    // Two stable frames later the loop stands down and writes nothing more.
+    // The coast comes to rest and the rows above it settle 500 px. Only that
+    // 500 belongs to the layout; the 180 px the fling travelled must stay put,
+    // or the reader is thrown back down the transcript when the coast ends.
+    settleMore(500);
+    container.setScrollHeight(5700);
     act(() => runAnimationFrame());
-    act(() => runAnimationFrame());
-    assert.deepEqual(container.writes, [4700, 4300, 5200]);
+    assert.deepEqual(
+      container.writes,
+      [4700, 5020],
+      'the correction owed after a coast is the geometry, not the fling',
+    );
+
+    drainSettleLoop();
+    assert.deepEqual(container.writes, [4700, 5020]);
     assert.equal(frameCallbacks.size, 0);
+
+    container.element.remove();
+  });
+
+  it('waits out a bounce before writing the restore', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, buildMessages(300)],
+    ]);
+    const store = createStore(messages);
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    document.body.appendChild(container.element);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    const { row } = createGeometryAwareRow(container, 120, 200);
+    container.element.appendChild(row);
+
+    act(() => {
+      result.current.setIsUserScrolledUp(true);
+    });
+
+    // The reader dragged past the top and the platform is springing the pane
+    // back: it owns the offset and discards writes made into it, and a write
+    // also ends the spring so the pane lands in one frame instead of animating.
+    container.pinScrollTop(-30);
+
+    act(() => {
+      result.current.loadEarlierMessages();
+    });
+
+    assert.deepEqual(
+      container.writes,
+      [],
+      'a restore written into the bounce would be discarded and would cut the spring short',
+    );
+    assert.ok(
+      frameCallbacks.size >= 1,
+      'the settle loop stays armed to land the compensation once the spring lets go',
+    );
+
+    container.element.remove();
+    drainSettleLoop();
+  });
+
+  it('holds off writing while the pane sits past the top edge', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, buildMessages(300)],
+    ]);
+    const store = createStore(messages);
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    document.body.appendChild(container.element);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    const { row, settleMore } = createGeometryAwareRow(container, 120, 200);
+    container.element.appendChild(row);
+
+    act(() => {
+      result.current.setIsUserScrolledUp(true);
+    });
+    act(() => {
+      result.current.loadEarlierMessages();
+    });
+    assert.deepEqual(container.writes, [4700]);
+
+    // The lazy rows land and the reader's own drag has pushed the pane past the
+    // top edge, where the platform springs it back. Every write made there is
+    // discarded and re-writing it each frame is the flicker the reader reports.
+    container.element.scrollTop = -30;
+    container.writes.length = 0;
+    settleMore(500);
+    container.setScrollHeight(5700);
+    act(() => runAnimationFrame());
+    act(() => runAnimationFrame());
+    assert.deepEqual(
+      container.writes,
+      [],
+      'the settle loop must leave the offset to the spring instead of fighting it',
+    );
+
+    // The spring releases: the loop lands the correction on that frame.
+    container.element.scrollTop = 4500;
+    container.writes.length = 0;
+    act(() => runAnimationFrame());
+    assert.ok(
+      container.writes.length > 0,
+      'the queued correction must land as soon as the offset is back in range',
+    );
+
+    container.element.remove();
+    drainSettleLoop();
+  });
+
+  it('lands the correction after a bounce even though the pre-bounce write was dropped', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, buildMessages(300)],
+    ]);
+    const store = createStore(messages);
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    document.body.appendChild(container.element);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    const { row, settleMore } = createGeometryAwareRow(container, 120, 200);
+    container.element.appendChild(row);
+
+    act(() => {
+      result.current.setIsUserScrolledUp(true);
+    });
+
+    act(() => {
+      result.current.loadEarlierMessages();
+    });
+    assert.deepEqual(container.writes, [4700]);
+
+    // Lazy rows above the reader settle and the loop writes the 500px it owes.
+    // This is the write whose "landed on my own write" state must not survive
+    // the bounce below: the spring drops the offset it produced.
+    settleMore(500);
+    container.setScrollHeight(5700);
+    act(() => runAnimationFrame());
+    assert.deepEqual(container.writes, [4700, 5200]);
+
+    // The reader drags past the top; the platform holds the offset and drops
+    // that write while it springs back.
+    container.pinScrollTop(-30);
+    act(() => runAnimationFrame());
+
+    // The spring lands at the offset the dropped write was meant to leave. The
+    // compensation is still owed, so the loop must write it again instead of
+    // reading the dropped write's drift as a stall and abandoning the page.
+    container.releaseScrollTop(4700);
+    act(() => runAnimationFrame());
+    assert.deepEqual(
+      container.writes,
+      [4700, 5200, 5200],
+      'a write the spring dropped must be paid again once the offset is back in range',
+    );
+
+    container.element.remove();
+    drainSettleLoop();
+  });
+
+  it('stops re-pinning when the platform keeps the offset it wrote', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, buildMessages(300)],
+    ]);
+    const store = createStore(messages);
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    document.body.appendChild(container.element);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    const { row } = createGeometryAwareRow(container, 120, 200);
+    container.element.appendChild(row);
+
+    act(() => {
+      result.current.setIsUserScrolledUp(true);
+    });
+
+    act(() => {
+      result.current.loadEarlierMessages();
+    });
+    assert.deepEqual(container.writes, [4700]);
+
+    // The scroll view takes the offset for itself ten pixels short of where the
+    // restore put it and drops every write after that — a deceleration holding
+    // its own offset. The drift stays at exactly 10px, so re-writing it can only
+    // trade those pixels back and forth, which the reader sees as a shiver.
+    container.setScrollHeight(5200);
+    container.pinScrollTop(4690);
+    for (let frame = 0; frame < 8; frame += 1) {
+      act(() => runAnimationFrame());
+    }
+    assert.equal(
+      container.writes.length,
+      4,
+      `a small drift the platform keeps overwriting is abandoned after three attempts; got ${JSON.stringify(container.writes)}`,
+    );
+    assert.equal(frameCallbacks.size, 0, 'the loop must stand down instead of fighting the offset');
+
+    container.element.remove();
+  });
+
+  it('stops when its own write does not move the anchor it is pinning', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, buildMessages(300)],
+    ]);
+    const store = createStore(messages);
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(8000, 500);
+    document.body.appendChild(container.element);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+    container.coastTo(6000);
+
+    const { row, detachFromScroll } = createGeometryAwareRow(container, 120, 200);
+    container.element.appendChild(row);
+    detachFromScroll();
+
+    act(() => {
+      result.current.setIsUserScrolledUp(true);
+    });
+
+    // The restore pays the 200px the widened window put above the reader, and
+    // the next frame reads the same 200px again on a rect that never followed
+    // the write. Charging it again is the whole of the "load all" jump: a phone
+    // recording showed 2350px paid on four consecutive frames until the pane
+    // was clamped against the tail, and the clamped write then repeated 60
+    // times. The reader stays where the restore pinned them.
+    act(() => {
+      result.current.loadEarlierMessages();
+    });
+    assert.deepEqual(container.writes, [6200]);
+
+    drainSettleLoop();
+    assert.deepEqual(container.writes, [6200], 'a rect that ignores the offset must not be chased');
+    assert.equal(frameCallbacks.size, 0);
+
+    container.element.remove();
+  });
+
+  it('leaves the offset alone when the compensation does not fit in the transcript', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, buildMessages(300)],
+    ]);
+    const store = createStore(messages);
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5500, 500);
+    document.body.appendChild(container.element);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+    container.coastTo(4500);
+
+    // 800px lands above the reader while the document stays the size it was:
+    // the rows below it are still placeholders, so keeping the anchor at 120
+    // would need an offset past the end, and a write there is clamped — which
+    // is the tail the reader complained about.
+    const { row, settleMore } = createGeometryAwareRow(container, 120, 0);
+    container.element.appendChild(row);
+
+    act(() => {
+      result.current.setIsUserScrolledUp(true);
+    });
+
+    act(() => {
+      result.current.loadEarlierMessages();
+    });
+    assert.deepEqual(container.writes, [4500]);
+
+    settleMore(800);
+    drainSettleLoop();
+    assert.deepEqual(
+      container.writes,
+      [4500],
+      'a compensation the pane would clamp must be skipped, not written into the tail',
+    );
+    assert.equal(frameCallbacks.size, 0, 'the loop must stand down once the reach is known to be short');
 
     container.element.remove();
   });
@@ -1559,6 +2137,51 @@ describe('scroll ownership while the answer is streaming', () => {
     );
   });
 
+  it('does not hand the viewport back to a coast that drifts to the tail', async () => {
+    const { container, result } = await renderAtBottom();
+    container.setScrollHeight(6000);
+    container.element.scrollTop = 5500;
+    container.writes.length = 0;
+
+    const pull = new Event('wheel');
+    Object.defineProperty(pull, 'deltaY', { value: -20 });
+    act(() => {
+      container.element.dispatchEvent(pull);
+    });
+    container.element.scrollTop -= 20;
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+    assert.equal(result.current.isUserScrolledUp, true);
+
+    // The finger has been off the glass for a while and the release's inertia
+    // carried the pane back to the tail on its own. Nothing the reader did is
+    // behind this move, so it must not hand the viewport back — that is what
+    // let a device report re-arm the follow 41px from the bottom, mid-coast,
+    // and then fight the deceleration frame by frame.
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 400);
+    container.element.scrollTop = 5500;
+    await act(async () => {
+      container.element.dispatchEvent(new Event('scroll'));
+    });
+    clock.mockRestore();
+
+    assert.equal(
+      result.current.isUserScrolledUp,
+      true,
+      'a coast is not the reader returning to the tail',
+    );
+    const beforeFollow = container.writes.length;
+    act(() => {
+      result.current.followTranscriptLayout();
+    });
+    assert.deepEqual(
+      container.writes.length,
+      beforeFollow,
+      'the follow must stay down while the coast runs',
+    );
+  });
+
   it('still hands ownership to a gesture the growing answer outruns', async () => {
     const { container, result } = await renderAtBottom();
 
@@ -1728,6 +2351,27 @@ describe('scroll ownership while the answer is streaming', () => {
     );
   });
 
+  it('leaves the spring back alone when the lift finds the pane on the tail', async () => {
+    const { container } = await renderWithFingerDown();
+    // The drag went past the end of the range, so the browser parked the offset
+    // on the clamp — where it stays for the whole rubber band — and the content
+    // the reader stretched away is about to spring back on its own. No `scroll`
+    // event carries that stretch: `scrollTop` never leaves the clamp, which is
+    // why nothing here falls and nothing latches the reader out of following.
+    container.element.scrollTop = 4700;
+    container.writes.length = 0;
+
+    act(() => {
+      container.element.dispatchEvent(new TouchEvent('touchend'));
+    });
+
+    assert.deepEqual(
+      container.writes,
+      [],
+      'rewriting the clamp on release ends the animation the browser is already running',
+    );
+  });
+
   it('still follows once the finger lifts', async () => {
     const { container, result } = await renderWithFingerDown();
     container.element.scrollTop = 5000;
@@ -1787,5 +2431,243 @@ describe('scroll ownership while the answer is streaming', () => {
       'lifting the finger must resume the follow on its own',
     );
   });
+
+  it('counts a write the pane rounded as landed, not as platform momentum', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, buildMessages(300)],
+    ]);
+    const store = createStore(messages);
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500, { quantizeScrollTop: true });
+    document.body.appendChild(container.element);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    const { row, settleMore } = createGeometryAwareRow(container, 120, 200);
+    container.element.appendChild(row);
+
+    act(() => {
+      result.current.setIsUserScrolledUp(true);
+    });
+
+    act(() => {
+      result.current.loadEarlierMessages();
+    });
+    assert.deepEqual(container.writes, [4700]);
+
+    // One frame at rest, so the next one has an offset to compare against.
+    act(() => runAnimationFrame());
+
+    // A lazy row above the reader measures a fraction of a pixel past its
+    // estimate: the loop writes 4900.859 and the pane stores 4900. The old
+    // half-pixel test called that "the platform moved the offset", folded 200 px
+    // of travel into the anchor's target, and then paid the same 200.859 on
+    // every frame — 2368 px over five frames in a phone recording, until the
+    // pane was clamped against the tail.
+    settleMore(200.859);
+    container.setScrollHeight(8000);
+    act(() => runAnimationFrame());
+    assert.deepEqual(container.writes, [4700, 4900]);
+
+    drainSettleLoop();
+    assert.deepEqual(
+      container.writes,
+      [4700, 4900],
+      'rounding a write must not hand the viewport to the momentum branch',
+    );
+    assert.equal(frameCallbacks.size, 0);
+
+    container.element.remove();
+  });
+
+  it('folds only the travel the platform added, not its own write', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, buildMessages(300)],
+    ]);
+    const store = createStore(messages);
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    document.body.appendChild(container.element);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    const { row, settleMore } = createGeometryAwareRow(container, 120, 200);
+    container.element.appendChild(row);
+
+    act(() => {
+      result.current.setIsUserScrolledUp(true);
+    });
+
+    act(() => {
+      result.current.loadEarlierMessages();
+    });
+    assert.deepEqual(container.writes, [4700]);
+
+    settleMore(200);
+    container.setScrollHeight(8000);
+    act(() => runAnimationFrame());
+    assert.deepEqual(container.writes, [4700, 4900]);
+
+    // The pane adds 200 px of its own after the write landed. Folding that into
+    // the anchor's target is right for a coast, but measuring from where the
+    // frame *started* would fold our own 200 as well — and the debt the next
+    // frame measures would come back a page too large.
+    container.coastTo(5100);
+    act(() => runAnimationFrame());
+    assert.deepEqual(container.writes, [4700, 4900], 'a coast is watched, not written');
+
+    settleMore(200);
+    act(() => runAnimationFrame());
+    assert.deepEqual(
+      container.writes,
+      [4700, 4900, 5300],
+      'only the pane\'s own 200 px belongs to the coast',
+    );
+
+    container.element.remove();
+  });
+
+  it('pays a repeated page-sized drift once and then stands down', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, buildMessages(300)],
+    ]);
+    const store = createStore(messages);
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    document.body.appendChild(container.element);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    const { row, settleMore } = createGeometryAwareRow(container, 120, 200);
+    container.element.appendChild(row);
+
+    act(() => {
+      result.current.setIsUserScrolledUp(true);
+    });
+
+    act(() => {
+      result.current.loadEarlierMessages();
+    });
+    assert.deepEqual(container.writes, [4700]);
+
+    // The pane holds an offset of its own: every write is recorded but reads
+    // back as what it held before, the way WebKit keeps a deceleration. The row
+    // above the reader still measures a full page more than it did.
+    container.pinScrollTop(4700);
+    settleMore(200);
+    container.setScrollHeight(8000);
+    act(() => runAnimationFrame());
+    assert.deepEqual(container.writes, [4700, 4700]);
+
+    // The same page-sized debt measured again after a write that did not land
+    // is that write being re-paid, not new geometry. Paying it every frame is
+    // what put five 2368 px writes in a row on a phone, each one a page further
+    // down, until the pane was clamped against the tail.
+    act(() => runAnimationFrame());
+    assert.deepEqual(
+      container.writes,
+      [4700, 4700],
+      'an identical page-sized drift is the previous payment coming back, not a new one',
+    );
+    assert.equal(frameCallbacks.size, 0);
+
+    container.element.remove();
+  });
 });
+});
+
+describe('pagination ownership across a session switch', () => {
+  /**
+   * The top chrome reads `hasMoreMessages`/`totalMessages`, which are written
+   * from whichever session's slot answered last. A page that started in the
+   * long session and landed after the reader opened a short one used to be
+   * folded into the short one: the bar read "显示 N / 1181 条消息" on a
+   * three-message conversation, and the near-top loader could offer pages that
+   * do not exist. Reported from a phone as "打开会话时显示加载全部消息 /
+   * 正在加载更早的消息".
+   */
+  it('drops a page that lands after the reader opened another session', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, buildMessages(300)],
+      [SESSION_B, [buildMessage(0, '2026-01-02T00:00:00.000Z')]],
+    ]);
+    const slotFor = (sessionId: string, total: number, hasMore: boolean, offset: number) => ({
+      fetchedAt: 1,
+      status: 'idle' as const,
+      total,
+      hasMore,
+      offset,
+      turnPageInfo: null,
+    });
+
+    let releaseOlderPage: (() => void) | null = null;
+    const base = createStore(messages);
+    const store = {
+      ...base,
+      fetchFromServer: vi.fn(async (sessionId: string) => (
+        sessionId === SESSION_A
+          ? slotFor(SESSION_A, 1181, true, 300)
+          : slotFor(SESSION_B, 1, false, 1)
+      )),
+      fetchMore: vi.fn((sessionId: string) => new Promise((resolve) => {
+        releaseOlderPage = () => resolve({
+          slot: slotFor(sessionId, 1181, true, 300),
+          prependedCount: 42,
+        });
+      })),
+    };
+
+    const { result, rerender } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store: store as unknown as ReturnType<typeof createStore>,
+    });
+    await act(async () => {});
+    assert.equal(result.current.hasMoreMessages, true, 'the long session has older pages');
+    assert.equal(result.current.totalMessages, 1181);
+
+    const container = createContainer(5000, 500);
+    document.body.appendChild(container.element);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+    // The reader is at the top, which is what arms the older-page request.
+    container.coastTo(0);
+
+    act(() => {
+      void result.current.handleScroll();
+    });
+    assert.equal(store.fetchMore.mock.calls.length, 1);
+    assert.equal(store.fetchMore.mock.calls[0]?.[0], SESSION_A);
+
+    await act(async () => {
+      rerender({ session: { id: SESSION_B } as ProjectSession, isActive: true });
+    });
+    assert.equal(result.current.hasMoreMessages, false, 'the short session has no older pages');
+
+    await act(async () => {
+      releaseOlderPage?.();
+      await Promise.resolve();
+    });
+
+    assert.equal(
+      result.current.hasMoreMessages,
+      false,
+      'a page requested by the session that is gone must not offer more pages here',
+    );
+    assert.equal(result.current.totalMessages, 1, 'nor overwrite this session\'s message total');
+    assert.equal(
+      result.current.visibleMessageCount,
+      100,
+      'nor widen this session\'s render window by the rows it prepended',
+    );
+
+    container.element.remove();
+  });
 });

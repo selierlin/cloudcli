@@ -162,6 +162,21 @@ export default function ScrollDiagnosticsPanel({ containerRef }: { containerRef:
             <div>
               行挂载 {stats.rowMounts} / 卸载 {stats.rowUnmounts}
             </div>
+            <div style={{ color: stats.headerFlips > 4 ? '#ff9f6e' : 'inherit' }}>
+              吸顶条翻转 {stats.headerFlips} 次
+            </div>
+            <div style={{ color: stats.prependPages > 1 ? '#ff9f6e' : 'inherit' }}>
+              加载更早 {stats.prependPages} 页
+            </div>
+            <div style={{ color: stats.visualJumps > 0 ? '#ff9f6e' : 'inherit' }}>
+              内容位移 {stats.visualJumps} 次 · 最大 {stats.largestVisualJumpPx}px
+            </div>
+            <div style={{ opacity: 0.75 }}>
+              写入同帧位移 {stats.writeFrameJumps} 次
+            </div>
+            <div style={{ color: stats.rowHeightChanges > 3 ? '#ff9f6e' : 'inherit' }}>
+              行高突变 {stats.rowHeightChanges} 次
+            </div>
             <div style={{ color: stats.snappedToBottomWhileTouching > 0 ? '#ff9f6e' : 'inherit' }}>
               触摸中跳变 {stats.jumpWhileTouching} 次 · 回底 {stats.snappedToBottomWhileTouching} 次
             </div>

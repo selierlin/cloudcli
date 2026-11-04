@@ -10,7 +10,7 @@ import { createCachedDiffCalculator } from '@/modules/chat/utils/messageTransfor
 import { normalizedToChatMessages } from '@/modules/chat/hooks/useChatMessages';
 import { findSearchTargetIndex, resolveSearchWindowSize } from '@/modules/chat/utils/searchTargetLocator';
 import { readSelectedProvider } from '@/shared/selectedProvider';
-import { noteScrollWrite } from '@/shared/debug/scrollDiagnostics';
+import { noteScrollWrite, noteTranscriptEvent } from '@/shared/debug/scrollDiagnostics';
 import type { SearchTarget } from '@/modules/chat/utils/searchTargetLocator';
 
 const INITIAL_VISIBLE_MESSAGES = 100;
@@ -59,7 +59,8 @@ const SEARCH_SCROLL_RETRY_DELAY_MS = 150;
  * How far `scrollTop` must fall between two `scroll` samples before the move
  * counts as the reader scrolling up rather than geometry changing underneath a
  * stationary viewport. Sub-pixel jitter and momentum rounding both sit well
- * below this.
+ * below this — which is also the tolerance for a residual gap at the tail, where
+ * a pane reporting a couple of pixels below the clamp is the tail.
  */
 const SCROLL_UP_EPSILON_PX = 2;
 
@@ -79,16 +80,33 @@ const TAIL_AFFORDANCE_HIDE_GAP_PX = 40;
 
 /**
  * Pinned-row drift below which the restore's settle loop counts a frame as
- * stable. Matches the follow loop's tolerance for sub-pixel jitter.
+ * stable.
+ *
+ * Two pixels, not one. iOS stores the scroll offset in device pixels and hands
+ * back a value a fraction short of the one that was written, so a 1 px
+ * tolerance turns every sub-pixel difference into a write; the offset then
+ * overshoots by a pixel, the next frame measures the same difference the other
+ * way, and the two trade places at frame rate. A phone recording showed exactly
+ * that: 32 consecutive frames of `…1184 / …1185 / …1184` while the loop kept
+ * writing the identical 1185.046875. Two pixels keeps that disagreement inside
+ * the tolerance, where it is invisible, while a real placeholder settling by
+ * hundreds of pixels still gets followed.
  */
-const ANCHOR_SETTLE_EPSILON_PX = 1;
+const ANCHOR_SETTLE_EPSILON_PX = 2;
 
 /**
  * Consecutive stable frames the restore's settle loop needs before it stands
- * down, so one clean frame cannot end the pin while more lazy rows are still
- * mounting real content above the reader.
+ * down.
+ *
+ * Two frames is not enough. A phone's scroll view keeps its own offset while a
+ * fling is still coasting or a rubber band is springing back, and it puts that
+ * offset back one or two frames *after* the restore's write — later still if the
+ * momentum is slow. A report from a real device showed the write surviving for
+ * 18-36 ms and then being replaced by the platform's offset, with the loop
+ * already gone. Ten frames (~170 ms) outlasts that window, and costs nothing
+ * while the geometry is genuinely stable: the loop only reads a rect.
  */
-const ANCHOR_SETTLE_STABLE_FRAMES = 2;
+const ANCHOR_SETTLE_STABLE_FRAMES = 10;
 
 /**
  * Hard ceiling on the restore's settle loop. Prepended rows land as
@@ -98,8 +116,81 @@ const ANCHOR_SETTLE_STABLE_FRAMES = 2;
  */
 const ANCHOR_SETTLE_MAX_MS = 2500;
 
+/**
+ * Frames in a row whose compensation does not fit in the transcript's range
+ * before the settle loop stands down.
+ *
+ * A widened window can leave the rows below the reader as estimated
+ * placeholders, so the correction has nowhere to land until those measure; ten
+ * frames (~170 ms) lets that settle. A layout that cannot reach the target at
+ * all stops the loop instead of retrying for the full ceiling.
+ */
+const ANCHOR_SETTLE_UNREACHABLE_FRAMES = 10;
+
+/**
+ * Writes the platform may swallow, with the drift unchanged, before the settle
+ * loop concludes that something else owns the offset.
+ *
+ * iOS keeps its own scroll offset while the scroll view is decelerating or
+ * rubber-banding and lays it back over ours on the next commit. Re-writing the
+ * same 1–2 px every frame then becomes a tug of war: the reader sees the content
+ * shiver at frame rate for as long as the loop runs, while `correctedPx` grows
+ * into the thousands and the row never actually moves. Standing down after
+ * three swallowed writes caps that at ~50 ms; the residual drift is a couple of
+ * pixels, which nobody can see.
+ */
+const ANCHOR_SETTLE_CONTENDED_FRAMES = 3;
+
+/**
+ * Drift small enough that abandoning it costs the reader nothing. A large drift
+ * that the platform keeps overwriting still gets retried for the full ceiling:
+ * giving up there would throw the reader thousands of pixels away.
+ */
+const ANCHOR_SETTLE_CONTENDED_MAX_PX = 32;
+
+/**
+ * How far the offset may travel between two frames, without the settle loop
+ * having written it, before the movement belongs to something else — a phone
+ * keeps decelerating after the finger lifts, and no touch event marks it.
+ *
+ * Every write made into that animation ends it, so re-pinning at frame rate
+ * does not hold the row, it brakes the fling: a recording measured 55 frozen
+ * frames (~1.3 s) on a fast flick against 1 frame on a slow one, and the
+ * threshold that separated them was the contended cap above, not anything
+ * about the movement. Six pixels is far above the sub-pixel disagreement a
+ * write leaves behind and far below any momentum frame.
+ */
+const ANCHOR_SETTLE_MOMENTUM_PX = 6;
+
+/**
+ * How close the offset has to be to the value the loop asked for, for a frame to
+ * count as landing on that write.
+ *
+ * WebKit stores `scrollTop` on the device's layout grid rather than as the float
+ * it was handed: a write of 2368.859375 read back as 2368. A half-pixel test
+ * called that "something else moved the offset", handed the whole page to the
+ * momentum branch, and shifted the anchor's target by exactly one page — which
+ * the loop then paid again on the next frame, and the next, five times, until
+ * the pane was clamped against the tail. 1.5 px covers the quantisation at dpr 3
+ * and stays far below a real momentum frame.
+ */
+const ANCHOR_SETTLE_LANDING_SLOP_PX = 1.5;
+
 /** Downward finger travel that makes a touch a read-up gesture rather than a tap. */
 const TOUCH_UP_INTENT_MIN_TRAVEL_PX = 10;
+
+/**
+ * How recently the reader must have moved the viewport for a downward move to
+ * count as handing it back.
+ *
+ * Momentum and the layout re-resolving under it both move `scrollTop` with no
+ * input behind them, and a fling that has been pushed back near the tail looks
+ * exactly like the reader returning to it: a device report showed a release
+ * granting the follow 41 px from the bottom, mid-coast, which then fought the
+ * deceleration for ten frames. Input arrives while the reader is driving, so the
+ * move is only theirs when an input event landed within this window.
+ */
+const READER_INPUT_LIVE_MS = 300;
 
 /**
  * Finds the rendered row for a resolved search target.
@@ -204,18 +295,27 @@ type ScrollRestoreState = {
 };
 
 function captureScrollRestoreState(container: HTMLDivElement): ScrollRestoreState | null {
-  // A transcript that cannot scroll has no position worth restoring. That is
-  // the pane mounting before its rows have measured, and a hidden tab: both
-  // report a viewport-tall box at `scrollTop` 0, so an anchor taken from it
-  // would be the first row of a stack that has not been laid out, and the
-  // restore would land on a clamped offset that the session-open
-  // scroll-to-bottom then drags away from — the reader sees the transcript
-  // jump instead of opening at the bottom. Returning no baseline leaves that
-  // commit to its real owner.
-  if (container.scrollHeight <= container.clientHeight) return null;
-
   const containerBounds = container.getBoundingClientRect();
   const rows = Array.from(container.querySelectorAll<HTMLElement>('[data-message-timestamp]'));
+  // A transcript that has not laid out has no position worth restoring: that is
+  // the pane mounting before its rows have measured, and a hidden tab. Both
+  // report a viewport-tall box at `scrollTop` 0 with no measured row in it, so
+  // an anchor taken from one would be the first row of a stack that does not
+  // exist yet, and the restore would land on a clamped offset that the
+  // session-open scroll-to-bottom then drags away from — the reader sees the
+  // transcript jump instead of opening at the bottom.
+  //
+  // A transcript that merely fits the viewport is a different thing and does
+  // need a baseline: the reader can be reading it, and a page prepended above
+  // pushes that content off the screen — measured, 2685 px in one frame, with
+  // the viewport left at the top. The measured-row test separates the two.
+  if (
+    container.scrollHeight <= container.clientHeight
+    && !rows.some((row) => row.getBoundingClientRect().height > 0)
+  ) {
+    return null;
+  }
+
   const anchor = rows
     .find((element) => element.getBoundingClientRect().bottom >= containerBounds.top)
     ?? null;
@@ -233,6 +333,40 @@ function captureScrollRestoreState(container: HTMLDivElement): ScrollRestoreStat
     tailAnchor,
     tailAnchorOffset,
   };
+}
+
+/**
+ * Resolves once the pane is back inside its own scroll range.
+ *
+ * A page that lands while the pane sits past its top edge is measured and paid
+ * for against a viewport the platform is still animating: the spring displaces
+ * every rect by its own travel (so the insertion can measure as zero) and
+ * discards the write that pays for it, which then lands half a second later as
+ * a visible jump. `overscroll-behavior-y: none` keeps WebKit from producing
+ * that window at all, but iOS 15 and any host that ignores the property still
+ * can, so the commit waits for the edge instead. The request has already run by
+ * then; the only cost is the few frames the spring needs, and geometry is
+ * either clean or the deadline gives up and commits as before.
+ */
+function waitForScrollableEdge(container: HTMLDivElement, deadlineMs = 600): Promise<void> {
+  // The common case: no spring, nothing to wait for. Checked synchronously so
+  // the commit is not pushed a frame behind the request on a desktop engine.
+  if (!container.isConnected || container.scrollTop >= 0) return Promise.resolve();
+  return new Promise((resolve) => {
+    const startedAt = Date.now();
+    const tick = () => {
+      if (
+        !container.isConnected
+        || container.scrollTop >= 0
+        || Date.now() - startedAt >= deadlineMs
+      ) {
+        resolve();
+        return;
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -422,6 +556,8 @@ export function useChatSessionState({
    * cannot tell that apart from the reader taking over.
    */
   const readerInputSeqRef = useRef(0);
+  /** Wall clock of the last reader input, for `READER_INPUT_LIVE_MS`. */
+  const lastReaderInputAtRef = useRef(0);
   /** The sole queued streaming follow write, shared across transcript updates. */
   const followFrameRef = useRef<number | null>(null);
   /** Minimum deadline before an animated handoff may be considered settled. */
@@ -449,6 +585,41 @@ export function useChatSessionState({
     inputSeq: number;
     stableFrames: number;
     startedAt: number;
+    /** Frames the loop actually ran, and how much it had to correct in total. */
+    frames: number;
+    correctedPx: number;
+    /** Offset the last write asked for, and the drift it was answering. */
+    lastTarget: number | null;
+    lastDrift: number;
+    /** Writes in a row that the offset itself did not keep. */
+    contended: number;
+    /** Offset seen on the previous frame, or null before the first one. */
+    lastOffset: number | null;
+    /**
+     * Whether the previous frame was spent past the top edge, where the
+     * platform owns the offset. The jump that follows is the spring landing,
+     * not momentum, so it must not be absorbed.
+     */
+    bounced: boolean;
+    /**
+     * What the previous write was for — the distance the pane was moved, where
+     * the anchor sat on screen before it, and the document height at the time.
+     * A write that lands has to show up in the anchor's screen position or in
+     * that height; a recording showed neither (see the responsiveness check in
+     * `tick`), and the loop paid the same 2350 px four times over until the
+     * pane was pinned against the end of the transcript.
+     */
+    lastWrite: { delta: number; anchorTop: number; scrollHeight: number } | null;
+    /** Frames in a row whose compensation did not fit in the transcript's range. */
+    unreachable: number;
+    /**
+     * Whether the previous frame actually wrote an offset. A page-sized drift
+     * that comes back unchanged after a write is the same debt being measured
+     * again — a target the offset never kept, or a rect that absorbed the write
+     * somewhere else — and paying it once per frame walks the reader down the
+     * document; a phone recording put five 2368 px writes in a row that way.
+     */
+    wroteLastFrame: boolean;
   } | null>(null);
   /** Stands the pinned-row settle loop down, e.g. on a session change. */
   const cancelAnchorSettle = useCallback(() => {
@@ -777,8 +948,22 @@ export function useChatSessionState({
    * reached the top is still coasting when the page lands, and WKWebView keeps
    * overwriting the restore's write from that animation, which is not the
    * reader steering and must not end the pin.
+   *
+   * `anchorOffset` is the target this loop holds, not the one the capture took:
+   * an offset that travels without a write of ours is folded into it (see the
+   * coast handling in `tick`), so what the loop corrects from then on is the
+   * geometry the page changed, never the distance the reader travelled.
    */
-  const startAnchorSettle = useCallback((anchor: HTMLElement, anchorOffset: number) => {
+  const startAnchorSettle = useCallback((
+    anchor: HTMLElement,
+    anchorOffset: number,
+    committedWrite?: {
+      delta: number;
+      anchorTop: number;
+      scrollHeight: number;
+      targetOffset: number;
+    },
+  ) => {
     cancelAnchorSettle();
     const scheduledSessionId = activeSessionIdRef.current;
     const container = scrollContainerRef.current;
@@ -791,7 +976,22 @@ export function useChatSessionState({
       inputSeq: readerInputSeqRef.current,
       stableFrames: 0,
       startedAt: Date.now(),
+      frames: 0,
+      correctedPx: 0,
+      lastTarget: committedWrite?.targetOffset ?? null,
+      lastDrift: 0,
+      contended: 0,
+      lastOffset: null,
+      bounced: false,
+      lastWrite: committedWrite ?? null,
+      unreachable: 0,
+      wroteLastFrame: false,
     };
+    noteTranscriptEvent(
+      'AS0', container,
+      anchor.getAttribute('data-message-timestamp') ?? 'none',
+      Math.round(anchorOffset),
+    );
 
     const tick = () => {
       anchorSettleFrameRef.current = null;
@@ -805,26 +1005,235 @@ export function useChatSessionState({
         || !settle.anchor.isConnected
         || settle.inputSeq !== readerInputSeqRef.current
       ) {
+        // Why the loop stopped decides whether the drift it was holding gets
+        // corrected at all: a reader gesture deliberately hands control back,
+        // while a disconnected anchor or a session swap means nobody will.
+        if (settle && currentContainer) {
+          const reason = !settle.anchor.isConnected
+            ? 'anchorGone'
+            : settle.inputSeq !== readerInputSeqRef.current
+              ? 'readerInput'
+              : 'sessionGone';
+          noteTranscriptEvent(
+            'AS1', currentContainer, reason, settle.frames, Math.round(settle.correctedPx),
+          );
+        }
         anchorSettleRef.current = null;
         return;
       }
 
-      const drift = (
+      // Past the top edge the platform owns the offset: it is springing the
+      // content back and lays its own value over ours a frame later, for as long
+      // as the spring runs. Writing through that is the tug of war a phone
+      // recording showed — a 2000 px restore re-written on 50 consecutive frames
+      // while the offset never left the bounce. Wait for it to come back in
+      // range; the correction lands on the first frame after the spring lets go.
+      if (currentContainer.scrollTop < 0) {
+        settle.stableFrames = 0;
+        settle.bounced = true;
+        // The offset is the platform's until the spring lets go, so whatever
+        // the last write asked for is not comparable to what the next frame
+        // will read. Clear all of it: a stale `lastDrift` plus `wroteLastFrame`
+        // reads as a stalled write once the spring lands, and the loop then
+        // abandons a page-sized correction it still owes.
+        settle.lastWrite = null;
+        settle.lastTarget = null;
+        settle.wroteLastFrame = false;
+        settle.lastDrift = 0;
+        settle.contended = 0;
+        settle.unreachable = 0;
+        if (Date.now() - settle.startedAt > ANCHOR_SETTLE_MAX_MS) {
+          noteTranscriptEvent(
+            'AS1', currentContainer, 'bounce',
+            settle.frames, Math.round(settle.correctedPx),
+          );
+          anchorSettleRef.current = null;
+          return;
+        }
+        anchorSettleFrameRef.current = window.requestAnimationFrame(tick);
+        return;
+      }
+
+      const offset = currentContainer.scrollTop;
+      const previousOffset = settle.lastOffset;
+      const springLanded = settle.bounced;
+      const wroteLastFrame = settle.wroteLastFrame;
+      settle.wroteLastFrame = false;
+      settle.bounced = false;
+      settle.lastOffset = offset;
+      // Has the offset travelled since the previous frame without the loop
+      // writing it? A finger lift leaves the scroll view decelerating with no
+      // touch event behind it, and a write made into that animation ends it:
+      // the old loop re-pinned at frame rate and a recording caught 55 frozen
+      // frames (~1.3 s) on a fast flick against 1 frame on a slow one. The
+      // travel is the reader's momentum, so it is folded into the target — that
+      // keeps the correction owed to the insertion rather than to the fling —
+      // and nothing is written until the coast comes to rest, where the drift
+      // that is left is geometry and gets paid in one write.
+      const landedOnOwnWrite = (
+        settle.lastTarget !== null
+        && Math.abs(offset - settle.lastTarget) <= ANCHOR_SETTLE_LANDING_SLOP_PX
+      );
+      const anchorTop = (
         settle.anchor.getBoundingClientRect().top
         - currentContainer.getBoundingClientRect().top
-      ) - settle.anchorOffset;
-      if (Math.abs(drift) > ANCHOR_SETTLE_EPSILON_PX) {
+      );
+      // A write the pane kept has to move the anchor with it, or the document
+      // has to have grown by as much. Neither means the rect is not answering
+      // `scrollTop` — a phone recording showed the same 2350 px paid on four
+      // consecutive frames while `scrollHeight` never moved a pixel — and every
+      // further write only walks the reader away from where they were, until
+      // the pane is pinned against the tail.
+      const lastWrite = settle.lastWrite;
+      settle.lastWrite = null;
+      if (landedOnOwnWrite && lastWrite) {
+        const travelled = lastWrite.anchorTop - anchorTop;
+        const grew = currentContainer.scrollHeight - lastWrite.scrollHeight;
+        if (
+          Math.abs(travelled - lastWrite.delta) > ANCHOR_SETTLE_EPSILON_PX
+          && Math.abs(grew) <= ANCHOR_SETTLE_EPSILON_PX
+        ) {
+          noteTranscriptEvent(
+            'AS1', currentContainer, 'detached',
+            settle.frames, Math.round(settle.correctedPx), Math.round(lastWrite.delta),
+          );
+          anchorSettleRef.current = null;
+          return;
+        }
+      }
+      if (
+        !springLanded
+        && previousOffset !== null
+        && !landedOnOwnWrite
+        && Math.abs(offset - previousOffset) > ANCHOR_SETTLE_MOMENTUM_PX
+      ) {
+        settle.anchorOffset -= offset - previousOffset;
         settle.stableFrames = 0;
-        currentContainer.scrollTop += drift;
+        settle.lastTarget = null;
+        settle.lastDrift = 0;
+        settle.contended = 0;
+        if (Date.now() - settle.startedAt > ANCHOR_SETTLE_MAX_MS) {
+          noteTranscriptEvent(
+            'AS1', currentContainer, 'coasting',
+            settle.frames, Math.round(settle.correctedPx),
+          );
+          anchorSettleRef.current = null;
+          return;
+        }
+        anchorSettleFrameRef.current = window.requestAnimationFrame(tick);
+        return;
+      }
+
+      const drift = anchorTop - settle.anchorOffset;
+      settle.frames += 1;
+      if (Math.abs(drift) > ANCHOR_SETTLE_EPSILON_PX) {
+        // A correction this large coming back at exactly the same size means the
+        // previous write never reached the geometry it was paying for. The phone
+        // recording behind this: 2368.859 px charged on five consecutive frames,
+        // each write a page further down, until the pane was clamped at the
+        // tail. One payment stands; an identical second one is a loop, and the
+        // loop costs the reader a page every frame it runs.
+        const stalled = (
+          wroteLastFrame
+          && settle.lastDrift !== 0
+          && Math.sign(drift) === Math.sign(settle.lastDrift)
+          && Math.abs(Math.abs(drift) - Math.abs(settle.lastDrift)) <= ANCHOR_SETTLE_EPSILON_PX
+          && Math.abs(drift) > ANCHOR_SETTLE_CONTENDED_MAX_PX
+        );
+        if (stalled) {
+          noteTranscriptEvent(
+            'AS1', currentContainer, 'stalled',
+            settle.frames, Math.round(settle.correctedPx), Math.round(drift),
+          );
+          anchorSettleRef.current = null;
+          return;
+        }
+        // Did the previous write survive to this frame? If the offset is not
+        // where we put it while the drift still has the same size and sign, the
+        // platform is holding an offset of its own (deceleration, rubber band)
+        // and writing again only trades the same pixels every frame.
+        const swallowed = (
+          settle.lastTarget !== null
+          && Math.abs(offset - settle.lastTarget) > ANCHOR_SETTLE_LANDING_SLOP_PX
+          && Math.sign(drift) === Math.sign(settle.lastDrift)
+          && Math.abs(Math.abs(drift) - Math.abs(settle.lastDrift)) < 1
+        );
+        settle.contended = swallowed ? settle.contended + 1 : 0;
+        if (
+          Math.abs(drift) <= ANCHOR_SETTLE_CONTENDED_MAX_PX
+          && settle.contended >= ANCHOR_SETTLE_CONTENDED_FRAMES
+        ) {
+          noteTranscriptEvent(
+            'AS1', currentContainer, 'contended',
+            settle.frames, Math.round(settle.correctedPx), Math.round(drift),
+          );
+          anchorSettleRef.current = null;
+          return;
+        }
+        settle.stableFrames = 0;
+        const target = offset + drift;
+        // The compensation can outgrow what the transcript can hold: a widened
+        // window that mounts everything above the reader leaves rows below it
+        // as estimated placeholders, and their real heights arrive later. A
+        // write past the end is clamped by the pane, which parks the reader on
+        // the tail and leaves the drift uncorrected, so it is skipped here and
+        // re-measured on the next frame instead.
+        if (target > currentContainer.scrollHeight - currentContainer.clientHeight) {
+          settle.lastTarget = null;
+          settle.lastDrift = drift;
+          settle.unreachable += 1;
+          if (settle.unreachable >= ANCHOR_SETTLE_UNREACHABLE_FRAMES) {
+            noteTranscriptEvent(
+              'AS1', currentContainer, 'unreachable',
+              settle.frames, Math.round(settle.correctedPx), Math.round(drift),
+            );
+            anchorSettleRef.current = null;
+            return;
+          }
+          anchorSettleFrameRef.current = window.requestAnimationFrame(tick);
+          return;
+        }
+        settle.unreachable = 0;
+        const before = currentContainer.scrollTop;
+        currentContainer.scrollTop = target;
+        // Read the offset back instead of trusting the float that was written:
+        // WebKit quantises it to the device's layout grid, and the next frame
+        // compares against whatever it actually stored. A read-back that is
+        // further off than that grid means the pane kept an offset of its own,
+        // and the target is what it will be measured against next frame.
+        const landed = currentContainer.scrollTop;
+        settle.lastTarget = Math.abs(landed - target) <= ANCHOR_SETTLE_LANDING_SLOP_PX
+          ? landed
+          : target;
+        // The frame's travel is measured from where this write put the offset,
+        // not from where it found it: otherwise the next frame reads our own
+        // correction as momentum and folds it into the anchor's target again.
+        settle.lastOffset = landed;
+        settle.lastWrite = {
+          delta: landed - before,
+          anchorTop,
+          scrollHeight: currentContainer.scrollHeight,
+        };
+        settle.lastDrift = drift;
+        settle.correctedPx += drift;
+        settle.wroteLastFrame = true;
         noteScrollWrite('anchorSettle', currentContainer);
       } else {
         settle.stableFrames += 1;
+        settle.lastTarget = null;
+        settle.lastDrift = 0;
+        settle.contended = 0;
       }
 
       if (
         settle.stableFrames >= ANCHOR_SETTLE_STABLE_FRAMES
         || Date.now() - settle.startedAt > ANCHOR_SETTLE_MAX_MS
       ) {
+        noteTranscriptEvent(
+          'AS1', currentContainer,
+          Date.now() - settle.startedAt > ANCHOR_SETTLE_MAX_MS ? 'timeout' : 'stable',
+          settle.frames, Math.round(settle.correctedPx), Math.round(drift),
+        );
         anchorSettleRef.current = null;
         return;
       }
@@ -941,6 +1350,8 @@ export function useChatSessionState({
       isLoadingMoreRef.current = true;
       setIsLoadingMoreMessages(true);
       const scrollRestoreState = captureScrollRestoreState(container);
+      const requestStartedAt = Date.now();
+      noteTranscriptEvent('P0', container, SESSION_MESSAGES_PAGE_SIZE);
 
       try {
         const result = await sessionStore.fetchMore(selectedSession.id, {
@@ -951,6 +1362,13 @@ export function useChatSessionState({
           ),
         });
         const { slot, prependedCount } = result;
+        // The reader can switch sessions while the page is in flight. These
+        // totals describe the transcript that was on screen when the request
+        // started; folding them into the new one shows the wrong "showing
+        // N / M" and keeps offering pages that do not exist.
+        if (!isActiveRef.current || activeSessionIdRef.current !== selectedSession.id) {
+          return;
+        }
         setHasMoreMessages(slot.hasMore);
         setHasNewerMessages(hasNewerPageLeft(slot));
         setTotalMessages(slot.total);
@@ -974,6 +1392,16 @@ export function useChatSessionState({
 
         // The lock that keeps this to one page per visit is applied by the
         // restore, once the page's geometry is known (see `armScrollRestore`).
+        // Committing inside a spring measures against a viewport that is moving
+        // by itself, so wait for the edge first — see `waitForScrollableEdge`.
+        await waitForScrollableEdge(container);
+        if (!isActiveRef.current || activeSessionIdRef.current !== selectedSession.id) {
+          return;
+        }
+        noteTranscriptEvent(
+          'P1', container, prependedCount, Date.now() - requestStartedAt,
+          scrollRestoreState ? Math.round(scrollRestoreState.height) : -1,
+        );
         armScrollRestore(scrollRestoreState);
         // A Turn page holds however many rows fit the byte budget — often far
         // more than the legacy row-page size — so the render window must grow
@@ -1013,6 +1441,11 @@ export function useChatSessionState({
           && activeSessionIdRef.current === selectedSession.id
         ),
       });
+      // Same rule as the older page: the answer belongs to the session that
+      // asked for it (see `loadOlderMessages`).
+      if (!isActiveRef.current || activeSessionIdRef.current !== selectedSession.id) {
+        return;
+      }
       setHasMoreMessages(slot.hasMore);
       setHasNewerMessages(hasNewerPageLeft(slot));
       setTotalMessages(slot.total);
@@ -1100,7 +1533,12 @@ export function useChatSessionState({
       // Latching stays sticky. The reader may keep reading further up while the
       // answer grows below them, and that growth must not read as "back at the
       // bottom" and drag them down.
-      if (nearBottom && movedDown) {
+      //
+      // Only input can hand the viewport back. A coasting fling, or the layout
+      // resolving under it, moves `scrollTop` down through the same range, and
+      // releasing on that let a release 41 px from the bottom re-arm the follow
+      // mid-deceleration.
+      if (nearBottom && movedDown && Date.now() - lastReaderInputAtRef.current <= READER_INPUT_LIVE_MS) {
         upwardIntentRef.current = false;
         setIsUserScrolledUp(false);
       }
@@ -1137,12 +1575,27 @@ export function useChatSessionState({
 
     if (!allMessagesLoadedRef.current) {
       if (!scrolledNearTop) { topLoadLockRef.current = false; return; }
+      // Past the top edge the pane is rubber-banding, not sitting still: the
+      // position belongs to the platform's spring, and a page inserted into it
+      // cannot be compensated until the spring lets go. Waiting for the return
+      // to 0 costs the fraction of a second the bounce takes.
+      if (container.scrollTop < 0) return;
       if (topLoadLockRef.current) {
         // The reader moved back down through the page that was just inserted, so
         // the next reach for the top is a new request. A latched guard is always
         // releasable here: it is only set by a page that inserted more than this
         // much above the reader (see TOP_LOAD_LOCK_MIN_PROGRESS_PX).
-        if (container.scrollTop > TOP_LOAD_LOCK_MIN_PROGRESS_PX) {
+        //
+        // The landing on the restore's own write is not that move. Counting it
+        // released the guard during the insert itself, so when the platform put
+        // `scrollTop` back at the top a moment later (WebKit drops a write made
+        // mid-bounce) the next sample started another page — four pages and 413
+        // rows in under a second on iOS, each one throwing the reader further up.
+        const landingOnRestore = (
+          programmaticScrollTopRef.current !== null
+          && Math.abs(container.scrollTop - programmaticScrollTopRef.current) <= SCROLL_UP_EPSILON_PX
+        );
+        if (container.scrollTop > TOP_LOAD_LOCK_MIN_PROGRESS_PX && !landingOnRestore) {
           topLoadLockRef.current = false;
         }
         return;
@@ -1164,20 +1617,63 @@ export function useChatSessionState({
     const container = scrollContainerRef.current;
     if (pendingScrollRestoreRef.current) {
       const { height, top, anchor, anchorOffset, tailAnchor, tailAnchorOffset } = pendingScrollRestoreRef.current;
+      // How far the reader moved the pane themselves while the page was in
+      // flight. `top` and `anchorOffset` were sampled when the request started,
+      // so a drag in between is counted twice by the rect comparison — once as
+      // the row's new offset, which is how the insertion is measured, and once
+      // in the offset itself. Left in, the reader's own travel is added to the
+      // page's height: a 12 px/frame drag landed the restore 48 px off and a
+      // 24 px/frame one 48-72 px off, permanently, because the settle loop then
+      // started from the same stale offset. Splitting them keeps the correction
+      // to the rows that were actually inserted, and makes every branch below a
+      // relative write so the reader's position is not overwritten by `top`.
+      const readerShift = container.scrollTop - top;
       let insertedAbove: number;
       if (anchor?.isConnected && anchorOffset !== null) {
         const nextAnchorOffset = (
           anchor.getBoundingClientRect().top
           - container.getBoundingClientRect().top
         );
-        insertedAbove = nextAnchorOffset - anchorOffset;
-        container.scrollTop += insertedAbove;
-        noteScrollWrite('restoreAnchor', container);
+        insertedAbove = nextAnchorOffset - anchorOffset + readerShift;
+        // Where the row has to sit once the page's height is paid for: the
+        // offset it has now, less the insertion. Derived rather than read back
+        // because the write below is skipped while the pane is past the top
+        // edge, and the settle loop still has to know what it is aiming at.
+        const anchorTargetOffset = nextAnchorOffset - insertedAbove;
+        // A pane past the top edge is mid-spring: the platform owns the offset
+        // and discards any write made there, and a write also ends the spring so
+        // the content lands in one frame instead of animating home. Leave the
+        // offset alone and let the settle loop land the compensation once the
+        // spring releases.
+        if (container.scrollTop >= 0) {
+          container.scrollTop += insertedAbove;
+          noteScrollWrite('restoreAnchor', container);
+          // Recorded so the pager's guard can tell a landing on this write from
+          // the reader moving down again (see the guard in `handleScroll`).
+          programmaticScrollTopRef.current = container.scrollTop;
+        }
+        noteTranscriptEvent(
+          'RS', container, 'anchor', Math.round(insertedAbove),
+          Math.round(anchorOffset), Math.round(nextAnchorOffset),
+        );
         // The page just mounted as estimated-height placeholders (see
         // ChatMessagesPane's lazy rows), so this compensation is measured
         // against estimated geometry. The settle loop re-pins the anchor while
-        // the real heights land; on WebKit nothing else will.
-        startAnchorSettle(anchor, anchorOffset);
+        // the real heights land; on WebKit nothing else will. The write itself
+        // is handed over, so the loop's first frame can tell a repeat of this
+        // insertion from geometry that is still settling.
+        startAnchorSettle(
+          anchor,
+          anchorTargetOffset,
+          container.scrollTop >= 0
+            ? {
+                delta: insertedAbove,
+                anchorTop: nextAnchorOffset,
+                scrollHeight: container.scrollHeight,
+                targetOffset: container.scrollTop,
+              }
+            : undefined,
+        );
       } else if (tailAnchor?.isConnected && tailAnchorOffset !== null) {
         // No pinned row survived to the commit. The tail wrapper's top only
         // moves when content is inserted above it, so its displacement is the
@@ -1185,15 +1681,21 @@ export function useChatSessionState({
         // would wrongly include.
         insertedAbove = Math.max(
           (tailAnchor.getBoundingClientRect().top - container.getBoundingClientRect().top)
-            - tailAnchorOffset,
+            - tailAnchorOffset + readerShift,
           0,
         );
-        container.scrollTop = top + insertedAbove;
+        container.scrollTop += insertedAbove;
         noteScrollWrite('restoreTail', container);
+        programmaticScrollTopRef.current = container.scrollTop;
+        noteTranscriptEvent('RS', container, 'tail', Math.round(insertedAbove), top);
       } else {
+        // `scrollHeight` growth is the insertion plus whatever lazy rows above
+        // measured, and no part of it is the reader's own travel.
         insertedAbove = Math.max(container.scrollHeight - height, 0);
-        container.scrollTop = top + insertedAbove;
+        container.scrollTop += insertedAbove;
         noteScrollWrite('restoreHeight', container);
+        programmaticScrollTopRef.current = container.scrollTop;
+        noteTranscriptEvent('RS', container, 'height', Math.round(insertedAbove), top);
       }
       // Latching the pager's guard belongs to this commit rather than to the
       // request that armed it: only here is the page's geometry known, and only
@@ -1317,6 +1819,52 @@ export function useChatSessionState({
     });
   }, [lastSeqRef, selectedProject, selectedSession, sendMessage, statusCheckSentAtRef, ws]);
 
+  /**
+   * Pagination the top chrome and the near-top loader read belongs to the
+   * session whose transcript is on screen. Every field here is written from
+   * that session's slot, so a switch has to clear it in the same commit that
+   * swaps the rows: the load effect below runs after paint, and until it did,
+   * the first frame paired the new (short) transcript with the previous
+   * session's `hasMoreMessages`/`totalMessages` — the bar read "显示 3 / 1181
+   * 条消息" for a three-message conversation, and because `scrollTop` is 0 in a
+   * transcript shorter than the pane, the near-top handler could also spend a
+   * page request on the old cursor, showing "正在加载更早的消息".
+   */
+  const resetPaginationState = useCallback(() => {
+    messagesOffsetRef.current = 0;
+    setHasMoreMessages(false);
+    setHasNewerMessages(false);
+    setTotalMessages(0);
+    setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
+    setPrependedRowCount(0);
+    setIsLoadingMoreMessages(false);
+    setAllMessagesLoaded(false);
+    allMessagesLoadedRef.current = false;
+    setIsLoadingAllMessages(false);
+    setLoadAllJustFinished(false);
+    setShowLoadAllOverlay(false);
+    wasNearTopRef.current = false;
+    // The lock is a promise about the page that was just inserted above the
+    // reader; a different transcript has no such page.
+    topLoadLockRef.current = false;
+    if (loadAllOverlayTimerRef.current) {
+      clearTimeout(loadAllOverlayTimerRef.current);
+      loadAllOverlayTimerRef.current = null;
+    }
+    if (loadAllFinishedTimerRef.current) {
+      clearTimeout(loadAllFinishedTimerRef.current);
+      loadAllFinishedTimerRef.current = null;
+    }
+  }, []);
+
+  const paginatedSessionIdRef = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const nextSessionId = selectedSession?.id ?? null;
+    if (paginatedSessionIdRef.current === nextSessionId) return;
+    paginatedSessionIdRef.current = nextSessionId;
+    resetPaginationState();
+  }, [resetPaginationState, selectedSession?.id]);
+
   // Main session loading effect — store-based.
   //
   // The dependency list is deliberately narrower than the values the body
@@ -1373,21 +1921,10 @@ export function useChatSessionState({
 
     const sessionChanged = currentSessionId !== null && currentSessionId !== selectedSessionId;
 
-    // Reset pagination/scroll state
-    messagesOffsetRef.current = 0;
-    setHasMoreMessages(false);
-    setHasNewerMessages(false);
-    setTotalMessages(0);
-    setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
-    setPrependedRowCount(0);
-    setAllMessagesLoaded(false);
-    allMessagesLoadedRef.current = false;
-    setIsLoadingAllMessages(false);
-    setLoadAllJustFinished(false);
-    setShowLoadAllOverlay(false);
-    wasNearTopRef.current = false;
-    if (loadAllOverlayTimerRef.current) clearTimeout(loadAllOverlayTimerRef.current);
-    if (loadAllFinishedTimerRef.current) clearTimeout(loadAllFinishedTimerRef.current);
+    // Reset pagination/scroll state. The layout effect above has already done
+    // this before the switch painted; repeating it keeps the other entry
+    // points (a project change under the same session id) on the same path.
+    resetPaginationState();
 
     if (sessionChanged) {
       setTokenBudget(null);
@@ -1406,7 +1943,9 @@ export function useChatSessionState({
         && activeSessionIdRef.current === selectedSessionId
       ),
     }).then(slot => {
-      if (slot) {
+      // A slower first page can land after the reader moved on; its totals
+      // belong to the session that asked for them.
+      if (slot && isActiveRef.current && activeSessionIdRef.current === selectedSessionId) {
         setHasMoreMessages(slot.hasMore);
         setHasNewerMessages(hasNewerPageLeft(slot));
         setTotalMessages(slot.total);
@@ -1415,13 +1954,18 @@ export function useChatSessionState({
           setTokenBudget((slot.tokenUsage as Record<string, unknown> | null) ?? null);
         }
       }
-      setIsLoadingSessionMessages(false);
+      if (activeSessionIdRef.current === selectedSessionId) {
+        setIsLoadingSessionMessages(false);
+      }
     }).catch(() => {
-      setIsLoadingSessionMessages(false);
+      if (activeSessionIdRef.current === selectedSessionId) {
+        setIsLoadingSessionMessages(false);
+      }
     });
   }, [
     isActive,
     requestLatestMessages,
+    resetPaginationState,
     selectedProject,
     selectedSession?.id,
     sessionStore,
@@ -1727,6 +2271,7 @@ export function useChatSessionState({
     };
     const handleWheel = (event: WheelEvent) => {
       readerInputSeqRef.current += 1;
+      lastReaderInputAtRef.current = Date.now();
       if (event.deltaY < 0) armUpwardIntent();
       if (event.deltaY > 0) {
         releaseUpwardIntent();
@@ -1735,10 +2280,14 @@ export function useChatSessionState({
     };
     const handleTouchStart = (event: TouchEvent) => {
       touchActiveRef.current = true;
+      // A finger that lands while the pane is still coasting brakes it without
+      // emitting a move; that press is reader input too.
+      lastReaderInputAtRef.current = Date.now();
       touchOriginYRef.current = event.touches[0]?.clientY ?? null;
     };
     const handleTouchMove = (event: TouchEvent) => {
       readerInputSeqRef.current += 1;
+      lastReaderInputAtRef.current = Date.now();
       const originY = touchOriginYRef.current;
       const currentY = event.touches[0]?.clientY;
       // A finger travelling down pulls the transcript down, so the reader is
@@ -1763,7 +2312,26 @@ export function useChatSessionState({
       // `scroll` event afterwards to release anything. A reader who is actually
       // up in the transcript keeps their position — the latch and the upward
       // intent both still stand the follow down.
-      if (!isUserScrolledUpRef.current) followTranscriptLayout();
+      // Nothing to close when the pane is already on the tail, and the write
+      // would not be free: past the end of the range the rubber band is springing
+      // the content back, and any write to `scrollTop` — including the clamp the
+      // viewport is parked on — ends that gesture, so the blank the drag opened
+      // disappears in one frame instead of animating home.
+      const container = scrollContainerRef.current;
+      const gap = container
+        ? container.scrollHeight - container.scrollTop - container.clientHeight
+        : 0;
+      if (gap > SCROLL_UP_EPSILON_PX && !isUserScrolledUpRef.current) {
+        followTranscriptLayout();
+      }
+    };
+
+    // Dragging the desktop scrollbar emits no wheel event, so the drag has to
+    // count as reader input on its own; otherwise dragging back to the tail
+    // never releases the latch and the follow stays off until the affordance is
+    // tapped.
+    const handlePointerDown = () => {
+      lastReaderInputAtRef.current = Date.now();
     };
 
     container.addEventListener('wheel', handleWheel, { passive: true });
@@ -1771,6 +2339,7 @@ export function useChatSessionState({
     container.addEventListener('touchmove', handleTouchMove, { passive: true });
     container.addEventListener('touchend', handleTouchEnd, { passive: true });
     container.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+    container.addEventListener('pointerdown', handlePointerDown, { passive: true });
     return () => {
       container.removeEventListener('scroll', handleScroll);
       container.removeEventListener('wheel', handleWheel);
@@ -1778,6 +2347,7 @@ export function useChatSessionState({
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
       container.removeEventListener('touchcancel', handleTouchEnd);
+      container.removeEventListener('pointerdown', handlePointerDown);
     };
   }, [followTranscriptLayout, handleScroll, isNearBottom, loadNewerMessages]);
 
@@ -1799,6 +2369,12 @@ export function useChatSessionState({
     }
 
     const container = scrollContainerRef.current;
+    // The affordance only appears at the top of the transcript, so the reader is
+    // reading history, not following the tail. Latching here keeps the follow
+    // out of the commit: widening the window can make an intermediate commit
+    // report a much shorter document, and a phone recording showed the follow
+    // parking the pane 2400 px lower the moment that commit landed.
+    setIsUserScrolledUp(true);
     const scrollRestoreState = container ? captureScrollRestoreState(container) : null;
 
     try {
@@ -1842,7 +2418,7 @@ export function useChatSessionState({
       isLoadingMoreRef.current = false;
       setIsLoadingAllMessages(false);
     }
-  }, [armScrollRestore, isActive, selectedSession, selectedProject, isLoadingAllMessages, currentSessionId, sessionStore]);
+  }, [armScrollRestore, isActive, selectedSession, selectedProject, isLoadingAllMessages, currentSessionId, sessionStore, setIsUserScrolledUp]);
 
   const loadEarlierMessages = useCallback(() => {
     // Pure render-window growth: the store already holds every message, so this

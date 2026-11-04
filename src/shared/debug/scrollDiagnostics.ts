@@ -30,6 +30,35 @@ export type ScrollDiagnosticsSummary = {
   largestJumpPx: number;
   /** Samples where that jump landed exactly on the bottom edge. */
   snappedToBottomWhileTouching: number;
+  /** How many times the user-message section header changed shown/hidden state. */
+  headerFlips: number;
+  /** "Load earlier" pages that landed during the recording. */
+  prependPages: number;
+  /**
+   * Frames where `scrollTop` moved a long way and no writer in the app asked
+   * for it. On a phone these are the platform's own moves — a rubber band
+   * springing back, a native animation finishing — and they are the reason a
+   * compensation can disappear moments after it was written.
+   */
+  nativeScrollJumps: number;
+  /**
+   * Frames where the content moved relative to the viewport by more than a few
+   * pixels *after* the finger's own scrolling is accounted for. This is the
+   * direct measurement of "the page jumped": the reader's drag cancels out, and
+   * what is left is layout moving under them.
+   */
+  visualJumps: number;
+  largestVisualJumpPx: number;
+  /**
+   * The same measurement, but in frames where the app wrote `scrollTop`. Those
+   * numbers cannot be read as "the reader saw this much movement": an insert and
+   * its compensation can share one frame, so a 7700px layout change shows up as
+   * a 7700px residual that was never painted. Kept separate so the headline
+   * count stays honest.
+   */
+  writeFrameJumps: number;
+  /** Height changes on the row the reader is looking at — the insert arriving. */
+  rowHeightChanges: number;
   mutations: number;
   addedNodes: number;
   removedNodes: number;
@@ -41,9 +70,16 @@ export type ScrollDiagnosticsSummary = {
 };
 
 export type ScrollDiagnosticsReport = {
-  version: 5;
+  version: 8;
   createdAt: string;
   userAgent: string;
+  /**
+   * Which shell produced the sample. The defect being chased is specific to the
+   * iOS WebView, so a report that cannot say whether it came from Safari, from
+   * the app's WebView, or from a desktop browser cannot be compared with one
+   * that did.
+   */
+  runtime: 'ios-webview' | 'ios-safari' | 'desktop' | 'other';
   viewport: { width: number; height: number; dpr: number };
   session: {
     messageRows: number;
@@ -56,14 +92,57 @@ export type ScrollDiagnosticsReport = {
 };
 
 const MAX_EVENTS = 12000;
+/**
+ * One-frame `scrollTop` move large enough that a finger cannot explain it away
+ * as ordinary dragging. Used to flag moves the app never asked for.
+ */
+const NATIVE_SCROLL_JUMP_MIN_PX = 300;
+/**
+ * Net content-vs-viewport displacement worth reporting. The reader's own drag
+ * and the platform's inertia both move `scrollTop` and the anchor together, so
+ * they cancel in the residual; anything left over is layout moving on its own.
+ * Three pixels clears the integer quantisation of `scrollTop` on WebKit.
+ */
+const VISUAL_JUMP_MIN_PX = 3;
+/** A row growing or shrinking by this much is a real layout change, not rounding. */
+const ROW_HEIGHT_CHANGE_MIN_PX = 2;
 /** Mutations are batched into this window so the log stays readable. */
 const MUTATION_FLUSH_MS = 100;
+/** Nodes per flush whose viewport position is resolved (each costs a rect read). */
+const MUTATION_SAMPLE_LIMIT = 6;
 
 type PendingMutations = {
   added: number;
   removed: number;
   rows: Map<string, number>;
+  /** A few added elements kept so a flush can say *where* the insert landed. */
+  samples: Element[];
 };
+
+/**
+ * One transcript row, pinned by identity. `height` is the value read on the
+ * previous frame, so this frame's read can be diffed against it; its screen
+ * position is kept in `DiagnosticsState.lastTrackedTop`, not here.
+ */
+type TrackedRow = {
+  el: HTMLElement;
+  id: string;
+  height: number;
+};
+
+/**
+ * Which shell the page is running in. `Version/… Safari/…` is Safari proper;
+ * the same UA without `Version/` is a WKWebView, which is what the iOS app
+ * embeds and where the reported defect lives.
+ */
+function detectRuntime(): ScrollDiagnosticsReport['runtime'] {
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/.test(ua)) {
+    return /Version\/[\d.]+.*Safari\//.test(ua) ? 'ios-safari' : 'ios-webview';
+  }
+  if (/Macintosh|Windows|Linux/.test(ua)) return 'desktop';
+  return 'other';
+}
 
 type DiagnosticsState = {
   container: HTMLElement;
@@ -80,8 +159,34 @@ type DiagnosticsState = {
   /// content-relative offsets are a cheap signature of layout above/below.
   firstRow: HTMLElement | null;
   lastRow: HTMLElement | null;
+  /**
+   * A row kept together with the pane's top edge, so every frame can report how
+   * far the content moved *on screen* — not just how far `scrollTop` moved. A
+   * page inserted above the viewport can rewrite the layout without touching
+   * `scrollTop` at all, and that is exactly the "the transcript put me somewhere
+   * else" jump this recorder has to show.
+   *
+   * The row is tracked until it leaves the DOM rather than re-picked each frame:
+   * its screen position is only comparable across frames while it is the same
+   * row, and a re-pick would read as a jump of its own.
+   */
+  trackedRow: TrackedRow | null;
+  /** Previous frame's tracked-row top; `null` right after a re-pick. */
+  lastTrackedTop: number | null;
+  /** Previous frame's document height, for attributing a jump to a re-layout. */
+  lastScrollHeight: number;
   lastActiveElement: string;
   lastSelectionLength: number;
+  /// Previous sample's section-header state, so a flip can be timestamped with
+  /// the geometry that caused it instead of only being visible in the frames.
+  lastHeaderState: string;
+  /**
+   * Whether a writer in the app touched `scrollTop` since the last frame. A
+   * large move with this false is the platform moving the viewport by itself.
+   */
+  wroteSinceSample: boolean;
+  /** Source of the most recent programmatic write, for attributing a shift. */
+  lastWriteSource: string;
   counters: {
     samples: number;
     jankyFrames: number;
@@ -99,8 +204,22 @@ type DiagnosticsState = {
     rowUnmounts: number;
     longTasks: number;
     maxLongTaskMs: number;
+    headerFlips: number;
+    prependPages: number;
+    nativeScrollJumps: number;
+    visualJumps: number;
+    largestVisualJumpPx: number;
+    /** Layout shifts inside a frame that also carried an app write. */
+    writeFrameJumps: number;
+    rowHeightChanges: number;
     lastScrollTop: number;
     touchActive: boolean;
+    /**
+     * Which drag the sample belongs to. The symptom is reported as "the last
+     * swipe did it", so every jump carries the gesture it happened in and the
+     * `T` events carry the same number.
+     */
+    gesture: number;
   };
   truncated: boolean;
 };
@@ -117,8 +236,39 @@ let lastReport: ScrollDiagnosticsReport | null = null;
 export function noteScrollWrite(source: string, container: HTMLElement | null): void {
   const state = activeState;
   if (!state || !container) return;
+  state.wroteSinceSample = true;
+  state.lastWriteSource = source;
   pushEvent(state, [nowOffset(state), 'W', source, Math.round(container.scrollTop)]);
 }
+
+/**
+ * Records one transcript-window event. A viewport that ends up far from where
+ * the finger left it is decided by exactly three moments, and the frame samples
+ * alone cannot separate them: the page that lands (P0/P1), the compensation
+ * written for it (RS), and the settle loop that was supposed to keep the anchor
+ * pinned afterwards (AS0/AS1 — including why it stopped).
+ *
+ * `scrollTop`/`scrollHeight` are always the values after the caller's write, so
+ * `RS` can be read as "inserted N px, landed here".
+ */
+export function noteTranscriptEvent(
+  kind: 'P0' | 'P1' | 'RS' | 'AS0' | 'AS1',
+  container: HTMLElement | null,
+  ...fields: (number | string)[]
+): void {
+  const state = activeState;
+  if (!state || !container) return;
+  pushEvent(state, [
+    nowOffset(state), kind,
+    Math.round(container.scrollTop), Math.round(container.scrollHeight),
+    ...fields,
+    // Whether a finger was on the glass when this was written: a compensation
+    // written mid-gesture is the one the platform is allowed to discard.
+    state.counters.touchActive ? 1 : 0,
+  ]);
+  if (kind === 'P1') state.counters.prependPages += 1;
+}
+
 
 function pushEvent(state: DiagnosticsState, event: ScrollDiagnosticsEvent): void {
   if (state.events.length >= MAX_EVENTS) {
@@ -154,6 +304,39 @@ function describeElement(node: Element | null): string {
       ? '@stickyHeader'
       : '';
   return `${tag}${className ? `.${className}` : ''}${marker}`;
+}
+
+/**
+ * The user-message section header's state (`absent` / `pinned` / `bridging`).
+ * Read from the header's own marker because the visible/invisible difference
+ * lives only in its class list, and the two states look identical in geometry.
+ */
+function readHeaderState(container: HTMLElement): string {
+  return container.querySelector<HTMLElement>('[data-sticky-state]')?.dataset.stickyState ?? 'absent';
+}
+
+/**
+ * The user-anchor row closest to the panel top edge, as
+ * `[top, bottom, index]` relative to that edge. Only called when the header
+ * flips, so the per-frame cost of scanning rows is not paid on every sample.
+ */
+function readNearestAnchor(container: HTMLElement): [number, number, number] {
+  const paneTop = container.getBoundingClientRect().top;
+  let nearest: [number, number, number] = [0, 0, -1];
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  container.querySelectorAll<HTMLElement>('[data-user-anchor]').forEach((row, index) => {
+    const rect = row.getBoundingClientRect();
+    const top = Math.round(rect.top - paneTop);
+    const bottom = Math.round(rect.bottom - paneTop);
+    // Distance to the edge: rows below it are measured by their top, rows above
+    // by their bottom, and a row spanning the edge is distance zero.
+    const distance = bottom < 0 ? -bottom : top > 0 ? top : 0;
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearest = [top, bottom, index];
+    }
+  });
+  return nearest;
 }
 
 /**
@@ -198,7 +381,7 @@ function installScrollApiPatches(state: DiagnosticsState): void {
 }
 
 function flushMutations(state: DiagnosticsState): void {
-  const { added, removed, rows } = state.pending;
+  const { added, removed, rows, samples } = state.pending;
   if (added === 0 && removed === 0 && rows.size === 0) return;
 
   const at = nowOffset(state);
@@ -206,6 +389,31 @@ function flushMutations(state: DiagnosticsState): void {
   state.counters.mutations += 1;
   state.counters.addedNodes += added;
   state.counters.removedNodes += removed;
+
+  // Where the insert landed relative to what the reader can see. A row that
+  // mounts above the viewport is what pushes the transcript down; one that
+  // mounts inside it is what makes content appear under the finger. The counts
+  // alone cannot tell those apart, which is why a report of "it jumped" used to
+  // have no suspect in it.
+  if (added > 0 && samples.length > 0) {
+    const paneRect = state.container.getBoundingClientRect();
+    let above = 0;
+    let inside = 0;
+    let below = 0;
+    let tallest = 0;
+    for (const element of samples) {
+      if (!element.isConnected) continue;
+      const rect = element.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) continue;
+      const top = rect.top - paneRect.top;
+      const bottom = rect.bottom - paneRect.top;
+      if (bottom <= 0) above += 1;
+      else if (top >= paneRect.height) below += 1;
+      else inside += 1;
+      if (rect.height > tallest) tallest = Math.round(rect.height);
+    }
+    pushEvent(state, [at, 'MX', added, above, inside, below, tallest]);
+  }
 
   for (const timestamp of rows.keys()) {
     const row = state.container.querySelector(
@@ -224,7 +432,7 @@ function flushMutations(state: DiagnosticsState): void {
     else state.counters.rowUnmounts += 1;
   }
 
-  state.pending = { added: 0, removed: 0, rows: new Map() };
+  state.pending = { added: 0, removed: 0, rows: new Map(), samples: [] };
   state.pendingSince = at;
 }
 
@@ -252,10 +460,107 @@ function sampleFrame(state: DiagnosticsState, frameNow: number): void {
   const active = describeElement(document.activeElement);
   const activeChanged = active !== state.lastActiveElement;
   state.lastActiveElement = active;
+
+  // Keep one row pinned by identity so its screen position can be diffed frame
+  // to frame. Re-picking reads as a jump of its own, so a re-pick clears the
+  // baseline instead of reporting one.
+  const paneTop = container.getBoundingClientRect().top;
+  let row = state.trackedRow;
+  if (row && !row.el.isConnected) row = null;
+  if (!row) {
+    for (const candidate of container.querySelectorAll<HTMLElement>('[data-message-timestamp]')) {
+      if (candidate.getBoundingClientRect().bottom >= paneTop) {
+        row = {
+          el: candidate,
+          id: candidate.getAttribute('data-message-timestamp') ?? 'none',
+          height: 0,
+        };
+        break;
+      }
+    }
+    state.trackedRow = row;
+    state.lastTrackedTop = null;
+    pushEvent(state, [at, 'VA', row?.id ?? 'none']);
+  }
+
+  const trackedRect = row ? row.el.getBoundingClientRect() : null;
+  const trackedTop = trackedRect ? Math.round(trackedRect.top - paneTop) : -9999;
+  const trackedHeight = trackedRect ? Math.round(trackedRect.height) : 0;
+
+  // The strip of evidence this recorder was missing: the anchor's screen
+  // movement and `scrollTop` cancel for any movement the reader made, so what
+  // survives is layout moving on its own. Positive means the content was pushed
+  // down. A finger drag, inertia, and the app's own compensation all cancel;
+  // a page inserted above the viewport does not.
+  // Whether an app write landed between the last frame and this one. When it
+  // did, an insert and the compensation for it can share the frame: the residual
+  // then measures the layout change, not anything that was painted. Keeping the
+  // two cases apart is the difference between "the reader was moved 7700px" and
+  // "7700px of rows were laid out and immediately compensated for".
+  const wrote = state.wroteSinceSample;
+  const writeSource = state.lastWriteSource;
+
+  let residual = 0;
+  if (row && state.lastTrackedTop !== null) {
+    const visualDelta = trackedTop - state.lastTrackedTop;
+    const scrollDelta = scrollTop - state.counters.lastScrollTop;
+    residual = visualDelta + scrollDelta;
+    if (Math.abs(residual) >= VISUAL_JUMP_MIN_PX) {
+      if (wrote) {
+        pushEvent(state, [
+          at, 'WV', residual, visualDelta, scrollDelta,
+          scrollHeight - state.lastScrollHeight, writeSource, row.id,
+          state.counters.gesture,
+        ]);
+        state.counters.writeFrameJumps += 1;
+      } else {
+        pushEvent(state, [
+          at, 'VJ', residual, visualDelta, scrollDelta,
+          scrollHeight - state.lastScrollHeight,
+          state.counters.touchActive ? 1 : 0, row.id, state.counters.gesture,
+        ]);
+        state.counters.visualJumps += 1;
+        if (Math.abs(residual) > state.counters.largestVisualJumpPx) {
+          state.counters.largestVisualJumpPx = Math.abs(residual);
+        }
+      }
+    }
+    // The row under the reader getting taller or shorter is the insert itself,
+    // as opposed to a shift caused by something inserted above it.
+    if (row.height > 0 && Math.abs(trackedHeight - row.height) >= ROW_HEIGHT_CHANGE_MIN_PX) {
+      pushEvent(state, [
+        at, 'RH', row.id, row.height, trackedHeight, trackedTop, state.counters.gesture,
+      ]);
+      state.counters.rowHeightChanges += 1;
+    }
+  }
+  if (row) {
+    row.height = trackedHeight;
+    state.lastTrackedTop = trackedTop;
+  }
+  state.lastScrollHeight = scrollHeight;
+
   pushEvent(state, [
-    at, 'F', scrollTop, scrollHeight, clientHeight, Math.round(gap), firstOffset, lastOffset, activeChanged ? 1 : 0,
+    at, 'F', scrollTop, scrollHeight, clientHeight, Math.round(gap), firstOffset, lastOffset,
+    activeChanged ? 1 : 0, trackedTop, trackedHeight, residual,
   ]);
   if (activeChanged) pushEvent(state, [at, 'AF', active]);
+
+  // The section header flips without any scroll write of its own, so record
+  // each transition with the geometry that produced it: a flip that happens at
+  // a stable scrollTop, or one paired with a row mount, is a different defect
+  // from a flip caused by the reader actually crossing the row.
+  const headerElement = container.querySelector<HTMLElement>('[data-sticky-state]');
+  const headerState = headerElement?.dataset.stickyState ?? 'absent';
+  if (headerState !== state.lastHeaderState) {
+    const [anchorTop, anchorBottom, anchorIndex] = readNearestAnchor(container);
+    pushEvent(state, [
+      at, 'SH', state.lastHeaderState, headerState, scrollTop, scrollHeight,
+      headerElement?.offsetHeight ?? 0, anchorTop, anchorBottom, anchorIndex,
+    ]);
+    state.lastHeaderState = headerState;
+    state.counters.headerFlips += 1;
+  }
 
   state.counters.samples += 1;
   if (gap > 0) {
@@ -263,6 +568,21 @@ function sampleFrame(state: DiagnosticsState, frameNow: number): void {
     if (gap > state.counters.maxFrameMs) state.counters.maxFrameMs = gap;
     if (gap > 34) state.counters.jankyFrames += 1;
   }
+  // A long move no writer in this app asked for, with no finger on the glass to
+  // explain it. On a phone that is the platform moving the viewport itself — a
+  // rubber band springing back, a native animation finishing — and it leaves no
+  // trace in `W` or `A`. This is the event that names who undid a compensation
+  // the restore had already reported as stable.
+  if (!wrote && !state.counters.touchActive) {
+    const jump = scrollTop - state.counters.lastScrollTop;
+    if (Math.abs(jump) >= NATIVE_SCROLL_JUMP_MIN_PX) {
+      pushEvent(state, [at, 'NX', state.counters.lastScrollTop, scrollTop, jump]);
+      state.counters.nativeScrollJumps += 1;
+    }
+  }
+  state.wroteSinceSample = false;
+  state.lastWriteSource = '';
+
   if (state.counters.touchActive) {
     state.counters.touchedSamples += 1;
     const delta = scrollTop - state.counters.lastScrollTop;
@@ -303,12 +623,18 @@ export function startScrollDiagnostics(container: HTMLElement): void {
     observer: null,
     longTaskObserver: null,
     cleanup: [],
-    pending: { added: 0, removed: 0, rows: new Map() },
+    pending: { added: 0, removed: 0, rows: new Map(), samples: [] },
     pendingSince: 0,
     firstRow: container.querySelector<HTMLElement>('[data-message-timestamp]'),
     lastRow: [...container.querySelectorAll<HTMLElement>('[data-message-timestamp]')].at(-1) ?? null,
+    trackedRow: null,
+    lastTrackedTop: null,
+    lastScrollHeight: Math.round(container.scrollHeight),
     lastActiveElement: '',
     lastSelectionLength: -1,
+    lastHeaderState: readHeaderState(container),
+    wroteSinceSample: false,
+    lastWriteSource: '',
     counters: {
       samples: 0,
       jankyFrames: 0,
@@ -326,8 +652,16 @@ export function startScrollDiagnostics(container: HTMLElement): void {
       rowUnmounts: 0,
       longTasks: 0,
       maxLongTaskMs: 0,
+      headerFlips: 0,
+      prependPages: 0,
+      nativeScrollJumps: 0,
+      visualJumps: 0,
+      largestVisualJumpPx: 0,
+      writeFrameJumps: 0,
+      rowHeightChanges: 0,
       lastScrollTop: Math.round(container.scrollTop),
       touchActive: false,
+      gesture: 0,
     },
     truncated: false,
   };
@@ -340,11 +674,17 @@ export function startScrollDiagnostics(container: HTMLElement): void {
   };
   const onTouchStart = () => {
     state.counters.touchActive = true;
-    pushEvent(state, [nowOffset(state), 'T', 'start']);
+    state.counters.gesture += 1;
+    pushEvent(state, [
+      nowOffset(state), 'T', 'start', Math.round(container.scrollTop), state.counters.gesture,
+    ]);
   };
   const onTouchEnd = (event: TouchEvent) => {
     state.counters.touchActive = false;
-    pushEvent(state, [nowOffset(state), 'T', event.type === 'touchcancel' ? 'cancel' : 'end']);
+    pushEvent(state, [
+      nowOffset(state), 'T', event.type === 'touchcancel' ? 'cancel' : 'end',
+      Math.round(container.scrollTop), state.counters.gesture,
+    ]);
   };
   const onFontsDone = () => {
     pushEvent(state, [nowOffset(state), 'FONTS', document.fonts.status]);
@@ -368,6 +708,17 @@ export function startScrollDiagnostics(container: HTMLElement): void {
       const timestamp = resolveRowTimestamp(record.target);
       if (timestamp) {
         state.pending.rows.set(timestamp, (state.pending.rows.get(timestamp) ?? 0) + 1);
+      }
+      // One element per record is enough to place the insert: a React commit
+      // that mounts a subtree adds its root here, and keeping every leaf would
+      // cost a rect read per node on the flush.
+      if (state.pending.samples.length < MUTATION_SAMPLE_LIMIT) {
+        for (const node of record.addedNodes) {
+          if (node instanceof Element) {
+            state.pending.samples.push(node);
+            break;
+          }
+        }
       }
     }
   });
@@ -470,6 +821,13 @@ function snapshotSummary(state: DiagnosticsState): ScrollDiagnosticsSummary {
     rowUnmounts: state.counters.rowUnmounts,
     longTasks: state.counters.longTasks,
     maxLongTaskMs: Math.round(state.counters.maxLongTaskMs),
+    headerFlips: state.counters.headerFlips,
+    prependPages: state.counters.prependPages,
+    nativeScrollJumps: state.counters.nativeScrollJumps,
+    visualJumps: state.counters.visualJumps,
+    largestVisualJumpPx: Math.round(state.counters.largestVisualJumpPx),
+    writeFrameJumps: state.counters.writeFrameJumps,
+    rowHeightChanges: state.counters.rowHeightChanges,
     truncated: state.truncated,
   };
 }
@@ -484,9 +842,10 @@ export function buildScrollDiagnosticsReport(): ScrollDiagnosticsReport | null {
   flushMutations(state);
 
   lastReport = {
-    version: 5,
+    version: 8,
     createdAt: new Date().toISOString(),
     userAgent: navigator.userAgent,
+    runtime: detectRuntime(),
     viewport: {
       width: window.innerWidth,
       height: window.innerHeight,

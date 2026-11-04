@@ -307,7 +307,7 @@ export default function ChatComposer({
 
   return (
     <div
-      className="chat-composer-shell relative flex-shrink-0 pl-2 pt-0 sm:pl-4 md:pl-4"
+      className="chat-composer-shell relative flex-shrink-0 pl-3 pt-0 sm:pl-4"
       style={{ '--chat-scrollbar-w': `${transcriptScrollbarWidth}px` } as CSSProperties}
     >
       {pendingPermissionRequests.length > 0 && (

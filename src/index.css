@@ -1088,6 +1088,25 @@
 
   .chat-messages-pane {
     contain: layout style paint;
+    /* No rubber band on this pane, on any engine. WebKit springs a scrolled box
+       past its top edge and, while it does, `scrollTop` is negative: writes are
+       discarded and every rect measured against it is shifted by the spring
+       itself. The restore's compensation therefore either lands half a second
+       late (a visible jump — measured 3182 px on a phone) or measures zero
+       insertion and stands down. Capacitor's `scrollView.bounces = false` only
+       covers the web view's own root scroller, not a nested overflow box, so the
+       opt-out has to be made here. */
+    overscroll-behavior-y: none;
+    /* The transcript owns its own scroll compensation (see the anchor settle
+       loop in useChatSessionState): it measures how far the rows the reader is
+       looking at moved and pays that back in one write. Chromium also anchors
+       the scroll position by itself when rows are inserted above, so on that
+       engine the same page was paid for twice — a measured 7900 px prepend moved
+       `scrollTop` from 64 to 7964 on its own and the restore added another 7900,
+       throwing the content the reader was reading a full page above the
+       viewport. WebKit has no anchoring, which is the behaviour the loop is
+       written for; this makes every engine match it. */
+    overflow-anchor: none;
   }
 
   .chat-composer-shell {
@@ -1102,7 +1121,7 @@
        keeping the inset there would open a gap between input and keyboard. */
     --chat-composer-safe-bottom: max(0px, env(safe-area-inset-bottom, 0px) - var(--keyboard-height, 0px));
     /* Match the transcript's centre axis when its scrollbar takes up space. */
-    padding-right: calc(0.5rem + var(--chat-scrollbar-w, 0px));
+    padding-right: calc(0.75rem + var(--chat-scrollbar-w, 0px));
     padding-bottom: calc(0.5rem + var(--chat-composer-safe-bottom));
   }
 

@@ -37,7 +37,13 @@ describe("user message sticky header", () => {
     fireEvent.scroll(container);
 
     expect(getByText("第二句提问全文内容")).toBeTruthy();
-    expect(getByText("第二句提问全文内容").parentElement!.className).toContain("sticky");
+    // The band floats in a zero-height sticky layer: the layer pins, the button
+    // inside it is positioned so it takes the transcript's height out of play.
+    const headerButton = getByText("第二句提问全文内容").closest("button")!;
+    expect(headerButton.parentElement!.className).toContain("sticky");
+    expect(headerButton.parentElement!.className).toContain("h-0");
+    expect(headerButton.className).toContain("absolute");
+    expect(headerButton.dataset.stickyState).toBe("pinned");
   });
 
   it("picks the most recently scrolled-off anchor, not the deepest one", () => {
@@ -58,7 +64,7 @@ describe("user message sticky header", () => {
     expect(getByText("第一句提问全文内容")).toBeTruthy();
   });
 
-  it("keeps its slot but turns invisible when the user message spans the panel top edge", () => {
+  it("hides while the arriving user message spans the panel top edge", () => {
     const { container, getByText } = renderHeader(new Map([["q1", "第一句提问全文内容"]]));
     const q1 = container.querySelector<HTMLElement>('[data-user-anchor="q1"]')!;
 
@@ -68,14 +74,42 @@ describe("user message sticky header", () => {
 
     fireEvent.scroll(container);
 
-    // The button stays mounted (its flow slot must not shift the rows being
-    // measured) and only hides visually.
+    // The button stays mounted (the scroll listener resolves its container
+    // through this node) and only hides visually.
     const headerButton = getByText("第一句提问全文内容").closest("button")!;
     expect(headerButton.className).toContain("invisible");
     expect(headerButton.className).toContain("pointer-events-none");
+    // The recorder reads this marker to time each shown/hidden flip.
+    expect(headerButton.dataset.stickyState).toBe("bridging");
   });
 
-  it("releases the slot only after the user message has fully arrived back in view", () => {
+  it("steps aside once the arriving message is under the band's own strip", () => {
+    const { container } = renderHeader(
+      new Map([
+        ["q1", "第一句提问全文内容"],
+        ["q2", "第二句提问全文内容"],
+      ]),
+    );
+    const q1 = container.querySelector<HTMLElement>('[data-user-anchor="q1"]')!;
+    const q2 = container.querySelector<HTMLElement>('[data-user-anchor="q2"]')!;
+    // The band's covered strip is the top 22px of the pane, as on screen.
+    const headerButton = container.querySelector<HTMLButtonElement>("button")!;
+    vi.spyOn(headerButton, "getBoundingClientRect").mockReturnValue(rect(-12, 22));
+
+    vi.spyOn(container, "getBoundingClientRect").mockReturnValue(rect(0, 460));
+    vi.spyOn(q1, "getBoundingClientRect").mockReturnValue(rect(-80, -10));
+    // q2 is fully visible but its question bubble starts inside that strip.
+    vi.spyOn(q2, "getBoundingClientRect").mockReturnValue(rect(5, 200));
+
+    fireEvent.scroll(container);
+
+    // Covering a question it is supposed to summarise is worse than showing
+    // nothing, so the band hides instead of pinning q1 above q2's bubble.
+    expect(headerButton.className).toContain("invisible");
+    expect(headerButton.dataset.stickyState).toBe("bridging");
+  });
+
+  it("releases the band only after the user message has fully arrived back in view", () => {
     const { container, queryByText } = renderHeader(new Map([["q1", "第一句提问全文内容"]]));
     const q1 = container.querySelector<HTMLElement>('[data-user-anchor="q1"]')!;
     const q1Rect = vi.spyOn(q1, "getBoundingClientRect");
@@ -86,14 +120,14 @@ describe("user message sticky header", () => {
     // Bridging: mounted but invisible.
     expect(queryByText("第一句提问全文内容")).toBeTruthy();
 
-    // Fully back in view: nothing is scrolled off anymore, so the header
-    // unmounts back to the zero-height stand-in.
+    // Fully back in view: nothing is scrolled off anymore and nothing is under
+    // the band, so it has no section to name and empties out.
     q1Rect.mockReturnValue(rect(50, 200));
     fireEvent.scroll(container);
     expect(queryByText("第一句提问全文内容")).toBeNull();
   });
 
-  it("re-shows the earlier anchor once the arriving message is fully in view", () => {
+  it("re-shows the earlier anchor once the arriving message has cleared the band", () => {
     const { container, getByText } = renderHeader(
       new Map([
         ["q1", "第一句提问全文内容"],
@@ -109,14 +143,42 @@ describe("user message sticky header", () => {
     vi.spyOn(q1, "getBoundingClientRect").mockReturnValue(rect(-80, -10));
     q2Rect.mockReturnValue(rect(-120, 60));
     fireEvent.scroll(container);
-    expect(getByText("第一句提问全文内容").closest("button")!.className).toContain("invisible");
+    // q2's own row is arriving, so q2 is what the hidden band holds.
+    expect(getByText("第二句提问全文内容").closest("button")!.className).toContain("invisible");
 
-    // q2 fully visible: q1 owns the header again, visibly.
+    // q2 fully visible and clear of the band: q1 owns the header again, visibly.
     q2Rect.mockReturnValue(rect(50, 200));
     fireEvent.scroll(container);
     const headerButton = getByText("第一句提问全文内容").closest("button")!;
     expect(headerButton.className).not.toContain("invisible");
-    expect(headerButton.className).toContain("sticky");
+    expect(headerButton.parentElement!.className).toContain("sticky");
+  });
+
+  it("holds the band out while the arriving row hovers on the strip edge", () => {
+    const { container } = renderHeader(new Map([["q1", "第一句提问全文内容"]]));
+    const q1 = container.querySelector<HTMLElement>('[data-user-anchor="q1"]')!;
+    const q1Rect = vi.spyOn(q1, "getBoundingClientRect");
+    const headerButton = container.querySelector<HTMLButtonElement>("button")!;
+
+    vi.spyOn(container, "getBoundingClientRect").mockReturnValue(rect(0, 460));
+    // The band sits flush on the pane top, so its strip ends at y = 0.
+    vi.spyOn(headerButton, "getBoundingClientRect").mockReturnValue(rect(-34, 0));
+
+    q1Rect.mockReturnValue(rect(-120, 60));
+    fireEvent.scroll(container);
+    expect(headerButton.dataset.stickyState).toBe("bridging");
+
+    // A phone hands back offsets that wander a pixel or two, which puts the
+    // row's edge on the threshold frame after frame. Without a dead band the
+    // state flips back here and the reader sees a flicker instead of a message.
+    q1Rect.mockReturnValue(rect(2, 180));
+    fireEvent.scroll(container);
+    expect(headerButton.dataset.stickyState).toBe("bridging");
+
+    // Well clear of the dead band, the band may come back.
+    q1Rect.mockReturnValue(rect(6, 180));
+    fireEvent.scroll(container);
+    expect(headerButton.dataset.stickyState).toBe("absent");
   });
 
   it("renders nothing before any anchor has fully scrolled off the top", () => {
@@ -197,5 +259,6 @@ describe("user message sticky header", () => {
     const standIn = container.querySelector("button")!;
     expect(standIn.dataset.userStickyHeader).toBeUndefined();
     expect(standIn.dataset.pinned).toBeUndefined();
+    expect(standIn.dataset.stickyState).toBe("absent");
   });
 });
