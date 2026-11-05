@@ -38,9 +38,9 @@ test('DSH permission prompts offer a one-shot decision without Claude remember r
   );
 
   expect(screen.getByText('bash')).toBeTruthy();
-  expect(screen.queryByText('Allow & remember')).toBeNull();
+  expect(screen.queryByText('chat:permissionBanner.allowAndRemember')).toBeNull();
 
-  fireEvent.click(screen.getByRole('button', { name: 'Allow once' }));
+  fireEvent.click(screen.getByRole('button', { name: 'chat:permissionBanner.allowOnce' }));
 
   assert.deepEqual(decisions, [['dsh-request-1', { allow: true }]]);
 });

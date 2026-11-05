@@ -142,6 +142,16 @@
     "alwaysAllow": "始终允许",
     "alwaysAllowCovers": "“始终允许”适用于"
   },
+  "permissionBanner": {
+    "title": "需要授权",
+    "toolLabel": "工具：",
+    "viewToolInput": "查看工具输入",
+    "allowRule": "允许规则：",
+    "deny": "拒绝",
+    "allowOnce": "仅本次允许",
+    "allowAndRemember": "允许并记住",
+    "allowSaved": "允许（已保存）"
+  },
   "permissions": {
     "grant": "授予 {{tool}} 权限",
     "added": "权限已添加",

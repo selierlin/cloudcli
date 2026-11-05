@@ -181,6 +181,16 @@
     "allowToolUnnamed": "Allow {{server}} to run this tool?",
     "allow": "Allow"
   },
+  "permissionBanner": {
+    "title": "Permission required",
+    "toolLabel": "Tool:",
+    "viewToolInput": "View tool input",
+    "allowRule": "Allow rule:",
+    "deny": "Deny",
+    "allowOnce": "Allow once",
+    "allowAndRemember": "Allow & remember",
+    "allowSaved": "Allow (saved)"
+  },
   "permissions": {
     "grant": "Grant permission for {{tool}}",
     "added": "Permission added",
