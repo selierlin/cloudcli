@@ -82,8 +82,9 @@ function stubProvider(options: {
   forkResult?: { providerSessionId: string; jsonlPath: string } | null;
   forkError?: Error;
   messages?: Array<Partial<NormalizedMessage>>;
-} = {}): { forkCalls: Array<Record<string, unknown>> } {
+} = {}): { forkCalls: Array<Record<string, unknown>>; disposeCalls: string[] } {
   const forkCalls: Array<Record<string, unknown>> = [];
+  const disposeCalls: string[] = [];
   const fork = options.forkResult === null && !options.forkError
     ? undefined
     : {
@@ -102,7 +103,12 @@ function stubProvider(options: {
   const provider = {
     id: 'claude',
     fork,
-    runtime: {},
+    runtime: {
+      // Destroying a copy must release the provider-side conversation too.
+      disposeSession: async (sessionId: string) => {
+        disposeCalls.push(sessionId);
+      },
+    },
     sessionSynchronizer: {},
   } as unknown as IProvider;
 
@@ -123,7 +129,7 @@ function stubProvider(options: {
     limit: null,
   })) as unknown as typeof sessionsService.fetchHistory);
 
-  return { forkCalls };
+  return { forkCalls, disposeCalls };
 }
 
 function seedSourceSession(sessionId = 'source-session'): void {
@@ -373,7 +379,7 @@ test('a failed fork removes the placeholder row instead of leaving it behind', a
 test('destroying a real session is refused, and destroying an aside removes what it created', async () => {
   await withBtwServer(async (baseUrl) => {
     seedSourceSession();
-    stubProvider();
+    const { disposeCalls } = stubProvider();
 
     const realDelete = await fetch(`${baseUrl}/api/providers/sessions/source-session/btw`, { method: 'DELETE' });
     assert.equal(realDelete.status, 403);
@@ -390,6 +396,9 @@ test('destroying a real session is refused, and destroying an aside removes what
     assert.equal(deleted.status, 200);
     assert.equal(sessionsDb.getSessionById(asideId), null);
     assert.equal(sessionsDb.listEphemeralSessions().length, 0);
+    // The provider conversation is released before the copy disappears, so a
+    // runtime that keeps it open cannot recreate the deleted transcript.
+    assert.deepEqual(disposeCalls, [asideId]);
     // The source conversation is untouched.
     assert.ok(sessionsDb.getSessionById('source-session'));
   });

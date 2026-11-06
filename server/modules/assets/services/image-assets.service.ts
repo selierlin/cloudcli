@@ -25,6 +25,16 @@ type StoredImageAsset = {
   path: string;
   size: number;
   mimeType: string;
+  /**
+   * Stored file name, which the composer needs to restore the attachment after
+   * a reload and to release it even when the file is already gone.
+   */
+  storedName: string;
+  /**
+   * True when the file still exists on disk. False means an asset the UI still
+   * lists was collected or removed, and the composer must re-upload it.
+   */
+  restorable: boolean;
 };
 
 // Shape of one multer-stored file; kept local because only this module reads it.
@@ -40,6 +50,20 @@ type UploadedAttachmentFile = UploadedImageFile;
 /** Returns whether one uploaded mime type may be stored as a chat image asset. */
 export function isAllowedImageMimeType(mimeType: string): boolean {
   return ALLOWED_IMAGE_MIME_TYPES.has(mimeType);
+}
+
+/**
+ * Whether a stored file name carries the timestamp-random prefix the upload
+ * route mints. Reclaim paths refuse anything else, so they can never delete a
+ * file the user put in the assets folder by hand.
+ */
+export function isUploadStoredFileName(fileName: string): boolean {
+  return /^\d{10,16}-\d+-(.+)$/.test(fileName);
+}
+
+/** Whether one stored asset file is still present inside the assets folder. */
+function isStoredFilePresent(fileName: string): boolean {
+  return fsSync.existsSync(path.join(getGlobalImageAssetsDir(), fileName));
 }
 
 /** Creates the global `~/.cloudcli/assets` folder if needed and returns it. */
@@ -61,6 +85,10 @@ export function buildStoredImageRecords(files: UploadedImageFile[]): StoredImage
     path: toPosixPath(path.join(assetsDir, file.filename)),
     size: file.size,
     mimeType: file.mimetype,
+    storedName: file.filename,
+    // Multer has just written the file, so it is always present here unless a
+    // concurrent sweep won the race in between.
+    restorable: isStoredFilePresent(file.filename),
   }));
 }
 
@@ -100,6 +128,30 @@ export function resolveImageAssetFile(filename: string): string | null {
  */
 export function resolveAttachmentAssetFile(filename: string): string | null {
   return resolveImageAssetFile(filename);
+}
+
+/**
+ * Deletes one uploaded chat asset by its stored file name.
+ *
+ * Used by the composer's release endpoint for an attachment the user removed or
+ * a message that was discarded after the upload. Answers false for a name that
+ * was not minted by the upload route or escapes the assets folder, and true for
+ * an already-absent file so repeated releases stay idempotent.
+ */
+export async function removeStoredAsset(fileName: string): Promise<boolean> {
+  if (!isUploadStoredFileName(fileName)) {
+    return false;
+  }
+  const resolved = resolveImageAssetFile(fileName);
+  if (!resolved) {
+    return false;
+  }
+  try {
+    await fs.unlink(resolved);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'ENOENT';
+  }
 }
 
 /**

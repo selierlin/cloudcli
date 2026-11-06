@@ -81,14 +81,9 @@
     "cancel": "キャンセル",
     "openCommandPalette": "コマンドパレットを開く",
     "attentionRequiredIndicator": "セッションが対応を必要としています",
+    "expandAllProjects": "すべてのプロジェクトを展開",
+    "locateSelectedProject": "現在のセッションのプロジェクトを表示",
     "collapseAllProjects": "すべてのプロジェクトを折りたたむ"
-  },
-  "navigation": {
-    "chat": "チャット",
-    "files": "ファイル",
-    "git": "Git",
-    "terminal": "ターミナル",
-    "tasks": "タスク"
   },
   "actions": {
     "refresh": "更新",

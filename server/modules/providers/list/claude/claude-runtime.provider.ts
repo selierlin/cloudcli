@@ -319,7 +319,17 @@ export function buildClaudeSdkEnv(hostEnv: NodeJS.ProcessEnv = process.env): Nod
 }
 
 function mapCliOptionsToSDK(options: AnyRecord = {}) {
-  const { providerSessionId, cwd, toolsSettings, permissionMode, effort, resumeAnchorId, resumeFromScratch, settingsFile } = options;
+  const {
+    providerSessionId,
+    cwd,
+    toolsSettings,
+    permissionMode,
+    effort,
+    resumeAnchorId,
+    resumeFromScratch,
+    settingsFile,
+    unattended,
+  } = options;
 
   const sdkOptions: AnyRecord = {};
 
@@ -338,8 +348,13 @@ function mapCliOptionsToSDK(options: AnyRecord = {}) {
     sdkOptions.cwd = cwd;
   }
 
-  if (permissionMode && permissionMode !== 'default') {
-    sdkOptions.permissionMode = permissionMode;
+  // Nobody is watching a scheduled run, and plan mode ends by waiting on
+  // `ExitPlanMode` indefinitely. A stored plan preference is therefore run as
+  // the default mode instead of hanging the task forever.
+  const requestedPermissionMode = unattended && permissionMode === 'plan' ? 'default' : permissionMode;
+
+  if (requestedPermissionMode && requestedPermissionMode !== 'default') {
+    sdkOptions.permissionMode = requestedPermissionMode;
   }
 
   const settings = toolsSettings || {
@@ -348,13 +363,13 @@ function mapCliOptionsToSDK(options: AnyRecord = {}) {
     skipPermissions: false
   };
 
-  if (settings.skipPermissions && permissionMode !== 'plan') {
+  if (settings.skipPermissions && requestedPermissionMode !== 'plan') {
     sdkOptions.permissionMode = 'bypassPermissions';
   }
 
   let allowedTools = [...(settings.allowedTools || [])];
 
-  if (permissionMode === 'plan') {
+  if (requestedPermissionMode === 'plan') {
     const planModeTools = ['Read', 'Task', 'exit_plan_mode', 'TodoRead', 'TodoWrite', 'WebFetch', 'WebSearch'];
     for (const tool of planModeTools) {
       if (!allowedTools.includes(tool)) {
@@ -1354,6 +1369,17 @@ async function queryClaudeSDK(
     // to work in those modes.
     sdkOptions.canUseTool = async (toolName: string, input: unknown, context?: { signal?: AbortSignal }) => {
       const requiresInteraction = TOOLS_REQUIRING_INTERACTION.has(toolName);
+
+      // A scheduled run has no socket and therefore no one to answer. Waiting
+      // on an interactive prompt would hold the run — and its session — open
+      // forever (these tools use an infinite timeout), so the tool is refused
+      // immediately and the model is told why.
+      if (requiresInteraction && options.unattended) {
+        return {
+          behavior: 'deny',
+          message: 'This run is unattended. Nobody is available to answer an interactive prompt; continue without it or finish and report what you still need.',
+        };
+      }
 
       if (!requiresInteraction) {
         if (sdkOptions.permissionMode === 'bypassPermissions') {

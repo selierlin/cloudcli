@@ -59,14 +59,9 @@
     "clearSearch": "Hapus pencarian",
     "openCommandPalette": "Buka palet perintah",
     "attentionRequiredIndicator": "Sesi memerlukan perhatian",
+    "expandAllProjects": "Bentangkan semua proyek",
+    "locateSelectedProject": "Tampilkan proyek sesi saat ini",
     "collapseAllProjects": "Ciutkan semua proyek"
-  },
-  "navigation": {
-    "chat": "Chat",
-    "files": "File",
-    "git": "Git",
-    "terminal": "Terminal",
-    "tasks": "Tugas"
   },
   "actions": {
     "refresh": "Segarkan",

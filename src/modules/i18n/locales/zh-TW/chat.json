@@ -122,7 +122,14 @@
     },
     "clickToChangeMode": "點擊變更權限模式（或在輸入框中按 Tab）",
     "showAllCommands": "顯示所有指令",
-    "scrollToBottom": "捲動到底部"
+    "scrollToBottom": "捲動到底部",
+    "attachments": {
+      "uploading": "正在上傳附件…",
+      "failed": "上傳失敗",
+      "uploadFailedNamed": "以下附件上傳失敗：{{names}}。請重新加入後再傳送。",
+      "expand": "放大 {{name}}",
+      "remove": "移除 {{name}}"
+    }
   },
   "composer": {
     "reasoning": "思考",

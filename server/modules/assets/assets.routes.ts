@@ -7,7 +7,11 @@ import {
   ensureImageAssetsDir,
   isAllowedImageMimeType,
   openStoredAttachmentAsset,
+  removeStoredAsset,
 } from '@/modules/assets/services/image-assets.service.js';
+import {
+  collectAbandonedAssets,
+} from '@/modules/assets/services/asset-gc.service.js';
 
 const router = express.Router();
 
@@ -166,6 +170,38 @@ router.get('/files/:filename', async (req, res) => {
       res.status(500).json({ error: 'Error reading asset' });
     }
   });
+});
+
+/**
+ * Releases an upload the composer no longer holds — a removed attachment, or
+ * one whose message was discarded. Idempotent: a file already collected or
+ * never stored answers success, because the caller only cares that it is gone.
+ *
+ * Body: { storedName } or { storedNames: string[] }.
+ */
+router.post('/release', async (req, res) => {
+  const body = (req.body ?? {}) as { storedName?: unknown; storedNames?: unknown };
+  const names = Array.isArray(body.storedNames) ? body.storedNames : [body.storedName];
+  const storedNames = names.filter((name): name is string => typeof name === 'string' && name.trim() !== '');
+  if (storedNames.length === 0) {
+    return res.status(400).json({ error: 'No stored file names provided' });
+  }
+
+  const results = new Map<string, boolean>();
+  for (const storedName of storedNames) {
+    results.set(storedName, await removeStoredAsset(storedName));
+  }
+  res.json({ released: Array.from(results, ([storedName, removed]) => ({ storedName, removed })) });
+});
+
+/**
+ * Runs one abandoned-asset collection pass. Registered so an operator can
+ * reclaim space without restarting; the server also runs it at startup and on
+ * a timer.
+ */
+router.post('/collect', async (_req, res) => {
+  const removed = await collectAbandonedAssets();
+  res.json({ removed });
 });
 
 export default router;

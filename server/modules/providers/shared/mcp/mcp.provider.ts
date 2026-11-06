@@ -127,6 +127,11 @@ export abstract class McpProvider implements IProviderMcp {
     return [...this.supportedScopes];
   }
 
+  /** No name is externally supplied unless an adapter reads a layer the app does not own. */
+  listExternallyManagedNames(): string[] {
+    return [];
+  }
+
   async upsertServer(input: UpsertProviderMcpServerInput): Promise<ProviderMcpServer> {
     const scope = input.scope ?? 'project';
     this.assertScopeAndTransport(scope, input.transport);

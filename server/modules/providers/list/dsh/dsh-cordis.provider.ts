@@ -36,6 +36,20 @@ const DUMP_MAX_BUFFER_BYTES = 8 * 1024 * 1024;
 /** YAML tag the composer leaves in place for harness-side expressions. */
 const JS_TAG = '!!js';
 
+/**
+ * How long one dump is reused before the CLI is spawned again.
+ *
+ * A settings request touches the composition several times (list, decorate
+ * each row, toggle) and `spawnSync` blocks the whole daemon for the duration of
+ * the CLI run, so the same dump is shared for a few seconds. Writes invalidate
+ * the cache explicitly, because the writer has to verify against the file it
+ * just produced rather than the document it started from.
+ */
+const COMPOSED_DUMP_TTL_MS = 3_000;
+
+/** Last dump, keyed by the home it was taken from. */
+let composedDumpCache: { home: string; readAt: number; result: { ok: boolean; document: string } } | null = null;
+
 /** Matches a mapping entry (`key:` or `key: value`) but not a plain scalar, a URL or a nested sequence item. */
 const MAPPING_ENTRY = /^[^\s:][^:]*:(\s|$)/;
 
@@ -281,6 +295,54 @@ export function parseDshComposedEntries(document: string): Record<string, Record
 }
 
 /**
+ * Runs the profile dump and reports whether the CLI produced one.
+ *
+ * Used by every DSH composition reader and by the MCP writer's post-write
+ * verification, which must tell "the CLI is unavailable" (nothing to verify
+ * against) apart from "the document parsed but lacks the entry I just wrote"
+ * (a real failure that has to be rolled back).
+ *
+ * The result is reused for {@link COMPOSED_DUMP_TTL_MS}; a writer that changed
+ * the file must call {@link invalidateDshComposedDocument} first.
+ */
+export function readDshComposedDocument(): { ok: boolean; document: string } {
+  const home = getDshHome();
+  if (
+    composedDumpCache
+    && composedDumpCache.home === home
+    && Date.now() - composedDumpCache.readAt < COMPOSED_DUMP_TTL_MS
+  ) {
+    return composedDumpCache.result;
+  }
+
+  const dump = spawnSync('dsh', ['--profile', DSH_ACP_PROFILE, '--dump-config'], {
+    encoding: 'utf8',
+    timeout: DUMP_TIMEOUT_MS,
+    maxBuffer: DUMP_MAX_BUFFER_BYTES,
+    // Pin the harness home the ACP runtime spawns with, so the listed entries
+    // are the ones the sessions actually load.
+    env: { ...process.env, DSH_HOME: home },
+  });
+
+  let result: { ok: boolean; document: string };
+  if (dump.error || dump.status !== 0 || typeof dump.stdout !== 'string') {
+    const reason = dump.error?.message ?? `dsh exited with code ${dump.status}`;
+    console.warn(`[DSH] composed config unavailable: ${reason}`);
+    result = { ok: false, document: '' };
+  } else {
+    result = { ok: true, document: dump.stdout };
+  }
+
+  composedDumpCache = { home, readAt: Date.now(), result };
+  return result;
+}
+
+/** Drops the cached dump so the next reader spawns the CLI again. */
+export function invalidateDshComposedDocument(): void {
+  composedDumpCache = null;
+}
+
+/**
  * Reads the entries the harness composes for the profile the runtime boots.
  *
  * Used by the DSH MCP and DSH model readers. A missing, failing or overrunning
@@ -288,36 +350,53 @@ export function parseDshComposedEntries(document: string): Record<string, Record
  * own config documents instead of failing the settings request.
  */
 export function readDshComposedEntries(): Record<string, Record<string, unknown>> {
-  const dump = spawnSync('dsh', ['--profile', DSH_ACP_PROFILE, '--dump-config'], {
-    encoding: 'utf8',
-    timeout: DUMP_TIMEOUT_MS,
-    maxBuffer: DUMP_MAX_BUFFER_BYTES,
-    // Pin the harness home the ACP runtime spawns with, so the listed entries
-    // are the ones the sessions actually load.
-    env: { ...process.env, DSH_HOME: getDshHome() },
-  });
-
-  if (dump.error || dump.status !== 0 || typeof dump.stdout !== 'string') {
-    const reason = dump.error?.message ?? `dsh exited with code ${dump.status}`;
-    console.warn(`[DSH] composed config unavailable: ${reason}`);
-    return {};
-  }
-
-  return parseDshComposedEntries(dump.stdout);
+  const { document } = readDshComposedDocument();
+  return document ? parseDshComposedEntries(document) : {};
 }
 
 /**
- * Keeps the MCP client entries of a composed tree, keyed by each entry's
- * `serverName` so callers can treat the result like any other provider's
- * name-to-raw-config map. Entries from other plugins, disabled entries and
- * entries without a usable server name are skipped, and each config is returned
- * untouched so the provider adapter owns the field mapping.
+ * Entry-id prefix CloudCLI owns inside the harness home patch layer.
+ *
+ * The writer tags every entry it generates with this prefix so the reader can
+ * tell its own rows apart from the ones the user or a bundle supplies, without
+ * parsing either patch layer.
  */
-function mcpServerConfigsFromEntries(
+export const DSH_MANAGED_MCP_ENTRY_ID_PREFIX = 'cloudcli-mcp-';
+
+/** Every mounted MCP server, split into the whole set and the CloudCLI-owned subset. */
+export type DshComposedMcpServerSets = {
+  /** Every MCP client entry in the composed tree, keyed by `serverName`. */
+  all: Record<string, unknown>;
+  /** The entries whose loader id carries `DSH_MANAGED_MCP_ENTRY_ID_PREFIX`. */
+  managed: Record<string, unknown>;
+};
+
+/** The composed MCP sets, plus whether the CLI actually produced a document. */
+export type DshComposedMcpServers = DshComposedMcpServerSets & {
+  /**
+   * False when the dump did not run or failed, so both sets are empty for a
+   * reason other than "the harness has no servers". The MCP writer checks this
+   * before treating a missing entry as a bad write.
+   */
+  ok: boolean;
+};
+
+/**
+ * Splits composed entries into every MCP server and the CloudCLI-owned subset.
+ *
+ * Used by the DSH MCP provider: `all` drives the read-only list, while `managed`
+ * is the only set a write may replace or delete. A name that appears in `all`
+ * but not in `managed` was supplied by the harness itself (a bundle layer, the
+ * profile patch or the user's own home patch), so projecting into it would
+ * silently collide and the entry would stop loading.
+ *
+ * Exported for the DSH MCP test, which drives it with recorded dump output.
+ */
+export function splitDshMcpServerConfigs(
   entries: Record<string, Record<string, unknown>>,
-): Record<string, unknown> {
-  const configs: Record<string, unknown> = {};
-  for (const entry of Object.values(entries)) {
+): DshComposedMcpServerSets {
+  const composed: DshComposedMcpServerSets = { all: {}, managed: {} };
+  for (const [id, entry] of Object.entries(entries)) {
     if (entry.name !== DSH_MCP_CLIENT_PACKAGE || entry.disabled === 'true') {
       continue;
     }
@@ -326,10 +405,20 @@ function mcpServerConfigsFromEntries(
     if (!config || !serverName) {
       continue;
     }
-    configs[serverName] = config;
+
+    const owned = id.startsWith(DSH_MANAGED_MCP_ENTRY_ID_PREFIX);
+    if (owned) {
+      composed.managed[serverName] = config;
+    }
+    // An owned row wins over an unowned one with the same name: the loader keeps
+    // whichever entry mounts first, and reporting the owned definition is what
+    // lets a later edit target the row CloudCLI can actually rewrite.
+    if (owned || !Object.prototype.hasOwnProperty.call(composed.all, serverName)) {
+      composed.all[serverName] = config;
+    }
   }
 
-  return configs;
+  return composed;
 }
 
 /**
@@ -338,7 +427,7 @@ function mcpServerConfigsFromEntries(
  * Exported for the DSH MCP test, which drives it with recorded dump output.
  */
 export function parseDshMcpServerConfigs(document: string): Record<string, unknown> {
-  return mcpServerConfigsFromEntries(parseDshComposedEntries(document));
+  return splitDshMcpServerConfigs(parseDshComposedEntries(document)).all;
 }
 
 /**
@@ -348,6 +437,11 @@ export function parseDshMcpServerConfigs(document: string): Record<string, unkno
  * empty map, so a machine without a usable DSH shows "no servers configured"
  * instead of failing the settings request.
  */
-export function readDshComposedMcpServerConfigs(): Record<string, unknown> {
-  return mcpServerConfigsFromEntries(readDshComposedEntries());
+export function readDshComposedMcpServers(): DshComposedMcpServers {
+  const { ok, document } = readDshComposedDocument();
+  if (!ok) {
+    return { ok: false, all: {}, managed: {} };
+  }
+
+  return { ok: true, ...splitDshMcpServerConfigs(parseDshComposedEntries(document)) };
 }

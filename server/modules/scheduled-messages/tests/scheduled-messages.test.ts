@@ -8,6 +8,7 @@ import { closeConnection, initializeDatabase, scheduledMessagesDb, sessionDrafts
 import { dispatchDueScheduledMessages, dispatchQueuedMessages } from '@/modules/scheduled-messages/services/scheduled-message-dispatcher.service.js';
 import { scheduledMessagesService } from '@/modules/scheduled-messages/services/scheduled-messages.service.js';
 import { chatRunRegistry, connectedClients } from '@/modules/websocket/index.js';
+import { createCompleteMessage, createNormalizedMessage } from '@/shared/utils.js';
 
 const SESSION_ID = 'scheduled-session';
 
@@ -40,18 +41,42 @@ type RunCall = { provider: string; command: string; options: Record<string, unkn
 
 function createRuntime(
   runs: RunCall[],
-  behaviour: 'ok' | 'throw' = 'ok',
+  behaviour: 'ok' | 'throw' | 'complete-with-failure' = 'ok',
   aborts: string[] = [],
   hasBackgroundWork: (sessionId: string) => boolean = () => false,
 ) {
   return {
     hasRuntime: () => true,
     hasBackgroundWork,
-    run: async (provider: string, command: string, options: Record<string, unknown>) => {
+    run: async (
+      provider: string,
+      command: string,
+      options: Record<string, unknown>,
+      writer: { send: (message: unknown) => void },
+    ) => {
       if (behaviour === 'throw') {
         throw new Error('provider exploded');
       }
       runs.push({ provider, command, options });
+      if (behaviour === 'complete-with-failure') {
+        writer.send(createNormalizedMessage({
+          kind: 'error',
+          content: 'Authentication expired.',
+          sessionId: String(options.sessionId),
+          provider: 'claude',
+        }));
+        writer.send(createCompleteMessage({
+          provider: 'claude',
+          sessionId: String(options.sessionId),
+          exitCode: 1,
+        }));
+        return;
+      }
+      writer.send(createCompleteMessage({
+        provider: 'claude',
+        sessionId: String(options.sessionId),
+        exitCode: 0,
+      }));
     },
     abort: async (_provider: string, sessionId: string) => {
       aborts.push(sessionId);
@@ -119,6 +144,28 @@ test('a queued message is sent by the server without a browser connection', asyn
     assert.equal(runs[0].options.model, 'claude-opus-5');
     assert.deepEqual(runs[0].options.attachments, []);
     assert.equal(sessionDraftsDb.getDrafts(userId).length, 0);
+  });
+});
+
+test('a queued message whose turn fails is put back instead of dropped', async () => {
+  await withIsolatedDatabase(async (userId) => {
+    sessionDraftsDb.saveDraft(userId, SESSION_ID, {
+      text: '',
+      queuedMessage: {
+        content: 'retry me',
+        attachments: [{ path: '/tmp/upload.png' }],
+      },
+    });
+
+    // The claim clears `queued_message` before the turn runs. A turn that
+    // reports failure and resolves (rather than throwing) used to fall through
+    // to deleteEmptyDraft, so the text and its attachments disappeared with no
+    // record at all.
+    assert.equal(await dispatchQueuedMessages(createRuntime([], 'complete-with-failure')), 1);
+    assert.deepEqual(sessionDraftsDb.getDrafts(userId)[0]?.queuedMessage, {
+      content: 'retry me',
+      attachments: [{ path: '/tmp/upload.png' }],
+    });
   });
 });
 
@@ -426,8 +473,9 @@ test('a due message is announced to open tabs as it is claimed, before its turn 
     const runtime = {
       hasRuntime: () => true,
       hasBackgroundWork: () => false,
-      run: async () => {
+      run: async (_provider: string, _command: string, _options: Record<string, unknown>, writer: { send: (message: unknown) => void }) => {
         announcedBeforeTheTurn = tab.announcements();
+        writer.send(createCompleteMessage({ provider: 'claude', sessionId: SESSION_ID, exitCode: 0 }));
       },
       abort: async () => true,
     } as never;

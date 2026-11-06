@@ -83,14 +83,9 @@
     "clearSearch": "Aramayı temizle",
     "openCommandPalette": "Komut paletini aç",
     "attentionRequiredIndicator": "Oturum ilgi bekliyor",
+    "expandAllProjects": "Tüm projeleri genişlet",
+    "locateSelectedProject": "Geçerli oturumun projesini göster",
     "collapseAllProjects": "Tüm projeleri daralt"
-  },
-  "navigation": {
-    "chat": "Sohbet",
-    "files": "Dosyalar",
-    "git": "Git",
-    "terminal": "Terminal",
-    "tasks": "Görevler"
   },
   "actions": {
     "refresh": "Yenile",

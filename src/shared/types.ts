@@ -350,6 +350,10 @@ export type ChatAttachment = {
   name?: string;
   mimeType?: string;
   size?: number;
+  /** Stored file name minted by the upload route, used to release the upload. */
+  storedName?: string;
+  /** False when the stored file no longer exists, so the composer re-uploads it. */
+  restorable?: boolean;
 };
 
 /** A chat attachment that is an image, extending ChatAttachment with the inline base64 data URL that Claude history uses when no stored path is available. */
@@ -869,6 +873,7 @@ type MessageKind =
   | 'permission_cancelled'
   | 'session_created'
   | 'history_truncated'
+  | 'attachment_missing'
   | 'task_notification'
   | 'task_status';
 
@@ -884,6 +889,22 @@ export type StreamingChannelUpdate = {
 // ---------------------------
 
 //----------------- CHAT COMPOSER ------------
+
+/** Pending upload state of one composer attachment, from the moment it is picked or pasted until it is uploaded or dropped. */
+export type ComposerAttachmentUpload = {
+  /**
+   * 'uploading' when the file is still going up; 'ready' once the server stored
+   * it and `descriptor` names the stored file; 'failed' when the upload was
+   * refused or cancelled, at which point the file must be picked again.
+   */
+  status: 'uploading' | 'ready' | 'failed';
+  /** Server record, present once `status` is 'ready'. */
+  descriptor?: ChatAttachment;
+  /** Failure text for the attachment chip, cleared when the file is dropped. */
+  error?: string;
+  /** Correlates the entry with `QueuedDraft.attachmentKeys` across a queue. */
+  key?: string;
+};
 
 /** Result payload of the chat `/model` slash command, describing the session's current provider and model plus the model catalog it may switch to, used to populate the command modal's model picker. */
 export type ModelCommandData = {
@@ -951,6 +972,8 @@ export type QueuedDraft = {
   content: string;
   /** Browser files retained while this composer stays mounted, for editing. */
   attachments: File[];
+  /** Keys correlating `attachments` with the composer's pending upload entries. */
+  attachmentKeys?: string[];
   /** JSON-safe descriptors uploaded when the message is queued. */
   uploadedAttachments?: unknown[];
   /**
@@ -1395,6 +1418,15 @@ export type ProviderMcpServer = {
   workspacePath?: string;
   projectName?: string;
   projectDisplayName?: string;
+  /**
+   * Where the definition lives, for a harness that composes its servers from
+   * layers instead of a config file the app owns.
+   *
+   * `app` is the entry CloudCLI wrote itself, `homePatch` is the user's own
+   * entry in a layer CloudCLI can rewrite in place, and `harness` is a layer it
+   * cannot reach (a bundle or a profile patch) and therefore only lists.
+   */
+  origin?: 'app' | 'homePatch' | 'harness';
 };
 
 /** The complete editable state of the MCP server form, covering the structured connection fields and the raw JSON import text; convert it with createMcpPayloadFromForm before sending it to the API. */
@@ -1480,6 +1512,15 @@ export type McpCatalogEntry = {
   transport: McpTransport;
   config: McpCatalogConfig;
   enabled: Record<McpProvider, boolean>;
+  /**
+   * Harnesses that already mount this name from their own configuration, so the
+   * matrix can only state the fact: the switch would write a second definition
+   * of the same server name, which the harness drops silently.
+   *
+   * Computed per response, never stored: the catalog has no say over a harness's
+   * own layers, and the answer changes whenever the user edits them.
+   */
+  externallyManaged?: McpProvider[];
   /** SQLite CURRENT_TIMESTAMP strings (`YYYY-MM-DD HH:MM:SS`, UTC). */
   createdAt: string;
   updatedAt: string;
@@ -1971,6 +2012,21 @@ export type SessionRowActions = {
   ) => void;
 };
 
+/**
+ * A one-shot request for the project list to scroll a group into view, and,
+ * when the group already holds the session, that session's row too.
+ *
+ * `seq` increments on every click: pressing the locate button twice on the same
+ * project has to scroll again after the user has scrolled away in between, and
+ * comparing the project id alone would look like "already handled".
+ */
+export type SidebarProjectRevealRequest = {
+  projectId: string;
+  /** Row to bring into view after the group's header has been scrolled to the top. */
+  sessionId?: string | null;
+  seq: number;
+};
+
 export type SidebarProjectListProps = SessionRowActions & {
   projects: Project[];
   filteredProjects: Project[];
@@ -1995,8 +2051,8 @@ export type SidebarProjectListProps = SessionRowActions & {
   loadingMoreProjects: Set<string>;
   isProjectStarred: (projectId: string) => boolean;
   onToggleProject: (projectId: string) => void;
-  /** Collapses every open project group at once; used by the mode-tabs row button when the keep-expanded preference is on. */
-  onCollapseAllProjects: () => void;
+  /** Pending scroll-to-group request raised by the sidebar header's locate button; null when idle. */
+  revealProjectRequest: SidebarProjectRevealRequest | null;
   onProjectSelect: (project: Project) => void;
   onToggleStarProject: (projectId: string) => void;
   onStartEditingProject: (project: Project) => void;
@@ -2022,7 +2078,7 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 export type ProjectSortOrder = 'name' | 'date';
 
 /** Which list the sidebar is currently showing: projects, conversation search results, running sessions or archived items. */
-export type SidebarSearchMode = 'projects' | 'conversations' | 'running' | 'archived';
+export type SidebarSearchMode = 'projects' | 'conversations' | 'running' | 'archived' | 'scheduledTasks';
 
 /** A Project narrowed to the archived state so archived entries can be listed and restored without being mistaken for active projects. */
 export type ArchivedProjectListItem = Project & { isArchived: true };
@@ -2469,4 +2525,80 @@ export type PastedUserTheme = {
    * map, or option B's stylesheet injected as it stands.
    */
   content: string;
+};
+
+//----------------- SCHEDULED TASKS ------------
+
+/**
+ * The repeat rules the task editor offers.
+ *
+ * `once` fires at one absolute instant; `interval` repeats on a fixed number of
+ * minutes measured from the previous planned run; `daily` and `weekly` repeat
+ * at a wall-clock time in the task's own time zone.
+ */
+export type ScheduledTaskScheduleKind = 'once' | 'interval' | 'daily' | 'weekly';
+
+/** The fields a rule carries; which ones apply is decided by `kind`. */
+export type ScheduledTaskSchedule =
+  | { kind: 'once'; at: string }
+  | { kind: 'interval'; everyMinutes: number }
+  | { kind: 'daily'; time: string }
+  | { kind: 'weekly'; time: string; weekdays: number[] };
+
+/**
+ * A prompt the server runs on a schedule, each run in a brand-new conversation.
+ *
+ * `provider`, `model`, `effort` and `permissionMode` are captured with the task
+ * so a run behaves the way it was set up, not however the app is configured
+ * when the timer fires.
+ */
+export type ScheduledTask = {
+  id: string;
+  name: string;
+  prompt: string;
+  provider: LLMProvider;
+  model: string | null;
+  effort: string | null;
+  permissionMode: string | null;
+  projectPath: string;
+  schedule: ScheduledTaskSchedule;
+  /** IANA zone the wall-clock fields of the rule are read in. */
+  timezone: string;
+  enabled: boolean;
+  /** ISO instant; for a disabled one-shot this is the time it last fired at. */
+  nextRunAt: string;
+  lastRunAt: string | null;
+  createdAt: string;
+};
+
+/** `skipped` means the cycle was dropped (previous run still going, or the server was at capacity). */
+export type ScheduledTaskRunStatus = 'running' | 'completed' | 'failed' | 'skipped';
+
+/** One execution of a task, shown in its history and linking to the conversation it produced. */
+export type ScheduledTaskRun = {
+  id: string;
+  taskId: string;
+  trigger: 'scheduled' | 'manual';
+  status: ScheduledTaskRunStatus;
+  sessionId: string | null;
+  error: string | null;
+  skippedReason: string | null;
+  scheduledFor: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+};
+
+/** The payload the editor sends; the server validates every field and computes `nextRunAt`. */
+export type ScheduledTaskInput = {
+  name: string;
+  prompt: string;
+  provider: LLMProvider;
+  model?: string | null;
+  effort?: string | null;
+  permissionMode?: string | null;
+  /** Optional: blank makes the server run the task in the user's home folder. */
+  projectPath?: string | null;
+  scheduleKind: ScheduledTaskScheduleKind;
+  scheduleSpec: Record<string, unknown>;
+  timezone: string;
 };

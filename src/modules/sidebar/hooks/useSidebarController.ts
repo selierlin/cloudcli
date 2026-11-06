@@ -4,7 +4,7 @@ import type { TFunction } from 'i18next';
 import { api } from '@/shared/api';
 import { subscribeToUserPreferences } from '@/shared/userSettings';
 import { usePaletteOps } from '@/modules/command-palette';
-import type { ArchivedProjectListItem, ArchivedSessionListItem, BatchArchivedSessionDeleteConfirmation, BatchSessionArchiveConfirmation, ConversationProjectResult, ConversationSearchResults, CreatedConversationSignal, LLMProvider, Project, ProjectSession, ProjectSortOrder, RecentConversationListItem, SearchProgress, ActiveSidebarRename, PendingSidebarDeletion, SessionTitleSearchResult, SessionWithProvider, SidebarSearchMode } from '@/shared/types';
+import type { ArchivedProjectListItem, ArchivedSessionListItem, BatchArchivedSessionDeleteConfirmation, BatchSessionArchiveConfirmation, ConversationProjectResult, ConversationSearchResults, CreatedConversationSignal, LLMProvider, Project, ProjectSession, ProjectSortOrder, RecentConversationListItem, SearchProgress, ActiveSidebarRename, PendingSidebarDeletion, SessionTitleSearchResult, SessionWithProvider, SidebarProjectRevealRequest, SidebarSearchMode } from '@/shared/types';
 import {
   applyOptimisticSessionParentState,
   applyOptimisticSessionPinState,
@@ -91,7 +91,7 @@ type UseSidebarControllerArgs = {
 export function useSidebarController({
   projects,
   selectedProject,
-  selectedSession: _selectedSession,
+  selectedSession,
   createdConversation,
   activeSessions,
   isLoading,
@@ -146,6 +146,11 @@ export function useSidebarController({
   }, [expandedProjects, keepProjectsExpanded, selectedProject?.projectId]);
   // Running groups start expanded and remember manual collapses independently of Projects.
   const [collapsedRunningProjects, setCollapsedRunningProjects] = useState<Set<string>>(new Set());
+  // Scroll-to-group handoff to SidebarProjectList, raised by locateSelectedProject.
+  // The seq lets a second click on the same project scroll again after the user
+  // has scrolled away in between; `null` means nothing is pending.
+  const [revealProjectRequest, setRevealProjectRequest] = useState<SidebarProjectRevealRequest | null>(null);
+  const revealProjectSeqRef = useRef(0);
   // The one rename the sidebar has open, as a single value so a project and a
   // session cannot both be mid-rename. See ActiveSidebarRename.
   const [activeRename, setActiveRename] = useState<ActiveSidebarRename | null>(null);
@@ -950,6 +955,55 @@ export function useSidebarController({
     [debouncedSearchQuery, runningProjects, searchMode, sortedProjects],
   );
 
+  // The other half of the header's expand/collapse button. Only the groups the
+  // active search left standing are opened, matching what is actually on screen.
+  const expandAllProjects = useCallback(() => {
+    setExpandedProjects(new Set(filteredProjects.map((project) => project.projectId)));
+  }, [filteredProjects]);
+
+  // One button for both directions: any open group means "collapse", none means
+  // "expand". With the accordion preference off, expanding all is a temporary
+  // peek that the next selection collapses again.
+  const toggleAllProjects = useCallback(() => {
+    if (expandedProjects.size > 0) {
+      collapseAllProjects();
+      return;
+    }
+    expandAllProjects();
+  }, [collapseAllProjects, expandAllProjects, expandedProjects.size]);
+
+  // Jumps back to the group holding the open session. A group the user
+  // collapsed, or a search that filtered it out, otherwise leaves the session
+  // running with nothing on screen pointing at it.
+  const locateSelectedProject = useCallback(() => {
+    const projectId = selectedProject?.projectId;
+    if (!projectId) {
+      return;
+    }
+
+    // The debounced query decides what the list shows, so it is what the
+    // visibility check has to follow; a group the filter dropped has no element
+    // to scroll to. Clearing both keeps the input and the list in step.
+    if (!filteredProjects.some((project) => project.projectId === projectId)) {
+      setSearchFilter('');
+      setDebouncedSearchQuery('');
+    }
+
+    setExpandedProjects((previous) => {
+      if (previous.has(projectId)) {
+        return previous;
+      }
+      return keepProjectsExpanded ? new Set(previous).add(projectId) : new Set([projectId]);
+    });
+
+    revealProjectSeqRef.current += 1;
+    setRevealProjectRequest({
+      projectId,
+      sessionId: selectedSession?.id ?? null,
+      seq: revealProjectSeqRef.current,
+    });
+  }, [filteredProjects, keepProjectsExpanded, selectedProject?.projectId, selectedSession?.id]);
+
   // While a projects-mode search is active, expand every surviving project so
   // the narrowed session lists are visible without extra clicks.
   useEffect(() => {
@@ -1653,6 +1707,9 @@ export function useSidebarController({
     loadMoreRecentConversations,
     toggleProject,
     collapseAllProjects,
+    toggleAllProjects,
+    locateSelectedProject,
+    revealProjectRequest,
     expandedProjectsCount: expandedProjects.size,
     handleSessionClick,
     forkSession,

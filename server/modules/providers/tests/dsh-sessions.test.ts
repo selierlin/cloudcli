@@ -7,11 +7,8 @@ import zlib from 'node:zlib';
 
 import { closeConnection, initializeDatabase, projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { DshSessionSynchronizer } from '@/modules/providers/list/dsh/dsh-session-synchronizer.provider.js';
-import {
-  DshSessionsProvider,
-  encodeSessionSegment,
-  projectKey,
-} from '@/modules/providers/list/dsh/dsh-sessions.provider.js';
+import { encodeSessionSegment, projectKey } from '@/modules/providers/list/dsh/dsh-session-path.js';
+import { DshSessionsProvider } from '@/modules/providers/list/dsh/dsh-sessions.provider.js';
 
 const ZSTD_FRAME_MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd]);
 
@@ -697,5 +694,112 @@ test('fetchHistory skips injected-context user messages', async () => {
     assert.equal(result.messages[0]?.content, '你好');
     assert.equal(result.messages[1]?.role, 'assistant');
     assert.equal(result.messages[1]?.content, '你好！有什么可以帮你？');
+  });
+});
+
+/** One closed turn: a prompt, its reply, and the boundary that ends it. */
+const turn = (turnNumber: number, prompt: string, reply: string, startSeq: number) => {
+  const time = 1_800_000_000_000 + startSeq * 10;
+  return [
+    { type: 'turn/start', seq: startSeq, time, data: { turn: turnNumber } },
+    userMessage(prompt, startSeq + 1, time + 1),
+    assistantMessage(reply, startSeq + 2, time + 2),
+    { type: 'turn/end', seq: startSeq + 3, time: time + 3, data: { turn: turnNumber, reason: { kind: 'completed' } } },
+  ];
+};
+
+test('fetchHistory anchors every row to the turn/end that closes its turn', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const acpSessionId = 'acp-anchors';
+    const appSessionId = 'app-anchors';
+    await writeSessionLog(sessionsRoot, cwd, acpSessionId, [
+      ...turn(1, '第一问', '第一答', 0),
+      ...turn(2, '第二问', '第二答', 4),
+    ], { logFileName: 'session.v4.jsonl.zstd', headerVersion: 4 });
+
+    sessionsDb.createAppSession(appSessionId, 'dsh', cwd, 'Anchors');
+    sessionsDb.assignProviderSessionId(appSessionId, acpSessionId);
+
+    const history = await new DshSessionsProvider().fetchHistory(appSessionId);
+    assert.equal(history.messages.length, 4);
+
+    // Every row of the first turn forks to its boundary, so a fork from the
+    // reply and a fork from the prompt copy the same prefix.
+    assert.equal(history.messages[0].forkAnchorId, '3');
+    assert.equal(history.messages[0].transcriptAnchorId, '1', 'edit addresses the prompt itself');
+    assert.equal(history.messages[1].forkAnchorId, '3');
+    assert.equal(history.messages[1].transcriptAnchorId, undefined, 'a reply is not editable');
+
+    assert.equal(history.messages[2].forkAnchorId, '7');
+    assert.equal(history.messages[3].forkAnchorId, '7');
+  });
+});
+
+test('fetchHistory leaves surfaceOp-replaced rows without an entry point', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const acpSessionId = 'acp-replaced';
+    const appSessionId = 'app-replaced';
+    await writeSessionLog(sessionsRoot, cwd, acpSessionId, [
+      ...turn(1, '被压缩掉的问题', '被压缩掉的回答', 0),
+      ...turn(2, '压缩之后的问题', '压缩之后的回答', 4),
+      {
+        type: 'compaction/summary',
+        seq: 8,
+        time: 1_800_000_000_100,
+        surfaceOp: { op: 'replace', startSeq: 1, endSeq: 2 },
+        data: { summary: '前面的对话被压缩了' },
+      },
+    ], { logFileName: 'session.v4.jsonl.zstd', headerVersion: 4 });
+
+    sessionsDb.createAppSession(appSessionId, 'dsh', cwd, 'Replaced');
+    sessionsDb.assignProviderSessionId(appSessionId, acpSessionId);
+
+    const history = await new DshSessionsProvider().fetchHistory(appSessionId);
+    assert.equal(history.messages[0].content, '被压缩掉的问题');
+    assert.equal(history.messages[0].forkAnchorId, undefined, 'a replaced row is not part of the live conversation');
+    assert.equal(history.messages[0].transcriptAnchorId, undefined);
+    assert.equal(history.messages[1].forkAnchorId, undefined);
+    // The second turn is untouched and keeps its own boundary.
+    assert.equal(history.messages[2].forkAnchorId, '7');
+    assert.equal(history.messages[3].forkAnchorId, '7');
+  });
+});
+
+test('fetchHistory falls back to the previous closed turn while the last turn is open', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const acpSessionId = 'acp-open-turn';
+    const appSessionId = 'app-open-turn';
+    const openTurnSeq = 8;
+    await writeSessionLog(sessionsRoot, cwd, acpSessionId, [
+      ...turn(1, '已经答完的问题', '已经答完的回答', 0),
+      { type: 'turn/start', seq: openTurnSeq, time: 1_800_000_000_100, data: { turn: 2 } },
+      userMessage('还在跑的问题', openTurnSeq + 1, 1_800_000_000_101),
+    ], { logFileName: 'session.v4.jsonl.zstd', headerVersion: 4 });
+
+    sessionsDb.createAppSession(appSessionId, 'dsh', cwd, 'Open turn');
+    sessionsDb.assignProviderSessionId(appSessionId, acpSessionId);
+
+    const history = await new DshSessionsProvider().fetchHistory(appSessionId);
+    const running = history.messages.at(-1);
+    assert.equal(running?.content, '还在跑的问题');
+    assert.equal(running?.forkAnchorId, '3', 'copying a half turn would hand the child an unanswered prompt');
+  });
+});
+
+test('fetchHistory leaves every row without an anchor when no turn has closed', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const acpSessionId = 'acp-first-turn';
+    const appSessionId = 'app-first-turn';
+    await writeSessionLog(sessionsRoot, cwd, acpSessionId, [
+      { type: 'turn/start', seq: 0, time: 1_800_000_000_000, data: { turn: 1 } },
+      userMessage('第一个问题', 1, 1_800_000_000_001),
+    ], { logFileName: 'session.v4.jsonl.zstd', headerVersion: 4 });
+
+    sessionsDb.createAppSession(appSessionId, 'dsh', cwd, 'First turn');
+    sessionsDb.assignProviderSessionId(appSessionId, acpSessionId);
+
+    const history = await new DshSessionsProvider().fetchHistory(appSessionId);
+    assert.equal(history.messages[0].forkAnchorId, undefined);
+    assert.equal(history.messages[0].transcriptAnchorId, undefined);
   });
 });

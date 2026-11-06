@@ -54,6 +54,18 @@ async function sendClaimedQueuedMessage(
     sessionDraftsDb.restoreQueuedMessage(candidate);
     return;
   }
+
+  if (!result.started || result.error) {
+    // The claim already cleared `queued_message`, so dropping the row here
+    // discarded the user's text and attachments with no failure record of any
+    // kind. Putting it back keeps the turn in the composer, where the user can
+    // see it and retry; a transient provider failure is also retried by the
+    // next poll, and the runtime has already surfaced its own failure
+    // notification for a turn that started.
+    sessionDraftsDb.restoreQueuedMessage(candidate);
+    return;
+  }
+
   sessionDraftsDb.deleteEmptyDraft(candidate.userId, candidate.sessionId);
 }
 

@@ -168,31 +168,29 @@ test('reads the catalog from the api', async () => {
   assert.equal(mocks.mcpCatalog.mock.calls.length, 1);
 });
 
-test('shows on/off cells and refuses only the harness-managed column for a stdio entry', async () => {
+test('shows on/off cells for every harness that accepts a stdio entry', async () => {
   const container = await renderMatrix();
   const row = rowFor(container, 'notion');
 
   assert.deepEqual(labelsInState(row, 'on'), ['mcpMatrix.cell.on:{"name":"notion","provider":"Claude"}']);
-  // cursor, codex, opencode, workbuddy, pi, zcode stay off; dsh is the only refusal.
-  assert.equal(labelsInState(row, 'off').length, 6);
-  assert.equal(labelsInState(row, 'disabled').length, 1);
-  assert.match(labelsInState(row, 'disabled')[0], /mcpMatrix\.disabled\.harnessManaged/);
+  // Every other harness has a user scope and speaks stdio, DSH included.
+  assert.equal(labelsInState(row, 'off').length, 7);
+  assert.equal(labelsInState(row, 'disabled').length, 0);
 });
 
-test('disables the sse-unsupported harnesses in addition to the harness-managed column', async () => {
+test('disables the harnesses that cannot speak sse', async () => {
   const container = await renderMatrix();
   const row = rowFor(container, 'sentry');
   const disabledLabels = labelsInState(row, 'disabled');
 
-  // cursor, codex, opencode and pi cannot speak sse; dsh refuses every write.
+  // cursor, codex, opencode, pi and dsh do not accept sse.
   assert.equal(disabledLabels.length, 5);
-  for (const name of ['Cursor', 'Codex', 'OpenCode', 'Pi']) {
+  for (const name of ['Cursor', 'Codex', 'OpenCode', 'Pi', 'DeepSeek']) {
     const label = disabledLabels.find((candidate) => candidate.includes(name));
     assert.ok(label, `expected a disabled ${name} cell`);
     assert.match(label, /mcpMatrix\.disabled\.transport/);
     assert.ok(label.includes('sse'), `${name} refusal should name the transport`);
   }
-  assert.ok(disabledLabels.some((label) => /mcpMatrix\.disabled\.harnessManaged/.test(label)));
 
   // claude, workbuddy and zcode accept sse, so they stay switchable.
   assert.equal(labelsInState(row, 'off').length, 3);
@@ -378,12 +376,47 @@ test('makes a cell inert while its own write is still in flight', async () => {
 
 test('lets the capability refusal outrank a failed write in that cell', async () => {
   const { getCellState } = await import('@/modules/mcp/utils/mcpMatrixRules');
-  const stdioEntry = entry('9', 'any-server', 'stdio', { command: 'run' });
+  const sseEntry = entry('9', 'any-server', 'sse', { url: 'https://example.com/sse' });
+  const stdioEntry = entry('10', 'any-stdio', 'stdio', { command: 'run' });
 
-  // dsh refuses every app-managed write, so it can never report `fail`.
-  assert.equal(getCellState(stdioEntry, 'dsh', true), 'disabled');
+  // A harness that refuses the transport stays refused even when a write to it
+  // failed earlier; a harness that accepts the transport reports the failure.
+  assert.equal(getCellState(sseEntry, 'cursor', true), 'disabled');
   assert.equal(getCellState(stdioEntry, 'claude', true), 'fail');
   assert.equal(getCellState(stdioEntry, 'claude', false), 'off');
+});
+
+test('reports a name the harness supplies itself as external, not as a switch', async () => {
+  const { getCellDisabledReason, getCellState } = await import('@/modules/mcp/utils/mcpMatrixRules');
+  // The catalog knows this server, but DSH mounts it from its own patch layer:
+  // writing a second definition of the same name makes the harness drop the row.
+  const supplied: McpCatalogEntry = {
+    ...entry('11', 'openviking', 'http', { url: 'https://ov.example.com/mcp' }),
+    externallyManaged: ['dsh'],
+  };
+
+  assert.deepEqual(getCellDisabledReason(supplied, 'dsh'), { kind: 'external' });
+  assert.equal(getCellState(supplied, 'dsh'), 'external');
+  // The same entry stays an ordinary switch everywhere the catalog owns the file.
+  assert.equal(getCellState(supplied, 'claude'), 'off');
+});
+
+test('locks the external cell while the other columns stay switchable', async () => {
+  respondWith([
+    {
+      ...entry('20', 'openviking', 'http', { url: 'https://ov.example.com/mcp' }, ['claude']),
+      externallyManaged: ['dsh'],
+    },
+  ]);
+  const container = await renderMatrix();
+  const row = rowFor(container, 'openviking');
+
+  assert.deepEqual(
+    labelsInState(row, 'external'),
+    ['mcpMatrix.disabled.external:{"provider":"DeepSeek Harness"}'],
+  );
+  assert.equal(cellFor(row, 'DeepSeek').disabled, true, 'the harness-owned cell must be inert');
+  assert.equal(cellFor(row, 'Claude').disabled, false);
 });
 
 // ─── batch writes, undo and delete ──────────────────────────────────────────
@@ -508,14 +541,15 @@ test('enables every harness a row can reach, leaving the refused and already-on 
   const container = await renderMatrix();
   respondWithSwitch();
 
-  // notion is already on for claude; dsh refuses every write.
+  // notion is already on for claude, so only the other harnesses are written.
   selectMenuItem(container, 'mcpMatrix.row.menuLabel:{"name":"notion"}', 'mcpMatrix.row.enableAll');
 
-  await waitFor(() => assert.equal(mocks.mcpCatalogToggle.mock.calls.length, 6));
+  await waitFor(() => assert.equal(mocks.mcpCatalogToggle.mock.calls.length, 7));
   assert.deepEqual(toggleCalls(), [
     ['1', 'cursor', true],
     ['1', 'codex', true],
     ['1', 'opencode', true],
+    ['1', 'dsh', true],
     ['1', 'workbuddy', true],
     ['1', 'pi', true],
     ['1', 'zcode', true],
@@ -1006,7 +1040,7 @@ test('locks a cloudcli-managed entry to only its per-harness switches', async ()
 
   // The per-harness cell is still switchable.
   assert.equal(cellFor(row, 'Claude').getAttribute('data-state'), 'on');
-  assert.equal(labelsInState(row, 'off').length, 6);
+  assert.equal(labelsInState(row, 'off').length, 7);
 
   // The row menu keeps the batch switches but drops delete.
   fireEvent.click(buttonFor(container, 'mcpMatrix.row.menuLabel:{"name":"cloudcli-browser"}'));

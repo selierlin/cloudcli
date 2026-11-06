@@ -249,6 +249,9 @@ function SidebarProjectItem({
       // Marks the block boundary for useRevealPinnedBlockStart, which reads the
       // pinned header and the block's own top edge from the DOM.
       data-sidebar-project-block=""
+      // Lets useRevealProjectBlock scroll to this group by id rather than by
+      // position, which a filtered or reordered list would invalidate.
+      data-project-id={project.projectId}
       className={cn('md:space-y-1', isDeleting && 'opacity-50 pointer-events-none')}
     >
       {/* The opaque background is what makes this row's `hover:bg-accent/50`

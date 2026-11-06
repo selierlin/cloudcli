@@ -363,27 +363,26 @@ test('providerMcpService handles cursor MCP JSON config formats', { concurrency:
 });
 
 /**
- * This test covers the two providers that cannot store an app-managed MCP
- * server: DSH keeps its MCP servers inside its harness composition and Pi has
- * no MCP support, so both add entries are disabled in the UI and every write is
- * rejected. DSH's declared transports are checked as well: its ACP layer takes
- * stdio and streamable HTTP only, so `sse` has to fail capability validation
- * instead of reaching the harness writer.
+ * DSH and Pi both have a narrower writable surface than the rest: each has only
+ * a user scope, and DSH's ACP layer takes stdio and streamable HTTP only. These
+ * rejections are capability validation, so no write ever reaches the harness
+ * writer. DSH's actual write path is covered by dsh-mcp.test.ts, which drives it
+ * against a temporary harness home.
  */
-test('providerMcpService rejects every DSH and Pi MCP write', { concurrency: false }, async () => {
+test('providerMcpService rejects DSH and Pi writes outside their capability', { concurrency: false }, async () => {
   await assert.rejects(
     providerMcpService.upsertProviderMcpServer('dsh', {
       name: 'dsh-stdio', scope: 'project', transport: 'stdio', command: 'node',
     }),
     (error: unknown) =>
       error instanceof AppError &&
-      error.code === 'DSH_MCP_NOT_MANAGED' &&
+      error.code === 'MCP_SCOPE_NOT_SUPPORTED' &&
       error.statusCode === 400,
   );
 
   await assert.rejects(
     providerMcpService.upsertProviderMcpServer('dsh', {
-      name: 'dsh-sse', scope: 'project', transport: 'sse', url: 'https://example.com/sse',
+      name: 'dsh-sse', scope: 'user', transport: 'sse', url: 'https://example.com/sse',
     }),
     (error: unknown) =>
       error instanceof AppError &&
@@ -431,10 +430,9 @@ test('providerMcpService global adder writes to every provider and degrades per 
     });
 
     assert.equal(globalResult.length, 10);
-    // DSH remains externally managed, Pi has no native MCP support, and OMP's
-    // and OpenClaw's MCP servers are harness-managed; WorkBuddy and ZCode
-    // persist their native MCP config and therefore participate in the global
-    // add operation.
+    // DSH has no project scope, Pi has none either, and OMP's and OpenClaw's
+    // MCP servers are harness-managed; WorkBuddy and ZCode persist their native
+    // MCP config and therefore participate in the global add operation.
     const dshEntry = globalResult.find((entry) => entry.provider === 'dsh');
     assert.equal(dshEntry?.created, false);
     const piEntry = globalResult.find((entry) => entry.provider === 'pi');

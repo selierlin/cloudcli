@@ -117,7 +117,9 @@ function Sidebar({
     reloadRecentConversations,
     loadMoreRecentConversations,
     toggleProject,
-    collapseAllProjects,
+    toggleAllProjects,
+    locateSelectedProject,
+    revealProjectRequest,
     expandedProjectsCount,
     handleSessionClick,
     toggleStarProject,
@@ -247,7 +249,7 @@ function Sidebar({
     isProjectStarred,
     onRenameDraftChange: updateRenameDraft,
     onToggleProject: toggleProject,
-    onCollapseAllProjects: collapseAllProjects,
+    revealProjectRequest,
     onProjectSelect: handleProjectSelect,
     onToggleStarProject: toggleStarProject,
     onStartEditingProject: startEditingProject,
@@ -300,6 +302,12 @@ function Sidebar({
         <SidebarCollapsed
           onExpand={handleExpandSidebar}
           onShowSettings={onShowSettings}
+          onShowScheduledTasks={() => {
+            // The rail has no section strip, so opening the section means
+            // restoring the panel and selecting it in one go.
+            handleExpandSidebar();
+            setSearchMode('scheduledTasks');
+          }}
           updateAvailable={updateAvailable}
           restartRequired={restartRequired}
           onShowVersionModal={() => setShowVersionModal(true)}
@@ -335,6 +343,9 @@ function Sidebar({
             onSearchModeChange={(mode) => {
               setSearchMode(mode);
               if (mode === 'projects') clearConversationResults();
+              // The strip has no search box in this section, so a leftover
+              // query would be invisible and then surprise the user later.
+              if (mode === 'scheduledTasks') setSearchFilter('');
             }}
             conversationResults={conversationResults}
             isSearching={isSearching}
@@ -399,7 +410,8 @@ function Sidebar({
             onCreateProject={() => setShowNewProject(true)}
             onCollapseSidebar={handleCollapseSidebar}
             expandedProjectsCount={expandedProjectsCount}
-            onCollapseAllProjects={collapseAllProjects}
+            onToggleAllProjects={toggleAllProjects}
+            onLocateSelectedProject={locateSelectedProject}
             updateAvailable={updateAvailable}
             restartRequired={restartRequired}
             releaseInfo={releaseInfo}

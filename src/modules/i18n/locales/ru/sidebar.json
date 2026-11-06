@@ -85,14 +85,9 @@
     "clearSearch": "Очистить поиск",
     "openCommandPalette": "Открыть палитру команд",
     "attentionRequiredIndicator": "Сессия требует внимания",
+    "expandAllProjects": "Развернуть все проекты",
+    "locateSelectedProject": "Показать проект текущего сеанса",
     "collapseAllProjects": "Свернуть все проекты"
-  },
-  "navigation": {
-    "chat": "Чат",
-    "files": "Файлы",
-    "git": "Git",
-    "terminal": "Терминал",
-    "tasks": "Задачи"
   },
   "actions": {
     "refresh": "Обновить",

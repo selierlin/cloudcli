@@ -418,6 +418,20 @@ async function quiesceBtwSession(sessionId: string, provider: LLMProvider): Prom
       });
     }
   }
+
+  // Release the provider-side conversation before the row and its transcript
+  // are deleted. A runtime that keeps the session open (DSH's ACP child holds
+  // the log) would otherwise append to the deleted file, and the watcher would
+  // index it back as a normal session. Best-effort: a conversation that cannot
+  // be released is still better deleted than resurrected.
+  try {
+    await providerRuntimeService.disposeSession(provider, sessionId);
+  } catch (error) {
+    console.warn(
+      `[btw] Could not release the provider session for ${sessionId}: `
+      + (error instanceof Error ? error.message : String(error)),
+    );
+  }
 }
 
 /** Collects the session's outstanding background work from its provider runtime. */

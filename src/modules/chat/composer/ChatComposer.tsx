@@ -15,7 +15,7 @@ import { PaperclipIcon, MessageSquareIcon, Loader2, ArrowUpIcon, PencilIcon } fr
 
 import { useVoiceInput } from '@/modules/chat/hooks/useVoiceInput';
 import { useVoiceAvailable } from '@/modules/chat/hooks/useVoiceAvailable';
-import type { BackgroundSendChoice, BackgroundSendPrompt, QueuedDraft, QuickReply, ScheduledMessage, SlashCommand,SessionActivity,PendingPermissionRequest,PermissionMode,ProviderModelOption, LLMProvider } from '@/shared/types';
+import type { BackgroundSendChoice, BackgroundSendPrompt, ComposerAttachmentUpload, QueuedDraft, QuickReply, ScheduledMessage, SlashCommand,SessionActivity,PendingPermissionRequest,PermissionMode,ProviderModelOption, LLMProvider } from '@/shared/types';
 import {
   PromptInput,
   PromptInputHeader,
@@ -91,6 +91,14 @@ type ChatComposerProps = {
   onDeleteQueuedDraft: () => void;
   attachedFiles: File[];
   onRemoveAttachment: (index: number) => void;
+  /** Upload state of one attachment, driving its chip's progress or failure mark. */
+  getAttachmentUpload: (file: File) => ComposerAttachmentUpload | undefined;
+  /** Changes whenever an upload moves; makes the chip re-read `getAttachmentUpload`. */
+  uploadVersion: number;
+  /** Whether any attachment is still transferring, so the send button parks. */
+  isUploadingAttachments: boolean;
+  /** A send waiting for an attachment transfer already under way. */
+  isSubmitting: boolean;
   fileErrors: Map<string, string>;
   showFileDropdown: boolean;
   filteredFiles: MentionableFile[];
@@ -169,6 +177,10 @@ export default function ChatComposer({
   onDeleteQueuedDraft,
   attachedFiles,
   onRemoveAttachment,
+  getAttachmentUpload,
+  uploadVersion,
+  isUploadingAttachments,
+  isSubmitting,
   fileErrors,
   showFileDropdown,
   filteredFiles,
@@ -445,6 +457,8 @@ export default function ChatComposer({
                       key={`${file.name}-${file.lastModified}-${index}`}
                       file={file}
                       onRemove={() => onRemoveAttachment(index)}
+                      upload={getAttachmentUpload(file)}
+                      uploadVersion={uploadVersion}
                       error={fileErrors.get(file.name)}
                     />
                   ))}
@@ -565,11 +579,11 @@ export default function ChatComposer({
                       ? true
                       : !input.trim() && attachedFiles.length === 0
               }
-              aria-label={submitAriaLabel}
-              title={submitAriaLabel}
+              aria-label={isSubmitting ? t('input.attachments.uploading') : submitAriaLabel}
+              title={isSubmitting ? t('input.attachments.uploading') : submitAriaLabel}
               className="h-10 w-10 sm:h-10 sm:w-10"
             >
-              {isTranscribing ? (
+              {isTranscribing || isSubmitting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : canQueueDraft ? (
                 <ArrowUpIcon className="h-4 w-4" />
@@ -577,9 +591,16 @@ export default function ChatComposer({
             </PromptInputSubmit>
           </div>
 
+          {isSubmitting && !isLoading && (
+            <div className="order-last flex basis-full items-center justify-center gap-1.5 px-2 text-xs leading-4 text-muted-foreground lg:hidden">
+              <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+              <span>{t('input.attachments.uploading')}</span>
+            </div>
+          )}
+
           <div
             className={`order-last hidden basis-full px-2 text-center text-xs leading-4 text-muted-foreground/50 transition-opacity duration-200 lg:block ${
-              input.trim() && !canQueueDraft ? 'opacity-0' : 'opacity-100'
+              input.trim() && !canQueueDraft && !isUploadingAttachments ? 'opacity-0' : 'opacity-100'
             }`}
           >
             {submitHint}

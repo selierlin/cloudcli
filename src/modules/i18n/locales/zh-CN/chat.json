@@ -193,6 +193,13 @@
       "willSend": "将在当前完成后发送",
       "edit": "编辑排队消息",
       "delete": "删除排队消息"
+    },
+    "attachments": {
+      "uploading": "正在上传附件…",
+      "failed": "上传失败",
+      "uploadFailedNamed": "以下附件上传失败：{{names}}。请重新添加后再发送。",
+      "expand": "放大 {{name}}",
+      "remove": "移除 {{name}}"
     }
   },
   "composer": {

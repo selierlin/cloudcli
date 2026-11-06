@@ -258,6 +258,7 @@ export type MessageKind =
   | 'permission_cancelled'
   | 'session_created'
   | 'history_truncated'
+  | 'attachment_missing'
   | 'task_notification'
   | 'task_status';
 
@@ -999,6 +1000,15 @@ export type ProviderMcpServer = {
   envVars?: string[];
   bearerTokenEnvVar?: string;
   envHttpHeaders?: Record<string, string>;
+  /**
+   * Where the definition lives, for a harness that composes its servers from
+   * layers instead of a config file the app owns.
+   *
+   * `app` is the entry CloudCLI wrote itself, `homePatch` is the user's own
+   * entry in a layer CloudCLI can rewrite in place, and `harness` is a layer it
+   * cannot reach (a bundle or a profile patch) and therefore only lists.
+   */
+  origin?: 'app' | 'homePatch' | 'harness';
 };
 
 /**
@@ -1087,6 +1097,15 @@ export type McpCatalogEntry = {
   transport: McpTransport;
   config: McpCatalogConfig;
   enabled: Record<LLMProvider, boolean>;
+  /**
+   * Harnesses that already mount this name from their own configuration, so the
+   * matrix can only state the fact: the switch would write a second definition
+   * of the same server name, which the harness drops silently.
+   *
+   * Computed per response, never stored: the catalog has no say over a harness's
+   * own layers, and the answer changes whenever the user edits them.
+   */
+  externallyManaged?: LLMProvider[];
   /** SQLite CURRENT_TIMESTAMP strings (`YYYY-MM-DD HH:MM:SS`, UTC). */
   createdAt: string;
   updatedAt: string;

@@ -61,14 +61,9 @@
     "openCommandPalette": "Abrir paleta de comandos",
     "attentionRequiredIndicator": "Sessão precisa de atenção",
     "backgroundWorkIndicator": "Trabalho em segundo plano rodando",
+    "expandAllProjects": "Expandir todos os projetos",
+    "locateSelectedProject": "Mostrar o projeto da sessão atual",
     "collapseAllProjects": "Recolher todos os projetos"
-  },
-  "navigation": {
-    "chat": "Chat",
-    "files": "Arquivos",
-    "git": "Git",
-    "terminal": "Terminal",
-    "tasks": "Tarefas"
   },
   "actions": {
     "refresh": "Atualizar",

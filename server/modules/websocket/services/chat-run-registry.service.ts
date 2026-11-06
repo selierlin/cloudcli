@@ -33,6 +33,18 @@ type ChatRun = {
   writer: ChatSessionWriter;
   startedAt: number;
   completedAt: number | null;
+  /**
+   * Exit code of the terminal `complete` this run emitted, or null while it is
+   * still running (or when it never emitted one).
+   *
+   * Providers report most failures as `complete(exitCode: 1)` followed by a
+   * normal return rather than a thrown error, so the run's outcome cannot be
+   * derived from the promise `dispatchRun` awaits. Recording it here lets a
+   * detached caller read the real outcome after the run settles.
+   */
+  exitCode: number | null;
+  /** Content of the last `error` event, used to explain a non-zero exit code. */
+  lastError: string | null;
 };
 
 /**
@@ -117,12 +129,17 @@ function decorateAndRecordEvent(run: ChatRun, message: NormalizedMessage): Norma
     seq: run.lastSeq,
   };
 
+  if (message.kind === 'error' && typeof message.content === 'string') {
+    run.lastError = message.content;
+  }
+
   if (message.kind === 'complete') {
     // The provider may report its own id here; the frontend only ever knows
     // the app id, so the "actual" id is by definition the app id as well.
     outbound.actualSessionId = run.appSessionId;
     run.status = 'completed';
     run.completedAt = Date.now();
+    run.exitCode = typeof message.exitCode === 'number' ? message.exitCode : null;
     evictRunLater(run);
   }
 
@@ -220,6 +237,8 @@ export const chatRunRegistry = {
       writer: null as unknown as ChatSessionWriter,
       startedAt: Date.now(),
       completedAt: null,
+      exitCode: null,
+      lastError: null,
     };
 
     run.writer = new ChatSessionWriter({

@@ -55,14 +55,9 @@
     "attentionRequiredIndicator": "Relace vyžaduje pozornost",
     "backgroundWorkIndicator": "Na pozadí probíhá práce",
     "processingSessionIndicator": "Probíhá zpracování relace",
+    "expandAllProjects": "Rozbalit všechny projekty",
+    "locateSelectedProject": "Zobrazit projekt aktuální relace",
     "collapseAllProjects": "Sbalit všechny projekty"
-  },
-  "navigation": {
-    "chat": "Chat",
-    "files": "Soubory",
-    "git": "Git",
-    "terminal": "Terminál",
-    "tasks": "Úkoly"
   },
   "actions": {
     "refresh": "Obnovit",

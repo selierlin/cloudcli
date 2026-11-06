@@ -75,6 +75,7 @@
           "server/shared/image-attachments.ts",
           "server/shared/message-unification.ts",
           "server/shared/model-descriptions.ts",
+          "server/shared/session-log.ts",
           "server/shared/session-unread.ts"
         ],
         "mode": "file"

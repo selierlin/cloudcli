@@ -146,7 +146,9 @@ export const MCP_SUPPORTED_SCOPES: Record<McpProvider, McpScope[]> = {
   cursor: ['user', 'project'],
   codex: ['user', 'project'],
   opencode: ['user', 'project'],
-  dsh: ['user', 'project'],
+  // The harness has no per-project MCP scope: every server it mounts comes from
+  // its Cordis composition, whose machine-level layer CloudCLI writes.
+  dsh: ['user'],
   workbuddy: ['user', 'local', 'project'],
   // Pi 1.0+ has native MCP support backed by `~/.pi/agent/mcp.json` (or the
   // `PI_CODING_AGENT_DIR` override); only the user scope is offered here.
@@ -190,7 +192,10 @@ export const MCP_ADD_BLOCKED_REASON: Record<McpProvider, McpAddBlockedReason | n
   cursor: null,
   codex: null,
   opencode: null,
-  dsh: 'harnessManaged',
+  // CloudCLI writes into a marked block of the harness's own home patch layer,
+  // so app-managed writes are allowed; the block coexists with the user's own
+  // entries, which stay read-only.
+  dsh: null,
   workbuddy: null,
   pi: null,
   zcode: null,

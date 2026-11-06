@@ -6,7 +6,7 @@ import chokidar, { type FSWatcher } from 'chokidar';
 
 import { sessionSynchronizerService } from '@/modules/providers/services/session-synchronizer.service.js';
 import { getDshSessionsRoot } from '@/modules/providers/list/dsh/dsh-models.provider.js';
-import { isDshSessionLogFile } from '@/modules/providers/list/dsh/dsh-sessions.provider.js';
+import { isDshSessionLogFile } from '@/modules/providers/list/dsh/dsh-session-path.js';
 import { getOmpSessionsRoot } from '@/modules/providers/list/omp/omp-models.provider.js';
 import { getOpenclawAgentsDir, getOpenclawHomeDir } from '@/modules/providers/list/openclaw/openclaw-models.provider.js';
 import { getPiSessionsRoot } from '@/modules/providers/list/pi/pi-models.provider.js';

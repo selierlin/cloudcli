@@ -9,8 +9,8 @@ import type { AnyRecord } from '@/shared/types.js';
 // (`openclaw acp`) speak — both are built on `@agentclientprotocol/sdk`, whose
 // main protocol version is 1.
 //
-// Client → server requests: initialize / session/new / session/prompt /
-// session/cancel / session/load. Server → client requests:
+// Client → server requests: initialize / session/new / session/resume /
+// session/prompt / session/cancel / session/load. Server → client requests:
 // session/request_permission. Server → client notifications: session/update
 // (sessionUpdate: agent_message_chunk / agent_thought_chunk / tool_call /
 // tool_call_update / available_commands_update / ...).
@@ -41,6 +41,40 @@ export type AcpPermissionOutcome =
   | { outcome: 'selected'; optionId: string };
 
 export type AcpPermissionResponder = (outcome: AcpPermissionOutcome) => void;
+
+/**
+ * One entry of an ACP `session/prompt` payload.
+ *
+ * `image.data` must be canonical base64 — the DSH server decodes it, re-encodes
+ * it, and rejects the turn when the two strings differ. `resource_link` is the
+ * only way to hand a non-image file across: the server renders it into the text
+ * the model reads, while `resource` (inline bytes) is refused.
+ */
+export type AcpPromptBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; mimeType: string; data: string }
+  | { type: 'resource_link'; name: string; uri: string };
+
+/**
+ * One JSON-RPC error returned by the ACP child.
+ *
+ * DSH reports every failed `session/resume` as the same opaque `Internal error`
+ * and puts the real cause in `error.data.details` (e.g. `first frame is not
+ * exactly one header line`). Keeping `details` on the error lets a caller
+ * surface that cause without parsing a free-form message that changes between
+ * releases.
+ */
+export class AcpRequestError extends Error {
+  readonly code?: number;
+  readonly details?: string;
+
+  constructor(message: string, options: { code?: number; details?: string } = {}) {
+    super(message);
+    this.name = 'AcpRequestError';
+    this.code = options.code;
+    this.details = options.details;
+  }
+}
 
 export type AcpClientHandlers = {
   onMessageChunk(sessionId: string, text: string, messageId?: string): void;
@@ -76,6 +110,8 @@ type PendingRequest = {
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 const DEFAULT_PROMPT_TIMEOUT_MS = 3_600_000;
+/** Upper bound on cached per-session config-option lists for one ACP child. */
+const MAX_CONFIG_OPTION_SESSIONS = 256;
 
 /** Minimal Agent Client Protocol client over newline-delimited JSON-RPC stdio. */
 export class AcpClient {
@@ -87,6 +123,13 @@ export class AcpClient {
   private buffer = '';
   private nextId = 0;
   private readonly pending = new Map<number, PendingRequest>();
+  /**
+   * Latest standard config-option state per ACP session, captured from
+   * `session/new` and every `session/set_config_option` reply. Consumers need
+   * the advertised choices to map a harness-native selection onto an opaque
+   * config value; ACP has no standalone "get config" request.
+   */
+  private readonly configOptionsBySession = new Map<string, unknown[]>();
   private closed = false;
   /** Newest stderr line, surfaced in the exit error so a failed handshake is diagnosable. */
   private lastStderrLine: string | null = null;
@@ -229,7 +272,15 @@ export class AcpClient {
         clearTimeout(request.timer);
       }
       if (message.error) {
-        request.reject(new Error(String((message.error as AnyRecord).message ?? `${this.logPrefix} request failed`)));
+        const error = message.error as AnyRecord;
+        const data = error.data as AnyRecord | undefined;
+        request.reject(new AcpRequestError(
+          String(error.message ?? `${this.logPrefix} request failed`),
+          {
+            code: typeof error.code === 'number' ? error.code : undefined,
+            details: typeof data?.details === 'string' ? data.details : undefined,
+          },
+        ));
       } else {
         request.resolve(message.result);
       }
@@ -336,15 +387,101 @@ export class AcpClient {
     if (typeof result?.sessionId !== 'string') {
       throw new Error(`${this.logPrefix} session/new did not return a session id.`);
     }
+    this.rememberConfigOptions(result.sessionId, result.configOptions);
     return result.sessionId;
   }
 
-  async prompt(sessionId: string, text: string, timeoutMs = this.promptTimeoutMs): Promise<{ stopReason: string }> {
+  /**
+   * Re-attaches the server to a session it persisted earlier, so a restarted
+   * child can continue an existing conversation instead of starting empty.
+   * Used by the DSH runtime when the in-memory session table was lost (child
+   * crash or CloudCLI restart).
+   *
+   * The ACP session id is supplied by the caller rather than returned, because
+   * servers resume under their own id. Servers reject ids they are already
+   * serving, so callers must track which ids this child has already created or
+   * resumed.
+   */
+  async resumeSession(
+    sessionId: string,
+    cwd: string,
+    extra: { mcpServers?: unknown[] } = {},
+  ): Promise<void> {
+    const result = await this.request('session/resume', {
+      sessionId,
+      cwd,
+      mcpServers: extra.mcpServers ?? [],
+    }) as AnyRecord;
+    this.rememberConfigOptions(sessionId, result?.configOptions);
+  }
+
+  /**
+   * Releases one session on the ACP side so the child stops holding its log
+   * open. Used when a hidden copy (btw) or an edited-away session is deleted:
+   * leaving it live lets the harness keep appending to a log this app is about
+   * to remove, which the watcher then re-indexes.
+   *
+   * Servers answer an id they are not serving with an error; callers treat
+   * that as "already gone" rather than a failure.
+   */
+  async closeSession(sessionId: string): Promise<void> {
+    await this.request('session/close', { sessionId });
+    this.configOptionsBySession.delete(sessionId);
+  }
+
+  /**
+   * Returns the config-option state advertised for one session, or `undefined`
+   * when the server has not reported any. Used by the DSH runtime to translate
+   * a model id into the server's own opaque selection value.
+   */
+  getSessionConfigOptions(sessionId: string): unknown[] | undefined {
+    return this.configOptionsBySession.get(sessionId);
+  }
+
+  /**
+   * Applies one standard config option to a session and caches the returned
+   * state. Used by the DSH runtime to make the model picked in CloudCLI the
+   * model the harness actually routes the next turn to.
+   */
+  async setConfigOption(sessionId: string, configId: string, value: unknown): Promise<unknown[]> {
+    const result = await this.request('session/set_config_option', {
+      sessionId,
+      configId,
+      value,
+    }) as AnyRecord;
+    this.rememberConfigOptions(sessionId, result?.configOptions);
+    return this.configOptionsBySession.get(sessionId) ?? [];
+  }
+
+  /** Stores the config-option list from a session response, ignoring malformed payloads. */
+  private rememberConfigOptions(sessionId: string, configOptions: unknown): void {
+    if (!Array.isArray(configOptions)) {
+      return;
+    }
+    if (!this.configOptionsBySession.has(sessionId)) {
+      const oldest = this.configOptionsBySession.keys().next().value;
+      if (this.configOptionsBySession.size >= MAX_CONFIG_OPTION_SESSIONS && typeof oldest === 'string') {
+        this.configOptionsBySession.delete(oldest);
+      }
+    }
+    this.configOptionsBySession.set(sessionId, configOptions);
+  }
+
+  /**
+   * Sends one turn. `prompt` is either plain text or the ACP content-block list;
+   * a server that did not advertise `promptCapabilities.image` rejects an image
+   * block outright, so callers decide whether to include them.
+   */
+  async prompt(
+    sessionId: string,
+    prompt: string | AcpPromptBlock[],
+    timeoutMs = this.promptTimeoutMs,
+  ): Promise<{ stopReason: string }> {
     // The turn can legitimately run for minutes; the timeout only guards
     // against a hung child so the run cannot wedge forever.
     const result = await this.request('session/prompt', {
       sessionId,
-      prompt: [{ type: 'text', text }],
+      prompt: typeof prompt === 'string' ? [{ type: 'text', text: prompt }] : prompt,
     }, timeoutMs) as AnyRecord;
     return { stopReason: typeof result?.stopReason === 'string' ? result.stopReason : 'error' };
   }

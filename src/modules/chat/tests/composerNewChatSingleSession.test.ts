@@ -78,20 +78,51 @@ const renderNewChat = () => renderComposer(null);
 
 let fetchMock: ReturnType<typeof vi.fn>;
 let pendingUploads: PendingCreate[] = [];
+let uploadRequestCount = 0;
 
-const uploadRequests = () => fetchMock.mock.calls
-  .filter(([url, init]) => String(url) === '/api/assets/files' && (init as RequestInit | undefined)?.method === 'POST');
+const uploadRequests = () => uploadRequestCount;
+
+/**
+ * The composer uploads picked files through XMLHttpRequest (progress + abort).
+ * This stands in for the upload route and leaves each request open until the
+ * test answers it, like a slow connection would.
+ */
+class AttachmentUploadXhr {
+  status = 200;
+  responseText = '';
+  upload = {} as XMLHttpRequestUpload;
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  onabort: (() => void) | null = null;
+  open(): void {}
+  setRequestHeader(): void {}
+  getResponseHeader(): string | null { return null; }
+  addEventListener(): void {}
+  removeEventListener(): void {}
+  abort(): void { this.abortCount += 1; }
+  abortCount = 0;
+  send(): void {
+    uploadRequestCount += 1;
+    pendingUploads.push({
+      resolve: (response: Response) => {
+        void response.text().then((text) => {
+          this.responseText = text;
+          this.onload?.();
+        });
+      },
+    });
+  }
+}
 
 beforeEach(() => {
   pendingCreates = [];
   pendingUploads = [];
+  uploadRequestCount = 0;
   createdCount = 0;
+  vi.stubGlobal('XMLHttpRequest', AttachmentUploadXhr);
   fetchMock = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
     if (String(url) === '/api/providers/sessions' && init?.method === 'POST') {
       return new Promise<Response>((resolve) => { pendingCreates.push({ resolve }); });
-    }
-    if (String(url) === '/api/assets/files' && init?.method === 'POST') {
-      return new Promise<Response>((resolve) => { pendingUploads.push({ resolve }); });
     }
     return Promise.resolve(jsonResponse([]));
   });
@@ -163,14 +194,16 @@ test('submitting again while an attachment uploads sends the message once', asyn
     void view.result.current.handleSubmit({ preventDefault: () => undefined } as never);
     void view.result.current.handleSubmit({ preventDefault: () => undefined } as never);
   });
+  // The send is parked on the upload: answer the request, then let its poll
+  // notice the settled entry and the message go out.
   await act(async () => {
     for (const pending of pendingUploads) {
       pending.resolve(jsonResponse({ attachments: [{ name: 'shot.png', mimeType: 'image/png' }] }));
     }
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 100));
   });
 
-  assert.equal(uploadRequests().length, 1, 'the attachment is uploaded once');
+  assert.equal(uploadRequests(), 1, 'the attachment uploads once, from the paste, and the send waits for it');
   assert.deepEqual(
     chatSends().map((message) => [message.sessionId, message.content]),
     [['session-existing', 'look at this']],

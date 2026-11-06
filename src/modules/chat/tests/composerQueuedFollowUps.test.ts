@@ -65,6 +65,10 @@ const fakeServer = async (url: RequestInfo | URL, init?: RequestInit): Promise<R
     return json({ attachments: files.map((file) => ({ name: file.name, path: `/uploads/${file.name}` })) });
   }
 
+  if (path.includes('/api/assets/release')) {
+    return json({ released: [] });
+  }
+
   if (path.endsWith('/api/user/drafts/queued-message')) {
     if (method === 'POST') {
       appendRequestCount += 1;
@@ -204,7 +208,40 @@ const startSubmit = (view: View) => {
   return pending;
 };
 
+/**
+ * Composer attachments upload through XMLHttpRequest (progress + abort), which
+ * jsdom would send for real; this answers the single upload route with one
+ * descriptor per file, after any gate the test holds it on.
+ */
+class AttachmentUploadXhr {
+  status = 200;
+  responseText = '';
+  upload = {} as XMLHttpRequestUpload;
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  onabort: (() => void) | null = null;
+  private files: File[] = [];
+  open(): void {}
+  setRequestHeader(): void {}
+  getResponseHeader(): string | null { return null; }
+  addEventListener(): void {}
+  removeEventListener(): void {}
+  abort(): void { this.onabort?.(); }
+  send(body?: Document | XMLHttpRequestBodyInit | null): void {
+    const form = body instanceof FormData ? body : new FormData();
+    this.files = form.getAll('files') as File[];
+    void (async () => {
+      await uploadGate;
+      this.responseText = JSON.stringify({
+        attachments: this.files.map((file) => ({ name: file.name, path: `/uploads/${file.name}` })),
+      });
+      this.onload?.();
+    })();
+  }
+}
+
 beforeEach(() => {
+  vi.stubGlobal('XMLHttpRequest', AttachmentUploadXhr);
   server = new Map();
   refuseQueueing = false;
   uploadGate = null;

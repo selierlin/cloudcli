@@ -177,8 +177,8 @@ export default function McpServers({ selectedProvider, currentProjects, onOpenMc
   });
   const globalButtonLabel = t('mcpServers.addGlobalButton');
   const providerButtonLabel = t('mcpServers.addProviderButton', { provider: providerName });
-  // dsh and pi can never persist an MCP server, so both add entries stay
-  // visible but disabled while naming the reason for the selected provider.
+  // A harness that rejects app-managed writes still names the reason, and both
+  // add entries stay visible but disabled.
   const addBlockedReason = MCP_ADD_BLOCKED_REASON[selectedProvider];
   // A harness-managed provider still reports the servers its harness loads, but
   // every write is rejected, so those rows are shown without edit or delete.
@@ -197,17 +197,30 @@ export default function McpServers({ selectedProvider, currentProjects, onOpenMc
     () => MCP_SUPPORTED_SCOPES[selectedProvider].filter((scope) => scope !== 'user'),
     [selectedProvider],
   );
+  // A provider whose only writable scope is `user` has nothing left for this
+  // page's forms; adding one belongs to the matrix, which owns that scope.
+  const userScopeOnly = addBlockedReason === null && formScopes.length === 0;
 
   const rows = useMemo<McpServerRow[]>(() => {
+    // A name the harness loads from its own configuration is not the matrix's
+    // definition even when its switch is set: the matrix can neither write nor
+    // clear it, so the row is reported as harness-owned below.
+    const externallyManaged = new Set(
+      catalogEntries
+        .filter((entry) => entry.externallyManaged?.includes(selectedProvider))
+        .map((entry) => entry.name),
+    );
     const ownedByMatrix = new Set(
-      catalogEntries.filter((entry) => entry.enabled[selectedProvider]).map((entry) => entry.name),
+      catalogEntries
+        .filter((entry) => entry.enabled[selectedProvider] && !externallyManaged.has(entry.name))
+        .map((entry) => entry.name),
     );
 
     // A catalog entry the matrix enabled for this harness is the authoritative
     // definition, so the row is rendered from it rather than from the file copy
     // — which also keeps it visible when the projection into the file failed.
     const catalogRows: McpServerRow[] = catalogEntries
-      .filter((entry) => entry.enabled[selectedProvider])
+      .filter((entry) => entry.enabled[selectedProvider] && !externallyManaged.has(entry.name))
       .map((entry) => {
         // A catalog entry owned by a CloudCLI feature (e.g. the Browser tab)
         // stays under the "已托管" badge and hides noisy connection details,
@@ -234,7 +247,9 @@ export default function McpServers({ selectedProvider, currentProjects, onOpenMc
       }
 
       const owner: McpRowOwner | null = server.scope === 'user'
-        ? (cloudcliManaged ? 'cloudcli' : isHarnessManagedProvider ? 'harness' : 'unmanaged')
+        ? (cloudcliManaged
+          ? 'cloudcli'
+          : (isHarnessManagedProvider || server.origin === 'harness' ? 'harness' : 'unmanaged'))
         : ((cloudcliManaged || isHarnessManagedProvider)
           ? (cloudcliManaged ? 'cloudcli' : 'harness')
           : null);
@@ -384,24 +399,36 @@ export default function McpServers({ selectedProvider, currentProjects, onOpenMc
           icon={Plus}
           className="w-full sm:w-auto"
           triggerClassName={`w-full sm:w-auto ${MCP_PROVIDER_BUTTON_CLASSES[selectedProvider]}`}
-          items={[
-            {
-              key: 'global',
-              label: globalButtonLabel,
-              description: globalAddDescription,
-              icon: Globe,
-              disabled: addBlockedReason !== null,
-              onSelect: openGlobalForm,
-            },
-            {
-              key: 'provider',
-              label: providerButtonLabel,
-              description: providerAddDescription,
-              icon: Server,
-              disabled: addBlockedReason !== null,
-              onSelect: () => openForm(),
-            },
-          ]}
+          items={userScopeOnly
+            ? [{
+              key: 'matrix',
+              label: t('mcpServers.openMatrix'),
+              description: t('mcpServers.userScopeOnlyAdd', {
+                provider: providerName,
+                defaultValue: `${providerName} MCP servers are configured in the MCP matrix.`,
+              }),
+              icon: ArrowUpRight,
+              disabled: !onOpenMcpMatrix,
+              onSelect: () => onOpenMcpMatrix?.(),
+            }]
+            : [
+              {
+                key: 'global',
+                label: globalButtonLabel,
+                description: globalAddDescription,
+                icon: Globe,
+                disabled: addBlockedReason !== null,
+                onSelect: openGlobalForm,
+              },
+              {
+                key: 'provider',
+                label: providerButtonLabel,
+                description: providerAddDescription,
+                icon: Server,
+                disabled: addBlockedReason !== null,
+                onSelect: () => openForm(),
+              },
+            ]}
         />
 
       </div>

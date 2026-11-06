@@ -83,14 +83,9 @@
     "clearSearch": "清除搜尋",
     "openCommandPalette": "開啟指令面板",
     "attentionRequiredIndicator": "工作階段需要處理",
+    "expandAllProjects": "展開全部專案",
+    "locateSelectedProject": "定位到目前工作階段所屬專案",
     "collapseAllProjects": "收起全部專案"
-  },
-  "navigation": {
-    "chat": "聊天",
-    "files": "檔案",
-    "git": "Git",
-    "terminal": "終端機",
-    "tasks": "任務"
   },
   "actions": {
     "refresh": "重新整理",

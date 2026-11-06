@@ -43,6 +43,8 @@ type McpCatalogProjectionAdapter = {
   removeServer(input: { name: string; scope?: McpScope }): Promise<unknown>;
   listWritableScopes(): McpScope[];
   listRawServersForScope(scope: McpScope): Promise<ProviderMcpServer[]>;
+  /** Absent on adapters whose config file the app owns outright, which is most of them. */
+  listExternallyManagedNames?(): string[];
 };
 
 type McpCatalogProviderSource = {
@@ -251,6 +253,41 @@ export const createMcpCatalogService = (
   const flags = dependencies.flags ?? appConfigDb;
   const runSerialized = createProviderWriteQueue();
 
+  /**
+   * Names each harness already mounts from its own layers, keyed by provider.
+   *
+   * Read once per operation: a harness answers by dumping its composed config,
+   * so asking per entry would spawn that process once per row.
+   */
+  const readExternallyManagedNames = (): Map<LLMProvider, Set<string>> => {
+    const names = new Map<LLMProvider, Set<string>>();
+    for (const provider of providers.listProviders()) {
+      const supplied = provider.mcp.listExternallyManagedNames?.() ?? [];
+      if (supplied.length > 0) {
+        names.set(provider.id, new Set(supplied));
+      }
+    }
+
+    return names;
+  };
+
+  /**
+   * Attaches the harnesses that mount this name themselves.
+   *
+   * Every response carrying an entry has to go through this: the matrix replaces
+   * its row with whatever a write returns, so an undecorated entry would turn a
+   * locked cell back into a switch the next click would fail on.
+   */
+  const decorateEntry = (
+    entry: McpCatalogEntry,
+    external: Map<LLMProvider, Set<string>> = readExternallyManagedNames(),
+  ): McpCatalogEntry => ({
+    ...entry,
+    externallyManaged: [...external]
+      .filter(([, names]) => names.has(entry.name))
+      .map(([provider]) => provider),
+  });
+
   const readCatalogEntry = (id: string): McpCatalogEntry => {
     const entry = catalog.getCatalogEntry(id);
     if (!entry) {
@@ -321,8 +358,16 @@ export const createMcpCatalogService = (
     previousName?: string,
   ): Promise<McpCatalogProjectionOutcome[]> => {
     const outcomes: McpCatalogProjectionOutcome[] = [];
+    const external = readExternallyManagedNames();
     for (const provider of providers.listProviders()) {
       if (!entry.enabled[provider.id]) {
+        continue;
+      }
+
+      // The harness mounts this name from its own layer, so it owns the
+      // definition: a second write would be dropped silently and reporting it
+      // as a failure would offer a retry that can never succeed.
+      if (external.get(provider.id)?.has(entry.name)) {
         continue;
       }
 
@@ -383,7 +428,8 @@ export const createMcpCatalogService = (
   return {
     /** Lists every catalog entry with its per-harness switches. */
     listCatalog(): McpCatalogEntry[] {
-      return catalog.listCatalogEntries().map(redactCatalogEntry);
+      const external = readExternallyManagedNames();
+      return catalog.listCatalogEntries().map((entry) => redactCatalogEntry(decorateEntry(entry, external)));
     },
 
     /**
@@ -400,7 +446,7 @@ export const createMcpCatalogService = (
         if (isManagedCatalogName(input.name)) {
           throw managedEntryError();
         }
-        return { entry: redactCatalogEntry(createCatalogEntry(input)), outcomes: [] };
+        return { entry: redactCatalogEntry(decorateEntry(createCatalogEntry(input))), outcomes: [] };
       }
 
       const previous = readCatalogEntry(input.id);
@@ -409,7 +455,10 @@ export const createMcpCatalogService = (
       }
       const entry = updateCatalogEntry(input.id, input, previous);
       // The projection writes the raw definition; only the response is redacted.
-      return { entry: redactCatalogEntry(entry), outcomes: await projectEntry(entry, previous.name) };
+      return {
+        entry: redactCatalogEntry(decorateEntry(entry)),
+        outcomes: await projectEntry(entry, previous.name),
+      };
     },
 
     /**
@@ -483,7 +532,7 @@ export const createMcpCatalogService = (
       const outcome = enabled
         ? await projectUpsert(updated, provider)
         : await projectRemove(updated, provider);
-      return { entry: redactCatalogEntry(updated), outcomes: [outcome] };
+      return { entry: redactCatalogEntry(decorateEntry(updated)), outcomes: [outcome] };
     },
 
     /**
@@ -504,7 +553,14 @@ export const createMcpCatalogService = (
           continue;
         }
 
+        const external = new Set(provider.mcp.listExternallyManagedNames?.() ?? []);
         for (const entry of entries) {
+          // The harness supplies this name itself, so there is neither a
+          // CloudCLI row to rewrite nor one to clear.
+          if (external.has(entry.name)) {
+            continue;
+          }
+
           outcomes.push(
             entry.enabled[provider.id]
               ? await projectUpsert(entry, provider.id)

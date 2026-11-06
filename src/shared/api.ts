@@ -5,7 +5,11 @@ import {
 } from '@/shared/authToken';
 import { IS_PLATFORM } from '@/shared/utils';
 import { readVoiceConfig, voiceConfigHeaders } from '@/shared/voiceConfig';
-import type { McpTestConnectionInput, SessionMessagesRequestOptions } from '@/shared/types';
+import type {
+  McpTestConnectionInput,
+  ScheduledTaskInput,
+  SessionMessagesRequestOptions,
+} from '@/shared/types';
 
 // Headers are a plain record rather than the full `HeadersInit` union so the
 // defaults below can be merged with a caller's headers by spreading.
@@ -354,6 +358,21 @@ export const api = {
     cancel: (id: string) => del(`/api/scheduled-messages/${encodeURIComponent(id)}`),
   },
 
+  // Scheduled tasks: run a saved prompt on a repeat rule, each run in a new conversation.
+  scheduledTasks: {
+    list: () => get('/api/scheduled-tasks'),
+    create: (body: ScheduledTaskInput) => post('/api/scheduled-tasks', body),
+    update: (id: string, body: Partial<ScheduledTaskInput>) =>
+      patch(`/api/scheduled-tasks/${encodeURIComponent(id)}`, body),
+    remove: (id: string) => del(`/api/scheduled-tasks/${encodeURIComponent(id)}`),
+    setEnabled: (id: string, enabled: boolean) =>
+      post(`/api/scheduled-tasks/${encodeURIComponent(id)}/enabled`, { enabled }),
+    // Returns as soon as the run is registered; follow it through `runs`.
+    run: (id: string) => post(`/api/scheduled-tasks/${encodeURIComponent(id)}/run`, {}),
+    runs: (id: string, limit = 20) =>
+      get(`/api/scheduled-tasks/${encodeURIComponent(id)}/runs${query({ limit })}`),
+  },
+
   // Published transcript links. Creation uploads the already-built HTML, so the
   // server never has to render a transcript; revoking deletes the readable copy.
   shares: {
@@ -583,14 +602,26 @@ export const api = {
     execute: (payload: unknown) => post('/api/commands/execute', payload),
   },
 
-  // Chat attachments, stored globally under ~/.cloudcli/assets
+  // Chat attachments, stored globally under ~/.cloudcli/assets.
   assets: {
-    uploadFiles: (formData: FormData) =>
+    /**
+     * Uploads composer attachments. `signal` lets an abandoned upload (the
+     * attachment removed again, the composer unmounted) be cancelled instead
+     * of leaving a file behind.
+     */
+    uploadFiles: (formData: FormData, options: ApiRequestOptions = {}) =>
       authenticatedFetch('/api/assets/files', {
         method: 'POST',
         headers: {}, // Let browser set Content-Type for FormData
         body: formData,
+        ...options,
       }),
+    /**
+     * Releases uploads the composer no longer holds. Named by stored file name
+     * rather than path so the call still works when the files is already gone.
+     */
+    releaseFiles: (storedNames: string[]) =>
+      post('/api/assets/release', { storedNames }),
     file: (storedName: string) => get(`/api/assets/files/${encodeURIComponent(storedName)}`),
     image: (filename: string, options: ApiRequestOptions = {}) =>
       get(`/api/assets/images/${encodeURIComponent(filename)}`, options),

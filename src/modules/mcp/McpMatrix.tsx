@@ -52,6 +52,10 @@ const describeDisabledReason = (
     return t('mcpMatrix.disabled.noNativeSupport', { provider: providerName });
   }
 
+  if (reason.kind === 'external') {
+    return t('mcpMatrix.disabled.external', { provider: providerName });
+  }
+
   return t('mcpMatrix.disabled.harnessManaged', { provider: providerName });
 };
 

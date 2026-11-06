@@ -50,7 +50,10 @@ const backgroundOnly: SessionActivityMap = new Map([[
   },
 ]]);
 
-const uploads = () => vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('/api/assets/files'));
+// Composer uploads go through XMLHttpRequest, so counting `fetch` would always
+// read zero; this counts the requests the XHR stand-in actually sent.
+let uploadRequestCount = 0;
+const uploads = () => uploadRequestCount;
 
 const render = (processingSessions: SessionActivityMap) => {
   const sent: Array<{ type: string }> = [];
@@ -100,10 +103,29 @@ const submitAndAnswer = async (view: View, choice: BackgroundSendChoice) => {
 };
 
 beforeEach(() => {
-  vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-    if (String(url).includes('/api/assets/files')) {
-      return new Response(JSON.stringify({ attachments: [UPLOADED] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  uploadRequestCount = 0;
+  // Composer attachments upload through XMLHttpRequest (progress + abort), which
+  // jsdom sends for real; this stands in for the single upload route.
+  class AttachmentUploadXhr {
+    status = 200;
+    responseText = JSON.stringify({ attachments: [UPLOADED] });
+    upload = {} as XMLHttpRequestUpload;
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    onabort: (() => void) | null = null;
+    open(): void {}
+    setRequestHeader(): void {}
+    getResponseHeader(): string | null { return null; }
+    addEventListener(): void {}
+    removeEventListener(): void {}
+    abort(): void { this.onabort?.(); }
+    send(): void {
+      uploadRequestCount += 1;
+      setTimeout(() => this.onload?.(), 0);
     }
+  }
+  vi.stubGlobal('XMLHttpRequest', AttachmentUploadXhr);
+  vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     if (String(url).includes('/api/user/drafts/queued-message') && init?.method === 'POST') {
       // Nothing else is queued: the server queues the message on its own.
       const { queuedMessage } = JSON.parse(String(init.body)) as { queuedMessage: unknown };
@@ -162,11 +184,12 @@ test('queue persists the message behind the work with its uploaded files, sends 
     view.result.current.setInput('hello');
     view.result.current.setAttachedFiles([new File(['notes'], 'notes.txt', { type: 'text/plain' })]);
   });
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
 
   await submitAndAnswer(view, 'queue');
 
   assert.equal(sends().length, 0, 'queued: nothing is sent now');
-  assert.equal(uploads().length, 1, 'the files uploaded before the prompt are not uploaded again');
+  assert.equal(uploads(), 1, 'the file uploaded when picked is not uploaded again');
   // Queued on the server at once, the same as queueing during a turn.
   assert.equal(appendQueuedMessage.mock.calls.length, 1);
   assert.equal(appendQueuedMessage.mock.calls[0]?.[0], 'session-1');

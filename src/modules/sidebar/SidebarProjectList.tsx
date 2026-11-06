@@ -4,6 +4,7 @@ import type { SidebarProjectListProps } from '@/shared/types';
 import SidebarProjectItem from '@/modules/sidebar/SidebarProjectItem';
 import SidebarProjectsState from '@/modules/sidebar/SidebarProjectsState';
 import { useRevealPinnedBlockStart } from '@/modules/sidebar/hooks/useRevealPinnedBlockStart';
+import { useRevealProjectBlock } from '@/modules/sidebar/hooks/useRevealProjectBlock';
 
 
 /** Rendered by SidebarContent to list the filtered projects, delegating each row to SidebarProjectItem. */
@@ -32,6 +33,7 @@ export default function SidebarProjectList({
   isProjectStarred,
   onRenameDraftChange,
   onToggleProject,
+  revealProjectRequest,
   onProjectSelect,
   onToggleStarProject,
   onStartEditingProject,
@@ -54,6 +56,7 @@ export default function SidebarProjectList({
   // reload costs one observer, not one per project.
   const listRef = useRef<HTMLDivElement>(null);
   useRevealPinnedBlockStart(listRef);
+  useRevealProjectBlock(listRef, revealProjectRequest);
 
   const state = (
     <SidebarProjectsState

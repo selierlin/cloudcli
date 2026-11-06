@@ -85,7 +85,7 @@ const listProps = (activeRename: ActiveSidebarRename | null): SidebarProjectList
   isProjectStarred: () => false,
   onRenameDraftChange: noop,
   onToggleProject: noop,
-  onCollapseAllProjects: noop,
+  revealProjectRequest: null,
   onProjectSelect: noop,
   onToggleStarProject: noop,
   onStartEditingProject: noop,

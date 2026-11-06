@@ -60,3 +60,34 @@ test('a server request for an unimplemented method is answered with -32601, not 
     client.close();
   }
 });
+
+const PROMPT_MOCK_SERVER = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  'fixtures',
+  'acp-prompt-mock.mjs',
+);
+
+test('prompt sends a plain string as one text block and a block list verbatim', async () => {
+  const child = spawn(process.execPath, [PROMPT_MOCK_SERVER], { stdio: ['pipe', 'pipe', 'pipe'] });
+  const chunks: string[] = [];
+  const client = new AcpClient(child, {
+    onMessageChunk: (_sessionId, text) => chunks.push(text),
+    onRequestPermission: () => {},
+  });
+
+  try {
+    await client.prompt('acp-1', 'hello');
+    assert.deepEqual(JSON.parse(await waitFor(() => chunks[0])), [{ type: 'text', text: 'hello' }]);
+
+    const blocks = [
+      { type: 'text' as const, text: 'what is this' },
+      { type: 'image' as const, mimeType: 'image/png', data: 'AAAA' },
+      { type: 'resource_link' as const, name: 'notes.pdf', uri: 'file:///tmp/notes.pdf' },
+    ];
+    const { stopReason } = await client.prompt('acp-1', blocks);
+    assert.equal(stopReason, 'end_turn');
+    assert.deepEqual(JSON.parse(await waitFor(() => chunks[1])), blocks);
+  } finally {
+    client.close();
+  }
+});

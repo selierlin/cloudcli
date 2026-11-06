@@ -4,7 +4,7 @@ import { act, renderHook } from '@testing-library/react';
 import type { TFunction } from 'i18next';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
-import type { Project } from '@/shared/types';
+import type { Project, ProjectSession } from '@/shared/types';
 
 /**
  * "Keep projects expanded" (#1648). By default the sidebar treats project
@@ -39,18 +39,21 @@ const PROJECTS = [
 
 const PROJECT = PROJECTS[0];
 
+const SESSION = { id: 'session-1', title: 'session one' } as unknown as ProjectSession;
+
 type ControllerProps = {
   selectedProject?: Project | null;
+  selectedSession?: ProjectSession | null;
   keepProjectsExpanded?: boolean;
 };
 
 const renderController = (initialProps: ControllerProps = {}) =>
   renderHook(
-    ({ selectedProject = null, keepProjectsExpanded }: ControllerProps) =>
+    ({ selectedProject = null, selectedSession = null, keepProjectsExpanded }: ControllerProps) =>
       useSidebarController({
         projects: PROJECTS,
         selectedProject,
-        selectedSession: null,
+        selectedSession,
         createdConversation: null,
         activeSessions: new Set<string>(),
         isLoading: false,
@@ -205,4 +208,63 @@ test('collapseAllProjects closes every group and keeps it closed across a reload
   const restored = renderController({ keepProjectsExpanded: true });
   assert.equal(restored.result.current.isProjectExpanded('project-1'), false);
   assert.equal(restored.result.current.isProjectExpanded('project-2'), false);
+});
+
+test('toggleAllProjects collapses open groups and expands them again when none is open', () => {
+  const { result } = renderController({ keepProjectsExpanded: true });
+  act(() => result.current.toggleProject('project-1'));
+  act(() => result.current.toggleProject('project-2'));
+
+  act(() => result.current.toggleAllProjects());
+  assert.equal(result.current.isProjectExpanded('project-1'), false);
+  assert.equal(result.current.isProjectExpanded('project-2'), false);
+
+  act(() => result.current.toggleAllProjects());
+  assert.equal(result.current.isProjectExpanded('project-1'), true);
+  assert.equal(result.current.isProjectExpanded('project-2'), true);
+});
+
+test('locateSelectedProject reopens the collapsed group holding the session', () => {
+  const { result } = renderController({ selectedProject: PROJECTS[1], selectedSession: SESSION });
+  act(() => result.current.toggleAllProjects());
+  assert.equal(result.current.isProjectExpanded('project-2'), false);
+
+  act(() => result.current.locateSelectedProject());
+  assert.equal(result.current.isProjectExpanded('project-2'), true);
+  assert.deepEqual(result.current.revealProjectRequest, {
+    projectId: 'project-2',
+    sessionId: SESSION.id,
+    seq: 1,
+  });
+});
+
+test('locateSelectedProject raises a fresh request for a repeated click', () => {
+  const { result } = renderController({ selectedProject: PROJECT });
+  act(() => result.current.locateSelectedProject());
+  act(() => result.current.locateSelectedProject());
+  assert.equal(result.current.revealProjectRequest?.seq, 2);
+});
+
+test('locateSelectedProject does nothing without an open session project', () => {
+  const { result } = renderController();
+  act(() => result.current.locateSelectedProject());
+  assert.equal(result.current.revealProjectRequest, null);
+});
+
+test('locateSelectedProject clears a search that hid the session project', () => {
+  vi.useFakeTimers();
+  try {
+    const { result } = renderController({ selectedProject: PROJECT, selectedSession: SESSION });
+    act(() => result.current.setSearchFilter('no-such-project'));
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    assert.equal(result.current.filteredProjects.length, 0);
+
+    act(() => result.current.locateSelectedProject());
+    assert.equal(result.current.searchFilter, '');
+    assert.equal(result.current.filteredProjects.length, PROJECTS.length);
+  } finally {
+    vi.useRealTimers();
+  }
 });

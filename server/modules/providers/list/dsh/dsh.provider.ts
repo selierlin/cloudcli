@@ -1,6 +1,7 @@
 import { AbstractProvider } from '@/modules/providers/shared/base/abstract.provider.js';
 import { DshProviderAuth } from '@/modules/providers/list/dsh/dsh-auth.provider.js';
 import { readDshComposedEntries } from '@/modules/providers/list/dsh/dsh-cordis.provider.js';
+import { DshForkProvider } from '@/modules/providers/list/dsh/dsh-fork.provider.js';
 import { DshProviderModels } from '@/modules/providers/list/dsh/dsh-models.provider.js';
 import { DshMcpProvider } from '@/modules/providers/list/dsh/dsh-mcp.provider.js';
 import { dshRuntime } from '@/modules/providers/list/dsh/dsh-runtime.provider.js';
@@ -9,6 +10,7 @@ import { DshSessionsProvider } from '@/modules/providers/list/dsh/dsh-sessions.p
 import { DshSkillsProvider } from '@/modules/providers/list/dsh/dsh-skills.provider.js';
 import type {
   IProviderAuth,
+  IProviderFork,
   IProviderModels,
   IProviderRuntime,
   IProviderSessionSynchronizer,
@@ -24,6 +26,7 @@ export class DshProvider extends AbstractProvider {
   readonly skills: IProviderSkills = new DshSkillsProvider();
   readonly sessions: IProviderSessions = new DshSessionsProvider();
   readonly sessionSynchronizer: IProviderSessionSynchronizer = new DshSessionSynchronizer();
+  readonly fork: IProviderFork = new DshForkProvider();
 
   constructor() {
     super('dsh');

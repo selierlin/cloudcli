@@ -1,4 +1,4 @@
-import { AlertTriangle, Ban, Check, Minus } from 'lucide-react';
+import { AlertTriangle, Ban, Check, Lock, Minus } from 'lucide-react';
 import type { ComponentType } from 'react';
 
 import { cn } from '@/shared/utils';
@@ -33,6 +33,13 @@ const CELL_APPEARANCE: Record<McpMatrixCellState, CellAppearance> = {
     icon: AlertTriangle,
     className: 'border-red-500/40 bg-red-500/15 text-red-600 dark:text-red-400',
   },
+  // The harness already runs this server from its own config: live, but not
+  // CloudCLI's to switch, so it reads as locked rather than as either colour of
+  // the on/off pair.
+  external: {
+    icon: Lock,
+    className: 'border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400',
+  },
   disabled: {
     icon: Ban,
     className: 'border-border/50 bg-muted/20 text-muted-foreground/30',
@@ -43,10 +50,11 @@ const CELL_APPEARANCE: Record<McpMatrixCellState, CellAppearance> = {
 export default function McpMatrixCell({ state, label, onToggle, isBusy = false }: McpMatrixCellProps) {
   const appearance = CELL_APPEARANCE[state];
   const Icon = appearance.icon;
-  // A `disabled` cell is refused by the harness's capabilities and can never be
-  // flipped; every other state only renders inert while no handler is supplied
-  // (the read-only matrix) or while its own write is still in flight.
-  const isInert = state === 'disabled' || !onToggle || isBusy;
+  // A refused cell can never be flipped — neither the capability refusals nor a
+  // name the harness supplies itself — and every other state only renders inert
+  // while no handler is supplied (the read-only matrix) or while its own write is
+  // still in flight.
+  const isInert = state === 'disabled' || state === 'external' || !onToggle || isBusy;
 
   return (
     <Tooltip content={label}>

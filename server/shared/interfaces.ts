@@ -52,6 +52,17 @@ export interface IProviderRuntime {
    * settled, or the id was never one of its own.
    */
   stopBackgroundTask?(sessionId: string, taskId: string): Promise<boolean>;
+  /**
+   * Releases the provider-side conversation behind one app session so a
+   * deleted transcript is not recreated by the still-running provider process.
+   *
+   * Only a runtime that keeps conversation state past a turn has anything to
+   * release (DSH's ACP child holds the session log open). Callers invoke it
+   * before deleting a hidden or superseded session and must not let a failure
+   * block the deletion: an unreleasable session is still better gone than
+   * resurrected.
+   */
+  disposeSession?(sessionId: string): Promise<void>;
 }
 
 /**
@@ -212,6 +223,15 @@ export interface IProviderMcp {
    * stores a row that no toggle or delete could clear.
    */
   listWritableScopes(): McpScope[];
+  /**
+   * Names this harness already mounts from a layer the app does not write.
+   *
+   * A write for one of them would add a second definition of the same server
+   * name, which the harness drops silently, so the matrix must state the fact
+   * instead of offering the switch. Empty for every harness whose config file
+   * the app owns outright.
+   */
+  listExternallyManagedNames(): string[];
   upsertServer(input: UpsertProviderMcpServerInput): Promise<ProviderMcpServer>;
   removeServer(
     input: { name: string; scope?: McpScope; workspacePath?: string },

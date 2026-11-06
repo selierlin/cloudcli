@@ -124,6 +124,15 @@ export const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps
 
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape' && !isImeKeyEvent(e)) {
+          // A dialog opened from another dialog portals onto document.body
+          // after it, so the last layer is the top one. Without this check a
+          // single Escape would dismiss both at once.
+          const layers = document.querySelectorAll('[data-dialog-layer]');
+          const ownLayer = contentRef.current?.closest('[data-dialog-layer]');
+          if (layers.length > 0 && layers[layers.length - 1] !== ownLayer) {
+            return;
+          }
+
           e.stopPropagation();
           onEscapeKeyDown?.();
           onOpenChange(false);

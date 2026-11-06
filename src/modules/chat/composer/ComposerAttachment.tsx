@@ -1,11 +1,21 @@
 import { useEffect, useState } from 'react';
-import { FileIcon, XIcon } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { AlertCircle, FileIcon, Loader2, XIcon } from 'lucide-react';
 
 import { ImageLightbox } from '@/modules/chat/transcript/ChatMessageImages';
+import type { ComposerAttachmentUpload } from '@/shared/types';
 
 type ComposerAttachmentProps = {
   file: File;
   onRemove: () => void;
+  /** Upload state once the file is picked: uploading, ready, or failed. */
+  upload?: ComposerAttachmentUpload;
+  /**
+   * Changes whenever any upload moves. The parent reads upload state from a
+   * ref, so it passes this counter to make the chip re-read the value it was
+   * given without keeping that state in React.
+   */
+  uploadVersion?: number;
   error?: string;
 };
 
@@ -19,11 +29,20 @@ const formatFileSize = (size: number) => {
  * Rendered by chat's ChatComposer for each pending attachment, showing its
  * thumbnail or file chip, upload progress and remove control.
  */
-const ComposerAttachment = ({ file, onRemove, error }: ComposerAttachmentProps) => {
-  const [preview, setPreview] = useState<string | undefined>(undefined);
+const ComposerAttachment = ({ file, onRemove, upload, uploadVersion, error }: ComposerAttachmentProps) => {
+  const { t } = useTranslation('chat');
   const [expanded, setExpanded] = useState(false);
   const isImage = file.type.startsWith('image/');
+  void uploadVersion;
+  const isUploading = upload?.status === 'uploading';
+  // A failed upload and a validation error both block sending this chip.
+  const failure = upload?.status === 'failed' ? upload.error ?? t('input.attachments.failed') : error;
 
+  // Created inside the effect, not during render: StrictMode mounts, runs the
+  // cleanup and mounts again, so a URL created for the first mount is revoked
+  // while the chip stays on screen — the thumbnail then stays blank because a
+  // render-phase memo has no reason to run again.
+  const [preview, setPreview] = useState<string>();
   useEffect(() => {
     if (!isImage) {
       setPreview(undefined);
@@ -40,7 +59,7 @@ const ComposerAttachment = ({ file, onRemove, error }: ComposerAttachmentProps) 
         <button
           type="button"
           onClick={() => preview && setExpanded(true)}
-          aria-label={`Expand ${file.name}`}
+          aria-label={t('input.attachments.expand', { name: file.name })}
           className="block overflow-hidden rounded-xl border border-border/50 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/60"
         >
           {preview
@@ -58,18 +77,24 @@ const ComposerAttachment = ({ file, onRemove, error }: ComposerAttachmentProps) 
           </div>
         </div>
       )}
-      {error && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-red-500/50">
-          <svg className="h-6 w-6 text-n-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
+      {isUploading && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-background/60">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" aria-hidden />
+        </div>
+      )}
+      {failure && (
+        <div
+          className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-red-500/50"
+          title={failure}
+        >
+          <AlertCircle className="h-6 w-6 text-white" aria-hidden />
         </div>
       )}
       <button
         type="button"
         onClick={onRemove}
         className="absolute -right-1.5 -top-1.5 rounded-full border border-border/40 bg-background/90 p-1 text-foreground shadow-sm backdrop-blur transition-opacity hover:bg-background focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-        aria-label={`Remove ${file.name}`}
+        aria-label={t('input.attachments.remove', { name: file.name })}
       >
         <XIcon className="h-3 w-3" aria-hidden />
       </button>

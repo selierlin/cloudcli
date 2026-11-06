@@ -55,8 +55,13 @@ import {
     initializeScheduledMessageDispatcher,
     scheduledMessagesRoutes,
 } from './modules/scheduled-messages/index.js';
+import {
+    closeScheduledTaskDispatcher,
+    createScheduledTasksRouter,
+    initializeScheduledTaskDispatcher,
+} from './modules/scheduled-tasks/index.js';
 import browserUseRoutes from './modules/browser-use/browser-use.routes.js';
-import { assetsRoutes } from './modules/assets/index.js';
+import { assetsRoutes, closeAssetCleanup, initializeAssetCleanup } from './modules/assets/index.js';
 import { publicSharesRoutes, sharesRoutes, sweepExpiredShares } from './modules/shares/index.js';
 import { themesRoutes } from './modules/themes/index.js';
 import { fileTreeRoutes } from './modules/file-tree/index.js';
@@ -260,6 +265,9 @@ app.use('/api/browser-use', authenticateToken, browserUseRoutes);
 // Unified provider MCP routes (protected)
 app.use('/api/providers', authenticateToken, providerRoutes);
 app.use('/api/scheduled-messages', authenticateToken, scheduledMessagesRoutes);
+// Scheduled tasks start a provider turn on demand, so the router receives the
+// same runtime gateway the chat websocket uses.
+app.use('/api/scheduled-tasks', authenticateToken, createScheduledTasksRouter(providerRuntimeService));
 
 // Global network proxy (protected)
 app.use('/api/network', authenticateToken, networkRoutes);
@@ -498,9 +506,15 @@ async function startServer() {
             // Reclaim btw copies whose drawer never closed (refresh, crash),
             // then keep sweeping long-idle ones.
             await initializeEphemeralCleanup();
+            // Reclaim uploads nobody will send (removed before send, abandoned
+            // drafts), then keep sweeping old ones.
+            await initializeAssetCleanup();
             // Sends anything that came due while the server was not running,
             // then keeps polling.
             initializeScheduledMessageDispatcher(providerRuntimeService);
+            // Runs the user's scheduled tasks, which build on the same
+            // detached-turn path but start a fresh conversation per run.
+            initializeScheduledTaskDispatcher(providerRuntimeService);
 
             // Start server-side plugin processes for enabled plugins
             startEnabledPluginServers().catch(err => {
@@ -510,7 +524,9 @@ async function startServer() {
 
         await closeSessionsWatcher();
         closeEphemeralCleanup();
+        closeAssetCleanup();
         closeScheduledMessageDispatcher();
+        closeScheduledTaskDispatcher();
         // Clean up plugin processes on shutdown
         const shutdownRuntimeServices = async () => {
             try {

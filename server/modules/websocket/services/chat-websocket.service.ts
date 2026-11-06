@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 import type { WebSocket } from 'ws';
@@ -207,8 +208,9 @@ function resolveSendTarget(
 /**
  * Registers the run and hands the turn to the provider runtime.
  *
- * `extraRuntimeOptions` is how an edited message asks the provider to resume
- * partway instead of continuing from the tip; a normal send passes nothing.
+ * `extraRuntimeOptions` carries server-decided options that must not be
+ * overridden by the client: the resume point of an edited message, and the
+ * unattended flag of a timer-driven turn.
  */
 async function dispatchRun(
   ws: WebSocket | null,
@@ -261,9 +263,28 @@ async function dispatchRun(
     ...normalizeAttachmentDescriptors(clientOptions.attachments),
   ];
   const verifiedAttachments = filterAttachmentsToUploadStore(attachmentCandidates);
-  const uniqueAttachments = verifiedAttachments.filter(
-    (descriptor, index, all) => all.findIndex((candidate) => candidate.path === descriptor.path) === index,
-  );
+  const uniqueAttachments = verifiedAttachments
+    .filter(
+      (descriptor, index, all) => all.findIndex((candidate) => candidate.path === descriptor.path) === index,
+    )
+    // An upload can be reclaimed between the composer sending it and this run
+    // starting. Sending the path anyway made the provider either silently drop
+    // the image or fail on the whole turn, so it is dropped here with a note
+    // the user can act on.
+    .filter((descriptor) => {
+      if (existsSync(path.resolve(descriptor.path))) {
+        return true;
+      }
+      console.warn(`[Chat] Dropping attachment missing from the upload store: ${descriptor.path}`);
+      run.writer.send({
+        kind: 'attachment_missing',
+        sessionId,
+        provider,
+        path: descriptor.path,
+        name: descriptor.name ?? null,
+      });
+      return false;
+    });
 
   // The provider runtimes receive the stable app session id. When their
   // CLI/SDK needs the provider-native id for resume, they resolve it from the
@@ -302,6 +323,15 @@ async function dispatchRun(
     // a queued message can start the session's next run before this promise
     // settles, and the session-keyed completeRun would kill that new run.
     chatRunRegistry.completeRunIfCurrent(run, { exitCode: 1 });
+  }
+
+  // Most provider failures are reported as a terminal `complete(exitCode: 1)`
+  // followed by a normal return, so the awaited promise resolving says nothing
+  // about the turn's outcome. The registry records the terminal exit code;
+  // a detached caller (scheduled task/message, queued turn) has no other way
+  // to learn that the run failed, and used to record it as a success.
+  if (!failure && run.exitCode !== null && run.exitCode !== 0) {
+    failure = run.lastError ?? `The provider run ended with exit code ${run.exitCode}.`;
   }
 
   return { started: true, error: failure };
@@ -635,6 +665,12 @@ export async function runDetachedChatTurn(
      * land mid-run, so the timer outranks whatever is running.
      */
     interruptActiveRun?: boolean;
+    /**
+     * Marks a turn nobody is watching. Provider runtimes use it to refuse
+     * tools that require an answer (they would otherwise wait forever) instead
+     * of streaming a prompt to a socket that does not exist.
+     */
+    unattended?: boolean;
   },
   dependencies: ChatWebSocketDependencies,
 ): Promise<{ started: boolean; error: string | null }> {
@@ -672,6 +708,7 @@ export async function runDetachedChatTurn(
     session,
     { sessionId: input.sessionId, content: input.content, options: input.options ?? {} },
     dependencies,
+    input.unattended ? { unattended: true } : {},
   );
 }
 

@@ -47,6 +47,8 @@ test('buildStoredAttachmentRecords preserves metadata for non-image files', () =
     path: `${ASSETS_DIR.replace(/\\/g, '/')}/123-456-requirements.pdf`,
     size: 2048,
     mimeType: 'application/pdf',
+    storedName: '123-456-requirements.pdf',
+    restorable: false,
   });
 });
 

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { notifyRunFailed, notifyRunStopped } from '@/modules/notifications/index.js';
-import { AcpClient, type AcpPermissionOption, type AcpPermissionRequest, type AcpPermissionResponder, type AcpToolCallUpdate } from '@/modules/providers/shared/acp/acp.client.js';
+import { AcpClient, AcpRequestError, type AcpPermissionOption, type AcpPermissionRequest, type AcpPermissionResponder, type AcpToolCallUpdate } from '@/modules/providers/shared/acp/acp.client.js';
 import type { IProviderRuntime } from '@/shared/interfaces.js';
 import type {
   AnyRecord,
@@ -14,6 +14,7 @@ import type {
 import { createCompleteMessage, createNormalizedMessage } from '@/shared/utils.js';
 
 import { DSH_ACP_PROFILE, getDshHome, getDshSessionsRoot } from './dsh-models.provider.js';
+import { buildDshPromptBlocks, isAcpImageRejection } from './dsh-prompt.js';
 
 // ---------- Process and session lifecycle ----------
 
@@ -21,6 +22,21 @@ type AcpServerState = {
   client: AcpClient;
   /** App session id → ACP session id (kept alive for the connection lifetime). */
   sessionByApp: Map<string, string>;
+  /**
+   * ACP session ids this child has created or resumed. The server rejects
+   * `session/resume` for an id it is already serving, so a mapping restored
+   * from the database may be resumed at most once per child. Never evicted:
+   * dropping an entry would make the next run resume an id the child still
+   * holds, which the server answers with an error.
+   */
+  liveAcpIds: Set<string>;
+  /**
+   * In-flight `session/resume` per ACP session id. Two runs can reach the
+   * same persisted session before either has recorded it in `liveAcpIds`;
+   * sharing one request keeps the second from being rejected as
+   * "session is already active".
+   */
+  resuming: Map<string, Promise<void>>;
 };
 
 /** Upper bound on live app→ACP session mappings so a long-lived server cannot grow without limit. */
@@ -73,6 +89,14 @@ let acpServer: AcpServerState | null = null;
 let acpServerPromise: Promise<AcpServerState> | null = null;
 /** ACP session id → in-flight run, for routing updates and permission requests to the right writer. */
 const activeRuns = new Map<string, ActiveRun>();
+/**
+ * Set when the harness config changed while a turn was running.
+ *
+ * The child mounts its MCP servers at startup, so the change is only visible
+ * after a respawn; dropping it mid-turn would abort the turn. The flag keeps
+ * the request instead of losing it, and the next spawn honours it.
+ */
+let restartDeferred = false;
 
 /**
  * Folds one ACP chunk into its message's accumulated text and returns the
@@ -332,11 +356,153 @@ async function createAcpSession(client: AcpClient, cwd: string, attempts = 8): P
   throw new Error('DSH ACP session creation failed');
 }
 
+/** Standard ACP config option that selects the provider/model route. */
+const ACP_MODEL_CONFIG_ID = 'model';
+
+/** Reads a DSH model choice value, which the harness encodes as `[provider, model]`. */
+function parseAcpModelValue(value: string): { provider: string; model: string } | undefined {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (
+      Array.isArray(parsed)
+      && parsed.length === 2
+      && typeof parsed[0] === 'string'
+      && typeof parsed[1] === 'string'
+    ) {
+      return { provider: parsed[0], model: parsed[1] };
+    }
+  } catch {
+    // Not a tuple: this server does not expose model choices in the shape we map.
+  }
+  return undefined;
+}
+
+/**
+ * Translates a CloudCLI picker value into the ACP `model` config option value.
+ *
+ * CloudCLI stores `<provider>/<model>` for catalogue-backed models and a bare
+ * model id for the predefined fallback. DSH advertises each choice as
+ * `JSON.stringify([provider, model])`, so the slash form is re-encoded and the
+ * bare form is resolved against the session's advertised choices. Returns
+ * `undefined` when the requested route is not offered, so the caller can fail
+ * loudly instead of silently running the profile's default model.
+ */
+function resolveAcpModelValue(
+  requested: string,
+  configOptions: unknown[] | undefined,
+): string | undefined {
+  const advertised = new Set<string>();
+  const valuesByModelId = new Map<string, string[]>();
+  for (const option of configOptions ?? []) {
+    const record = option as AnyRecord | undefined;
+    if (record?.id !== ACP_MODEL_CONFIG_ID || !Array.isArray(record.options)) {
+      continue;
+    }
+    for (const group of record.options) {
+      const entries = (group as AnyRecord | undefined)?.options;
+      if (!Array.isArray(entries)) {
+        continue;
+      }
+      for (const entry of entries) {
+        const value = (entry as AnyRecord | undefined)?.value;
+        if (typeof value !== 'string') {
+          continue;
+        }
+        advertised.add(value);
+        const parsed = parseAcpModelValue(value);
+        if (parsed) {
+          valuesByModelId.set(parsed.model, [...(valuesByModelId.get(parsed.model) ?? []), value]);
+        }
+      }
+    }
+  }
+
+  const separator = requested.indexOf('/');
+  if (separator > 0 && separator < requested.length - 1) {
+    const value = JSON.stringify([requested.slice(0, separator), requested.slice(separator + 1)]);
+    // Before the catalogue is known, send the encoded route and let DSH validate it.
+    return advertised.size === 0 || advertised.has(value) ? value : undefined;
+  }
+
+  const matches = valuesByModelId.get(requested) ?? [];
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+/**
+ * Applies the CloudCLI-selected model to one ACP session.
+ *
+ * Retries the same settings-driven adapter-registration race that
+ * {@link createAcpSession} handles: pi-ai registers provider routes a moment
+ * after the ACP server starts serving, and setting a model through a route
+ * that is not registered yet fails.
+ */
+async function applySessionModel(
+  client: AcpClient,
+  acpSessionId: string,
+  requestedModel: string,
+  attempts = 8,
+): Promise<void> {
+  const value = resolveAcpModelValue(requestedModel, client.getSessionConfigOptions(acpSessionId));
+  if (!value) {
+    throw new Error(`DSH does not offer a model matching "${requestedModel}".`);
+  }
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      await client.setConfigOption(acpSessionId, ACP_MODEL_CONFIG_ID, value);
+      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes('no adapter registered') || attempt === attempts) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+}
+
+/**
+ * Turns one failed ACP request into a message the chat can show.
+ *
+ * DSH answers every failed `session/resume` with the same `Internal error` and
+ * puts the real cause in `error.data.details`; the three condition names below
+ * are the ones a user can act on. Anything else falls back to the details,
+ * which is still more useful than repeating `Internal error`.
+ */
+function describeAcpFailure(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const details = error instanceof AcpRequestError ? error.details : undefined;
+  const combined = details ? `${message} ${details}` : message;
+  if (/not resumable/i.test(combined)) {
+    return 'DSH can no longer resume this session (its transcript is missing or was replaced).';
+  }
+  if (/already active/i.test(combined)) {
+    return 'The DSH session is already active.';
+  }
+  if (/cwd does not match/i.test(combined)) {
+    return 'The DSH session was recorded under a different working directory.';
+  }
+  return details && details !== message ? `${message} (${details})` : message;
+}
+
+/** True when an ACP close failed only because the child was not serving the id. */
+function isUnknownAcpSession(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const details = error instanceof AcpRequestError ? error.details : undefined;
+  return /unknown session|session not found/i.test(`${message} ${details ?? ''}`);
+}
+
 /** Lazily spawns the DSH ACP server process and negotiates the protocol. */
 async function ensureAcpServer(): Promise<AcpServerState> {
   // A dead server (crashed child / closed client) must never be handed out:
   // drop the cache so the next call spawns a fresh ACP process.
   if (acpServer && acpServer.client.isClosed) {
+    acpServer = null;
+  }
+  // A config write that arrived mid-turn could not restart the child without
+  // aborting that turn; this is the first idle moment since, and a fresh spawn
+  // is exactly what the write needs. Nothing is running here, so it is safe.
+  if (acpServer && restartDeferred && activeRuns.size === 0) {
+    acpServer.client.close();
     acpServer = null;
   }
   if (acpServer) {
@@ -416,7 +582,12 @@ async function ensureAcpServer(): Promise<AcpServerState> {
       client.close();
       throw error;
     }
-    const state: AcpServerState = { client, sessionByApp: new Map() };
+    const state: AcpServerState = {
+      client,
+      sessionByApp: new Map(),
+      liveAcpIds: new Set(),
+      resuming: new Map(),
+    };
     acpServer = state;
     return state;
   })();
@@ -442,35 +613,61 @@ export const dshRuntime: IProviderRuntime = {
       : undefined;
     const userId = writer.userId ?? null;
 
+    // Resolved before the try so the prompt builder can apply the same working
+    // directory as the session.
+    const cwd = typeof options.cwd === 'string' && options.cwd
+      ? options.cwd
+      : typeof options.projectPath === 'string' && options.projectPath
+        ? options.projectPath
+        : process.cwd();
+
     // Server startup and session creation live inside the try so a failed
     // spawn or session/new surfaces as a normalized error + complete instead
     // of an unhandled rejection that drops the chat's message stream.
     let server: AcpServerState | null = null;
     let acpSessionId: string | null = null;
     try {
-      server = await ensureAcpServer();
-      let existing = server.sessionByApp.get(appSessionId);
-      if (!existing) {
-        // The in-memory mapping is lost when the ACP server restarts (crash or
-        // process restart). Rebuild it from the persisted provider session id so
-        // a resumed conversation continues its thread instead of starting fresh.
-        const persisted = context.resolveProviderSessionId(appSessionId);
-        if (persisted) {
-          server.sessionByApp.set(appSessionId, persisted);
-          existing = persisted;
-        }
-      }
-      if (existing) {
-        acpSessionId = existing;
+      // Held in a local so the resume callback closes over a non-null state.
+      const state = await ensureAcpServer();
+      server = state;
+      // The database is the source of truth for which provider session this app
+      // session continues. Editing a message repoints the row to a derived
+      // session id, and editing the first message detaches it, while the
+      // in-memory mapping still names the pre-edit session. Trusting the cache
+      // would silently keep running the old conversation.
+      const persisted = context.resolveProviderSessionId(appSessionId);
+      if (persisted) {
+        state.sessionByApp.set(appSessionId, persisted);
       } else {
-        const cwd = typeof options.cwd === 'string' && options.cwd
-          ? options.cwd
-          : typeof options.projectPath === 'string' && options.projectPath
-            ? options.projectPath
-            : process.cwd();
-        acpSessionId = await createAcpSession(server.client, cwd);
-        server.sessionByApp.set(appSessionId, acpSessionId);
-        trimSessionMappings(server.sessionByApp);
+        state.sessionByApp.delete(appSessionId);
+      }
+      if (persisted) {
+        // A child that restarted (crash, or a new CloudCLI process) has no
+        // in-memory record of a persisted session, and `prompt` answers
+        // "Unknown session" for it. Resume it once per child first.
+        if (!state.liveAcpIds.has(persisted)) {
+          let attempt = state.resuming.get(persisted);
+          if (!attempt) {
+            attempt = state.client.resumeSession(persisted, cwd).then(
+              () => {
+                state.liveAcpIds.add(persisted);
+              },
+              (error: unknown) => {
+                throw new Error(`Could not resume DSH session ${persisted}: ${describeAcpFailure(error)}`);
+              },
+            ).finally(() => {
+              state.resuming.delete(persisted);
+            });
+            state.resuming.set(persisted, attempt);
+          }
+          await attempt;
+        }
+        acpSessionId = persisted;
+      } else {
+        acpSessionId = await createAcpSession(state.client, cwd);
+        state.liveAcpIds.add(acpSessionId);
+        state.sessionByApp.set(appSessionId, acpSessionId);
+        trimSessionMappings(state.sessionByApp);
         // Register the session with the DSH Desktop workspace registry so the
         // Desktop UI groups it under the matching project instead of "ungrouped".
         registerSessionWithDesktopWorkspace(acpSessionId, cwd);
@@ -483,6 +680,14 @@ export const dshRuntime: IProviderRuntime = {
           sessionId: appSessionId,
           provider: 'dsh',
         }));
+      }
+      // Applied on every turn so switching the model in CloudCLI also affects
+      // an existing ACP conversation. Without this the harness keeps running
+      // its profile default (`agent-default-model`), whichever model the
+      // picker shows.
+      const requestedModel = typeof options.model === 'string' ? options.model.trim() : '';
+      if (requestedModel) {
+        await applySessionModel(server.client, acpSessionId, requestedModel);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -528,8 +733,32 @@ export const dshRuntime: IProviderRuntime = {
       chunkBuffers: new Map(),
     });
 
+    // Captured so the retry closure below sees a stable, narrowed session.
+    const client = server.client;
+    const sessionId = acpSessionId;
+
     try {
-      const { stopReason } = await server.client.prompt(acpSessionId, command);
+      // DSH advertises image support once at initialize, from the profile's
+      // default model, but enforces it per turn against the model this session
+      // was switched to. A text-only model therefore rejects blocks the
+      // connection accepted at handshake; resend with path references so the
+      // turn still runs and the model can read the file with its tools.
+      const ask = async (): Promise<{ stopReason: string }> => {
+        const blocks = await buildDshPromptBlocks(command, options.attachments, cwd);
+        try {
+          return await client.prompt(sessionId, blocks);
+        } catch (error) {
+          if (!blocks.some((block) => block.type === 'image') || !isAcpImageRejection(error)) {
+            throw error;
+          }
+          console.warn('[DSH] The selected model rejected the image input; retrying with file paths.');
+          return await client.prompt(
+            sessionId,
+            await buildDshPromptBlocks(command, options.attachments, cwd, { inlineImages: false }),
+          );
+        }
+      };
+      const { stopReason } = await ask();
       if (stopReason === 'cancelled') {
         writer.send(createCompleteMessage({
           provider: 'dsh',
@@ -600,11 +829,75 @@ export const dshRuntime: IProviderRuntime = {
     }
   },
 
+  /**
+   * Releases one conversation on the ACP side.
+   *
+   * Needed before deleting a hidden copy or an edited-away transcript: the
+   * child keeps the log open, so a deleted session would be written back and
+   * re-indexed by the watcher. Unlike `abort`, an id the child is not serving
+   * is not an error — the goal (nothing holds it) is already met — and the
+   * local tables are cleared either way so the next run starts a fresh session
+   * instead of trusting a mapping that no longer exists.
+   */
+  async disposeSession(sessionId: string): Promise<void> {
+    const server = acpServer;
+    if (!server) {
+      return;
+    }
+    // Callers may hold either the app id (chat surfaces) or the ACP id (btw's
+    // copy bookkeeping); accept both.
+    const acpSessionId = server.sessionByApp.get(sessionId) ?? sessionId;
+    try {
+      await server.client.closeSession(acpSessionId);
+    } catch (error) {
+      if (!isUnknownAcpSession(error)) {
+        throw error;
+      }
+    } finally {
+      server.liveAcpIds.delete(acpSessionId);
+      for (const [appSessionId, mapped] of server.sessionByApp) {
+        if (mapped === acpSessionId) {
+          server.sessionByApp.delete(appSessionId);
+        }
+      }
+    }
+  },
+
   permissions: {
     resolve: resolveDshPermission,
     listPending: listPendingDshPermissions,
   },
 };
+
+/**
+ * Drops the idle ACP child so the next turn boots a process that reads the
+ * current harness config.
+ *
+ * The harness mounts its MCP servers when the ACP process starts, so a server
+ * written mid-life is invisible to every session until the child restarts. Only
+ * an idle process is dropped: closing one with an active turn would abort it,
+ * so the request is remembered and honoured by the next spawn instead. A fresh
+ * child resumes persisted sessions on demand, so dropping it costs no
+ * conversation.
+ *
+ * Used by the DSH MCP provider after a successful write.
+ *
+ * @returns Whether the config is already in effect for the next turn.
+ */
+export function restartDshAcpServerIfIdle(): boolean {
+  if (acpServerPromise || activeRuns.size > 0) {
+    restartDeferred = true;
+    return false;
+  }
+
+  restartDeferred = false;
+  if (acpServer) {
+    acpServer.client.close();
+    acpServer = null;
+  }
+
+  return true;
+}
 
 /** Drops the ACP server process and all live session mappings (used by tests). */
 export function resetDshRuntimeForTests(): void {
@@ -612,6 +905,7 @@ export function resetDshRuntimeForTests(): void {
     acpServer.client.close();
     acpServer = null;
   }
+  restartDeferred = false;
   activeRuns.clear();
   cancelAllPendingPermissions('test reset');
 }

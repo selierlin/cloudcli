@@ -347,6 +347,25 @@ export function useChatRealtimeHandlers({
           return;
         }
 
+        // An attachment was reclaimed before its turn started. The provider run
+        // continues without it, so the transcript says which image is missing
+        // instead of the reply silently lacking it.
+        case 'attachment_missing': {
+          if (!sid) return;
+          const missingName = typeof msg.name === 'string' && msg.name
+            ? msg.name
+            : String(msg.path || '').split(/[\\/]/).pop() || 'attachment';
+          sessionStore.appendRealtime(sid, {
+            id: `attachment_missing_${Date.now()}`,
+            sessionId: sid,
+            timestamp: new Date().toISOString(),
+            provider,
+            kind: 'error',
+            content: `Attachment no longer available: ${missingName}`,
+          } as NormalizedMessage);
+          return;
+        }
+
         // Sidebar/global events — owned by useProjectsState.
         case 'session_upserted':
         case 'loading_progress':

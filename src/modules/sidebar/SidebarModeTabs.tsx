@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { Activity, Archive, Folder, MessageSquare, MoreHorizontal } from 'lucide-react';
+import { Activity, Archive, CalendarClock, Folder, MessageSquare, MoreHorizontal } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
@@ -42,6 +42,7 @@ export default function SidebarModeTabs({
     { mode: 'conversations', label: t('search.modeConversations'), icon: MessageSquare, showLabel: true },
     { mode: 'running', label: t('search.runningTooltip', 'Running sessions'), icon: Activity, showLabel: false },
     { mode: 'archived', label: t('search.archiveOnlyTooltip', 'Archive only'), icon: Archive, showLabel: false },
+    { mode: 'scheduledTasks', label: t('search.modeScheduledTasks'), icon: CalendarClock, showLabel: false },
   ];
 
   const activeIndex = tabs.findIndex((tab) => tab.mode === searchMode);

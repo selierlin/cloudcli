@@ -120,6 +120,78 @@ CREATE TABLE IF NOT EXISTS scheduled_messages (
 );
 `;
 
+/**
+ * User-defined jobs that run a prompt on a schedule.
+ *
+ * `schedule_spec` is JSON whose shape depends on `schedule_kind`:
+ * - once     `{ at: ISO instant }`
+ * - interval `{ everyMinutes: number }`
+ * - daily    `{ time: 'HH:mm' }`
+ * - weekly   `{ time: 'HH:mm', weekdays: number[] }` (0 = Sunday)
+ *
+ * `timezone` is the IANA zone the wall-clock fields are read in, so a daily
+ * 09:00 job stays at 09:00 for the user after a DST change rather than drifting
+ * by an hour.
+ *
+ * `next_run_at` is stored so the poll is one indexed comparison; it is always
+ * recomputed from the rule, never derived by adding a fixed offset.
+ */
+export const SCHEDULED_TASKS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS scheduled_tasks (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT,
+    effort TEXT,
+    permission_mode TEXT,
+    project_path TEXT NOT NULL,
+    -- once | interval | daily | weekly
+    schedule_kind TEXT NOT NULL,
+    schedule_spec TEXT NOT NULL DEFAULT '{}',
+    timezone TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    next_run_at DATETIME NOT NULL,
+    last_run_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`;
+
+/**
+ * One execution of a scheduled task.
+ *
+ * Kept apart from `scheduled_tasks` so the task row stays small and the poll
+ * never touches history. `session_id` deliberately has no foreign key: the
+ * conversation can be deleted while the execution record stays as the audit
+ * trail of what the task did.
+ *
+ * `status` is `running` while the provider turn is in flight, then `completed`,
+ * `failed`, or `skipped` (a cycle that arrived while the previous run was still
+ * going or while the global concurrency ceiling was reached).
+ */
+export const SCHEDULED_TASK_RUNS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS scheduled_task_runs (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    -- scheduled | manual
+    trigger TEXT NOT NULL,
+    -- running | completed | failed | skipped
+    status TEXT NOT NULL,
+    session_id TEXT,
+    error TEXT,
+    skipped_reason TEXT,
+    scheduled_for DATETIME,
+    started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    finished_at DATETIME,
+    FOREIGN KEY (task_id) REFERENCES scheduled_tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`;
+
 export const SESSIONS_TABLE_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS sessions (
     session_id TEXT NOT NULL,

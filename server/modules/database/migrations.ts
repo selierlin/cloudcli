@@ -13,6 +13,8 @@ import {
   SHARED_TRANSCRIPTS_TABLE_SCHEMA_SQL,
   SUPERSEDED_PROVIDER_SESSIONS_TABLE_SCHEMA_SQL,
   SCHEDULED_MESSAGES_TABLE_SCHEMA_SQL,
+  SCHEDULED_TASKS_TABLE_SCHEMA_SQL,
+  SCHEDULED_TASK_RUNS_TABLE_SCHEMA_SQL,
   SESSIONS_TABLE_SCHEMA_SQL,
   USER_PREFERENCES_TABLE_SCHEMA_SQL,
   USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL,
@@ -736,6 +738,8 @@ export const runMigrations = (db: Database) => {
     addSessionIsEphemeralColumn(db);
     ensureProjectsForSessionPaths(db);
     db.exec(SCHEDULED_MESSAGES_TABLE_SCHEMA_SQL);
+    db.exec(SCHEDULED_TASKS_TABLE_SCHEMA_SQL);
+    db.exec(SCHEDULED_TASK_RUNS_TABLE_SCHEMA_SQL);
     db.exec(SHARED_TRANSCRIPTS_TABLE_SCHEMA_SQL);
     addSharedTranscriptTokenColumn(db);
     db.exec('CREATE INDEX IF NOT EXISTS idx_shared_transcripts_session ON shared_transcripts(session_id, created_at)');
@@ -750,6 +754,11 @@ export const runMigrations = (db: Database) => {
     // The due-message poll runs on a timer; without this it table-scans.
     db.exec('CREATE INDEX IF NOT EXISTS idx_scheduled_messages_due ON scheduled_messages(status, scheduled_for)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_scheduled_messages_session ON scheduled_messages(session_id)');
+    // The task poll compares (enabled, next_run_at) on every pass.
+    db.exec('CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_due ON scheduled_tasks(enabled, next_run_at)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_task ON scheduled_task_runs(task_id, started_at DESC)');
+    // Answers "is this task still running" without scanning its history.
+    db.exec('CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_status ON scheduled_task_runs(status)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_is_archived ON sessions(isArchived)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_recent_pinned ON sessions(isPinned, updated_at DESC)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_projects_is_starred ON projects(isStarred)');

@@ -104,6 +104,17 @@ export function createProviderRuntimeService(
       return Boolean(await runtime.stopBackgroundTask?.(sessionId, taskId));
     },
 
+    /**
+     * Releases the provider-side conversation behind a session that is about to
+     * be deleted. Consumers: `btw.service.ts` before removing a hidden copy and
+     * the edit-rewind path before retiring the superseded transcript. A runtime
+     * without conversation state to release is a no-op.
+     */
+    async disposeSession(providerName: LLMProvider, sessionId: string): Promise<void> {
+      const { runtime } = dependencies.resolveProvider(providerName);
+      await runtime.disposeSession?.(sessionId);
+    },
+
     hasBackgroundWork(sessionId: string): boolean {
       return dependencies.listProviders().some((provider) =>
         (provider.runtime.listBackgroundWork?.() ?? []).some((entry) => entry.sessionId === sessionId));

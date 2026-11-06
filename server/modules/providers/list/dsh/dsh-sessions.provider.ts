@@ -1,144 +1,26 @@
 import { readdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import zlib from 'node:zlib';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import { DshForkProvider } from '@/modules/providers/list/dsh/dsh-fork.provider.js';
+import { dshRuntime } from '@/modules/providers/list/dsh/dsh-runtime.provider.js';
 import type { IProviderSessions } from '@/shared/interfaces.js';
+import { decodeSessionLogBuffer } from '@/shared/session-log.js';
 import type {
   AnyRecord,
   FetchHistoryOptions,
   FetchHistoryResult,
   NormalizedMessage,
 } from '@/shared/types.js';
-import { createNormalizedMessage, readOptionalString, sliceTailPage } from '@/shared/utils.js';
+import { AppError, createNormalizedMessage, readObjectRecord, readOptionalString, sliceTailPage } from '@/shared/utils.js';
 
 import { getDshSessionsRoot } from './dsh-models.provider.js';
+import { findDshSessionLogPath, projectKey, resolveSessionLogPath } from './dsh-session-path.js';
 
-// ---------- DSH JSONL session-log decoding ----------
-//
-// The DSH ACP server persists one session as `<sessions-root>/--<project-key>--/
-// <session-id>/session[.vN].jsonl.zstd`: a concatenation of independent Zstandard frames (one header
-// frame plus one frame per append batch). Directory naming mirrors
-// `@deepseek-ai/dsh-session-persistence-jsonl/src/format.ts`.
-
-const ZSTD_FRAME_MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd]);
-
-// The harness names the log after the immutable Session format generation:
-// version 0 keeps the original suffix-only `session.jsonl.zstd`, every later
-// generation inserts a lowercase `.vN` component (`session.v1.jsonl.zstd`,
-// `session.v3.jsonl.zstd`, …). Discovery therefore has to match the pattern
-// instead of one hardcoded name, or every session migrated to a newer
-// generation silently reads as empty history.
-//
-// The trailing encoding suffix is configured per root: `zstd` (the default)
-// stores concatenated Zstandard frames as `.jsonl.zstd`, while `none` stores
-// plaintext lines as `.jsonl`. One root uses a single encoding for every
-// generation, so both suffixes have to be discovered.
-const SESSION_LOG_PATTERN = /^session(?:\.v(\d+))?\.jsonl(?:\.zstd)?$/;
-
-/** True when a file name is any DSH session-log format generation. */
-export function isDshSessionLogFile(fileName: string): boolean {
-  return SESSION_LOG_PATTERN.test(fileName);
-}
-
-/** Format generation encoded in a session-log file name (0 when the `.vN` part is absent). */
-function sessionLogGeneration(fileName: string): number {
-  const generation = SESSION_LOG_PATTERN.exec(fileName)?.[1];
-  return generation ? Number.parseInt(generation, 10) : 0;
-}
-
-/**
- * Picks the log to read inside one session directory: the highest format
- * generation present. A session migrated to a newer generation keeps the same
- * directory, so a leftover older log must not shadow the current one.
- */
-export function findDshSessionLogPath(sessionDir: string): string | null {
-  let names: string[];
-  try {
-    names = readdirSync(sessionDir).filter(isDshSessionLogFile);
-  } catch {
-    // Missing or unreadable directory: no session log to read.
-    return null;
-  }
-  if (names.length === 0) {
-    return null;
-  }
-  names.sort((a, b) => sessionLogGeneration(b) - sessionLogGeneration(a));
-  return path.join(sessionDir, names[0]);
-}
-
-/** Escapes one raw session id into a single safe path segment (`~XXXX` for unsafe code units). */
-export function encodeSessionSegment(raw: string): string {
-  let out = '';
-  for (let i = 0; i < raw.length; i += 1) {
-    const code = raw.charCodeAt(i);
-    const ch = String.fromCharCode(code);
-    if (ch !== '~' && /^[A-Za-z0-9._-]$/.test(ch)) {
-      out += ch;
-    } else {
-      out += `~${code.toString(16).toUpperCase().padStart(4, '0')}`;
-    }
-  }
-  return out;
-}
-
-/**
- * Builds the readable project directory key for a session cwd: separators
- * become `-`, unsafe code units use `~XXXX`, and the result is wrapped in
- * `--…--` (mirrors `projectKey` in the DSH JSONL persistence package).
- */
-export function projectKey(cwd: string): string {
-  let readable = '';
-  let separatorRun = false;
-  for (let i = 0; i < cwd.length; i += 1) {
-    const code = cwd.charCodeAt(i);
-    const ch = String.fromCharCode(code);
-    if (ch === '/' || ch === '\\' || ch === ':') {
-      if (!separatorRun) {
-        readable += '-';
-      }
-      separatorRun = true;
-    } else if (ch !== '~' && /^[A-Za-z0-9._-]$/.test(ch)) {
-      readable += ch;
-      separatorRun = false;
-    } else {
-      readable += `~${code.toString(16).toUpperCase().padStart(4, '0')}`;
-      separatorRun = false;
-    }
-  }
-  const slug = readable.replace(/^-+/, '') || 'root';
-  return `--${slug.slice(0, 251)}--`;
-}
-
-/** Decodes a concatenated-zstd session log into its logical JSONL lines. */
-export function decodeZstdFrames(buffer: Buffer): string {
-  let text = '';
-  let index = buffer.indexOf(ZSTD_FRAME_MAGIC);
-  while (index !== -1) {
-    const next = buffer.indexOf(ZSTD_FRAME_MAGIC, index + ZSTD_FRAME_MAGIC.length);
-    const frame = buffer.subarray(index, next === -1 ? buffer.length : next);
-    try {
-      text += zlib.zstdDecompressSync(frame).toString('utf8');
-    } catch {
-      // A corrupt frame ends the readable prefix; keep the frames decoded so far.
-    }
-    index = next;
-  }
-  return text;
-}
-
-/**
- * Decodes one session-log buffer into its logical JSONL text. A root uses a
- * single physical encoding for every generation: `.jsonl.zstd` holds
- * concatenated Zstandard frames, while a `compression: 'none'` root holds
- * plaintext lines.
- */
-export function decodeSessionLogBuffer(buffer: Buffer, logPath: string): string {
-  return path.basename(logPath).endsWith('.zstd')
-    ? decodeZstdFrames(buffer)
-    : buffer.toString('utf8');
-}
+// Session-log decoding lives in `shared/session-log.ts` so the asset collector
+// can read the same physical encoding without depending on this module.
+export { decodeSessionLogBuffer, decodeZstdFrames } from '@/shared/session-log.js';
 
 /** Concatenates the text of every text block in a DSH content-block array. */
 export function extractText(content: unknown): string {
@@ -152,15 +34,6 @@ export function extractText(content: unknown): string {
     })
     .join('')
     .trim();
-}
-
-/** Resolves the session-log path for one ACP session id under a project cwd. */
-function resolveSessionLogPath(acpSessionId: string, cwd: string): string | null {
-  return findDshSessionLogPath(path.join(
-    getDshSessionsRoot(),
-    projectKey(cwd),
-    encodeSessionSegment(acpSessionId),
-  ));
 }
 
 /**
@@ -188,9 +61,20 @@ function findNewestSessionLog(cwd: string): string | null {
   return findDshSessionLogPath(path.join(projectDir, entries[0]));
 }
 
-/** Converts one decoded session log into app messages, oldest first (chronological). */
+/**
+ * Converts one decoded session log into app messages, oldest first
+ * (chronological), stamping each conversation row with the `turn/end` it
+ * belongs to.
+ *
+ * The stamp is what the chat wires to "fork from here" and "edit this message".
+ * DSH has no per-message cut — a resumable seed always ends on a turn boundary —
+ * so the anchor is the seq of the `turn/end` that closes the row's turn. A row
+ * in a turn that has not closed yet falls back to the previous closed boundary
+ * (copying a half turn would hand the child an unanswered prompt), and a row
+ * with no closed boundary before it gets no anchor at all.
+ */
 function decodeSessionLog(text: string, appSessionId: string): NormalizedMessage[] {
-  const messages: NormalizedMessage[] = [];
+  const entries: Array<{ event: AnyRecord; data: AnyRecord }> = [];
   for (const line of text.split(/\r?\n/)) {
     if (!line.trim()) {
       continue;
@@ -205,9 +89,68 @@ function decodeSessionLog(text: string, appSessionId: string): NormalizedMessage
     if (!data) {
       continue;
     }
+    entries.push({ event, data });
+  }
+
+  const turnEnds = entries
+    .filter(({ event }) => event.type === 'turn/end' && typeof event.seq === 'number')
+    .map(({ event }) => event.seq as number)
+    .sort((left, right) => left - right);
+
+  // A compaction `replace` retracts an earlier span: those rows are still in
+  // the file but are no longer part of the conversation the harness sees, so
+  // they must not offer an edit or fork entry point.
+  const replacedRanges: Array<[number, number]> = [];
+  for (const { event } of entries) {
+    const operation = readObjectRecord(event.surfaceOp);
+    if (operation?.op === 'replace'
+      && typeof operation.startSeq === 'number'
+      && typeof operation.endSeq === 'number') {
+      replacedRanges.push([operation.startSeq, operation.endSeq]);
+    }
+  }
+
+  /**
+   * Index of the first turn end at or after `seq`, or `turnEnds.length` when
+   * every turn end precedes it.
+   *
+   * `turnEnds` is ascending, so this replaces the linear scan the anchor used to
+   * run per message — with a `[...turnEnds].reverse()` copy on top of it, which
+   * made a long transcript quadratic.
+   */
+  const firstTurnEndAtOrAfter = (seq: number): number => {
+    let low = 0;
+    let high = turnEnds.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if (turnEnds[middle] < seq) {
+        low = middle + 1;
+      } else {
+        high = middle;
+      }
+    }
+    return low;
+  };
+
+  const anchorFor = (seq: number): string | undefined => {
+    if (replacedRanges.some(([start, end]) => seq >= start && seq <= end)) {
+      return undefined;
+    }
+    const index = firstTurnEndAtOrAfter(seq);
+    if (index < turnEnds.length) {
+      return String(turnEnds[index]);
+    }
+    // Past the last turn end: anchor to the closest earlier one, which is the
+    // slot before the insertion point. An empty list has none.
+    return index === 0 ? undefined : String(turnEnds[index - 1]);
+  };
+
+  const messages: NormalizedMessage[] = [];
+  for (const { event, data } of entries) {
     const timestamp = typeof event.time === 'number'
       ? new Date(event.time).toISOString()
       : undefined;
+    const anchor = typeof event.seq === 'number' ? anchorFor(event.seq) : undefined;
 
     if (event.type === 'user/message') {
       // The harness interleaves injected context (workspace instructions,
@@ -220,14 +163,21 @@ function decodeSessionLog(text: string, appSessionId: string): NormalizedMessage
       }
       const content = extractText(data.content);
       if (content) {
-        messages.push(createNormalizedMessage({
+        const message = createNormalizedMessage({
           kind: 'text',
           role: 'user',
           content,
           sessionId: appSessionId,
           provider: 'dsh',
           ...(timestamp ? { timestamp } : {}),
-        }));
+        });
+        if (anchor) {
+          message.forkAnchorId = anchor;
+          // Only a user's own prompt is editable; injected context never
+          // reaches this branch, so the text kind alone is enough.
+          message.transcriptAnchorId = String(event.seq);
+        }
+        messages.push(message);
       }
     } else if (event.type === 'assistant/message') {
       const message = (data.message as AnyRecord | null);
@@ -247,6 +197,7 @@ function decodeSessionLog(text: string, appSessionId: string): NormalizedMessage
         })
         .join('');
       if (reasoningText) {
+        // Reasoning has no entry point of its own; the reply row carries it.
         messages.push(createNormalizedMessage({
           kind: 'thinking',
           content: reasoningText,
@@ -257,7 +208,7 @@ function decodeSessionLog(text: string, appSessionId: string): NormalizedMessage
       }
       const content = extractText(blocks);
       if (content) {
-        messages.push(createNormalizedMessage({
+        const reply = createNormalizedMessage({
           kind: 'text',
           role: 'assistant',
           content,
@@ -265,7 +216,13 @@ function decodeSessionLog(text: string, appSessionId: string): NormalizedMessage
           provider: 'dsh',
           model,
           ...(timestamp ? { timestamp } : {}),
-        }));
+        });
+        if (anchor) {
+          // Every reply inside one turn shares the same anchor: the turn is
+          // the smallest unit DSH can copy, so they all fork to the same point.
+          reply.forkAnchorId = anchor;
+        }
+        messages.push(reply);
       }
     }
   }
@@ -369,5 +326,159 @@ export class DshSessionsProvider implements IProviderSessions {
       offset: normalizedOffset,
       limit: normalizedLimit,
     };
+  }
+
+  /**
+   * Resolves where a cleared DSH conversation must resume from so that the
+   * message identified by `anchorId`, and everything after it, is replaced.
+   *
+   * DSH cannot resume into the middle of a session: a resumable seed always
+   * ends on a `turn/end`. Editing therefore rides the fork path — the answer is
+   * the previous turn's `turn/end`, which is the last event the copy keeps.
+   * `null` means the edited prompt is in the first turn, so nothing precedes
+   * it and the session starts over.
+   */
+  async resolveEditAnchor(
+    sessionId: string,
+    anchorId: string,
+  ): Promise<{ found: boolean; resumeThroughId: string | null }> {
+    const missing = { found: false, resumeThroughId: null };
+    if (!/^\d+$/.test(anchorId)) {
+      return missing;
+    }
+    const target = Number.parseInt(anchorId, 10);
+    const logText = await this.readCurrentLog(sessionId);
+    if (logText === null) {
+      return missing;
+    }
+
+    const events: AnyRecord[] = [];
+    for (const line of logText.split(/\r?\n/)) {
+      if (!line.trim()) {
+        continue;
+      }
+      try {
+        const parsed = readObjectRecord(JSON.parse(line) as unknown);
+        if (parsed) {
+          events.push(parsed);
+        }
+      } catch {
+        // A corrupt line ends the trustworthy part of the log; an anchor past
+        // it can no longer be verified, so it is not offered.
+      }
+    }
+
+    // Only a user's own prompt is editable. Injected context (`source.kind`
+    // other than `user`) never carries an anchor in history, and a seq that
+    // addresses anything else is not an entry point either.
+    const anchor = events.find((event) => event.seq === target && event.type === 'user/message');
+    if (!anchor) {
+      return missing;
+    }
+    const data = readObjectRecord(anchor.data);
+    const source = readObjectRecord(data?.source);
+    if (source?.kind && source.kind !== 'user') {
+      return missing;
+    }
+
+    const previousBoundary = events
+      .filter((event) => event.type === 'turn/end' && typeof event.seq === 'number' && event.seq < target)
+      .map((event) => event.seq as number)
+      .sort((left, right) => left - right)
+      .at(-1);
+
+    return {
+      found: true,
+      resumeThroughId: previousBoundary === undefined ? null : String(previousBoundary),
+    };
+  }
+
+  /**
+   * Rewinds a DSH session so `keepThroughId` is the last event it holds.
+   *
+   * The harness has no truncation: a session log is append-only and resume
+   * always continues at its tip. Rewinding therefore copies the kept prefix
+   * into a fresh seed (the same artifact a fork writes) and moves the row onto
+   * it; `null` has no prefix at all, so the row is detached and the next run
+   * creates a new conversation.
+   *
+   * The pre-edit log stays on disk — the abandoned attempt remains recoverable
+   * — and is recorded as superseded so neither the indexer nor the history
+   * reader can offer it back.
+   */
+  async rewindSession(sessionId: string, keepThroughId: string | null): Promise<void> {
+    const row = sessionsDb.getSessionById(sessionId);
+    const providerSessionId = row?.provider_session_id?.trim();
+    if (!row || !providerSessionId) {
+      throw new AppError('This session has not produced a transcript yet.', {
+        code: 'EDIT_SOURCE_NOT_READY',
+        statusCode: 409,
+      });
+    }
+    const sourceJsonlPath = row.jsonl_path ?? null;
+
+    if (keepThroughId === null) {
+      sessionsDb.supersedeAndDetachSession(sessionId, {
+        providerSessionId,
+        provider: 'dsh',
+        jsonlPath: sourceJsonlPath,
+      });
+      await releaseAcpSession(providerSessionId);
+      return;
+    }
+
+    const forked = await this.fork.forkSession({
+      providerSessionId,
+      jsonlPath: sourceJsonlPath,
+      projectPath: row.project_path ?? '',
+      upToAnchorId: keepThroughId,
+    });
+    sessionsDb.repointSessionToProviderSession(sessionId, {
+      providerSessionId: forked.providerSessionId,
+      jsonlPath: forked.jsonlPath,
+      supersededProviderSessionId: providerSessionId,
+      supersededJsonlPath: sourceJsonlPath,
+    });
+    await releaseAcpSession(providerSessionId);
+  }
+
+  /** Reads the log the row currently points at, or `null` when it is unreadable. */
+  private async readCurrentLog(sessionId: string): Promise<string | null> {
+    const row = sessionsDb.getSessionById(sessionId);
+    const acpSessionId = row?.provider_session_id?.trim();
+    if (!row?.project_path || !acpSessionId) {
+      return null;
+    }
+    const logPath = resolveSessionLogPath(acpSessionId, row.project_path);
+    if (!logPath) {
+      return null;
+    }
+    try {
+      return decodeSessionLogBuffer(await readFile(logPath), logPath);
+    } catch {
+      return null;
+    }
+  }
+
+  private readonly fork = new DshForkProvider();
+}
+
+/**
+ * Best-effort release of one ACP conversation whose transcript was just
+ * edited away.
+ *
+ * The child keeps the log open for the life of the process, so a conversation
+ * left behind would keep appending to a transcript the row no longer points
+ * at. A close the child rejects (an id it never served, a child that already
+ * exited) is not a reason to fail the edit the user already committed to.
+ */
+async function releaseAcpSession(acpSessionId: string): Promise<void> {
+  try {
+    await dshRuntime.disposeSession?.(acpSessionId);
+  } catch (error) {
+    console.warn(
+      `[dsh] Could not release the edited-away session ${acpSessionId}: `
+      + (error instanceof Error ? error.message : String(error)),
+    );
   }
 }

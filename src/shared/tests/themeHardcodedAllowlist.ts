@@ -28,4 +28,10 @@ export const NEUTRAL_EXEMPTIONS: NeutralExemption[] = [
     reason:
       'Tailwind has no gray-150 step, so this class generates no CSS at all — there is no colour to tokenise, the border simply does not render. Migrating it would mean changing the design (to gray-200), which is out of scope for a zero-shift pass. Pre-existing bug, reported to the owner rather than silently fixed.',
   },
+  {
+    file: 'src/modules/chat/composer/ComposerAttachment.tsx',
+    token: 'text-white',
+    reason:
+      'The error icon sits on the failure wash (`bg-red-500/50`) drawn over an image thumbnail, so its contrast is against that fixed red rather than against the page. A theme token would make it follow the palette and vanish on light overlays. Retire it by tokenising the wash and the icon together.',
+  },
 ];

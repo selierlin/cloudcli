@@ -24,7 +24,7 @@ test('getGlobalMcpImpact: reports every MCP provider in the canonical provider o
 test('getGlobalMcpImpact: excludes providers that manage their own MCP or lack the scope', () => {
   const impact = getGlobalMcpImpact('project', 'stdio');
 
-  assert.equal(skipReason(impact, 'dsh'), 'harnessManaged');
+  assert.equal(skipReason(impact, 'dsh'), 'scopeUnsupported');
   assert.equal(skipReason(impact, 'omp'), 'harnessManaged');
   // Pi 1.0+ has native MCP, but only a user scope, so a project-scoped add skips it.
   assert.equal(skipReason(impact, 'pi'), 'scopeUnsupported');
@@ -52,13 +52,13 @@ test('getGlobalMcpImpact: skips providers that do not accept the chosen scope', 
   }
 });
 
-test('MCP_ADD_BLOCKED_REASON: every provider is decided, and only DSH, OMP and OpenClaw can never store a server', () => {
+test('MCP_ADD_BLOCKED_REASON: every provider is decided, and only OMP and OpenClaw can never store a server', () => {
   assert.deepEqual(Object.keys(MCP_ADD_BLOCKED_REASON), Object.keys(MCP_PROVIDER_NAMES));
   assert.deepEqual(
     Object.entries(MCP_ADD_BLOCKED_REASON)
       .filter(([, reason]) => reason !== null)
       .map(([provider]) => provider),
-    ['dsh', 'omp', 'openclaw'],
+    ['omp', 'openclaw'],
   );
   // `noNativeSupport` stays in the union for future harnesses, but Pi 1.0+ has
   // native MCP, so no provider is currently blocked for that reason.

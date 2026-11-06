@@ -83,14 +83,9 @@
     "clearSearch": "Effacer la recherche",
     "openCommandPalette": "Ouvrir la palette de commandes",
     "attentionRequiredIndicator": "La session nécessite votre attention",
+    "expandAllProjects": "Déplier tous les projets",
+    "locateSelectedProject": "Afficher le projet de la session en cours",
     "collapseAllProjects": "Replier tous les projets"
-  },
-  "navigation": {
-    "chat": "Chat",
-    "files": "Fichiers",
-    "git": "Git",
-    "terminal": "Terminal",
-    "tasks": "Tâches"
   },
   "actions": {
     "refresh": "Actualiser",

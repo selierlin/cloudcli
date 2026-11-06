@@ -207,6 +207,13 @@
       "willSend": "Will send when this finishes",
       "edit": "Edit queued message",
       "delete": "Delete queued message"
+    },
+    "attachments": {
+      "uploading": "Uploading attachments…",
+      "failed": "Upload failed",
+      "uploadFailedNamed": "These attachments could not be uploaded: {{names}}. Add them again and resend.",
+      "expand": "Expand {{name}}",
+      "remove": "Remove {{name}}"
     }
   },
   "composer": {

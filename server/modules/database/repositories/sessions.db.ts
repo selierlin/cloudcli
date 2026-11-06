@@ -130,6 +130,46 @@ function deleteSessionRowsWhere(
 }
 
 /**
+ * Records that one provider session has been left behind for good, inside the
+ * caller's transaction.
+ *
+ * `jsonl_path` is taken from the row as it stands, so callers must run this
+ * before moving the row onto its new transcript. An existing record keeps its
+ * path when this one is empty: a caller that resolved the file by scanning
+ * (rather than from the row) has the more precise value.
+ */
+function markProviderSessionSupersededIn(
+  db: ReturnType<typeof getConnection>,
+  input: { providerSessionId: string; provider: string; sessionId: string; jsonlPath: string | null },
+): void {
+  db.prepare(
+    `INSERT INTO superseded_provider_sessions (provider_session_id, provider, session_id, jsonl_path)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(provider_session_id, provider) DO UPDATE SET
+       session_id = excluded.session_id,
+       jsonl_path = COALESCE(excluded.jsonl_path, superseded_provider_sessions.jsonl_path),
+       created_at = CURRENT_TIMESTAMP`
+  ).run(input.providerSessionId, input.provider, input.sessionId, input.jsonlPath);
+}
+
+/** True when `providerSessionId` was left behind by an edit or rewind. */
+function isProviderSessionSuperseded(
+  db: ReturnType<typeof getConnection>,
+  providerSessionId: string,
+  provider: string,
+): boolean {
+  const row = db
+    .prepare(
+      `SELECT 1 AS found FROM superseded_provider_sessions
+       WHERE provider_session_id = ? AND provider = ?
+       LIMIT 1`
+    )
+    .get(providerSessionId, provider) as { found: number } | undefined;
+
+  return Boolean(row);
+}
+
+/**
  * Repoints sessions filed under rows that are about to be deleted onto the row
  * that survives them, so a duplicate-row cleanup (watcher-row replacement,
  * provider-id merge) cannot leave children pointing at a row that no longer
@@ -256,6 +296,18 @@ export const sessionsDb = {
     // session was reclaimed; re-inserting the row would revive a conversation
     // the user closed (and, for a btw fork, expose it as a normal session).
     if (isRetiredProviderSession(providerSessionId)) {
+      return providerSessionId;
+    }
+
+    // An edited-away transcript stays on disk on purpose, but it must never be
+    // indexed back. Reaching this point means no row currently claims it — the
+    // edit already moved its session onto a different transcript — so the
+    // insert below would either add a duplicate row for the abandoned
+    // conversation or, when the row's app id *is* that provider id, hit the
+    // primary-key conflict and repoint the row at the conversation the user
+    // edited away from. Checking at the write point covers every caller,
+    // including one that read the directory before the edit committed.
+    if (isProviderSessionSuperseded(db, providerSessionId, provider)) {
       return providerSessionId;
     }
 
@@ -654,11 +706,39 @@ export const sessionsDb = {
    */
   repointSessionToProviderSession(
     sessionId: string,
-    input: { providerSessionId: string; jsonlPath: string; supersededProviderSessionId?: string },
+    input: {
+      providerSessionId: string;
+      jsonlPath: string;
+      supersededProviderSessionId?: string;
+      /**
+       * The transcript being left behind, when the caller resolved it by
+       * scanning rather than from the row. Falls back to the row's path.
+       */
+      supersededJsonlPath?: string | null;
+    },
   ): void {
     const db = getConnection();
 
     db.transaction(() => {
+      if (input.supersededProviderSessionId) {
+        // Recorded before the row moves on, so the record keeps the transcript
+        // the session is leaving. Writing it here (rather than leaving it to
+        // each caller) closes the window a separate `mark` call would open: a
+        // failure between the two would leave the row pointing at a transcript
+        // already marked dead, and the indexer would then refuse to hand it
+        // back while history kept reading it.
+        const row = db
+          .prepare('SELECT provider, jsonl_path FROM sessions WHERE session_id = ?')
+          .get(sessionId) as { provider: string; jsonl_path: string | null } | undefined;
+        if (row) {
+          markProviderSessionSupersededIn(db, {
+            providerSessionId: input.supersededProviderSessionId,
+            provider: row.provider,
+            sessionId,
+            jsonlPath: input.supersededJsonlPath ?? row.jsonl_path,
+          });
+        }
+      }
       // Both deleted rows are artifacts of the same app conversation this
       // session survives as, so sessions filed under them follow onto it.
       repointChildrenToSurvivor(
@@ -732,6 +812,34 @@ export const sessionsDb = {
   },
 
   /**
+   * Retires the current provider session and detaches the row in one
+   * transaction.
+   *
+   * Used by a "start over" edit: the prompt being replaced is the first one, so
+   * there is no prefix to branch from and the next run must create a fresh
+   * provider session. Doing both halves atomically matters in the failure
+   * order too — detaching alone would leave the old transcript live and
+   * re-indexable, while marking alone would leave the row pointing at a
+   * transcript the indexer already refuses to hand back.
+   */
+  supersedeAndDetachSession(
+    sessionId: string,
+    input: { providerSessionId: string; provider: string; jsonlPath: string | null },
+  ): void {
+    const db = getConnection();
+    db.transaction(() => {
+      markProviderSessionSupersededIn(db, { ...input, sessionId });
+      db.prepare(
+        `UPDATE sessions SET
+           provider_session_id = NULL,
+           jsonl_path = NULL,
+           updated_at = CURRENT_TIMESTAMP
+         WHERE session_id = ?`
+      ).run(sessionId);
+    })();
+  },
+
+  /**
    * Records that a session has left a provider session behind for good.
    *
    * The transcript stays on disk, which is deliberate — the abandoned attempt
@@ -745,28 +853,11 @@ export const sessionsDb = {
     sessionId: string;
     jsonlPath: string | null;
   }): void {
-    const db = getConnection();
-    db.prepare(
-      `INSERT INTO superseded_provider_sessions (provider_session_id, provider, session_id, jsonl_path)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(provider_session_id, provider) DO UPDATE SET
-         session_id = excluded.session_id,
-         jsonl_path = excluded.jsonl_path,
-         created_at = CURRENT_TIMESTAMP`
-    ).run(input.providerSessionId, input.provider, input.sessionId, input.jsonlPath);
+    markProviderSessionSupersededIn(getConnection(), input);
   },
 
   isProviderSessionSuperseded(providerSessionId: string, provider: string): boolean {
-    const db = getConnection();
-    const row = db
-      .prepare(
-        `SELECT 1 AS found FROM superseded_provider_sessions
-         WHERE provider_session_id = ? AND provider = ?
-         LIMIT 1`
-      )
-      .get(providerSessionId, provider) as { found: number } | undefined;
-
-    return Boolean(row);
+    return isProviderSessionSuperseded(getConnection(), providerSessionId, provider);
   },
 
   /**

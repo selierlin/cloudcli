@@ -8,13 +8,12 @@ import { normalizeSessionName, readFileTimestamps, readNewestContentTimestamp } 
 
 import { getDshSessionsRoot } from './dsh-models.provider.js';
 import {
-  decodeSessionLogBuffer,
   encodeSessionSegment,
-  extractText,
   findDshSessionLogPath,
   isDshSessionLogFile,
   projectKey,
-} from './dsh-sessions.provider.js';
+} from './dsh-session-path.js';
+import { decodeSessionLogBuffer, extractText } from './dsh-sessions.provider.js';
 
 const FALLBACK_SESSION_NAME = 'Untitled DSH Session';
 
@@ -129,6 +128,13 @@ export class DshSessionSynchronizer implements IProviderSessionSynchronizer {
     projectPath: string,
     sessionId: string,
   ): Promise<string | null> {
+    // An edited-away transcript stays on disk so the abandoned attempt remains
+    // recoverable, but the indexer must never offer it back: re-indexing it
+    // would resurrect the conversation the user edited away from.
+    if (sessionsDb.isProviderSessionSuperseded(sessionId, this.provider)) {
+      return null;
+    }
+
     // Index only sessions whose transcript actually exists on disk. The DSH
     // scan is directory-driven, so a leftover (empty) session directory must
     // not be resurrected as a placeholder row after a permanent delete removed

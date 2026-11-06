@@ -175,7 +175,7 @@ const projectRow = (attentionSessions: ReadonlyMap<string, SessionAttentionLevel
   mcpServerStatus: null,
   onRenameDraftChange: noop,
   onToggleProject: noop,
-  onCollapseAllProjects: noop,
+  revealProjectRequest: null,
   onProjectSelect: noop,
   onToggleStarProject: noop,
   onStartEditingProject: noop,

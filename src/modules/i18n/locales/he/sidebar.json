@@ -62,14 +62,9 @@
     "attentionRequiredIndicator": "הסשן דורש תשומת לב",
     "backgroundWorkIndicator": "עבודה פועלת ברקע",
     "processingSessionIndicator": "הסשן בעיבוד",
+    "expandAllProjects": "הרחבת כל הפרויקטים",
+    "locateSelectedProject": "הצג את הפרויקט של השיחה הנוכחית",
     "collapseAllProjects": "כיווץ כל הפרויקטים"
-  },
-  "navigation": {
-    "chat": "צ'אט",
-    "files": "קבצים",
-    "git": "Git",
-    "terminal": "טרמינל",
-    "tasks": "משימות"
   },
   "actions": {
     "refresh": "רענון",

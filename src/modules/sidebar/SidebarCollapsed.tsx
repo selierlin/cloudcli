@@ -1,9 +1,10 @@
-import { Settings, Sparkles, PanelLeftOpen, AlertTriangle } from 'lucide-react';
+import { Settings, Sparkles, PanelLeftOpen, AlertTriangle, Clock } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 type SidebarCollapsedProps = {
   onExpand: () => void;
   onShowSettings: () => void;
+  onShowScheduledTasks: () => void;
   updateAvailable: boolean;
   restartRequired: boolean;
   onShowVersionModal: () => void;
@@ -14,6 +15,7 @@ type SidebarCollapsedProps = {
 export default function SidebarCollapsed({
   onExpand,
   onShowSettings,
+  onShowScheduledTasks,
   updateAvailable,
   restartRequired,
   onShowVersionModal,
@@ -32,6 +34,16 @@ export default function SidebarCollapsed({
       </button>
 
       <div className="nav-divider my-1 w-6" />
+
+      {/* Scheduled tasks */}
+      <button
+        onClick={onShowScheduledTasks}
+        className="group flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-accent/80"
+        aria-label={t('tooltips.scheduledTasks')}
+        title={t('tooltips.scheduledTasks')}
+      >
+        <Clock className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
+      </button>
 
       {/* Settings */}
       <button

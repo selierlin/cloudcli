@@ -13,9 +13,7 @@ import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 
 import { api, ApiRequestError } from '@/shared/api';
-import { PROVIDER_PERMISSION_PREFERENCE_KEYS } from '@/shared/constants';
-import { readUserPreference } from '@/shared/userSettings';
-import type { BackgroundSendChoice, BackgroundSendPrompt, CommandModalPayload, CostCommandData, HelpCommandData, MarkSessionProcessing, ModelCommandData, QueuedDraft, QuickReply, SessionActivityMap, StatusCommandData,QueuedSendOptions,ChatAttachment,ChatMessage,PendingPermissionRequest,PermissionMode,SessionEstablishedContext,Project,ProjectSession,LLMProvider,SlashCommand } from '@/shared/types';
+import type { BackgroundSendChoice, BackgroundSendPrompt, CommandModalPayload, ComposerAttachmentUpload, CostCommandData, HelpCommandData, MarkSessionProcessing, ModelCommandData, QueuedDraft, QuickReply, SessionActivityMap, StatusCommandData,QueuedSendOptions,ChatAttachment,ChatMessage,PendingPermissionRequest,PermissionMode,SessionEstablishedContext,Project,ProjectSession,LLMProvider,SlashCommand } from '@/shared/types';
 import { grantClaudeToolPermission } from '@/modules/chat/utils/chatPermissions';
 import {
   appendQueuedMessage,
@@ -34,6 +32,10 @@ import { markTurnStart } from '@/modules/chat/utils/turnDurationRegistry';
 import { useFileMentions } from '@/modules/chat/hooks/useFileMentions';
 import { useInputHistory } from '@/modules/chat/hooks/useInputHistory';
 import { useSlashCommands } from '@/modules/chat/hooks/useSlashCommands';
+import {
+  composerAttachmentKey,
+  useComposerAttachmentUploads,
+} from '@/modules/chat/hooks/useComposerAttachmentUploads';
 
 type UseChatComposerStateArgs = {
   selectedProject: Project | null;
@@ -117,41 +119,23 @@ const isImageAttachment = (attachment: ChatAttachment) => {
   return /\.(gif|jpe?g|png|svg|webp)$/i.test(attachment.path || attachment.name || '');
 };
 
-const uploadAttachmentFiles = async (files: File[]): Promise<unknown[]> => {
-  if (files.length === 0) {
-    return [];
-  }
-
-  const formData = new FormData();
-  files.forEach((file) => {
-    formData.append('files', file);
-  });
-
-  const response = await api.assets.uploadFiles(formData);
-
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new Error(body?.error || 'Failed to upload files');
-  }
-
-  const result = await response.json();
-  if (!Array.isArray(result.attachments) || result.attachments.length !== files.length) {
-    throw new Error('File upload returned an incomplete result');
-  }
-  return result.attachments;
-};
-
+// Kept between restores so a queued card's browser files (and their uploads)
+// can be handed back to this tab's composer when the card is edited.
+const restoredQueuedFiles = new Map<string, File[]>();
 
 const restoreQueuedDraft = (sessionKey: string): QueuedDraft | null => {
   const saved = readQueuedMessage(sessionKey);
-  return saved
-    ? {
-        content: saved.content,
-        attachments: [],
-        uploadedAttachments: saved.attachments ?? saved.images,
-        options: saved.options,
-      }
-    : null;
+  if (!saved) {
+    return null;
+  }
+  const files = restoredQueuedFiles.get(sessionKey) ?? [];
+  return {
+    content: saved.content,
+    attachments: files,
+    attachmentKeys: files.map((file) => composerAttachmentKey(file)),
+    uploadedAttachments: saved.attachments ?? saved.images,
+    options: saved.options,
+  };
 };
 
 // Whether the card already shows this stored queued message. Send options are
@@ -256,7 +240,24 @@ export function useChatComposerState({
   });
   const input = inputState.value;
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  // Mirrors `attachedFiles` for event handlers: a drop or a remove has to read
+  // the list and do side effects (starting/releasing an upload) at the moment
+  // it runs, which a state updater must not do — React may call the updater
+  // later than the handler, or twice under StrictMode.
+  const attachedFilesRef = useRef<File[]>([]);
+  useEffect(() => {
+    attachedFilesRef.current = attachedFiles;
+  }, [attachedFiles]);
   const [fileErrors, setFileErrors] = useState<Map<string, string>>(new Map());
+  // Uploads start as soon as a file is picked or pasted, so sending does not
+  // wait on a transfer the user never saw. Entries are keyed by file identity,
+  // which is what the chips, the send path and the queued draft all use.
+  // Upload completion is reported through this counter rather than hook state:
+  // re-rendering only when a transfer moves keeps the transcript still.
+  const [uploadVersion, setUploadVersion] = useState(0);
+  const attachmentUploads = useComposerAttachmentUploads(
+    useCallback(() => setUploadVersion((current) => current + 1), []),
+  );
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
   const [commandModalPayload, setCommandModalPayload] = useState<CommandModalPayload | null>(null);
 
@@ -637,10 +638,72 @@ export function useChatComposerState({
       }
     });
 
-    if (validFiles.length > 0) {
-      setAttachedFiles((previous) => [...previous, ...validFiles].slice(0, MAX_ATTACHMENT_COUNT));
+    // The drop handler is registered once, so it reads the current list from
+    // the ref; the cap is applied here, before anything starts uploading.
+    const current = attachedFilesRef.current;
+    const accepted = validFiles.slice(0, Math.max(0, MAX_ATTACHMENT_COUNT - current.length));
+    if (accepted.length === 0) {
+      return;
     }
-  }, []);
+
+    const next = [...current, ...accepted];
+    attachedFilesRef.current = next;
+    setAttachedFiles(next);
+    // Start the transfer now rather than on send: the wait is what made the
+    // composer look frozen, and the chips can report progress meanwhile.
+    attachmentUploads.track(accepted.map((file) => ({ key: composerAttachmentKey(file), file })));
+  }, [attachmentUploads]);
+
+  /**
+   * Drops one pending attachment and releases its upload: the user is not
+   * sending it, so the stored file should not linger until the sweeper.
+   */
+  const removeAttachment = useCallback((index: number) => {
+    const file = attachedFilesRef.current[index];
+    if (!file) {
+      return;
+    }
+    const next = attachedFilesRef.current.filter((_, currentIndex) => currentIndex !== index);
+    attachedFilesRef.current = next;
+    setAttachedFiles(next);
+    attachmentUploads.release([file]);
+  }, [attachmentUploads]);
+
+  // Files put back into the composer (editing a queued card, a restored draft)
+  // may have no upload in this mount — the server may not even hold them any
+  // more. Starting (or retrying) one is how the send path finds that out.
+  useEffect(() => {
+    const untracked = attachedFiles.filter(
+      (file) => attachmentUploads.getUpload(composerAttachmentKey(file)) === undefined,
+    );
+    if (untracked.length > 0) {
+      attachmentUploads.track(untracked.map((file) => ({ key: composerAttachmentKey(file), file })));
+    }
+  }, [attachedFiles, attachmentUploads]);
+
+  // A queued card this tab wrote keeps its browser files, so editing it brings
+  // them (and their uploads) back into the composer.
+  useEffect(() => {
+    if (!sessionKey) {
+      return;
+    }
+    if (queuedDraft?.attachments.length) {
+      restoredQueuedFiles.set(sessionKey, queuedDraft.attachments);
+    } else {
+      restoredQueuedFiles.delete(sessionKey);
+    }
+  }, [queuedDraft, sessionKey]);
+
+  // A per-file error marks a chip; dropping that chip must drop its mark too,
+  // or re-picking a good copy of the same file would show the old failure.
+  // Derived during render instead of in an effect, so the stale mark is never
+  // painted for a frame after the file is gone.
+  const activeFileNames = attachedFiles.map((file) => file.name);
+  const prunedFileErrors = Array.from(fileErrors.keys()).some(
+    (name) => !activeFileNames.includes(name),
+  )
+    ? new Map(Array.from(fileErrors).filter(([name]) => activeFileNames.includes(name)))
+    : fileErrors;
 
   const handlePaste = useCallback(
     (event: ClipboardEvent<HTMLTextAreaElement>) => {
@@ -883,15 +946,15 @@ export function useChatComposerState({
 
         const queuedOptions = buildSendOptions(currentInput);
         const queuedSessionKey = sessionKey;
-        let uploadedAttachments: unknown[] = [];
-        try {
-          uploadedAttachments = await uploadAttachmentFiles(currentAttachments);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : 'Unknown error';
-          console.error('Queued file upload failed:', error);
+        // Uploads start when the file is picked, so this only waits for a
+        // transfer already under way (and retries one that failed).
+        const { descriptors, missing } = await attachmentUploads.ensureUploaded(currentAttachments);
+        if (missing.length > 0) {
           addMessage({
             type: 'error',
-            content: `Failed to upload files: ${message}`,
+            content: t('input.attachments.uploadFailedNamed', {
+              names: missing.map((file) => file.name).join(', '),
+            }),
             timestamp: new Date(),
           });
           return;
@@ -900,7 +963,7 @@ export function useChatComposerState({
         await queueMessage({
           content: currentInput,
           attachments: currentAttachments,
-          uploadedAttachments,
+          uploadedAttachments: descriptors,
           options: queuedOptions,
         }, queuedSessionKey);
         return;
@@ -947,18 +1010,18 @@ export function useChatComposerState({
 
       let uploadedAttachments = previouslyUploadedAttachments;
       if (uploadedAttachments.length === 0 && currentAttachments.length > 0) {
-        try {
-          uploadedAttachments = await uploadAttachmentFiles(currentAttachments);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : 'Unknown error';
-          console.error('File upload failed:', error);
+        const { descriptors, missing } = await attachmentUploads.ensureUploaded(currentAttachments);
+        if (missing.length > 0) {
           addMessage({
             type: 'error',
-            content: `Failed to upload files: ${message}`,
+            content: t('input.attachments.uploadFailedNamed', {
+              names: missing.map((file) => file.name).join(', '),
+            }),
             timestamp: new Date(),
           });
           return;
         }
+        uploadedAttachments = descriptors;
       }
 
       const resolvedProjectPath = selectedProject.fullPath || selectedProject.path || '';
@@ -1085,6 +1148,9 @@ export function useChatComposerState({
       };
 
       addMessage(userMessage);
+      // The upload now belongs to the sent message: nothing may cancel or
+      // release the stored file afterwards, including a composer unmounting.
+      attachmentUploads.release(currentAttachments, queuedSubmission?.attachmentKeys, { keepFiles: true });
       // Mark this request as processing in the per-session activity map (the
       // single source of truth the indicator derives from). The id is always
       // concrete at this point — no pending placeholder exists anymore.
@@ -1127,6 +1193,8 @@ export function useChatComposerState({
       setInput('');
       inputValueRef.current = '';
       resetCommandMenuState();
+      // The uploads were released above as sent: clearing the composer must not
+      // cancel or delete files the transcript now references.
       setAttachedFiles([]);
       setFileErrors(new Map());
       setIsTextareaExpanded(false);
@@ -1144,6 +1212,7 @@ export function useChatComposerState({
       askBeforeSendingOverBackgroundWork,
       attachedFiles,
       buildSendOptions,
+      attachmentUploads,
       currentSessionId,
       editingAnchorId,
       executeCommand,
@@ -1171,6 +1240,13 @@ export function useChatComposerState({
   // sent it the same first message.
   const submittingScopesRef = useRef(new Set<string>());
 
+  /**
+   * Set while a send is waiting for an attachment transfer. The composer shows
+   * it as a parked send, so the button cannot be pressed a second time for a
+   * message that is already on its way.
+   */
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleSubmit = useCallback(
     async (
       event: FormEvent<HTMLFormElement> | MouseEvent | TouchEvent | KeyboardEvent<HTMLTextAreaElement>,
@@ -1184,13 +1260,23 @@ export function useChatComposerState({
         return;
       }
       submittingScopesRef.current.add(scope);
+      // Only an attachment transfer is slow enough to need a visible state;
+      // a plain send paints its message immediately.
+      const filesToWaitFor = queuedSubmission ? queuedSubmission.attachments : attachedFiles;
+      const waitsForUpload = filesToWaitFor.some(
+        (file) => attachmentUploads.getUpload(composerAttachmentKey(file))?.status === 'uploading',
+      );
+      if (waitsForUpload) {
+        setIsSubmitting(true);
+      }
       try {
         await submitMessage(event, queuedSubmission, submitOptions);
       } finally {
         submittingScopesRef.current.delete(scope);
+        setIsSubmitting(false);
       }
     },
-    [submitMessage],
+    [attachmentUploads, attachedFiles, submitMessage],
   );
 
   useEffect(() => {
@@ -1582,7 +1668,17 @@ export function useChatComposerState({
     selectFile,
     attachedFiles,
     setAttachedFiles,
-    fileErrors,
+    removeAttachment,
+    uploadVersion,
+    getAttachmentUpload: (file: File): ComposerAttachmentUpload | undefined => {
+      const upload = attachmentUploads.getUpload(composerAttachmentKey(file));
+      return upload
+        ? { status: upload.status, descriptor: upload.descriptor, error: upload.error }
+        : undefined;
+    },
+    isUploadingAttachments: attachmentUploads.isUploading,
+    isSubmitting,
+    fileErrors: prunedFileErrors,
     getRootProps,
     getInputProps,
     isDragActive,

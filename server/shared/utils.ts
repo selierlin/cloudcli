@@ -2,12 +2,15 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import {
   access,
+  chmod,
   lstat,
   mkdir,
   readFile,
   readdir,
   readlink,
   realpath,
+  rename,
+  rm,
   stat,
   writeFile,
 } from 'node:fs/promises';
@@ -961,10 +964,38 @@ export const readJsonConfig = async (filePath: string): Promise<Record<string, u
  * The parent directory is created automatically so callers can persist config into
  * provider-specific folders without pre-creating the directory tree. Output always
  * ends with a trailing newline to keep the file diff-friendly.
+ *
+ * The content lands in a sibling temp file and is renamed into place, because the
+ * files this writes (`~/.claude.json`, `~/.cursor/mcp.json`) hold state the user
+ * cannot regenerate and a write cut short by a crash would leave them unparseable.
+ * A symlinked target — a stow-managed dotfile — is written through the link: the
+ * rename must replace the real file, not the link.
  */
 export const writeJsonConfig = async (filePath: string, data: Record<string, unknown>): Promise<void> => {
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+  const linkStats = await lstat(filePath).catch(() => null);
+  const target = linkStats?.isSymbolicLink() ? await realpath(filePath) : filePath;
+  // Renaming installs a new inode, so the temp file has to carry the mode of the
+  // file it replaces; the process default would silently narrow a config the user
+  // had made group-readable.
+  const existing = await stat(target).catch(() => null);
+  const mode = existing ? existing.mode & 0o7777 : 0o600;
+  const tempPath = `${target}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(tempPath, `${JSON.stringify(data, null, 2)}\n`, {
+      encoding: 'utf8',
+      flag: 'wx',
+      mode,
+    });
+    if (existing) {
+      // `writeFile`'s mode is masked by the umask, so restore the exact bits.
+      await chmod(tempPath, mode);
+    }
+    await rename(tempPath, target);
+  } catch (error) {
+    await rm(tempPath, { force: true }).catch(() => undefined);
+    throw error;
+  }
 };
 
 // ---------------------------

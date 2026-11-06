@@ -9,17 +9,20 @@ import type { McpAddBlockedReason, McpCatalogEntry, McpProvider, McpTransport } 
 /**
  * The visual state of one MCP-matrix cell.
  *
- * `on`/`off` mirror the catalog's per-harness switch. `disabled` is a
- * capability refusal the user cannot override (the harness rejects app-managed
- * writes, or cannot speak the entry's transport); `fail` is a write the harness
- * refused at projection time and which can be retried.
+ * `on`/`off` mirror the catalog's per-harness switch. `external` is a cell the
+ * harness already mounts from its own configuration: the server is live, but
+ * the app cannot write or clear it. `disabled` is a capability refusal the user
+ * cannot override (the harness accepts no app-managed writes at all, or cannot
+ * speak the entry's transport); `fail` is a write the harness refused at
+ * projection time and which can be retried.
  */
-export type McpMatrixCellState = 'on' | 'off' | 'fail' | 'disabled';
+export type McpMatrixCellState = 'on' | 'off' | 'fail' | 'external' | 'disabled';
 
-/** Why a cell is disabled: the harness rejects every app-managed write, or it cannot speak the entry's transport. */
+/** Why a cell is not an ordinary switch: the harness refuses every app-managed write, cannot speak the entry's transport, or supplies the name itself. */
 export type McpMatrixDisabledReason =
   | { kind: McpAddBlockedReason }
-  | { kind: 'transport'; transport: McpTransport };
+  | { kind: 'transport'; transport: McpTransport }
+  | { kind: 'external' };
 
 /**
  * The harnesses that get a column in the MCP matrix.
@@ -34,16 +37,23 @@ export const MCP_MATRIX_PROVIDERS: McpProvider[] = (
 ).filter((provider) => MCP_SUPPORTED_SCOPES[provider].includes('user'));
 
 /**
- * Why this entry cannot be projected into this harness, or null when the cell
- * is a normal on/off switch.
+ * Why this entry cannot be switched in this harness, or null when the cell is a
+ * normal on/off switch.
  *
- * Kept separate from the state so the UI can show the reason (hover text) for
- * a disabled cell without re-deriving it from the entry's transport.
+ * Kept separate from the state so the UI can show the reason (hover text) for a
+ * non-switchable cell without re-deriving it from the entry's transport, and so
+ * the batch writers skip these cells with one check.
  */
 export const getCellDisabledReason = (
   entry: McpCatalogEntry,
   provider: McpProvider,
 ): McpMatrixDisabledReason | null => {
+  // Checked first: whoever supplies the name outranks any capability question,
+  // and the switch would write a duplicate that the harness drops.
+  if (entry.externallyManaged?.includes(provider)) {
+    return { kind: 'external' };
+  }
+
   const blockedReason = MCP_ADD_BLOCKED_REASON[provider];
   if (blockedReason) {
     return { kind: blockedReason };
@@ -60,7 +70,7 @@ export const getCellDisabledReason = (
  * Resolves the state one matrix cell renders for an entry and harness.
  *
  * Precedence is capability, then write outcome, then the switch: a harness that
- * can never take the entry stays `disabled` even if a write failed there, and a
+ * can never take the entry stays refused even if a write failed there, and a
  * failed projection outranks `on`/`off` because the switch alone would claim the
  * harness's config file was updated when it was not.
  */
@@ -69,7 +79,12 @@ export const getCellState = (
   provider: McpProvider,
   hasFailedWrite = false,
 ): McpMatrixCellState => {
-  if (getCellDisabledReason(entry, provider)) {
+  const reason = getCellDisabledReason(entry, provider);
+  if (reason?.kind === 'external') {
+    return 'external';
+  }
+
+  if (reason) {
     return 'disabled';
   }
 

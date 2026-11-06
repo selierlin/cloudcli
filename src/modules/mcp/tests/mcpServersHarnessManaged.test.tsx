@@ -1,18 +1,18 @@
 import assert from 'node:assert/strict';
 
-import { render, waitFor } from '@testing-library/react';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import { test, vi } from 'vitest';
 
 /**
- * A harness-managed provider (DSH) reports the MCP servers its own harness
- * loads, but every write is rejected. These tests pin the two halves of that:
- * the rows and their connection details are shown, and the edit and delete
- * actions are not offered.
+ * A provider whose only writable scope is the user scope (DSH, and Pi before
+ * it) reports the servers it loads, but this page cannot edit them: the user
+ * scope belongs to the MCP matrix. These tests pin the two halves of that —
+ * the rows and their connection details are shown read-only, and the add
+ * action routes to the matrix instead of opening a form with no scope to offer.
  *
- * The second test covers the sibling case: a provider the app *can* write still
- * shows its user-scope rows read-only, because that scope now belongs to the
- * MCP matrix. What stays editable there is the file-native project/local scope,
- * which the scope-section tests cover.
+ * The last test covers the sibling case: a provider the app can write still
+ * shows its user-scope rows read-only. What stays editable there is the
+ * file-native project/local scope, which the scope-section tests cover.
  *
  * The fake `t` returns keys, so the assertions stay independent of locale files.
  */
@@ -55,7 +55,7 @@ type ServerPayload = {
   headers?: Record<string, string>;
 };
 
-const HARNESS_SERVERS: ServerPayload[] = [
+const DSH_SERVERS: ServerPayload[] = [
   { name: 'dbhub', transport: 'http', url: 'http://127.0.0.1:8880/mcp' },
   { name: 'openviking', transport: 'http', url: 'https://ov.example.com/mcp', headers: { Authorization: '<redacted>' } },
 ];
@@ -67,7 +67,7 @@ const APP_SERVERS: ServerPayload[] = [
 /** Answers the settings list request for whichever provider is being rendered. */
 function respondForProvider(provider: string): void {
   mocks.mcpServers.mockImplementation(async (requested: string, options: { scope: string }) => {
-    const servers = requested === 'dsh' ? HARNESS_SERVERS : APP_SERVERS;
+    const servers = requested === 'dsh' ? DSH_SERVERS : APP_SERVERS;
     return {
       ok: true,
       json: async () => ({
@@ -82,10 +82,12 @@ function respondForProvider(provider: string): void {
   });
 }
 
-async function renderServers(provider: 'dsh' | 'claude') {
+async function renderServers(provider: 'dsh' | 'claude', onOpenMcpMatrix?: () => void) {
   respondForProvider(provider);
   const { default: McpServers } = await import('@/modules/mcp/McpServers');
-  const { container } = render(<McpServers selectedProvider={provider} currentProjects={[]} />);
+  const { container } = render(
+    <McpServers selectedProvider={provider} currentProjects={[]} onOpenMcpMatrix={onOpenMcpMatrix} />,
+  );
 
   await waitFor(() => {
     assert.match(container.textContent ?? '', /dbhub|playwright/);
@@ -98,16 +100,33 @@ function countActions(container: HTMLElement): number {
   return container.querySelectorAll('[title="mcpServers.actions.edit"], [title="mcpServers.actions.delete"]').length;
 }
 
-test('lists the harness servers read-only with their connection details', async () => {
+test('lists the dsh servers read-only, naming the harness home as their owner', async () => {
   const container = await renderServers('dsh');
   const text = container.textContent ?? '';
 
   assert.match(text, /dbhub/);
   assert.match(text, /http:\/\/127\.0\.0\.1:8880\/mcp/);
   assert.match(text, /https:\/\/ov\.example\.com\/mcp/);
-  assert.match(text, /mcpServers\.managed\.badge/);
-  assert.match(text, /mcpServers\.managed\.harnessHint/);
+  // Written outside CloudCLI, so the rows name that owner rather than claiming
+  // the matrix owns them.
+  assert.match(text, /mcpServers\.userScope\.unmanagedBadge/);
+  assert.doesNotMatch(text, /mcpServers\.managed\.badge/);
   assert.equal(countActions(container), 0);
+});
+
+test('routes the dsh add action to the matrix, which owns the only scope it has', async () => {
+  const onOpenMcpMatrix = vi.fn();
+  const container = await renderServers('dsh', onOpenMcpMatrix);
+
+  const trigger = container.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]');
+  assert.ok(trigger, 'expected the add menu trigger');
+  fireEvent.click(trigger);
+
+  const items = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'));
+  assert.equal(items.length, 1, 'the form is not offered: it has no scope left to write');
+  fireEvent.click(items[0]);
+
+  assert.equal(onOpenMcpMatrix.mock.calls.length, 1);
 });
 
 test('lists a writable provider user-scope servers read-only, since the matrix owns that scope', async () => {

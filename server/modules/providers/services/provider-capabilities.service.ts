@@ -169,8 +169,13 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsPermissionRequests: true,
     supportsTokenUsage: false,
     supportsEffort: false,
-    supportsMessageEditing: false,
-    supportsSessionForking: false,
+    supportsMessageEditing: true,
+    // Forking is materialised in DshForkProvider: the ACP server refuses to
+    // resume a session carrying `parentSession`, so the transcript prefix is
+    // copied into a fresh seed the harness can resume instead. Editing rides
+    // the same copy (DshSessionsProvider.rewindSession) and repoints the row,
+    // because the ACP server cannot resume into the middle of a session.
+    supportsSessionForking: true,
   },
   pi: {
     provider: 'pi',

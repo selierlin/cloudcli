@@ -177,3 +177,7 @@ public/screenshots/
 
 # TypeScript incremental build state
 *.tsbuildinfo
+
+# Python bytecode left by the helper scripts under .agents/
+__pycache__/
+*.pyc

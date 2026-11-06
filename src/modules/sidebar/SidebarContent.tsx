@@ -9,6 +9,7 @@ import type { ArchivedProjectListItem, ArchivedSessionListItem, ConversationProj
 import { formatCompactAge, getAllSessions, PROVIDER_LABELS } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import { buildSessionOwnershipMenuItems } from '@/modules/sidebar/utils/sessionOwnershipMenuItems';
 import { useCopyProviderSessionId } from '@/modules/sidebar/hooks/useCopyProviderSessionId';
+import { ScheduledTaskSidebarPanel } from '@/modules/scheduled-tasks';
 import { useSessionParentPicker } from '@/modules/sidebar/context/SessionParentPickerContext';
 import SidebarBatchSessionActions from '@/modules/sidebar/SidebarBatchSessionActions';
 import SidebarFooter from '@/modules/sidebar/SidebarFooter';
@@ -877,10 +878,12 @@ type SidebarContentProps = {
   isRefreshing: boolean;
   onCreateProject: () => void;
   onCollapseSidebar: () => void;
-  /** How many project groups are open; drives the collapse-all button's visibility. */
+  /** How many project groups are open; tells the header's expand/collapse button which way it points. */
   expandedProjectsCount: number;
-  /** Collapses every open project group; the keep-expanded preference's one-click collapse. */
-  onCollapseAllProjects: () => void;
+  /** Opens every visible group when none is open, otherwise collapses them all. */
+  onToggleAllProjects: () => void;
+  /** Scrolls the project list back to the group holding the open session. */
+  onLocateSelectedProject: () => void;
   updateAvailable: boolean;
   restartRequired: boolean;
   releaseInfo: ReleaseInfo | null;
@@ -932,7 +935,8 @@ export default function SidebarContent({
   onCreateProject,
   onCollapseSidebar,
   expandedProjectsCount,
-  onCollapseAllProjects,
+  onToggleAllProjects,
+  onLocateSelectedProject,
   onShowSettings,
   updateAvailable,
   restartRequired,
@@ -943,6 +947,11 @@ export default function SidebarContent({
   t,
 }: SidebarContentProps) {
   const showConversationSearch = searchMode === 'conversations' && searchFilter.trim().length >= 2;
+  // Locating only makes sense for a group the active list can actually show;
+  // an archived project has no block to scroll to.
+  const selectedProjectId = projectListProps.selectedProject?.projectId ?? null;
+  const canLocateSelectedProject = selectedProjectId !== null
+    && projectListProps.projects.some((project) => project.projectId === selectedProjectId);
 
   // Conversation search results stay frozen until the next query lands. Track
   // sessions restored from the results list so their rows drop out immediately
@@ -1149,10 +1158,10 @@ export default function SidebarContent({
         isRefreshing={isRefreshing}
         onCreateProject={onCreateProject}
         onCollapseSidebar={onCollapseSidebar}
-        showCollapseAllProjects={
-          searchMode === 'projects' && projectListProps.projects.length > 0 && expandedProjectsCount > 1
-        }
-        onCollapseAllProjects={onCollapseAllProjects}
+        anyProjectExpanded={expandedProjectsCount > 0}
+        canLocateSelectedProject={canLocateSelectedProject}
+        onToggleAllProjects={onToggleAllProjects}
+        onLocateSelectedProject={onLocateSelectedProject}
         onShowSettings={onShowSettings}
         t={t}
       />
@@ -1162,7 +1171,9 @@ export default function SidebarContent({
           and the sidebar's edge. Keeping only the left inset puts the bar flush
           against that edge, and the rows gain back the six pixels. */}
       <ScrollArea ref={autoHideScrollbarRef} className="flex-1 overflow-y-auto overscroll-contain md:py-2 md:pl-1.5">
-        {showConversationSearch ? (
+        {searchMode === 'scheduledTasks' ? (
+          <ScheduledTaskSidebarPanel />
+        ) : showConversationSearch ? (
           isSearching && !conversationResults ? (
             <div className="px-4 py-12 text-center md:py-8">
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-muted md:mb-3">
