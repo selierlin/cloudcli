@@ -10,11 +10,17 @@
 
 分批/分片读取：一次可给多个路径（小会话成批读）；--start/--limit 按轮切片
 （长会话逐片读，避免一次灌满上下文）。--limit 0（默认）＝不限。
+
+provider：auto / claude / codex / workbuddy / pi / generic / dsh / zcode。
+dsh 的 `session.v4.jsonl.zstd` 会透明解压；zcode、opencode 无单会话文件，
+用 `--provider zcode --db <库> --id <psid>` 读。
 """
 import argparse
 import json
 import os
+import shutil
 import sqlite3
+import subprocess
 import sys
 
 HOME = os.path.expanduser("~")
@@ -49,9 +55,48 @@ def _noise(text):
     return False
 
 
+def iter_lines(path):
+    """逐行读 transcript；dsh 的 `session.v4.jsonl.zstd` 透明解压。"""
+    if not path.endswith((".zst", ".zstd")):
+        with open(path, errors="ignore") as f:
+            yield from f
+        return
+
+    try:  # 优先模块，省一次进程
+        import zstandard  # type: ignore
+    except ImportError:
+        zstandard = None
+    if zstandard is not None:
+        with open(path, "rb") as f:
+            with zstandard.ZstdDecompressor().stream_reader(f) as r:
+                for line in r.read().decode("utf-8", "ignore").splitlines():
+                    yield line
+        return
+
+    exe = shutil.which("zstd")
+    if not exe:
+        raise OSError(f"读 {path} 需要 zstandard 模块或 zstd 命令，两者都不可用")
+    proc = subprocess.Popen([exe, "-dc", path], stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL, text=True, errors="ignore")
+    try:
+        for line in proc.stdout:
+            yield line
+    finally:
+        proc.stdout.close()
+        proc.wait()
+    if proc.returncode != 0:
+        raise OSError(f"zstd 解压失败（exit {proc.returncode}）: {path}")
+
+
 def detect_provider(path, sample=120):
-    """按文件前若干行嗅探 provider。"""
-    for i, line in enumerate(open(path, errors="ignore")):
+    """按扩展名 + 文件前若干行嗅探 provider。
+
+    注意：pi(v3) 与 dsh(v4) 的首行都是 `{"type":"session","version":N}`，
+    不能凭首行判 dsh；只看事件类型（dsh 用 `user/message` / `assistant/message`）。
+    """
+    if path.endswith((".zst", ".zstd")):
+        return "dsh"
+    for i, line in enumerate(iter_lines(path)):
         if i >= sample:
             break
         line = line.strip()
@@ -62,6 +107,8 @@ def detect_provider(path, sample=120):
         except Exception:
             continue
         t = o.get("type")
+        if t in ("user/message", "assistant/message", "turn/start"):
+            return "dsh"
         if t == "event_msg":
             return "codex"
         if t == "message" and "role" in o:
@@ -84,13 +131,33 @@ def parse_jsonl(path, provider):
         if cur_user is not None:
             turns.append((cur_user, agents[:]))
 
-    for line in open(path, errors="ignore"):
+    for line in iter_lines(path):
         line = line.strip()
         if not line:
             continue
         try:
             o = json.loads(line)
         except Exception:
+            continue
+
+        if provider == "dsh":
+            t = o.get("type")
+            d = o.get("data") or {}
+            if t == "user/message":
+                # source.kind 区分真人输入与注入内容；系统提示由 _noise 兜底。
+                if (d.get("source") or {}).get("kind") != "user":
+                    continue
+                u = _join_blocks(d.get("content"), _USER_KEY).strip()
+                if _noise(u) or u in seen:
+                    continue
+                seen.add(u)
+                flush()
+                cur_user = u.replace("\n", " ")
+                agents = []
+            elif t == "assistant/message":
+                a = _join_blocks((d.get("message") or {}).get("content"), _AGENT_KEY).strip()
+                if a:
+                    agents.append((None, a.replace("\n", " ")))
             continue
 
         if provider == "codex":
@@ -245,7 +312,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("paths", nargs="*", help="transcript 路径，可给多个（zcode 用 --id）")
     ap.add_argument("--provider", default="auto",
-                    choices=["auto", "claude", "codex", "workbuddy", "generic", "zcode"])
+                    choices=["auto", "claude", "codex", "workbuddy", "pi", "generic", "zcode", "dsh"])
     ap.add_argument("--id", action="append", dest="ids", help="zcode 会话 id（可重复）")
     ap.add_argument("--db", default=ZCODE_DB, help="zcode 库路径")
     ap.add_argument("--max", type=int, default=400, help="每轮答案截断长度")
