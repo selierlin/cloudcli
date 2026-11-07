@@ -4,7 +4,11 @@
 //
 // Spawned as `<binary> acp`; argv is ignored.
 
-let cancelPromptId = null;
+let sessionCounter = 0;
+// Acp session id → the `session/prompt` request id still waiting for its turn to
+// end. A real agent settles that prompt when `session/cancel` arrives; it never
+// answers the cancel frame itself, which is a notification with no id.
+const pendingPrompts = new Map();
 let permissionId = null;
 let permissionPromptId = null;
 let permissionSessionId = null;
@@ -38,7 +42,8 @@ function handle(line) {
   }
 
   if (message.method === 'session/new') {
-    send({ jsonrpc: '2.0', id: message.id, result: { sessionId: 'acp-1' } });
+    sessionCounter += 1;
+    send({ jsonrpc: '2.0', id: message.id, result: { sessionId: `acp-${sessionCounter}` } });
     return;
   }
 
@@ -48,7 +53,7 @@ function handle(line) {
 
     if (text.includes('cancel')) {
       chunk(sessionId, '开始');
-      cancelPromptId = message.id;
+      pendingPrompts.set(sessionId, message.id);
       return;
     }
 
@@ -112,11 +117,15 @@ function handle(line) {
   }
 
   if (message.method === 'session/cancel') {
-    if (cancelPromptId !== null) {
-      send({ jsonrpc: '2.0', id: cancelPromptId, result: { stopReason: 'cancelled' } });
-      cancelPromptId = null;
+    // Notification semantics: settle the session's in-flight prompt with the
+    // cancelled stop reason and answer nothing. Replying here would hide a
+    // client that wrongly sends the cancel as a request.
+    const sessionId = message.params?.sessionId;
+    const promptId = pendingPrompts.get(sessionId);
+    if (promptId !== undefined) {
+      pendingPrompts.delete(sessionId);
+      send({ jsonrpc: '2.0', id: promptId, result: { stopReason: 'cancelled' } });
     }
-    send({ jsonrpc: '2.0', id: message.id, result: {} });
     return;
   }
 

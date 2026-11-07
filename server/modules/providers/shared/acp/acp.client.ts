@@ -99,6 +99,8 @@ export type AcpClientOptions = {
   requestTimeoutMs?: number;
   /** Bounds on a single prompt turn (turns legitimately run for minutes). */
   promptTimeoutMs?: number;
+  /** Bounds how long a cancelled turn may stay unsettled before it is ended locally. */
+  cancelSettleTimeoutMs?: number;
 };
 
 type PendingRequest = {
@@ -106,10 +108,19 @@ type PendingRequest = {
   reject(error: Error): void;
   /** Optional timeout that rejects the request if the ACP child never responds. */
   timer?: ReturnType<typeof setTimeout>;
+  /** Deadline armed by `cancel`; cleared when the child settles the turn itself. */
+  cancelSettleTimer?: ReturnType<typeof setTimeout>;
 };
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 const DEFAULT_PROMPT_TIMEOUT_MS = 3_600_000;
+/**
+ * How long a cancelled turn may stay unsettled before the client settles it
+ * itself. `session/cancel` is a notification, so an agent that does not honour
+ * it leaves `session/prompt` pending until `promptTimeoutMs` — an hour of a
+ * spinner after the user pressed stop.
+ */
+const DEFAULT_CANCEL_SETTLE_TIMEOUT_MS = 30_000;
 /** Upper bound on cached per-session config-option lists for one ACP child. */
 const MAX_CONFIG_OPTION_SESSIONS = 256;
 
@@ -120,9 +131,12 @@ export class AcpClient {
   private readonly logPrefix: string;
   private readonly requestTimeoutMs: number;
   private readonly promptTimeoutMs: number;
+  private readonly cancelSettleTimeoutMs: number;
   private buffer = '';
   private nextId = 0;
   private readonly pending = new Map<number, PendingRequest>();
+  /** ACP session id → the `session/prompt` request id still waiting on it. */
+  private readonly promptIdBySession = new Map<string, number>();
   /**
    * Latest standard config-option state per ACP session, captured from
    * `session/new` and every `session/set_config_option` reply. Consumers need
@@ -140,6 +154,7 @@ export class AcpClient {
     this.logPrefix = options.logPrefix ?? 'ACP';
     this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     this.promptTimeoutMs = options.promptTimeoutMs ?? DEFAULT_PROMPT_TIMEOUT_MS;
+    this.cancelSettleTimeoutMs = options.cancelSettleTimeoutMs ?? DEFAULT_CANCEL_SETTLE_TIMEOUT_MS;
     child.stdout!.setEncoding('utf8');
     child.stdout!.on('data', (chunk: string) => this.receive(chunk));
     child.stderr!.on('data', (chunk: Buffer | string) => {
@@ -263,13 +278,9 @@ export class AcpClient {
     }
 
     if (typeof message.id === 'number') {
-      const request = this.pending.get(message.id);
+      const request = this.settle(message.id);
       if (!request) {
         return;
-      }
-      this.pending.delete(message.id);
-      if (request.timer) {
-        clearTimeout(request.timer);
       }
       if (message.error) {
         const error = message.error as AnyRecord;
@@ -307,6 +318,15 @@ export class AcpClient {
     this.child.stdin!.write(`${JSON.stringify({ jsonrpc: '2.0', id, result })}\n`);
   }
 
+  /** Writes one client→server notification: a frame with no id, which the agent never answers. */
+  private notify(method: string, params: AnyRecord): boolean {
+    if (this.closed || !this.child.stdin!.writable) {
+      return false;
+    }
+    this.child.stdin!.write(`${JSON.stringify({ jsonrpc: '2.0', method, params })}\n`);
+    return true;
+  }
+
   /** Answers a server→client request the client does not implement; JSON-RPC 2.0 requires this. */
   private respondMethodNotFound(id: unknown, method: string): void {
     if (!this.child.stdin!.writable) {
@@ -316,25 +336,53 @@ export class AcpClient {
     this.child.stdin!.write(`${JSON.stringify({ jsonrpc: '2.0', id, error })}\n`);
   }
 
-  private request(method: string, params: AnyRecord, timeoutMs = this.requestTimeoutMs): Promise<any> {
+  private request(
+    method: string,
+    params: AnyRecord,
+    timeoutMs = this.requestTimeoutMs,
+    /** Receives the id before the frame is written, for callers that must track it (cancel). */
+    onWrite?: (id: number) => void,
+  ): Promise<any> {
     if (this.closed) {
       return Promise.reject(new Error(`${this.logPrefix} server is not running.`));
     }
     const id = ++this.nextId;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        this.pending.delete(id);
-        reject(new Error(`${this.logPrefix} request "${method}" timed out after ${timeoutMs}ms.`));
+        this.settle(id)?.reject(new Error(
+          `${this.logPrefix} request "${method}" timed out after ${timeoutMs}ms.`,
+        ));
       }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
+      onWrite?.(id);
       try {
         this.child.stdin!.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`);
       } catch (error) {
-        clearTimeout(timer);
-        this.pending.delete(id);
+        this.settle(id);
         reject(error instanceof Error ? error : new Error(String(error)));
       }
     });
+  }
+
+  /**
+   * Removes one request from `pending` and cancels every deadline attached to
+   * it. All settlement paths (reply, timeout, shutdown, local cancel) go
+   * through here: a deadline left armed holds its request alive and keeps the
+   * event loop busy for as long as it was set for.
+   */
+  private settle(id: number): PendingRequest | undefined {
+    const request = this.pending.get(id);
+    if (!request) {
+      return undefined;
+    }
+    this.pending.delete(id);
+    if (request.timer) {
+      clearTimeout(request.timer);
+    }
+    if (request.cancelSettleTimer) {
+      clearTimeout(request.cancelSettleTimer);
+    }
+    return request;
   }
 
   private shutdown(error: Error): void {
@@ -342,13 +390,9 @@ export class AcpClient {
       return;
     }
     this.closed = true;
-    for (const request of this.pending.values()) {
-      if (request.timer) {
-        clearTimeout(request.timer);
-      }
-      request.reject(error);
+    for (const id of [...this.pending.keys()]) {
+      this.settle(id)?.reject(error);
     }
-    this.pending.clear();
     this.handlers.onClose?.();
   }
 
@@ -477,24 +521,60 @@ export class AcpClient {
     prompt: string | AcpPromptBlock[],
     timeoutMs = this.promptTimeoutMs,
   ): Promise<{ stopReason: string }> {
-    // The turn can legitimately run for minutes; the timeout only guards
-    // against a hung child so the run cannot wedge forever.
-    const result = await this.request('session/prompt', {
-      sessionId,
-      prompt: typeof prompt === 'string' ? [{ type: 'text', text: prompt }] : prompt,
-    }, timeoutMs) as AnyRecord;
-    return { stopReason: typeof result?.stopReason === 'string' ? result.stopReason : 'error' };
+    let promptId: number | undefined;
+    try {
+      // The turn can legitimately run for minutes; the timeout only guards
+      // against a hung child so the run cannot wedge forever.
+      const result = await this.request('session/prompt', {
+        sessionId,
+        prompt: typeof prompt === 'string' ? [{ type: 'text', text: prompt }] : prompt,
+      }, timeoutMs, (id) => {
+        promptId = id;
+        this.promptIdBySession.set(sessionId, id);
+      }) as AnyRecord;
+      return { stopReason: typeof result?.stopReason === 'string' ? result.stopReason : 'error' };
+    } finally {
+      // Only drop the mapping this turn owns: a later turn on the same session
+      // may already have replaced it.
+      if (promptId !== undefined && this.promptIdBySession.get(sessionId) === promptId) {
+        this.promptIdBySession.delete(sessionId);
+      }
+    }
   }
 
-  async cancel(sessionId: string): Promise<void> {
-    try {
-      await this.request('session/cancel', { sessionId });
-    } catch (error) {
-      // The ACP server is unresponsive; force it down so the hung prompt
-      // rejects and the caller's abort() unblocks instead of waiting forever.
-      this.close();
-      throw error;
+  /**
+   * Cancels one session's in-flight turn.
+   *
+   * ACP defines `session/cancel` as a notification: the agent answers nothing
+   * and instead settles the pending `session/prompt` with stopReason
+   * `cancelled`. Sending it as a request makes the agent reply -32601, and the
+   * connection must survive that: one child serves every session, so closing it
+   * would abort the runs that were never cancelled.
+   *
+   * A cancelled notification can still be ignored (an agent that does not
+   * implement it, or one wedged in a tool call). That turn would otherwise sit
+   * in `pending` until `promptTimeoutMs` — an hour — while the chat already
+   * reports itself stopped, so the client settles it locally after
+   * `cancelSettleTimeoutMs`. Returns false when the notification never reached
+   * the child (already closed / stdin gone).
+   */
+  cancel(sessionId: string): boolean {
+    const promptId = this.promptIdBySession.get(sessionId);
+    const sent = this.notify('session/cancel', { sessionId });
+    const request = promptId === undefined ? undefined : this.pending.get(promptId);
+    if (promptId !== undefined && request && !request.cancelSettleTimer) {
+      const timer = setTimeout(() => {
+        // Same settlement the agent would have sent: `prompt()` resolves and
+        // both runtimes turn `cancelled` into an aborted completion. Anything
+        // the child sends for this id afterwards is ignored (the id is gone
+        // from `pending`), and late chunks are dropped because the runtime has
+        // already dropped the run.
+        this.settle(promptId)?.resolve({ stopReason: 'cancelled' });
+      }, this.cancelSettleTimeoutMs);
+      timer.unref();
+      request.cancelSettleTimer = timer;
     }
+    return sent;
   }
 
   close(): void {

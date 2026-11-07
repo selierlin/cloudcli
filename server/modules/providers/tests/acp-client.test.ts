@@ -91,3 +91,74 @@ test('prompt sends a plain string as one text block and a block list verbatim', 
     client.close();
   }
 });
+
+const CANCEL_MOCK_SERVER = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  'fixtures',
+  'acp-cancel-mock.mjs',
+);
+
+test('a cancel the agent never honours still ends the turn without closing the child', async () => {
+  const child = spawn(process.execPath, [CANCEL_MOCK_SERVER], { stdio: ['pipe', 'pipe', 'pipe'] });
+  const chunks: string[] = [];
+  const client = new AcpClient(child, {
+    onMessageChunk: (_sessionId, text) => chunks.push(text),
+    onRequestPermission: () => {},
+  }, { cancelSettleTimeoutMs: 50 });
+
+  try {
+    const turn = client.prompt('acp-1', 'ignore-cancel');
+    await waitFor(() => chunks[0]);
+
+    assert.equal(client.cancel('acp-1'), true);
+    assert.equal(
+      (await turn).stopReason,
+      'cancelled',
+      'an ignored cancel must not leave the turn pending until the prompt timeout',
+    );
+    assert.equal(client.isClosed, false, 'settling locally must not close the shared child');
+  } finally {
+    client.close();
+  }
+});
+
+test('cancel reports when the notification never reached the child', () => {
+  const child = spawn(process.execPath, [CANCEL_MOCK_SERVER], { stdio: ['pipe', 'pipe', 'pipe'] });
+  const client = new AcpClient(child, {
+    onMessageChunk: () => {},
+    onRequestPermission: () => {},
+  });
+
+  client.close();
+  assert.equal(client.cancel('acp-1'), false, 'a closed connection cannot deliver the cancel');
+});
+
+test('cancel is a notification: the turn ends cancelled and the connection stays open', async () => {
+  const child = spawn(process.execPath, [CANCEL_MOCK_SERVER], { stdio: ['pipe', 'pipe', 'pipe'] });
+  const chunks: string[] = [];
+  const client = new AcpClient(child, {
+    onMessageChunk: (_sessionId, text) => chunks.push(text),
+    onRequestPermission: () => {},
+  });
+
+  try {
+    const turn = client.prompt('acp-1', 'hold');
+    await waitFor(() => chunks[0]);
+
+    assert.equal(client.cancel('acp-1'), true);
+
+    assert.equal((await turn).stopReason, 'cancelled', 'the in-flight prompt settles as cancelled');
+    const echo = await waitFor(() => chunks.find((text) => text.startsWith('cancel:')));
+    const frame = JSON.parse(echo.slice('cancel:'.length)) as Record<string, unknown>;
+    assert.equal(frame.method, 'session/cancel');
+    assert.equal('id' in frame, false, 'an id turns the cancel into a request the agent answers -32601');
+    assert.deepEqual(frame.params, { sessionId: 'acp-1' });
+    assert.equal(
+      client.isClosed,
+      false,
+      'one child serves every session, so cancelling one must never close the connection',
+    );
+  } finally {
+    client.close();
+  }
+});

@@ -209,3 +209,40 @@ test('abort cancels the in-flight ACP turn and reports an aborted completion', a
 
   assert.ok(messages.some((message) => isComplete(message) && message.aborted === true));
 });
+
+test('aborting one session leaves another session running on the same ACP child', async () => {
+  const keptMessages: CapturedMessage[] = [];
+  const stoppedMessages: CapturedMessage[] = [];
+
+  const keptRun = openclawRuntime.run(
+    'cancel please',
+    { sessionId: 'session-kept', cwd: temporaryDirectory, permissionMode: 'auto' },
+    createWriter(keptMessages),
+    createContext('agent:main:main'),
+  );
+  const stoppedRun = openclawRuntime.run(
+    'cancel please',
+    { sessionId: 'session-stopped', cwd: temporaryDirectory, permissionMode: 'auto' },
+    createWriter(stoppedMessages),
+    createContext('agent:main:main'),
+  );
+
+  await waitFor(keptMessages, (message) => message.kind === 'text' && message.content === '开始');
+  await waitFor(stoppedMessages, (message) => message.kind === 'text' && message.content === '开始');
+
+  assert.equal(await openclawRuntime.abort('session-stopped'), true);
+  await stoppedRun;
+  assert.ok(stoppedMessages.some((message) => isComplete(message) && message.aborted === true));
+
+  // The ACP child serves every session, so a cancel must settle only its own
+  // prompt: the sibling turn is still running.
+  assert.equal(
+    keptMessages.some(isComplete),
+    false,
+    'aborting one session must not end another session on the same connection',
+  );
+
+  assert.equal(await openclawRuntime.abort('session-kept'), true);
+  await keptRun;
+  assert.ok(keptMessages.some((message) => isComplete(message) && message.aborted === true));
+});

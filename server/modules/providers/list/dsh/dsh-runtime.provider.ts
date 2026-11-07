@@ -820,13 +820,12 @@ export const dshRuntime: IProviderRuntime = {
     if (!acpSessionId) {
       return false;
     }
-    try {
-      cancelPendingPermissionsForAcpSession(acpSessionId, 'aborted');
-      await server.client.cancel(acpSessionId);
-      return true;
-    } catch {
-      return false;
-    }
+    cancelPendingPermissionsForAcpSession(acpSessionId, 'aborted');
+    // The turn settles through its pending `session/prompt` resolving with
+    // stopReason "cancelled"; nothing waits here, and only this session ends.
+    // A false return means the frame never reached the child (dead connection),
+    // which the caller reports as an unsuccessful abort.
+    return server.client.cancel(acpSessionId);
   },
 
   /**
