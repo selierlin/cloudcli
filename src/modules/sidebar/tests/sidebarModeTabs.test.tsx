@@ -75,8 +75,9 @@ test('a narrow row moves the tabs that no longer fit into the dropdown', () => {
 test('the section on screen keeps its place in the row', () => {
   renderTabs(220, 'archived');
 
-  // Archive is the last tab and the first to be dropped on width alone, but it
-  // is the open section, so the strip has to keep showing it as pressed.
+  // Archive sits at the end of the row and is among the first to be dropped on
+  // width alone, but it is the open section, so the strip has to keep showing
+  // it as pressed.
   const archive = screen.getByRole('button', { name: 'Archive only' });
   assert.equal(archive.getAttribute('aria-pressed'), 'true');
   assert.equal(screen.queryByRole('button', { name: 'Conversations' }), null);

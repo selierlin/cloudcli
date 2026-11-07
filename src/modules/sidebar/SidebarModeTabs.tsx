@@ -40,9 +40,9 @@ export default function SidebarModeTabs({
   const tabs: ModeTab[] = [
     { mode: 'projects', label: t('search.modeProjects'), icon: Folder, showLabel: true },
     { mode: 'conversations', label: t('search.modeConversations'), icon: MessageSquare, showLabel: true },
+    { mode: 'scheduledTasks', label: t('search.modeScheduledTasks'), icon: CalendarClock, showLabel: false },
     { mode: 'running', label: t('search.runningTooltip', 'Running sessions'), icon: Activity, showLabel: false },
     { mode: 'archived', label: t('search.archiveOnlyTooltip', 'Archive only'), icon: Archive, showLabel: false },
-    { mode: 'scheduledTasks', label: t('search.modeScheduledTasks'), icon: CalendarClock, showLabel: false },
   ];
 
   const activeIndex = tabs.findIndex((tab) => tab.mode === searchMode);
