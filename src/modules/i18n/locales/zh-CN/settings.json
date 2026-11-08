@@ -664,7 +664,12 @@
       "checkingAuth": "正在检查认证状态...",
       "loggedInAs": "登录为 {{email}}",
       "authenticatedUser": "已认证用户",
-      "connectedViaLocalConfig": "已通过本地配置连接"
+      "connectedViaLocalConfig": "已通过本地配置连接",
+      "notInstalled": "未安装"
+    },
+    "install": {
+      "description": "服务器上尚未找到 {{agent}} CLI。安装后重新检查即可。",
+      "recheck": "重新检查"
     },
     "quota": {
       "title": "额度",

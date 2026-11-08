@@ -83,6 +83,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
     opencodePermissionMode,
     setOpenCodePermissionMode,
     providerAuthStatus,
+    checkProviderAuthStatus,
     openLoginForProvider,
     showLoginModal,
     setShowLoginModal,
@@ -298,6 +299,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'appearance' }:
                 <AgentsSettingsTab
                   providerAuthStatus={providerAuthStatus}
                   onProviderLogin={openLoginForProvider}
+                  onProviderAuthRecheck={checkProviderAuthStatus}
                   claudePermissions={claudePermissions}
                   onClaudePermissionsChange={setClaudePermissions}
                   cursorPermissions={cursorPermissions}

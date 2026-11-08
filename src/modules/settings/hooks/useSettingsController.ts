@@ -597,6 +597,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     opencodePermissionMode,
     setOpenCodePermissionMode,
     providerAuthStatus,
+    checkProviderAuthStatus,
     openLoginForProvider,
     showLoginModal,
     setShowLoginModal,

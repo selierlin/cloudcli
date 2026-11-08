@@ -99,6 +99,7 @@ export default function AgentCategoryContentSection({
             agent={selectedAgent}
             authStatus={agentContextById[selectedAgent].authStatus}
             onLogin={agentContextById[selectedAgent].onLogin}
+            onRecheck={agentContextById[selectedAgent].onRecheck}
           />
           <ProviderQuotaSection agent={selectedAgent} />
           {(selectedAgent === 'claude' || selectedAgent === 'codex') && (

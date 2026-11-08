@@ -294,6 +294,20 @@ export const CODE_EDITOR_DEFAULTS = {
 
 // ---------------------------
 
+//----------------- PROVIDER AUTHENTICATION ------------
+
+/**
+ * Providers whose CLI has an interactive login command CloudCLI can run in its
+ * embedded terminal, owned by the provider-auth module's login modal.
+ *
+ * Every other provider authenticates out-of-band — through its desktop app, a
+ * config file, or a key in its own environment — so the settings account panel
+ * and the onboarding connection cards must not offer them a login button.
+ */
+export const PROVIDERS_WITH_IN_APP_LOGIN: LLMProvider[] = ['claude', 'cursor', 'codex', 'opencode'];
+
+// ---------------------------
+
 //----------------- PROVIDER MODEL CATALOG ------------
 
 /**

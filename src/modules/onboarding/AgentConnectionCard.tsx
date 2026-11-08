@@ -1,6 +1,7 @@
 import { Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import { PROVIDERS_WITH_IN_APP_LOGIN } from '@/shared/constants';
 import { LLMProviderLogo } from '@/shared/ui';
 import type { LLMProvider, ProviderAuthStatus } from '@/shared/types';
 
@@ -32,12 +33,10 @@ export default function AgentConnectionCard({
     && status.installed === true
     && status.method === 'workbuddy_desktop';
   const available = status.authenticated || externallyManaged;
-  // ZCode has no in-app OAuth flow: it authenticates from `~/.zcode/cli/config.json`,
-  // so the login button would be misleading. Pi's credentials live in its own
-  // `pi auth` flow, OMP's in its own `/login` flow, OpenClaw's in
-  // `openclaw.json` / `openclaw models auth`, and WorkBuddy Desktop
-  // manages its CLI auth out-of-band.
-  const canLogin = provider !== 'workbuddy' && provider !== 'pi' && provider !== 'zcode' && provider !== 'omp' && provider !== 'openclaw' && !available && !status.loading;
+  // ZCode, Pi, OMP, OpenClaw and WorkBuddy Desktop authenticate out-of-band (a
+  // config file, their own `auth`/`/login` flow, or the desktop app), so a login
+  // button would only open a terminal that prints instructions.
+  const canLogin = PROVIDERS_WITH_IN_APP_LOGIN.includes(provider) && !available && !status.loading;
   const containerClassName = available ? connectedClassName : 'border-border bg-card';
 
   const statusText = status.loading

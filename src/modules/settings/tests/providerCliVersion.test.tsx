@@ -427,6 +427,7 @@ describe('AccountContent CLI version row', () => {
           installedVersion: '2.1.295',
         }}
         onLogin={() => {}}
+        onRecheck={() => {}}
       />,
     );
 

@@ -681,7 +681,12 @@
       "checkingAuth": "Checking authentication status...",
       "loggedInAs": "Logged in as {{email}}",
       "authenticatedUser": "authenticated user",
-      "connectedViaLocalConfig": "Connected via local configuration"
+      "connectedViaLocalConfig": "Connected via local configuration",
+      "notInstalled": "Not installed"
+    },
+    "install": {
+      "description": "No {{agent}} CLI was found on the server. Install it, then check again.",
+      "recheck": "Check again"
     },
     "quota": {
       "title": "Quota",

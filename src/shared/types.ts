@@ -1755,10 +1755,11 @@ export type QuickSettingsHandleStyle = CSSProperties;
 /** The per-provider agent context the agents settings tab builds once and hands to each of its sections. */
 export type AgentContextByProvider = Record<AgentProvider, AgentContext>;
 
-/** The per-provider data the agents settings tab hands to its sections: that provider's auth status and the callback that starts its login flow. */
+/** The per-provider data the agents settings tab hands to its sections: that provider's auth status, the callback that starts its login flow, and the one that re-reads the status after an out-of-app change such as installing the CLI. */
 export type AgentContext = {
   authStatus: ProviderAuthStatus;
   onLogin: () => void;
+  onRecheck: () => void;
 };
 
 /** Identifier of a top-level section in the settings dialog; use it whenever a tab is stored, compared or requested so deep links, the sidebar and the command palette all agree on the same set of names. */

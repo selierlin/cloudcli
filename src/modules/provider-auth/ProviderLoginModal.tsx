@@ -59,11 +59,14 @@ const getProviderCommand = ({
     return 'opencode auth login';
   }
 
-  // dsh, workbuddy, pi, zcode and omp have no interactive terminal login: dsh
-  // reads the API key from the harness .env, workbuddy signs in through the
-  // desktop app, pi manages credentials in `pi auth`, zcode authenticates from
-  // `~/.zcode/cli/config.json`, and omp signs in through its own /login flow.
-  // Never fall through to `claude /login`, which would mis-authenticate Claude.
+  // dsh, workbuddy, pi, zcode, omp and openclaw have no interactive terminal
+  // login (dsh reads the key from the harness .env, workbuddy signs in through
+  // the desktop app, pi through `pi auth`, zcode from `~/.zcode/cli/config.json`,
+  // omp through its own /login, openclaw from `openclaw.json` or
+  // `openclaw models auth`). None of them is in PROVIDERS_WITH_IN_APP_LOGIN, so
+  // callers hide their login button and should not open this modal; these echoes
+  // are the last-resort explanation if one is opened anyway. Never fall through
+  // to `claude /login`, which would mis-authenticate Claude.
   if (provider === 'dsh') {
     return 'echo "DSH authentication is configured via DEEPSEEK_API_KEY in the DSH harness .env file."';
   }

@@ -1,7 +1,8 @@
-import { AlertTriangle, LogIn } from 'lucide-react';
+import { AlertTriangle, LogIn, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import ProviderCliVersion from '@/modules/settings/tabs/agents-settings/sections/content/ProviderCliVersion';
+import { PROVIDERS_WITH_IN_APP_LOGIN } from '@/shared/constants';
 import { Badge, Button, LLMProviderLogo } from '@/shared/ui';
 import type { AgentProvider, ProviderAuthStatus, ProviderAuthSubscriptionOverride } from '@/shared/types';
 
@@ -9,6 +10,8 @@ type AccountContentProps = {
   agent: AgentProvider;
   authStatus: ProviderAuthStatus;
   onLogin: () => void;
+  /** Re-reads this provider's auth status, so the not-installed state can pick up a CLI installed while the dialog is open. */
+  onRecheck: () => void;
 };
 
 type AgentVisualConfig = {
@@ -146,9 +149,50 @@ function SubscriptionOverrideNotice({ override }: SubscriptionOverrideNoticeProp
 }
 
 /** Rendered by AgentCategoryContentSection for the "account" category to show sign-in state for one provider. */
-export default function AccountContent({ agent, authStatus, onLogin }: AccountContentProps) {
+export default function AccountContent({ agent, authStatus, onLogin, onRecheck }: AccountContentProps) {
   const { t } = useTranslation('settings');
   const config = agentConfig[agent];
+  const hasInAppLogin = PROVIDERS_WITH_IN_APP_LOGIN.includes(agent);
+  // A CLI that is not on the server has never been signed into, so the panel
+  // reports the install gap: no login button, and none of the server's
+  // install-path diagnostics, which are noise rather than something to act on.
+  const missingCli = !authStatus.loading && !authStatus.installed;
+  const showLogin = !missingCli && hasInAppLogin && authStatus.method !== 'api_key';
+  // Providers without an interactive login explain where their credentials do
+  // live instead of offering a button that only prints the same instructions.
+  const showExternalAuthHint = !missingCli && !hasInAppLogin && !authStatus.authenticated;
+
+  let statusText: string;
+  if (authStatus.loading) {
+    statusText = t('agents.authStatus.checkingAuth');
+  } else if (missingCli) {
+    statusText = t('agents.authStatus.notInstalled');
+  } else if (!authStatus.authenticated) {
+    statusText = t('agents.authStatus.notConnected');
+  } else if (authStatus.email) {
+    statusText = t('agents.authStatus.loggedInAs', { email: authStatus.email });
+  } else {
+    // Providers wired up through local files (OpenCode's opencode.json,
+    // ZCode's cli/config.json) have no account to name, so "logged in as
+    // <something>" would read as a user that does not exist.
+    statusText = t('agents.authStatus.connectedViaLocalConfig');
+  }
+
+  // "Disconnected" implies a sign-in that dropped; before the CLI exists there
+  // was nothing to drop, and after it exists without credentials the honest
+  // word is the same one the status line uses.
+  const badgeClassName = authStatus.loading
+    ? 'bg-muted'
+    : authStatus.authenticated
+      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+      : 'bg-muted text-n-gray-800 dark:text-n-gray-300';
+  const badgeText = authStatus.loading
+    ? t('agents.authStatus.checking')
+    : missingCli
+      ? t('agents.authStatus.notInstalled')
+      : authStatus.authenticated
+        ? t('agents.authStatus.connected')
+        : t('agents.authStatus.notConnected');
 
   return (
     <div className="space-y-6">
@@ -172,80 +216,85 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
                 {t('agents.connectionStatus')}
               </div>
               <div className={`text-sm ${config.subtextClass}`}>
-                {authStatus.loading ? (
-                  t('agents.authStatus.checkingAuth')
-                ) : !authStatus.authenticated ? (
-                  t('agents.authStatus.notConnected')
-                ) : authStatus.email ? (
-                  t('agents.authStatus.loggedInAs', { email: authStatus.email })
-                ) : (
-                  // Providers wired up through local files (OpenCode's
-                  // opencode.json, ZCode's cli/config.json) have no account to
-                  // name, so "logged in as <something>" would read as a user
-                  // that does not exist.
-                  t('agents.authStatus.connectedViaLocalConfig')
-                )}
+                {statusText}
               </div>
             </div>
             <div>
-              {authStatus.loading ? (
-                <Badge variant="secondary" className="bg-muted">
-                  {t('agents.authStatus.checking')}
-                </Badge>
-              ) : authStatus.authenticated ? (
-                <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
-                  {t('agents.authStatus.connected')}
-                </Badge>
-              ) : (
-                <Badge variant="secondary" className="bg-muted text-n-gray-800 dark:text-n-gray-300">
-                  {t('agents.authStatus.disconnected')}
-                </Badge>
-              )}
+              <Badge variant="secondary" className={badgeClassName}>
+                {badgeText}
+              </Badge>
             </div>
           </div>
 
-          {!authStatus.loading && authStatus.subscriptionOverride && (
-            <SubscriptionOverrideNotice override={authStatus.subscriptionOverride} />
-          )}
-          <ProviderCliVersion
-            key={agent}
-            agent={agent}
-            installedVersion={authStatus.installedVersion ?? null}
-            textClass={config.textClass}
-            subtextClass={config.subtextClass}
-          />
-
-          {authStatus.method !== 'api_key' && (
+          {missingCli ? (
             <div className="border-t border-border/50 pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className={`font-medium ${config.textClass}`}>
-                    {authStatus.authenticated ? t('agents.login.reAuthenticate') : t('agents.login.title')}
-                  </div>
-                  <div className={`text-sm ${config.subtextClass}`}>
-                    {authStatus.authenticated
-                      ? t('agents.login.reAuthDescription')
-                      : t('agents.login.description', { agent: config.name })}
-                  </div>
-                </div>
-                <Button
-                  onClick={onLogin}
-                  className={`${config.buttonClass} text-n-white`}
-                  size="sm"
-                >
-                  <LogIn className="mr-2 h-4 w-4" />
-                  {authStatus.authenticated ? t('agents.login.reLoginButton') : t('agents.login.button')}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className={`min-w-48 flex-1 text-sm ${config.subtextClass}`}>
+                  {t('agents.install.description', { agent: config.name })}
+                </p>
+                <Button type="button" size="sm" variant="outline" onClick={onRecheck}>
+                  <RefreshCw />
+                  {t('agents.install.recheck')}
                 </Button>
               </div>
             </div>
-          )}
+          ) : (
+            <>
+              {!authStatus.loading && authStatus.subscriptionOverride && (
+                <SubscriptionOverrideNotice override={authStatus.subscriptionOverride} />
+              )}
+              <ProviderCliVersion
+                key={agent}
+                agent={agent}
+                installedVersion={authStatus.installedVersion ?? null}
+                textClass={config.textClass}
+                subtextClass={config.subtextClass}
+              />
 
-          {authStatus.error && (
-            <div className="border-t border-border/50 pt-4">
-              <div className="text-sm text-red-600 dark:text-red-400">
-                {t('agents.error', { error: authStatus.error })}
-              </div>
-            </div>
+              {showLogin && (
+                <div className="border-t border-border/50 pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className={`font-medium ${config.textClass}`}>
+                        {authStatus.authenticated ? t('agents.login.reAuthenticate') : t('agents.login.title')}
+                      </div>
+                      <div className={`text-sm ${config.subtextClass}`}>
+                        {authStatus.authenticated
+                          ? t('agents.login.reAuthDescription')
+                          : t('agents.login.description', { agent: config.name })}
+                      </div>
+                    </div>
+                    <Button
+                      onClick={onLogin}
+                      className={`${config.buttonClass} text-n-white`}
+                      size="sm"
+                    >
+                      <LogIn className="mr-2 h-4 w-4" />
+                      {authStatus.authenticated ? t('agents.login.reLoginButton') : t('agents.login.button')}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {showExternalAuthHint && (
+                <div className="border-t border-border/50 pt-4">
+                  <div className={`font-medium ${config.textClass}`}>
+                    {t('agents.externalAuth.title')}
+                  </div>
+                  <div className={`text-sm ${config.subtextClass}`}>
+                    {t('agents.externalAuth.description', { agent: config.name })}
+                  </div>
+                </div>
+              )}
+
+              {authStatus.error && (
+                <div className="border-t border-border/50 pt-4">
+                  <div className="text-sm text-red-600 dark:text-red-400">
+                    {t('agents.error', { error: authStatus.error })}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

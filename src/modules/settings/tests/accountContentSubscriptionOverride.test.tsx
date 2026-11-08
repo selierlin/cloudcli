@@ -40,7 +40,7 @@ const apiKeyStatus = (overrides: Partial<ProviderAuthStatus> = {}): ProviderAuth
 });
 
 const renderClaudeAccount = (authStatus: ProviderAuthStatus) =>
-  render(<AccountContent agent="claude" authStatus={authStatus} onLogin={() => {}} />);
+  render(<AccountContent agent="claude" authStatus={authStatus} onLogin={() => {}} onRecheck={() => {}} />);
 
 describe('AccountContent subscription override notice', () => {
   it('warns which variable is bypassing the login, where it came from, and how to fix it (process env)', () => {

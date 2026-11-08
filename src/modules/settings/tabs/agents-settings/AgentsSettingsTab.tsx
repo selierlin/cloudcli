@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import type { AgentCategory, AgentContextByProvider, AgentProvider, AgentSettingsProject, ClaudePermissionsState, CodexPermissionMode, CursorPermissionsState, DshPermissionMode, OpenCodePermissionMode, OpenclawPermissionMode, OmpPermissionMode, PiPermissionMode, ProviderAuthStatus, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
+import type { AgentCategory, AgentContext, AgentContextByProvider, AgentProvider, AgentSettingsProject, ClaudePermissionsState, CodexPermissionMode, CursorPermissionsState, DshPermissionMode, OpenCodePermissionMode, OpenclawPermissionMode, OmpPermissionMode, PiPermissionMode, ProviderAuthStatus, WorkbuddyPermissionMode, ZcodePermissionMode } from '@/shared/types';
 import AgentCategoryContentSection from '@/modules/settings/tabs/agents-settings/sections/AgentCategoryContentSection';
 import AgentCategoryTabsSection from '@/modules/settings/tabs/agents-settings/sections/AgentCategoryTabsSection';
 import AgentSelectorSection from '@/modules/settings/tabs/agents-settings/sections/AgentSelectorSection';
@@ -10,6 +10,8 @@ type ProviderAuthStatusByProvider = Record<AgentProvider, ProviderAuthStatus>;
 type AgentsSettingsTabProps = {
   providerAuthStatus: ProviderAuthStatusByProvider;
   onProviderLogin: (provider: AgentProvider) => void;
+  /** Re-reads one provider's CLI/auth state from the server. */
+  onProviderAuthRecheck: (provider: AgentProvider) => void;
   claudePermissions: ClaudePermissionsState;
   onClaudePermissionsChange: (value: ClaudePermissionsState) => void;
   cursorPermissions: CursorPermissionsState;
@@ -39,6 +41,7 @@ type AgentsSettingsTabProps = {
 export default function AgentsSettingsTab({
   providerAuthStatus,
   onProviderLogin,
+  onProviderAuthRecheck,
   claudePermissions,
   onClaudePermissionsChange,
   cursorPermissions,
@@ -74,59 +77,29 @@ export default function AgentsSettingsTab({
     return ['claude', 'cursor', 'codex', 'opencode', 'dsh', 'workbuddy', 'pi', 'zcode', 'omp', 'openclaw'];
   }, []);
 
-  const agentContextById = useMemo<AgentContextByProvider>(() => ({
-    claude: {
-      authStatus: providerAuthStatus.claude,
-      onLogin: () => onProviderLogin('claude'),
-    },
-    cursor: {
-      authStatus: providerAuthStatus.cursor,
-      onLogin: () => onProviderLogin('cursor'),
-    },
-    codex: {
-      authStatus: providerAuthStatus.codex,
-      onLogin: () => onProviderLogin('codex'),
-    },
-    opencode: {
-      authStatus: providerAuthStatus.opencode,
-      onLogin: () => onProviderLogin('opencode'),
-    },
-    dsh: {
-      authStatus: providerAuthStatus.dsh,
-      onLogin: () => onProviderLogin('dsh'),
-    },
-    workbuddy: {
-      authStatus: providerAuthStatus.workbuddy,
-      onLogin: () => onProviderLogin('workbuddy'),
-    },
-    pi: {
-      authStatus: providerAuthStatus.pi,
-      onLogin: () => onProviderLogin('pi'),
-    },
-    zcode: {
-      authStatus: providerAuthStatus.zcode,
-      onLogin: () => onProviderLogin('zcode'),
-    },
-    omp: {
-      authStatus: providerAuthStatus.omp,
-      onLogin: () => onProviderLogin('omp'),
-    },
-    openclaw: {
-      authStatus: providerAuthStatus.openclaw,
-      onLogin: () => onProviderLogin('openclaw'),
-    },
-  }), [
+  const agentContextById = useMemo<AgentContextByProvider>(() => {
+    const buildContext = (provider: AgentProvider): AgentContext => ({
+      authStatus: providerAuthStatus[provider],
+      onLogin: () => onProviderLogin(provider),
+      onRecheck: () => onProviderAuthRecheck(provider),
+    });
+
+    return {
+      claude: buildContext('claude'),
+      cursor: buildContext('cursor'),
+      codex: buildContext('codex'),
+      opencode: buildContext('opencode'),
+      dsh: buildContext('dsh'),
+      workbuddy: buildContext('workbuddy'),
+      pi: buildContext('pi'),
+      zcode: buildContext('zcode'),
+      omp: buildContext('omp'),
+      openclaw: buildContext('openclaw'),
+    };
+  }, [
+    onProviderAuthRecheck,
     onProviderLogin,
-    providerAuthStatus.claude,
-    providerAuthStatus.codex,
-    providerAuthStatus.cursor,
-    providerAuthStatus.opencode,
-    providerAuthStatus.dsh,
-    providerAuthStatus.workbuddy,
-    providerAuthStatus.pi,
-    providerAuthStatus.zcode,
-    providerAuthStatus.omp,
-    providerAuthStatus.openclaw,
+    providerAuthStatus,
   ]);
 
   useEffect(() => {
