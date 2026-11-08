@@ -719,6 +719,18 @@ export const api = {
       unsubscribe: (endpoint: string) => post('/api/settings/push/unsubscribe', { endpoint }),
     },
 
+    // Outbound webhook for run lifecycle events. `createSecret` is the only
+    // response that ever carries the signing secret.
+    notificationWebhook: {
+      get: () => get('/api/notifications/webhook'),
+      save: (config: { url: string; allowHttp: boolean; enabled: boolean }) =>
+        put('/api/notifications/webhook', config),
+      remove: () => del('/api/notifications/webhook'),
+      createSecret: () => post('/api/notifications/webhook/secret'),
+      removeSecret: () => del('/api/notifications/webhook/secret'),
+      sendTest: () => post('/api/notifications/webhook/test'),
+    },
+
     // Login audit trail (login/logout/register events). `signal` lets the login
     // log tab cancel a filter query the next keystroke already superseded.
     authEvents: ({ signal, ...params }: {

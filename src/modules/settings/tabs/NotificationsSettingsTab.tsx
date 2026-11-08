@@ -6,6 +6,7 @@ import { isCapacitorNativeShell, playChatCompletionSound, triggerNotificationHap
 import type { NotificationPreferencesState } from '@/shared/types';
 import type { WebPushError } from '@/modules/settings/hooks/useWebPush';
 import BarkSettingsCard from '@/modules/settings/tabs/notifications-settings/BarkSettingsCard';
+import NotificationWebhookCard from '@/modules/settings/tabs/NotificationWebhookCard';
 
 type NotificationsSettingsTabProps = {
   notificationPreferences: NotificationPreferencesState;
@@ -322,6 +323,8 @@ export default function NotificationsSettingsTab({
           </label>
         </div>
       </div>
+
+      <NotificationWebhookCard />
     </div>
   );
 }

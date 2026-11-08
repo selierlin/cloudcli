@@ -6,6 +6,7 @@ import {
   type BarkIconKind,
 } from '@/modules/notifications/services/bark-notification.service.js';
 import { sendDesktopNotification as sendDesktopNotificationToClients } from '@/modules/notifications/services/desktop-notification-clients.service.js';
+import { webhookNotificationsService } from '@/modules/notifications/services/webhook-notifications.service.js';
 
 type NotificationKind = 'action_required' | 'stop' | 'error' | 'info';
 type NotificationUserId = string | number | null | undefined;
@@ -286,6 +287,7 @@ function resolveBarkIconKind(event: NotificationEvent): BarkIconKind | undefined
 const notificationChannels: Array<{
   id: string;
   isEnabled: (preferences: ReturnType<typeof notificationPreferencesDb.getPreferences>) => boolean;
+  bypassesDedupe?: boolean;
   send: (input: { userId: number; event: NotificationEvent; payload: NotificationPayload }) => unknown;
 }> = [
   {
@@ -312,6 +314,19 @@ const notificationChannels: Array<{
       iconKind: resolveBarkIconKind(event),
       sessionId: payload.data.sessionId,
     }),
+  },
+  {
+    id: 'webhook',
+    // Gated by the webhook endpoint row's own `enabled` flag instead of
+    // preferences.channels, which the Settings client rewrites with only its
+    // known keys. The channel sends run lifecycle events only.
+    isEnabled: () => true,
+    // The dedupe window keeps a person from being pinged twice, but it also
+    // swallows a second run of the same session that ends the same way within
+    // 20 s. Each run reports its end once at the source, and receivers dedupe
+    // on the event id, so every run is sent.
+    bypassesDedupe: true,
+    send: ({ userId, event }) => webhookNotificationsService.sendForEvent({ userId, event }),
   },
 ];
 
@@ -341,13 +356,14 @@ export function notifyUserIfEnabled({
 
   const normalizedEvent = normalizeNotificationSession(createNotificationEvent(event));
   const preferences = notificationPreferencesDb.getPreferences(normalizedUserId);
-  if (!isNotificationEventEnabled(preferences, normalizedEvent) || isDuplicate(normalizedEvent)) {
+  if (!isNotificationEventEnabled(preferences, normalizedEvent)) {
     return;
   }
+  const duplicate = isDuplicate(normalizedEvent);
 
   const payload = buildNotificationPayload(normalizedEvent);
   for (const channel of notificationChannels) {
-    if (!channel.isEnabled(preferences)) {
+    if ((duplicate && !channel.bypassesDedupe) || !channel.isEnabled(preferences)) {
       continue;
     }
     Promise.resolve(channel.send({ userId: normalizedUserId, event: normalizedEvent, payload })).catch((error: unknown) => {
