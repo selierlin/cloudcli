@@ -183,6 +183,13 @@ export const MCP_SUPPORTED_TRANSPORTS: Record<McpProvider, McpTransport[]> = {
 /** Transports offered when configuring a global (provider-agnostic) MCP server; each provider accepts or rejects them individually, so the global entry does not narrow the list. */
 export const MCP_GLOBAL_SUPPORTED_TRANSPORTS: McpTransport[] = ['stdio', 'http', 'sse'];
 
+/**
+ * Tool name the backend gives an MCP server's request for input ("elicitation") when it
+ * forwards it as a permission request. The permission banner draws it with the elicitation
+ * panel, and the composer steps aside while one is open, as it does for a question.
+ */
+export const MCP_ELICITATION_TOOL_NAME = 'McpElicitation';
+
 /** Scopes offered when configuring a global (provider-agnostic) MCP server; a provider that does not support the chosen scope reports a per-provider failure instead of failing the whole add. */
 export const MCP_GLOBAL_SUPPORTED_SCOPES: McpScope[] = ['user', 'project', 'local'];
 

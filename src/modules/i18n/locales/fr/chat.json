@@ -290,5 +290,31 @@
     "customModelsOnlyHint": "Masque les modèles intégrés de {{provider}} dans tous les sélecteurs de modèle et fait de votre premier modèle le modèle par défaut. Les modèles intégrés restent affichés tant que vous n'avez ajouté aucun modèle.",
     "builtInModelsHidden": "Masqués dans les sélecteurs de modèle tant que « Utiliser uniquement mes modèles » est activé.",
     "customModelsOnlyFailed": "Impossible de modifier ce paramètre."
+  },
+  "mcpElicitation": {
+    "asks": "{{server}} demande votre saisie",
+    "submit": "Envoyer",
+    "decline": "Refuser",
+    "openLink": "Ouvrir le lien",
+    "unsafeUrl": "Seuls les liens http et https peuvent être ouverts ici.",
+    "optional": "facultatif",
+    "choose": "Choisir…",
+    "required": "Obligatoire",
+    "notANumber": "Saisissez un nombre",
+    "notANInteger": "Saisissez un nombre entier",
+    "tooSmall": "Au moins {{value}}",
+    "tooLarge": "Au plus {{value}}",
+    "tooShort": "Au moins {{count}} caractères",
+    "tooLong": "Au plus {{count}} caractères",
+    "tooFew": "Choisissez au moins {{count}}",
+    "tooMany": "Choisissez au plus {{count}}",
+    "notAnEmail": "Saisissez une adresse e-mail",
+    "notAUri": "Saisissez une adresse complète, par ex. https://example.com",
+    "notADate": "Saisissez une date",
+    "notADateTime": "Saisissez une date et une heure",
+    "notTheFormat": "{{format}} non valide",
+    "allowTool": "Autoriser {{server}} à exécuter l’outil « {{tool}} » ?",
+    "allowToolUnnamed": "Autoriser {{server}} à exécuter cet outil ?",
+    "allow": "Autoriser"
   }
 }

@@ -34,4 +34,10 @@ export const NEUTRAL_EXEMPTIONS: NeutralExemption[] = [
     reason:
       'The error icon sits on the failure wash (`bg-red-500/50`) drawn over an image thumbnail, so its contrast is against that fixed red rather than against the page. A theme token would make it follow the palette and vanish on light overlays. Retire it by tokenising the wash and the icon together.',
   },
+  {
+    file: 'src/modules/chat/tools/InteractiveRenderers/McpElicitationPanel.tsx',
+    token: 'text-white',
+    reason:
+      'The Submit and Decline buttons are filled with the fixed brand blue (`bg-blue-600`, `hover:bg-blue-700`), not a surface token, so their label must stay white in every theme; `text-primary-foreground` follows a palette that is not what these buttons paint. Retire it when the panel moves onto the primary/destructive buttons from `@/shared/ui`.',
+  },
 ];

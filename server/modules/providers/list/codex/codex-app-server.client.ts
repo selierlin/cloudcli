@@ -5,6 +5,8 @@ import { createRequire } from 'node:module';
 import readline from 'node:readline';
 
 import type { ProviderQuota, ProviderQuotaWindow } from '@/shared/types.js';
+import type { CodexConfigOverrides } from '@/shared/codex-config.js';
+import { toCodexConfigArgs } from '@/shared/codex-config.js';
 import { AppError, readObjectRecord, readOptionalString } from '@/shared/utils.js';
 
 /**
@@ -108,12 +110,13 @@ const APP_SERVER_FEATURE_FLAGS = ['--disable', 'apps', '--disable', 'plugins'];
  * a machine's own `codex` on PATH may be a different version than the protocol
  * this client speaks.
  */
-function resolveCodexAppServerCommand(): { command: string; args: string[] } {
+function resolveCodexAppServerCommand(extraArgs: readonly string[] = []): { command: string; args: string[] } {
+  const tail = [...APP_SERVER_FEATURE_FLAGS, ...extraArgs];
   const override = process.env.CODEX_APP_SERVER_COMMAND?.trim();
   if (override) {
-    return { command: process.execPath, args: [override, 'app-server', ...APP_SERVER_FEATURE_FLAGS] };
+    return { command: process.execPath, args: [override, 'app-server', ...tail] };
   }
-  return { command: process.execPath, args: [resolveCodexLauncher(), 'app-server', ...APP_SERVER_FEATURE_FLAGS] };
+  return { command: process.execPath, args: [resolveCodexLauncher(), 'app-server', ...tail] };
 }
 
 /**
@@ -539,9 +542,17 @@ export function isCodexNotificationForActiveTurn(
  * A process per turn rather than a pooled daemon: it matches the lifecycle the
  * SDK path already has (one `codex exec` per turn) and needs no restart,
  * back-pressure, or crash-recovery story. Consumed by the Codex runtime.
+ *
+ * `configOverrides` (the selected profile) is passed on the command line, not
+ * only in `thread/start`: Codex 0.166 resolves the provider a turn runs on from
+ * the process configuration and rejects a thread whose recorded provider differs
+ * (`modelProviderMismatch`), so the profile has to be in effect from startup.
  */
-export async function startCodexAppServerConnection(): Promise<CodexAppServerConnection> {
-  const { command, args } = resolveCodexAppServerCommand();
+export async function startCodexAppServerConnection(
+  configOverrides?: CodexConfigOverrides | null,
+): Promise<CodexAppServerConnection> {
+  const configArgs = configOverrides ? toCodexConfigArgs(configOverrides) : [];
+  const { command, args } = resolveCodexAppServerCommand(configArgs);
   const child = spawn(command, args, { env: process.env, stdio: ['pipe', 'pipe', 'pipe'] });
   const connection = new CodexAppServerConnection(child);
   try {

@@ -299,5 +299,31 @@
     "customModelsOnlyHint": "모든 모델 선택기에서 {{provider}} 기본 제공 모델을 숨기고 첫 번째 내 모델을 기본값으로 설정합니다. 모델을 추가하기 전까지는 기본 제공 모델이 계속 표시됩니다.",
     "builtInModelsHidden": "'내 모델만 사용'이 켜져 있는 동안 모델 선택기에서 숨겨집니다.",
     "customModelsOnlyFailed": "이 설정을 변경할 수 없습니다."
+  },
+  "mcpElicitation": {
+    "asks": "{{server}}이(가) 입력을 요청합니다",
+    "submit": "제출",
+    "decline": "거부",
+    "openLink": "링크 열기",
+    "unsafeUrl": "여기서는 http 및 https 링크만 열 수 있습니다.",
+    "optional": "선택 사항",
+    "choose": "선택하세요…",
+    "required": "필수",
+    "notANumber": "숫자를 입력하세요",
+    "notAnInteger": "정수를 입력하세요",
+    "tooSmall": "{{value}} 이상",
+    "tooLarge": "{{value}} 이하",
+    "tooShort": "{{count}}자 이상",
+    "tooLong": "{{count}}자 이하",
+    "tooFew": "{{count}}개 이상 선택하세요",
+    "tooMany": "{{count}}개 이하로 선택하세요",
+    "notAnEmail": "이메일 주소를 입력하세요",
+    "notAUri": "https://example.com 같은 전체 주소를 입력하세요",
+    "notADate": "날짜를 입력하세요",
+    "notADateTime": "날짜와 시간을 입력하세요",
+    "notTheFormat": "{{format}} 형식이 아닙니다",
+    "allowTool": "{{server}}이(가) 도구 \"{{tool}}\"을(를) 실행하도록 허용할까요?",
+    "allowToolUnnamed": "{{server}}이(가) 이 도구를 실행하도록 허용할까요?",
+    "allow": "허용"
   }
 }

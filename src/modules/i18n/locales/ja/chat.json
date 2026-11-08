@@ -270,5 +270,31 @@
     "customModelsOnlyHint": "{{provider}} の組み込みモデルをすべてのモデル選択から非表示にし、最初の自分のモデルをデフォルトにします。モデルを追加するまでは組み込みモデルが表示されます。",
     "builtInModelsHidden": "「自分のモデルのみを使用」がオンの間、モデル選択には表示されません。",
     "customModelsOnlyFailed": "この設定を変更できませんでした。"
+  },
+  "mcpElicitation": {
+    "asks": "{{server}} が入力を求めています",
+    "submit": "送信",
+    "decline": "拒否",
+    "openLink": "リンクを開く",
+    "unsafeUrl": "ここから開けるのは http と https のリンクだけです。",
+    "optional": "任意",
+    "choose": "選択してください…",
+    "required": "必須",
+    "notANumber": "数値を入力してください",
+    "notAnInteger": "整数を入力してください",
+    "tooSmall": "{{value}} 以上",
+    "tooLarge": "{{value}} 以下",
+    "tooShort": "{{count}} 文字以上",
+    "tooLong": "{{count}} 文字以内",
+    "tooFew": "{{count}} 個以上選択してください",
+    "tooMany": "{{count}} 個以内で選択してください",
+    "notAnEmail": "メールアドレスを入力してください",
+    "notAUri": "https://example.com のような完全なアドレスを入力してください",
+    "notADate": "日付を入力してください",
+    "notADateTime": "日時を入力してください",
+    "notTheFormat": "{{format}} の形式ではありません",
+    "allowTool": "{{server}} にツール「{{tool}}」の実行を許可しますか？",
+    "allowToolUnnamed": "{{server}} にこのツールの実行を許可しますか？",
+    "allow": "許可"
   }
 }

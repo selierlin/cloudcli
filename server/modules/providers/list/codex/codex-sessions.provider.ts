@@ -1541,6 +1541,8 @@ async function getCodexSessionMessages(sessionId: string): Promise<CodexHistoryR
   const subagentsByPath = new Map<string, CodexSubagentRecord>();
   const pendingUserImagesByTurnId = new Map<string, Array<{ data: string }>>();
   const turns = createCodexTurnTracker();
+  /** Which model each turn ran on, keyed by turn id. */
+  const turnModelsByTurnId = new Map<string, string>();
   /** Turns whose prompt already carries the anchor, so only the first does. */
   const anchoredTurnIds = new Set<string>();
 
@@ -1563,6 +1565,18 @@ async function getCodexSessionMessages(sessionId: string): Promise<CodexHistoryR
     // that produce no transcript entry of their own, and each of those
     // branches ends in a `continue`.
     turns.observe(entry.type, payload);
+
+    // `turn_context` is where the rollout names the model a turn ran on; the
+    // assistant rows themselves carry no model, so it is recorded here and
+    // attached to each reply below. The tracker above already read the turn id.
+    if (entry.type === 'turn_context') {
+      const turnId = readNonEmptyString(payload.turn_id);
+      const turnModel = readNonEmptyString(payload.model);
+      if (turnId && turnModel) {
+        turnModelsByTurnId.set(turnId, turnModel);
+      }
+      continue;
+    }
 
     // ── event_msg ──────────────────────────────────────────────────────────
     if (entry.type === 'event_msg') {
@@ -1737,11 +1751,14 @@ async function getCodexSessionMessages(sessionId: string): Promise<CodexHistoryR
         continue;
       }
 
+      const currentTurnId = turns.getCurrentTurnId();
+      const answeredByModel = currentTurnId ? turnModelsByTurnId.get(currentTurnId) : undefined;
       messages.push({
         type: 'assistant',
         timestamp,
         message: { role: 'assistant', content: textContent },
-        ...(turns.getCurrentTurnId() ? { turnId: turns.getCurrentTurnId() } : {}),
+        ...(currentTurnId ? { turnId: currentTurnId } : {}),
+        ...(answeredByModel ? { model: answeredByModel } : {}),
         memoryCitations: cited.memoryCitations,
       });
       continue;
@@ -2334,6 +2351,8 @@ export class CodexSessionsProvider implements IProviderSessions {
       if (!content.trim()) {
         return [];
       }
+      // Which model answered, as the rollout's `turn_context` recorded it.
+      const answeredByModel = readNonEmptyString(raw.model);
       return [createNormalizedMessage({
         id: baseId,
         sessionId,
@@ -2342,6 +2361,7 @@ export class CodexSessionsProvider implements IProviderSessions {
         kind: 'text',
         role: 'assistant',
         content,
+        ...(answeredByModel ? { model: answeredByModel } : {}),
         forkAnchorId: readNonEmptyString(raw.turnId),
         memoryCitations: raw.memoryCitations,
       })];

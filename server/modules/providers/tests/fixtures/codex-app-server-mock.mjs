@@ -19,6 +19,9 @@
 //                  assistant message (two prose segments either side of the tool)
 //   reasoning      the echoed user turn, a two-block reasoning trace, then a reply
 //   plan           a plan update, then completion
+//   elicit         an MCP elicitation request, then completion once it is answered
+//   approval       a command-approval request, then completion once it is answered
+//   elicit-approval Codex's own MCP tool approval, then the server's form
 //   fail           an error notification and a failed turn
 //   retry          a retryable error, then a normal completion
 //   exit           answer turn/start, then die without completing the turn
@@ -40,6 +43,9 @@ const hangMethod = process.env.CODEX_MOCK_HANG_METHOD || '';
 // wire format (the runtime consumes the `mock/request` notification itself).
 const logPath = process.env.CODEX_MOCK_LOG || '';
 const REVERSE_REQUEST_ID = 900;
+const ELICITATION_REQUEST_ID = 901;
+const APPROVAL_REQUEST_ID = 902;
+const TOOL_APPROVAL_REQUEST_ID = 903;
 const TURN_ID = 'mock-turn-1';
 // Notifications must name the thread the client is driving, which for a resume
 // is the id the client asked for.
@@ -82,6 +88,10 @@ const answerMethod = (method, params) => {
       return { turn: { id: TURN_ID, status: 'inProgress' } };
     case 'turn/interrupt':
       return {};
+    case 'mock/argv':
+      // Lets a test assert what the client put on the command line, which is
+      // where the process-level config overrides have to end up.
+      return { argv: process.argv.slice(2) };
     default:
       return {};
   }
@@ -177,6 +187,67 @@ const playRuntimeScript = () => {
       notify('item/agentMessage/delta', { threadId: activeThreadId, turnId: TURN_ID, itemId: 'item-1', delta: 'ok' });
       notify('item/completed', item({ id: 'item-1', type: 'agentMessage', text: 'ok' }));
       completeTurn();
+      return;
+
+    case 'elicit':
+      // An MCP server asking for input: the app-server forwards it as a reverse
+      // request and blocks the tool call until this client answers.
+      notify('thread/started', { threadId: activeThreadId });
+      write({
+        jsonrpc: '2.0',
+        id: ELICITATION_REQUEST_ID,
+        method: 'mcpServer/elicitation/request',
+        params: {
+          serverName: 'vault',
+          threadId: activeThreadId,
+          turnId: TURN_ID,
+          message: 'Which target should this write to?',
+          mode: 'form',
+          requestedSchema: {
+            type: 'object',
+            properties: { target: { type: 'string', enum: ['prod', 'dev'] }, count: { type: 'integer' } },
+            required: ['target'],
+          },
+        },
+      });
+      return;
+
+    case 'elicit-approval':
+      // Codex asks whether its MCP tool may run before calling it. Same method
+      // as a server form, but no fields: only the message and yes/no.
+      notify('thread/started', { threadId: activeThreadId });
+      write({
+        jsonrpc: '2.0',
+        id: TOOL_APPROVAL_REQUEST_ID,
+        method: 'mcpServer/elicitation/request',
+        params: {
+          serverName: 'elicit-demo',
+          threadId: activeThreadId,
+          turnId: TURN_ID,
+          message: 'Allow the elicit-demo MCP server to run tool "ask_me"?',
+          mode: 'form',
+          _meta: { codex_approval_kind: 'mcp_tool_call' },
+          requestedSchema: { type: 'object', properties: {} },
+        },
+      });
+      return;
+
+    case 'approval':
+      // Codex asking whether a command may run: with `on-request` this reaches
+      // the client as a reverse request, and the turn waits for the answer.
+      notify('thread/started', { threadId: activeThreadId });
+      write({
+        jsonrpc: '2.0',
+        id: APPROVAL_REQUEST_ID,
+        method: 'item/commandExecution/requestApproval',
+        params: {
+          threadId: activeThreadId,
+          turnId: TURN_ID,
+          itemId: 'mock-command-1',
+          command: 'ls',
+          cwd: '/tmp',
+        },
+      });
       return;
 
     case 'plan':
@@ -276,6 +347,33 @@ const onFrame = (frame) => {
   // No method: an answer to a reverse request (or something unexpected). Echo it.
   notify('mock/observed', { frame });
   if (frame.id === REVERSE_REQUEST_ID) {
+    completeTurn();
+  }
+  if (frame.id === ELICITATION_REQUEST_ID) {
+    // Logged so a test can assert the answer the MCP server would have received.
+    logRequest('mcpServer/elicitation/answer', { result: frame.result, error: frame.error });
+    completeTurn();
+  }
+  if (frame.id === TOOL_APPROVAL_REQUEST_ID) {
+    logRequest('mcpServer/tool-approval/answer', { result: frame.result, error: frame.error });
+    // Only once the tool is allowed does the MCP server get to ask its question.
+    write({
+      jsonrpc: '2.0',
+      id: ELICITATION_REQUEST_ID,
+      method: 'mcpServer/elicitation/request',
+      params: {
+        serverName: 'elicit-demo',
+        threadId: activeThreadId,
+        turnId: TURN_ID,
+        message: 'This is the form the server itself asked for.',
+        mode: 'form',
+        requestedSchema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
+      },
+    });
+  }
+  if (frame.id === APPROVAL_REQUEST_ID) {
+    // Logged so a test can assert the decision the client returned.
+    logRequest('item/commandExecution/answer', { result: frame.result, error: frame.error });
     completeTurn();
   }
 };

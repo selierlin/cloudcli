@@ -288,5 +288,31 @@
     "customModelsOnlyHint": "Blendet die integrierten {{provider}}-Modelle in allen Modellauswahlen aus und macht dein erstes Modell zum Standard. Die integrierten Modelle bleiben sichtbar, bis du ein Modell hinzufügst.",
     "builtInModelsHidden": "In den Modellauswahlen ausgeblendet, solange „Nur meine Modelle verwenden“ aktiv ist.",
     "customModelsOnlyFailed": "Diese Einstellung konnte nicht geändert werden."
+  },
+  "mcpElicitation": {
+    "asks": "{{server}} fragt nach deiner Eingabe",
+    "submit": "Absenden",
+    "decline": "Ablehnen",
+    "openLink": "Link öffnen",
+    "unsafeUrl": "Hier lassen sich nur http- und https-Links öffnen.",
+    "optional": "optional",
+    "choose": "Auswählen…",
+    "required": "Erforderlich",
+    "notANumber": "Gib eine Zahl ein",
+    "notANInteger": "Gib eine ganze Zahl ein",
+    "tooSmall": "Mindestens {{value}}",
+    "tooLarge": "Höchstens {{value}}",
+    "tooShort": "Mindestens {{count}} Zeichen",
+    "tooLong": "Höchstens {{count}} Zeichen",
+    "tooFew": "Mindestens {{count}} auswählen",
+    "tooMany": "Höchstens {{count}} auswählen",
+    "notAnEmail": "Gib eine E-Mail-Adresse ein",
+    "notAUri": "Gib eine vollständige Adresse ein, z. B. https://example.com",
+    "notADate": "Gib ein Datum ein",
+    "notADateTime": "Gib Datum und Uhrzeit ein",
+    "notTheFormat": "Kein gültiges {{format}}",
+    "allowTool": "{{server}} erlauben, das Tool „{{tool}}“ auszuführen?",
+    "allowToolUnnamed": "{{server}} erlauben, dieses Tool auszuführen?",
+    "allow": "Erlauben"
   }
 }

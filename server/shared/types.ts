@@ -1975,3 +1975,43 @@ export type CliApplication = {
 export type SandboxCommandService = {
   execute(argumentsList: string[]): Promise<number>;
 };
+
+// ---------------------------
+//----------------- TOOL APPROVAL TYPES ------------
+/**
+ * A person's answer to a pending tool-approval prompt, as the chat transport
+ * delivers it.
+ *
+ * `null` means no answer arrived at all (an abort, a closed run). It is
+ * deliberately distinct from `{ allow: false }`: a refusal is a decision a
+ * person made, while a missing answer must never be reported to a provider as
+ * consent or as a refusal.
+ */
+export type ToolApprovalDecision = AnyRecord | null;
+
+/**
+ * A pending approval as the chat transport lists it after a page reload.
+ *
+ * The transport replays unanswered prompts so a reconnecting tab sees the same
+ * form; `sessionId` is the app session id the prompt belongs to.
+ */
+export type PendingToolApproval = {
+  requestId: string;
+  toolName: string;
+  input: unknown;
+  context?: unknown;
+  sessionId: string;
+  receivedAt: Date;
+};
+
+/**
+ * One answer to an MCP elicitation, in the shape both provider protocols accept.
+ *
+ * `accept` carries the submitted form values and nothing else: every MCP
+ * elicitation field is a flat primitive or a string list, so an object value
+ * would be dropped rather than forwarded.
+ */
+export type ElicitationAnswer = {
+  action: 'accept' | 'decline' | 'cancel';
+  content?: Record<string, string | number | boolean | string[]>;
+};

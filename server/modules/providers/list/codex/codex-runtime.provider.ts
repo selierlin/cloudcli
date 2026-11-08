@@ -14,6 +14,8 @@
  * - codexRuntime.abort(sessionId) - Cancel an active session
  */
 
+import { randomUUID } from 'node:crypto';
+
 import {
   appendFilesInputTag,
   buildCodexInputItems,
@@ -22,7 +24,13 @@ import {
   createNormalizedMessage,
 } from '@/shared/index.js';
 import { resolveCodexConfigOverrides } from '@/shared/codex-config.js';
-import { notifyRunFailed, notifyRunStopped } from '@/modules/notifications/index.js';
+import { createToolApprovalRegistry, MCP_ELICITATION_TOOL_NAME, toElicitationAnswer } from '@/shared/tool-approval.js';
+import {
+  createNotificationEvent,
+  notifyRunFailed,
+  notifyRunStopped,
+  notifyUserIfEnabled,
+} from '@/modules/notifications/index.js';
 import type { AnyRecord, NormalizedMessage, ProviderRuntimeContext, ProviderRuntimeWriter } from '@/shared/types.js';
 import { createDeltaBatcher, readObjectRecord, readOptionalString } from '@/shared/utils.js';
 import {
@@ -44,6 +52,26 @@ type ActiveCodexSession = {
 };
 
 const activeCodexSessions = new Map<string, ActiveCodexSession>();
+
+/**
+ * The app-server's reverse request for an MCP server's form.
+ *
+ * Codex keeps the MCP request id on its side and forwards the form as a
+ * JSON-RPC request to this client; answering it is what lets the MCP server's
+ * tool call continue instead of failing.
+ */
+const CODEX_MCP_ELICITATION_METHOD = 'mcpServer/elicitation/request';
+
+/**
+ * Outstanding permission questions for Codex runs, answered by the chat
+ * transport. A Codex form waits indefinitely (MCP keeps its own timeout), so
+ * the default only covers a future caller that forgets to pass one.
+ */
+const codexApprovals = createToolApprovalRegistry(55_000);
+
+// The notifications module still infers its defaults too narrowly for a loosely
+// typed event; this states the shape callers really pass.
+const notificationEvent = createNotificationEvent as (event: AnyRecord) => unknown;
 
 // Codex CLI requires non-whitespace stdin even when --image arguments are
 // present, so attachment-only turns need a small text instruction.
@@ -443,7 +471,13 @@ function mapPermissionModeToCodexOptions(permissionMode: string): {
     case 'bypassPermissions':
       return {
         sandboxMode: 'danger-full-access',
-        approvalPolicy: 'never'
+        // `never` would be the literal translation, but Codex treats it as
+        // "do not disturb the client": it answers every MCP elicitation with
+        // `decline` itself, so an MCP server's form never reaches this
+        // process. `on-request` puts those questions back on the wire, and
+        // BYPASS_APPROVAL_ANSWERS accepts the ones a fully-trusted session
+        // would have carried out silently anyway.
+        approvalPolicy: 'on-request'
       };
     case 'default':
     default:
@@ -457,11 +491,73 @@ function mapPermissionModeToCodexOptions(permissionMode: string): {
 }
 
 /**
+ * Answers to the approval questions a full-access thread still gets asked.
+ *
+ * Under `on-request` Codex stops answering for the client: every command, file
+ * change, patch and MCP tool call becomes a reverse request. A full-access
+ * session has already said yes to all of them — `never` used to run them with
+ * no prompt at all — so accepting here reproduces that behaviour while leaving
+ * the questions that genuinely need a person (an MCP elicitation) to the panel.
+ *
+ * `item/permissions/requestApproval` is deliberately absent. It asks to widen
+ * the permission profile; under `danger-full-access` there is nothing left to
+ * widen, and inventing a grant is not this layer's call, so it falls through
+ * to the explicit refusal below.
+ */
+const BYPASS_APPROVAL_ANSWERS: Record<string, AnyRecord> = {
+  'item/commandExecution/requestApproval': { decision: 'accept' },
+  'item/fileChange/requestApproval': { decision: 'accept' },
+  applyPatchApproval: { decision: 'approved' },
+  execCommandApproval: { decision: 'approved' },
+};
+
+/**
+ * Reads the tool name out of Codex's MCP approval message.
+ *
+ * The reverse request carries the name nowhere else — `_meta` has the tool's
+ * description and arguments but not the name — so the message is the only
+ * source. It is also the one part whose wording may change, hence the null
+ * fallback: the panel then asks about "this tool" instead of inventing a name.
+ */
+function readToolNameFromApproval(message: string): string | null {
+  return /tool "([^"]+)"/.exec(message)?.[1] ?? null;
+}
+
+/**
+ * Tells Codex's two uses of the elicitation channel apart.
+ *
+ * Codex sends an MCP server's form there — a schema with fields — and it also
+ * sends its own "may I run this tool?" confirmation, which is the same method
+ * with an empty schema and `_meta.codex_approval_kind = 'mcp_tool_call'`. A
+ * full-access session has already consented to its MCP tools, so only the bare
+ * confirmation is answered here; a form with fields is always a question for a
+ * person. `mode: 'url'` is excluded because that is a one-click consent for an
+ * external link, not a tool approval.
+ */
+function isBareToolApproval(params: unknown): boolean {
+  const request = readObjectRecord(params);
+  if (!request || request['mode'] === 'url') {
+    return false;
+  }
+  if (readObjectRecord(request['_meta'])?.['codex_approval_kind'] === 'mcp_tool_call') {
+    return true;
+  }
+  const schema = readObjectRecord(request['requestedSchema']);
+  const properties = readObjectRecord(schema?.['properties']);
+  return !properties || Object.keys(properties).length === 0;
+}
+
+/**
  * Reads `<key>.id` out of a response body, where the body is one of the
  * protocol's envelopes (`{ thread: {...} }`, `{ turn: {...} }`).
  */
 function readNestedId(value: unknown, key: string): string | null {
   return readOptionalString(readObjectRecord(readObjectRecord(value)?.[key])?.id) ?? null;
+}
+
+/** The `model` a `thread/start`/`thread/resume` response reports on its thread. */
+function readNestedThreadModel(value: unknown): string | null {
+  return readOptionalString(readObjectRecord(readObjectRecord(value)?.['thread'])?.model) ?? null;
 }
 
 /**
@@ -569,6 +665,10 @@ async function queryCodex(
   // `thread/start` response for a brand-new session.
   let threadId: string | null = providerSessionId;
   let turnId: string | null = null;
+  // The model the thread reports for this run. Assistant items carry no model
+  // of their own, so every reply is stamped with this value instead — the same
+  // thing the rollout's `turn_context` records for the history reader.
+  let runModel: string | null = null;
   let sessionCreatedSent = false;
   // Message of the error that failed the turn, reported once the run settles.
   let terminalMessage: string | null = null;
@@ -617,6 +717,95 @@ async function queryCodex(
   const currentSession = () => {
     const key = sessionKey();
     return key ? activeCodexSessions.get(key) : undefined;
+  };
+
+  /**
+   * Answers the MCP elicitation the app-server forwards mid-turn.
+   *
+   * The form takes the permission round trip, exactly like Claude's: every
+   * attached tab sees it, a refresh replays it, and the person's answer is what
+   * the MCP server receives. An unattended run has nobody to show it to, so it
+   * declines at once instead of holding the turn open.
+   */
+  const answerElicitation = async (requestId: number, rawParams: unknown): Promise<void> => {
+    const params = readObjectRecord(rawParams) ?? {};
+    const mode = readOptionalString(params.mode) ?? 'form';
+    const serverName = readOptionalString(params.serverName) ?? 'MCP';
+    const message = readOptionalString(params.message) ?? '';
+    const messageSessionId = threadId || sessionId || null;
+
+    if (options.unattended) {
+      connection?.respond(requestId, { action: 'decline' });
+      return;
+    }
+
+    const panelRequestId = randomUUID();
+    // Codex sends its own tool approval through this channel. Its message is
+    // English prose generated inside the Codex binary, so the kind and the tool
+    // name travel separately and the panel writes the sentence in the reader's
+    // language; the raw message stays as the fallback for a plain server form.
+    const approvalKind = readOptionalString(readObjectRecord(params._meta)?.['codex_approval_kind']);
+    const input = {
+      serverName,
+      message,
+      mode,
+      requestedSchema: params.requestedSchema,
+      url: readOptionalString(params.url),
+      elicitationId: readOptionalString(params.elicitationId),
+      approvalKind,
+      toolName: approvalKind === 'mcp_tool_call' ? readToolNameFromApproval(message) : null,
+    };
+    send(createNormalizedMessage({
+      kind: 'permission_request',
+      requestId: panelRequestId,
+      toolName: MCP_ELICITATION_TOOL_NAME,
+      input,
+      sessionId: messageSessionId,
+      provider: 'codex',
+    }));
+    notifyUserIfEnabled({
+      userId: ws?.userId || null,
+      event: notificationEvent({
+        provider: 'codex',
+        sessionId: messageSessionId,
+        kind: 'action_required',
+        code: 'agent.notification',
+        meta: { message: `${serverName} asks: ${message}`, sessionName: sessionSummary },
+        severity: 'warning',
+        requiresUserAction: true,
+        dedupeKey: `codex:elicitation:${messageSessionId ?? 'none'}:${panelRequestId}`,
+      }),
+    });
+
+    // The pending entry is keyed by the app session id: that is what the chat
+    // transport asks about when a tab reconnects and replays open prompts.
+    const decision = await codexApprovals.wait(panelRequestId, {
+      timeoutMs: 0,
+      metadata: {
+        _sessionId: sessionId || threadId || null,
+        _toolName: MCP_ELICITATION_TOOL_NAME,
+        _input: input,
+        _receivedAt: new Date(),
+      },
+      onCancel: (reason) => {
+        send(createNormalizedMessage({
+          kind: 'permission_cancelled',
+          requestId: panelRequestId,
+          reason,
+          sessionId: messageSessionId,
+          provider: 'codex',
+        }));
+      },
+    });
+    if (decision && !decision.cancelled) {
+      send(createNormalizedMessage({
+        kind: 'permission_resolved',
+        requestId: panelRequestId,
+        sessionId: messageSessionId,
+        provider: 'codex',
+      }));
+    }
+    connection?.respond(requestId, toElicitationAnswer(decision, mode));
   };
 
   /**
@@ -675,13 +864,23 @@ async function queryCodex(
         if (message.kind === 'error') {
           errorSurfaced = true;
         }
+        // Assistant items name no model; the thread does. Stamping it here is
+        // what puts the label in the footer of a reply that arrived whole.
+        if (
+          runModel
+          && !message.model
+          && message.kind === 'text'
+          && message.role === 'assistant'
+        ) {
+          message.model = runModel;
+        }
         send(message);
       }
     }
   };
 
   try {
-    connection = await startCodexAppServerConnection();
+    connection = await startCodexAppServerConnection(configOverrides);
 
     const threadParams: AnyRecord = {
       cwd: workingDirectory,
@@ -702,9 +901,11 @@ async function queryCodex(
         ...threadParams,
       });
       threadId = readNestedId(resumed, 'thread') ?? providerSessionId;
+      runModel = readNestedThreadModel(resumed);
     } else {
       const started = await connection.request('thread/start', threadParams);
       threadId = readNestedId(started, 'thread');
+      runModel = readNestedThreadModel(started);
     }
 
     if (threadId && typeof ws.setSessionId === 'function') {
@@ -728,12 +929,45 @@ async function queryCodex(
       send(createNormalizedMessage({ kind: 'session_created', newSessionId: threadId, sessionId: threadId, provider: 'codex' }));
     }
 
-    // No reverse-request handler is registered: the connection refuses one
-    // explicitly (`-32601`). Nothing here implements approval or attestation,
-    // and leaving a request unanswered would hang the turn rather than degrade.
-    connection.onNotification(handleNotification);
-    connection.onExit((reason) => {
+    // Reverse requests are answered here. A full-access thread answers its own
+    // approval questions (see BYPASS_APPROVAL_ANSWERS); an MCP server's form is
+    // the one request that must reach a person. Everything else is refused
+    // explicitly — leaving a request unanswered would hang the turn rather than
+    // degrade.
+    const activeConnection = connection;
+    activeConnection.onServerRequest((requestId, method, params) => {
+      if (method === CODEX_MCP_ELICITATION_METHOD) {
+        // Codex puts its own MCP tool approval on this channel too, with no
+        // form fields. A full-access session already trusts its MCP servers, so
+        // it answers that one itself and leaves real forms to the panel.
+        if (permissionMode === 'bypassPermissions' && isBareToolApproval(params)) {
+          activeConnection.respond(requestId, { action: 'accept' });
+          return;
+        }
+        // A request left unanswered blocks the MCP tool call forever, so a
+        // failure here still has to produce an answer.
+        void answerElicitation(requestId, params).catch((error) => {
+          console.error('[Codex] Failed to handle an MCP elicitation:', error);
+          activeConnection.respondError(requestId, -32603, 'CloudCLI failed to handle the elicitation request.');
+        });
+        return;
+      }
+      const bypassAnswer = permissionMode === 'bypassPermissions' ? BYPASS_APPROVAL_ANSWERS[method] : undefined;
+      if (bypassAnswer) {
+        activeConnection.respond(requestId, bypassAnswer);
+        return;
+      }
+      activeConnection.respondError(requestId, -32601, `CloudCLI does not implement ${method}.`);
+    });
+    activeConnection.onNotification(handleNotification);
+    activeConnection.onExit((reason) => {
       exitReason = reason;
+      // The child that held the MCP request is gone; a form still on screen can
+      // never be answered now.
+      const key = sessionKey();
+      if (key) {
+        codexApprovals.cancelSession(key, 'run-ended');
+      }
       releaseRun();
     });
 
@@ -760,6 +994,17 @@ async function queryCodex(
     await runSettled;
 
     const aborted = currentSession()?.status === 'aborted';
+    if (aborted && !terminalMessage) {
+      // A user abort is a cancellation, reported the way Claude reports one,
+      // not a failure and not silence.
+      notifyRunStopped({
+        userId: ws?.userId || null,
+        provider: 'codex',
+        sessionId: threadId || sessionId || null,
+        sessionName: sessionSummary,
+        stopReason: 'aborted'
+      });
+    }
     if (!aborted) {
       const outcomeSessionId = threadId || sessionId || null;
       const userId = ws?.userId || null;
@@ -856,6 +1101,15 @@ async function queryCodex(
           error
         });
       }
+    } else if (!terminalMessage) {
+      // The SDK rethrows an abort as an error; only a real user abort counts.
+      notifyRunStopped({
+        userId: ws?.userId || null,
+        provider: 'codex',
+        sessionId: threadId || sessionId || null,
+        sessionName: sessionSummary,
+        stopReason: 'aborted'
+      });
     }
 
   } finally {
@@ -890,6 +1144,9 @@ async function abortCodexSession(sessionId: string): Promise<boolean> {
   }
 
   session.status = 'aborted';
+  // Answer any form this run left open as cancelled before the process that
+  // holds the MCP request is killed, so the prompt is retracted from the UI.
+  codexApprovals.cancelSession(sessionId, 'aborted');
   try {
     if (session.threadId && session.turnId) {
       await session.connection
@@ -916,6 +1173,10 @@ async function abortCodexSession(sessionId: string): Promise<boolean> {
 export const codexRuntime = {
   run: queryCodex,
   abort: abortCodexSession,
+  permissions: {
+    resolve: codexApprovals.resolve,
+    listPending: codexApprovals.listPending,
+  },
 };
 
 /**

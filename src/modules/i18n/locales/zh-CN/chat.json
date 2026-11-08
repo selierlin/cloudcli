@@ -664,5 +664,31 @@
     },
     "restoredPartial": "仅恢复了最近几轮",
     "restoredPartialHint": "更早的消息没有随刷新保留，可以从这里继续提问。"
+  },
+  "mcpElicitation": {
+    "asks": "{{server}} 请求你提供输入",
+    "submit": "提交",
+    "decline": "拒绝",
+    "openLink": "打开链接",
+    "unsafeUrl": "此处只能打开 http 和 https 链接。",
+    "optional": "可选",
+    "choose": "请选择…",
+    "required": "必填",
+    "notANumber": "请输入数字",
+    "notAnInteger": "请输入整数",
+    "tooSmall": "至少 {{value}}",
+    "tooLarge": "最多 {{value}}",
+    "tooShort": "至少 {{count}} 个字符",
+    "tooLong": "最多 {{count}} 个字符",
+    "tooFew": "至少选择 {{count}} 项",
+    "tooMany": "最多选择 {{count}} 项",
+    "notAnEmail": "请输入邮箱地址",
+    "notAUri": "请输入完整地址，例如 https://example.com",
+    "notADate": "请输入日期",
+    "notADateTime": "请输入日期和时间",
+    "notTheFormat": "格式不符合 {{format}}",
+    "allowTool": "允许 {{server}} 运行工具“{{tool}}”？",
+    "allowToolUnnamed": "允许 {{server}} 运行此工具？",
+    "allow": "允许"
   }
 }

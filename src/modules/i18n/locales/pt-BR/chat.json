@@ -394,5 +394,31 @@
     "customModelsOnlyHint": "Oculta os modelos integrados do {{provider}} em todos os seletores de modelo e torna o seu primeiro modelo o padrão. Os integrados continuam visíveis até você adicionar um modelo.",
     "builtInModelsHidden": "Ocultos nos seletores de modelo enquanto “Usar apenas meus modelos” estiver ativado.",
     "customModelsOnlyFailed": "Não foi possível alterar esta configuração."
+  },
+  "mcpElicitation": {
+    "asks": "{{server}} pede sua resposta",
+    "submit": "Enviar",
+    "decline": "Recusar",
+    "openLink": "Abrir link",
+    "unsafeUrl": "Aqui só é possível abrir links http e https.",
+    "optional": "opcional",
+    "choose": "Escolher…",
+    "required": "Obrigatório",
+    "notANumber": "Digite um número",
+    "notAnInteger": "Digite um número inteiro",
+    "tooSmall": "No mínimo {{value}}",
+    "tooLarge": "No máximo {{value}}",
+    "tooShort": "Pelo menos {{count}} caracteres",
+    "tooLong": "No máximo {{count}} caracteres",
+    "tooFew": "Escolha pelo menos {{count}}",
+    "tooMany": "Escolha no máximo {{count}}",
+    "notAnEmail": "Digite um endereço de e-mail",
+    "notAUri": "Digite um endereço completo, como https://example.com",
+    "notADate": "Digite uma data",
+    "notADateTime": "Digite uma data e hora",
+    "notTheFormat": "Não é um {{format}} válido",
+    "allowTool": "Permitir que {{server}} execute a ferramenta \"{{tool}}\"?",
+    "allowToolUnnamed": "Permitir que {{server}} execute esta ferramenta?",
+    "allow": "Permitir"
   }
 }

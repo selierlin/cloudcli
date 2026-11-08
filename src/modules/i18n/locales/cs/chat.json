@@ -412,5 +412,31 @@
     "customModelsOnlyHint": "Skryje vestavěné modely {{provider}} ve všech výběrech modelu a nastaví váš první model jako výchozí. Vestavěné modely zůstanou v seznamu, dokud nepřidáte model.",
     "builtInModelsHidden": "Skryto ve výběrech modelu, dokud je zapnuto „Používat jen mé modely“.",
     "customModelsOnlyFailed": "Toto nastavení se nepodařilo změnit."
+  },
+  "mcpElicitation": {
+    "asks": "{{server}} žádá o vstup",
+    "submit": "Odeslat",
+    "decline": "Odmítnout",
+    "openLink": "Otevřít odkaz",
+    "unsafeUrl": "Zde lze otevřít pouze odkazy http a https.",
+    "optional": "volitelné",
+    "choose": "Vybrat…",
+    "required": "Povinné",
+    "notANumber": "Zadejte číslo",
+    "notAnInteger": "Zadejte celé číslo",
+    "tooSmall": "Alespoň {{value}}",
+    "tooLarge": "Nejvýše {{value}}",
+    "tooShort": "Alespoň {{count}} znaků",
+    "tooLong": "Nejvýše {{count}} znaků",
+    "tooFew": "Vyberte alespoň {{count}}",
+    "tooMany": "Vyberte nejvýše {{count}}",
+    "notAnEmail": "Zadejte e-mailovou adresu",
+    "notAUri": "Zadejte úplnou adresu, např. https://example.com",
+    "notADate": "Zadejte datum",
+    "notADateTime": "Zadejte datum a čas",
+    "notTheFormat": "Není platný formát {{format}}",
+    "allowTool": "Povolit {{server}} spustit nástroj „{{tool}}“?",
+    "allowToolUnnamed": "Povolit {{server}} spustit tento nástroj?",
+    "allow": "Povolit"
   }
 }

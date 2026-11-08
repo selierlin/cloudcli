@@ -326,5 +326,31 @@
     "customModelsOnlyHint": "在所有模型選擇器中隱藏 {{provider}} 的內建模型，並將您的第一個模型設為預設模型。在您新增模型之前，內建模型仍會顯示。",
     "builtInModelsHidden": "開啟「僅使用我的模型」時，這些模型不會出現在模型選擇器中。",
     "customModelsOnlyFailed": "無法變更此設定。"
+  },
+  "mcpElicitation": {
+    "asks": "{{server}} 要求你提供輸入",
+    "submit": "送出",
+    "decline": "拒絕",
+    "openLink": "開啟連結",
+    "unsafeUrl": "這裡只能開啟 http 和 https 連結。",
+    "optional": "選填",
+    "choose": "請選擇…",
+    "required": "必填",
+    "notANumber": "請輸入數字",
+    "notAnInteger": "請輸入整數",
+    "tooSmall": "至少 {{value}}",
+    "tooLarge": "最多 {{value}}",
+    "tooShort": "至少 {{count}} 個字元",
+    "tooLong": "最多 {{count}} 個字元",
+    "tooFew": "至少選擇 {{count}} 項",
+    "tooMany": "最多選擇 {{count}} 項",
+    "notAnEmail": "請輸入電子郵件地址",
+    "notAUri": "請輸入完整地址，例如 https://example.com",
+    "notADate": "請輸入日期",
+    "notADateTime": "請輸入日期和時間",
+    "notTheFormat": "格式不符合 {{format}}",
+    "allowTool": "允許 {{server}} 執行工具「{{tool}}」？",
+    "allowToolUnnamed": "允許 {{server}} 執行此工具？",
+    "allow": "允許"
   }
 }

@@ -288,5 +288,31 @@
     "customModelsOnlyHint": "Yerleşik {{provider}} modellerini tüm model seçicilerde gizler ve ilk modelinizi varsayılan yapar. Bir model ekleyene kadar yerleşik modeller listede kalır.",
     "builtInModelsHidden": "“Yalnızca kendi modellerimi kullan” açıkken model seçicilerde gizlenir.",
     "customModelsOnlyFailed": "Bu ayar değiştirilemedi."
+  },
+  "mcpElicitation": {
+    "asks": "{{server}} girdinizi istiyor",
+    "submit": "Gönder",
+    "decline": "Reddet",
+    "openLink": "Bağlantıyı aç",
+    "unsafeUrl": "Burada yalnızca http ve https bağlantıları açılabilir.",
+    "optional": "isteğe bağlı",
+    "choose": "Seçin…",
+    "required": "Zorunlu",
+    "notANumber": "Bir sayı girin",
+    "notAnInteger": "Bir tam sayı girin",
+    "tooSmall": "En az {{value}}",
+    "tooLarge": "En fazla {{value}}",
+    "tooShort": "En az {{count}} karakter",
+    "tooLong": "En fazla {{count}} karakter",
+    "tooFew": "En az {{count}} seçin",
+    "tooMany": "En fazla {{count}} seçin",
+    "notAnEmail": "Bir e-posta adresi girin",
+    "notAUri": "https://example.com gibi tam bir adres girin",
+    "notADate": "Bir tarih girin",
+    "notADateTime": "Bir tarih ve saat girin",
+    "notTheFormat": "Geçerli bir {{format}} değil",
+    "allowTool": "{{server}} sunucusunun \"{{tool}}\" aracını çalıştırmasına izin verilsin mi?",
+    "allowToolUnnamed": "{{server}} sunucusunun bu aracı çalıştırmasına izin verilsin mi?",
+    "allow": "İzin ver"
   }
 }

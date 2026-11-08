@@ -852,3 +852,40 @@ test('Codex synchronizer stamps the content timestamp from the newest conversati
     await rm(tempRoot, { recursive: true, force: true });
   }
 });
+
+test('Codex history labels an answer with the model its turn ran on', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-model-history-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    const providerSessionId = 'codex-model-1';
+    const transcriptPath = await writeCodexTranscript(tempRoot, providerSessionId, workspacePath);
+    // An assistant row carries no model of its own; the turn's `turn_context`
+    // is the only place the rollout names it.
+    const lines = [
+      JSON.stringify({ type: 'session_meta', payload: { id: providerSessionId, cwd: workspacePath } }),
+      JSON.stringify({ type: 'turn_context', payload: { turn_id: 'turn-1', model: 'deepseek-v4.1-flash' } }),
+      JSON.stringify({
+        type: 'response_item',
+        payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'hi' }] },
+      }),
+    ];
+    await writeFile(transcriptPath, `${lines.join('\n')}\n`, 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createAppSession('app-model-1', 'codex', workspacePath);
+      sessionsDb.assignProviderSessionId('app-model-1', providerSessionId);
+      await new CodexSessionSynchronizer().synchronize();
+
+      const history = await new CodexSessionsProvider().fetchHistory('app-model-1');
+      const answer = history.messages.find((message) => message.kind === 'text' && message.role === 'assistant');
+      assert.ok(answer, 'missing the assistant answer');
+      assert.equal(answer.model, 'deepseek-v4.1-flash');
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});

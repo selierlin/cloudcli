@@ -75,6 +75,44 @@ afterEach(() => {
   delete process.env.CODEX_MOCK_HANG_METHOD;
 });
 
+test('passes profile config overrides on the command line, not only per request', async () => {
+  const connection = await startCodexAppServerConnection({
+    model_provider: 'volcano-ark',
+    model_providers: {
+      'volcano-ark': { base_url: 'https://ark.example.test/api/coding/v3', wire_api: 'responses' },
+    },
+  });
+
+  try {
+    const { argv } = await connection.request('mock/argv', {}) as { argv: string[] };
+    assert.deepEqual(argv, [
+      'app-server',
+      '--disable', 'apps',
+      '--disable', 'plugins',
+      '-c', 'model_provider="volcano-ark"',
+      '-c', 'model_providers.volcano-ark.base_url="https://ark.example.test/api/coding/v3"',
+      '-c', 'model_providers.volcano-ark.wire_api="responses"',
+    ]);
+  } finally {
+    await connection.stop();
+  }
+});
+
+test('starts without config flags when no profile is selected', async () => {
+  const connection = await startCodexAppServerConnection(null);
+
+  try {
+    const { argv } = await connection.request('mock/argv', {}) as { argv: string[] };
+    assert.deepEqual(argv, [
+      'app-server',
+      '--disable', 'apps',
+      '--disable', 'plugins',
+    ]);
+  } finally {
+    await connection.stop();
+  }
+});
+
 test('the handshake completes despite a non-JSON banner, and stop() ends the process', async () => {
   process.env.CODEX_MOCK_MODE = 'banner';
   const connection = await startCodexAppServerConnection();

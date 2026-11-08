@@ -175,3 +175,65 @@ export const resolveCodexConfigOverrides = async (
 
   return Object.keys(overrides).length > 0 ? overrides : null;
 };
+
+/** A TOML bare key, the only shape that can be written without quotes. */
+const TOML_BARE_KEY = /^[A-Za-z0-9_-]+$/;
+
+/** Quotes a key segment only when TOML would not accept it bare. */
+const toTomlKey = (key: string): string => (TOML_BARE_KEY.test(String(key)) ? key : JSON.stringify(key));
+
+/** Renders one value as the TOML literal the CLI's `-c` parser expects. */
+const toTomlValue = (value: CodexConfigValue): string => {
+  if (Array.isArray(value)) {
+    return `[${value.map(toTomlValue).join(', ')}]`;
+  }
+  if (typeof value === 'string') {
+    // JSON string escaping is a subset of TOML basic-string escaping, so the
+    // quoted form round-trips through the CLI's parser unchanged.
+    return JSON.stringify(value);
+  }
+  if (typeof value === 'object') {
+    // Only a table inside an array reaches here: every standalone table is
+    // flattened into dotted pairs before this runs.
+    const fields = Object.entries(value).map(([key, entry]) => `${toTomlKey(key)} = ${toTomlValue(entry)}`);
+    return `{ ${fields.join(', ')} }`;
+  }
+  return String(value);
+};
+
+/** Flattens nested override tables into dotted paths, the only form `-c` takes. */
+const flattenOverrides = (
+  overrides: CodexConfigOverrides,
+  prefix: string,
+  out: [string, CodexConfigValue][],
+): void => {
+  for (const [key, value] of Object.entries(overrides)) {
+    const path = prefix ? `${prefix}.${toTomlKey(key)}` : toTomlKey(key);
+    if (Array.isArray(value) || typeof value !== 'object') {
+      out.push([path, value]);
+      continue;
+    }
+    flattenOverrides(value, path, out);
+  }
+};
+
+/**
+ * Renders config overrides as the `-c key=value` pairs `codex app-server` accepts.
+ *
+ * Consumed by the Codex runtime, which starts one app-server per run. A profile
+ * has to be on the command line and not only in `thread/start`'s `config`:
+ * Codex 0.166 compares a thread's recorded `model_provider` against the provider
+ * resolved at process start and refuses the turn with `modelProviderMismatch`
+ * when they differ — an override handed over per request never reaches that
+ * process-level value. The bearer token in a provider table therefore ends up
+ * in this process's argv; it is already in the profile file the user maintains.
+ */
+export const toCodexConfigArgs = (overrides: CodexConfigOverrides): string[] => {
+  const pairs: [string, CodexConfigValue][] = [];
+  flattenOverrides(overrides, '', pairs);
+  const args: string[] = [];
+  for (const [path, value] of pairs) {
+    args.push('-c', `${path}=${toTomlValue(value)}`);
+  }
+  return args;
+};

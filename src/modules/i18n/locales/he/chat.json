@@ -374,5 +374,31 @@
     "customModelsOnlyHint": "מסתיר את המודלים המובנים של {{provider}} מכל בוחרי המודלים, והמודל הראשון שלך הופך לברירת המחדל. המודלים המובנים ממשיכים להופיע עד להוספת מודל.",
     "builtInModelsHidden": "מוסתרים מבוחרי המודלים כל עוד „שימוש רק במודלים שלי” פעיל.",
     "customModelsOnlyFailed": "לא ניתן לשנות את ההגדרה הזו."
+  },
+  "mcpElicitation": {
+    "asks": "{{server}} מבקש את הקלט שלך",
+    "submit": "שליחה",
+    "decline": "דחייה",
+    "openLink": "פתיחת קישור",
+    "unsafeUrl": "אפשר לפתוח כאן רק קישורי http ו-https.",
+    "optional": "אופציונלי",
+    "choose": "בחירה…",
+    "required": "חובה",
+    "notANumber": "יש להזין מספר",
+    "notAnInteger": "יש להזין מספר שלם",
+    "tooSmall": "לפחות {{value}}",
+    "tooLarge": "לכל היותר {{value}}",
+    "tooShort": "לפחות {{count}} תווים",
+    "tooLong": "לכל היותר {{count}} תווים",
+    "tooFew": "יש לבחור לפחות {{count}}",
+    "tooMany": "יש לבחור לכל היותר {{count}}",
+    "notAnEmail": "יש להזין כתובת דוא״ל",
+    "notAUri": "יש להזין כתובת מלאה, למשל https://example.com",
+    "notADate": "יש להזין תאריך",
+    "notADateTime": "יש להזין תאריך ושעה",
+    "notTheFormat": "לא בפורמט {{format}} תקין",
+    "allowTool": "לאפשר ל-{{server}} להריץ את הכלי \"{{tool}}\"?",
+    "allowToolUnnamed": "לאפשר ל-{{server}} להריץ את הכלי הזה?",
+    "allow": "אישור"
   }
 }

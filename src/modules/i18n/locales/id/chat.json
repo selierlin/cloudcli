@@ -371,5 +371,31 @@
     "customModelsOnlyHint": "Sembunyikan model bawaan {{provider}} dari semua pemilih model dan jadikan model pertama Anda sebagai default. Model bawaan tetap ditampilkan sampai Anda menambahkan model.",
     "builtInModelsHidden": "Disembunyikan dari pemilih model selama “Gunakan hanya model saya” aktif.",
     "customModelsOnlyFailed": "Pengaturan ini tidak dapat diubah."
+  },
+  "mcpElicitation": {
+    "asks": "{{server}} meminta input Anda",
+    "submit": "Kirim",
+    "decline": "Tolak",
+    "openLink": "Buka tautan",
+    "unsafeUrl": "Hanya tautan http dan https yang dapat dibuka di sini.",
+    "optional": "opsional",
+    "choose": "Pilih…",
+    "required": "Wajib",
+    "notANumber": "Masukkan angka",
+    "notAnInteger": "Masukkan bilangan bulat",
+    "tooSmall": "Minimal {{value}}",
+    "tooLarge": "Maksimal {{value}}",
+    "tooShort": "Minimal {{count}} karakter",
+    "tooLong": "Maksimal {{count}} karakter",
+    "tooFew": "Pilih minimal {{count}}",
+    "tooMany": "Pilih maksimal {{count}}",
+    "notAnEmail": "Masukkan alamat email",
+    "notAUri": "Masukkan alamat lengkap, mis. https://example.com",
+    "notADate": "Masukkan tanggal",
+    "notADateTime": "Masukkan tanggal dan waktu",
+    "notTheFormat": "Bukan {{format}} yang valid",
+    "allowTool": "Izinkan {{server}} menjalankan alat \"{{tool}}\"?",
+    "allowToolUnnamed": "Izinkan {{server}} menjalankan alat ini?",
+    "allow": "Izinkan"
   }
 }
