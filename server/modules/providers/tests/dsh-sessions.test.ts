@@ -182,6 +182,108 @@ test('fetchHistory surfaces reasoning blocks as thinking rows ahead of the reply
   });
 });
 
+test('fetchHistory surfaces a tool call and its result as paired rows', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    await writeSessionLog(sessionsRoot, cwd, 'acp-tools', [
+      userMessage('把水印去掉', 1, 1),
+      assistantMessage('我来处理', 2, 2),
+      {
+        type: 'tool/call',
+        seq: 3,
+        time: 3,
+        data: {
+          turn: 1,
+          step: 1,
+          callId: 'call_abc',
+          name: 'bash',
+          arguments: '{"command":"ls -la","description":"list files"}',
+        },
+      },
+      {
+        type: 'tool/result',
+        seq: 4,
+        time: 4,
+        data: {
+          turn: 1,
+          step: 1,
+          // Mirrors the harness shape: `message` is a tool-role row whose
+          // blocks hold the output, and `meta` carries provider extras.
+          message: {
+            role: 'tool',
+            source: { kind: 'tool', callId: 'call_abc' },
+            toolCallId: 'call_abc',
+            content: [{ type: 'text', text: 'total 0' }],
+            isError: false,
+            id: 'result-4',
+          },
+          meta: {},
+        },
+      },
+    ]);
+    await sessionsDb.createAppSession('app-tools', 'dsh', cwd, 'Tool session');
+    sessionsDb.assignProviderSessionId('app-tools', 'acp-tools');
+
+    const provider = new DshSessionsProvider();
+    const history = await provider.fetchHistory('app-tools');
+    const toolUse = history.messages.find((message) => message.kind === 'tool_use');
+    const toolResult = history.messages.find((message) => message.kind === 'tool_result');
+
+    // A turn that only runs tools used to decode to nothing, which made the
+    // transcript look like the agent never started.
+    assert.equal(toolUse?.toolName, 'bash');
+    assert.equal(toolUse?.toolId, 'call_abc');
+    assert.deepEqual(toolUse?.toolInput, { command: 'ls -la', description: 'list files' });
+    assert.equal(toolUse?.id, 'tool_use_call_abc', 'the row id must survive a reload');
+    assert.equal(toolResult?.toolId, 'call_abc', 'the result pairs with its call');
+    assert.equal(toolResult?.content, 'total 0');
+    assert.equal(toolResult?.isError, false);
+    assert.ok(
+      history.messages.indexOf(toolUse!) < history.messages.indexOf(toolResult!),
+      'the call must precede its result',
+    );
+    // The prose rows are untouched by the added branches.
+    assert.equal(history.messages.filter((message) => message.kind === 'text').length, 2);
+  });
+});
+
+test('fetchHistory keeps unparsable tool arguments and forwards the error flag', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    await writeSessionLog(sessionsRoot, cwd, 'acp-tool-error', [
+      {
+        type: 'tool/call',
+        seq: 1,
+        time: 1,
+        data: { turn: 1, step: 1, callId: 'call_bad', name: 'bash', arguments: 'not json' },
+      },
+      {
+        type: 'tool/result',
+        seq: 2,
+        time: 2,
+        data: {
+          turn: 1,
+          step: 1,
+          message: {
+            role: 'tool',
+            toolCallId: 'call_bad',
+            content: [{ type: 'text', text: 'command failed' }],
+            isError: true,
+          },
+        },
+      },
+    ]);
+    await sessionsDb.createAppSession('app-tool-error', 'dsh', cwd, 'Tool error session');
+    sessionsDb.assignProviderSessionId('app-tool-error', 'acp-tool-error');
+
+    const provider = new DshSessionsProvider();
+    const history = await provider.fetchHistory('app-tool-error');
+    const toolUse = history.messages.find((message) => message.kind === 'tool_use');
+    const toolResult = history.messages.find((message) => message.kind === 'tool_result');
+
+    assert.equal(toolUse?.toolInput, 'not json', 'raw arguments survive so the UI can show them');
+    assert.equal(toolResult?.isError, true);
+  });
+});
+
 test('projectKey mirrors the DSH JSONL directory encoding', () => {
   assert.equal(
     projectKey('/Users/selier/Projects/open_projects/cloudcli'),

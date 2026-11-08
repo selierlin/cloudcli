@@ -73,6 +73,22 @@ function findNewestSessionLog(cwd: string): string | null {
  * (copying a half turn would hand the child an unanswered prompt), and a row
  * with no closed boundary before it gets no anchor at all.
  */
+/**
+ * Parses a tool call's arguments, which DSH stores as the raw JSON string the
+ * model emitted. Anything that does not parse is kept verbatim so the UI can
+ * still show what the model tried to send instead of dropping the call.
+ */
+function parseToolArguments(raw: unknown): unknown {
+  if (typeof raw !== 'string') {
+    return raw ?? '';
+  }
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    return raw;
+  }
+}
+
 function decodeSessionLog(text: string, appSessionId: string): NormalizedMessage[] {
   const entries: Array<{ event: AnyRecord; data: AnyRecord }> = [];
   for (const line of text.split(/\r?\n/)) {
@@ -223,6 +239,43 @@ function decodeSessionLog(text: string, appSessionId: string): NormalizedMessage
           reply.forkAnchorId = anchor;
         }
         messages.push(reply);
+      }
+    } else if (event.type === 'tool/call') {
+      // A tool call is the only record that the run did anything between two
+      // prose rows: the harness emits no assistant message for it. Without
+      // this branch a turn that only runs tools decodes to nothing at all, so
+      // the transcript reads as if the agent never started working.
+      const toolId = readOptionalString(data.callId);
+      const toolName = readOptionalString(data.name);
+      if (toolId && toolName) {
+        messages.push(createNormalizedMessage({
+          kind: 'tool_use',
+          // Keyed by the provider's call id: a reload must produce the same
+          // row identity, and the client pairs the result by `toolId`.
+          id: `tool_use_${toolId}`,
+          content: '',
+          sessionId: appSessionId,
+          provider: 'dsh',
+          toolName,
+          toolInput: parseToolArguments(data.arguments),
+          toolId,
+          ...(timestamp ? { timestamp } : {}),
+        }));
+      }
+    } else if (event.type === 'tool/result') {
+      const result = readObjectRecord(data.message);
+      const toolId = readOptionalString(result?.toolCallId);
+      if (toolId) {
+        messages.push(createNormalizedMessage({
+          kind: 'tool_result',
+          id: `tool_result_${toolId}`,
+          content: extractText(result?.content),
+          isError: result?.isError === true,
+          sessionId: appSessionId,
+          provider: 'dsh',
+          toolId,
+          ...(timestamp ? { timestamp } : {}),
+        }));
       }
     }
   }
