@@ -114,3 +114,20 @@ test('keeps the login button for providers that have an in-app login', async () 
   assert.match(text, /agents\.login\.button/);
   assert.doesNotMatch(text, /agents\.externalAuth\.description/);
 });
+
+test('leaves the sign-in requirement to the login section instead of echoing the server error', async () => {
+  const { container } = await renderAccount(
+    buildStatus({
+      installed: true,
+      authenticated: false,
+      error: 'Codex not configured',
+    }),
+    'codex',
+  );
+
+  const text = container.textContent ?? '';
+  assert.match(text, /agents\.authStatus\.notConnected/);
+  assert.match(text, /agents\.login\.button/);
+  assert.doesNotMatch(text, /Codex not configured/);
+  assert.doesNotMatch(text, /agents\.error/);
+});

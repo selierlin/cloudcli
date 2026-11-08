@@ -39,17 +39,20 @@ export default function AgentConnectionCard({
   const canLogin = PROVIDERS_WITH_IN_APP_LOGIN.includes(provider) && !available && !status.loading;
   const containerClassName = available ? connectedClassName : 'border-border bg-card';
 
+  // Same rule as the settings account panel: report the state the badge and
+  // login button already act on, never the server's raw diagnostic (it is
+  // English, and for these providers it only says "nothing configured yet").
   const statusText = status.loading
     ? t('agents.authStatus.checking')
     : externallyManaged
       ? `${t('agents.externalAuth.available')} (${t('agents.externalAuth.managedByDesktop')})`
-      : provider === 'workbuddy' || provider === 'pi' || provider === 'zcode' || provider === 'omp' || provider === 'openclaw'
+      : !PROVIDERS_WITH_IN_APP_LOGIN.includes(provider)
         ? t('agents.externalAuth.description', { agent: title })
-        : status.authenticated
-          ? status.email || t('agents.authStatus.connected')
-          : status.error === 'Cursor CLI not found or not installed' || status.error === 'Cursor CLI is not installed'
-            ? t('agents.errors.cursorCliNotFound')
-            : status.error || t('agents.authStatus.notConnected');
+        : !status.installed
+          ? t('agents.authStatus.notInstalled')
+          : status.authenticated
+            ? status.email || t('agents.authStatus.connected')
+            : t('agents.authStatus.notConnected');
 
   return (
     <div className={`rounded-xl border px-3 py-2.5 transition-colors ${containerClassName}`}>

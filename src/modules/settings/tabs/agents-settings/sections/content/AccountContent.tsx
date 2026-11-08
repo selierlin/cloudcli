@@ -162,25 +162,24 @@ export default function AccountContent({ agent, authStatus, onLogin, onRecheck }
   // live instead of offering a button that only prints the same instructions.
   const showExternalAuthHint = !missingCli && !hasInAppLogin && !authStatus.authenticated;
 
-  let statusText: string;
+  // The badge carries the state, so the line under the label only says what the
+  // badge cannot: the account it belongs to, or that the check is still running.
+  // Repeating the badge word here read as two statuses stacked on each other.
+  let statusDetail: string | null = null;
   if (authStatus.loading) {
-    statusText = t('agents.authStatus.checkingAuth');
-  } else if (missingCli) {
-    statusText = t('agents.authStatus.notInstalled');
-  } else if (!authStatus.authenticated) {
-    statusText = t('agents.authStatus.notConnected');
-  } else if (authStatus.email) {
-    statusText = t('agents.authStatus.loggedInAs', { email: authStatus.email });
-  } else {
+    statusDetail = t('agents.authStatus.checkingAuth');
+  } else if (authStatus.authenticated && authStatus.email) {
+    statusDetail = t('agents.authStatus.loggedInAs', { email: authStatus.email });
+  } else if (authStatus.authenticated) {
     // Providers wired up through local files (OpenCode's opencode.json,
     // ZCode's cli/config.json) have no account to name, so "logged in as
     // <something>" would read as a user that does not exist.
-    statusText = t('agents.authStatus.connectedViaLocalConfig');
+    statusDetail = t('agents.authStatus.connectedViaLocalConfig');
   }
 
   // "Disconnected" implies a sign-in that dropped; before the CLI exists there
   // was nothing to drop, and after it exists without credentials the honest
-  // word is the same one the status line uses.
+  // word is the same one the login section below asks the user to resolve.
   const badgeClassName = authStatus.loading
     ? 'bg-muted'
     : authStatus.authenticated
@@ -215,9 +214,11 @@ export default function AccountContent({ agent, authStatus, onLogin, onRecheck }
               <div className={`font-medium ${config.textClass}`}>
                 {t('agents.connectionStatus')}
               </div>
-              <div className={`text-sm ${config.subtextClass}`}>
-                {statusText}
-              </div>
+              {statusDetail && (
+                <div className={`text-sm ${config.subtextClass}`}>
+                  {statusDetail}
+                </div>
+              )}
             </div>
             <div>
               <Badge variant="secondary" className={badgeClassName}>
@@ -283,14 +284,6 @@ export default function AccountContent({ agent, authStatus, onLogin, onRecheck }
                   </div>
                   <div className={`text-sm ${config.subtextClass}`}>
                     {t('agents.externalAuth.description', { agent: config.name })}
-                  </div>
-                </div>
-              )}
-
-              {authStatus.error && (
-                <div className="border-t border-border/50 pt-4">
-                  <div className="text-sm text-red-600 dark:text-red-400">
-                    {t('agents.error', { error: authStatus.error })}
                   </div>
                 </div>
               )}
