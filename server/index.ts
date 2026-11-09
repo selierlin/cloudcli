@@ -46,6 +46,7 @@ import {
     stopAllPlugins,
 } from './modules/plugins/index.js';
 import providerRoutes from './modules/providers/provider.routes.js';
+import { workbuddySwitchRoutes } from './modules/workbuddy-switch/index.js';
 // The shell service resolves the claude settings source per launch so terminal
 // runs match the chat-side relay/auth configuration.
 import { providerSettingsSourceService } from '@/modules/providers/index.js';
@@ -264,6 +265,10 @@ app.use('/api/browser-use', authenticateToken, browserUseRoutes);
 
 // Unified provider MCP routes (protected)
 app.use('/api/providers', authenticateToken, providerRoutes);
+// Optional workbuddy-switch companion (protected). It signs WorkBuddy in as a
+// stored account, which also decides what the workbuddy provider sees, so it is
+// gated exactly like the other provider settings rather than trusted per-route.
+app.use('/api/workbuddy-switch', authenticateToken, workbuddySwitchRoutes);
 app.use('/api/scheduled-messages', authenticateToken, scheduledMessagesRoutes);
 // Scheduled tasks start a provider turn on demand, so the router receives the
 // same runtime gateway the chat websocket uses.

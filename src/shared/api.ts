@@ -588,6 +588,17 @@ export const api = {
     ) => put(`/api/providers/${encodeURIComponent(provider)}/settings-source`, input),
   },
 
+  // Optional workbuddy-switch companion: the WorkBuddy accounts it stores and
+  // the one-click switch into one of them, which also decides what the
+  // workbuddy provider sees next.
+  workbuddySwitch: {
+    status: () => get('/api/workbuddy-switch/status'),
+    switchAccount: (accountId: string) =>
+      post('/api/workbuddy-switch/switch', { accountId }),
+    progress: () => get('/api/workbuddy-switch/switch/progress'),
+    credits: () => get('/api/workbuddy-switch/credits'),
+  },
+
   // Global network proxy shared by CloudCLI and every agent CLI it spawns.
   network: {
     proxy: () => get('/api/network/proxy'),

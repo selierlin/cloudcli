@@ -131,3 +131,27 @@ test('leaves the sign-in requirement to the login section instead of echoing the
   assert.doesNotMatch(text, /Codex not configured/);
   assert.doesNotMatch(text, /agents\.error/);
 });
+
+/**
+ * WorkBuddy's desktop app owns the sign-in, and a running engine only proves
+ * the CLI is installed. Calling that "connected" would claim an account state
+ * CloudCLI cannot see, and the re-login button would open a shell that only
+ * prints where to sign in, so both are replaced by the external-management copy.
+ */
+test('defers WorkBuddy sign-in to the desktop app instead of offering a login', async () => {
+  const { container, queryByRole } = await renderAccount(
+    buildStatus({
+      provider: 'workbuddy',
+      authVerified: false,
+      method: 'workbuddy_desktop',
+    }),
+    'workbuddy',
+  );
+
+  const text = container.textContent ?? '';
+  assert.match(text, /agents\.externalAuth\.available/);
+  assert.match(text, /agents\.externalAuth\.managedByDesktop/);
+  assert.doesNotMatch(text, /agents\.authStatus\.connected/);
+  assert.doesNotMatch(text, /agents\.login\.reAuthenticate/);
+  assert.equal(queryByRole('button'), null);
+});

@@ -157,10 +157,20 @@ export default function AccountContent({ agent, authStatus, onLogin, onRecheck }
   // reports the install gap: no login button, and none of the server's
   // install-path diagnostics, which are noise rather than something to act on.
   const missingCli = !authStatus.loading && !authStatus.installed;
+  // Keyed on the provider rather than on the reported auth method: WorkBuddy
+  // Desktop owns the sign-in for its CLI, so CloudCLI can neither drive it nor
+  // verify the account behind it. A running engine therefore only proves the
+  // CLI is installed, and the button below would open a shell that prints
+  // where to sign in instead of signing in.
+  const desktopManaged = agent === 'workbuddy';
+  const externallyManaged = desktopManaged && authStatus.installed;
   const showLogin = !missingCli && hasInAppLogin && authStatus.method !== 'api_key';
   // Providers without an interactive login explain where their credentials do
   // live instead of offering a button that only prints the same instructions.
-  const showExternalAuthHint = !missingCli && !hasInAppLogin && !authStatus.authenticated;
+  // A desktop-managed provider already says so in the detail line, and the
+  // generic copy would send the user to a terminal that cannot sign it in.
+  const showExternalAuthHint =
+    !missingCli && !desktopManaged && !hasInAppLogin && !authStatus.authenticated;
 
   // The badge carries the state, so the line under the label only says what the
   // badge cannot: the account it belongs to, or that the check is still running.
@@ -168,6 +178,8 @@ export default function AccountContent({ agent, authStatus, onLogin, onRecheck }
   let statusDetail: string | null = null;
   if (authStatus.loading) {
     statusDetail = t('agents.authStatus.checkingAuth');
+  } else if (externallyManaged) {
+    statusDetail = `${t('agents.externalAuth.available')} (${t('agents.externalAuth.managedByDesktop')})`;
   } else if (authStatus.authenticated && authStatus.email) {
     statusDetail = t('agents.authStatus.loggedInAs', { email: authStatus.email });
   } else if (authStatus.authenticated) {
@@ -189,9 +201,11 @@ export default function AccountContent({ agent, authStatus, onLogin, onRecheck }
     ? t('agents.authStatus.checking')
     : missingCli
       ? t('agents.authStatus.notInstalled')
-      : authStatus.authenticated
-        ? t('agents.authStatus.connected')
-        : t('agents.authStatus.notConnected');
+      : externallyManaged
+        ? t('agents.externalAuth.title')
+        : authStatus.authenticated
+          ? t('agents.authStatus.connected')
+          : t('agents.authStatus.notConnected');
 
   return (
     <div className="space-y-6">

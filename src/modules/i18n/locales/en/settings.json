@@ -688,6 +688,23 @@
       "description": "No {{agent}} CLI was found on the server. Install it, then check again.",
       "recheck": "Check again"
     },
+    "workbuddyAccounts": {
+      "title": "WorkBuddy accounts",
+      "unavailable": "The local workbuddy-switch service is not running, so accounts cannot be listed or switched. Start it with:",
+      "current": "Current",
+      "switch": "Switch",
+      "switchAndRestart": "Switch and restart",
+      "switching": "Switching...",
+      "inUse": "In use",
+      "enterprise": "Enterprise",
+      "reloginRequired": "Sign in again",
+      "expires": "expires {{date}}",
+      "creditsRemaining": "{{credits}} credits left",
+      "creditsUnavailable": "Credits unavailable",
+      "sessionsHint": "Chat history does not move between accounts; each session stays with the account that created it.",
+      "restartRunning": "Switching restarts the WorkBuddy desktop app.",
+      "restartWithSessions": "Switching restarts WorkBuddy and interrupts any WorkBuddy session running in CloudCLI."
+    },
     "quota": {
       "title": "Quota",
       "window": "{{duration}} window",
@@ -1217,6 +1234,7 @@
   "mcpMatrix": {
     "title": "MCP Servers",
     "description": "One catalog of user-scope MCP servers. Enable a server per agent to write it into that agent's config, or turn it off to remove it.",
+    "timing": "A switch writes the agent's config right away but reaches it on that agent's next message: the turn already streaming keeps the servers it started with, and every conversation — new or existing — reloads the list on its next message. No restart is needed.",
     "loading": "Loading MCP servers...",
     "reload": "Reload",
     "empty": "No MCP servers yet. Add one to reuse it across agents.",
