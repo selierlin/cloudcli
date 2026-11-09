@@ -149,6 +149,13 @@ function SubscriptionOverrideNotice({ override }: SubscriptionOverrideNoticeProp
 export default function AccountContent({ agent, authStatus, onLogin }: AccountContentProps) {
   const { t } = useTranslation('settings');
   const config = agentConfig[agent];
+  // Keyed on the provider rather than on the reported auth method: WorkBuddy
+  // Desktop owns the sign-in for its CLI, so CloudCLI can neither drive it nor
+  // verify the account behind it. A running engine therefore only proves the
+  // CLI is installed, and the button below would open a shell that prints
+  // where to sign in instead of signing in.
+  const desktopManaged = agent === 'workbuddy';
+  const externallyManaged = desktopManaged && authStatus.installed;
 
   return (
     <div className="space-y-6">
@@ -174,6 +181,8 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
               <div className={`text-sm ${config.subtextClass}`}>
                 {authStatus.loading ? (
                   t('agents.authStatus.checkingAuth')
+                ) : externallyManaged ? (
+                  `${t('agents.externalAuth.available')} (${t('agents.externalAuth.managedByDesktop')})`
                 ) : !authStatus.authenticated ? (
                   t('agents.authStatus.notConnected')
                 ) : authStatus.email ? (
@@ -192,6 +201,8 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
                 <Badge variant="secondary" className="bg-muted">
                   {t('agents.authStatus.checking')}
                 </Badge>
+              ) : externallyManaged ? (
+                <Badge variant="secondary">{t('agents.externalAuth.title')}</Badge>
               ) : authStatus.authenticated ? (
                 <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
                   {t('agents.authStatus.connected')}
@@ -215,7 +226,9 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
             subtextClass={config.subtextClass}
           />
 
-          {authStatus.method !== 'api_key' && (
+          {/* Nothing to click for a provider the desktop app signs in: the
+              shell this would open only prints where to sign in instead. */}
+          {!desktopManaged && authStatus.method !== 'api_key' && (
             <div className="border-t border-border/50 pt-4">
               <div className="flex items-center justify-between">
                 <div>

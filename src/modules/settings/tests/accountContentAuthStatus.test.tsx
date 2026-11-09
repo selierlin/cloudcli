@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { render } from '@testing-library/react';
 import { test, vi } from 'vitest';
 
-import type { ProviderAuthStatus } from '@/shared/types';
+import type { AgentProvider, ProviderAuthStatus } from '@/shared/types';
 
 /**
  * The account card picks its sentence from whether the provider reported an
@@ -31,12 +31,12 @@ const buildStatus = (overrides: Partial<ProviderAuthStatus>): ProviderAuthStatus
   ...overrides,
 });
 
-async function renderAccount(status: ProviderAuthStatus) {
+async function renderAccount(status: ProviderAuthStatus, agent: AgentProvider = 'opencode') {
   const { default: AccountContent } = await import(
     '@/modules/settings/tabs/agents-settings/sections/content/AccountContent'
   );
 
-  return render(<AccountContent agent="opencode" authStatus={status} onLogin={() => {}} />);
+  return render(<AccountContent agent={agent} authStatus={status} onLogin={() => {}} />);
 }
 
 test('names the account when the provider reported one', async () => {
@@ -67,4 +67,28 @@ test('keeps reporting a missing connection when unauthenticated', async () => {
   const text = container.textContent ?? '';
   assert.match(text, /agents\.authStatus\.notConnected/);
   assert.doesNotMatch(text, /agents\.authStatus\.connectedViaLocalConfig/);
+});
+
+/**
+ * WorkBuddy's desktop app owns the sign-in, and a running engine only proves
+ * the CLI is installed. Calling that "connected" would claim an account state
+ * CloudCLI cannot see, and the re-login button would open a shell that only
+ * prints where to sign in, so both are replaced by the external-management copy.
+ */
+test('defers WorkBuddy sign-in to the desktop app instead of offering a login', async () => {
+  const { container, queryByRole } = await renderAccount(
+    buildStatus({
+      provider: 'workbuddy',
+      authVerified: false,
+      method: 'workbuddy_desktop',
+    }),
+    'workbuddy',
+  );
+
+  const text = container.textContent ?? '';
+  assert.match(text, /agents\.externalAuth\.available/);
+  assert.match(text, /agents\.externalAuth\.managedByDesktop/);
+  assert.doesNotMatch(text, /agents\.authStatus\.connected/);
+  assert.doesNotMatch(text, /agents\.login\.reAuthenticate/);
+  assert.equal(queryByRole('button'), null);
 });
