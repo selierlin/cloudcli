@@ -1,3 +1,5 @@
+import { useRef } from 'react';
+
 import { AlertTriangle, LogIn, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -156,7 +158,21 @@ export default function AccountContent({ agent, authStatus, onLogin, onRecheck }
   // A CLI that is not on the server has never been signed into, so the panel
   // reports the install gap: no login button, and none of the server's
   // install-path diagnostics, which are noise rather than something to act on.
-  const missingCli = !authStatus.loading && !authStatus.installed;
+  //
+  // A recheck sets `loading` on the existing entry instead of clearing it, and
+  // opening the dialog re-checks everything from a `loading: true, installed:
+  // false` initial map. So `loading` alone cannot mean "missing": the first
+  // check must stay silent, while a recheck must keep the install card (and its
+  // button) on screen instead of flashing the login / external-auth sections
+  // over it. The last settled answer tells the two apart.
+  const lastSettledInstalled = useRef<boolean | null>(null);
+  if (!authStatus.loading) {
+    lastSettledInstalled.current = authStatus.installed;
+  }
+  const installed = authStatus.loading
+    ? lastSettledInstalled.current ?? true
+    : authStatus.installed;
+  const missingCli = !installed;
   // Keyed on the provider rather than on the reported auth method: WorkBuddy
   // Desktop owns the sign-in for its CLI, so CloudCLI can neither drive it nor
   // verify the account behind it. A running engine therefore only proves the
@@ -247,7 +263,13 @@ export default function AccountContent({ agent, authStatus, onLogin, onRecheck }
                 <p className={`min-w-48 flex-1 text-sm ${config.subtextClass}`}>
                   {t('agents.install.description', { agent: config.name })}
                 </p>
-                <Button type="button" size="sm" variant="outline" onClick={onRecheck}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={onRecheck}
+                  disabled={authStatus.loading}
+                >
                   <RefreshCw />
                   {t('agents.install.recheck')}
                 </Button>

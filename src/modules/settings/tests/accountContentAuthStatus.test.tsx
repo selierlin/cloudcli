@@ -93,6 +93,28 @@ test('reports a missing CLI as not installed instead of offering a login', async
   assert.doesNotMatch(text, /oh-my-pi/);
 });
 
+test('keeps the install card on screen while a recheck is in flight', async () => {
+  const { default: AccountContent } = await import(
+    '@/modules/settings/tabs/agents-settings/sections/content/AccountContent'
+  );
+  const notInstalled = buildStatus({ installed: false, authenticated: false });
+  const renderCard = (status: ProviderAuthStatus) => (
+    <AccountContent agent="omp" authStatus={status} onLogin={() => {}} onRecheck={() => {}} />
+  );
+
+  const { container, rerender } = render(renderCard(notInstalled));
+  assert.match(container.textContent ?? '', /agents\.install\.recheck/);
+
+  // A recheck flips `loading` on the existing entry; the card must survive the
+  // round trip instead of flashing the login / external-auth sections.
+  rerender(renderCard({ ...notInstalled, loading: true }));
+
+  const text = container.textContent ?? '';
+  assert.match(text, /agents\.install\.recheck/);
+  assert.doesNotMatch(text, /agents\.externalAuth\.description/);
+  assert.doesNotMatch(text, /agents\.login\.button/);
+});
+
 test('points at the out-of-band login instead of a dead login button', async () => {
   const { container } = await renderAccount(
     buildStatus({ installed: true, authenticated: false }),
