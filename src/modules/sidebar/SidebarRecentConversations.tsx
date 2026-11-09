@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, ChevronRight, Edit2, Folder, Loader2, MessageSquare, MoreHorizontal, Pin, PinOff, Plus, Trash2, X } from 'lucide-react';
-import type { MouseEvent } from 'react';
+import type { DragEvent, MouseEvent } from 'react';
 import type { TFunction } from 'i18next';
 
 import { ActionMenu, Button, Dialog, DialogContent, DialogTitle, LLMProviderLogo } from '@/shared/ui';
+import { SESSION_OWNERSHIP_DRAG_MIME } from '@/shared/constants';
 import { cn, isImeKeyEvent } from '@/shared/utils';
 import type { LLMProvider, Project, ProjectSession, RecentConversationListItem, SessionAttentionLevel } from '@/shared/types';
 import { formatCompactAge } from '@/modules/sidebar/utils/sidebarProjectFormatting';
@@ -97,6 +98,23 @@ type RecentConversationRowProps = {
   ) => void;
   onDeleteSession: (sessionId: string, sessionTitle: string) => void;
   onToggleBatchSelection: (sessionId: string) => void;
+  /**
+   * The session the list is currently dragging, or null. Owned by the list so
+   * exactly one row at a time renders as the drag source.
+   */
+  draggingSessionId: string | null;
+  /** True when this row is the highlighted drop target. Also the list's state; see the list's drag comment. */
+  isDropHighlighted: boolean;
+  /**
+   * Project of the session being dragged, or null. A row only takes a drop from
+   * its own project, which is how the server's same-project rule reaches the UI.
+   */
+  draggingProjectId: string | null;
+  onSessionDragStart: () => void;
+  onSessionDragEnd: () => void;
+  /** Highlights this row as the drop target, or null to clear the highlight. */
+  onSessionDragOver: (sessionId: string | null) => void;
+  onSessionDropOnRow: (targetSessionId: string) => void;
   t: TFunction;
 };
 
@@ -121,6 +139,13 @@ function RecentConversationRow({
   onOpenParentSession,
   onDeleteSession,
   onToggleBatchSelection,
+  draggingSessionId,
+  isDropHighlighted,
+  draggingProjectId,
+  onSessionDragStart,
+  onSessionDragEnd,
+  onSessionDragOver,
+  onSessionDropOnRow,
   t,
 }: RecentConversationRowProps) {
   const [isMobileOptionsOpen, setIsMobileOptionsOpen] = useState(false);
@@ -216,6 +241,67 @@ function RecentConversationRow({
   const openParentSession = parentSessionId
     ? () => onOpenParentSession(parentSessionId, conversation.projectId, conversation.provider)
     : undefined;
+
+  // Desktop drag is the mouse shortcut for the same move the row menu offers,
+  // so it is offered in exactly the same cases — minus manage mode, where a
+  // drag would fight the batch selection. The compact layout renders no <a> at
+  // all, so touch never reaches these handlers.
+  const canDragSession = canAssignParent && !isManaging;
+  // Only a top-level row of the dragged session's own project can adopt it: the
+  // tree is one level deep and the server refuses a cross-project filing. A
+  // project-less source is deliberately not a match — two sessions without a
+  // project would otherwise look like siblings, which the server refuses.
+  const canAcceptSessionDrop = draggingSessionId !== null
+    && draggingSessionId !== conversation.sessionId
+    && draggingProjectId !== null
+    && draggingProjectId === conversation.projectId;
+  const isSessionDropTarget = canAcceptSessionDrop && !parentSessionId;
+  // Fading the source row is the only visual that says which row is in flight.
+  const isDragging = draggingSessionId === conversation.sessionId;
+
+  const startSessionDrag = (event: DragEvent<HTMLAnchorElement>) => {
+    // Firefox only starts a drag once a payload is set. The id is never read
+    // back out of the payload (the list holds the source row), so the value
+    // only has to exist.
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData(SESSION_OWNERSHIP_DRAG_MIME, conversation.sessionId);
+    onSessionDragStart();
+  };
+
+  const acceptSessionDrag = (event: DragEvent<HTMLAnchorElement>) => {
+    const dataTransfer = event.dataTransfer;
+    // Ignore anything that is not one of our own drags (a desktop file, a link).
+    if (!draggingSessionId || !dataTransfer?.types.includes(SESSION_OWNERSHIP_DRAG_MIME)) {
+      return;
+    }
+    // Claim the event so the list's "drop here to move out" zone does not also
+    // handle it: this row, not the blank space around it, is under the pointer.
+    event.stopPropagation();
+    if (!isSessionDropTarget || draggingSessionId === conversation.sessionId) {
+      // A row that cannot take this drag still claims the event, so the list's
+      // move-out zone stays out of it — but it also has to drop whatever row
+      // was highlighted before, or the ring sticks to a row the pointer left
+      // (a cross-project row, say).
+      onSessionDragOver(null);
+      return;
+    }
+    event.preventDefault();
+    dataTransfer.dropEffect = 'move';
+    onSessionDragOver(conversation.sessionId);
+  };
+
+  const completeSessionDrop = (event: DragEvent<HTMLAnchorElement>) => {
+    const dataTransfer = event.dataTransfer;
+    if (!draggingSessionId || !dataTransfer?.types.includes(SESSION_OWNERSHIP_DRAG_MIME)) {
+      return;
+    }
+    event.stopPropagation();
+    if (!isSessionDropTarget || draggingSessionId === conversation.sessionId) {
+      return;
+    }
+    event.preventDefault();
+    onSessionDropOnRow(conversation.sessionId);
+  };
 
   const rowBody = (
     <>
@@ -500,12 +586,19 @@ function RecentConversationRow({
           href={`/session/${conversation.sessionId}`}
           onClick={handleClick}
           data-testid="recent-conversation-row"
+          draggable={canDragSession}
+          onDragStart={startSessionDrag}
+          onDragEnd={onSessionDragEnd}
+          onDragOver={acceptSessionDrag}
+          onDrop={completeSessionDrop}
           className={cn(
             'group ml-2.5 flex min-w-0 items-center gap-2 rounded-lg px-2 py-2 pr-10 text-left transition-colors',
             isSelected
               ? 'bg-primary/10 text-foreground shadow-[inset_3px_0_0_0_hsl(var(--primary))]'
               : 'text-foreground hover:bg-accent/60',
             isManaging && isProcessing && 'cursor-not-allowed opacity-60',
+            isDragging && 'opacity-50',
+            isDropHighlighted && 'ring-2 ring-inset ring-primary/60',
           )}
         >
           {rowBody}
@@ -668,6 +761,70 @@ export default function SidebarRecentConversations({
   const [isManaging, setIsManaging] = useState(false);
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
 
+  // Ownership writes go through the same provider the rows' menus use, so a
+  // drop lands on the existing optimistic overlay and its error rollback.
+  const setSessionParent = useSessionParentPicker()?.setSessionParent;
+
+  // The drag's source row as the whole list item rather than only its id: a
+  // drop target has to know whether the two sessions share a project before
+  // offering itself, since the server refuses a cross-project filing.
+  const [draggingConversation, setDraggingConversation] = useState<RecentConversationListItem | null>(null);
+  // The row under the pointer, highlighted as the drop target. Owned by the list
+  // rather than by the row: pressing Escape cancels a drag without firing any
+  // dragleave, so a row that held this flag would keep its ring forever.
+  const [dropTargetSessionId, setDropTargetSessionId] = useState<string | null>(null);
+
+  const beginConversationDrag = useCallback((conversation: RecentConversationListItem) => {
+    setDraggingConversation(conversation);
+    setDropTargetSessionId(null);
+  }, []);
+
+  const endConversationDrag = useCallback(() => {
+    setDraggingConversation(null);
+    setDropTargetSessionId(null);
+  }, []);
+
+  const dropConversationOnRow = useCallback((targetSessionId: string) => {
+    if (draggingConversation && draggingConversation.sessionId !== targetSessionId) {
+      setSessionParent?.(draggingConversation.sessionId, targetSessionId);
+    }
+    setDraggingConversation(null);
+    setDropTargetSessionId(null);
+  }, [draggingConversation, setSessionParent]);
+
+  // Blank space between the rows is the "move out" drop zone: a row stops the
+  // event on its way down (it is either a target itself or deliberately inert),
+  // so whatever reaches here is not over a session — which also means no row
+  // should be highlighted.
+  const handleListDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!draggingConversation || !event.dataTransfer?.types.includes(SESSION_OWNERSHIP_DRAG_MIME)) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    setDropTargetSessionId(null);
+  };
+
+  // Leaving the list entirely stops the dragover stream, so this is what drops
+  // the highlight. Moves inside the list reach this too and are ignored, so the
+  // highlight does not flicker.
+  const handleListDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      return;
+    }
+    setDropTargetSessionId(null);
+  };
+
+  const handleListDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!draggingConversation || !event.dataTransfer?.types.includes(SESSION_OWNERSHIP_DRAG_MIME)) {
+      return;
+    }
+    event.preventDefault();
+    setSessionParent?.(draggingConversation.sessionId, null);
+    setDraggingConversation(null);
+    setDropTargetSessionId(null);
+  };
+
   // Sessions that already own a child, so their row withholds "file under…"
   // (the tree is one level deep). Derived from the loaded project payloads
   // because a conversations row holds no session list of its own.
@@ -815,7 +972,6 @@ export default function SidebarRecentConversations({
   const renderConversationRow = (conversation: RecentConversationListItem) => {
     const isSelected = String(selectedSession?.id ?? '') === conversation.sessionId;
     const hasBackgroundWork = backgroundSessionIds.has(conversation.sessionId);
-
     return (
       <RecentConversationRow
         key={conversation.sessionId}
@@ -839,6 +995,13 @@ export default function SidebarRecentConversations({
         onOpenParentSession={openParentSession}
         onDeleteSession={onDeleteSession}
         onToggleBatchSelection={toggleBatchSelection}
+        draggingSessionId={draggingConversation?.sessionId ?? null}
+        isDropHighlighted={dropTargetSessionId === conversation.sessionId}
+        draggingProjectId={draggingConversation?.projectId ?? null}
+        onSessionDragStart={() => beginConversationDrag(conversation)}
+        onSessionDragEnd={endConversationDrag}
+        onSessionDragOver={setDropTargetSessionId}
+        onSessionDropOnRow={dropConversationOnRow}
         t={t}
       />
     );
@@ -878,7 +1041,13 @@ export default function SidebarRecentConversations({
   }
 
   return (
-    <div className="px-1" data-testid="recent-conversations-list">
+    <div
+      className="px-1"
+      data-testid="recent-conversations-list"
+      onDragOver={handleListDragOver}
+      onDragLeave={handleListDragLeave}
+      onDrop={handleListDrop}
+    >
       <div className="flex items-center justify-between px-2 pb-1.5 pt-0.5">
         <span className="text-[11px] font-medium text-muted-foreground">
           {t('recent.title', 'Recent conversations')}
