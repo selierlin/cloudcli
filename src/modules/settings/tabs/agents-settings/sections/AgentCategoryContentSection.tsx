@@ -5,6 +5,7 @@ import AccountContent from '@/modules/settings/tabs/agents-settings/sections/con
 import PermissionsContent from '@/modules/settings/tabs/agents-settings/sections/content/PermissionsContent';
 import ProviderQuotaSection from '@/modules/settings/tabs/agents-settings/sections/content/ProviderQuotaSection';
 import ProviderSettingsSourceSection from '@/modules/settings/tabs/agents-settings/sections/content/ProviderSettingsSourceSection';
+import WorkbuddyAccountsSection from '@/modules/settings/tabs/agents-settings/sections/content/WorkbuddyAccountsSection';
 
 /** Providers rendered by the shared permission-mode picker; claude and cursor have their own allowlist panels. */
 type ModePickerProvider = Exclude<LLMProvider, 'claude' | 'cursor'>;
@@ -100,7 +101,14 @@ export default function AgentCategoryContentSection({
             authStatus={agentContextById[selectedAgent].authStatus}
             onLogin={agentContextById[selectedAgent].onLogin}
           />
-          <ProviderQuotaSection agent={selectedAgent} />
+          {/* WorkBuddy's balance belongs to the account rather than to the
+              provider, and the account list below already reports it per row,
+              so a provider-level quota panel would only repeat the signed-in
+              account's figure under a name that changes with the switch. */}
+          {selectedAgent !== 'workbuddy' && (
+            <ProviderQuotaSection key={selectedAgent} agent={selectedAgent} />
+          )}
+          {selectedAgent === 'workbuddy' && <WorkbuddyAccountsSection />}
           {(selectedAgent === 'claude' || selectedAgent === 'codex') && (
             <ProviderSettingsSourceSection provider={selectedAgent} />
           )}

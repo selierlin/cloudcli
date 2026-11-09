@@ -666,6 +666,23 @@
       "authenticatedUser": "已认证用户",
       "connectedViaLocalConfig": "已通过本地配置连接"
     },
+    "workbuddyAccounts": {
+      "title": "WorkBuddy 账号",
+      "unavailable": "未检测到本地 workbuddy-switch 服务，无法列出或切换账号。可先在终端启动：",
+      "current": "当前",
+      "switch": "切换",
+      "switchAndRestart": "切换并重启",
+      "switching": "正在切换...",
+      "inUse": "使用中",
+      "enterprise": "企业版",
+      "reloginRequired": "需重新登录",
+      "expires": "到期 {{date}}",
+      "creditsRemaining": "剩余 {{credits}} 积分",
+      "creditsUnavailable": "积分查询失败",
+      "sessionsHint": "会话记录不随账号迁移，历史会话仍属于创建它的账号。",
+      "restartRunning": "切换会重启 WorkBuddy 桌面端。",
+      "restartWithSessions": "切换会重启 WorkBuddy，并中断 CloudCLI 中正在运行的 WorkBuddy 会话。"
+    },
     "quota": {
       "title": "额度",
       "window": "{{duration}}窗口",

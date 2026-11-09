@@ -1706,6 +1706,74 @@ export type ProviderQuota = {
   fetchedAt: number;
 };
 
+//----------------- WORKBUDDY ACCOUNT SWITCHING ------------
+
+/** One stored WorkBuddy account offered by the optional workbuddy-switch companion; the companion sends display metadata only, never a token, so this shape is safe to hold in the browser. */
+export type WorkbuddySwitchAccount = {
+  /** Companion record id, which the switch call takes. */
+  id: string;
+  /** WorkBuddy user id, compared with the status's currentUid to mark the signed-in row. */
+  uid: string | null;
+  nickname: string | null;
+  /** Already masked by the companion, e.g. `153****6231`. */
+  phoneNumber: string | null;
+  email: string | null;
+  /** Session expiry in epoch milliseconds, or null when unknown. */
+  expiresAt: number | null;
+  /** True when the stored session needs a fresh sign-in before it can be used. */
+  needsRelogin: boolean;
+  isEnterprise: boolean;
+};
+
+/** Everything the WorkBuddy account card needs from one read: whether the companion is running, which of its accounts CloudCLI can use, and whether the desktop app is running. `available: false` is a normal answer meaning the optional service is not there - the card shows how to start it instead of an error. */
+export type WorkbuddySwitchStatus = {
+  available: boolean;
+  /** Companion version, used only for display. */
+  version: string | null;
+  /** Whether the WorkBuddy desktop app is running, which is what decides whether a switch restarts it. */
+  running: boolean;
+  /** UID of the account WorkBuddy is signed in as, or null when signed out. */
+  currentUid: string | null;
+  /** Accounts CloudCLI can sign in as; the companion's other-variant accounts are already filtered out server-side. */
+  accounts: WorkbuddySwitchAccount[];
+};
+
+/** Result of one completed switch, with the freshly read status so the card updates without a second request. */
+export type WorkbuddySwitchOutcome = {
+  /** Display name the companion reported for the account now signed in, or null when it named none. */
+  account: string | null;
+  /** Whether the switch restarted the desktop app; only true when it was already running. */
+  restarted: boolean;
+  status: WorkbuddySwitchStatus;
+};
+
+/** Live progress the companion reports for an in-flight switch, polled by the account card while it waits. */
+export type WorkbuddySwitchProgress = {
+  running: boolean;
+  /** Human-readable step from the companion (e.g. "正在关闭 WorkBuddy…"), or null between steps. */
+  progress: string | null;
+};
+
+/** Credits one stored account has left, read from that account's own plan. */
+export type WorkbuddySwitchCredit = {
+  accountId: string;
+  /** Credits still usable, or null when the balance could not be read. */
+  remaining: number | null;
+  /** Credits the current cycle granted in total, or null when unreadable. */
+  total: number | null;
+  /** Why no balance came back; null on success. */
+  error: string | null;
+};
+
+/** Balances for every stored account, plus whether the companion answered at all. */
+export type WorkbuddySwitchCredits = {
+  /** False when the companion is unreachable, not when a single account failed. */
+  available: boolean;
+  credits: WorkbuddySwitchCredit[];
+};
+
+// ---------------------------
+
 //----------------- PROVIDER CLI VERSION ------------
 
 /** One provider CLI's version state from `GET /api/providers/:provider/cli`: the installed version, the newest npm release (null when the CLI is not on npm or the registry did not answer), the command the update action runs, or why there is none ('bundled': it ships with CloudCLI; 'self-managed': it is installed apart from CloudCLI, so only its own installer can replace it; 'platform': the hosting platform manages it), whether an update run is going on, and the most recent finished run since the server started. A page that sees `updateInProgress` polls until it turns false and then shows `lastUpdate` as that run's result. Loaded by useProviderCliVersion and rendered by the settings account view. */

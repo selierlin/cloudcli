@@ -683,6 +683,23 @@
       "authenticatedUser": "authenticated user",
       "connectedViaLocalConfig": "Connected via local configuration"
     },
+    "workbuddyAccounts": {
+      "title": "WorkBuddy accounts",
+      "unavailable": "The local workbuddy-switch service is not running, so accounts cannot be listed or switched. Start it with:",
+      "current": "Current",
+      "switch": "Switch",
+      "switchAndRestart": "Switch and restart",
+      "switching": "Switching...",
+      "inUse": "In use",
+      "enterprise": "Enterprise",
+      "reloginRequired": "Sign in again",
+      "expires": "expires {{date}}",
+      "creditsRemaining": "{{credits}} credits left",
+      "creditsUnavailable": "Credits unavailable",
+      "sessionsHint": "Chat history does not move between accounts; each session stays with the account that created it.",
+      "restartRunning": "Switching restarts the WorkBuddy desktop app.",
+      "restartWithSessions": "Switching restarts WorkBuddy and interrupts any WorkBuddy session running in CloudCLI."
+    },
     "quota": {
       "title": "Quota",
       "window": "{{duration}} window",
