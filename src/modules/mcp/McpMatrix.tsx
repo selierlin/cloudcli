@@ -1,4 +1,4 @@
-import { Check, Globe, Minus, MoreHorizontal, Pencil, Plus, RefreshCw, Server, Terminal, Trash2, Zap, type LucideIcon } from 'lucide-react';
+import { Check, Globe, Info, Minus, MoreHorizontal, Pencil, Plus, RefreshCw, Server, Terminal, Trash2, Zap, type LucideIcon } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -272,6 +272,12 @@ export default function McpMatrix() {
           <div className="min-w-0 space-y-1">
             <h3 className="text-lg font-medium text-foreground">{t('mcpMatrix.title')}</h3>
             <p className="text-sm text-muted-foreground">{t('mcpMatrix.description')}</p>
+            {/* A switch only rewrites a config file, so say when a harness actually
+                reads it — otherwise "enabled" looks like a live connection flip. */}
+            <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+              <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
+              <span>{t('mcpMatrix.timing')}</span>
+            </p>
           </div>
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">

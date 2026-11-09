@@ -1229,6 +1229,7 @@
   "mcpMatrix": {
     "title": "MCP Servers",
     "description": "One catalog of user-scope MCP servers. Enable a server per agent to write it into that agent's config, or turn it off to remove it.",
+    "timing": "A switch writes the agent's config right away but reaches it on that agent's next message: the turn already streaming keeps the servers it started with, and every conversation — new or existing — reloads the list on its next message. No restart is needed.",
     "loading": "Loading MCP servers...",
     "reload": "Reload",
     "empty": "No MCP servers yet. Add one to reuse it across agents.",

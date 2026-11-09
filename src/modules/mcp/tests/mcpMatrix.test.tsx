@@ -168,6 +168,14 @@ test('reads the catalog from the api', async () => {
   assert.equal(mocks.mcpCatalog.mock.calls.length, 1);
 });
 
+test('says when a switch reaches the harness it was written for', async () => {
+  const container = await renderMatrix();
+
+  // A switch rewrites a config file, so the header has to state that the
+  // harness reads it on its next message rather than immediately.
+  assert.ok(container.textContent?.includes('mcpMatrix.timing'));
+});
+
 test('shows on/off cells for every harness that accepts a stdio entry', async () => {
   const container = await renderMatrix();
   const row = rowFor(container, 'notion');
