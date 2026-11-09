@@ -46,10 +46,13 @@ export default function AgentConnectionCard({
     ? t('agents.authStatus.checking')
     : externallyManaged
       ? `${t('agents.externalAuth.available')} (${t('agents.externalAuth.managedByDesktop')})`
-      : !PROVIDERS_WITH_IN_APP_LOGIN.includes(provider)
-        ? t('agents.externalAuth.description', { agent: title })
-        : !status.installed
-          ? t('agents.authStatus.notInstalled')
+      // Ordered before the external-auth copy: every out-of-band provider also
+      // reports `installed` from a binary probe, so a missing CLI is a real
+      // install gap and must not be dressed up as "sign in somewhere else".
+      : !status.installed
+        ? t('agents.authStatus.notInstalled')
+        : !PROVIDERS_WITH_IN_APP_LOGIN.includes(provider)
+          ? t('agents.externalAuth.description', { agent: title })
           : status.authenticated
             ? status.email || t('agents.authStatus.connected')
             : t('agents.authStatus.notConnected');
