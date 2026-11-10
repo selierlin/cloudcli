@@ -64,13 +64,17 @@ const createStore = () => {
   return { store, observed, dropped, appended };
 };
 
+/** The model and effort the composer reports when the copy is forked. */
+const FROZEN_MODEL = 'model-at-fork';
+const FROZEN_EFFORT = 'high';
+
 const renderBtw = (store: SessionStore, sent: Array<Record<string, unknown>>) => renderHook(() => useBtwSession({
   sourceSessionId: 'source-1',
   provider: 'claude',
   anchor: null,
   sendMessage: (message) => { sent.push(message as Record<string, unknown>); },
   sessionStore: store,
-  buildOptions: (text) => ({ permissionMode: 'default', probe: text }),
+  buildOptions: (text) => ({ permissionMode: 'default', probe: text, model: FROZEN_MODEL, effort: FROZEN_EFFORT }),
 }));
 
 beforeEach(() => {
@@ -97,7 +101,12 @@ test('the first question creates the copy, then sends into it with the shared op
   });
   assert.equal(sent[1].type, 'chat.send');
   assert.equal(sent[1].sessionId, 'btw-1');
-  assert.deepEqual(sent[1].options, { permissionMode: 'default', probe: 'why is this failing?' });
+  assert.deepEqual(sent[1].options, {
+    permissionMode: 'default',
+    probe: 'why is this failing?',
+    model: FROZEN_MODEL,
+    effort: FROZEN_EFFORT,
+  });
   assert.equal(view.result.current.sessionId, 'btw-1');
   // The optimistic echo is what keeps the question visible before the run
   // starts; without it the copy looks like it ignored the input.
@@ -276,6 +285,7 @@ const seedSnapshot = () => {
     lastSeq: 3,
     anchor: null,
     anchorInfo: null,
+    runParams: null,
     minimized: false,
     messages: [],
   });
@@ -335,4 +345,113 @@ test.each([
   // Restoring a copy that was closed, kept as a normal conversation, or
   // reclaimed would bring back an id nothing can send into.
   assert.equal(window.sessionStorage.getItem(BTW_SNAPSHOT_STORAGE_KEY), null);
+});
+
+test('a later question keeps the model the copy forked with, not the one now on screen', async () => {
+  const { store } = createStore();
+  const sent: Array<Record<string, unknown>> = [];
+  // What the composer reports once another conversation is selected: a
+  // different model and a different effort. The drawer re-renders with these
+  // while its copy is still alive.
+  let composerReports = { model: FROZEN_MODEL, effort: FROZEN_EFFORT };
+  const view = renderHook(() => useBtwSession({
+    sourceSessionId: 'source-1',
+    provider: 'claude',
+    anchor: null,
+    sendMessage: (message) => { sent.push(message as Record<string, unknown>); },
+    sessionStore: store,
+    buildOptions: (text) => ({ permissionMode: 'default', probe: text, ...composerReports }),
+  }));
+
+  await act(async () => {
+    await view.result.current.send('first question');
+  });
+  assert.deepEqual(view.result.current.runParams, {
+    provider: 'claude',
+    model: FROZEN_MODEL,
+    effort: FROZEN_EFFORT,
+  });
+
+  composerReports = { model: 'model-of-session-b', effort: 'low' };
+  view.rerender();
+
+  await act(async () => {
+    await view.result.current.send('second question');
+  });
+
+  const secondSend = sent.filter((message) => message.type === 'chat.send')[1] as {
+    options: Record<string, unknown>;
+  };
+  // `chat.send` records the model it is handed onto the copy's own row, so an
+  // unfrozen value here would retarget the branch and keep the wrong model
+  // even after switching back.
+  assert.equal(secondSend.options.model, FROZEN_MODEL);
+  assert.equal(secondSend.options.effort, FROZEN_EFFORT);
+  // The per-turn settings still come from the live builder.
+  assert.equal(secondSend.options.permissionMode, 'default');
+  assert.equal(secondSend.options.probe, 'second question');
+  assert.equal(btwSession.mock.calls.length, 1, 'a frozen copy never forks twice');
+});
+
+test('a restored copy reports the frozen model it saved, not the open conversation’s', async () => {
+  const { store } = createStore();
+  const sent: Array<Record<string, unknown>> = [];
+  const view = renderBtw(store, sent);
+
+  await act(async () => {
+    view.result.current.restore({
+      sessionId: 'btw-1',
+      forkSourceSessionId: 'source-1',
+      anchorInfo: null,
+      runParams: { provider: 'claude', model: 'model-from-snapshot', effort: 'medium' },
+    });
+  });
+
+  assert.deepEqual(view.result.current.runParams, {
+    provider: 'claude',
+    model: 'model-from-snapshot',
+    effort: 'medium',
+  });
+
+  await act(async () => {
+    await view.result.current.send('after a reload');
+  });
+
+  const send = sent.find((message) => message.type === 'chat.send') as {
+    options: Record<string, unknown>;
+  };
+  assert.equal(send.options.model, 'model-from-snapshot');
+  assert.equal(send.options.effort, 'medium');
+});
+
+test('the question keeps the harness the copy forked with', async () => {
+  const { store, appended } = createStore();
+  const sent: Array<Record<string, unknown>> = [];
+  // The tab is now showing a conversation on a different harness.
+  let viewProvider: 'claude' | 'codex' = 'claude';
+  const view = renderHook(() => useBtwSession({
+    sourceSessionId: 'source-1',
+    provider: viewProvider,
+    anchor: null,
+    sendMessage: (message) => { sent.push(message as Record<string, unknown>); },
+    sessionStore: store,
+    buildOptions: (text) => ({ permissionMode: 'default', probe: text, model: FROZEN_MODEL, effort: FROZEN_EFFORT }),
+  }));
+
+  await act(async () => {
+    await view.result.current.send('first question');
+  });
+  assert.equal(appended[0].provider, 'claude');
+
+  viewProvider = 'codex';
+  view.rerender();
+
+  await act(async () => {
+    await view.result.current.send('second question');
+  });
+
+  // The optimistic row is drawn before the server names a harness, so it has
+  // to carry the branch's own rather than the one on screen.
+  assert.equal(appended[1].provider, 'claude');
+  assert.equal(view.result.current.runParams?.provider, 'claude');
 });

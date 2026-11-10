@@ -1,5 +1,5 @@
 import type { LLMProvider, NormalizedMessage } from '@/shared/types';
-import type { BtwAnchorInfo, BtwAnchorRequest } from '@/modules/chat/hooks/useBtwSession';
+import type { BtwAnchorInfo, BtwAnchorRequest, BtwRunParams } from '@/modules/chat/hooks/useBtwSession';
 
 /**
  * The one side-question drawer a tab can hold, written to `sessionStorage` so a
@@ -32,6 +32,14 @@ export type BtwSnapshot = {
   /** The cut point the copy was forked at, so `refork` can reuse it. */
   anchor: BtwAnchorRequest;
   anchorInfo: BtwAnchorInfo | null;
+  /**
+   * The model and effort the copy was frozen on at fork time.
+   *
+   * Carried across the reload for the same reason `forkSourceSessionId` is: the
+   * values the composer reports after a reload belong to whichever conversation
+   * the tab opens, which is not necessarily the one this branch forked from.
+   */
+  runParams: BtwRunParams | null;
   minimized: boolean;
   /**
    * Rows as rendered at write time, **including** the `stream_delta`
@@ -216,6 +224,25 @@ function isSnapshot(value: unknown): value is BtwSnapshot {
 }
 
 /**
+ * Reads the frozen run parameters, if any.
+ *
+ * Not part of `isSnapshot`: a tab that saved this snapshot before the field
+ * existed still carries a usable copy id, and its next fork-free send simply
+ * falls back to the composer's values once, as it always did.
+ */
+function readRunParams(value: unknown): BtwRunParams | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const candidate = value as Partial<BtwRunParams>;
+  return typeof candidate.model === 'string' && candidate.model.length > 0
+    && typeof candidate.effort === 'string' && candidate.effort.length > 0
+    && typeof candidate.provider === 'string' && candidate.provider.length > 0
+    ? { provider: candidate.provider as BtwRunParams['provider'], model: candidate.model, effort: candidate.effort }
+    : null;
+}
+
+/**
  * Reads the snapshot for this tab, or null when there is none to trust.
  *
  * A malformed, outdated or stale entry is removed on the way out: leaving it
@@ -244,7 +271,11 @@ export function readBtwSnapshot(now: number = Date.now()): BtwSnapshot | null {
     clearBtwSnapshot();
     return null;
   }
-  return { ...parsed, truncated: parsed.truncated === true };
+  return {
+    ...parsed,
+    truncated: parsed.truncated === true,
+    runParams: readRunParams(parsed.runParams),
+  };
 }
 
 /**

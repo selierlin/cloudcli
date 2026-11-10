@@ -14,6 +14,13 @@ type BtwComposerProps = {
   canAbort: boolean;
   /** Shown read-only: the drawer mirrors the main conversation's mode. */
   permissionModeLabel: string;
+  /**
+   * Shown read-only beside the mode, and only once the branch exists.
+   *
+   * Unlike the mode, this one does not track the composer: it names the model
+   * the branch was frozen on when it forked.
+   */
+  modelLabel: string | null;
   permissionRequests: PendingPermissionRequest[];
   onPermissionDecision: (
     requestIds: string | string[],
@@ -31,6 +38,7 @@ export default function BtwComposer({
   isProcessing,
   canAbort,
   permissionModeLabel,
+  modelLabel,
   permissionRequests,
   onPermissionDecision,
   onGrantToolPermission,
@@ -146,7 +154,7 @@ export default function BtwComposer({
       </div>
 
       <p className="px-3 pb-2 text-[11px] text-muted-foreground">
-        {permissionModeLabel}
+        {modelLabel ? `${modelLabel} · ${permissionModeLabel}` : permissionModeLabel}
       </p>
     </div>
   );

@@ -144,6 +144,7 @@ const seedSnapshot = (messages: NormalizedMessage[] = [userRow('u1')]) => {
       anchorDegraded: false,
       anchorSource: 'explicit',
     },
+    runParams: null,
     minimized: true,
     messages,
   });

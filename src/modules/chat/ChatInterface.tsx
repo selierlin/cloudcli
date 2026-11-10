@@ -605,6 +605,13 @@ function ChatInterface({
     mode: permissionModeCopy.label,
   });
 
+  // The branch's own model, not the composer's: the composer follows whichever
+  // conversation is selected, and this branch keeps answering on the model it
+  // forked from.
+  const sideAskModelLabel = btw.runParams
+    ? t('sideAsk.model', { model: btw.runParams.model })
+    : null;
+
   // On WebSocket reconnect, request a bounded persisted-tail sync (deferred
   // while Chat is hidden), then re-subscribe — the
   // `chat_subscribed` ack restores or clears the activity indicator, replays
@@ -658,6 +665,7 @@ function ChatInterface({
     // The ack of a restored copy's subscribe says whether the turn that was
     // generating before the reload is still going.
     onSideAskSubscribed: handleBtwSubscribeAck,
+    onSessionProcessingFromFrame: onSessionProcessing,
   });
 
   // Lets other modules (the quick settings Commands tab) hand text to the
@@ -1188,7 +1196,9 @@ function ChatInterface({
             onMinimize={() => setSideAskMinimized(true)}
             onRestore={() => setSideAskMinimized(false)}
             sourceTitle={selectedSession?.title || selectedSession?.summary || selectedSession?.name || ''}
-            provider={provider}
+            // The branch's harness, not the composer's: opening a conversation
+            // on a different harness must not relabel rows this one answered.
+            provider={btw.runParams?.provider ?? provider}
             selectedProject={selectedProject}
             messages={sideAskMessages}
             isProcessing={sideAskProcessing}
@@ -1196,7 +1206,10 @@ function ChatInterface({
             sourceIsProcessing={isProcessing}
             anchorLabel={sideAskAnchorLabel}
             anchorNotice={sideAskAnchorNotice}
+            activity={sideAskActivity ?? null}
+            onAbort={btw.abort}
             permissionModeLabel={sideAskPermissionModeLabel}
+            modelLabel={sideAskModelLabel}
             permissionRequests={sideAskPermissionRequests}
             onPermissionDecision={handleSideAskPermissionDecision}
             onGrantToolPermission={handleGrantToolPermission}

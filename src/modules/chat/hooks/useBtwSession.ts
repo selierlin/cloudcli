@@ -24,6 +24,26 @@ export type BtwAnchorInfo = {
   anchorSource: 'default' | 'explicit';
 };
 
+/**
+ * What a copy runs with, frozen when it forked: the harness it branched from,
+ * its model and its reasoning effort.
+ *
+ * `provider` is here for the transcript, not the run: `chat.send` resolves the
+ * harness from the copy's own row, but the optimistic row the drawer appends
+ * before the server answers is stamped from whatever this tab renders with —
+ * and opening a conversation on a different harness would label the question
+ * with the wrong one.
+ *
+ * `effort` is carried even when the harness ignores it: the drawer reports back
+ * what it sent, and dropping it here would make the header claim the source's
+ * level while the turn ran on the harness default.
+ */
+export type BtwRunParams = {
+  provider: LLMProvider;
+  model: string;
+  effort: string;
+};
+
 /** Why closing failed: the copy is still busy, or the request did not land. */
 export type BtwCloseFailure = 'still-running' | 'failed';
 
@@ -37,6 +57,16 @@ export type BtwController = {
    * now, and the source selected at read time is not that answer.
    */
   forkSourceSessionId: string | null;
+  /**
+   * The model and effort the copy runs with, frozen at fork time.
+   *
+   * Null until the first question forks the copy. Read this rather than the
+   * composer's current values: those track whichever conversation is selected
+   * *now*, and opening another session would otherwise switch the aside's model
+   * mid-branch — and the server records whatever the turn sends, so the wrong
+   * model would then stick to the copy even after switching back.
+   */
+  runParams: BtwRunParams | null;
   /** A create request is in flight; the composer stays disabled meanwhile. */
   creating: boolean;
   /** A delete request is in flight; the drawer stays open until it resolves. */
@@ -70,6 +100,7 @@ export type BtwController = {
     sessionId: string;
     forkSourceSessionId: string;
     anchorInfo: BtwAnchorInfo | null;
+    runParams: BtwRunParams | null;
   }) => void;
   /**
    * Forgets a copy the server no longer has, without issuing a DELETE.
@@ -89,7 +120,14 @@ type UseBtwSessionArgs = {
   anchor: BtwAnchorRequest;
   sendMessage: (message: unknown) => void;
   sessionStore: SessionStore;
-  /** The shared option builder, so a drawer send runs with the main composer's settings. */
+  /**
+   * The shared option builder, so a drawer send carries the main composer's
+   * permission mode and tool settings.
+   *
+   * It is read once per fork rather than once per send: the returned options
+   * are stored as the copy's frozen run parameters and reused for every later
+   * turn.
+   */
   buildOptions: (text: string) => QueuedSendOptions;
 };
 
@@ -116,6 +154,10 @@ export function useBtwSession({
   const [closeFailure, setCloseFailure] = useState<BtwCloseFailure | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [anchorInfo, setAnchorInfo] = useState<BtwAnchorInfo | null>(null);
+  // The model and effort the copy runs with. Held as state so the drawer's
+  // header can report them, and mirrored into a ref because `send` reads them
+  // from async continuations.
+  const [runParams, setRunParams] = useState<BtwRunParams | null>(null);
 
   // The anchor is read inside async continuations, which outlive the render
   // they began in. A ref keeps the create call on the anchor the reader chose
@@ -134,6 +176,8 @@ export function useBtwSession({
   const closedDuringCreateRef = useRef(false);
   const sessionIdRef = useRef<string | null>(null);
   sessionIdRef.current = sessionId;
+  const runParamsRef = useRef<BtwRunParams | null>(null);
+  runParamsRef.current = runParams;
 
   const discard = useCallback(() => {
     const id = sessionIdRef.current;
@@ -147,9 +191,11 @@ export function useBtwSession({
     // something to come back to.
     clearBtwSnapshot();
     sessionIdRef.current = null;
+    runParamsRef.current = null;
     setSessionId(null);
     setForkSourceSessionId(null);
     setAnchorInfo(null);
+    setRunParams(null);
   }, [sessionStore]);
 
   /**
@@ -167,6 +213,18 @@ export function useBtwSession({
     createInFlightRef.current = true;
     setCreating(true);
     setCreateError(null);
+
+    // Read before the await, so the copy freezes the parameters of the
+    // conversation it forked from even if the reader switches sessions while
+    // the fork is still in flight. The server seeds the copy row from the
+    // source's own model, so a frozen value that disagrees with it cannot come
+    // from this builder.
+    const frozenOptions = buildOptions('');
+    const frozenModel = typeof frozenOptions.model === 'string' ? frozenOptions.model : '';
+    const frozenEffort = typeof frozenOptions.effort === 'string' ? frozenOptions.effort : '';
+    const frozenParams: BtwRunParams | null = frozenModel && frozenEffort
+      ? { provider, model: frozenModel, effort: frozenEffort }
+      : null;
 
     const pending = (async (): Promise<string | null> => {
       try {
@@ -189,6 +247,8 @@ export function useBtwSession({
         // Frozen here rather than derived at read time: a reload compares the
         // snapshot against the conversation this fork actually came from.
         setForkSourceSessionId(sourceSessionId);
+        runParamsRef.current = frozenParams;
+        setRunParams(frozenParams);
         setAnchorInfo({
           anchorForkId: typeof created.anchorForkId === 'string' ? created.anchorForkId : null,
           anchorMessageId: typeof created.anchorMessageId === 'string' ? created.anchorMessageId : null,
@@ -224,7 +284,7 @@ export function useBtwSession({
     } finally {
       createPromiseRef.current = null;
     }
-  }, [sendMessage, sessionStore, sourceSessionId]);
+  }, [buildOptions, provider, sendMessage, sessionStore, sourceSessionId]);
 
   const send = useCallback(async (text: string): Promise<boolean> => {
     const content = text.trim();
@@ -249,18 +309,28 @@ export function useBtwSession({
       id: `btw-question-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       sessionId: id,
       timestamp: new Date().toISOString(),
-      provider,
+      // The branch's harness, not this tab's: the row is drawn before the
+      // server names one, and switching conversations must not relabel it.
+      provider: runParamsRef.current?.provider ?? provider,
       kind: 'text',
       role: 'user',
       content,
     };
     sessionStore.appendRealtime(id, optimistic);
 
+    // The builder is consulted for the per-turn settings that must stay live
+    // (permission mode, tool settings), then the frozen model and effort are
+    // laid over it: `chat.send` records whatever model it is handed onto the
+    // copy's row, so a value read from whichever conversation is selected now
+    // would permanently retarget this branch.
+    const frozen = runParamsRef.current;
     sendMessage({
       type: 'chat.send',
       sessionId: id,
       content,
-      options: buildOptions(content),
+      options: frozen
+        ? { ...buildOptions(content), model: frozen.model, effort: frozen.effort }
+        : buildOptions(content),
     });
     return true;
   }, [buildOptions, ensureSession, provider, sendMessage, sessionStore]);
@@ -355,14 +425,17 @@ export function useBtwSession({
     sessionId: string;
     forkSourceSessionId: string;
     anchorInfo: BtwAnchorInfo | null;
+    runParams: BtwRunParams | null;
   }) => {
     // The ref first: `ensureSession` and every in-flight continuation read it,
     // and the subscription that follows this call is acknowledged against the
     // rendered id.
     sessionIdRef.current = state.sessionId;
+    runParamsRef.current = state.runParams;
     setSessionId(state.sessionId);
     setForkSourceSessionId(state.forkSourceSessionId);
     setAnchorInfo(state.anchorInfo);
+    setRunParams(state.runParams);
     // A notice about a copy the server had reclaimed belongs to that copy.
     setCreateError(null);
     setCloseFailure(null);
@@ -383,6 +456,7 @@ export function useBtwSession({
   return {
     sessionId,
     forkSourceSessionId,
+    runParams,
     creating,
     closing,
     closeFailure,

@@ -59,6 +59,9 @@ const renderDrawer = ({
     anchorLabel={null}
     anchorNotice={null}
     permissionModeLabel="Default"
+    modelLabel={null}
+    activity={null}
+    onAbort={() => {}}
     permissionRequests={[]}
     onPermissionDecision={() => {}}
     onGrantToolPermission={() => ({ success: true })}
@@ -129,4 +132,52 @@ test('a branch that came back whole stays quiet', () => {
   renderDrawer();
 
   expect(screen.queryByText('sideAsk.restoredPartial')).toBeNull();
+});
+
+test('a running branch shows what it is doing, for how long, with a way to stop it', () => {
+  // The drawer has no composer of its own, so this indicator is the only sign
+  // that a question is being answered.
+  render(
+    <BtwDrawer
+      open
+      btw={makeBtw()}
+      placement="overlay"
+      minimized={false}
+      onMinimize={() => {}}
+      onRestore={() => {}}
+      sourceTitle="Source conversation"
+      provider="claude"
+      selectedProject={null}
+      messages={[]}
+      isProcessing
+      canAbort
+      activity={{ statusText: null, canInterrupt: true, startedAt: Date.now() - 5000 }}
+      onAbort={() => {}}
+      sourceIsProcessing={false}
+      anchorLabel={null}
+      anchorNotice={null}
+      permissionModeLabel="Default"
+      modelLabel={null}
+      permissionRequests={[]}
+      onPermissionDecision={() => {}}
+      onGrantToolPermission={() => ({ success: true })}
+      onSend={async () => true}
+      onClose={() => {}}
+      onRefork={() => {}}
+      onPromote={() => {}}
+      createDiff={() => []}
+    />,
+  );
+
+  const tab = document.querySelector('[data-slot="activity-tab"]');
+  expect(tab).toBeTruthy();
+  // The elapsed clock is what tells a reader the wait is progressing.
+  expect(screen.getByText(/5s|{{count}}s|seconds/)).toBeTruthy();
+  expect(screen.getByLabelText('claudeStatus.stop')).toBeTruthy();
+});
+
+test('an idle branch shows no indicator', () => {
+  renderDrawer({});
+
+  expect(document.querySelector('[data-slot="activity-tab"]')).toBeNull();
 });

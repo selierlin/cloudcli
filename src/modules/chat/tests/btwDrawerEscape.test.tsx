@@ -42,6 +42,9 @@ const renderDrawer = (onClose: () => void) => render(
     anchorLabel={null}
     anchorNotice={null}
     permissionModeLabel="Default"
+    modelLabel={null}
+    activity={null}
+    onAbort={() => {}}
     permissionRequests={[]}
     onPermissionDecision={() => {}}
     onGrantToolPermission={() => ({ success: true })}

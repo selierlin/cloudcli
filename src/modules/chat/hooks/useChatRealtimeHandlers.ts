@@ -20,6 +20,27 @@ const hasActionablePermissionRequests = (requests: Array<{ toolName?: unknown }>
   return Array.isArray(requests) && requests.some((request) => isActionablePermissionRequest(request));
 };
 
+/**
+ * Frame kinds that can only exist while a turn is producing its response.
+ *
+ * Deliberately narrow: `complete`, `error`, `protocol_error` and every gateway
+ * event are excluded, because a frame that also means "this run ended" must
+ * never be read as "this run started". User echoes are excluded too — they are
+ * the client's own row coming back, not evidence of a run.
+ */
+const TURN_FRAME_KINDS = new Set<unknown>([
+  'stream_delta',
+  'stream_end',
+  'status',
+  'tool_use',
+  'tool_result',
+  'thinking',
+  'permission_request',
+  'task_status',
+]);
+
+const isTurnFrameKind = (kind: unknown): boolean => TURN_FRAME_KINDS.has(kind);
+
 type UseChatRealtimeHandlersArgs = {
   isActive: boolean;
   subscribe: (listener: (event: ServerEvent) => void) => () => void;
@@ -90,6 +111,15 @@ type UseChatRealtimeHandlersArgs = {
    * ended during the reload and the half row has to be settled locally.
    */
   onSideAskSubscribed?: (sessionId: string, isProcessing: boolean) => void;
+  /**
+   * Marks a session as processing on the first live frame of a turn.
+   *
+   * The main composer marks its own session as soon as it sends; a session
+   * with no composer of its own — the drawer's copy — would otherwise show
+   * nothing at all between the send and the first frame that carries a status
+   * line, which is exactly the wait the reader is staring at.
+   */
+  onSessionProcessingFromFrame?: MarkSessionProcessing;
 };
 
 /* ------------------------------------------------------------------ */
@@ -129,6 +159,7 @@ export function useChatRealtimeHandlers({
   setSideAskPermissionRequests,
   onSideAskSessionGone,
   onSideAskSubscribed,
+  onSessionProcessingFromFrame,
 }: UseChatRealtimeHandlersArgs) {
   // Session switches can send `chat.subscribe` before this effect has a chance
   // to rebind the websocket listener. Read the visible session id from a ref
@@ -145,6 +176,10 @@ export function useChatRealtimeHandlers({
   // Same reason: the drawer can be restored while this listener is bound.
   const onSideAskSubscribedRef = useRef(onSideAskSubscribed);
   onSideAskSubscribedRef.current = onSideAskSubscribed;
+  // Read at frame time so the listener never re-binds for a new callback
+  // identity (which would drop frames mid-run).
+  const onSessionProcessingFromFrameRef = useRef(onSessionProcessingFromFrame);
+  onSessionProcessingFromFrameRef.current = onSessionProcessingFromFrame;
 
   // Keep the latest pending-permission snapshot available to the websocket
   // listener so back-to-back permission events can dedupe and re-arm the
@@ -214,6 +249,15 @@ export function useChatRealtimeHandlers({
         if (msg.seq > known) {
           lastSeqRef.current.set(sid, msg.seq);
         }
+      }
+
+      // A turn's first frames are the answer streaming in, and providers only
+      // send a `status` line later (or never). Without this the elapsed clock
+      // in an indicator started at the first delta, and a copy that runs
+      // entirely without one — a tool-only turn, or one whose deltas land
+      // after a long silent pause — showed no indicator at all.
+      if (sid && isTurnFrameKind(msg.kind)) {
+        onSessionProcessingFromFrameRef.current?.(sid);
       }
 
       switch (msg.kind) {

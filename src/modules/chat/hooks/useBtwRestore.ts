@@ -102,6 +102,7 @@ export function useBtwRestore({
       lastSeq: lastSeqRef.current.get(current.sessionId) ?? 0,
       anchor: currentAnchor,
       anchorInfo: current.anchorInfo,
+      runParams: current.runParams,
       minimized: currentMinimized,
       messages: sessionStore.getMessages(current.sessionId),
       truncated: truncatedRef.current,
@@ -202,6 +203,7 @@ export function useBtwRestore({
         sessionId: id,
         forkSourceSessionId: snapshot.forkSourceSessionId,
         anchorInfo: snapshot.anchorInfo ?? null,
+        runParams: snapshot.runParams,
       });
       // 2. The rows, in one merge and one repaint.
       sessionStore.seedSession(id, snapshot.messages);

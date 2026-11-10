@@ -654,6 +654,7 @@
     "anchorDegradedZcode": "已从会话末尾开始，上下文包含正在生成的回复。",
     "sourceBusy": "主会话正在执行，这里的工具操作可能与其冲突。",
     "permissionMode": "权限模式：{{mode}}",
+    "model": "模型：{{model}}",
     "emptyTitle": "问一句，不打断主线",
     "emptyBody": "这条分支不会进入主会话。关闭即丢弃这些问答。",
     "input": {

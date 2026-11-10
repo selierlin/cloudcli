@@ -132,3 +132,23 @@ test('an empty conversation shows the drawer empty state instead of a fold', () 
   assert.ok(container.textContent?.includes('EMPTY_STATE'));
   assert.equal(container.querySelectorAll('button[aria-expanded]').length, 0);
 });
+
+test('an assistant row names the branch\'s harness, so opening another conversation cannot relabel it', () => {
+  const { container } = render(
+    <UiPreferencesProvider>
+      <BtwMessageList
+        messages={conversation}
+        provider="pi"
+        selectedProject={null}
+        createDiff={createDiff}
+        showThinking
+        isProcessing={false}
+        emptyState={<div>EMPTY_STATE</div>}
+      />
+    </UiPreferencesProvider>,
+  );
+
+  // The drawer's provider is the copy's frozen one; it is the only harness any
+  // row in this branch can be labelled with.
+  assert.equal(container.textContent?.includes('Pi'), true);
+});

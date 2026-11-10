@@ -715,6 +715,7 @@
     "anchorDegradedZcode": "Started from the end of the conversation, so the context includes the reply in progress.",
     "sourceBusy": "The main conversation is running; tool actions here may conflict with it.",
     "permissionMode": "Permission mode: {{mode}}",
+    "model": "Model: {{model}}",
     "emptyTitle": "Ask without derailing",
     "emptyBody": "This branch stays out of the main conversation. Closing it discards these questions and answers.",
     "input": {

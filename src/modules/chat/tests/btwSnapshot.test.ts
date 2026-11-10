@@ -62,6 +62,7 @@ const baseSnapshot = (messages: NormalizedMessage[]) => ({
     anchorDegraded: false,
     anchorSource: 'explicit' as const,
   },
+  runParams: { provider: 'claude' as const, model: 'claude-sonnet-4', effort: 'high' },
   minimized: true,
   messages,
 });
@@ -246,4 +247,21 @@ test('the streaming seed is the prose the reload interrupted', () => {
 
   assert.deepEqual(seed, { text: 'partial answer', thinking: 'thinking so far', provider: 'claude' });
   assert.equal(extractStreamingSeed([userRow('u1'), assistantRow('a1')]), null);
+});
+
+test('the frozen run parameters survive the reload, and an older snapshot reads as none', () => {
+  writeBtwSnapshot(baseSnapshot([userRow('u1')]));
+  assert.deepEqual(readBtwSnapshot()?.runParams, {
+    provider: 'claude',
+    model: 'claude-sonnet-4',
+    effort: 'high',
+  });
+
+  // A tab that saved this snapshot before the field existed still has a usable
+  // copy id: the missing parameters must not invalidate the whole entry.
+  const { runParams: _dropped, ...legacy } = baseSnapshot([userRow('u1')]);
+  window.sessionStorage.setItem(BTW_SNAPSHOT_STORAGE_KEY, JSON.stringify({ ...legacy, v: 1, savedAt: Date.now() }));
+  const snapshot = readBtwSnapshot();
+  assert.ok(snapshot, 'a legacy snapshot stays restorable');
+  assert.equal(snapshot.runParams, null);
 });

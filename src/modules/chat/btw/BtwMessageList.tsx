@@ -13,6 +13,14 @@ import MessageComponent from '@/modules/chat/transcript/MessageComponent';
 
 type BtwMessageListProps = {
   messages: ChatMessage[];
+  /**
+   * The harness this branch forked from.
+   *
+   * Every assistant row in the drawer names whoever answered, and the drawer
+   * has exactly one harness — the copy's own. Passing the composer's current
+   * value instead would relabel the whole branch the moment the reader opens a
+   * conversation running a different harness.
+   */
   provider: LLMProvider;
   selectedProject: Project | null;
   createDiff: (oldStr: string, newStr: string) => DiffLine[];

@@ -7,12 +7,14 @@ import type {
   LLMProvider,
   PendingPermissionRequest,
   Project,
+  SessionActivity,
 } from '@/shared/types';
 import { Button } from '@/shared/ui';
 import { isImeKeyEvent } from '@/shared/utils';
 import type { BtwController } from '@/modules/chat/hooks/useBtwSession';
 import type { SideAskPlacement } from '@/modules/chat/hooks/useSideAskPlacement';
 import { btwFailureMessageKey } from '@/modules/chat/utils/btwFailureMessage';
+import ActivityIndicator from '@/modules/chat/composer/ActivityIndicator';
 import BtwComposer from '@/modules/chat/btw/BtwComposer';
 import BtwMessageList from '@/modules/chat/btw/BtwMessageList';
 
@@ -29,11 +31,29 @@ type BtwDrawerProps = {
   onRestore: () => void;
   /** Title of the conversation this branch came from, for the header. */
   sourceTitle: string;
+  /**
+   * The harness every row in this branch is labelled with.
+   *
+   * The copy's own, not the composer's: the reader can open a conversation on
+   * another harness while the drawer stays open, and the branch's rows must
+   * keep naming the one that actually answered them.
+   */
   provider: LLMProvider;
   selectedProject: Project | null;
   messages: ChatMessage[];
   isProcessing: boolean;
   canAbort: boolean;
+  /**
+   * The copy's own activity entry: status text, elapsed clock and whether the
+   * turn can be interrupted.
+   *
+   * The drawer has no composer of its own, so without this the wait between a
+   * question and its reply is silent — no "thinking", no elapsed time, and no
+   * way to stop short of leaving the panel.
+   */
+  activity: SessionActivity | null;
+  /** Stops the copy's turn. Called from the drawer's indicator. */
+  onAbort: () => void;
   /** True while the conversation being asked about is mid-turn. */
   sourceIsProcessing: boolean;
   /** Human-readable cut point, e.g. "Context up to message 3". */
@@ -46,6 +66,14 @@ type BtwDrawerProps = {
   /** Provider-specific clarification for a degraded anchor, if any. */
   anchorNotice: string | null;
   permissionModeLabel: string;
+  /**
+   * The model the branch runs with, frozen when it forked.
+   *
+   * Shown because it is the one thing here that does not follow the composer:
+   * switching to another conversation changes what the main composer reports
+   * while this branch keeps answering on the model it was forked from.
+   */
+  modelLabel: string | null;
   permissionRequests: PendingPermissionRequest[];
   onPermissionDecision: (
     requestIds: string | string[],
@@ -94,11 +122,14 @@ export default function BtwDrawer({
   messages,
   isProcessing,
   canAbort,
+  activity,
+  onAbort,
   sourceIsProcessing,
   anchorLabel,
   anchorNotice,
   restoredPartial,
   permissionModeLabel,
+  modelLabel,
   permissionRequests,
   onPermissionDecision,
   onGrantToolPermission,
@@ -304,11 +335,24 @@ export default function BtwDrawer({
         )}
       />
 
+      {/* The same indicator the main composer caps itself with, in the same
+          place: a tab riding above the input it belongs to. The drawer has no
+          composer of its own to own this state, so the wait used to be silent —
+          no activity label, no elapsed time, and no stop short of leaving the
+          panel. Tool approvals stay exempt, exactly as they are in the
+          conversation: the banner above already says what is being waited on. */}
+      {activity && permissionRequests.length === 0 && (
+        <div className="relative z-10 flex-none px-3 pt-2">
+          <ActivityIndicator activity={activity} onAbort={onAbort} />
+        </div>
+      )}
+
       <BtwComposer
         disabled={btw.creating || btw.closing || isProcessing}
         isProcessing={isProcessing}
         canAbort={canAbort}
         permissionModeLabel={permissionModeLabel}
+        modelLabel={modelLabel}
         permissionRequests={permissionRequests}
         onPermissionDecision={onPermissionDecision}
         onGrantToolPermission={onGrantToolPermission}
