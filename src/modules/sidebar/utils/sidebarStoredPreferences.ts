@@ -1,9 +1,30 @@
-import type { ProjectSortOrder } from '@/shared/types';
+import type { ProjectSortOrder, SidebarSearchMode } from '@/shared/types';
 import { readUserPreference } from '@/shared/userSettings';
 
 export const readProjectSortOrder = (): ProjectSortOrder => (
   readUserPreference<ProjectSortOrder>('projectSortOrder', 'date') === 'name' ? 'name' : 'date'
 );
+
+const SIDEBAR_SEARCH_MODES: SidebarSearchMode[] = [
+  'projects',
+  'conversations',
+  'running',
+  'archived',
+  'scheduledTasks',
+];
+
+/**
+ * The sidebar section the user was last on, so a reload lands back on it
+ * instead of resetting to Projects.
+ *
+ * Only the chosen section is stored. Anything else in the preference — a
+ * section this build no longer has, or a value written by a newer one — falls
+ * back to Projects rather than rendering an empty sidebar.
+ */
+export const readSidebarSearchMode = (): SidebarSearchMode => {
+  const stored = readUserPreference<SidebarSearchMode>('sidebarSearchMode', 'projects');
+  return SIDEBAR_SEARCH_MODES.includes(stored) ? stored : 'projects';
+};
 
 const LEGACY_STARRED_PROJECTS_STORAGE_KEY = 'starredProjects';
 

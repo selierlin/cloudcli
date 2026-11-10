@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 
 import { api } from '@/shared/api';
-import { subscribeToUserPreferences } from '@/shared/userSettings';
+import { subscribeToUserPreferences, writeUserPreference } from '@/shared/userSettings';
 import { usePaletteOps } from '@/modules/command-palette';
 import type { ArchivedProjectListItem, ArchivedSessionListItem, BatchArchivedSessionDeleteConfirmation, BatchSessionArchiveConfirmation, ConversationProjectResult, ConversationSearchResults, CreatedConversationSignal, LLMProvider, Project, ProjectSession, ProjectSortOrder, RecentConversationListItem, SearchProgress, ActiveSidebarRename, PendingSidebarDeletion, SessionTitleSearchResult, SessionWithProvider, SidebarProjectRevealRequest, SidebarSearchMode } from '@/shared/types';
 import {
@@ -20,6 +20,7 @@ import {
   clearLegacyStarredProjectIds,
   readLegacyStarredProjectIds,
   readProjectSortOrder,
+  readSidebarSearchMode,
 } from '@/modules/sidebar/utils/sidebarStoredPreferences';
 
 
@@ -172,7 +173,7 @@ export function useSidebarController({
   const [batchArchivedSessionDeleteConfirmation, setBatchArchivedSessionDeleteConfirmation] =
     useState<BatchArchivedSessionDeleteConfirmation | null>(null);
   const [showVersionModal, setShowVersionModal] = useState(false);
-  const [searchMode, setSearchMode] = useState<SidebarSearchMode>('projects');
+  const [searchMode, setSearchMode] = useState<SidebarSearchMode>(readSidebarSearchMode);
   const [conversationResults, setConversationResults] = useState<ConversationSearchResults | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [searchProgress, setSearchProgress] = useState<SearchProgress | null>(null);
@@ -1674,6 +1675,7 @@ export function useSidebarController({
 
   const changeSearchMode = useCallback((mode: SidebarSearchMode) => {
     setSearchMode(mode);
+    writeUserPreference('sidebarSearchMode', mode);
   }, []);
 
   return {

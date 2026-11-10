@@ -1,6 +1,6 @@
 import { api } from '@/shared/api';
 import { CODE_EDITOR_STORAGE_KEYS } from '@/shared/constants';
-import type { FontSettingsState, PastedUserTheme, QuickReply } from '@/shared/types';
+import type { FontSettingsState, PastedUserTheme, QuickReply, SidebarSearchMode } from '@/shared/types';
 import { readLegacyProviderModelSettings } from '@/shared/providerModelSettings';
 import type { ProviderModelSettings } from '@/shared/providerModelSettings';
 
@@ -50,6 +50,8 @@ export type UserPreferences = {
   userLanguage: string;
   tasksEnabled: boolean;
   projectSortOrder: 'name' | 'date';
+  /** Which section the sidebar's mode strip is on, so a reload lands back on it. */
+  sidebarSearchMode: SidebarSearchMode;
   claudePermissions: unknown;
   cursorPermissions: unknown;
   codexPermissions: unknown;
@@ -122,6 +124,9 @@ const LEGACY_STORAGE_KEYS: Record<UserPreferenceKey, string> = {
   userLanguage: 'userLanguage',
   tasksEnabled: 'tasks-enabled',
   projectSortOrder: 'claude-settings',
+  // Never had a browser-local home. An empty legacy key leaves it unset, so the
+  // server's copy wins and a fresh install starts on `projects`.
+  sidebarSearchMode: '',
   claudePermissions: 'claude-settings',
   cursorPermissions: 'cursor-tools-settings',
   codexPermissions: 'codex-settings',

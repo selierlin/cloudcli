@@ -34,3 +34,23 @@ test('falls back to recent activity for an invalid project sorting preference', 
 
   assert.equal(readProjectSortOrder(), 'date');
 });
+
+test('defaults the sidebar section to projects when no preference exists', async () => {
+  const { readSidebarSearchMode } = await loadReader();
+
+  assert.equal(readSidebarSearchMode(), 'projects');
+});
+
+test('restores the sidebar section the user last chose', async () => {
+  localStorage.setItem('user-preferences', JSON.stringify({ sidebarSearchMode: 'conversations' }));
+  const { readSidebarSearchMode } = await loadReader();
+
+  assert.equal(readSidebarSearchMode(), 'conversations');
+});
+
+test('falls back to projects for a sidebar section this build does not have', async () => {
+  localStorage.setItem('user-preferences', JSON.stringify({ sidebarSearchMode: 'retired-section' }));
+  const { readSidebarSearchMode } = await loadReader();
+
+  assert.equal(readSidebarSearchMode(), 'projects');
+});
