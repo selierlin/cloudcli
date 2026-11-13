@@ -177,8 +177,13 @@ export default function ScrollDiagnosticsPanel({ containerRef }: { containerRef:
             <div style={{ color: stats.rowHeightChanges > 3 ? '#ff9f6e' : 'inherit' }}>
               行高突变 {stats.rowHeightChanges} 次
             </div>
-            <div style={{ color: stats.snappedToBottomWhileTouching > 0 ? '#ff9f6e' : 'inherit' }}>
-              触摸中跳变 {stats.jumpWhileTouching} 次 · 回底 {stats.snappedToBottomWhileTouching} 次
+            {/* 触摸中的位移分两档：应用写入的才算「转写把自己拽走了」，
+                其余是惯性/橡皮筋，手机本来就这样。 */}
+            <div style={{ color: stats.writtenWhileTouching > 0 ? '#ff9f6e' : 'inherit' }}>
+              触摸中写入位移 {stats.writtenWhileTouching} 次 · 回底 {stats.snappedToBottomWhileTouching} 次
+            </div>
+            <div style={{ opacity: 0.75 }}>
+              触摸中位移合计 {stats.jumpWhileTouching} 次 · 触摸中分页 {stats.loadMoreWhileTouching} 次
             </div>
           </>
         ) : (

@@ -25,8 +25,18 @@ export type ScrollDiagnosticsSummary = {
   p95FrameMs: number;
   scrollEvents: number;
   touchedSamples: number;
-  /** Samples where the pane jumped toward the tail while a finger was down. */
+  /**
+   * Samples where the pane moved toward the tail while a finger was down, split
+   * by who could have moved it. A drag and the platform's own inertia both grow
+   * `scrollTop`, so the combined number says nothing on its own: the phone
+   * coasts up while the finger is still on the glass. Only the app-written half
+   * is "the transcript yanked itself out from under the reader".
+   */
   jumpWhileTouching: number;
+  /** The app-written half: a `W`/`A` write landed in the same frame. */
+  writtenWhileTouching: number;
+  /** Pages that landed while a finger was down — the compensation is certain to collide. */
+  loadMoreWhileTouching: number;
   largestJumpPx: number;
   /** Samples where that jump landed exactly on the bottom edge. */
   snappedToBottomWhileTouching: number;
@@ -70,7 +80,8 @@ export type ScrollDiagnosticsSummary = {
 };
 
 export type ScrollDiagnosticsReport = {
-  version: 8;
+  /** Record and event layout revision; a reader must not mix readings across it. */
+  version: 9;
   createdAt: string;
   userAgent: string;
   /**
@@ -123,6 +134,14 @@ type PendingMutations = {
  * One transcript row, pinned by identity. `height` is the value read on the
  * previous frame, so this frame's read can be diffed against it; its screen
  * position is kept in `DiagnosticsState.lastTrackedTop`, not here.
+ *
+ * `height` is deliberately *not* cleared when the row is re-picked: a re-pick
+ * happens whenever the tracked wrapper leaves the DOM, and the row that takes
+ * over is usually the same message re-mounted, so its height is still the
+ * baseline the reader's own row was measured against. The row is re-measured on
+ * the frame that re-picks it (`lastTrackedTop === null`), so a genuine height
+ * change between the two picks is reported instead of being swallowed — which
+ * is exactly what the counters did while every re-pick zeroed this field.
  */
 type TrackedRow = {
   el: HTMLElement;
@@ -171,6 +190,12 @@ type DiagnosticsState = {
    * row, and a re-pick would read as a jump of its own.
    */
   trackedRow: TrackedRow | null;
+  /**
+   * Last measured height per row timestamp. Survives the tracked row leaving the
+   * DOM, so the row that takes its place can still be diffed against what it
+   * measured before it unmounted — the case the counters used to lose.
+   */
+  trackedRowHeightById: Map<string, number>;
   /** Previous frame's tracked-row top; `null` right after a re-pick. */
   lastTrackedTop: number | null;
   /** Previous frame's document height, for attributing a jump to a re-layout. */
@@ -195,6 +220,8 @@ type DiagnosticsState = {
     scrollEvents: number;
     touchedSamples: number;
     jumpWhileTouching: number;
+    writtenWhileTouching: number;
+    loadMoreWhileTouching: number;
     largestJumpPx: number;
     snappedToBottomWhileTouching: number;
     mutations: number;
@@ -266,7 +293,12 @@ export function noteTranscriptEvent(
     // written mid-gesture is the one the platform is allowed to discard.
     state.counters.touchActive ? 1 : 0,
   ]);
-  if (kind === 'P1') state.counters.prependPages += 1;
+  if (kind === 'P1') {
+    state.counters.prependPages += 1;
+    // A page landing under a finger is the one case where the compensation and
+    // the gesture are guaranteed to collide; worth its own number.
+    if (state.counters.touchActive) state.counters.loadMoreWhileTouching += 1;
+  }
 }
 
 
@@ -463,7 +495,9 @@ function sampleFrame(state: DiagnosticsState, frameNow: number): void {
 
   // Keep one row pinned by identity so its screen position can be diffed frame
   // to frame. Re-picking reads as a jump of its own, so a re-pick clears the
-  // baseline instead of reporting one.
+  // position baseline instead of reporting one — but it keeps the height
+  // baseline, because the row that replaces it is usually the same message
+  // mounting (or unmounting) and its growth is the insert the report is after.
   const paneTop = container.getBoundingClientRect().top;
   let row = state.trackedRow;
   if (row && !row.el.isConnected) row = null;
@@ -473,7 +507,9 @@ function sampleFrame(state: DiagnosticsState, frameNow: number): void {
         row = {
           el: candidate,
           id: candidate.getAttribute('data-message-timestamp') ?? 'none',
-          height: 0,
+          height: state.trackedRowHeightById.get(
+            candidate.getAttribute('data-message-timestamp') ?? '',
+          ) ?? 0,
         };
         break;
       }
@@ -501,41 +537,48 @@ function sampleFrame(state: DiagnosticsState, frameNow: number): void {
   const writeSource = state.lastWriteSource;
 
   let residual = 0;
-  if (row && state.lastTrackedTop !== null) {
-    const visualDelta = trackedTop - state.lastTrackedTop;
-    const scrollDelta = scrollTop - state.counters.lastScrollTop;
-    residual = visualDelta + scrollDelta;
-    if (Math.abs(residual) >= VISUAL_JUMP_MIN_PX) {
-      if (wrote) {
-        pushEvent(state, [
-          at, 'WV', residual, visualDelta, scrollDelta,
-          scrollHeight - state.lastScrollHeight, writeSource, row.id,
-          state.counters.gesture,
-        ]);
-        state.counters.writeFrameJumps += 1;
-      } else {
-        pushEvent(state, [
-          at, 'VJ', residual, visualDelta, scrollDelta,
-          scrollHeight - state.lastScrollHeight,
-          state.counters.touchActive ? 1 : 0, row.id, state.counters.gesture,
-        ]);
-        state.counters.visualJumps += 1;
-        if (Math.abs(residual) > state.counters.largestVisualJumpPx) {
-          state.counters.largestVisualJumpPx = Math.abs(residual);
+  if (row) {
+    if (state.lastTrackedTop !== null) {
+      const visualDelta = trackedTop - state.lastTrackedTop;
+      const scrollDelta = scrollTop - state.counters.lastScrollTop;
+      residual = visualDelta + scrollDelta;
+      if (Math.abs(residual) >= VISUAL_JUMP_MIN_PX) {
+        if (wrote) {
+          pushEvent(state, [
+            at, 'WV', residual, visualDelta, scrollDelta,
+            scrollHeight - state.lastScrollHeight, writeSource, row.id,
+            state.counters.gesture,
+          ]);
+          state.counters.writeFrameJumps += 1;
+        } else {
+          pushEvent(state, [
+            at, 'VJ', residual, visualDelta, scrollDelta,
+            scrollHeight - state.lastScrollHeight,
+            state.counters.touchActive ? 1 : 0, row.id, state.counters.gesture,
+          ]);
+          state.counters.visualJumps += 1;
+          if (Math.abs(residual) > state.counters.largestVisualJumpPx) {
+            state.counters.largestVisualJumpPx = Math.abs(residual);
+          }
         }
       }
     }
     // The row under the reader getting taller or shorter is the insert itself,
-    // as opposed to a shift caused by something inserted above it.
+    // as opposed to a shift caused by something inserted above it. Height is
+    // diffed even on the frame that re-picks the row: that frame's position
+    // baseline is cleared, but its height is compared against what the same
+    // message measured before, which is the whole point of the counter.
     if (row.height > 0 && Math.abs(trackedHeight - row.height) >= ROW_HEIGHT_CHANGE_MIN_PX) {
       pushEvent(state, [
-        at, 'RH', row.id, row.height, trackedHeight, trackedTop, state.counters.gesture,
+        at, 'RH', row.id, row.height, trackedHeight, trackedTop, wrote ? 1 : 0,
+        state.counters.gesture,
       ]);
       state.counters.rowHeightChanges += 1;
     }
   }
   if (row) {
     row.height = trackedHeight;
+    if (trackedHeight > 0) state.trackedRowHeightById.set(row.id, trackedHeight);
     state.lastTrackedTop = trackedTop;
   }
   state.lastScrollHeight = scrollHeight;
@@ -587,12 +630,16 @@ function sampleFrame(state: DiagnosticsState, frameNow: number): void {
     state.counters.touchedSamples += 1;
     const delta = scrollTop - state.counters.lastScrollTop;
     // A finger drag moves the content with the finger: reading upward means
-    // scrollTop shrinking. Growth on its own is ambiguous (a downward drag does
-    // that too), but a large one-frame growth while the finger is down, and
-    // especially one that lands on the bottom edge, is the follow writer or the
-    // anchor settle loop pulling the view out from under the reader.
+    // scrollTop shrinking. Growth on its own is ambiguous — a downward drag does
+    // that too, and so does the inertia that keeps running after the finger
+    // lands again — so the count is split by who could have written it. Only the
+    // half with an app write in the same frame is the transcript pulling itself
+    // out from under the reader; the rest is the platform doing what a phone
+    // does. Pooling them is why a report could show 26 "jumps" that were all
+    // ordinary coasting.
     if (delta > 16) {
       state.counters.jumpWhileTouching += 1;
+      if (wrote) state.counters.writtenWhileTouching += 1;
       if (delta > state.counters.largestJumpPx) state.counters.largestJumpPx = delta;
       if (
         scrollTop + clientHeight >= scrollHeight - 8
@@ -628,6 +675,7 @@ export function startScrollDiagnostics(container: HTMLElement): void {
     firstRow: container.querySelector<HTMLElement>('[data-message-timestamp]'),
     lastRow: [...container.querySelectorAll<HTMLElement>('[data-message-timestamp]')].at(-1) ?? null,
     trackedRow: null,
+    trackedRowHeightById: new Map(),
     lastTrackedTop: null,
     lastScrollHeight: Math.round(container.scrollHeight),
     lastActiveElement: '',
@@ -643,6 +691,8 @@ export function startScrollDiagnostics(container: HTMLElement): void {
       scrollEvents: 0,
       touchedSamples: 0,
       jumpWhileTouching: 0,
+      writtenWhileTouching: 0,
+      loadMoreWhileTouching: 0,
       largestJumpPx: 0,
       snappedToBottomWhileTouching: 0,
       mutations: 0,
@@ -812,6 +862,8 @@ function snapshotSummary(state: DiagnosticsState): ScrollDiagnosticsSummary {
     scrollEvents: state.counters.scrollEvents,
     touchedSamples: state.counters.touchedSamples,
     jumpWhileTouching: state.counters.jumpWhileTouching,
+    writtenWhileTouching: state.counters.writtenWhileTouching,
+    loadMoreWhileTouching: state.counters.loadMoreWhileTouching,
     largestJumpPx: Math.round(state.counters.largestJumpPx),
     snappedToBottomWhileTouching: state.counters.snappedToBottomWhileTouching,
     mutations: state.counters.mutations,
@@ -842,7 +894,9 @@ export function buildScrollDiagnosticsReport(): ScrollDiagnosticsReport | null {
   flushMutations(state);
 
   lastReport = {
-    version: 8,
+    // 9: `RH` compares height across a re-pick (it reported 0 forever), and the
+    // touch-window counters are split by whether the app wrote.
+    version: 9,
     createdAt: new Date().toISOString(),
     userAgent: navigator.userAgent,
     runtime: detectRuntime(),
