@@ -810,11 +810,13 @@ const gradeS13 = (provider) => {
  * per round, so a rewritten checker would pass the whole round rather than one
  * turn. Hash it before running, exactly like the single-turn graders.
  */
-const gradeS19 = (cwd) => {
+// Declared as a hoisted function: SCENARIOS (defined above) references it while
+// building the turn list, which a `const` arrow would hit before initialization.
+function gradeS19(cwd) {
   const intact = sha(path.join(cwd, 'app', 'check.js')) === constHash(FLOW_CHECK);
   const r = runChecker(cwd, '.', 'app/check.js');
   return { ...r, pass: r.pass && intact, checkerIntact: intact };
-};
+}
 
 /** hash of a fixture constant, to detect a harness that edits the grader */
 const constHash = (src) => createHash('sha256').update(src).digest('hex');
