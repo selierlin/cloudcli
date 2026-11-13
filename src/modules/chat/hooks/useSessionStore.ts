@@ -19,7 +19,7 @@ import type {
   StreamingChannelUpdate,
   TurnHistoryPageInfo,
 } from '@/shared/types';
-import { removeOptimisticUserEchoes, upsertRealtimeMessages } from '@/modules/chat/utils/sessionMessageReconciliation';
+import { removeOptimisticUserEchoes, reportDuplicateServerIds, upsertRealtimeMessages } from '@/modules/chat/utils/sessionMessageReconciliation';
 import {
   findLatestPageOverlapLength,
   hasReachedCachedTailTimeBoundary,
@@ -514,6 +514,8 @@ function pruneRealtimeSupersededByServer(
 }
 
 function computeMerged(server: NormalizedMessage[], realtime: NormalizedMessage[]): NormalizedMessage[] {
+  reportDuplicateServerIds(server);
+
   if (realtime.length === 0) {
     return dedupeAdjacentAssistantEchoes(server);
   }
