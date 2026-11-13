@@ -169,8 +169,8 @@ def main():
     con = sqlite3.connect(args.db if args.apply else f"file:{args.db}?mode=ro", uri=not args.apply)
     con.row_factory = sqlite3.Row
     all_rows = con.execute(
-        "select session_id,provider,provider_session_id,custom_name,jsonl_path,isArchived "
-        "from sessions").fetchall()
+        "select session_id,provider,provider_session_id,custom_name,jsonl_path,isArchived,"
+        "isPinned from sessions").fetchall()
 
     targets = []
     for r in all_rows:
@@ -242,16 +242,33 @@ def main():
 
     files, dirs, missing, freed = [], [], [], 0
     fork_warn = []
+    # session_read_state 是后加的表（schema.ts 用 CREATE TABLE IF NOT EXISTS，
+    # migrations.ts 才建索引）。老库或手工快照可能没有它，硬删会在「文件已删、
+    # DB 未提交」之后抛错，还把收尾的 integrity_check 与汇总一起跳过。
+    has_read_state = bool(con.execute(
+        "select 1 from sqlite_master where type='table' and name='session_read_state'"
+    ).fetchone())
+    if not has_read_state:
+        print("提示：该库没有 session_read_state 表，跳过读水位清理（不影响会话删除）\n")
 
     for r in targets:
         sid, prov, psid, name, jp = r["session_id"], r["provider"], r["provider_session_id"], r["custom_name"], r["jsonl_path"]
         nfork = con.execute("select count(*) from sessions where forked_from_session_id=?", (sid,)).fetchone()[0]
         if nfork:
             fork_warn.append((sid, nfork))
+        # 归档归属（用户把会话挂在某个父会话下）不是外键，删父必须显式清空，
+        # 否则子会话指向一条不存在的行。与应用侧 deleteSessionRowsWhere 同口径。
+        nchild = con.execute("select count(*) from sessions where parent_session_id=?", (sid,)).fetchone()[0]
         sup = con.execute(
             "select provider_session_id,jsonl_path from superseded_provider_sessions where session_id=?",
             (sid,)).fetchall()
-        print(f"### {sid[:12]} [{prov}] arch={r['isArchived']} fork_dep={nfork} sup={len(sup)}  {(name or '')[:42]}")
+        # 置顶不豁免于删除（2026-11-12 用户口径），但置顶是显式动作，标在
+        # 条目本行上——单独打一串会跟清单分离，看不出哪条被删的是置顶。
+        pin = " pin=1" if r["isPinned"] else ""
+        print(f"### {sid[:12]} [{prov}] arch={r['isArchived']} fork_dep={nfork} child={nchild} "
+              f"sup={len(sup)}{pin}  {(name or '')[:42]}")
+        if nchild:
+            print(f"    release {nchild} 条子会话的归属（parent_session_id → NULL，子会话本身保留）")
 
         paths = [p for p in [jp] if p] + [p[1] for p in sup if p[1]]
         for p in paths:
@@ -285,12 +302,13 @@ def main():
                 print(f"    dir   {sz // 1024:>7}K  {d.replace(HOME, '~')}")
 
         if args.apply:
+            con.execute("update sessions set parent_session_id=NULL where parent_session_id=?", (sid,))
             con.execute("delete from superseded_provider_sessions where session_id=?", (sid,))
-            # session_read_state 没有指向 sessions 的外键（schema.ts 的注释明说
-            # 「session delete must clear its rows explicitly」），应用层靠
-            # sessions.db.ts 的 reclaimReadStateFor 收敛；这里直接删行会绕过它，
-            # 于是「用户读过该会话」就必然留下读水位孤儿。
-            con.execute("delete from session_read_state where session_id=?", (sid,))
+            # 读水位表没有指向 sessions 的外键（schema.ts 明说「session delete must
+            # clear its rows explicitly」）。按 session_id 显式删，与 sessions.db.ts
+            # 的 reclaimReadStateFor 等价——不删才会留下孤儿。
+            if has_read_state:
+                con.execute("delete from session_read_state where session_id=?", (sid,))
             con.execute("delete from sessions where session_id=?", (sid,))
             con.commit()  # 逐条落库：中途任何崩溃不回滚已删目标（文件删除不可逆，DB 必须跟上）
 
