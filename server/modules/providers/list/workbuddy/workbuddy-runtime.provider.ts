@@ -504,11 +504,14 @@ export const workbuddyRuntime: IProviderRuntime = {
       // `tool_result` keyed by the launching call's id, which is the only thing
       // that settles the Bash card — so dropping it here left that card on
       // `running`, spinning its elapsed clock, until the next history reload.
-      // Ordinary user turns are filtered out: the client already shows the
-      // prompt it just sent.
-      if (event.type === 'user' || (event.type === 'message' && event.role === 'user')) {
+      // `normalizeMessage` renders such a row as a `tool_result` (it reads the
+      // `tool_result` block and never the notification text), so the filter
+      // keeps that one kind and drops the ordinary user turn beside it: the
+      // client already shows the prompt it just sent. Any other user shape
+      // falls through to the warning below rather than being swallowed here.
+      if (event.type === 'user') {
         for (const message of context.normalizeMessage(event, appSessionId)) {
-          if (message.kind === 'tool_result' || message.kind === 'task_notification') {
+          if (message.kind === 'tool_result') {
             send(message);
           }
         }

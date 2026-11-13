@@ -432,6 +432,30 @@ test('workbuddy run forwards reasoning events as thinking messages', async () =>
   assert.equal(captured.find((entry) => entry.kind === 'complete')?.exitCode, 0);
 });
 
+test('workbuddy run forwards a background completion as tool_result and drops the user turn beside it', async () => {
+  process.env.CODEBUDDY_COMMAND = MOCK_CLI;
+  process.env.MOCK_MODE = 'user-tool-result';
+  const captured: Captured[] = [];
+
+  await workbuddyRuntime.run(
+    'run this in the background',
+    { sessionId: 'wb-user-tool-result', cwd: '/tmp' },
+    makeWriter(captured),
+    makeContext(new Map()),
+  );
+
+  // The row carries the launching call's id, which is what lets the client
+  // settle the Bash card instead of leaving it on `running`.
+  const toolResults = captured.filter((entry) => entry.kind === 'tool_result');
+  assert.equal(toolResults.length, 1);
+  assert.equal(toolResults[0]?.toolId, 'call-bash-background');
+  assert.match(String(toolResults[0]?.content), /Background task finished/);
+
+  // The ordinary user turn in the same stream stays off the wire.
+  assert.equal(captured.filter((entry) => entry.kind === 'text' && entry.role === 'user').length, 0);
+  assert.equal(captured.find((entry) => entry.kind === 'complete')?.exitCode, 0);
+});
+
 test('workbuddy run preserves task lifecycle events with one stable task id', async () => {
   process.env.CODEBUDDY_COMMAND = MOCK_CLI;
   process.env.MOCK_MODE = 'task-events';

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // Mock of the WorkBuddy (codebuddy) stream-json CLI for runtime tests.
 // Behavior is selected by MOCK_MODE: success | streaming | error | error-event |
-// function-events | task-events | task-failure | unknown-invalid |
-// exit-nonzero | stderr-sensitive | error-sensitive | no-trailing-newline |
-// hang | streaming-hang | interruptible | stdin-closed | error-event-hang |
-// success-result-hang | error-result-hang | result-then-error-hang |
-// assistant-complete-await-eof.
+// function-events | user-tool-result | task-events | task-failure |
+// unknown-invalid | exit-nonzero | stderr-sensitive | error-sensitive |
+// no-trailing-newline | hang | streaming-hang | interruptible | stdin-closed |
+// error-event-hang | success-result-hang | error-result-hang |
+// result-then-error-hang | assistant-complete-await-eof.
 const mode = process.env.MOCK_MODE || 'success';
 const args = process.argv.slice(2);
 const readArg = (name) => {
@@ -163,6 +163,34 @@ if (mode === 'hang') {
     name: 'ToolSearch',
     status: 'completed',
     output: { type: 'text', text: 'No matching tools found' },
+  });
+  emit({ type: 'result', subtype: 'success', is_error: false, session_id: sid, result: 'ok' });
+} else if (mode === 'user-tool-result') {
+  // A backgrounded shell's completion arrives as a user-role row carrying the
+  // `tool_result` block for the launching call. The ordinary user turn in this
+  // mode must not be forwarded: the client already shows the prompt it sent.
+  emit({
+    type: 'user',
+    session_id: sid,
+    uuid: 'user-prompt-echo',
+    message: { role: 'user', content: [{ type: 'text', text: 'run this in the background' }] },
+  });
+  emit({
+    type: 'user',
+    session_id: sid,
+    uuid: 'user-task-notification',
+    message: {
+      role: 'user',
+      content: [{
+        type: 'tool_result',
+        tool_use_id: 'call-bash-background',
+        content: '<task-notification>'
+          + '<tool-use-id>call-bash-background</tool-use-id>'
+          + '<status>completed</status>'
+          + '<summary>Background task finished</summary>'
+          + '</task-notification>',
+      }],
+    },
   });
   emit({ type: 'result', subtype: 'success', is_error: false, session_id: sid, result: 'ok' });
 } else if (mode === 'task-events') {
