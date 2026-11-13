@@ -9,12 +9,13 @@ import type { PermissionMode, Project, ProjectSession } from '@/shared/types';
 
 /**
  * The first message of a brand-new chat allocates its session id with
- * `POST /api/providers/sessions` and only then sends. Nothing in the composer
- * changes while that request is out — the text stays, the send button stays
- * enabled — so on a slow server the user presses Enter (or clicks send) again.
- * Each of those submits used to allocate its own session and send the same
- * first message to it: one chat, two sessions, two agents doing the same work
- * (#1306).
+ * `POST /api/providers/sessions` and only then sends. The text cannot leave the
+ * composer until that returns, so the send button parks on the request
+ * (spinner, disabled) instead of staying a live send arrow: pressing it again
+ * read as "that did not go" and, once the send landed and the button had turned
+ * into stop, aborted the turn that had just gone out. A second submit during
+ * the round-trip used to allocate its own session and send it the same first
+ * message: one chat, two sessions, two agents doing the same work (#1306).
  */
 
 const PROJECT: Project = { projectId: 'project-1', displayName: 'Project One', fullPath: '/tmp/project-one' };
@@ -135,7 +136,35 @@ afterEach(() => {
   localStorage.clear();
 });
 
-test('submitting again while the new chat\'s session is being created allocates one session and sends once', async () => {
+test('a new chat parks the send while its session is being created', async () => {
+  const { view } = renderNewChat();
+  await act(async () => { view.result.current.setInput('hello'); });
+  assert.equal(view.result.current.isSubmitting, false);
+
+  await act(async () => {
+    void view.result.current.handleSubmit({ preventDefault: () => undefined } as never);
+  });
+  // The request is still out: the composer must say the message is on its way
+  // rather than leave a send arrow that invites a second press.
+  assert.equal(view.result.current.isSubmitting, true);
+
+  await releaseCreates();
+  assert.equal(view.result.current.isSubmitting, false);
+});
+
+test('a send to an existing session does not park: it paints in the same tick', async () => {
+  const { view, chatSends } = renderComposer({ id: 'session-existing' });
+  await act(async () => { view.result.current.setInput('hello'); });
+  await act(async () => {
+    void view.result.current.handleSubmit({ preventDefault: () => undefined } as never);
+  });
+
+  assert.equal(view.result.current.isSubmitting, false);
+  assert.equal(view.result.current.input, '', 'the message left the composer');
+  assert.equal(chatSends().length, 1);
+});
+
+test('submitting again while a new chat\'s session is being created allocates one session and sends once', async () => {
   const { view, established, chatSends } = renderNewChat();
   await act(async () => { view.result.current.setInput('hello'); });
 

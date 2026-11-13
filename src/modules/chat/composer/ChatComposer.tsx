@@ -319,6 +319,15 @@ export default function ChatComposer({
       ? t('input.stop')
       : t('input.send');
 
+  // A send that is already on its way but has not landed yet: an attachment
+  // still transferring, or the session id a brand-new chat is allocating. The
+  // button parks on it so the same message cannot be sent twice.
+  const parkedSendLabel = isSubmitting
+    ? isUploadingAttachments
+      ? t('input.attachments.uploading')
+      : t('input.sending')
+    : null;
+
   return (
     <div
       className="chat-composer-shell relative flex-shrink-0 pl-3 pt-0 sm:pl-4"
@@ -580,14 +589,16 @@ export default function ChatComposer({
                 disabled={
                   isLoading
                     ? false
-                    : isRecording
+                    : isSubmitting
+                      ? true
+                      : isRecording
                       ? false
                       : isTranscribing
                         ? true
                         : !input.trim() && attachedFiles.length === 0
                 }
-                aria-label={isSubmitting ? t('input.attachments.uploading') : submitAriaLabel}
-                title={isSubmitting ? t('input.attachments.uploading') : submitAriaLabel}
+                aria-label={parkedSendLabel ?? submitAriaLabel}
+                title={parkedSendLabel ?? submitAriaLabel}
                 className="h-10 w-10 sm:h-10 sm:w-10"
               >
                 {isTranscribing || isSubmitting ? (
@@ -598,19 +609,24 @@ export default function ChatComposer({
               </PromptInputSubmit>
             </div>
 
-            {isSubmitting && !isLoading && (
+            {parkedSendLabel && !isLoading && (
               <div className="order-last flex basis-full items-center justify-center gap-1.5 px-2 text-xs leading-4 text-muted-foreground lg:hidden">
                 <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                <span>{t('input.attachments.uploading')}</span>
+                <span>{parkedSendLabel}</span>
               </div>
             )}
 
+            {/* On desktop this line is the only place a waiting send can speak:
+                typing hides the hint, so a slow upload would run with nothing
+                but a spinner in the button and read as a hang. */}
             <div
               className={`order-last hidden basis-full px-2 text-center text-xs leading-4 text-muted-foreground/50 transition-opacity duration-200 lg:block ${
-                input.trim() && !canQueueDraft && !isUploadingAttachments ? 'opacity-0' : 'opacity-100'
+                parkedSendLabel || !input.trim() || canQueueDraft || isUploadingAttachments
+                  ? 'opacity-100'
+                  : 'opacity-0'
               }`}
             >
-              {submitHint}
+              {parkedSendLabel ?? submitHint}
             </div>
           </PromptInputFooter>
         </PromptInput>

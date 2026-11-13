@@ -1241,9 +1241,11 @@ export function useChatComposerState({
   const submittingScopesRef = useRef(new Set<string>());
 
   /**
-   * Set while a send is waiting for an attachment transfer. The composer shows
-   * it as a parked send, so the button cannot be pressed a second time for a
-   * message that is already on its way.
+   * Set while a send is parked on something the composer cannot paint yet: an
+   * attachment transfer, or the session id a brand-new chat has to allocate
+   * before its first message can be addressed. The composer shows it as a
+   * spinning, disabled send button, so a second press cannot be mistaken for
+   * "it did not go" — the message is already on its way.
    */
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -1260,13 +1262,20 @@ export function useChatComposerState({
         return;
       }
       submittingScopesRef.current.add(scope);
-      // Only an attachment transfer is slow enough to need a visible state;
-      // a plain send paints its message immediately.
+      // Only a submit that actually parks needs a visible state; a plain send
+      // paints its message and clears the composer in the same tick. It parks
+      // on an attachment transfer, or — for a brand-new chat — on the session
+      // id `POST /api/providers/sessions` has to allocate before the first
+      // message can be addressed. Without the second case the button stayed a
+      // live send arrow through that round-trip: a second press either vanished
+      // into the duplicate-submit guard, or — once the send had landed and the
+      // button turned into stop — aborted the turn that had just gone out.
       const filesToWaitFor = queuedSubmission ? queuedSubmission.attachments : attachedFiles;
       const waitsForUpload = filesToWaitFor.some(
         (file) => attachmentUploads.getUpload(composerAttachmentKey(file))?.status === 'uploading',
       );
-      if (waitsForUpload) {
+      const waitsForSession = !(selectedSession?.id || currentSessionId);
+      if (waitsForUpload || waitsForSession) {
         setIsSubmitting(true);
       }
       try {
@@ -1276,7 +1285,7 @@ export function useChatComposerState({
         setIsSubmitting(false);
       }
     },
-    [attachmentUploads, attachedFiles, submitMessage],
+    [attachmentUploads, attachedFiles, submitMessage, selectedSession, currentSessionId],
   );
 
   useEffect(() => {

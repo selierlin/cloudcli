@@ -116,6 +116,7 @@
     "attachImages": "附加圖片",
     "send": "傳送",
     "stop": "停止",
+    "sending": "正在傳送…",
     "hintText": {
       "ctrlEnter": "Ctrl+Enter 傳送 • Shift+Enter 換行 • Tab 切換模式 • / 斜線指令",
       "enter": "Enter 傳送 • Shift+Enter 換行 • Tab 切換模式 • / 斜線指令"
