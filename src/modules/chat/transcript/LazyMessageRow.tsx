@@ -250,9 +250,11 @@ export default function LazyMessageRow({
     run();
   }, [payAnchorCorrection]);
 
-  // Before paint, so a jump never reaches the screen. The correction is the
-  // visible row's screen displacement, which leaves deliberate shifts (a real
-  // height change the browser already compensated) untouched at zero drift.
+  // Captured before paint, so the correction is in hand before the browser can
+  // move anything; the write itself lands on the next animation frame, which
+  // still runs before that frame is painted. The correction is the visible
+  // row's screen displacement, which leaves deliberate shifts (a real height
+  // change the browser already compensated) untouched at zero drift.
   useLayoutEffect(() => {
     const pending = pendingAnchorRef.current;
     pendingAnchorRef.current = null;
