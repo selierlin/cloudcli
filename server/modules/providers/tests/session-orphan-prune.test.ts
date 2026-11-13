@@ -91,6 +91,39 @@ test('synchronizeSessions keeps sessions whose whole transcript directory is mis
   });
 });
 
+test('synchronizeSessions drops rows left pointing at renamed-away fork scratch space', async () => {
+  await withIsolatedDatabase(async (workspace) => {
+    // A btw fork inserts a row, writes into `<project>/.tmp-<uuid>/`, then
+    // renames that directory onto its final id. A watcher poll that lands in
+    // between can index the scratch name, and the directory is legitimately
+    // gone afterwards — so the generic "directory missing means unmounted"
+    // guard would keep the ghost row forever.
+    const projectDirectory = path.join(workspace, 'sessions', '--tmp-session-prune-project--');
+    await mkdir(projectDirectory, { recursive: true });
+
+    const scratchPath = path.join(
+      projectDirectory,
+      '.tmp-06e29536-6988-4e28-ba59-6907f132a99b',
+      'session.v4.jsonl.zstd',
+    );
+    sessionsDb.createSession(
+      '.tmp-06e29536-6988-4e28-ba59-6907f132a99b',
+      'dsh',
+      PROJECT_PATH,
+      'Scratch Ghost',
+      undefined,
+      undefined,
+      scratchPath,
+    );
+
+    const result = await sessionSynchronizerService.synchronizeSessions();
+
+    assert.deepEqual(result.failures, []);
+    assert.equal(result.prunedOrphans, 1);
+    assert.equal(sessionsDb.getSessionById('.tmp-06e29536-6988-4e28-ba59-6907f132a99b'), null);
+  });
+});
+
 test('synchronizeSessions keeps sessions that have no transcript path yet', async () => {
   await withIsolatedDatabase(async () => {
     // App-created rows (jsonl_path NULL until the first provider write) and

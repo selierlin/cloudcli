@@ -23,9 +23,34 @@ import { getDshSessionsRoot } from './dsh-models.provider.js';
 
 const SESSION_LOG_PATTERN = /^session(?:\.v(\d+))?\.jsonl(?:\.zstd)?$/;
 
+/**
+ * Prefix of the scratch directory the fork writer creates beside its target.
+ *
+ * A fork publishes its transcript with `mkdir .tmp-<uuid>` + write + `rename`,
+ * so the temporary directory is a full, valid session log for as long as the
+ * write lasts. It must never be mistaken for a session: that window is exactly
+ * when the polling watcher walks the project directory.
+ */
+const SCRATCH_DIRECTORY_PREFIX = '.tmp-';
+
 /** True when a file name is any DSH session-log format generation. Used by the indexer and watcher. */
 export function isDshSessionLogFile(fileName: string): boolean {
   return SESSION_LOG_PATTERN.test(fileName);
+}
+
+/**
+ * True when a directory name can only be fork scratch space, never a session.
+ *
+ * Session directory names are `encodeSessionSegment(id)`, which leaves `.` and
+ * `-` alone — so a real id would have to start with the literal `.tmp-` to be
+ * confused with scratch. The harness mints UUIDs, so that never happens, and
+ * treating the prefix as scratch is the safe direction: the alternative is
+ * indexing a half-written transcript that is about to be renamed away.
+ *
+ * Consumers: the DSH session indexer and the session watcher.
+ */
+export function isDshScratchDirectoryName(name: string): boolean {
+  return name.startsWith(SCRATCH_DIRECTORY_PREFIX);
 }
 
 /** Format generation encoded in a session-log file name (0 when the `.vN` part is absent). */

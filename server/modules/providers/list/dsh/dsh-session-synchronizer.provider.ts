@@ -10,6 +10,7 @@ import { getDshSessionsRoot } from './dsh-models.provider.js';
 import {
   encodeSessionSegment,
   findDshSessionLogPath,
+  isDshScratchDirectoryName,
   isDshSessionLogFile,
   projectKey,
 } from './dsh-session-path.js';
@@ -59,6 +60,14 @@ export class DshSessionSynchronizer implements IProviderSessionSynchronizer {
       }
 
       for (const sessionDirName of sessionDirNames) {
+        // `.tmp-` directories are fork scratch space caught mid-write by this
+        // scan. They are renamed away moments later, so indexing one produces a
+        // row whose transcript never existed; the caller decides what to do
+        // with a row an earlier scan already inserted (see `synchronizeFile`).
+        if (isDshScratchDirectoryName(sessionDirName)) {
+          continue;
+        }
+
         const logPath = findDshSessionLogPath(path.join(projectDir, sessionDirName));
         if (!logPath) {
           continue;
@@ -85,6 +94,9 @@ export class DshSessionSynchronizer implements IProviderSessionSynchronizer {
 
   /**
    * Indexes one DSH session log triggered by the filesystem watcher.
+   *
+   * Returns `null` for fork scratch directories, which look exactly like a
+   * session log until the fork renames them into place.
    */
   async synchronizeFile(filePath: string): Promise<string | null> {
     if (!isDshSessionLogFile(path.basename(filePath))) {
@@ -92,8 +104,12 @@ export class DshSessionSynchronizer implements IProviderSessionSynchronizer {
     }
 
     const sessionDir = path.dirname(filePath);
-    const projectDir = path.dirname(sessionDir);
     const sessionId = path.basename(sessionDir);
+    if (isDshScratchDirectoryName(sessionId)) {
+      return null;
+    }
+
+    const projectDir = path.dirname(sessionDir);
     const projectKeyDir = path.basename(projectDir);
 
     // The project-key directory name is one-way encoded, so resolve the real

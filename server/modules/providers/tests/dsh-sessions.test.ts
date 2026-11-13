@@ -719,6 +719,35 @@ test('resolveTranscriptPath resolves an existing session log path', async () => 
   });
 });
 
+test('synchronizer never indexes a fork scratch directory caught mid-write', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    // The fork writer publishes with `mkdir .tmp-<uuid>` + write + rename. A
+    // scan that lands inside that window sees a complete, valid session log
+    // under a name that is gone moments later.
+    const scratchId = '.tmp-06e29536-6988-4e28-ba59-6907f132a99b';
+    await writeSessionLog(sessionsRoot, cwd, scratchId, [userMessage('Scratch', 1, Date.now())], {
+      logFileName: 'session.v4.jsonl.zstd',
+      headerVersion: 4,
+    });
+    projectsDb.createProjectPath(cwd);
+
+    const synchronizer = new DshSessionSynchronizer();
+    assert.equal(await synchronizer.synchronize(), 0);
+    assert.equal(sessionsDb.getSessionById(scratchId), null);
+
+    // The watcher reaches the same file path directly, so it has to refuse it
+    // too — otherwise a single poll would bypass the scan's decision.
+    const logPath = path.join(
+      sessionsRoot,
+      projectKey(cwd),
+      encodeSessionSegment(scratchId),
+      'session.v4.jsonl.zstd',
+    );
+    assert.equal(await synchronizer.synchronizeFile(logPath), null);
+    assert.equal(sessionsDb.getSessionById(scratchId), null);
+  });
+});
+
 test('synchronizer does not recreate a session from a leftover directory after the row and file are gone', async () => {
   await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
     const acpSessionId = 'dsh-session-ghost';

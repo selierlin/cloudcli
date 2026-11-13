@@ -2,6 +2,7 @@ import path from 'node:path';
 import { access } from 'node:fs/promises';
 
 import { scanStateDb, sessionsDb } from '@/modules/database/index.js';
+import { isDshScratchDirectoryName } from '@/modules/providers/list/dsh/dsh-session-path.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import type { LLMProvider } from '@/shared/types.js';
 
@@ -32,6 +33,12 @@ const pathExists = async (target: string): Promise<boolean> => {
  * A row is only dropped when its *containing directory* still exists. That
  * keeps an unmounted or not-yet-created home from being read as "every
  * transcript was deleted" and wiping the whole index.
+ *
+ * The one exception is a row pointing into fork scratch space (`.../.tmp-<uuid>`):
+ * a successful fork renames that directory onto its final name, so the
+ * directory is legitimately gone and the row can never be satisfied. Those rows
+ * also cannot be reached by a rescan, because the directory the indexer would
+ * have to read no longer exists.
  */
 const pruneOrphanedSessions = async (): Promise<number> => {
   const knownDirectoryExists = new Map<string, boolean>();
@@ -49,7 +56,7 @@ const pruneOrphanedSessions = async (): Promise<number> => {
       knownDirectoryExists.set(directory, directoryExists);
     }
 
-    if (!directoryExists) {
+    if (!directoryExists && !isDshScratchDirectoryName(path.basename(directory))) {
       continue;
     }
 
