@@ -363,253 +363,259 @@ export default function ChatComposer({
         onResolve={onResolveBackgroundSendPrompt}
       />
 
-      {queuedDraft && (
-        <QueuedMessageCard
-          content={queuedDraft.content}
-          attachmentCount={
-            queuedDraft.uploadedAttachments?.length ?? queuedDraft.attachments.length
-          }
-          onEdit={onEditQueuedDraft}
-          onDelete={onDeleteQueuedDraft}
-        />
-      )}
-
-      {!hasQuestionPanel && <div className="relative mx-auto max-w-[60.5rem]">
-        {/* Inside the input's own column, not the shell: the shell is wider by
-            its left padding plus the reserved scrollbar width, so a calc()
-            width centred on it drifts off the input once the transcript shows
-            a scrollbar (`w-[calc(100%-2rem)]` only cancels the paddings). */}
+      <div className="relative mx-auto max-w-[60.5rem]">
+        {/* The tab is drawn above everything stacked here (queued message
+            first), not above the input alone: sitting on the input's top edge
+            it landed on top of the queued card and hid its text. Kept on the
+            input's own column rather than the shell, which is wider by its
+            left padding plus the reserved scrollbar width, so a calc() width
+            centred on it drifts off the input once the transcript shows a
+            scrollbar (`w-[calc(100%-2rem)]` only cancels the paddings). */}
         {!hasPendingPermissions && (
           <div className="pointer-events-none absolute bottom-full left-0 right-0 z-10 translate-y-[var(--activity-tab-overlap)] bg-transparent">
             <ActivityIndicator activity={activity} onAbort={onAbortSession} isInputFocused={isInputFocused} />
           </div>
         )}
-        {showFileDropdown && filteredFiles.length > 0 && (
-          <div
-            ref={fileDropdownRef}
-            className="absolute bottom-full left-0 right-0 z-50 mb-2 max-h-48 overflow-y-auto rounded-xl border border-border/50 bg-card/95 shadow-lg backdrop-blur-md"
-          >
-            {filteredFiles.map((file, index) => (
-              <div
-                key={file.path}
-                ref={index === selectedFileIndex ? selectedFileRef : undefined}
-                className={`cursor-pointer touch-manipulation border-b border-border/30 px-4 py-3 last:border-b-0 ${
-                  index === selectedFileIndex
-                    ? 'bg-primary/8 text-primary'
-                    : 'text-foreground hover:bg-accent/50'
-                }`}
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onSelectFile(file);
-                }}
-              >
-                <div className="text-sm font-medium">{file.name}</div>
-                <div className="font-mono text-xs text-muted-foreground">{file.path}</div>
-              </div>
-            ))}
-          </div>
+
+        {queuedDraft && (
+          <QueuedMessageCard
+            content={queuedDraft.content}
+            attachmentCount={
+              queuedDraft.uploadedAttachments?.length ?? queuedDraft.attachments.length
+            }
+            onEdit={onEditQueuedDraft}
+            onDelete={onDeleteQueuedDraft}
+          />
         )}
 
-        <CommandMenu
-          commands={filteredCommands}
-          selectedIndex={selectedCommandIndex}
-          onSelect={onCommandSelect}
-          onClose={onCloseCommandMenu}
-          position={commandMenuPosition}
-          isOpen={isCommandMenuOpen}
-          frequentCommands={frequentCommands}
-        />
-
-        <PromptInput
-          onSubmit={onSubmit as (event: FormEvent<HTMLFormElement>) => void}
-          status={isLoading ? 'streaming' : 'ready'}
-          className={[
-            isTextareaExpanded ? 'chat-input-expanded' : '',
-            hasActivityIndicator ? 'rounded-t-none' : '',
-          ].filter(Boolean).join(' ')}
-          {...getRootProps()}
-        >
-          {isDragActive && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center rounded-2xl border-2 border-dashed border-primary/50 bg-primary/15">
-              <div className="rounded-xl border border-border/30 bg-card p-4 shadow-lg">
-                <svg className="mx-auto mb-2 h-8 w-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                  />
-                </svg>
-                <p className="text-sm font-medium">Drop files here</p>
-              </div>
+        {!hasQuestionPanel && <div className="relative">
+          {showFileDropdown && filteredFiles.length > 0 && (
+            <div
+              ref={fileDropdownRef}
+              className="absolute bottom-full left-0 right-0 z-50 mb-2 max-h-48 overflow-y-auto rounded-xl border border-border/50 bg-card/95 shadow-lg backdrop-blur-md"
+            >
+              {filteredFiles.map((file, index) => (
+                <div
+                  key={file.path}
+                  ref={index === selectedFileIndex ? selectedFileRef : undefined}
+                  className={`cursor-pointer touch-manipulation border-b border-border/30 px-4 py-3 last:border-b-0 ${
+                    index === selectedFileIndex
+                      ? 'bg-primary/8 text-primary'
+                      : 'text-foreground hover:bg-accent/50'
+                  }`}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onSelectFile(file);
+                  }}
+                >
+                  <div className="text-sm font-medium">{file.name}</div>
+                  <div className="font-mono text-xs text-muted-foreground">{file.path}</div>
+                </div>
+              ))}
             </div>
           )}
 
-          {attachedFiles.length > 0 && (
-            <PromptInputHeader>
-              <div className="rounded-xl bg-muted/40 p-2">
-                <div className="flex flex-wrap gap-2">
-                  {attachedFiles.map((file, index) => (
-                    <ComposerAttachment
-                      key={`${file.name}-${file.lastModified}-${index}`}
-                      file={file}
-                      onRemove={() => onRemoveAttachment(index)}
-                      upload={getAttachmentUpload(file)}
-                      uploadVersion={uploadVersion}
-                      error={fileErrors.get(file.name)}
+          <CommandMenu
+            commands={filteredCommands}
+            selectedIndex={selectedCommandIndex}
+            onSelect={onCommandSelect}
+            onClose={onCloseCommandMenu}
+            position={commandMenuPosition}
+            isOpen={isCommandMenuOpen}
+            frequentCommands={frequentCommands}
+          />
+
+          <PromptInput
+            onSubmit={onSubmit as (event: FormEvent<HTMLFormElement>) => void}
+            status={isLoading ? 'streaming' : 'ready'}
+            className={[
+              isTextareaExpanded ? 'chat-input-expanded' : '',
+              hasActivityIndicator ? 'rounded-t-none' : '',
+            ].filter(Boolean).join(' ')}
+            {...getRootProps()}
+          >
+            {isDragActive && (
+              <div className="absolute inset-0 z-50 flex items-center justify-center rounded-2xl border-2 border-dashed border-primary/50 bg-primary/15">
+                <div className="rounded-xl border border-border/30 bg-card p-4 shadow-lg">
+                  <svg className="mx-auto mb-2 h-8 w-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                     />
-                  ))}
+                  </svg>
+                  <p className="text-sm font-medium">Drop files here</p>
                 </div>
               </div>
-            </PromptInputHeader>
-          )}
+            )}
 
-          <input {...getInputProps()} />
+            {attachedFiles.length > 0 && (
+              <PromptInputHeader>
+                <div className="rounded-xl bg-muted/40 p-2">
+                  <div className="flex flex-wrap gap-2">
+                    {attachedFiles.map((file, index) => (
+                      <ComposerAttachment
+                        key={`${file.name}-${file.lastModified}-${index}`}
+                        file={file}
+                        onRemove={() => onRemoveAttachment(index)}
+                        upload={getAttachmentUpload(file)}
+                        uploadVersion={uploadVersion}
+                        error={fileErrors.get(file.name)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </PromptInputHeader>
+            )}
 
-          <PromptInputBody>
-            <div ref={inputHighlightRef} aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
-              <div className="chat-input-placeholder block w-full whitespace-pre-wrap break-words px-4 py-2 text-sm leading-6 text-transparent">
-                {renderInputWithMentions(input)}
+            <input {...getInputProps()} />
+
+            <PromptInputBody>
+              <div ref={inputHighlightRef} aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
+                <div className="chat-input-placeholder block w-full whitespace-pre-wrap break-words px-4 py-2 text-sm leading-6 text-transparent">
+                  {renderInputWithMentions(input)}
+                </div>
               </div>
-            </div>
 
-            <PromptInputTextarea
-              ref={textareaRef}
-              dir="auto"
-              value={input}
-              onChange={onInputChange}
-              onClick={onTextareaClick}
-              onKeyDown={onTextareaKeyDown}
-              onPaste={onTextareaPaste}
-              onScroll={(event) => onTextareaScrollSync(event.target as HTMLTextAreaElement)}
-              onFocus={() => onInputFocusChange?.(true)}
-              onBlur={() => onInputFocusChange?.(false)}
-              onInput={onTextareaInput}
-              placeholder={placeholder}
-            />
-        </PromptInputBody>
+              <PromptInputTextarea
+                ref={textareaRef}
+                dir="auto"
+                value={input}
+                onChange={onInputChange}
+                onClick={onTextareaClick}
+                onKeyDown={onTextareaKeyDown}
+                onPaste={onTextareaPaste}
+                onScroll={(event) => onTextareaScrollSync(event.target as HTMLTextAreaElement)}
+                onFocus={() => onInputFocusChange?.(true)}
+                onBlur={() => onInputFocusChange?.(false)}
+                onInput={onTextareaInput}
+                placeholder={placeholder}
+              />
+          </PromptInputBody>
 
-        <PromptInputFooter className="flex-wrap gap-y-1">
-          <PromptInputTools className="min-w-0">
-            {canAttachFiles && (
-              <PromptInputButton
-                tooltip={{ content: t('input.attachFiles') }}
-                onClick={openAttachmentPicker}
-                aria-label={t('input.attachFiles')}
-              >
-                <PaperclipIcon />
-              </PromptInputButton>
-            )}
-
-            {onVoiceTranscript && canDictate && (
-              <VoiceInputButton state={voiceState} onToggle={voiceToggle} errorMsg={voiceError} />
-            )}
-
-            <TokenUsageSummary usage={tokenBudget} onClick={onShowTokenUsage} />
-
-            <PromptInputButton
-              tooltip={{ content: t('input.showAllCommands') }}
-              onClick={onToggleCommandMenu}
-              className="relative"
-            >
-              <MessageSquareIcon />
-              {slashCommandsCount > 0 && (
-                <span
-                  className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground"
+          <PromptInputFooter className="flex-wrap gap-y-1">
+            <PromptInputTools className="min-w-0">
+              {canAttachFiles && (
+                <PromptInputButton
+                  tooltip={{ content: t('input.attachFiles') }}
+                  onClick={openAttachmentPicker}
+                  aria-label={t('input.attachFiles')}
                 >
-                  {slashCommandsCount}
-                </span>
+                  <PaperclipIcon />
+                </PromptInputButton>
               )}
-            </PromptInputButton>
 
-            <QuickReplyMenu onSend={onSendQuickReply} />
+              {onVoiceTranscript && canDictate && (
+                <VoiceInputButton state={voiceState} onToggle={voiceToggle} errorMsg={voiceError} />
+              )}
 
-          </PromptInputTools>
+              <TokenUsageSummary usage={tokenBudget} onClick={onShowTokenUsage} />
 
-          <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <ScheduleMessagePopover
-              disabled={!input.trim()}
-              onSchedule={onScheduleMessage}
-            />
+              <PromptInputButton
+                tooltip={{ content: t('input.showAllCommands') }}
+                onClick={onToggleCommandMenu}
+                className="relative"
+              >
+                <MessageSquareIcon />
+                {slashCommandsCount > 0 && (
+                  <span
+                    className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground"
+                  >
+                    {slashCommandsCount}
+                  </span>
+                )}
+              </PromptInputButton>
 
-            <ComposerModelMenu
-              effort={effort}
-              effortOptions={availableEffortOptions}
-              onSelectEffort={onSelectEffort}
-              model={model}
-              modelOptions={availableModelOptions}
-              modelNotice={modelCatalogNotice}
-              onSelectModel={onSelectModel}
-              modelsLoading={modelsLoading}
-            />
+              <QuickReplyMenu onSend={onSendQuickReply} />
 
-            <ComposerPermissionMenu
-              permissionMode={permissionMode}
-              permissionModes={availablePermissionModes}
-              onSelectPermissionMode={onSelectPermissionMode}
-              providerLabel={providerLabel}
-              provider={provider}
-            />
+            </PromptInputTools>
 
-            <PromptInputSubmit
-              onClick={
-                canQueueDraft
-                  ? (e: MouseEvent<HTMLButtonElement>) => {
-                      e.preventDefault();
-                      onSubmit(e);
-                    }
-                  : isLoading
-                    ? onAbortSession
-                    : isRecording
-                      ? (e: MouseEvent<HTMLButtonElement>) => {
-                          e.preventDefault();
-                          voiceStop({ send: true });
-                        }
-                      : undefined
-              }
-              disabled={
-                isLoading
-                  ? false
-                  : isRecording
+            <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
+              <ScheduleMessagePopover
+                disabled={!input.trim()}
+                onSchedule={onScheduleMessage}
+              />
+
+              <ComposerModelMenu
+                effort={effort}
+                effortOptions={availableEffortOptions}
+                onSelectEffort={onSelectEffort}
+                model={model}
+                modelOptions={availableModelOptions}
+                modelNotice={modelCatalogNotice}
+                onSelectModel={onSelectModel}
+                modelsLoading={modelsLoading}
+              />
+
+              <ComposerPermissionMenu
+                permissionMode={permissionMode}
+                permissionModes={availablePermissionModes}
+                onSelectPermissionMode={onSelectPermissionMode}
+                providerLabel={providerLabel}
+                provider={provider}
+              />
+
+              <PromptInputSubmit
+                onClick={
+                  canQueueDraft
+                    ? (e: MouseEvent<HTMLButtonElement>) => {
+                        e.preventDefault();
+                        onSubmit(e);
+                      }
+                    : isLoading
+                      ? onAbortSession
+                      : isRecording
+                        ? (e: MouseEvent<HTMLButtonElement>) => {
+                            e.preventDefault();
+                            voiceStop({ send: true });
+                          }
+                        : undefined
+                }
+                disabled={
+                  isLoading
                     ? false
-                    : isTranscribing
-                      ? true
-                      : !input.trim() && attachedFiles.length === 0
-              }
-              aria-label={isSubmitting ? t('input.attachments.uploading') : submitAriaLabel}
-              title={isSubmitting ? t('input.attachments.uploading') : submitAriaLabel}
-              className="h-10 w-10 sm:h-10 sm:w-10"
-            >
-              {isTranscribing || isSubmitting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : canQueueDraft ? (
-                <ArrowUpIcon className="h-4 w-4" />
-              ) : undefined}
-            </PromptInputSubmit>
-          </div>
-
-          {isSubmitting && !isLoading && (
-            <div className="order-last flex basis-full items-center justify-center gap-1.5 px-2 text-xs leading-4 text-muted-foreground lg:hidden">
-              <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-              <span>{t('input.attachments.uploading')}</span>
+                    : isRecording
+                      ? false
+                      : isTranscribing
+                        ? true
+                        : !input.trim() && attachedFiles.length === 0
+                }
+                aria-label={isSubmitting ? t('input.attachments.uploading') : submitAriaLabel}
+                title={isSubmitting ? t('input.attachments.uploading') : submitAriaLabel}
+                className="h-10 w-10 sm:h-10 sm:w-10"
+              >
+                {isTranscribing || isSubmitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : canQueueDraft ? (
+                  <ArrowUpIcon className="h-4 w-4" />
+                ) : undefined}
+              </PromptInputSubmit>
             </div>
-          )}
 
-          <div
-            className={`order-last hidden basis-full px-2 text-center text-xs leading-4 text-muted-foreground/50 transition-opacity duration-200 lg:block ${
-              input.trim() && !canQueueDraft && !isUploadingAttachments ? 'opacity-0' : 'opacity-100'
-            }`}
-          >
-            {submitHint}
-          </div>
-        </PromptInputFooter>
-      </PromptInput>
-      </div>}
+            {isSubmitting && !isLoading && (
+              <div className="order-last flex basis-full items-center justify-center gap-1.5 px-2 text-xs leading-4 text-muted-foreground lg:hidden">
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                <span>{t('input.attachments.uploading')}</span>
+              </div>
+            )}
+
+            <div
+              className={`order-last hidden basis-full px-2 text-center text-xs leading-4 text-muted-foreground/50 transition-opacity duration-200 lg:block ${
+                input.trim() && !canQueueDraft && !isUploadingAttachments ? 'opacity-0' : 'opacity-100'
+              }`}
+            >
+              {submitHint}
+            </div>
+          </PromptInputFooter>
+        </PromptInput>
+        </div>}
+      </div>
     </div>
   );
 }
