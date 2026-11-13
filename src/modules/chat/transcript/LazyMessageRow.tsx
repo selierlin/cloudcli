@@ -25,6 +25,14 @@ import { noteScrollWrite } from '@/shared/debug/scrollDiagnostics';
 /** Placeholder height for rows that have never been measured. */
 const ESTIMATED_ROW_HEIGHT_PX = 100;
 
+/**
+ * Frames a mount's anchor correction may wait for the document height to stop
+ * moving. The band around the viewport mounts as one flush, so the first frames
+ * after it are the ones where estimated heights are replaced; a transcript that
+ * is still growing on every frame has no stable height to pay against.
+ */
+const ANCHOR_SETTLE_RETRY_FRAMES = 8;
+
 /** Screen drift below this is measurement noise, not a moved anchor. */
 const ANCHOR_HOLD_EPSILON_PX = 1;
 
@@ -108,6 +116,10 @@ export default function LazyMessageRow({
     top: number;
     scrollTop: number;
   } | null>(null);
+  /** Document height the last correction attempt saw, for the settle retry. */
+  const settledGeometryRef = useRef<string | null>(null);
+  /** The retry frame, or null. */
+  const measureFrameRef = useRef<number | null>(null);
 
   const handleNearViewportChange = useCallback((nextIsNearViewport: boolean) => {
     // IntersectionObserver repeats the current state freely; only a real
@@ -161,16 +173,20 @@ export default function LazyMessageRow({
     return lazyRows.observe(element, handleNearViewportChange);
   }, [lazyRows, handleNearViewportChange]);
 
-  // Runs before paint, so a jump never reaches the screen. The correction is
-  // the visible row's screen displacement, which leaves deliberate shifts (a
-  // real height change the browser already compensated) untouched at zero drift.
-  useLayoutEffect(() => {
-    const pending = pendingAnchorRef.current;
-    pendingAnchorRef.current = null;
-    if (!pending || !pending.element.isConnected) return;
+  /**
+   * Pays back the screen displacement a commit put on the pinned row, or says
+   * that the commit is not payable yet. Mounting is the case that answers no:
+   * the placeholder band mounts several rows in one flush and every one of them
+   * still reports its *estimated* height, so a correction paid from that frame
+   * is measured against geometry the next frame replaces and the platform undoes
+   * the whole write — a phone recording shows a 2781 px correction reverted 7 ms
+   * later, one frame after the row above grew from its 100 px estimate to 3461.
+   */
+  const payAnchorCorrection = useCallback((pending: NonNullable<typeof pendingAnchorRef.current>): boolean => {
+    if (!pending.element.isConnected) return true;
 
     const container = pending.element.closest<HTMLElement>('.chat-messages-pane');
-    if (!container) return;
+    if (!container) return true;
     // The browser owns the offset while the pane is out of range. A drag past
     // either end leaves `scrollTop` beyond the clamp and the platform is already
     // springing the content back, so the drift measured here is that animation
@@ -179,7 +195,7 @@ export default function LazyMessageRow({
     // which ends the spring: the pane lands in one frame instead of animating.
     const maxScrollTop = container.scrollHeight - container.clientHeight;
     if (container.scrollTop < 0 || container.scrollTop > maxScrollTop + ANCHOR_HOLD_EPSILON_PX) {
-      return;
+      return true;
     }
     // The offset moved between the measurement and this commit, so part of the
     // row's displacement is the pane scrolling, not the layout changing.
@@ -192,11 +208,63 @@ export default function LazyMessageRow({
     const scrollDelta = container.scrollTop - pending.scrollTop;
     const drift = pending.element.getBoundingClientRect().top - pending.top;
     const layoutShift = drift + scrollDelta;
-    if (Math.abs(layoutShift) <= LAYOUT_SHIFT_MIN_PX) return;
+    if (Math.abs(layoutShift) <= LAYOUT_SHIFT_MIN_PX) return true;
+    // The document only has to have stopped moving for this to be a
+    // measurement. While the estimated heights are still being replaced the
+    // number above is a guess about a guess, and retrying costs one more frame.
+    const geometry = `${container.scrollHeight}`;
+    if (geometry !== settledGeometryRef.current) {
+      settledGeometryRef.current = geometry;
+      return false;
+    }
     container.scrollTop += layoutShift;
     programmaticScrollTopRef.current = container.scrollTop;
     noteScrollWrite('lazyRowAnchor', container);
-  }, [isNearViewport, programmaticScrollTopRef]);
+    return true;
+  }, [programmaticScrollTopRef]);
+
+  /**
+   * Runs the correction for a commit, and keeps running it while the document
+   * is still settling. The retry is bounded because a transcript that never
+   * stops growing has no stable height to pay against.
+   */
+  const settleAnchorCorrection = useCallback((
+    pending: NonNullable<typeof pendingAnchorRef.current>,
+    deferFirstFrame: boolean,
+  ) => {
+    settledGeometryRef.current = null;
+    let frame = 0;
+    const run = () => {
+      measureFrameRef.current = null;
+      if (payAnchorCorrection(pending)) return;
+      frame += 1;
+      if (frame >= ANCHOR_SETTLE_RETRY_FRAMES) return;
+      measureFrameRef.current = window.requestAnimationFrame(run);
+    };
+    // A row that just mounted pays nothing from its own commit: that frame's
+    // height is still the placeholder's estimate.
+    if (deferFirstFrame) {
+      measureFrameRef.current = window.requestAnimationFrame(run);
+      return;
+    }
+    run();
+  }, [payAnchorCorrection]);
+
+  // Before paint, so a jump never reaches the screen. The correction is the
+  // visible row's screen displacement, which leaves deliberate shifts (a real
+  // height change the browser already compensated) untouched at zero drift.
+  useLayoutEffect(() => {
+    const pending = pendingAnchorRef.current;
+    pendingAnchorRef.current = null;
+    if (!pending) return;
+    settleAnchorCorrection(pending, isNearViewport);
+    return () => {
+      if (measureFrameRef.current !== null) {
+        window.cancelAnimationFrame(measureFrameRef.current);
+        measureFrameRef.current = null;
+      }
+    };
+  }, [isNearViewport, settleAnchorCorrection]);
 
   const isMounted = lazyRows === null || isNearViewport;
 

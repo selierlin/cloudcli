@@ -609,7 +609,17 @@ export function useChatSessionState({
      * `tick`), and the loop paid the same 2350 px four times over until the
      * pane was pinned against the end of the transcript.
      */
-    lastWrite: { delta: number; anchorTop: number; scrollHeight: number } | null;
+    lastWrite: {
+      delta: number;
+      anchorTop: number;
+      scrollHeight: number;
+      /** How much of the commit's insertion is still unpaid when this write was made. */
+      owedBefore: number;
+      /** Set once this write is known to have moved the anchor; a rect that never moves is not a payee. */
+      delivered: boolean;
+    } | null;
+    /** The commit's whole insertion, kept so per-frame writes can settle against it. */
+    pendingOwed: number;
     /** Frames in a row whose compensation did not fit in the transcript's range. */
     unreachable: number;
     /**
@@ -908,9 +918,13 @@ export function useChatSessionState({
 
       scrollToBottom();
       const container = scrollContainerRef.current;
-      const geometry = container
-        ? `${container.scrollTop}:${container.scrollHeight}:${container.clientHeight}`
-        : null;
+      // `scrollHeight` alone, not the whole geometry: the point of this sample is
+      // to know when the transcript has finished changing shape under the tail.
+      // Folding `scrollTop` into it made every write compare unequal to the last
+      // one, so the loop could never see two stable frames — and on the commits
+      // that mount a page of rows, `initialScroll` writes the same offset beside
+      // it, which reset this counter on each other's behalf.
+      const geometry = container ? `${container.scrollHeight}:${container.clientHeight}` : null;
       if (geometry !== null && geometry === followGeometryRef.current) {
         followStableFramesRef.current += 1;
       } else {
@@ -983,7 +997,10 @@ export function useChatSessionState({
       contended: 0,
       lastOffset: null,
       bounced: false,
-      lastWrite: committedWrite ?? null,
+      lastWrite: committedWrite
+        ? { ...committedWrite, owedBefore: committedWrite.delta, delivered: false }
+        : null,
+      pendingOwed: committedWrite?.delta ?? 0,
       unreachable: 0,
       wroteLastFrame: false,
     };
@@ -1007,7 +1024,8 @@ export function useChatSessionState({
       ) {
         // Why the loop stopped decides whether the drift it was holding gets
         // corrected at all: a reader gesture deliberately hands control back,
-        // while a disconnected anchor or a session swap means nobody will.
+        // while a disconnected anchor is a page whose geometry nobody else will
+        // pay for.
         if (settle && currentContainer) {
           const reason = !settle.anchor.isConnected
             ? 'anchorGone'
@@ -1017,6 +1035,35 @@ export function useChatSessionState({
           noteTranscriptEvent(
             'AS1', currentContainer, reason, settle.frames, Math.round(settle.correctedPx),
           );
+          // A page that landed as estimated-height placeholders gets taller when
+          // those rows mount for real. When the pinned row is one of them it is
+          // replaced, the loop loses its pin, and every pixel the page still owes
+          // above the reader stays unpaid — the pager then reads the pane at the
+          // top it was already at and serves the same visit twice. `owedBefore`
+          // rather than this write's own delta: the last write may have been a
+          // partial correction, while the insertion it was paying for is the
+          // whole debt. `readerInput` is deliberately excluded: there the reader
+          // holds the pane and their position wins.
+          const owed = settle.lastWrite?.owedBefore ?? 0;
+          if (
+            reason === 'anchorGone'
+            && !settle.bounced
+            && settle.lastWrite?.delivered === true
+            && owed > TOP_LOAD_LOCK_MIN_PROGRESS_PX
+            && currentContainer.scrollTop >= 0
+            // The row is gone, so the only proof that the page owes this much is
+            // the document: a compensation the pane would clamp was never
+            // payable, and paying it here would put the reader in the tail.
+            && owed <= currentContainer.scrollHeight - currentContainer.clientHeight - currentContainer.scrollTop
+          ) {
+            currentContainer.scrollTop += owed;
+            noteScrollWrite('restoreAnchor', currentContainer);
+            programmaticScrollTopRef.current = currentContainer.scrollTop;
+            noteTranscriptEvent(
+              'RS', currentContainer, 'owed', Math.round(owed),
+              Math.round(settle.lastWrite.anchorTop), Math.round(settle.correctedPx),
+            );
+          }
         }
         anchorSettleRef.current = null;
         return;
@@ -1089,17 +1136,22 @@ export function useChatSessionState({
       if (landedOnOwnWrite && lastWrite) {
         const travelled = lastWrite.anchorTop - anchorTop;
         const grew = currentContainer.scrollHeight - lastWrite.scrollHeight;
-        if (
-          Math.abs(travelled - lastWrite.delta) > ANCHOR_SETTLE_EPSILON_PX
-          && Math.abs(grew) <= ANCHOR_SETTLE_EPSILON_PX
-        ) {
+        const delivered = (
+          Math.abs(travelled - lastWrite.delta) <= ANCHOR_SETTLE_EPSILON_PX
+          || Math.abs(grew) > ANCHOR_SETTLE_EPSILON_PX
+        );
+        if (!delivered) {
           noteTranscriptEvent(
             'AS1', currentContainer, 'detached',
             settle.frames, Math.round(settle.correctedPx), Math.round(lastWrite.delta),
           );
+          // A rect that does not answer the offset cannot say what is owed
+          // either (see the contract on `lastWrite`), and the range it would
+          // need was already refused as unpayable, so nothing is written here.
           anchorSettleRef.current = null;
           return;
         }
+        lastWrite.delivered = delivered;
       }
       if (
         !springLanded
@@ -1213,6 +1265,8 @@ export function useChatSessionState({
           delta: landed - before,
           anchorTop,
           scrollHeight: currentContainer.scrollHeight,
+          owedBefore: settle.pendingOwed,
+          delivered: true,
         };
         settle.lastDrift = drift;
         settle.correctedPx += drift;
@@ -1556,6 +1610,13 @@ export function useChatSessionState({
     };
 
     const scrolledNearTop = container.scrollTop < 100;
+    // "Near the top" only means something while the transcript is taller than
+    // the pane. Below that the viewport has nowhere to be but 0, so every sample
+    // — including the ones a session switch emits before its rows have mounted —
+    // reads as a reach for the top and the pager spends a page on a transcript
+    // the reader cannot even scroll. The page then lands on an empty pane, no
+    // anchor survives, and the restore gives up reporting `detached`.
+    const transcriptScrollable = container.scrollHeight > container.clientHeight + 1;
 
     // "Load all" prompt: appear (with fade-in) when the user reaches the top
     if (scrolledNearTop && hasMoreMessages && !allMessagesLoadedRef.current) {
@@ -1575,6 +1636,7 @@ export function useChatSessionState({
 
     if (!allMessagesLoadedRef.current) {
       if (!scrolledNearTop) { topLoadLockRef.current = false; return; }
+      if (!transcriptScrollable) return;
       // Past the top edge the pane is rubber-banding, not sitting still: the
       // position belongs to the platform's spring, and a page inserted into it
       // cannot be compensated until the spring lets go. Waiting for the return

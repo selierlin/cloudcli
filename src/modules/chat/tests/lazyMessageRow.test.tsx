@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import React, { useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import { act, render } from '@testing-library/react';
@@ -114,7 +114,26 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/**
+ * Runs the frames the correction waits for: the height has to read the same on
+ * two frames before the drift is paid, and a row that just mounted defers its
+ * first attempt by one frame.
+ */
+function settleFrames(count = 3): void {
+  for (let frame = 0; frame < count; frame += 1) {
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
+  }
+}
+
 describe('LazyMessageRow', () => {
+  // The correction is paid on a frame rather than inside the commit, so the
+  // tests drive rAF by hand instead of receiving synchronous writes.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
+  });
+
   it('starts far rows as an addressable placeholder instead of mounting content', () => {
     vi.stubGlobal('IntersectionObserver', StubIntersectionObserver);
 
@@ -236,6 +255,7 @@ describe('LazyMessageRow', () => {
     });
 
     fireIntersection(observer, wrapper, false);
+    settleFrames();
 
     expect(pane.scrollTop).toBe(1400);
     // Registered, so `handleScroll` does not read the upward move as the reader
@@ -360,6 +380,7 @@ describe('LazyMessageRow', () => {
     });
 
     fireIntersection(observer, wrapper, false);
+    settleFrames();
 
     // 622px of layout growth less the 12px the pane coasted.
     expect(scrollTop).toBe(2694);
@@ -426,6 +447,7 @@ describe('LazyMessageRow', () => {
 
     // Mounting the row above the viewport is what grows the transcript there.
     fireIntersection(observer, wrapper, true);
+    settleFrames();
 
     expect(scrollTop).toBe(1128);
     expect(scrollTopRef.current).toBe(1128);
