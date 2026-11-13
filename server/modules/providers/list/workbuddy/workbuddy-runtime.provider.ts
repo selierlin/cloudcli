@@ -499,6 +499,22 @@ export const workbuddyRuntime: IProviderRuntime = {
         return;
       }
 
+      // A background task's completion arrives as a user-role
+      // `<task-notification>` row. The history reader turns it into a
+      // `tool_result` keyed by the launching call's id, which is the only thing
+      // that settles the Bash card — so dropping it here left that card on
+      // `running`, spinning its elapsed clock, until the next history reload.
+      // Ordinary user turns are filtered out: the client already shows the
+      // prompt it just sent.
+      if (event.type === 'user' || (event.type === 'message' && event.role === 'user')) {
+        for (const message of context.normalizeMessage(event, appSessionId)) {
+          if (message.kind === 'tool_result' || message.kind === 'task_notification') {
+            send(message);
+          }
+        }
+        return;
+      }
+
       if (event.type === 'control_response') {
         return;
       }

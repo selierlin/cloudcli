@@ -498,7 +498,15 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
           toolInput: typeof msg.toolInput === 'string' ? msg.toolInput : JSON.stringify(msg.toolInput ?? '', null, 2),
           toolId: msg.toolId,
           toolResult,
-          toolStatus: typeof msg.status === 'string' ? msg.status : undefined,
+          // A tool call row carries no lifecycle of its own; the row that
+          // settles it does. A backgrounded shell's first result is only a
+          // launch acknowledgement, so its `running` is what keeps the card
+          // streaming until the completion notification replaces it.
+          toolStatus: typeof msg.status === 'string'
+            ? msg.status
+            : tr && 'status' in tr && typeof tr.status === 'string'
+              ? tr.status
+              : undefined,
           isSubagentContainer,
           subagent: msg.subagent,
           subagentActivity,
