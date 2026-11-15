@@ -667,10 +667,12 @@ function ChatMessagesPane({
                     const isProcessCollapsed = Boolean(
                       executionGroup && isExecutionProcessCollapsed(executionGroup),
                     );
-                    const hasAttentionMember = Boolean(
-                      executionGroup && itemMessageKeys.some((key) => executionGroup.attentionKeys.has(key)),
+                    // A failed tool folds with the run; only a provider error
+                    // banner or a card the turn is blocked on stays outside.
+                    const hasKeepVisibleMember = Boolean(
+                      executionGroup && itemMessageKeys.some((key) => executionGroup.keepVisibleKeys.has(key)),
                     );
-                    const shouldHideProcessItem = isProcessCollapsed && !hasAttentionMember;
+                    const shouldHideProcessItem = isProcessCollapsed && !hasKeepVisibleMember;
                     // A process-run batch keeps up to three calls flat; only a
                     // longer one gets its own disclosure row.
                     const toolCollapseAbove = executionGroup
@@ -776,7 +778,7 @@ function ChatMessagesPane({
                     executionGroup && isExecutionProcessCollapsed(executionGroup),
                   );
                   const shouldHideProcessItem = Boolean(
-                    executionGroup && isProcessCollapsed && !executionGroup.attentionKeys.has(messageKey),
+                    executionGroup && isProcessCollapsed && !executionGroup.keepVisibleKeys.has(messageKey),
                   );
                   const isUserAnchor = item.type === 'user' && userMessageAnchors.has(messageKey);
 

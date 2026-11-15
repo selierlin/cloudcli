@@ -218,12 +218,10 @@ export function TranscriptExportDocument({
                       {getChatProviderLabel(provider, i18n.getFixedT(null, 'chat'))}
                     </div>
                   </div>
-                  <details
-                    className="chat-export-disclosure chat-export-process"
-                    // The chat surfaces a run that needs attention already open;
-                    // a static document has no other way to flag it.
-                    open={block.group.hasAttention || undefined}
-                  >
+                  {/* Folded like the chat's own run. A run that failed still
+                      says "needs attention" in its summary, which is the only
+                      signal a static document needs. */}
+                  <details className="chat-export-disclosure chat-export-process">
                     <summary className="chat-export-disclosure-summary">
                       <ChevronRight
                         className="chat-export-disclosure-chevron h-3.5 w-3.5 flex-shrink-0"

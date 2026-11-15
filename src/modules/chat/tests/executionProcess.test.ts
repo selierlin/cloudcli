@@ -155,7 +155,7 @@ describe('execution process projection', () => {
     expect(projection.memberDisclosureKeys.get('narration')).toBeUndefined();
   });
 
-  it('marks attention members without forcing the whole process run open', () => {
+  it('flags a failed tool without keeping it outside the fold', () => {
     const user = message({ id: 'u1', type: 'user', content: 'question' });
     const tool = message({ id: 'tool', isToolUse: true, toolName: 'Read', toolStatus: 'completed' });
     const failedTool = message({ id: 'failed', isToolUse: true, toolName: 'Bash', toolStatus: 'error' });
@@ -166,8 +166,25 @@ describe('execution process projection', () => {
     );
     expect(projection.groups.get('process:turn:message-user-u1')).toMatchObject({
       attentionKeys: new Set(['failed']),
+      // The summary still says "needs attention", but the row itself folds.
+      keepVisibleKeys: new Set(),
       hasAttention: true,
       defaultCollapsed: true,
+    });
+  });
+
+  it('keeps a card the turn is waiting on outside a folded run', () => {
+    const user = message({ id: 'u1', type: 'user', content: 'question' });
+    const failedTool = message({ id: 'failed', isToolUse: true, toolName: 'Bash', toolStatus: 'error' });
+    const question = message({ id: 'question', isToolUse: true, toolName: 'AskUserQuestion' });
+    const answer = message({ id: 'answer', content: 'final' });
+
+    const projection = deriveExecutionProcessProjection(
+      [user, failedTool, question, answer], keyFor, completedHistory,
+    );
+    expect(projection.groups.get('process:turn:message-user-u1')).toMatchObject({
+      attentionKeys: new Set(['failed', 'question']),
+      keepVisibleKeys: new Set(['question']),
     });
   });
 

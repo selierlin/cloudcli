@@ -114,8 +114,10 @@ function ToolGroupContainer({
     [group.messages, group.toolName],
   );
   const hasMixedTools = toolNames.size > 1;
-  // A run that errored, was denied or stopped mid-way is surfaced already
-  // expanded: a collapsed row would bury the very thing that ended the run.
+  // A run that errored, was denied or stopped mid-way keeps its status badge,
+  // but it no longer forces the batch open: the reader opens the batch when
+  // they want the detail. The badge and the failed row's red styling carry the
+  // signal while it is folded.
   const groupIssueStatus = useMemo<ToolStatus | undefined>(() => {
     for (const message of group.messages) {
       if (message.toolResult?.isError) {
@@ -135,8 +137,7 @@ function ToolGroupContainer({
   // so closing the outer disclosure does not discard the user's reading state.
   const [internalExpanded, setInternalExpanded] = useState(!isGrouped);
   const isExpanded = Boolean(
-    groupIssueStatus
-    || revealRequestId !== undefined
+    revealRequestId !== undefined
     || (expanded ?? internalExpanded)
   );
   const toggleExpanded = () => {

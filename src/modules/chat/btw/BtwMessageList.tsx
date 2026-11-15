@@ -115,10 +115,11 @@ export default function BtwMessageList({
 
       const collapsed = isGroupCollapsed(group);
       // Approval requests live inside the run too. Folding them away would hide
-      // the card the turn is waiting on, so an attention member stays visible
-      // while the rest of the run is closed — the same exemption the main
-      // transcript makes.
-      const staysVisible = !collapsed || group.attentionKeys.has(key);
+      // the card the turn is waiting on, so those members stay visible while
+      // the rest of the run is closed — the same exemption the main transcript
+      // makes. Failed tool calls fold like anything else; the summary's
+      // "needs attention" detail carries that signal.
+      const staysVisible = !collapsed || group.keepVisibleKeys.has(key);
 
       if (group.firstMemberKey === key) {
         flat.push({

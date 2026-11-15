@@ -3,6 +3,7 @@ import { getIntrinsicMessageKey } from '@/modules/chat/utils/messageKeys';
 import {
   isAssistantTextFocusCandidate,
   isVisibleUserTurnStart,
+  keepsVisibleWhenFolded,
   projectTranscriptTurns,
 } from '@/modules/chat/utils/transcriptProjection';
 
@@ -15,7 +16,10 @@ export type ExecutionProcessGroup = {
   disclosureAliases: string[];
   isWindowTruncated: boolean;
   memberKeys: Set<string>;
+  /** Attention members, used for the summary's "needs attention" detail. */
   attentionKeys: Set<string>;
+  /** The subset of attention members that still render while the run is folded. */
+  keepVisibleKeys: Set<string>;
   firstMemberKey: string;
   hasAttention: boolean;
   hasActiveSegments: boolean;
@@ -127,8 +131,12 @@ export function deriveExecutionProcessProjection(
     const liveActivitySegment = [...members].reverse().find((segment) => (
       segment.kind === 'reasoning' && Boolean(segment.message.isStreaming)
     ));
-    const attentionKeys = new Set(
-      members.filter((segment) => segment.lifecycle === 'attention').map((segment) => segment.id),
+    const attentionSegments = members.filter((segment) => segment.lifecycle === 'attention');
+    const attentionKeys = new Set(attentionSegments.map((segment) => segment.id));
+    const keepVisibleKeys = new Set(
+      attentionSegments
+        .filter((segment) => keepsVisibleWhenFolded(segment.message))
+        .map((segment) => segment.id),
     );
     const toolCount = members.filter((segment) => segment.kind === 'tool').length;
 
@@ -146,6 +154,7 @@ export function deriveExecutionProcessProjection(
       isWindowTruncated: turn.boundary === 'partial',
       memberKeys: new Set(members.map((segment) => segment.id)),
       attentionKeys,
+      keepVisibleKeys,
       firstMemberKey,
       hasAttention: attentionKeys.size > 0,
       hasActiveSegments: members.some((segment) => segment.lifecycle === 'active'),

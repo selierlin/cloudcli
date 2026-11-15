@@ -40,13 +40,27 @@ function classifySegment(message: ChatMessage): TranscriptSegmentKind {
   return 'answer';
 }
 
+/** Cards the turn is blocked on, so folding them away would hide the question. */
+const READER_ACTION_TOOL_NAMES = new Set(['AskUserQuestion', 'exit_plan_mode', 'ExitPlanMode']);
+
+/**
+ * Attention rows that stay on screen while their Process Run is folded: a
+ * provider-level error banner, or a card the turn is waiting on. A failed tool
+ * call is not one of these — it folds with the rest of the run, and the
+ * summary's "needs attention" detail is what tells the reader it happened.
+ */
+export function keepsVisibleWhenFolded(message: ChatMessage): boolean {
+  return message.type === 'error'
+    || READER_ACTION_TOOL_NAMES.has(message.toolName || '');
+}
+
 function classifyLifecycle(message: ChatMessage): TranscriptSegmentLifecycle {
   if (
     message.type === 'error'
     || message.toolResult?.isError === true
     || ['error', 'denied', 'stopped'].includes(String(message.toolStatus || ''))
     || message.subagent?.status === 'failed'
-    || ['AskUserQuestion', 'exit_plan_mode', 'ExitPlanMode'].includes(message.toolName || '')
+    || READER_ACTION_TOOL_NAMES.has(message.toolName || '')
   ) {
     return 'attention';
   }

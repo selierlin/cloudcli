@@ -461,7 +461,7 @@ describe('html export process runs', () => {
     assert.equal(doc.querySelectorAll('details').length, 1);
   });
 
-  it('opens a run that needs attention, since the label alone cannot flag it', async () => {
+  it('keeps a failed run folded and flags it in the summary', async () => {
     const failedTool: ChatMessage = {
       ...editToolMessage,
       toolResult: { content: 'Permission denied', isError: true },
@@ -474,7 +474,9 @@ describe('html export process runs', () => {
     const process = parseExport(html).querySelector('details.chat-export-process');
 
     assert.ok(process);
-    assert.ok(process.hasAttribute('open'));
+    // A static document folds the run like the chat does; the summary label is
+    // the signal that something inside failed.
+    assert.equal(process.hasAttribute('open'), false);
     assert.ok(process.textContent?.includes(chatT('transcript.executionProcess.attention')));
   });
 

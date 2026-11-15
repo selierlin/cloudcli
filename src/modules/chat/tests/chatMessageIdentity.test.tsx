@@ -177,7 +177,7 @@ test('an unseen long transcript row reserves more space than the fixed fallback'
   }
 });
 
-test('manually closing completed process rows never hides an attention tool in the same visual group', () => {
+test('folds a failed tool call with the rest of the process run', () => {
   const user: ChatMessage = {
     id: 'user', type: 'user', content: 'Run checks', timestamp: '2026-09-16T10:00:00.000Z',
   };
@@ -217,9 +217,15 @@ test('manually closing completed process rows never hides an attention tool in t
     </UiPreferencesProvider>,
   );
 
-  const groupContent = view.getByTestId('tool-group');
-  assert.notEqual(groupContent.parentElement?.getAttribute('aria-hidden'), 'true');
-  assert.equal(groupContent.parentElement?.classList.contains('hidden'), false);
+  // The failure no longer punches through the fold: the run stays closed.
+  assert.equal(view.queryByTestId('tool-group'), null);
+  const processToggle = view.getByRole('button', { name: /transcript.executionProcess.execution/ });
+  assert.equal(processToggle.getAttribute('aria-expanded'), 'false');
+  // It stays discoverable from the summary, which is what the reader sees.
+  assert.match(processToggle.textContent ?? '', /transcript\.executionProcess\.attention/);
+
+  fireEvent.click(processToggle);
+  assert.ok(view.getByTestId('tool-group').textContent?.includes('failed-tool:error'));
 });
 
 test('an opened process run shows narration while reasoning and tools remain folded evidence', () => {
