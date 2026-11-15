@@ -6,38 +6,63 @@ import test, { type TestContext } from 'node:test';
 
 import { dshRuntime, resetDshRuntimeForTests } from '@/modules/providers/list/dsh/dsh-runtime.provider.js';
 import { createNormalizedMessage } from '@/shared/utils.js';
-import type { ProviderRuntimeContext, ProviderRuntimeWriter } from '@/shared/types.js';
+import type { ProviderModelsDefinition, ProviderRuntimeContext, ProviderRuntimeWriter } from '@/shared/types.js';
 
 type CapturedMessage = Record<string, any>;
 
 /**
- * Minimal DSH ACP server advertising two model choices. It records every
- * `session/set_config_option` value and echoes the value that was active when
- * the prompt arrived, so the test proves the model reached the harness before
- * the turn rather than merely being sent somewhere.
+ * Minimal DSH ACP server advertising two model choices, one of which declares
+ * reasoning levels. It records every `session/set_config_option` value and
+ * echoes the value that was active when the prompt arrived, so the test proves
+ * the model reached the harness before the turn rather than merely being sent
+ * somewhere.
+ *
+ * Mirrors DSH: `reasoning_effort` is only advertised while the active model
+ * declares levels, and switching models drops the previously selected level.
  */
 const fakeModelDshServer = `
-  let activeModel = 'fallback';
+  const MODELS = [
+    {
+      group: 'volcano-ark',
+      name: 'Volcano Ark',
+      options: [{ value: JSON.stringify(['volcano-ark', 'glm-5.3-flash']), name: 'GLM 5.3 Flash' }],
+    },
+    {
+      group: 'workbuddy',
+      name: 'WorkBuddy',
+      options: [{ value: JSON.stringify(['workbuddy', 'deepseek-v4.1-flash']), name: 'DeepSeek V4.1 Flash' }],
+    },
+  ];
+  const EFFORTS = {
+    [JSON.stringify(['volcano-ark', 'glm-5.3-flash'])]: [],
+    [JSON.stringify(['workbuddy', 'deepseek-v4.1-flash'])]: ['low', 'high'],
+  };
+
+  let activeModel = JSON.stringify(['volcano-ark', 'glm-5.3-flash']);
+  let activeEffort = '';
 
   const send = (message) => process.stdout.write(JSON.stringify(message) + '\\n');
-  const modelOptions = {
-    id: 'model',
-    name: 'Model',
-    category: 'model',
-    type: 'select',
-    currentValue: JSON.stringify(['volcano-ark', 'glm-5.3-flash']),
-    options: [
-      {
-        group: 'volcano-ark',
-        name: 'Volcano Ark',
-        options: [{ value: JSON.stringify(['volcano-ark', 'glm-5.3-flash']), name: 'GLM 5.3 Flash' }],
-      },
-      {
-        group: 'workbuddy',
-        name: 'WorkBuddy',
-        options: [{ value: JSON.stringify(['workbuddy', 'deepseek-v4.1-flash']), name: 'DeepSeek V4.1 Flash' }],
-      },
-    ],
+  const configOptions = () => {
+    const options = [{
+      id: 'model',
+      name: 'Model',
+      category: 'model',
+      type: 'select',
+      currentValue: activeModel,
+      options: MODELS,
+    }];
+    const levels = EFFORTS[activeModel] ?? [];
+    if (levels.length > 0) {
+      options.push({
+        id: 'reasoning_effort',
+        name: 'Reasoning effort',
+        category: 'model',
+        type: 'select',
+        currentValue: activeEffort,
+        options: levels.map((level) => ({ value: level, name: level })),
+      });
+    }
+    return options;
   };
 
   process.stdin.setEncoding('utf8');
@@ -51,13 +76,17 @@ const fakeModelDshServer = `
         send({
           jsonrpc: '2.0',
           id: message.id,
-          result: { sessionId: 'acp-session', configOptions: [modelOptions] },
+          result: { sessionId: 'acp-session', configOptions: configOptions() },
         });
       } else if (message.method === 'session/set_config_option') {
         if (message.params.configId === 'model') {
           activeModel = message.params.value;
+          activeEffort = '';
         }
-        send({ jsonrpc: '2.0', id: message.id, result: { configOptions: [modelOptions] } });
+        if (message.params.configId === 'reasoning_effort') {
+          activeEffort = message.params.value;
+        }
+        send({ jsonrpc: '2.0', id: message.id, result: { configOptions: configOptions() } });
       } else if (message.method === 'session/prompt') {
         send({
           jsonrpc: '2.0',
@@ -68,6 +97,18 @@ const fakeModelDshServer = `
               sessionUpdate: 'agent_message_chunk',
               messageId: 'msg-1',
               content: { type: 'text', text: 'model:' + activeModel },
+            },
+          },
+        });
+        send({
+          jsonrpc: '2.0',
+          method: 'session/update',
+          params: {
+            sessionId: 'acp-session',
+            update: {
+              sessionUpdate: 'agent_message_chunk',
+              messageId: 'msg-2',
+              content: { type: 'text', text: 'effort:' + (activeEffort || 'unset') + '@' + activeModel },
             },
           },
         });
@@ -85,12 +126,14 @@ const createFakeDshBinary = (directory: string): string => {
   return binaryPath;
 };
 
-const createContext = (): ProviderRuntimeContext => ({
+const createContext = (
+  models: ProviderModelsDefinition = { OPTIONS: [], DEFAULT: 'model' },
+): ProviderRuntimeContext => ({
   resolveProviderSessionId: () => null,
   resolveProviderConfigDir: () => null,
   resolveSettingsFile: () => null,
   resolveResumeModel: async () => undefined,
-  getProviderModels: async () => ({ OPTIONS: [], DEFAULT: 'model' }),
+  getProviderModels: async () => models,
   normalizeMessage: (raw, sessionId) => {
     const event = raw as { content?: string };
     return [createNormalizedMessage({
@@ -154,6 +197,61 @@ test('applies the CloudCLI-selected model to the ACP session before prompting', 
     'the prompt must run after the selected model was applied',
   );
   assert.ok(messages.some((message) => message.kind === 'complete' && message.success === true));
+});
+
+const REASONING_MODEL = 'workbuddy/deepseek-v4.1-flash';
+
+test('applies the default effort when the picker is left on Default', async (t) => {
+  const temporaryDirectory = withFakeDsh(t);
+  const messages: CapturedMessage[] = [];
+
+  await dshRuntime.run(
+    'hello',
+    { sessionId: 'app-session', cwd: temporaryDirectory, model: REASONING_MODEL, effort: 'default' },
+    createWriter(messages),
+    createContext(),
+  );
+
+  const effort = messages.find((message) => message.content?.startsWith('effort:'));
+  assert.equal(
+    effort?.content,
+    `effort:high@${JSON.stringify(['workbuddy', 'deepseek-v4.1-flash'])}`,
+    'Default must enable reasoning instead of leaving the harness without a level',
+  );
+});
+
+test('forwards an explicit effort and never sends a level the model lacks', async (t) => {
+  const temporaryDirectory = withFakeDsh(t);
+  const messages: CapturedMessage[] = [];
+
+  for (const [index, requested] of ['low', 'max'].entries()) {
+    messages.length = 0;
+    await dshRuntime.run(
+      'hello',
+      { sessionId: `app-session-${index}`, cwd: temporaryDirectory, model: REASONING_MODEL, effort: requested },
+      createWriter(messages),
+      createContext(),
+    );
+    const effort = messages.find((message) => message.content?.startsWith('effort:'));
+    // `max` is not advertised by the live harness, so it falls back to the
+    // default rather than reaching it (which rejects unknown levels).
+    assert.equal(effort?.content?.split('@')[0], requested === 'low' ? 'effort:low' : 'effort:high');
+  }
+});
+
+test('leaves the effort untouched for a model that declares no levels', async (t) => {
+  const temporaryDirectory = withFakeDsh(t);
+  const messages: CapturedMessage[] = [];
+
+  await dshRuntime.run(
+    'hello',
+    { sessionId: 'app-session', cwd: temporaryDirectory, model: 'volcano-ark/glm-5.3-flash', effort: 'high' },
+    createWriter(messages),
+    createContext(),
+  );
+
+  const effort = messages.find((message) => message.content?.startsWith('effort:'));
+  assert.equal(effort?.content?.split('@')[0], 'effort:unset');
 });
 
 test('fails the turn when the selected model is not advertised by the harness', async (t) => {

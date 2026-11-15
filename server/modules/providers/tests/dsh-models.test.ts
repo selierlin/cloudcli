@@ -138,6 +138,43 @@ test('builds the catalog from the composed llm-pi-ai and agent-default-model ent
   assert.equal(catalog?.DEFAULT, 'volcano-ark/glm-5.3');
 });
 
+test('maps composed reasoningEfforts into picker effort levels', () => {
+  const entries = parseDshComposedEntries(`
+- id: llm-pi-ai
+  name: '@deepseek-ai/dsh-llm-pi-ai'
+  config:
+    providers:
+      magpie:
+        models:
+          - id: workbuddy/deepseek-v4.1-flash
+            reasoningEfforts:
+              'off': none
+              low: low
+              high: high
+              max: max
+          - id: glm-5.1
+            reasoningEfforts: false
+- id: agent-default-model
+  config:
+    provider: magpie
+    model: workbuddy/deepseek-v4.1-flash
+`);
+
+  const catalog = buildDshModelsFromComposedEntries(entries);
+  const reasoning = catalog?.OPTIONS.find((option) => option.label === 'workbuddy/deepseek-v4.1-flash');
+  assert.deepEqual(reasoning?.effort, {
+    // `high` is what WorkBuddy applies to the same model, so "Default" keeps
+    // the harness asking for a reasoning trace.
+    default: 'high',
+    values: [{ value: 'off' }, { value: 'low' }, { value: 'high' }, { value: 'max' }],
+  });
+  assert.equal(
+    catalog?.OPTIONS.find((option) => option.label === 'glm-5.1')?.effort,
+    undefined,
+    'a model with reasoningEfforts: false must not offer an effort menu',
+  );
+});
+
 test('defaults to the first composed model when agent-default-model is unknown', () => {
   const entries = parseDshComposedEntries(
     COMPOSED_DUMP.replace('model: glm-5.3', 'model: does-not-exist'),
@@ -344,6 +381,35 @@ agent-default-model:
       },
     ]);
     assert.equal(models.DEFAULT, 'second/custom-x');
+  });
+});
+
+test('reads reasoningEfforts, including the quoted off level, from settings.yaml', async () => {
+  await withDshHome({
+    'settings.yaml': `
+llm-pi-ai:
+  providers:
+    zhihui:
+      models:
+        - id: gpt-5.6-terra
+          reasoningEfforts:
+            "off": none
+            low: low
+            high: high
+        - id: gpt-5.6-luna
+          reasoningEfforts: false
+agent-default-model:
+  provider: zhihui
+  model: gpt-5.6-terra
+`,
+  }, async () => {
+    const models = await new DshProviderModels(NO_COMPOSED_ENTRIES).getSupportedModels();
+
+    assert.deepEqual(models.OPTIONS[0].effort, {
+      default: 'high',
+      values: [{ value: 'off' }, { value: 'low' }, { value: 'high' }],
+    });
+    assert.equal(models.OPTIONS[1].effort, undefined);
   });
 });
 

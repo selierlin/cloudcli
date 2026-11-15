@@ -125,9 +125,16 @@ export function loadDshSettingsModels(): ProviderModelsDefinition | null {
   let providerId = '';
   let providerIndent = -1;
   let inModels = false;
+  // The option whose `reasoningEfforts` block may still follow, and the indent
+  // of that block while it is open (-1 when the next mapping line is a model
+  // key again). Only `- id:` items can own an effort map.
+  let currentOption: ProviderModelOption | null = null;
+  let effortIndent = -1;
 
   const sectionHeader = /^([A-Za-z0-9_.-]+):\s*$/;
-  const mapping = /^([A-Za-z0-9_.-]+):\s*(.*)$/;
+  // Quoted keys are legal YAML and DSH writes `"off"` for the level that maps
+  // to the harness's `none` label.
+  const mapping = /^(["']?[A-Za-z0-9_.-]+["']?):\s*(.*)$/;
   const modelItem = /^-\s+id:\s*(.*)$/;
 
   for (const rawLine of content.split(/\r?\n/)) {
@@ -138,6 +145,12 @@ export function loadDshSettingsModels(): ProviderModelsDefinition | null {
     }
     const indent = line.length - text.length;
     const isTopLevel = indent === 0;
+
+    // A line at or above an open `reasoningEfforts:` block returns to the
+    // model's own keys (or the next model), so the block is over.
+    if (effortIndent >= 0 && indent <= effortIndent) {
+      effortIndent = -1;
+    }
 
     const header = sectionHeader.exec(text);
     if (header) {
@@ -152,10 +165,24 @@ export function loadDshSettingsModels(): ProviderModelsDefinition | null {
         providerId = '';
         providerIndent = -1;
         inModels = false;
+        currentOption = null;
+        effortIndent = -1;
         continue;
       }
 
       if (section !== 'llm-pi-ai') {
+        continue;
+      }
+      // `reasoningEfforts:` has no scalar value, so it reaches this header
+      // branch rather than the mapping branch below. A deeper bare key inside
+      // it is one accepted level.
+      if (effortIndent >= 0 && indent > effortIndent) {
+        currentOption?.effort?.values.push({ value: key });
+        continue;
+      }
+      if (inProviders && currentOption && key === 'reasoningEfforts') {
+        currentOption.effort = { values: [] };
+        effortIndent = indent;
         continue;
       }
       if (key === 'providers') {
@@ -163,6 +190,8 @@ export function loadDshSettingsModels(): ProviderModelsDefinition | null {
         providerId = '';
         providerIndent = -1;
         inModels = false;
+        currentOption = null;
+        effortIndent = -1;
       } else if (inProviders && key === 'models') {
         inModels = true;
       } else if (inProviders && (providerIndent === -1 || indent <= providerIndent)) {
@@ -170,14 +199,29 @@ export function loadDshSettingsModels(): ProviderModelsDefinition | null {
         providerId = key;
         providerIndent = indent;
         inModels = false;
+        currentOption = null;
+        effortIndent = -1;
       }
       continue;
     }
 
     const entry = mapping.exec(text);
     if (entry) {
-      const key = entry[1];
+      const key = cleanScalar(entry[1]);
       const value = cleanScalar(entry[2]);
+
+      // A `key: value` line inside `reasoningEfforts` is one accepted level
+      // (the value is only its display label).
+      if (effortIndent >= 0 && indent > effortIndent) {
+        currentOption?.effort?.values.push({ value: key });
+        continue;
+      }
+      if (section === 'llm-pi-ai' && currentOption && key === 'reasoningEfforts' && !value) {
+        currentOption.effort = { values: [] };
+        effortIndent = indent;
+        continue;
+      }
+
       if (section === 'agent-default-model') {
         if (key === 'provider') {
           defaultProvider = value;
@@ -193,12 +237,15 @@ export function loadDshSettingsModels(): ProviderModelsDefinition | null {
     const item = modelItem.exec(text);
     if (item && section === 'llm-pi-ai' && inModels && providerId) {
       const modelId = cleanScalar(item[1]);
+      effortIndent = -1;
+      currentOption = null;
       if (modelId) {
-        options.push({
+        currentOption = {
           value: modelValue(providerId, modelId),
           label: modelId,
           group: resolveChannelLabel(providerId),
-        });
+        };
+        options.push(currentOption);
       }
     }
   }
@@ -207,12 +254,50 @@ export function loadDshSettingsModels(): ProviderModelsDefinition | null {
     return null;
   }
 
+  // A `reasoningEfforts:` block opened but yielded no level (or the option
+  // never saw one) means the model has no reasoning channel; drop the stub so
+  // the picker does not offer an empty effort menu.
+  for (const option of options) {
+    if (!option.effort) {
+      continue;
+    }
+    const effort = buildModelEffort(option.effort.values.map((value) => value.value));
+    if (effort) {
+      option.effort = effort;
+    } else {
+      delete option.effort;
+    }
+  }
+
   const defaultExists = Boolean(defaultProvider && defaultModel)
     && options.some((option) => option.value === modelValue(defaultProvider, defaultModel));
 
   return {
     OPTIONS: options,
     DEFAULT: defaultExists ? modelValue(defaultProvider, defaultModel) : options[0].value,
+  };
+}
+
+/**
+ * Builds the reasoning-effort choices a DSH route declares.
+ *
+ * DSH stores them as a `reasoningEfforts` map whose keys are the values the ACP
+ * `reasoning_effort` option accepts and whose values are display labels; `false`
+ * or a missing map means the model has no reasoning channel. `high` becomes the
+ * default when advertised (the same level WorkBuddy applies to these models),
+ * otherwise the first non-`off` level, so a picker left on "Default" still asks
+ * the harness for a reasoning trace instead of silently running without one.
+ */
+function buildModelEffort(levels: string[]): ProviderModelOption['effort'] | undefined {
+  const values = levels.filter((level) => level.trim().length > 0);
+  if (values.length === 0) {
+    return undefined;
+  }
+  return {
+    values: values.map((value) => ({ value })),
+    default: values.includes('high')
+      ? 'high'
+      : values.find((value) => value !== 'off') ?? values[0],
   };
 }
 
@@ -239,12 +324,15 @@ export function buildDshModelsFromComposedEntries(
       continue;
     }
     for (const model of models) {
-      const modelId = readOptionalString(readObjectRecord(model)?.id);
+      const record = readObjectRecord(model);
+      const modelId = readOptionalString(record?.id);
       if (modelId) {
+        const effort = buildModelEffort(Object.keys(readObjectRecord(record?.reasoningEfforts) ?? {}));
         options.push({
           value: modelValue(providerId, modelId),
           label: modelId,
           group: resolveChannelLabel(providerId),
+          ...(effort ? { effort } : {}),
         });
       }
     }
@@ -294,8 +382,6 @@ export class DshProviderModels implements IProviderModels {
       OPTIONS: applySharedModelDescriptions(baseCatalog.OPTIONS),
     };
 
-    // `DSH_MODEL` overrides the picker default, keeping the env escape hatch
-    // aligned with what the harness runs when the settings document is absent.
     // `DSH_MODEL` overrides the picker default, keeping the env escape hatch
     // aligned with what the harness runs when the settings document is absent.
     const configuredModel = process.env.DSH_MODEL?.trim();

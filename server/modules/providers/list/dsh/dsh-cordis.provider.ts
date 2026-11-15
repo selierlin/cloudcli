@@ -160,7 +160,10 @@ function parseMapping(
 
   const readEntry = (entry: string, after: number): number => {
     const separator = entry.indexOf(':');
-    const key = entry.slice(0, separator).trim();
+    // The serializer quotes keys that would otherwise parse as booleans or
+    // numbers (`'off'` for a reasoning level, for example); the mapping key is
+    // the unquoted text.
+    const key = stripQuotes(entry.slice(0, separator).trim());
     const remainder = entry.slice(separator + 1).trim();
     const header = blockScalarHeader(remainder);
     if (header) {

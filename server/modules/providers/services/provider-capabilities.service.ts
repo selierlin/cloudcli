@@ -156,7 +156,9 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
   },
   dsh: {
     provider: 'dsh',
-    effortLevels: [],
+    // Union of the levels DSH routes declare in their `reasoningEfforts` map;
+    // each model narrows this to its own levels in the catalog.
+    effortLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'],
     // `default` routes DSH's one-shot ACP permission requests to the chat UI;
     // `auto` answers them with the harness's allow-once option. DSH keeps its
     // own sandbox policy, so neither mode rewrites the harness configuration.
@@ -168,7 +170,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsAbort: true,
     supportsPermissionRequests: true,
     supportsTokenUsage: false,
-    supportsEffort: false,
+    supportsEffort: true,
     supportsMessageEditing: true,
     // Forking is materialised in DshForkProvider: the ACP server refuses to
     // resume a session carrying `parentSession`, so the transcript prefix is
