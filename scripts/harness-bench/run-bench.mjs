@@ -1,16 +1,15 @@
 /**
  * harness-bench runner: cross-harness comparison on one shared model
- * (glm-5.3-flash).
+ * (workbuddy/deepseek-v4.1-flash served by magpie).
  *
- * Channel split is dictated by what each CLI speaks, not by preference.
- * volcano-ark serves the anthropic messages API (claude), the responses API
- * (codex) and OpenAI chat completions (the rest), so seven of the eight
- * harnesses run there. workbuddy is the one exception: it is WorkBuddy's own
- * client and its switchable upstreams are copilot.tencent.com only.
- * Same model name (glm-5.3-flash) everywhere; workbuddy therefore still runs on
- * a different serving stack and must be read apart from the rest.
+ * Every harness points at the same magpie route: it is the one upstream that
+ * accepts chat completions, responses and anthropic messages for this model,
+ * so protocol differences stay inside each harness instead of becoming
+ * upstream differences. Model names still differ per CLI (claude reaches it
+ * through its alias catalogue), so results are compared by the model each run
+ * recorded rather than by the string passed in.
  *
- * Executes S1–S20 scenarios × 8 providers × N rounds, sequentially and
+ * Executes S1–S21 scenarios × 6 providers × N rounds, sequentially and
  * interleaved (round → provider → scenario) so server-side load drift hits
  * every provider evenly. Metrics come from chat websocket frame timestamps:
  * TTFT (first text/thinking delta), total turn time, channel char counts,
@@ -74,28 +73,30 @@ const CANARY = hasFlag('--canary');
 
 // -------------------------------------------------------------- providers
 // effort only where the harness exposes a switch for this model; the
-// intersection across codex/pi/omp/workbuddy is `high`. dsh ignores the
-// per-turn model entirely — it runs whatever the acp profile pins, so its
-// entry stays null and `~/.dsh/profiles/acp/cordis.patch.yml` must point at
-// volcano-ark/glm-5.3-flash for the duration of a run.
+// intersection across codex/pi/workbuddy is `high`. dsh takes both the
+// per-turn model and the level: it switches its ACP session to the entry's
+// model and, because that model declares `low`/`high`, applies `high`.
 const PROVIDERS = [
-  { id: 'claude', channel: 'ark', model: 'glm-5.3-flash', effort: null },
-  { id: 'codex', channel: 'ark', model: 'glm-5.3-flash', effort: 'high' },
-  { id: 'opencode', channel: 'ark', model: 'volcano-ark/glm-5.3-flash', effort: null },
-  // dsh 的模型由 ACP profile 钉住，不传 model；通道随 profile 走。
-  { id: 'dsh', channel: 'ark', model: null, effort: null },
-  { id: 'pi', channel: 'ark', model: 'volcano-ark/glm-5.3-flash', effort: 'high' },
-  { id: 'zcode', channel: 'ark', model: 'volcano-ark/glm-5.3-flash', effort: null },
-  { id: 'omp', channel: 'ark', model: 'volcano-ark/glm-5.3-flash', effort: 'high' },
-  // workbuddy 是 WorkBuddy 自己的客户端，上游只能是自己的 copilot，无法切 ark。
-  { id: 'workbuddy', channel: 'workbuddy', model: 'glm-5.3-flash', effort: 'high' },
+  // magpie 的 deepseek-v4.1-flash：只有 workbuddy/ 与 auto/ 同时支持
+  // chat、responses、anthropic 三种协议；wuan-ai/ 缺 chat 与 anthropic。
+  // 钉 workbuddy/ 是为了避开 auto/ 的路由换账号。
+  // claude 的模型目录是 alias 形态，settings.json 把 sonnet 映射到同一个
+  // workbuddy/deepseek-v4.1-flash[1m]，因此传 alias 而不是裸模型 id。
+  { id: 'claude', channel: 'magpie', model: 'sonnet', effort: 'high' },
+  { id: 'codex', channel: 'magpie', model: 'workbuddy/deepseek-v4.1-flash', effort: 'high' },
+  // opencode 不读 per-turn model，跑的是 opencode.json 里的默认模型，
+  // 该默认值已经是 magpie/workbuddy/deepseek-v4.1-flash。
+  { id: 'opencode', channel: 'magpie', model: null, effort: null },
+  { id: 'dsh', channel: 'magpie', model: 'magpie/workbuddy/deepseek-v4.1-flash', effort: 'high' },
+  { id: 'pi', channel: 'magpie', model: 'magpie/workbuddy/deepseek-v4.1-flash', effort: 'high' },
+  { id: 'zcode', channel: 'magpie', model: 'magpie/workbuddy/deepseek-v4.1-flash', effort: null },
 ];
 
 // Channel is only a model prefix for these four: the CLI talks OpenAI chat
 // completions whichever upstream is behind it, so pointing them at copilot is
 // the cheapest way to measure the same harness on the other stack. claude
-// (anthropic messages) and codex (responses) have no endpoint there, and dsh
-// pins its channel in the ACP profile, so those three are excluded.
+// (anthropic messages) and codex (responses) have no endpoint there; dsh is
+// left out of the mirror for now.
 const COPILOT_MIRROR = new Set(['opencode', 'pi', 'zcode', 'omp']);
 if (process.env.BENCH_CHANNEL === 'copilot') {
   for (const p of PROVIDERS) {
