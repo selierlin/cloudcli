@@ -4,11 +4,11 @@ import { Check, Edit2, GitBranch, Loader2, MoreHorizontal, Pin, PinOff, Trash2, 
 import type { TFunction } from 'i18next';
 
 import { Badge, Dialog, DialogContent, DialogTitle, LLMProviderLogo, Tooltip, buttonVariants } from '@/shared/ui';
-import { cn, isImeKeyEvent } from '@/shared/utils';
+import { cn, formatCompactAge, isImeKeyEvent } from '@/shared/utils';
 import { SESSION_OWNERSHIP_DRAG_MIME } from '@/shared/constants';
 import type { LLMProvider, Project, ProjectSession, SessionAttentionLevel, SessionWithProvider } from '@/shared/types';
 import { useSessionForkingProviders } from '@/shared/hooks/useProviderCapabilities';
-import { PROVIDER_LABELS, createSessionViewModel, formatCompactAge } from '@/modules/sidebar/utils/sidebarProjectFormatting';
+import { PROVIDER_LABELS, createSessionViewModel } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import { ActivitySlot, AttentionSlot, DraftSlot } from '@/modules/sidebar/SessionStatusIndicators';
 import { useCompactSidebar } from '@/modules/sidebar/hooks/useCompactSidebar';
 import { useDraftScopes } from '@/modules/sidebar/hooks/useDraftScopes';

@@ -409,6 +409,33 @@ export const triggerNotificationHaptic = async (
 
 // ---------------------------
 
+//----------------- SESSION AGE ------------
+
+/**
+ * Formats how long ago a timestamp was as the compact, locale-free label the
+ * sidebar rows and the workspace header share: `<1m`, `12m`, `3hr`, `2d`.
+ * Returns '' when the timestamp is missing or unparseable so callers can omit
+ * the field entirely instead of rendering a placeholder.
+ */
+export const formatCompactAge = (
+  dateString: string | null | undefined,
+  currentTime: Date,
+): string => {
+  if (!dateString) return '';
+
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const minutes = Math.floor(Math.max(0, currentTime.getTime() - date.getTime()) / 60000);
+  if (minutes < 1) return '<1m';
+  if (minutes < 60) return `${minutes}m`;
+
+  const hours = Math.floor(minutes / 60);
+  return hours < 24 ? `${hours}hr` : `${Math.floor(hours / 24)}d`;
+};
+
+// ---------------------------
+
 //----------------- DOCUMENT TITLE ------------
 
 /** Browser tab title shown when no project or session is selected. Private to the title helpers. */

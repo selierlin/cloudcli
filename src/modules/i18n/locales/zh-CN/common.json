@@ -107,7 +107,9 @@
     "untitledSession": "未命名会话",
     "projectFiles": "项目文件",
     "renameSessionHint": "{{title}}（双击重命名）",
-    "renameSessionLabel": "会话标题"
+    "renameSessionLabel": "会话标题",
+    "changedFiles_one": "{{count}} 个文件有改动",
+    "changedFiles_other": "{{count}} 个文件有改动"
   },
   "fileTree": {
     "loading": "正在加载文件...",

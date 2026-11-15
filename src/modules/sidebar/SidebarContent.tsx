@@ -4,9 +4,9 @@ import type { TFunction } from 'i18next';
 
 import { useAutoHideScrollbar } from '@/shared/hooks/useAutoHideScrollbar';
 import { ActionMenu, Dialog, DialogContent, DialogTitle, LLMProviderLogo, ScrollArea } from '@/shared/ui';
-import { cn, isImeKeyEvent } from '@/shared/utils';
+import { cn, formatCompactAge, isImeKeyEvent } from '@/shared/utils';
 import type { ArchivedProjectListItem, ArchivedSessionListItem, ConversationProjectResult, ConversationSearchResults, LLMProvider, Project, RecentConversationListItem, ReleaseInfo, SearchProgress, SessionTitleSearchResult, SidebarProjectListProps, SidebarSearchMode } from '@/shared/types';
-import { formatCompactAge, getAllSessions, PROVIDER_LABELS } from '@/modules/sidebar/utils/sidebarProjectFormatting';
+import { getAllSessions, PROVIDER_LABELS } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import { buildSessionOwnershipMenuItems } from '@/modules/sidebar/utils/sessionOwnershipMenuItems';
 import { useCopyProviderSessionId } from '@/modules/sidebar/hooks/useCopyProviderSessionId';
 import { ScheduledTaskSidebarPanel } from '@/modules/scheduled-tasks';

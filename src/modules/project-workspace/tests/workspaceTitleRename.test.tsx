@@ -30,6 +30,12 @@ vi.mock('@/shared/ui', () => ({
   LLMProviderLogo: () => null,
 }));
 
+// The title's metadata line reads the project's git summary; these tests are
+// about renaming, so the header behaves as it does for a non-repository.
+vi.mock('@/modules/project-workspace/hooks/useProjectGitSummary', () => ({
+  useProjectGitSummary: () => null,
+}));
+
 const { default: WorkspaceTitle } = await import('@/modules/project-workspace/WorkspaceTitle');
 
 const project: Project = {

@@ -27,6 +27,10 @@ vi.mock('@/modules/plugins', () => ({
   PluginIcon: () => null,
 }));
 
+vi.mock('@/modules/project-workspace/hooks/useProjectGitSummary', () => ({
+  useProjectGitSummary: () => null,
+}));
+
 class FakeWebSocket {
   static readonly CONNECTING = 0;
   static readonly OPEN = 1;

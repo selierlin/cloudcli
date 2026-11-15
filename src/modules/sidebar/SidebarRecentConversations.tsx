@@ -5,9 +5,8 @@ import type { TFunction } from 'i18next';
 
 import { ActionMenu, Button, Dialog, DialogContent, DialogTitle, LLMProviderLogo } from '@/shared/ui';
 import { SESSION_OWNERSHIP_DRAG_MIME } from '@/shared/constants';
-import { cn, isImeKeyEvent } from '@/shared/utils';
+import { cn, formatCompactAge, isImeKeyEvent } from '@/shared/utils';
 import type { LLMProvider, Project, ProjectSession, RecentConversationListItem, SessionAttentionLevel } from '@/shared/types';
-import { formatCompactAge } from '@/modules/sidebar/utils/sidebarProjectFormatting';
 import { buildSessionOwnershipMenuItems } from '@/modules/sidebar/utils/sessionOwnershipMenuItems';
 import { ActivitySlot, AttentionSlot, DraftSlot } from '@/modules/sidebar/SessionStatusIndicators';
 import { useCopyProviderSessionId } from '@/modules/sidebar/hooks/useCopyProviderSessionId';
