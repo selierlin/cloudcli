@@ -460,6 +460,51 @@ async function applySessionModel(
   }
 }
 
+/** Standard ACP config option that selects the reasoning level. */
+const ACP_EFFORT_CONFIG_ID = 'reasoning_effort';
+
+/**
+ * Applies the reasoning level to one ACP session.
+ *
+ * Levels come from the config options the harness advertises for the model that
+ * was just applied — the same list `session/set_config_option` validates
+ * against. Reading them from a catalogue dump instead would let the two drift:
+ * the ACP child only reloads settings when it starts, so an edited
+ * `reasoningEfforts` map reaches the dump while the live child still rejects
+ * the new level with "unknown reasoning effort", failing the whole turn.
+ *
+ * "Default" resolves to `high` when offered, else the first level that is not
+ * `off`, so a picker left on Default still asks for a reasoning trace. A
+ * harness that predates the option, or a model that declares no levels, is left
+ * untouched.
+ */
+async function applySessionEffort(
+  client: AcpClient,
+  acpSessionId: string,
+  requestedEffort: string,
+): Promise<void> {
+  const option = (client.getSessionConfigOptions(acpSessionId) ?? []).find(
+    (entry) => (entry as AnyRecord | undefined)?.id === ACP_EFFORT_CONFIG_ID,
+  ) as AnyRecord | undefined;
+  const entries = Array.isArray(option?.options) ? option.options : [];
+  const allowed = entries
+    .flatMap((entry: unknown) => {
+      const nested = (entry as AnyRecord | undefined)?.options;
+      return Array.isArray(nested) ? nested : [entry];
+    })
+    .map((entry: unknown) => (entry as AnyRecord | undefined)?.value)
+    .filter((value): value is string => typeof value === 'string' && value.length > 0);
+  if (allowed.length === 0) {
+    return;
+  }
+  const level = allowed.includes(requestedEffort)
+    ? requestedEffort
+    : allowed.includes('high')
+      ? 'high'
+      : allowed.find((value) => value !== 'off') ?? allowed[0];
+  await client.setConfigOption(acpSessionId, ACP_EFFORT_CONFIG_ID, level);
+}
+
 /**
  * Turns one failed ACP request into a message the chat can show.
  *
@@ -688,6 +733,10 @@ export const dshRuntime: IProviderRuntime = {
       const requestedModel = typeof options.model === 'string' ? options.model.trim() : '';
       if (requestedModel) {
         await applySessionModel(server.client, acpSessionId, requestedModel);
+        const requestedEffort = typeof options.effort === 'string' ? options.effort.trim() : '';
+        // Must follow the model: DSH validates the level against the route the
+        // session is currently switched to.
+        await applySessionEffort(server.client, acpSessionId, requestedEffort);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

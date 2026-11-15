@@ -323,7 +323,7 @@ test('Agent route starts a fork provider on the catalog default when the request
   assert.deepEqual(workbuddyCalls.map((call) => call.model), ['catalog-default']);
 });
 
-test('Agent route starts dsh without a model because its ACP profile has no selection', async () => {
+test('Agent route starts dsh on the catalog default model', async () => {
   const dshCalls: Record<string, unknown>[] = [];
 
   await withAgentServer(createDependencies({
@@ -351,7 +351,41 @@ test('Agent route starts dsh without a model because its ACP profile has no sele
   });
 
   assert.equal(dshCalls.length, 1);
-  assert.equal('model' in dshCalls[0], false);
+  assert.equal(dshCalls[0].model, 'catalog-default');
+});
+
+test('Agent route forwards an explicit dsh model and reasoning effort', async () => {
+  const dshCalls: Record<string, unknown>[] = [];
+
+  await withAgentServer(createDependencies({
+    fileSystem: {
+      access: async () => undefined,
+    } as unknown as AgentDependencies['fileSystem'],
+    models: {
+      getProviderModels: async () => ({ OPTIONS: [], DEFAULT: 'catalog-default' }),
+    } as unknown as AgentDependencies['models'],
+    queryDsh: (async (_prompt: string, options: Record<string, unknown>) => {
+      dshCalls.push(options);
+    }) as unknown as AgentDependencies['queryDsh'],
+  }), async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/agent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        projectPath: '/home/test/project',
+        message: 'Run',
+        provider: 'dsh',
+        model: 'workbuddy/deepseek-v4.1-flash',
+        effort: 'high',
+        stream: false,
+      }),
+    });
+    assert.equal(response.status, 200);
+  });
+
+  assert.equal(dshCalls.length, 1);
+  assert.equal(dshCalls[0].model, 'workbuddy/deepseek-v4.1-flash');
+  assert.equal(dshCalls[0].effort, 'high');
 });
 
 test('Non-streaming response joins the reply out of stream_delta frames, skipping thinking', async () => {

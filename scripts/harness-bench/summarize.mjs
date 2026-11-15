@@ -99,6 +99,10 @@ const PROVIDER_ORDER = ['claude', 'codex', 'opencode', 'dsh', 'pi', 'zcode', 'om
 
 const files = readdirSync(resultsDir).filter((f) => f.endsWith('.json') && f !== 'summary.json');
 const records = files.map((f) => JSON.parse(readFileSync(path.join(resultsDir, f), 'utf8')));
+if (records.length === 0) {
+  console.error(`no result records in ${resultsDir}; run the benchmark first`);
+  process.exit(1);
+}
 
 const median = (xs) => {
   const v = xs.filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
@@ -373,19 +377,56 @@ const stalled = providers
   .filter((x) => x.worst > 60_000)
   .sort((a, b) => b.worst - a.worst);
 
-const report = `# harness 横向对比（glm-5.3-flash）— run ${runId}
+const recordedModels = [...new Set(records.map((r) => r.recordedModel).filter(Boolean))];
+const modelLabel = recordedModels.length
+  ? recordedModels.join(' / ')
+  : [...new Set(records.map((r) => r.requestedModel).filter(Boolean))].join(' / ');
+const channelsSeen = [...new Set(records.map((r) => r.channel).filter(Boolean))];
+// Scenarios run different numbers of rounds (the heavy ones fewer), so state
+// the spread rather than a single count that would overstate the sample.
+const roundsByScenario = new Map();
+for (const record of records) {
+  const seen = roundsByScenario.get(record.scenario) ?? new Set();
+  seen.add(Number(record.round) || 0);
+  roundsByScenario.set(record.scenario, seen);
+}
+const roundCounts = [...roundsByScenario.values()].map((rounds) => rounds.size);
+const minRounds = Math.min(...roundCounts);
+const maxRounds = Math.max(...roundCounts);
+const roundsLabel = minRounds === maxRounds
+  ? `每个场景 ${maxRounds} 轮`
+  : `各场景 ${minRounds}-${maxRounds} 轮（重场景轮次更少）`;
+// Derived from the harnesses that actually produced records, so adding or
+// dropping one cannot leave the sentence claiming the wrong family count.
+const chatProviders = providers.filter((p) => p !== 'claude' && p !== 'codex');
+const protocolParts = [
+  providers.includes('claude') ? 'claude 走 anthropic messages' : null,
+  providers.includes('codex') ? 'codex 走 responses' : null,
+  chatProviders.length > 0 ? `其余 ${chatProviders.length} 家走 chat completions` : null,
+].filter(Boolean).join('、');
+const CHANNEL_HOSTS = {
+  workbuddy: 'copilot.tencent.com',
+  ark: '火山方舟',
+  magpie: 'magpie 网关',
+};
+const channelHosts = channelsSeen
+  .map((channel) => (CHANNEL_HOSTS[channel] ? `\`${channel}\` 指 ${CHANNEL_HOSTS[channel]}` : `\`${channel}\``))
+  .join('，');
+const channelNote = channelsSeen.length === 1
+  ? `${providers.length} 家全部走 \`${channelsSeen[0]}\` 的同一上游，模型语义一致；协议由各家自己决定（${protocolParts}）。
+**同一模型、同一上游，剩下的差异只能来自 harness 自身。**`
+  : `${channelHosts}。不同通道的耗时只能读作「本机现状」，不能横向比快慢。`;
 
-样本：常规场景 5 轮、重场景 2~3 轮，逐轮取中位数；尾部另给 p90 与最大值。
+const report = `# harness 横向对比（${modelLabel}）— run ${runId}
+
+样本：${roundsLabel}；多轮场景按各轮判据合并判定，逐轮取中位数；尾部另给 p90 与最大值。
 "—" = 无数据；TTFT 为 "—" 表示该 harness 没有流式帧（整段返回后一次性出字）。
 
-## 通道（同一模型，两套服务）
+## 通道
 
 ${channelTable}
 
-\`workbuddy\` 指 copilot.tencent.com（WorkBuddy 自己的上游），\`ark\` 指火山方舟。
-claude 只说 anthropic messages、codex 只说 responses，这两家在 copilot 上没有可用端点，只能留在 ark；
-其余六家都走同一个 copilot 上游（dsh 需在 ACP profile 里关掉身份句，否则 system prompt 首句会被渠道校验拦成 400 code 11128）。
-**跨组的耗时只能读作「本机现状」，不能横向比快慢。**
+${channelNote}
 
 ## 时效（中位数 ms）
 
@@ -428,9 +469,9 @@ ${failureTable}
 ## 口径与已知盲区
 
 - 每轮都新起一个 CLI 进程，所以读作「单次调用成本」，不是长会话稳态成本。
-- dsh 不上报 token 用量，且不接受逐轮 model 参数——它的模型由 acp profile 固定。
+- dsh 不上报 token 用量，成本只能看耗时；它接受逐轮 model 参数，实际模型见 recordedModel。
 - codex 的消息不带 model 字段，模型只能从其自身 rollout 的 turn_context 佐证。
-- claude 的 transcript 用 anthropic 兼容层命名（\`glm-5-3-flash\`），与 \`glm-5.3-flash\` 是同一模型。
+- claude 的 transcript 用 anthropic 兼容层命名，模型名经兼容层转写，与网关侧记录不同名是正常的。
 - 跨 harness 的 token 数只作量级参考：各家计法不同，缓存命中是否计入不一致。
 - 只有一个模型、一台机器、一段连续时间窗口；没有置信区间，相差几百毫秒的格子都在噪声里。
 `;

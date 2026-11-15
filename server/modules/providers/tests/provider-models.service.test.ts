@@ -403,7 +403,7 @@ test('allowed effort levels come from the provider, not from the built-in models
     cursor: [],
     opencode: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'thinking'],
     workbuddy: ['low', 'medium', 'high', 'xhigh', 'max'],
-    dsh: [],
+    dsh: ['off', 'low', 'medium', 'high', 'xhigh', 'max'],
     pi: ['low', 'medium', 'high', 'xhigh', 'max'],
     zcode: [],
     omp: ['low', 'medium', 'high', 'xhigh', 'max'],

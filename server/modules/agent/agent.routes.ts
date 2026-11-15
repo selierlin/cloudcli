@@ -1170,12 +1170,12 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
       } else if (provider === 'dsh') {
         console.log('🤖 Starting DSH ACP session');
 
-        // The dsh ACP profile exposes no model selection, so it takes no
-        // model and cannot honour the catalog DEFAULT.
         await queryDsh(message.trim(), {
           projectPath: finalProjectPath,
           cwd: finalProjectPath,
           sessionId: appSessionId,
+          model: model || providerModels?.DEFAULT,
+          effort,
           permissionMode: 'bypassPermissions'
         }, run.writer);
       } else if (provider === 'workbuddy') {
