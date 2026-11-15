@@ -1079,6 +1079,14 @@ async function parseCodexSessionMatches(
         role = 'user';
       } else if (
         entry.type === 'event_msg'
+        && entry.payload?.type === 'item_completed'
+        && entry.payload.item?.type === 'UserMessage'
+      ) {
+        // SDK 0.150 represents user prompts as typed item_completed rows with structured content.
+        text = extractCodexText(entry.payload.item.content);
+        role = 'user';
+      } else if (
+        entry.type === 'event_msg'
         && entry.payload?.type === 'agent_reasoning'
         && typeof entry.payload?.text === 'string'
       ) {

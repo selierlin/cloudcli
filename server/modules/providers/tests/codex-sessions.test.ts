@@ -7,6 +7,7 @@ import test from 'node:test';
 import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
 import { CodexSessionSynchronizer } from '@/modules/providers/list/codex/codex-session-synchronizer.provider.js';
 import { CodexSessionsProvider, parseCodexExecScript, readCodexMemoryCitations } from '@/modules/providers/list/codex/codex-sessions.provider.js';
+import { searchConversations } from '@/modules/providers/services/session-conversations-search.service.js';
 
 const patchHomeDir = (nextHomeDir: string) => {
   const original = os.homedir;
@@ -886,6 +887,187 @@ test('Codex history labels an answer with the model its turn ran on', { concurre
     });
   } finally {
     restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('Codex history recognizes modern item_completed SubAgentActivity format', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-subagent-item-completed-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    const providerSessionId = 'codex-parent-item-completed';
+    const agentThreadId = 'codex-agent-item-completed-1';
+    const transcriptPath = await writeCodexTranscript(tempRoot, providerSessionId, workspacePath);
+
+    // Parent transcript with modern item_completed.SubAgentActivity format
+    // Note: The modern format moves spawn lifecycle from sub_agent_activity to item_completed
+    // The agentThreadId is now passed via session_meta of the subagent's rollout, not the event itself
+    await writeFile(transcriptPath, `${[
+      JSON.stringify({ type: 'session_meta', payload: { id: providerSessionId, cwd: workspacePath } }),
+      JSON.stringify({
+        type: 'response_item',
+        payload: {
+          type: 'function_call',
+          name: 'spawn_agent',
+          call_id: 'spawn-item-1',
+          arguments: JSON.stringify({ task_name: 'research_agent' }),
+        },
+      }),
+      // SDK 0.150+ represents spawn lifecycle with item_completed and SubAgentActivity type
+      // The event includes call_id and agent_path, but NOT agent_thread_id
+      // (agent_thread_id comes from the subagent's session_meta instead)
+      JSON.stringify({
+        type: 'event_msg',
+        payload: {
+          type: 'item_completed',
+          item: {
+            type: 'SubAgentActivity',
+            id: 'spawn-item-1',
+            kind: 'started',
+            agent_path: '/root/research_agent',
+          },
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        payload: {
+          type: 'agent_message',
+          author: '/root/research_agent',
+          content: [{ type: 'input_text', text: 'Message Type: FINAL_ANSWER\nSender: /root/research_agent\nPayload:\nResearch done.' }],
+        },
+      }),
+    ].join('\n')}\n`, 'utf8');
+
+    // Subagent transcript - the thread_id here will be used as the subagent ID
+    await writeFile(
+      path.join(path.dirname(transcriptPath), `rollout-2026-07-07T00-00-00-${agentThreadId}.jsonl`),
+      `${[
+        JSON.stringify({
+          type: 'session_meta',
+          payload: { id: agentThreadId, cwd: workspacePath, thread_source: 'subagent', agent_nickname: 'Researcher' },
+        }),
+        JSON.stringify({
+          type: 'response_item',
+          payload: {
+            type: 'custom_tool_call',
+            name: 'exec',
+            call_id: 'research-call-1',
+            input: 'await tools.shell_command({ command: "ls" });',
+          },
+        }),
+        JSON.stringify({
+          type: 'response_item',
+          payload: { type: 'custom_tool_call_output', call_id: 'research-call-1', output: 'Exit code: 0\nOutput:\nresearch.md\n' },
+        }),
+      ].join('\n')}\n`,
+      'utf8',
+    );
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createAppSession('app-item-completed', 'codex', workspacePath);
+      sessionsDb.assignProviderSessionId('app-item-completed', providerSessionId);
+      await new CodexSessionSynchronizer().synchronize();
+
+      const history = await new CodexSessionsProvider().fetchHistory('app-item-completed');
+      const task = history.messages.find((message) => message.kind === 'tool_use' && message.toolName === 'Task');
+
+      assert.ok(task, 'modern item_completed.SubAgentActivity must produce a Task row');
+      // The modern event carries no `agent_thread_id`, so the row currently
+      // falls back to the call id for its identity. That fallback is an
+      // implementation detail — it changes as soon as the thread id can be
+      // resolved from the subagent's own rollout — so only its presence is
+      // pinned here.
+      assert.ok(task.subagent?.id, 'the Task row carries an agent id');
+      assert.equal(task.subagent?.name, 'research_agent', 'agent name derived from the path');
+      assert.equal(task.subagent?.status, 'completed');
+      assert.equal(task.toolResult?.content, 'Research done.');
+
+      // Subagent tools would be recognized if the thread ID was known, but without it,
+      // the rollout file cannot be looked up. This is a limitation of the modern format
+      // when thread ID is not provided (see comment above).
+      // For testing purposes, we verify the core functionality: agent path recognition
+      // and FINAL_ANSWER message linking, which both work correctly.
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('Codex search indexes a prompt that only exists as item_completed.UserMessage', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-search-item-usermsg-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+
+  try {
+    const providerSessionId = 'codex-search-item-usermsg';
+    const prompt = 'How do I deploy to production?';
+    const transcriptPath = path.join(
+      tempRoot,
+      '.codex',
+      'sessions',
+      '2026',
+      '07',
+      '07',
+      `rollout-${providerSessionId}.jsonl`,
+    );
+    await mkdir(path.dirname(transcriptPath), { recursive: true });
+
+    // The transcript carries the prompt only in the modern typed row; the
+    // legacy `user_message` form the searcher already knew is absent.
+    const lines = [
+      JSON.stringify({ type: 'session_meta', payload: { id: providerSessionId, cwd: workspacePath } }),
+      JSON.stringify({
+        timestamp: '2026-07-07T10:00:00.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'item_completed',
+          turn_id: 'modern-user-turn-1',
+          item: {
+            type: 'UserMessage',
+            id: 'item-user-modern-1',
+            content: [
+              { type: 'text', text: prompt },
+            ],
+          },
+        },
+      }),
+      JSON.stringify({
+        timestamp: '2026-07-07T10:00:03.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'Use container orchestration platforms like Kubernetes.' }],
+        },
+      }),
+    ];
+    await writeFile(transcriptPath, `${lines.join('\n')}\n`, 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      // The searcher reads `jsonl_path` off the row, so register the session
+      // with its transcript instead of relying on a discovery scan.
+      sessionsDb.createSession(
+        providerSessionId,
+        'codex',
+        workspacePath,
+        'Deploy question',
+        undefined,
+        undefined,
+        transcriptPath,
+      );
+
+      const result = await searchConversations('deploy to production');
+
+      assert.equal(result.totalMatches, 1);
+      const match = result.results[0]?.sessions[0]?.matches[0];
+      assert.equal(match?.role, 'user');
+      assert.match(match?.snippet ?? '', /deploy to production/i);
+    });
+  } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
 });
