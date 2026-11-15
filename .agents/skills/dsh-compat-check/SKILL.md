@@ -21,7 +21,9 @@ CloudCLI 只读 DeepSeek Harness（DSH）写入的会话日志。Harness 升级�
 
 ## 当前基线
 
-已确认的 header 版本为 `0`（旧，物理文件 `session.jsonl.zstd`）与 `3`（当前，物理文件 `session.v3.jsonl.zstd`）；两者的事件结构一致，同一套解码逻辑可读。未压缩根（`compression: none`）把同样的事件写成纯文本 `session[.vN].jsonl`，CloudCLI 已按后缀分派（`.zstd` 走帧解压，其余按 UTF-8 文本）读取。DSH 用一次迁移把会话重命名到新世代，因此升级后同一项目下的**全部**历史会一起失效。
+已确认的 header 版本为 `0`（旧，物理文件 `session.jsonl.zstd`）、`3`（`session.v3.jsonl.zstd`）与 `4`（当前，`session.v4.jsonl.zstd`，dsh `0.2.0-rc.2` 起）；三者的事件信封与 CloudCLI 读取的两个消息事件结构一致，同一套解码逻辑可读。未压缩根（`compression: none`）把同样的事件写成纯文本 `session[.vN].jsonl`，CloudCLI 已按后缀分派（`.zstd` 走帧解压，其余按 UTF-8 文本）读取。DSH 用一次迁移把会话重命名到新世代，因此升级后同一项目下的**全部**历史会一起失效。
+
+V3→V4 只改动两处表示，都不影响历史读取：`tool/result` 的 `data.message.role` 由 `user` 变为 `tool`、结果 content 直接作为数组（CloudCLI 只读 `user/message` 与 `assistant/message`，本来就不看工具结果）；注入消息的 `source` 由 `{ kind: 'plugin', plugin: 'X' }` 扁平化为 `kind` 本身（`runtime-context`、`compact-checkpoint`、`ptc-mode`、`compact-basic`、`system-prompt` 及 `plugin:<原插件名>`）。这些 kind 仍然全部不等于 `user`，跳过逻辑不变。V4 新增 `developer/message`（developer 指令与工具增删，带 `tool-addition`/`tool-removal` block），不携带用户输入。
 
 上游还支持一个 `cwd === undefined` 的兜底目录 `_no-cwd`（裸名，不带 `--` 包裹）。CloudCLI 不会用到它：runtime 的 `newSession(cwd)` 永远收到非空 cwd（最终兜底到 `process.cwd()`），且这类会话没有可归属的 project_path，所以同步器与历史读取都无需适配。
 
@@ -32,9 +34,9 @@ CloudCLI 历史渲染的唯一事件是：
 | `user/message` | `data.content` 中的 `{ type: "text", text }` | 用户文本 |
 | `assistant/message` | `data.message.content` 中的 `{ type: "text", text }` | 助手文本 |
 
-`user/message` 的 `data.source.kind === "user"` 才是真实用户输入。`plugin`、`agent-instructions`、`skill-catalog` 等非 user 来源是 Harness 注入上下文，CloudCLI 会跳过。`source.kind` 缺失仍会被当前代码当作用户消息渲染，是最高优先级的兼容性信号。
+`user/message` 的 `data.source.kind === "user"` 才是真实用户输入。`plugin`、`agent-instructions`、`skill-catalog`、`runtime-context` 等非 user 来源是 Harness 注入上下文，CloudCLI 会跳过。`source.kind` 缺失仍会被当前代码当作用户消息渲染，是最高优先级的兼容性信号。
 
-已知但不渲染的内容块为 `reasoning`、`tool-call`、`image`；当前历史读取只展示 `text`。日志中常见的生命周期、工具、压缩行和标题事件也仅作元数据处理。已在真实日志中确认的无害元数据事件：`session/end-seed`（种子阶段结束，`data: {}`）、`session/title-llm-request`（内部标题生成请求）、`model/selection`（模型选择）、`system/message`（`role: system` 的系统提示词，非用户输入）、`assistant/attempt`（LLM 尝试记录：`data.stream[].chunk` 为流式 chunk 或失败 finish 原因，不携带助手正文，故调用失败且无 `assistant/message` 的会话在历史里只有用户提问）。出现未分类事件或 block 时，不要猜测格式，以真实样本确认其是否携带需要展示的历史内容。
+已知但不渲染的内容块为 `reasoning`、`tool-call`、`image`；当前历史读取只展示 `text`。日志中常见的生命周期、工具、压缩行和标题事件也仅作元数据处理。已在真实日志中确认的无害元数据事件：`session/end-seed`（种子阶段结束，`data: {}`）、`session/title`、`session/title-llm-request`（内部标题生成请求）、`model/selection`（模型选择）、`system/message`（`role: system` 的系统提示词，非用户输入）、`assistant/attempt`（LLM 尝试记录：`data.stream[].chunk` 为流式 chunk 或失败 finish 原因，不携带助手正文，故调用失败且无 `assistant/message` 的会话在历史里只有用户提问），以及 V4 日志中的 `permission/preset`、`sandbox/mode`、`approval/policy`、`request/header`、`request/context`、`agent/inbox/spliced` 与 turn/step 生命周期。出现未分类事件或 block 时，不要猜测格式，以真实样本确认其是否携带需要展示的历史内容。
 
 ## 工作流
 

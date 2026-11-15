@@ -21,7 +21,7 @@ const SESSION_LOG_PATTERN = /^session(?:\.v(\d+))?\.jsonl(?:\.zstd)?$/;
 const LOG_NAME_HINT = 'session[.vN].jsonl[.zstd]';
 // Generations observed in real logs. The decoder reads both; an unknown (newer)
 // generation must be confirmed against a real sample before being trusted.
-const KNOWN_HEADER_VERSIONS = new Set([0, 3]);
+const KNOWN_HEADER_VERSIONS = new Set([0, 3, 4]);
 const KNOWN_RENDERED_TYPES = new Set(['user/message', 'assistant/message']);
 const KNOWN_NOT_READ_TYPES = new Map([
   ['session', '会话头（元数据）'],
@@ -37,6 +37,7 @@ const KNOWN_NOT_READ_TYPES = new Map([
   ['session/title-llm-request', '标题生成 LLM 请求元数据'],
   ['session/end-seed', '种子阶段结束生命周期'], ['model/selection', '模型选择元数据'],
   ['system/message', '系统提示词（role: system，非用户输入）'],
+  ['developer/message', '开发者指令与工具增删（非用户输入）'],
   ['reasoning-chunks', '压缩后的推理增量'], ['text-chunks', '压缩后的文本增量'],
   ['tool-call-chunks', '压缩后的工具调用增量'],
   ['hook/invoked', 'Hook 生命周期'], ['hook/result', 'Hook 生命周期'],

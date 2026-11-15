@@ -828,6 +828,65 @@ test('fetchHistory skips injected-context user messages', async () => {
   });
 });
 
+test('fetchHistory skips V4-migrated injected-context sources', async () => {
+  await withIsolatedEnvironment(async ({ sessionsRoot, cwd }) => {
+    const acpSessionId = 'dsh-session-injected-v4';
+    const appSessionId = 'app-session-injected-v4';
+    const time = Date.now();
+    // V3 wrapped these producers as `{ kind: 'plugin', plugin: 'X' }`; the
+    // V3→V4 migration flattens the producer name into `kind` itself. The real
+    // prompt is still the only row whose kind is exactly `user`.
+    await writeSessionLog(sessionsRoot, cwd, acpSessionId, [
+      {
+        type: 'user/message',
+        seq: 1,
+        time,
+        data: {
+          content: [{ type: 'text', text: '<system-reminder>\nworkspace instructions' }],
+          source: { kind: 'agent-instructions', form: 'instructions' },
+          role: 'user',
+          id: 'inject-v4-1',
+        },
+      },
+      {
+        type: 'user/message',
+        seq: 2,
+        time: time + 10,
+        data: {
+          content: [{ type: 'text', text: 'Current runtime context snapshot...' }],
+          source: { kind: 'runtime-context' },
+          role: 'user',
+          id: 'inject-v4-2',
+        },
+      },
+      userMessage('你好', 3, time + 20),
+      {
+        type: 'user/message',
+        seq: 4,
+        time: time + 30,
+        data: {
+          content: [{ type: 'text', text: 'Available skills...' }],
+          source: { kind: 'skill-catalog' },
+          role: 'user',
+          id: 'inject-v4-3',
+        },
+      },
+      assistantMessage('你好！有什么可以帮你？', 5, time + 40),
+    ], { logFileName: 'session.v4.jsonl.zstd', headerVersion: 4 });
+
+    sessionsDb.createAppSession(appSessionId, 'dsh', cwd, 'Injected V4');
+    sessionsDb.assignProviderSessionId(appSessionId, acpSessionId);
+
+    const provider = new DshSessionsProvider();
+    const result = await provider.fetchHistory(appSessionId);
+
+    assert.equal(result.total, 2);
+    assert.equal(result.messages[0]?.role, 'user');
+    assert.equal(result.messages[0]?.content, '你好');
+    assert.equal(result.messages[1]?.role, 'assistant');
+  });
+});
+
 /** One closed turn: a prompt, its reply, and the boundary that ends it. */
 const turn = (turnNumber: number, prompt: string, reply: string, startSeq: number) => {
   const time = 1_800_000_000_000 + startSeq * 10;
