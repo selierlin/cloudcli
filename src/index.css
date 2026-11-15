@@ -1138,6 +1138,23 @@
     }
   }
 
+  /* A session with a token reading renders its stats line in this gap rather
+     than above it, so the input keeps the place it had before the line
+     existed. From 768px up the line's ~18px height is exactly what the padding
+     gives up; narrower viewports have less gap than that to hand over, so the
+     composer grows by a few pixels there. A session whose provider reports no
+     usage renders no line and keeps the full gap, and a browser without :has()
+     keeps the padding too. */
+  .chat-composer-shell:has(.chat-token-stats) {
+    padding-bottom: var(--chat-composer-safe-bottom);
+  }
+
+  @media (min-width: 768px) {
+    .chat-composer-shell:has(.chat-token-stats) {
+      padding-bottom: calc(0.375rem + var(--chat-composer-safe-bottom));
+    }
+  }
+
   .chat-activity-enter {
     animation: chat-activity-enter 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
     transform-origin: bottom center;

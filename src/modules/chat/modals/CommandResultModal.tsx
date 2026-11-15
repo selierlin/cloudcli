@@ -430,7 +430,10 @@ function CostContent({ data }: { data: CostCommandData }) {
     typeof data.tokenBreakdown?.input === 'number' ||
     typeof data.tokenBreakdown?.output === 'number';
   const usageRows = [
-    { label: 'Total tokens used', value: formatNumber(used), icon: Activity },
+    // `used` is the last request's prompt plus its reply for providers that
+    // report context, and the session's running bill for those that do not —
+    // "tokens used" is the one label both readings keep true.
+    { label: 'Tokens used', value: formatNumber(used), icon: Activity },
     ...(hasBreakdown
       ? [
           {

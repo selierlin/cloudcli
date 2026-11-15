@@ -32,7 +32,7 @@ import ActivityIndicator from '@/modules/chat/composer/ActivityIndicator';
 import ComposerAttachment from '@/modules/chat/composer/ComposerAttachment';
 import VoiceInputButton from '@/modules/chat/composer/VoiceInputButton';
 import PermissionRequestsBanner from '@/modules/chat/composer/PermissionRequestsBanner';
-import TokenUsageSummary from '@/modules/chat/composer/TokenUsageSummary';
+import TokenStatsLine from '@/modules/chat/composer/TokenStatsLine';
 import QueuedMessageCard from '@/modules/chat/composer/QueuedMessageCard';
 import BackgroundSendDialog from '@/modules/chat/composer/BackgroundSendDialog';
 import { ScheduleMessagePopover } from '@/modules/chat/composer/ScheduleMessagePopover';
@@ -524,8 +524,6 @@ export default function ChatComposer({
                 <VoiceInputButton state={voiceState} onToggle={voiceToggle} errorMsg={voiceError} />
               )}
 
-              <TokenUsageSummary usage={tokenBudget} onClick={onShowTokenUsage} />
-
               <PromptInputButton
                 tooltip={{ content: t('input.showAllCommands') }}
                 onClick={onToggleCommandMenu}
@@ -630,6 +628,12 @@ export default function ChatComposer({
             </div>
           </PromptInputFooter>
         </PromptInput>
+
+          <TokenStatsLine
+            usage={tokenBudget}
+            provider={provider}
+            onShowDetails={onShowTokenUsage}
+          />
         </div>}
       </div>
     </div>

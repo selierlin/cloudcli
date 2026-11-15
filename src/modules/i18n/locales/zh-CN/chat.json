@@ -566,6 +566,7 @@
       "costSubtitle": "本次会话的输入、输出和总 Token 数量。"
     },
     "tokensUsed_other": "已使用 {{count}} 个 Token",
+    "cacheHitRate": "缓存 {{percent}}%",
     "tokensLabel_other": "Token"
   },
   "quickReplies": {
