@@ -230,9 +230,12 @@ export default function SidebarModals({
                 </div>
               </div>
               <div className="flex flex-col gap-2 border-t border-border bg-muted/30 p-4">
+                {/* Archiving is reversible, so it is not painted like the
+                    destructive action below it; the red button is reserved for
+                    the delete that cannot be undone. */}
                 <Button
-                  variant="destructive"
-                  className="w-full justify-start bg-red-600 text-n-white hover:bg-red-700"
+                  variant="secondary"
+                  className="w-full justify-start"
                   onClick={onConfirmBatchSessionArchive}
                 >
                   <EyeOff className="mr-2 h-4 w-4" />

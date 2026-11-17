@@ -3255,7 +3255,7 @@ DU（fork 删除 / 上游修改）不会出现在冲突块清单里，但**工�
 ### R3.4.3 与文档方案的偏差（审阅重点）
 
 1. **D19 的接线方式**：文档写的是"给 `SidebarContent` 加 prop"，实际执行时发现它已有 `projectListProps.onArchiveSession`，直接透传即可（`ConversationTitleResultRow` / `ConversationContentResultRow` / `SidebarRecentConversations` 三处）。**没有新增 prop**，改动面比文档小。
-2. **D23 的批量删除按钮文案**：归档弹窗里的第二个动作叫"永久删除"，复用 `deleteConfirmation.deleteSessionPermanently`；归档按钮保留本地红色 `destructive` 样式不动（既有实现如此）。
+2. **D23 的批量删除按钮文案**：归档弹窗里的第二个动作叫"永久删除"，复用 `deleteConfirmation.deleteSessionPermanently`。归档按钮最初沿用本地红色 `destructive` 样式，**2026-11-17 晚按 亮 反馈改为 `secondary` 中性样式**——归档可逆、永久删除不可逆，两者不该同一种红色；`theme-atom-conservation.json` 因此回到合并前的 `total 468 / text: white 72`（撤回的正是 D23 那一处 `text-n-white`）。
 3. **移除的上游测试**（都需要一份跨轮同步排除清单，理由已逐条写在上文）：
    - `sessionBulkSelection.test.ts`（测已被 D23 取代的 controller 级选择 API）
    - `recentConversationRowActions.test.tsx`（依赖"每行一个 `SessionOptions`"，本地行是 `ActionMenu`）
@@ -3307,3 +3307,5 @@ node scripts/mint-auth-token.mjs            # → ~/.cloudcli/browser-use/auth-t
 验证后的数字：client `npx vitest run` **323 files / 2645 tests 全绿**（此前 322 / 2643，多出的是上面两条回归）；`npx tsc --noEmit -p tsconfig.json` 0 error；`npx oxlint` 对改动文件只有既有 warning。
 
 仍未在浏览器里覆盖：Steer 行（需要真实 claude 回合）、真实模型回合下的发送链路、归档列表的恢复/永久删除批量按钮。另记一个**遗留的翻译缺口**（不是本轮引入）：`chat.json` 在 zh-CN 缺 95 个 key（上游新增的 `sendMenu.*`、`input.steer.*`、`sideQuestion.*` 等），所以这些位置在中文界面里仍显示英文。
+
+**追加（2026-11-17 晚，按 亮 反馈）**：批量选择弹窗里"归档 / 永久删除"两个按钮原来都是红色，看不出哪个可逆。现在归档按钮用 `variant="secondary"`（语义 token，跟随主题），红色只留给"永久删除"，与单条删除确认弹窗的危险色保持一致；取消仍是 ghost。冻结清单随之回到合并前数值（见 §R3.4.3 第 2 条）。本轮改动未再做浏览器目检（browser MCP 已从本会话移除），侧边栏与两个主题门槛测试全绿。
