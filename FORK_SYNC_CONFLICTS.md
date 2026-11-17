@@ -994,11 +994,40 @@ const renderConversationRow = (conversation: RecentConversationListItem) => {
 4. **`claude-runtime.provider.js` 仍是最高风险区**：上游每次改 hold 判定，都要按事件时序重新核对 `terminalSent` 的位置
 5. **既有失败不要修**：server 9 个环境失败、client 8 文件 35 个失败、1 个 lint error 均为基线；归因必须用合并前提交的 worktree 对照，且 server 测试不要并行跑两套
 
-## 审阅批注（第二轮，待填）
+## 审阅批注（第二轮，已填）
 
-请重点批注：
+### Kiro
 
-- [ ] 8.2 的默认模型行为变化（5 个 fork provider 由 CLI 默认改为目录 DEFAULT）是否符合预期
-- [ ] 8.5 的 i18n 修复是否还有遗漏的语言/命名空间
-- [ ] `scripts/check-locale-json.mjs` 的检查范围（当前只覆盖 `src/modules/i18n/locales`）是否够用
-- [ ] 9 中列出的 53 个文件中是否有需要单独复核的语义冲突
+> [!IMPORTANT]
+> **整轮合并的架构合理性**：文档第 8 节列出的四个人工决策（D11-D16）覆盖了两条主要工作线的并存（delta gate + hold 判定、后台任务排队、provider 多选）与数据结构的兼容性。但 D17（是否保留上游 side-questions 侧问功能）与 D18（是否渲染 fork 树 fork ancestry）是**本轮最大的决策矛盾点**，倾向于在执行手工融合前先给出明确答复——否则文档 R3.1 的 036–052 （Codex + OpenCode 的侧问与网关）、055（provider.routes 两套旁问入口）需要成片调整。建议在开始 `git merge` 之前确认用户对这两个 D 项的选择。
+
+> [!WARNING]
+> **R3.1 的 034（claude-runtime 的 `settleTurnResult` 重写）是本轮最高风险**。初稿建议"删本地内联版改调上游函数"，但此函数涉及流式缓冲的 `terminalSent` 赋值时机、hold/release 判定、以及与 `steerFollowUp` timer 的交互——这些都是第一轮就已验收过的微妙顺序。建议：① 先跑本地侧的流式缓冲相关测试（`executionProcess.test.ts`、`claude-delta-batcher.test.ts` 等）确认基线；② 合并文件后在 `settleTurnResult` 的实现上增加两行调试日志（标记 `complete` 送出与 `terminalSent` 赋值），用一个"收完整消息序列 + 验证 delta gate 状态"的手工测试锁住顺序；③ 跑 `claude-runtime-hold.test.ts` + `claude-steer.test.ts` 双向验证。
+
+> [!WARNING]
+> **R3.1 的 054（OpenCode reasoning 累加与分页位置表同步）需要决策与设计澄清**。建议中列了五个子步骤，最后给了"替代方案是放弃本地累加"的选项。这不是技术问题，而是产品决策：
+>   - **方案 A（保留累加）**：`opencode-history-pages.test.ts` 必须新增"连续分片合并 + 分页计数一致性"用例，后续维护 outline 的 part 计数都要考虑 reasoning 续片问题。工作量：5–10 行代码 + 1 条 2–3 行的用例。
+>   - **方案 B（放弃累加）**：简化为上游逻辑，一个分片一条 thinking 气泡，但在超长 reasoning 的会话里会出现"十几行连续 thinking 气泡"的现象，这是肉眼可见的 UX 回归。
+> 建议明确用户意图后再执行。
+
+> [!IMPORTANT]
+> **R3.1 的 039（Codex app-server 的 `withAppServer` 回调签名变化）发现了自动合并的隐蔽 bug**。本地 `readQuota(async (call) => ...)` 的代码会在新签名下拿到 `{ call, onNotification, onExit }` 对象，但仍当作 `call` 函数用，运行时必报错。这提示了一个合并全局问题：**当回调接口发生"单参数 → 对象参数"这样的签名改变时，所有旧式消费方都会静默出错**（tsc 可能拦不住，取决于类型推断）。建议合并后全文搜 `withAppServer(`、`withWebSocket(`、`withBrowser(` 之类的"高阶函数调用"，逐个核对新旧签名是否对齐。
+
+> [!WARNING]
+> **R3.1 的 033–034（Claude 运行时的事件处理顺序）与本地的 delta gate 机制**：第一轮合并时已确认 `terminalSent = true` 位置必须在 `complete` 之后、hold 判定之前。R3.1 的 034 把这段改写成调 `settleTurnResult()`，该函数体需要在接纳上游逻辑之前**原样编排一遍**，确认：① `deltaBatcher.send(complete)` 后立刻 `terminalSent = true`；② 后续 hold/release 判定走 `maybeReleasePromptStream()`；③ 三个审批发送点（030-032）也都改过了。建议执行时从 `git show upstream/main:server/modules/providers/list/claude/claude-runtime.provider.js | grep -A 80 "settleTurnResult"` 先看一遍上游实现，再对照本地去确认真正需要融进去的是哪几行。
+
+> [!IMPORTANT]
+> **R3.1 的 049–050（OpenCode 配置读取与 provider 过滤）的本地语义**：建议中的 049 讲了"上游的 `readOpenCodeConfigs()` 解析能力超集（JSONC、XDG、OPENCODE_CONFIG_DIR），但不返回 models 原文"。在执行融合时需要二次确认：自己的 fork 是否真的有 WorkBuddy 或自建网关的"写在配置文件 `provider.models` 里的自定义模型"这一行为？若没有（全由网关的登录系统提供），则本地的 `collectConfiguredOpenCodeModelOptions` 可能根本用不上，建议直接改用 `listConfiguredProviders(await readOpenCodeConfigs())` 的上游逻辑、不必保留本地的模型收集。
+
+> [!TIP]
+> **R3.1 的总体数量**：197 个冲突块分散在 80 个文件中，其中手工融合类（C 类）约 20 个、需要决策的约 8 个、机械合并类约 169 个。与第一轮的"22 个文件 / 197 块"对照来看，本轮规模跳升了 3+ 倍，建议**先按 D 项清单确认决策、再按风险排序逐块执行**（034 / 050 / 039 / 049 等高风险块优先），避免一次性 `git merge --no-commit` 后被 197 个冲突淹没。
+
+> [!NOTE]
+> **第一轮与第二轮审阅的评论密度差异**：R1 / R2 的批注逐个聚焦于具体冲突块的语义与取舍，而本轮 R3 的记录已是相当细致的"两侧对齐 + 实现要点"。建议执行时优先看 R3.1 中标注了**加粗关键词**的块（如 034 的"最高风险"、039 的"隐蔽 bug"、054 的"决策与设计"），这些块往往需要额外的人工确认或设计讨论，而不是机械拼接。
+
+> [!NOTE]
+> **文档本身的可维护性建议**：三轮合并积累的冲突记录已达 5000+ 行，且每轮 fork-sync 都可能复现或衍生新的同类冲突（如 034 的 hold 判定逻辑、054 的 part 计数问题）。建议在完成第三轮执行后，把其中的**架构性决策**（D11–D21、DU 类处理原则、三类引用接口的签名变化规律）抽提成一份"fork-sync 运维手册"，供后续同步参考，避免每轮都重新发现和论证同样的问题。
+
+---
+
+> **第三轮同步（2026-11-16）**的 197 个冲突块逐块记录（`R3.1`）、块外问题（`R3.2`）与第三轮审阅批注已拆分到单独文件：[FORK_SYNC_CONFLICTS_R3.md](./FORK_SYNC_CONFLICTS_R3.md)。
