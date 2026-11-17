@@ -89,8 +89,11 @@ export function normalizeLatexDelimiters(text: string): string {
  * one is rewritten. Deliberately over-eager in one spot: an indented paragraph
  * inside a loose list is counted as indented code, which only means the LaTeX
  * there stays literal — never that prose is mangled.
+ *
+ * Shared with normalizeAutolinkBoundaries, which needs the same "don't rewrite
+ * examples" guarantee.
  */
-function buildCodeMask(text: string): Uint8Array {
+export function buildCodeMask(text: string): Uint8Array {
   const mask = new Uint8Array(text.length);
 
   let offset = 0;

@@ -13,6 +13,7 @@ import { MermaidDiagram } from '@/modules/code-editor';
 import { MarkdownImage } from '@/modules/chat/transcript/MarkdownImage';
 import ExportCopyButton from '@/modules/chat/transcript/ExportCopyButton';
 import { useIsExportingTranscript } from '@/modules/chat/context/TranscriptRenderContext';
+import { normalizeAutolinkBoundaries } from '@/modules/chat/utils/autolinkBoundaries';
 import { normalizeInlineCodeFences } from '@/modules/chat/utils/chatFormatting';
 import { normalizeLatexDelimiters } from '@/modules/chat/utils/latexDelimiters';
 import { copyTextToClipboard } from '@/shared/utils';
@@ -363,8 +364,12 @@ const markdownComponents = {
 function MarkdownBodyRenderer({ children, breaks = false }: Omit<MarkdownProps, 'className'>) {
   const content = useMemo(
     // The LaTeX pass runs second because it reads the code spans the fence pass
-    // normalizes, and must leave the LaTeX inside them literal.
-    () => normalizeLatexDelimiters(normalizeInlineCodeFences(String(children ?? ''))),
+    // normalizes, and must leave the LaTeX inside them literal. The autolink
+    // pass runs last: it only needs the settled code spans to know what to skip.
+    () =>
+      normalizeAutolinkBoundaries(
+        normalizeLatexDelimiters(normalizeInlineCodeFences(String(children ?? ''))),
+      ),
     [children],
   );
   // Math support costs a remark tree pass plus a full KaTeX walk on every
