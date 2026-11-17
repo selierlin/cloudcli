@@ -11,6 +11,13 @@ export type SelectMenuOption = {
   label: string;
   description?: string;
   icon?: ReactNode;
+  /**
+   * Tints the row's icon and label, for the menus whose values carry a colour
+   * of their own (the permission modes, matching chat's composer menu).
+   */
+  toneClassName?: string;
+  /** Replaces the trigger's neutral surface while this option is selected. */
+  triggerToneClassName?: string;
 };
 
 type SelectMenuProps = {
@@ -218,9 +225,16 @@ export function SelectMenu({
           }
         }}
         className={cn(
-          'flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-input bg-card px-2.5 text-left text-sm text-foreground transition-colors',
+          'flex h-9 w-full items-center justify-between gap-2 rounded-lg px-2.5 text-left text-sm transition-colors',
+          // A toned value (a permission mode) paints the trigger with its own
+          // accent, exactly as chat's composer menu paints its trigger.
+          selected?.triggerToneClassName
+            ? cn('border', selected.triggerToneClassName)
+            : 'border border-input bg-card text-foreground',
           'focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary',
-          disabled ? 'cursor-not-allowed opacity-50' : 'hover:border-primary/40',
+          disabled
+            ? 'cursor-not-allowed opacity-50'
+            : selected?.triggerToneClassName ? undefined : 'hover:border-primary/40',
           className,
         )}
       >
@@ -298,9 +312,13 @@ export function SelectMenu({
                   isSelected ? 'text-foreground' : 'text-foreground/90',
                 )}
               >
-                {option.icon && <span className="mt-0.5 flex shrink-0 items-center justify-center">{option.icon}</span>}
+                {option.icon && (
+                  <span className={cn('mt-0.5 flex shrink-0 items-center justify-center', option.toneClassName)}>
+                    {option.icon}
+                  </span>
+                )}
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate leading-5">{option.label}</span>
+                  <span className={cn('block truncate leading-5', option.toneClassName)}>{option.label}</span>
                   {option.description && (
                     <span className="mt-0.5 block text-xs leading-4 text-muted-foreground">{option.description}</span>
                   )}

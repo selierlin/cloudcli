@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 
 import { getPermissionModeAppearance } from '@/shared/permissionModeAppearance';
 import { hasProviderSpecificModeName } from '@/shared/permissionModes';
@@ -24,11 +25,11 @@ import type { LLMProvider, PermissionMode } from '@/shared/types';
  *    Without that gate, every provider would drift back into its own word for
  *    the same switch; with it, a second name is a deliberate, reviewed choice.
  */
-export function usePermissionModeCopy(
+export function getPermissionModeCopy(
+  t: TFunction,
   provider: LLMProvider | string | undefined,
   mode: PermissionMode | string,
 ): { label: string; description: string } {
-  const { t } = useTranslation();
   const appearance = getPermissionModeAppearance(mode);
   const namedPerProvider = hasProviderSpecificModeName(provider, mode);
 
@@ -47,4 +48,13 @@ export function usePermissionModeCopy(
     || t(`permissions.modes.${mode}.description`, { ns: 'settings', defaultValue: '' });
 
   return { label, description };
+}
+
+/** Hook wrapper for components that render one mode's copy. */
+export function usePermissionModeCopy(
+  provider: LLMProvider | string | undefined,
+  mode: PermissionMode | string,
+): { label: string; description: string } {
+  const { t } = useTranslation();
+  return getPermissionModeCopy(t, provider, mode);
 }

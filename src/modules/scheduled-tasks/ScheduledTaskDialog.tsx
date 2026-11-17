@@ -4,6 +4,12 @@ import { CalendarClock, ShieldAlert } from 'lucide-react';
 
 import { api } from '@/shared/api';
 import { MCP_PROVIDER_NAMES } from '@/shared/constants';
+import { usePermissionModes } from '@/shared/hooks/useProviderCapabilities';
+import { getPermissionModeCopy } from '@/shared/hooks/usePermissionModeCopy';
+import {
+  getPermissionModeAppearance,
+  PERMISSION_MODE_ACCENT_CLASSES,
+} from '@/shared/permissionModeAppearance';
 import { readSelectedProvider } from '@/shared/selectedProvider';
 import { readUserPreference } from '@/shared/userSettings';
 import type { ProviderModelSettings } from '@/shared/providerModelSettings';
@@ -20,6 +26,7 @@ import {
 import { SelectMenu, type SelectMenuOption } from '@/modules/scheduled-tasks/SelectMenu';
 import type {
   LLMProvider,
+  PermissionMode,
   ProviderModelsDefinition,
   ScheduledTask,
   ScheduledTaskInput,
@@ -43,6 +50,8 @@ type FormState = {
   provider: LLMProvider;
   model: string;
   effort: string;
+  /** '' means the task runs under the provider's own default, which needs a present approver. */
+  permissionMode: string;
   projectPath: string;
   scheduleKind: ScheduledTaskScheduleKind;
   /** `datetime-local` value for a one-time rule, in the browser's zone. */
@@ -66,6 +75,44 @@ const SCHEDULE_KINDS: { kind: ScheduledTaskScheduleKind; labelKey: string }[] = 
   { kind: 'daily', labelKey: 'scheduledTasks.kindDaily' },
   { kind: 'weekly', labelKey: 'scheduledTasks.kindWeekly' },
 ];
+
+/**
+ * The mode a new task starts on.
+ *
+ * A scheduled run has nobody to answer a permission prompt: under the provider
+ * default, tool calls that need approval wait out the approval timeout and are
+ * then refused, which is how a task that writes a file or runs a command ends
+ * up half-finished. Full access is the widest such mode, and the user can still
+ * pick a narrower one.
+ */
+const UNATTENDED_DEFAULT_PERMISSION_MODE = 'bypassPermissions';
+
+/**
+ * Plan mode is downgraded to the provider default while nobody is watching
+ * (the runtimes do that so a run cannot wait on `ExitPlanMode` forever), so
+ * offering it here would only reproduce the mode this picker exists to escape.
+ */
+const UNSUPPORTED_UNATTENDED_PERMISSION_MODES = ['plan'];
+
+/**
+ * The widest mode `modes` can run with nobody watching.
+ *
+ * Full access first. Providers without it may still answer their own permission
+ * requests — DSH and OpenClaw's `auto` replies allow-once — while their
+ * `default` routes each request to the chat UI, which a scheduled run does not
+ * have: it waits out the prompt timeout (about an hour) and fails. Pi and OMP
+ * have neither mode, but their `default` already runs tools autonomously, so
+ * the first mode is fine there.
+ */
+function resolveDefaultPermissionMode(modes: PermissionMode[]): string {
+  if (modes.includes(UNATTENDED_DEFAULT_PERMISSION_MODE as PermissionMode)) {
+    return UNATTENDED_DEFAULT_PERMISSION_MODE;
+  }
+  if (modes.includes('auto')) {
+    return 'auto';
+  }
+  return modes[0] ?? '';
+}
 
 /** Small uppercase heading that separates the form into three readable groups. */
 function SectionHeading({ children }: { children: string }) {
@@ -111,6 +158,7 @@ function toFormState(task: ScheduledTask | null, fallbackProvider: LLMProvider |
     provider: fallbackProvider ?? 'claude',
     model: '',
     effort: '',
+    permissionMode: '',
     projectPath: '',
     scheduleKind: 'daily',
     onceAt: defaultOnceAt(),
@@ -132,6 +180,9 @@ function toFormState(task: ScheduledTask | null, fallbackProvider: LLMProvider |
     provider: task.provider,
     model: task.model ?? '',
     effort: task.effort ?? '',
+    // A task saved before the picker existed has no mode; it is shown as
+    // unset rather than silently rewritten, so the user sees why it may fail.
+    permissionMode: task.permissionMode ?? '',
     projectPath: task.projectPath,
     scheduleKind: task.schedule.kind,
     timezone: task.timezone,
@@ -321,6 +372,67 @@ export default function ScheduledTaskDialog({
   );
   const effortValues = selectedModel?.effort?.values ?? [];
 
+  // Modes the selected provider can actually run unattended.
+  const reportedPermissionModes = usePermissionModes(form.provider);
+  const permissionModes = useMemo(
+    () => reportedPermissionModes.filter(
+      (mode) => !UNSUPPORTED_UNATTENDED_PERMISSION_MODES.includes(mode),
+    ),
+    [reportedPermissionModes],
+  );
+
+  useEffect(() => {
+    if (!isOpen || permissionModes.length === 0) {
+      return;
+    }
+    setForm((current) => {
+      // A new task starts on the unattended-safe mode. An existing task keeps
+      // the mode it was saved with, including "unset", so editing it does not
+      // widen its permissions behind the user's back.
+      if (!current.permissionMode) {
+        return task
+          ? current
+          : { ...current, permissionMode: resolveDefaultPermissionMode(permissionModes) };
+      }
+      // A mode the newly picked provider cannot run would only fail at run
+      // time, so it is replaced by that provider's unattended default. `plan`
+      // is filtered out of `permissionModes` only because an unattended run
+      // downgrades it, not because the provider cannot run it: an existing plan
+      // task keeps its value instead of being widened to full access.
+      return reportedPermissionModes.includes(current.permissionMode as PermissionMode)
+        ? current
+        : { ...current, permissionMode: resolveDefaultPermissionMode(permissionModes) };
+    });
+    // `form.permissionMode` is a dependency because loading the provider list
+    // replaces the whole form; without it the default filled in here would be
+    // wiped by that later reset and never restored.
+  }, [form.permissionMode, isOpen, permissionModes, reportedPermissionModes, task]);
+
+  const permissionModeOptions = useMemo<SelectMenuOption[]>(() => {
+    // An existing task saved with plan keeps showing Plan only, with the same
+    // label as chat's composer: the mode is supported and only hidden from new
+    // tasks because an unattended run downgrades it.
+    const modes = form.permissionMode === 'plan' && !permissionModes.includes('plan')
+      ? [...permissionModes, 'plan' as PermissionMode]
+      : permissionModes;
+    return modes.map((mode) => {
+      const copy = getPermissionModeCopy(t, form.provider, mode);
+      const appearance = getPermissionModeAppearance(mode);
+      // Same palette as chat's composer menu, so a mode keeps its colour no
+      // matter which surface the user meets it on.
+      const accent = PERMISSION_MODE_ACCENT_CLASSES[appearance.accent];
+      const ModeIcon = appearance.icon;
+      return {
+        value: mode,
+        label: copy.label,
+        description: copy.description || undefined,
+        icon: <ModeIcon className="h-3.5 w-3.5 shrink-0" />,
+        toneClassName: accent.label,
+        triggerToneClassName: cn(accent.surface, accent.foreground, accent.hover),
+      };
+    });
+  }, [form.permissionMode, form.provider, permissionModes, t]);
+
   // Rows mirror the composer's model menu: a provider logo per option, and the
   // channel prefix Pi needs to tell two identically named models apart.
   const providerOptions = useMemo<SelectMenuOption[]>(() => {
@@ -386,6 +498,7 @@ export default function ScheduledTaskDialog({
         provider: form.provider,
         model: form.model || null,
         effort: form.effort || null,
+        permissionMode: form.permissionMode || null,
         // Blank path means the server picks the home folder; sending "" would
         // store it as if it were a real directory.
         projectPath: form.projectPath.trim() || null,
@@ -514,6 +627,28 @@ export default function ScheduledTaskDialog({
                 />
               </div>
             )}
+
+            <div className="space-y-1.5">
+              <label htmlFor="scheduled-task-permission" className="block text-xs font-medium text-muted-foreground">
+                {t('scheduledTasks.permissionMode')}
+              </label>
+              <SelectMenu
+                id="scheduled-task-permission"
+                ariaLabel={t('scheduledTasks.permissionMode')}
+                value={form.permissionMode}
+                options={permissionModeOptions}
+                placeholder={t('scheduledTasks.permissionModeUnset')}
+                onChange={(next) => update('permissionMode', next)}
+                className="sm:w-64"
+              />
+              <p className="text-xs text-muted-foreground">{t('scheduledTasks.permissionModeHint')}</p>
+              {!form.permissionMode && (
+                <p className="text-xs text-destructive">{t('scheduledTasks.permissionModeUnsetWarning')}</p>
+              )}
+              {form.permissionMode === 'plan' && (
+                <p className="text-xs text-destructive">{t('scheduledTasks.permissionModePlanUnattended')}</p>
+              )}
+            </div>
           </section>
 
           <section className="space-y-3 border-t border-border/60 pt-5">

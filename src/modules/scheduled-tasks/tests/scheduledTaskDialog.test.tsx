@@ -4,7 +4,11 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, test, vi } from 'vitest';
 
 import type * as SharedApiModule from '@/shared/api';
-import type { ProviderModelsDefinition, ScheduledTaskInput } from '@/shared/types';
+import {
+  getPermissionModeAppearance,
+  PERMISSION_MODE_ACCENT_CLASSES,
+} from '@/shared/permissionModeAppearance';
+import type { ProviderModelsDefinition, ScheduledTask, ScheduledTaskInput } from '@/shared/types';
 import ScheduledTaskDialog from '@/modules/scheduled-tasks/ScheduledTaskDialog';
 
 /**
@@ -21,9 +25,10 @@ const CATALOG: ProviderModelsDefinition = {
   ],
 };
 
-const { availableMock, modelsMock } = vi.hoisted(() => ({
+const { availableMock, modelsMock, capabilitiesMock } = vi.hoisted(() => ({
   availableMock: vi.fn(),
   modelsMock: vi.fn(),
+  capabilitiesMock: vi.fn(),
 }));
 
 vi.mock('@/shared/api', async (importOriginal) => {
@@ -36,6 +41,7 @@ vi.mock('@/shared/api', async (importOriginal) => {
         ...actual.api.providers,
         available: availableMock,
         models: modelsMock,
+        capabilities: capabilitiesMock,
       },
     },
   };
@@ -65,9 +71,35 @@ function jsonResponse(data: unknown): Response {
 beforeEach(() => {
   availableMock.mockReset();
   modelsMock.mockReset();
+  capabilitiesMock.mockReset();
   availableMock.mockResolvedValue(jsonResponse({ providers: ['claude'] }));
   modelsMock.mockResolvedValue(jsonResponse({ provider: 'claude', models: CATALOG }));
+  capabilitiesMock.mockResolvedValue(jsonResponse({
+    providers: [{
+      provider: 'claude',
+      permissionModes: ['default', 'auto', 'acceptEdits', 'bypassPermissions', 'plan'],
+    }],
+  }));
 });
+
+const EXISTING_TASK: ScheduledTask = {
+  id: 'task-1',
+  name: 'Nightly report',
+  prompt: 'Summarize yesterday.',
+  provider: 'claude',
+  model: null,
+  effort: null,
+  permissionMode: null,
+  projectPath: '/tmp/project',
+  schedule: { kind: 'daily', time: '09:00' },
+  timezone: 'Asia/Shanghai',
+  enabled: true,
+  nextRunAt: '2099-01-01T01:00:00.000Z',
+  lastRunAt: null,
+  createdAt: '2026-11-01T00:00:00.000Z',
+};
+
+const PLAN_TASK: ScheduledTask = { ...EXISTING_TASK, id: 'task-2', permissionMode: 'plan' };
 
 test('the model picker lists the catalog and starts on the last model used', async () => {
   render(<ScheduledTaskDialog isOpen task={null} onClose={() => {}} onSubmit={async () => {}} />);
@@ -153,4 +185,138 @@ test('a task with no project path is submittable and sends a blank path', async 
   await waitFor(() => assert.equal(submitted.length, 1));
   assert.equal(submitted[0].projectPath, null);
   assert.equal(submitted[0].model, 'claude-opus-4-5');
+});
+
+test('a new task starts on Full access, without plan mode, and submits that mode', async () => {
+  const submitted: ScheduledTaskInput[] = [];
+  render(
+    <ScheduledTaskDialog
+      isOpen
+      task={null}
+      onClose={() => {}}
+      onSubmit={async (input) => {
+        submitted.push(input);
+      }}
+    />,
+  );
+
+  const permissionTrigger = await waitFor(() => {
+    const trigger = screen.getByRole('button', { name: 'scheduledTasks.permissionMode' });
+    // An unattended run cannot answer a permission prompt, so the default is
+    // the one mode that lets it finish on its own.
+    assert.match(trigger.textContent ?? '', /permissions\.modes\.bypassPermissions\.title/);
+    return trigger;
+  });
+
+  // The trigger wears Full access's accent, the same one chat's composer uses.
+  const fullAccessAccent = PERMISSION_MODE_ACCENT_CLASSES[getPermissionModeAppearance('bypassPermissions').accent];
+  assert.ok(permissionTrigger.className.includes(fullAccessAccent.foreground));
+
+  fireEvent.click(permissionTrigger);
+  const labels = screen.getAllByRole('option').map((option) => option.textContent ?? '');
+  assert.ok(labels.some((label) => label.includes('permissions.modes.bypassPermissions.title')));
+  // Plan mode is downgraded to the provider default when nobody is watching.
+  assert.equal(labels.some((label) => label.includes('permissions.modes.plan.title')), false);
+
+  // Each row carries its own mode colour, so the menu reads like chat's.
+  const fullAccessRow = screen.getByRole('option', { name: /permissions\.modes\.bypassPermissions\.title/ });
+  assert.ok(
+    Array.from(fullAccessRow.querySelectorAll('span')).some((span) => span.className.includes(fullAccessAccent.label)),
+  );
+
+  fireEvent.click(screen.getByRole('option', { name: /permissions\.modes\.default\.title/ }));
+
+  fireEvent.change(screen.getByLabelText('scheduledTasks.name'), { target: { value: 'Blog post' } });
+  fireEvent.change(screen.getByLabelText('scheduledTasks.prompt'), { target: { value: 'Write it.' } });
+  fireEvent.click(screen.getByText('scheduledTasks.save'));
+
+  await waitFor(() => assert.equal(submitted.length, 1));
+  assert.equal(submitted[0].permissionMode, 'default');
+});
+
+test('a task saved before the picker existed shows its mode as unset and keeps it unset', async () => {
+  const submitted: ScheduledTaskInput[] = [];
+  render(
+    <ScheduledTaskDialog
+      isOpen
+      task={EXISTING_TASK}
+      onClose={() => {}}
+      onSubmit={async (input) => {
+        submitted.push(input);
+      }}
+    />,
+  );
+
+  await waitFor(() => {
+    assert.match(
+      screen.getByRole('button', { name: 'scheduledTasks.permissionMode' }).textContent ?? '',
+      /scheduledTasks\.permissionModeUnset/,
+    );
+  });
+  assert.ok(screen.getByText('scheduledTasks.permissionModeUnsetWarning'));
+
+  fireEvent.click(screen.getByText('scheduledTasks.save'));
+
+  await waitFor(() => assert.equal(submitted.length, 1));
+  assert.equal(submitted[0].permissionMode, null);
+});
+
+test('a task saved with plan keeps Plan only, warns, and submits the mode unchanged', async () => {
+  const submitted: ScheduledTaskInput[] = [];
+  render(
+    <ScheduledTaskDialog
+      isOpen
+      task={PLAN_TASK}
+      onClose={() => {}}
+      onSubmit={async (input) => {
+        submitted.push(input);
+      }}
+    />,
+  );
+
+  await waitFor(() => {
+    assert.match(
+      screen.getByRole('button', { name: 'scheduledTasks.permissionMode' }).textContent ?? '',
+      /permissions\.modes\.plan\.title/,
+    );
+  });
+  // Opening the dialog must not widen the task's permissions behind the user.
+  assert.ok(screen.getByText('scheduledTasks.permissionModePlanUnattended'));
+
+  fireEvent.click(screen.getByText('scheduledTasks.save'));
+
+  await waitFor(() => assert.equal(submitted.length, 1));
+  assert.equal(submitted[0].permissionMode, 'plan');
+});
+
+test('a new task on a provider without full access starts on auto', async () => {
+  // DSH's `default` waits for a chat client a scheduled run does not have,
+  // while `auto` answers its own permission requests.
+  availableMock.mockResolvedValue(jsonResponse({ providers: ['dsh'] }));
+  const submitted: ScheduledTaskInput[] = [];
+  render(
+    <ScheduledTaskDialog
+      isOpen
+      task={null}
+      onClose={() => {}}
+      onSubmit={async (input) => {
+        submitted.push(input);
+      }}
+    />,
+  );
+
+  await waitFor(() => {
+    assert.match(
+      screen.getByRole('button', { name: 'scheduledTasks.permissionMode' }).textContent ?? '',
+      /\.auto\.title/,
+    );
+  });
+
+  fireEvent.change(screen.getByLabelText('scheduledTasks.name'), { target: { value: 'Nightly' } });
+  fireEvent.change(screen.getByLabelText('scheduledTasks.prompt'), { target: { value: 'Do it.' } });
+  fireEvent.click(screen.getByText('scheduledTasks.save'));
+
+  await waitFor(() => assert.equal(submitted.length, 1));
+  assert.equal(submitted[0].provider, 'dsh');
+  assert.equal(submitted[0].permissionMode, 'auto');
 });
