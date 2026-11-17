@@ -62,7 +62,9 @@
     "selectAllLoaded": "Yüklenenleri seç",
     "clearSelection": "Seçimi kaldır",
     "deleteSelected_one": "{{count}} oturumu sil",
-    "deleteSelected_other": "{{count}} oturumu sil"
+    "deleteSelected_other": "{{count}} oturumu sil",
+    "expandForks": "{{session}} dallarını genişlet",
+    "collapseForks": "{{session}} dallarını daralt"
   },
   "tooltips": {
     "viewEnvironments": "Ortamları Görüntüle",
@@ -85,7 +87,15 @@
     "attentionRequiredIndicator": "Oturum ilgi bekliyor",
     "expandAllProjects": "Tüm projeleri genişlet",
     "locateSelectedProject": "Geçerli oturumun projesini göster",
-    "collapseAllProjects": "Tüm projeleri daralt"
+    "collapseAllProjects": "Tüm projeleri daralt",
+    "backgroundWorkIndicator": "Arka planda çalışan iş var"
+  },
+  "navigation": {
+    "chat": "Sohbet",
+    "files": "Dosyalar",
+    "git": "Git",
+    "terminal": "Terminal",
+    "tasks": "Görevler"
   },
   "actions": {
     "refresh": "Yenile",
@@ -134,6 +144,8 @@
     "enterProjectPath": "Lütfen bir proje yolu gir",
     "deleteSessionFailed": "Oturum silinemedi. Lütfen tekrar dene.",
     "deleteSessionError": "Oturum silinirken hata oluştu. Lütfen tekrar dene.",
+    "archiveSessionFailed": "Oturum arşivlenemedi. Lütfen tekrar deneyin.",
+    "archiveSessionError": "Oturum arşivlenirken hata oluştu. Lütfen tekrar deneyin.",
     "renameSessionFailed": "Oturum yeniden adlandırılamadı. Lütfen tekrar dene.",
     "renameSessionError": "Oturum yeniden adlandırılırken hata oluştu. Lütfen tekrar dene.",
     "updateSessionPinFailed": "Oturum sabitlemesi güncellenemedi. Lütfen tekrar dene.",
@@ -161,8 +173,14 @@
     "restartRequired": "Güncelleme yüklendi — uygulamak için sunucuyu yeniden başlatın"
   },
   "recent": {
+    "title": "Son konuşmalar",
     "pinnedTitle": "Sabitlenmiş konuşmalar",
-    "unpinnedTitle": "Son konuşmalar"
+    "unpinnedTitle": "Son konuşmalar",
+    "emptyTitle": "Henüz konuşma yok",
+    "emptyDescription": "En son güncellenen konuşmalarınız burada görünecek.",
+    "loadFailed": "Son konuşmalar yüklenemedi",
+    "loadMore": "Daha eski konuşmaları yükle",
+    "loadingMore": "Daha fazlası yükleniyor..."
   },
   "search": {
     "modeProjects": "Projeler",
@@ -193,6 +211,8 @@
     "archiveSessionNotice": "Arşivleme, oturumu etkin listeden kaldırır ve geçmişini korur.",
     "archivedSessionNotice": "Bu oturum zaten arşivlendi. Gizli tutabilir veya kalıcı olarak silebilirsiniz.",
     "deleteSessionPermanently": "Kalıcı olarak sil",
+    "confirmDeleteSession": "Kalıcı olarak sil",
+    "deleteSessionNotice": "Oturum ve geçmişi silinecek. Bu işlem geri alınamaz.",
     "deleteAllData": "Tüm veriyi kalıcı olarak sil",
     "allConversationsDeleted": "Proje kenar çubuğundan kaldırılacak. Dosyaların, bellek verilerin ve oturum verilerin korunacak.",
     "cannotUndo": "Projeyi sonra tekrar ekleyebilirsin.",

@@ -2,6 +2,13 @@ import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+import {
+  getOpenCodeDataDir,
+  hasFileCredential,
+  listConfiguredProviders,
+  readOpenCodeConfigs,
+  type OpenCodeCredential,
+} from '@/modules/providers/list/opencode/opencode-config.js';
 import type { IProviderAuth } from '@/shared/interfaces.js';
 import type { CliVersionProbe, ProviderAuthStatus } from '@/shared/types.js';
 import { probeCliVersion, readObjectRecord, readOptionalString } from '@/shared/utils.js';
@@ -24,6 +31,23 @@ const OPENCODE_ENV_CREDENTIAL_KEYS = [
 
 /** Global OpenCode config files, in the order the CLI loads them. */
 const OPENCODE_CONFIG_FILES = ['config.json', 'opencode.json', 'opencode.jsonc'];
+
+/**
+ * Whether a configured `apiKey` resolves to a key. Only presence is checked:
+ * no key value is read into, logged or returned by this process.
+ */
+const isCredentialPresent = async (credential: OpenCodeCredential): Promise<boolean> => {
+  switch (credential.kind) {
+    case 'literal':
+      return true;
+    case 'env':
+      return Boolean(process.env[credential.name]?.trim());
+    case 'file':
+      return hasFileCredential(credential);
+    default:
+      return false;
+  }
+};
 
 export class OpenCodeProviderAuth implements IProviderAuth {
   /**
@@ -55,11 +79,12 @@ export class OpenCodeProviderAuth implements IProviderAuth {
   }
 
   /**
-   * Reads OpenCode's auth store or falls back to provider API key environment variables.
+   * Reads OpenCode's auth store, then provider API key environment variables,
+   * then provider keys in OpenCode's config (v1 `provider` or v2 `providers`).
    */
   private async checkCredentials(): Promise<OpenCodeCredentialsStatus> {
     try {
-      const authPath = path.join(os.homedir(), '.local', 'share', 'opencode', 'auth.json');
+      const authPath = path.join(getOpenCodeDataDir(), 'auth.json');
       const content = await readFile(authPath, 'utf8');
       const auth = readObjectRecord(JSON.parse(content)) ?? {};
 
@@ -92,13 +117,32 @@ export class OpenCodeProviderAuth implements IProviderAuth {
       }
     }
 
+    const envCredential = OPENCODE_ENV_CREDENTIAL_KEYS.find((key) => process.env[key]?.trim());
+    if (envCredential) {
+      return {
+        authenticated: true,
+        email: envCredential,
+        method: 'environment',
+      };
+    }
+
+    for (const { id, credential } of listConfiguredProviders(await readOpenCodeConfigs())) {
+      if (await isCredentialPresent(credential)) {
+        return {
+          authenticated: true,
+          email: `${id} credentials`,
+          method: 'config_file',
+        };
+      }
+    }
+
     // A provider declared with options in OpenCode's own global config is
-    // connected without an auth-store entry: its `apiKey` may even be a
-    // `{file:...}` reference, which is how dotfiles-managed installs keep the
-    // key out of the repo. `opencode-models.provider.ts` already reads these
-    // same files (in this same load order) to decide which models the picker
-    // may offer, so omitting them here made the status badge contradict the
-    // model list on every install configured this way.
+    // connected without an auth-store entry even when its `options` carry no
+    // credential this app can read (a key it does not understand, or a local
+    // endpoint that needs none). `opencode-models.provider.ts` already reads
+    // these same files to decide which models the picker may offer, so
+    // omitting them here made the status badge contradict the model list on
+    // every install configured this way.
     if (await this.hasConfiguredProvider()) {
       return {
         authenticated: true,
@@ -107,15 +151,6 @@ export class OpenCodeProviderAuth implements IProviderAuth {
         // rather than printing a provider id as if it were a user.
         email: null,
         method: 'opencode_config',
-      };
-    }
-
-    const envCredential = OPENCODE_ENV_CREDENTIAL_KEYS.find((key) => process.env[key]?.trim());
-    if (envCredential) {
-      return {
-        authenticated: true,
-        email: envCredential,
-        method: 'environment',
       };
     }
 

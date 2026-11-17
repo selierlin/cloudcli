@@ -1,12 +1,12 @@
 import { Bell, BellOff, BellRing, Loader2, Play, Vibrate, Volume2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import NotificationWebhookCard from '@/modules/settings/tabs/NotificationWebhookCard';
 import { Button } from '@/shared/ui';
 import { isCapacitorNativeShell, playChatCompletionSound, triggerNotificationHaptic } from '@/shared/utils';
 import type { NotificationPreferencesState } from '@/shared/types';
 import type { WebPushError } from '@/modules/settings/hooks/useWebPush';
 import BarkSettingsCard from '@/modules/settings/tabs/notifications-settings/BarkSettingsCard';
-import NotificationWebhookCard from '@/modules/settings/tabs/NotificationWebhookCard';
 
 type NotificationsSettingsTabProps = {
   notificationPreferences: NotificationPreferencesState;

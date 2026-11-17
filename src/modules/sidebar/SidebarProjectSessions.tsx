@@ -1,5 +1,6 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DragEvent } from 'react';
+import { ChevronRight } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button } from '@/shared/ui';
@@ -9,7 +10,10 @@ import type { LLMProvider, Project, ProjectSession, SessionAttentionLevel, Sessi
 import SidebarSessionItem from '@/modules/sidebar/SidebarSessionItem';
 import SidebarBatchSessionActions from '@/modules/sidebar/SidebarBatchSessionActions';
 import { useSessionParentPicker } from '@/modules/sidebar/context/SessionParentPickerContext';
-import { groupSessionsByParent } from '@/modules/sidebar/utils/sidebarProjectFormatting';
+import { buildProjectSessionTree } from '@/modules/sidebar/utils/projectSessionTree';
+
+const FORK_INDENT_PX = 12;
+const MAX_FORK_INDENT_DEPTH = 4;
 
 type SidebarProjectSessionsProps = {
   project: Project;
@@ -41,6 +45,7 @@ type SidebarProjectSessionsProps = {
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
   onTogglePinned?: (sessionId: string, isPinned: boolean) => void;
   onRequestBatchArchive?: (sessionIds: string[], onCompleted: (archivedSessionIds: string[]) => void) => void;
+  onArchiveSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string, sessionTitle: string) => void;
   onForkSession?: (session: SessionWithProvider) => void;
   onLoadMoreSessions: (projectId: string) => void;
@@ -94,12 +99,65 @@ export default function SidebarProjectSessions({
   onSessionSelect,
   onTogglePinned,
   onRequestBatchArchive,
+  onArchiveSession,
   onDeleteSession,
   onForkSession,
   onLoadMoreSessions,
   t,
 }: SidebarProjectSessionsProps) {
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
+  const treeRows = useMemo(() => buildProjectSessionTree(sessions, project.projectId), [sessions, project.projectId]);
+  const selectedSessionId = selectedSession?.id ?? null;
+  const targetAncestors = useMemo(() => {
+    const parents = new Map(treeRows.map((row) => [row.session.id, row.parentId]));
+    const reveal = new Set<string>();
+    for (const target of [selectedSessionId, sessionRenameId]) {
+      let parentId = target ? parents.get(target) : null;
+      while (parentId && !reveal.has(parentId)) {
+        reveal.add(parentId);
+        parentId = parents.get(parentId);
+      }
+    }
+    return reveal;
+  }, [treeRows, selectedSessionId, sessionRenameId]);
+  // Retain explicit branch collapses, while revealing a newly selected or renamed descendant.
+  const [forkTreeState, setForkTreeState] = useState(() => ({
+    targetAncestors, selectedSessionId, sessionRenameId, collapsedForks: new Set<string>(),
+  }));
+  const { collapsedForks } = forkTreeState;
+
+  // Reveal a newly selected/renamed fork before committing a hidden row. Later
+  // title/activity updates must not undo an explicit collapse by the user.
+  if (forkTreeState.selectedSessionId !== selectedSessionId
+    || forkTreeState.sessionRenameId !== sessionRenameId
+    || forkTreeState.targetAncestors.size !== targetAncestors.size
+    || [...targetAncestors].some((id) => !forkTreeState.targetAncestors.has(id))) {
+    setForkTreeState({
+      targetAncestors, selectedSessionId, sessionRenameId,
+      collapsedForks: new Set([...collapsedForks].filter((id) => !targetAncestors.has(id))),
+    });
+  }
+
+  const visibleRows = useMemo(() => {
+    let hiddenBelowDepth = Infinity;
+    const visible: (typeof treeRows[number] & { continuationDepths: number[] })[] = [];
+    const continuingAncestors = new Set<number>();
+    for (const row of treeRows) {
+      if (row.depth > hiddenBelowDepth) continue;
+      hiddenBelowDepth = row.hasChildren && collapsedForks.has(row.session.id) ? row.depth : Infinity;
+      // Keep sibling rails running through an expanded child's descendants.
+      // Only visible columns are retained, so a deep chain stays linear in size.
+      for (const depth of continuingAncestors) {
+        if (depth >= row.depth) continuingAncestors.delete(depth);
+      }
+      visible.push({ ...row, continuationDepths: [...continuingAncestors] });
+      if (row.depth > 0 && row.depth < MAX_FORK_INDENT_DEPTH && !row.isLastSibling) {
+        continuingAncestors.add(row.depth);
+      }
+    }
+    return visible;
+  }, [treeRows, collapsedForks]);
+  const hasForks = treeRows.some((row) => row.hasChildren);
 
   // Sessions that started a response can no longer be archived in bulk, so
   // prune the selection as sessions come and go (e.g. a session starts a run
@@ -126,8 +184,10 @@ export default function SidebarProjectSessions({
   // A session with a response in flight cannot be archived in bulk — the same
   // rule the row's options menu applies — so it is not selectable either.
   // Sessions only running background work stay deletable, and so selectable.
+  const isSessionRunning = (session: SessionWithProvider) =>
+    activeSessions.has(session.id) && !backgroundSessionIds.has(session.id);
   const selectableSessionIds = sessions
-    .filter((session) => !(activeSessions.has(session.id) && !backgroundSessionIds.has(session.id)))
+    .filter((session) => !isSessionRunning(session))
     .map((session) => session.id);
   const areAllSelectableSessionsSelected = selectableSessionIds.length > 0
     && selectableSessionIds.every((sessionId) => selectedSessionIds.has(sessionId));
@@ -149,12 +209,6 @@ export default function SidebarProjectSessions({
       areAllSelectableSessionsSelected ? new Set() : new Set(selectableSessionIds),
     );
   };
-
-  // Lays the flat list out as one level of parent/child rows. Memoized on the
-  // session list so the grouping does not re-run on every sidebar render (the
-  // time tick, attention changes); the row identities inside it are stable, so
-  // each row's memo still bails.
-  const sessionTree = useMemo(() => groupSessionsByParent(sessions), [sessions]);
 
   // The parent picker provider owns the persistence; a drag here is only another
   // way to trigger the same move. Absent outside the sidebar (and in tests that
@@ -223,13 +277,20 @@ export default function SidebarProjectSessions({
     setDropTargetSessionId(null);
   };
 
-  const renderSessionRow = (session: SessionWithProvider) => (
+  // A row of another provider must not light up as a drop target: the tree only
+  // nests a session under one of its own provider, so the drop would store a
+  // parent the list keeps rendering at top level (same rule as the picker in
+  // SessionParentPickerContext).
+  const draggingSession = draggingSessionId
+    ? sessions.find((session) => session.id === draggingSessionId)
+    : undefined;
+
+  const renderSessionRow = (session: SessionWithProvider, treeRow = false) => (
     <SidebarSessionItem
-      key={session.id}
       project={project}
       session={session}
       selectedSession={selectedSession}
-      isProcessing={activeSessions.has(session.id) && !backgroundSessionIds.has(session.id)}
+      isProcessing={isSessionRunning(session)}
       isManaging={isManaging}
       isBatchSelected={selectedSessionIds.has(session.id)}
       hasBackgroundWork={backgroundSessionIds.has(session.id)}
@@ -244,10 +305,13 @@ export default function SidebarProjectSessions({
       onProjectSelect={onProjectSelect}
       onSessionSelect={onSessionSelect}
       onTogglePinned={onTogglePinned ?? NOOP_TOGGLE_PINNED}
+      onArchiveSession={onArchiveSession}
+      treeRow={treeRow}
       onToggleBatchSelection={toggleBatchSelection}
       onDeleteSession={onDeleteSession}
       onForkSession={onForkSession}
       draggingSessionId={draggingSessionId}
+      acceptsSessionDrop={!draggingSession || draggingSession.__provider === session.__provider}
       isDropHighlighted={dropTargetSessionId === session.id}
       onSessionDragStart={beginSessionDrag}
       onSessionDragEnd={endSessionDrag}
@@ -300,19 +364,71 @@ export default function SidebarProjectSessions({
         </div>
       ) : (
         <>
-          {sessionTree.map(({ session, children }) => (
-            <Fragment key={session.id}>
-              {renderSessionRow(session)}
-              {children.length > 0 && (
-                // Child rows hang off a short connector line and are indented
-                // one level. The wrapper is per-parent so the project-level
-                // container above stays the indentation baseline for roots.
-                <div className="ml-4 space-y-1 border-l border-border pl-2">
-                  {children.map((child) => renderSessionRow(child))}
+          <div className={cn(!hasForks && 'space-y-1')} data-testid="project-session-tree">
+            {visibleRows.map(({ session, parentId, depth, hasChildren, isLastSibling, continuationDepths }) => (
+              <div
+                key={session.id}
+                data-session-id={session.id}
+                data-parent-session-id={parentId ?? undefined}
+                data-fork-depth={depth}
+                data-fork-branch={hasChildren || undefined}
+                className="relative flex min-w-0 items-stretch"
+                style={depth > 0 ? { paddingLeft: `${Math.min(depth, MAX_FORK_INDENT_DEPTH) * FORK_INDENT_PX}px` } : undefined}
+              >
+                {parentId && (
+                  <span
+                    aria-hidden="true"
+                    data-fork-connector={isLastSibling ? 'last' : 'branch'}
+                    className="pointer-events-none absolute inset-y-0"
+                    style={{ left: `${(Math.min(depth, MAX_FORK_INDENT_DEPTH) - 1) * FORK_INDENT_PX + FORK_INDENT_PX / 2}px`, width: `${FORK_INDENT_PX}px` }}
+                  >
+                    <span className={cn('absolute left-0 top-0 border-l border-muted-foreground/50', isLastSibling ? 'bottom-1/2' : 'bottom-0')} />
+                    <span className="absolute left-0 top-1/2 border-t border-muted-foreground/50" style={{ width: hasChildren ? '6px' : '12px' }} />
+                  </span>
+                )}
+                {continuationDepths.map((ancestorDepth) => (
+                  <span
+                    key={ancestorDepth}
+                    aria-hidden="true"
+                    data-fork-continuation={ancestorDepth}
+                    className="pointer-events-none absolute inset-y-0 border-l border-muted-foreground/50"
+                    style={{ left: `${(ancestorDepth - 1) * FORK_INDENT_PX + FORK_INDENT_PX / 2}px` }}
+                  />
+                ))}
+                {hasChildren && !collapsedForks.has(session.id) && (
+                  <span
+                    aria-hidden="true"
+                    data-fork-stem=""
+                    className="pointer-events-none absolute bottom-0 border-l border-muted-foreground/50"
+                    style={{ left: `${Math.min(depth, MAX_FORK_INDENT_DEPTH - 1) * FORK_INDENT_PX + FORK_INDENT_PX / 2}px`, top: 'calc(50% + 7px)' }}
+                  />
+                )}
+                {hasForks && (
+                  hasChildren ? (
+                    <button
+                      type="button"
+                      className="relative flex w-3 flex-shrink-0 items-center justify-center rounded text-foreground/70 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      aria-expanded={!collapsedForks.has(session.id)}
+                      aria-label={collapsedForks.has(session.id)
+                        ? t('sessions.expandForks', { session: session.summary || session.name || t('projects.newSession') })
+                        : t('sessions.collapseForks', { session: session.summary || session.name || t('projects.newSession') })}
+                      onClick={() => setForkTreeState((previous) => {
+                        const next = new Set(previous.collapsedForks);
+                        if (next.has(session.id)) next.delete(session.id);
+                        else next.add(session.id);
+                        return { ...previous, collapsedForks: next };
+                      })}
+                    >
+                      <ChevronRight className={cn('h-3 w-3 transition-transform', !collapsedForks.has(session.id) && 'rotate-90')} strokeWidth={2.5} aria-hidden="true" />
+                    </button>
+                  ) : <span className="w-3 flex-shrink-0" aria-hidden="true" />
+                )}
+                <div className="min-w-0 flex-1">
+                  {renderSessionRow(session, hasForks)}
                 </div>
-              )}
-            </Fragment>
-          ))}
+              </div>
+            ))}
+          </div>
 
           {hasMoreSessions && (
             <Button

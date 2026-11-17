@@ -5,7 +5,7 @@ import { projectsDb, sessionReadStateDb, sessionsDb } from '@/modules/database/i
 import { sessionSynchronizerService } from '@/modules/providers/index.js';
 import { isSessionContentUnread } from '@/shared/index.js';
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
-import type { RealtimeClientConnection } from '@/shared/types.js';
+import type { RealtimeClientConnection, SessionForkAncestor } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 
 type SessionSummary = {
@@ -39,6 +39,8 @@ type SessionSummary = {
    * server-side ordering guarantee is needed here.
    */
   parentSessionId: string | null;
+  forkedFromSessionId: string | null;
+  forkAncestors: SessionForkAncestor[];
 };
 
 type SessionRepositoryRow = {
@@ -52,6 +54,7 @@ type SessionRepositoryRow = {
   parent_session_id?: string | null;
   /** btw copies stay in the query result but must never reach the client. */
   is_ephemeral?: number;
+  forked_from_session_id?: string | null;
 };
 
 export type ProjectListItem = {
@@ -181,6 +184,8 @@ function mapSessionRowToSummary(row: SessionRepositoryRow, watermarks: ReadWater
     isUnread: isSessionContentUnread(contentUpdatedAt, watermarks.get(row.session_id) ?? null),
     isPinned: Boolean(row.isPinned),
     parentSessionId: row.parent_session_id ?? null,
+    forkedFromSessionId: row.forked_from_session_id ?? null,
+    forkAncestors: row.forked_from_session_id ? sessionsDb.getForkAncestors(row.session_id) : [],
   };
 }
 

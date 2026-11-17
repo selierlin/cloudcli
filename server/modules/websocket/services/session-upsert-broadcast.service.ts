@@ -3,7 +3,7 @@ import path from 'node:path';
 import { projectsDb, sessionReadStateDb, sessionsDb, userDb } from '@/modules/database/index.js';
 import { generateDisplayName } from '@/modules/projects/index.js';
 import { isSessionContentUnread } from '@/shared/index.js';
-import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
+import { broadcastToConnectedClients } from '@/modules/websocket/services/websocket-state.service.js';
 import type { SessionUpsertChange, SessionUpsertedEvent } from '@/shared/types.js';
 
 /**
@@ -72,6 +72,8 @@ async function buildSessionUpsertedEvent(
       isUnread: isSessionContentUnread(row.content_updated_at ?? null, lastSeenAt),
       change,
       parentSessionId: row.parent_session_id ?? null,
+      forkedFromSessionId: row.forked_from_session_id ?? null,
+      forkAncestors: row.forked_from_session_id ? sessionsDb.getForkAncestors(row.session_id) : [],
     },
     project: project
       ? {
@@ -84,20 +86,6 @@ async function buildSessionUpsertedEvent(
       : null,
     timestamp: new Date().toISOString(),
   };
-}
-
-function sendToConnectedClients(payloads: string[]): void {
-  if (payloads.length === 0) {
-    return;
-  }
-
-  connectedClients.forEach((client) => {
-    if (client.readyState === WS_OPEN_STATE) {
-      for (const payload of payloads) {
-        client.send(payload);
-      }
-    }
-  });
 }
 
 /**
@@ -129,7 +117,7 @@ export async function broadcastSessionUpserted(
   stampFallbackContentTimestamp({ sessionId: sessionIdOrProviderSessionId, change });
   const event = await buildSessionUpsertedEvent(sessionIdOrProviderSessionId, change);
   if (event) {
-    sendToConnectedClients([JSON.stringify(event)]);
+    broadcastToConnectedClients(JSON.stringify(event));
   }
 }
 
@@ -153,7 +141,7 @@ export async function broadcastSessionUpsertedBatch(
     }
   }
 
-  sendToConnectedClients(payloads);
+  broadcastToConnectedClients(payloads);
 }
 
 /**
@@ -167,7 +155,7 @@ export async function broadcastSessionUpsertedBatch(
  * Consumers: the providers module's aside cleanup.
  */
 export function broadcastSessionRemoved(sessionId: string): void {
-  sendToConnectedClients([JSON.stringify({
+  broadcastToConnectedClients([JSON.stringify({
     kind: 'session_deleted',
     sessionId,
     timestamp: new Date().toISOString(),

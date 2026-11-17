@@ -94,6 +94,8 @@ test('chat WebSocket forwards a WorkBuddy task snapshot and terminal event', asy
       getPendingApprovalsForSession(): unknown[] {
         return [];
       },
+      askSideQuestion: async () => ({ status: 'done' as const, answer: '' }),
+      steer: async () => false,
     };
 
     handleChatConnection(
@@ -245,6 +247,8 @@ test('chat WebSocket preserves WorkBuddy tool and task failure states', async ()
       getPendingApprovalsForSession(): unknown[] {
         return [];
       },
+      askSideQuestion: async () => ({ status: 'done' as const, answer: '' }),
+      steer: async () => false,
     };
 
     handleChatConnection(
@@ -298,6 +302,8 @@ test('chat WebSocket converts an active WorkBuddy abort into one stopped termina
       getPendingApprovalsForSession(): unknown[] {
         return [];
       },
+      askSideQuestion: async () => ({ status: 'done' as const, answer: '' }),
+      steer: async () => false,
     };
 
     handleChatConnection(

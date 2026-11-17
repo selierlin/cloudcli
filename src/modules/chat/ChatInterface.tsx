@@ -43,6 +43,7 @@ import type { PartialExportFormat } from '@/modules/chat/utils/chatExport';
 import { buildTailAnchoredMessageKeys, getTranscriptMessageKey } from '@/modules/chat/utils/messageKeys';
 import { collectSelectedMessages } from '@/modules/chat/utils/transcriptSelection';
 import { countVisibleTranscriptMessages } from '@/modules/chat/utils/executionProcess';
+import { useEscapeToAbortSession } from '@/modules/chat/hooks/useEscapeToAbortSession';
 import {
   useProcessingSessions,
   useSessionProtectionActions,
@@ -201,6 +202,9 @@ function ChatInterface({
     resolvePermissionModeForProvider,
     supportsMessageEditing,
     supportsSessionForking,
+    supportsSideQuestions,
+    supportsSteering,
+    supportsContextClearing,
   } = useChatProviderState({
     selectedSession,
     selectedProject,
@@ -289,6 +293,49 @@ function ChatInterface({
     onNavigateToSession?.(sessionId);
   }, [setCurrentSessionId, onSessionEstablished, onNavigateToSession]);
 
+  /**
+   * Clears the open session's context: the conversation stays on screen, with
+   * a divider where the clear happened, and the next message starts fresh.
+   */
+  const handleClearContext = useCallback(async () => {
+    const sessionId = currentSessionId || selectedSession?.id;
+    if (!supportsContextClearing) {
+      addMessage({ type: 'assistant', content: t('misc.clearContextUnsupported'), timestamp: Date.now() });
+      return;
+    }
+    // A chat that has not sent its first message has no context yet.
+    if (!sessionId) {
+      addMessage({ type: 'assistant', content: t('misc.clearContextEmpty'), timestamp: Date.now() });
+      return;
+    }
+
+    try {
+      const response = await api.clearSessionContext(sessionId);
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error?.message || payload?.message || `HTTP ${response.status}`);
+      }
+      if (!payload?.data?.cleared) {
+        addMessage({ type: 'assistant', content: t('misc.clearContextEmpty'), timestamp: Date.now() });
+        return;
+      }
+      // The counter described the context that was just left behind.
+      setTokenBudget(null);
+      // Brings in the divider the server now ends the history with.
+      await requestLatestMessages(sessionId, true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      addMessage({ type: 'error', content: t('misc.clearContextFailed', { message }), timestamp: Date.now() });
+    }
+  }, [addMessage, currentSessionId, requestLatestMessages, selectedSession?.id, setTokenBudget, supportsContextClearing, t]);
+
+  // The button asks first: unlike a typed `/clear`, a click can be a slip.
+  const handleClearContextClick = useCallback(() => {
+    if (window.confirm(t('misc.clearContextConfirm'))) {
+      void handleClearContext();
+    }
+  }, [handleClearContext, t]);
+
   const {
     input,
     setInput,
@@ -321,11 +368,14 @@ function ChatInterface({
     isDragActive,
     openAttachmentPicker,
     handleSubmit,
+    handleSendMenuChoice,
     backgroundSendPrompt,
     resolveBackgroundSendPrompt,
     queuedDraft,
     editQueuedDraft,
     deleteQueuedDraft,
+    pendingSteers,
+    handleSteerOutcome,
     handleVoiceTranscript,
     handleQuickReplySend,
     handleInputChange,
@@ -345,6 +395,8 @@ function ChatInterface({
     editingAnchorId,
     beginEditMessage,
     cancelEditMessage,
+    hasInput,
+    onClearInput,
   } = useChatComposerState({
     selectedProject,
     selectedSession,
@@ -359,15 +411,19 @@ function ChatInterface({
     canAbortSession,
     tokenBudget,
     sendMessage,
+    isConnected,
     sendByCtrlEnter,
+    supportsSteering,
     onSessionProcessing,
     onSessionEstablished: handleSessionEstablished,
     onFileOpen,
     onShowSettings,
     scrollToLatest,
+    onClearContext: handleClearContext,
     addMessage,
     setPendingPermissionRequests,
     resolvePermissionModeForProvider,
+    supportsSideQuestions,
   });
 
   /* ---------------------------------------------------------------- */
@@ -666,6 +722,7 @@ function ChatInterface({
     // generating before the reload is still going.
     onSideAskSubscribed: handleBtwSubscribeAck,
     onSessionProcessingFromFrame: onSessionProcessing,
+    onSteerOutcome: handleSteerOutcome,
   });
 
   // Lets other modules (the quick settings Commands tab) hand text to the
@@ -689,38 +746,21 @@ function ChatInterface({
 
   usePaletteOpsRegister({ insertComposerText });
 
-  useEffect(() => {
-    if (!canAbortSession) {
-      return;
-    }
-
-    const handleGlobalEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.repeat || event.defaultPrevented) {
-        return;
-      }
+  useEscapeToAbortSession({
+    canAbortSession,
+    onAbortSession: handleAbortSession,
+    composerRef: textareaRef,
+    isEscapeIgnored: (event) =>
       // Escape cancels a pinyin candidate while the user is composing; aborting
       // the turn on that press would end their answer mid-word.
-      if (isImeKeyEvent(event)) {
-        return;
-      }
+      isImeKeyEvent(event) ||
       // The drawer owns Escape for presses that land inside it, because
       // "close this panel" must not read as "stop the watched turn". Desktop
       // keeps the drawer beside a still-usable composer, so a press in the
       // conversation behind it keeps aborting, exactly as before the drawer
       // existed.
-      if (sideAskOpen && isInsideSideAskDrawer(event.target)) {
-        return;
-      }
-
-      event.preventDefault();
-      handleAbortSession();
-    };
-
-    document.addEventListener('keydown', handleGlobalEscape, { capture: true });
-    return () => {
-      document.removeEventListener('keydown', handleGlobalEscape, { capture: true });
-    };
-  }, [canAbortSession, handleAbortSession, sideAskOpen]);
+      (sideAskOpen && isInsideSideAskDrawer(event.target)),
+  });
 
   // On unmount, cancel every pending flush so a timer cannot write into a
   // torn-down store. Per-session buffers are otherwise dropped by
@@ -1111,6 +1151,7 @@ function ChatInterface({
           activity={sessionActivity}
           isLoading={isProcessing}
           onAbortSession={handleAbortSession}
+          canAbortSession={canAbortSession}
           permissionMode={permissionMode}
           availablePermissionModes={availablePermissionModes}
           onSelectPermissionMode={selectPermissionMode}
@@ -1126,6 +1167,7 @@ function ChatInterface({
           modelsLoading={providerModelsLoading}
           tokenBudget={tokenBudget}
           onShowTokenUsage={showCostModal}
+          onClearContext={supportsContextClearing && (currentSessionId || selectedSession?.id) ? handleClearContextClick : undefined}
           isEditingSentMessage={Boolean(editingAnchorId)}
           onCancelEditMessage={cancelEditMessage}
           scheduledMessages={scheduledMessages}
@@ -1141,6 +1183,9 @@ function ChatInterface({
           onResolveBackgroundSendPrompt={resolveBackgroundSendPrompt}
           onEditQueuedDraft={editQueuedDraft}
           onDeleteQueuedDraft={deleteQueuedDraft}
+          onSendMenuChoice={handleSendMenuChoice}
+          supportsSteering={supportsSteering}
+          pendingSteers={pendingSteers}
           attachedFiles={attachedFiles}
           onRemoveAttachment={removeAttachment}
           getAttachmentUpload={getAttachmentUpload}
@@ -1177,6 +1222,11 @@ function ChatInterface({
           placeholder={t('input.placeholder', { provider: selectedProviderLabel })}
           isTextareaExpanded={isTextareaExpanded}
           sendByCtrlEnter={sendByCtrlEnter}
+          hasInput={hasInput}
+          onClearInput={onClearInput}
+          // D17: the btw drawer is the fork's only side-question entry, so the
+          // send menu and the background-send dialog never offer their own row.
+          supportsSideQuestions={false}
         />
           </div>
         </div>

@@ -99,6 +99,8 @@ function createRuntime(
     hasBackgroundWork: () => false,
     resolveToolApproval: () => undefined,
     getPendingApprovalsForSession: () => [],
+    askSideQuestion: async () => ({ status: 'done' as const, answer: '' }),
+    steer: async () => false,
   };
 }
 

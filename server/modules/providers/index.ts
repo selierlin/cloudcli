@@ -8,6 +8,7 @@ export { providerMcpService } from './services/mcp.service.js';
 // mcpCatalogService: owns the app-side user-scope MCP catalog (SSOT) that the
 // MCP matrix routes read and edit.
 export { mcpCatalogService } from './services/mcp-catalog.service.js';
+export { providerCapabilitiesService } from './services/provider-capabilities.service.js';
 export { providerRuntimeService } from './services/provider-runtime.service.js';
 
 // providerModelsService: used by Commands to list models and resolve the active session model.
@@ -51,3 +52,13 @@ export { getZcodeCommand } from './list/zcode/zcode-auth.provider.js';
 // getOpenclawCommand: used by the websocket shell service to spawn the OpenClaw
 // CLI at its resolved absolute path (not reliant on the PTY's PATH).
 export { getOpenclawCommand } from './list/openclaw/openclaw-auth.provider.js';
+
+// sideQuestionsService: used by the websocket module's `chat.side_question` handler and
+// the provider routes' side-question endpoints. State is in memory; a new
+// service instance starts empty, as after a CloudCLI restart.
+export {
+  createSideQuestionsService,
+  MAX_CONCURRENT_SIDE_QUESTIONS_PER_SESSION,
+  MAX_SIDE_QUESTIONS_PER_SESSION,
+  sideQuestionsService,
+} from './services/side-questions.service.js';

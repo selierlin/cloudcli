@@ -251,6 +251,13 @@
       "uploadFailedNamed": "These attachments could not be uploaded: {{names}}. Add them again and resend.",
       "expand": "Expand {{name}}",
       "remove": "Remove {{name}}"
+    },
+    "steer": {
+      "label": "Steering",
+      "sending": "Sending…",
+      "willRead": "{{provider}} reads it at its next tool call",
+      "attachments_one": "{{count}} file attached",
+      "attachments_other": "{{count}} files attached"
     }
   },
   "composer": {
@@ -481,6 +488,38 @@
       "perfWarning": "All messages loaded — scrolling may be slower. Click \"Scroll to bottom\" to restore performance."
     }
   },
+  "sideQuestion": {
+    "label": "Side question · not part of the session",
+    "pending": "Answering on the side",
+    "failed": "The side question failed.",
+    "dismiss": "Dismiss",
+    "unsupported": "This provider cannot answer side questions.",
+    "noSession": "Side questions need an existing chat; this one has not started yet."
+  },
+  "sendMenu": {
+    "trigger": "Send options",
+    "queue": {
+      "label": "Queue",
+      "descriptionResponding": "Send when this turn ends",
+      "descriptionBackground": "Send when the background work ends"
+    },
+    "steer": {
+      "label": "Steer",
+      "description": "Send into this turn; read at the next tool call"
+    },
+    "sideQuestion": {
+      "label": "Side question",
+      "description": "Ask on the side now; the session never sees it"
+    },
+    "stop": {
+      "label": "Stop",
+      "description": "End the response being written"
+    },
+    "sendAnyway": {
+      "label": "Send anyway",
+      "description": "Send now; this stops the background work"
+    }
+  },
   "shell": {
     "selectProject": {
       "title": "Select a Project",
@@ -544,7 +583,8 @@
         "description": "A new message starts a new turn, which stops that work; anything it has not reported yet is lost. Queue the message to send it when the work finishes.",
         "cancel": "Cancel",
         "queue": "Queue",
-        "sendAnyway": "Send anyway"
+        "sendAnyway": "Send anyway",
+        "sideQuestion": "Side question"
       }
     },
     "controls": {
@@ -583,7 +623,8 @@
     "partialMessages": "Excerpt · {{count}} of {{total}} messages",
     "projectName": "Project {{name}}",
     "exportedAt": "exported {{time}}",
-    "toggleTheme": "Toggle theme"
+    "toggleTheme": "Toggle theme",
+    "includeSideQuestions": "Include side questions"
   },
   "schedule": {
     "trigger": "Schedule this message",
@@ -653,6 +694,12 @@
     "tokensUsed_other": "{{count}} tokens used",
     "cacheHitRate": "{{percent}}% cached",
     "compacted": "Compacted",
+    "contextCleared": "Context cleared",
+    "clearContext": "Clear context",
+    "clearContextConfirm": "Clear this session's context? The conversation stays here, but the next message starts fresh.",
+    "clearContextEmpty": "The context is already clear.",
+    "clearContextFailed": "Could not clear the context: {{message}}",
+    "clearContextUnsupported": "Clearing context is not available for this provider.",
     "compactionSummary": "full summary",
     "expandImage": "Expand {{name}}",
     "tokensLabel_one": "token",

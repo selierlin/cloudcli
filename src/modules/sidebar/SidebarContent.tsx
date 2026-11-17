@@ -68,6 +68,7 @@ function ConversationTitleResultRow({
   onRestore,
   onRename,
   onTogglePinned,
+  onArchiveSession,
   onDelete,
 }: {
   session: SessionTitleSearchResult;
@@ -79,6 +80,7 @@ function ConversationTitleResultRow({
   onRestore?: (session: SessionTitleSearchResult) => void;
   onRename?: (sessionId: string, summary: string, provider: LLMProvider) => void;
   onTogglePinned?: (sessionId: string, isPinned: boolean) => void;
+  onArchiveSession?: (sessionId: string) => void;
   onDelete?: (sessionId: string, sessionTitle: string, options?: { isArchived?: boolean }) => void;
 }) {
   const age = formatCompactAge(session.lastActivity, currentTime);
@@ -196,10 +198,18 @@ function ConversationTitleResultRow({
           onClearParent: clearParent,
           t,
         }),
+        ...(onArchiveSession
+          ? [{
+              key: 'archive',
+              label: t('sessions.archiveSession'),
+              icon: Archive,
+              onSelect: () => onArchiveSession(session.sessionId),
+            }]
+          : []),
         ...(onDelete
           ? [{
               key: 'delete',
-              label: t('sessions.archiveOrDeleteSession'),
+              label: t('sessions.deleteSession'),
               icon: Trash2,
               isDanger: true,
               showDividerBefore: true,
@@ -397,6 +407,20 @@ function ConversationTitleResultRow({
                   </button>
                 )}
 
+                {!session.isArchived && onArchiveSession && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileOpen(false);
+                      onArchiveSession(session.sessionId);
+                    }}
+                    className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-border bg-muted/35 px-4 py-3 text-left text-foreground transition-colors active:bg-muted"
+                  >
+                    <Archive className="h-5 w-5 flex-shrink-0" />
+                    <span className="text-sm font-medium">{t('sessions.archiveSession')}</span>
+                  </button>
+                )}
+
                 {!session.isArchived && onDelete && (
                   <button
                     type="button"
@@ -407,7 +431,7 @@ function ConversationTitleResultRow({
                     className="flex min-h-12 w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-red-600 transition-colors active:bg-red-500/10 dark:text-red-400"
                   >
                     <Trash2 className="h-5 w-5 flex-shrink-0" />
-                    <span className="text-sm font-medium">{t('sessions.archiveOrDeleteSession')}</span>
+                    <span className="text-sm font-medium">{t('sessions.deleteSession')}</span>
                   </button>
                 )}
               </div>
@@ -535,12 +559,14 @@ function ConversationContentResultRow({
   t,
   onOpen,
   onRestore,
+  onArchiveSession,
   onDelete,
 }: {
   session: ConversationProjectResult['sessions'][number];
   t: TFunction;
   onOpen: () => void;
   onRestore?: (sessionId: string) => void;
+  onArchiveSession?: (sessionId: string) => void;
   onDelete?: (sessionId: string, sessionTitle: string, options?: { isArchived?: boolean }) => void;
 }) {
   const provider = session.provider || session.matches[0]?.provider || 'claude';
@@ -592,10 +618,18 @@ function ConversationContentResultRow({
           closeOnSelect: false,
           onSelect: handleCopyAction,
         },
+        ...(onArchiveSession
+          ? [{
+              key: 'archive',
+              label: t('sessions.archiveSession'),
+              icon: Archive,
+              onSelect: () => onArchiveSession(session.sessionId),
+            }]
+          : []),
         ...(onDelete
           ? [{
               key: 'delete',
-              label: t('sessions.archiveOrDeleteSession'),
+              label: t('sessions.deleteSession'),
               icon: Trash2,
               isDanger: true,
               showDividerBefore: true,
@@ -714,6 +748,20 @@ function ConversationContentResultRow({
                 </button>
               )}
 
+              {!session.isArchived && onArchiveSession && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileOptionsOpen(false);
+                    onArchiveSession(session.sessionId);
+                  }}
+                  className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-border bg-muted/35 px-4 py-3 text-left text-foreground transition-colors active:bg-muted"
+                >
+                  <Archive className="h-5 w-5 flex-shrink-0" />
+                  <span className="text-sm font-medium">{t('sessions.archiveSession')}</span>
+                </button>
+              )}
+
               {onDelete && (
                 <button
                   type="button"
@@ -728,9 +776,7 @@ function ConversationContentResultRow({
                   className="flex min-h-12 w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-red-600 transition-colors active:bg-red-500/10 dark:text-red-400"
                 >
                   <Trash2 className="h-5 w-5 flex-shrink-0" />
-                  <span className="text-sm font-medium">
-                    {session.isArchived ? t('sessions.deleteSession') : t('sessions.archiveOrDeleteSession')}
-                  </span>
+                  <span className="text-sm font-medium">{t('sessions.deleteSession')}</span>
                 </button>
               )}
 
@@ -1223,6 +1269,7 @@ export default function SidebarContent({
                       onRestore={restoreSearchHit}
                       onRename={onRenameRecentSession}
                       onTogglePinned={onToggleSessionPinned}
+                      onArchiveSession={projectListProps.onArchiveSession}
                       onDelete={projectListProps.onDeleteSession}
                     />
                   ))}
@@ -1324,6 +1371,7 @@ export default function SidebarContent({
                               session.matches[0]?.messageUuid,
                             )}
                             onRestore={restoreContentSearchHit}
+                            onArchiveSession={projectListProps.onArchiveSession}
                             onDelete={projectListProps.onDeleteSession}
                           />
                         ))}
@@ -1352,6 +1400,7 @@ export default function SidebarContent({
             onRetry={onRetryRecentConversations}
             onRenameSession={onRenameRecentSession}
             onTogglePinned={onToggleSessionPinned}
+            onArchiveSession={projectListProps.onArchiveSession}
             onDeleteSession={projectListProps.onDeleteSession}
             onRequestBatchArchive={onRequestBatchArchive}
             projects={projectListProps.projects}

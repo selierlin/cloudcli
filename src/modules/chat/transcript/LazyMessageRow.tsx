@@ -88,6 +88,8 @@ type LazyMessageRowProps = {
   programmaticScrollTopRef: MutableRefObject<number | null>;
   /** Optional section-anchor marker for the user message that started a turn. */
   dataAnchor?: string;
+  /** Extra classes on the row's own box, which is what the list spaces. */
+  className?: string;
   children: ReactNode;
 };
 
@@ -100,6 +102,7 @@ export default function LazyMessageRow({
   isProcessCollapsed = false,
   dataAnchor,
   programmaticScrollTopRef,
+  className,
   children,
 }: LazyMessageRowProps) {
   const [isNearViewport, setIsNearViewport] = useState(initiallyNearViewport);
@@ -279,7 +282,7 @@ export default function LazyMessageRow({
       // `hidden` removes the parent's `space-y` gap. Folded process content is
       // deliberately unmounted so a long run does not retain hundreds of
       // markdown and tool-detail subtrees behind its one-line summary.
-      className={isProcessCollapsed ? 'hidden' : undefined}
+      className={[isProcessCollapsed ? 'hidden' : '', className].filter(Boolean).join(' ') || undefined}
       style={isMounted ? undefined : { height: measuredHeight ?? estimatedHeight }}
     >
       {isMounted && !isProcessCollapsed ? children : null}

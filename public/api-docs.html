@@ -591,6 +591,12 @@
                                         <td>Reasoning effort for providers/models that expose effort metadata. Claude supports <code>low</code>, <code>medium</code>, <code>high</code>, <code>xhigh</code>, <code>max</code> (which levels are accepted depends on the model). Codex and OpenCode support <code>low</code>, <code>medium</code>, <code>high</code>, <code>xhigh</code>. Use <code>default</code> or omit it to let the provider decide.</td>
                                     </tr>
                                     <tr>
+                                        <td><code>unattended</code></td>
+                                        <td>boolean</td>
+                                        <td><span class="badge badge-optional">Optional</span></td>
+                                        <td>Claude only (default: <code>true</code>). While <code>true</code>, a form an MCP server sends mid-call is declined at once. Pass <code>false</code> when a person will watch the run in the UI: the form then appears in any tab that opens the session and waits for an answer there.</td>
+                                    </tr>
+                                    <tr>
                                         <td><code>cleanup</code></td>
                                         <td>boolean</td>
                                         <td><span class="badge badge-optional">Optional</span></td>

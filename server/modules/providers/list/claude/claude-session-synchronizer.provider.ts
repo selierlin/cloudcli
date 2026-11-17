@@ -229,12 +229,16 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
     // preserved-name shortcut and the title-resolution tail) carries it.
     const contentUpdatedAt = await this.extractContentUpdatedAt(filePath, parsed.sessionId);
 
-    // A transcript a session was edited off is left on disk on purpose, but it
-    // is nobody's conversation any more. Re-indexing it would add a sidebar
-    // entry for the version the user edited away from — and for a session that
-    // was itself discovered from disk, whose app id is its own transcript id,
-    // it would hand the row back to that transcript.
+    // A transcript a session was edited off or cleared context from is left on
+    // disk on purpose, but it is nobody's conversation any more. Re-indexing it
+    // would add a sidebar entry for the version the user moved away from — and
+    // for a session that was itself discovered from disk, whose app id is its
+    // own transcript id, it would hand the row back to that transcript.
     if (sessionsDb.isProviderSessionSuperseded(parsed.sessionId, this.provider)) {
+      // Superseded before this file was ever indexed: its path is not on record
+      // yet, and the history reader needs it to show that part of the
+      // conversation.
+      sessionsDb.recordSupersededTranscriptPath(parsed.sessionId, this.provider, filePath);
       return null;
     }
 

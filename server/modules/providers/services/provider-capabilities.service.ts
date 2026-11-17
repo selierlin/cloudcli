@@ -42,6 +42,25 @@ type ProviderCapabilities = {
    * Whether a session's transcript can be branched into an independent one.
    */
   supportsSessionForking: boolean;
+  /**
+   * Whether the provider can answer a question on the side without touching
+   * the session's main turn. False only for Cursor, which has no headless
+   * way to do that.
+   */
+  supportsSideQuestions: boolean;
+  /**
+   * Whether a message can be sent into a running turn (`chat.steer`), which the
+   * model reads at its next tool-call boundary without the turn stopping.
+   * Requires a runtime that keeps its CLI's input open during a turn.
+   */
+  supportsSteering: boolean;
+  /**
+   * Whether a session's context can be cleared: the next message starts a new
+   * provider session while the earlier conversation stays readable as history.
+   * Requires a history reader that can read a transcript the session row no
+   * longer points at, and an indexer that leaves such a transcript alone.
+   */
+  supportsContextClearing: boolean;
 };
 
 /**
@@ -67,6 +86,11 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     // `forkSession` copies a transcript prefix into a new session file.
     supportsMessageEditing: true,
     supportsSessionForking: true,
+    supportsSideQuestions: true,
+    // Streaming input stays open for the whole run, and a user message written
+    // to it with priority `next` joins the running turn.
+    supportsSteering: true,
+    supportsContextClearing: true,
   },
   cursor: {
     provider: 'cursor',
@@ -85,6 +109,9 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     effortLevels: [],
     supportsMessageEditing: false,
     supportsSessionForking: false,
+    supportsSideQuestions: false,
+    supportsSteering: false,
+    supportsContextClearing: false,
   },
   codex: {
     provider: 'codex',
@@ -103,6 +130,9 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     // which is how Codex's own IDE clients do it.
     supportsMessageEditing: true,
     supportsSessionForking: true,
+    supportsSideQuestions: true,
+    supportsSteering: false,
+    supportsContextClearing: false,
   },
   opencode: {
     provider: 'opencode',
@@ -127,6 +157,9 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     // `opencode serve`: it remaps message ids itself, so the copy is a native
     // session the CLI resumes like any other. See OpenCodeForkProvider.
     supportsSessionForking: true,
+    supportsSideQuestions: true,
+    supportsSteering: false,
+    supportsContextClearing: false,
   },
   workbuddy: {
     provider: 'workbuddy',
@@ -153,6 +186,9 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     // at a row itself, so the provider copies the transcript prefix into a new
     // session file that the next `--resume` picks up.
     supportsSessionForking: true,
+    supportsSideQuestions: false,
+    supportsSteering: false,
+    supportsContextClearing: false,
   },
   dsh: {
     provider: 'dsh',
@@ -178,6 +214,9 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     // the same copy (DshSessionsProvider.rewindSession) and repoints the row,
     // because the ACP server cannot resume into the middle of a session.
     supportsSessionForking: true,
+    supportsSideQuestions: false,
+    supportsSteering: false,
+    supportsContextClearing: false,
   },
   pi: {
     provider: 'pi',
@@ -205,6 +244,9 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     // is materialised by copying the transcript prefix into a new file under a
     // fresh id, which the next `--session` run picks up. See PiForkProvider.
     supportsSessionForking: true,
+    supportsSideQuestions: false,
+    supportsSteering: false,
+    supportsContextClearing: false,
   },
   zcode: {
     provider: 'zcode',
@@ -234,6 +276,9 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     // forking is gated on a pre-check that refuses such a branch — see
     // ZcodeForkProvider.
     supportsSessionForking: true,
+    supportsSideQuestions: false,
+    supportsSteering: false,
+    supportsContextClearing: false,
   },
   omp: {
     provider: 'omp',
@@ -265,6 +310,9 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     // under a fresh id, which the next `--session` run picks up. See
     // OmpForkProvider.
     supportsSessionForking: true,
+    supportsSideQuestions: false,
+    supportsSteering: false,
+    supportsContextClearing: false,
   },
   openclaw: {
     provider: 'openclaw',
@@ -286,6 +334,9 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsMessageEditing: false,
     // Phase 3 evaluates OpenClaw's ACP `fork` method.
     supportsSessionForking: false,
+    supportsSideQuestions: true,
+    supportsSteering: false,
+    supportsContextClearing: false,
   },
 };
 

@@ -57,15 +57,19 @@ const dragData = (types: string[] = [SESSION_OWNERSHIP_DRAG_MIME]) => {
 
 const renderList = (
   setSessionParent: (sessionId: string, parentSessionId: string | null) => void,
-  { isManaging = false, withProvider = true }: { isManaging?: boolean; withProvider?: boolean } = {},
+  { isManaging = false, withProvider = true, project = PROJECT }: {
+    isManaging?: boolean;
+    withProvider?: boolean;
+    project?: Project;
+  } = {},
 ) => {
   const list = (
     <SidebarProjectSessions
-      project={PROJECT}
+      project={project}
       isExpanded
       isManaging={isManaging}
       onManagingChange={noop}
-      sessions={getAllSessions(PROJECT)}
+      sessions={getAllSessions(project)}
       selectedSession={null}
       initialSessionsLoaded
       hasMoreSessions={false}
@@ -82,6 +86,7 @@ const renderList = (
       onSaveEditingSession={noop}
       onProjectSelect={noop}
       onSessionSelect={noop}
+      onArchiveSession={noop}
       onDeleteSession={noop}
       onLoadMoreSessions={noop}
       t={t}
@@ -90,7 +95,7 @@ const renderList = (
 
   return render(withProvider
     ? (
-      <SessionParentPickerProvider projects={[PROJECT]} setSessionParent={setSessionParent} t={t}>
+      <SessionParentPickerProvider projects={[project]} setSessionParent={setSessionParent} t={t}>
         {list}
       </SessionParentPickerProvider>
     )
@@ -183,6 +188,27 @@ test('a row is not a drop target for its own drag', () => {
   fireEvent.drop(self, { dataTransfer: data });
 
   assert.equal(setSessionParent.mock.calls.length, 0, 'a session is never filed under itself');
+});
+
+test('a row of another provider is not a drop target: the tree never nests one', () => {
+  const setSessionParent = vi.fn();
+  const mixedProject = {
+    ...PROJECT,
+    sessions: [
+      ...(PROJECT.sessions ?? []),
+      { id: 'x', summary: 'session x', provider: 'codex', lastActivity: '2026-08-21T09:56:00.000Z' },
+    ],
+  } as unknown as Project;
+  const { container } = renderList(setSessionParent, { project: mixedProject });
+  const data = dragData();
+
+  fireEvent.dragStart(rowOf(container, 'b'), { dataTransfer: data });
+  const target = rowOf(container, 'x');
+  fireEvent.dragOver(target, { dataTransfer: data });
+  assert.ok(!/ring-2/.test(String(target.className)), 'a cross-provider row stays unhighlighted');
+  fireEvent.drop(target, { dataTransfer: data });
+
+  assert.equal(setSessionParent.mock.calls.length, 0);
 });
 
 test('a drag that carries no session payload is ignored', () => {

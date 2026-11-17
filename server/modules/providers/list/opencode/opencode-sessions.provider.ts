@@ -35,12 +35,63 @@ const SUBAGENT_TOOL_NAME = 'task';
 const MAX_TRANSMITTED_SUBAGENT_ACTIVITIES = 200;
 
 type OpenCodeHistoryRow = {
-  message_id: string;
+  message_id: string | null;
   message_time_created: number | null;
   message_data: string | null;
   part_id: string | null;
   part_time_created: number | null;
   part_data: string | null;
+};
+
+/**
+ * A message or part as the history outline reads it: `digest` is a trimmed
+ * copy of its JSON `data` (see READABLE_JSON_DATA), and `data` is the raw
+ * column, read only when there is no digest.
+ */
+type OpenCodeOutlineMessageRow = {
+  id: string | null;
+  time_created: number | null;
+  digest: string | null;
+  data: unknown;
+};
+
+type OpenCodeOutlinePartRow = {
+  id: string | null;
+  message_id: string | null;
+  time_created: number | null;
+  digest: string | null;
+  data: unknown;
+};
+
+/**
+ * One row of a session's history (a part, or a message without parts) placed
+ * in the full normalized history without being normalized.
+ */
+type OpenCodeHistoryOutlineRow = {
+  messageId: string | null;
+  messageTimeCreated: number | null;
+  partId: string | null;
+  partTimeCreated: number | null;
+  /** Whether this row shows its message's error: only the message's first row can. */
+  showsMessageError: boolean;
+  /** Position of this row's first normalized message in the full history. */
+  start: number;
+  /** How many normalized messages this row turns into: 0, 1 or 2. */
+  count: number;
+  /**
+   * For a reasoning row, the position of the thinking message its fragment
+   * belongs to. Consecutive reasoning fragments of one message accumulate into
+   * a single message, so every fragment after the first contributes no
+   * message of its own but still carries text for that one.
+   */
+  thinkingRunStart: number | null;
+  /** Whether this row's thinking message starts here (rather than continuing). */
+  startsThinkingRun: boolean;
+};
+
+/** The thinking message consecutive reasoning fragments are added to. */
+type OpenCodeThinkingRunState = {
+  current: { messageId: string | null; message: NormalizedMessage } | null;
 };
 
 type OpenCodeTokenTotals = {
@@ -445,6 +496,206 @@ const openOpenCodeDatabaseForLiveEvent = (): Database.Database | null => {
   }
 };
 
+/**
+ * What a text part shows: its text without the attachment blocks a user
+ * prompt carries, and those attachments. Null when nothing is left to show.
+ */
+const readShownTextPart = (partData: AnyRecord, messageRole: string | undefined) => {
+  const rawContent = extractText(partData);
+  // User prompts sent with attachments carry an <images_input> path
+  // list; strip it for display and surface the paths as images.
+  const parsedImages = messageRole === 'user'
+    ? parseImagesInputTag(rawContent)
+    : { text: rawContent, attachments: [] };
+  const parsedFiles = messageRole === 'user'
+    ? parseFilesInputTag(parsedImages.text)
+    : { text: rawContent, attachments: [] };
+  if (
+    !parsedFiles.text.trim()
+    && parsedImages.attachments.length === 0
+    && parsedFiles.attachments.length === 0
+  ) {
+    return null;
+  }
+
+  return {
+    content: parsedFiles.text,
+    images: parsedImages.attachments.length > 0 ? parsedImages.attachments : undefined,
+    files: parsedFiles.attachments.length > 0 ? parsedFiles.attachments : undefined,
+  };
+};
+
+/**
+ * How many messages a reasoning part shows, given whether it continues the
+ * reasoning run of the same message. A continuation only adds its text to the
+ * run's message; an empty part (the part-creation event) adds nothing at all
+ * and does not end the run.
+ */
+const countShownReasoningPart = (partData: AnyRecord, continuesRun: boolean): number => {
+  if (readReasoningText(partData).trim() === '') {
+    return 0;
+  }
+  return continuesRun ? 0 : 1;
+};
+
+/**
+ * How many messages a non-reasoning part shows in the history. These are the
+ * decisions `normalizeHistoryRow` makes, taken without building anything, so
+ * keep the two in step: opencode-history-pages.test.ts checks that they agree
+ * on every part type OpenCode writes. Reasoning goes through
+ * {@link countShownReasoningPart}, which also needs the run it belongs to.
+ */
+const countShownPartMessages = (partData: AnyRecord, messageRole: string | undefined): number => {
+  switch (readOptionalString(partData.type)) {
+    case 'text':
+      return readShownTextPart(partData, messageRole) ? 1 : 0;
+    case 'tool':
+    case 'step-finish':
+    case 'patch':
+    case 'agent':
+      return 1;
+    default:
+      return 0;
+  }
+};
+
+/**
+ * Rows SQLite can read as JSON text get a digest: a copy of their JSON with
+ * only the keys counting a row needs. SQLite reads them in place, so a tool's
+ * output, a diff or an attached file is not copied into JavaScript just to be
+ * counted. Any other row carries its raw `data`, which the outline then
+ * parses as the full read always has.
+ */
+const READABLE_JSON_DATA = "typeof(data) = 'text' AND json_valid(data)";
+
+const HISTORY_OUTLINE_MESSAGES_SQL = `
+  SELECT
+    id,
+    time_created,
+    CASE WHEN ${READABLE_JSON_DATA}
+      THEN json_object('role', data -> '$.role', 'error', data -> '$.error')
+    END AS digest,
+    CASE WHEN ${READABLE_JSON_DATA} THEN NULL ELSE data END AS data
+  FROM message
+  WHERE session_id = ?
+  ORDER BY COALESCE(time_created, 0), id
+`;
+
+const HISTORY_OUTLINE_PARTS_SQL = `
+  SELECT
+    id,
+    message_id,
+    time_created,
+    CASE WHEN ${READABLE_JSON_DATA}
+      THEN json_object('type', data -> '$.type', 'text', data -> '$.text', 'content', data -> '$.content')
+    END AS digest,
+    CASE WHEN ${READABLE_JSON_DATA} THEN NULL ELSE data END AS data
+  FROM part
+  WHERE session_id = ?
+  ORDER BY COALESCE(time_created, 0), id
+`;
+
+/**
+ * Places every row of a session's history: each message's parts in order, or
+ * one row for a message without parts, messages ordered by creation. That is
+ * the order of a `message LEFT JOIN part` sorted by message then part, read
+ * as two queries so neither scans the session's parts once per message.
+ */
+const readOpenCodeHistoryOutline = (
+  db: Database.Database,
+  providerSessionId: string,
+): OpenCodeHistoryOutlineRow[] => {
+  const messages = db.prepare(HISTORY_OUTLINE_MESSAGES_SQL).all(providerSessionId) as OpenCodeOutlineMessageRow[];
+  const parts = db.prepare(HISTORY_OUTLINE_PARTS_SQL).all(providerSessionId) as OpenCodeOutlinePartRow[];
+
+  // As in a join, a NULL id matches nothing: such a part is skipped, and such
+  // a message has no parts.
+  const partsByMessage = new Map<string | null, OpenCodeOutlinePartRow[]>();
+  for (const part of parts) {
+    if (part.message_id === null) {
+      continue;
+    }
+
+    const messageParts = partsByMessage.get(part.message_id);
+    if (messageParts) {
+      messageParts.push(part);
+    } else {
+      partsByMessage.set(part.message_id, [part]);
+    }
+  }
+
+  const outline: OpenCodeHistoryOutlineRow[] = [];
+  const emittedMessageErrors = new Set<string | null>();
+  let position = 0;
+  for (const message of messages) {
+    const messageInfo = readJsonRecord(message.digest ?? message.data);
+    const messageRole = readOptionalString(messageInfo?.role);
+    const messageParts: (OpenCodeOutlinePartRow | null)[] = partsByMessage.get(message.id) ?? [null];
+    // A reasoning run never crosses a message: fragments of another message
+    // start a message of their own.
+    let runningThinkingStart: number | null = null;
+
+    for (const part of messageParts) {
+      // A message's error shows once, on its first row, unless it only
+      // records that the turn was stopped.
+      let showsMessageError = false;
+      if (
+        messageInfo
+        && messageRole === 'assistant'
+        && messageInfo.error != null
+        && !emittedMessageErrors.has(message.id)
+      ) {
+        emittedMessageErrors.add(message.id);
+        showsMessageError = !isStoppedTurnError(messageInfo.error);
+      }
+
+      const partId = part ? part.id : null;
+      const partData = part && partId ? readJsonRecord(part.digest ?? part.data) ?? {} : {};
+      const partType = part && partId ? readOptionalString(partData.type) : null;
+
+      let thinkingRunStart: number | null = null;
+      let startsThinkingRun = false;
+      let shownPartMessages = 0;
+      if (partType === 'reasoning') {
+        // Whitespace-only text is a real fragment of a run already open, but it
+        // cannot start one: that would count a blank thinking message.
+        const hasFragment = readReasoningText(partData).trim() !== '';
+        if (runningThinkingStart !== null) {
+          // A later fragment adds its text to the run's message; an empty one
+          // (the part-creation event) adds nothing and does not end the run.
+          thinkingRunStart = runningThinkingStart;
+        } else if (hasFragment) {
+          thinkingRunStart = position + (showsMessageError ? 1 : 0);
+          startsThinkingRun = true;
+          shownPartMessages = countShownReasoningPart(partData, false);
+          runningThinkingStart = thinkingRunStart;
+        }
+      } else if (partType) {
+        // Any other readable part ends the run, whether or not it shows
+        // anything itself.
+        runningThinkingStart = null;
+        shownPartMessages = countShownPartMessages(partData, messageRole);
+      }
+
+      const count = (showsMessageError ? 1 : 0) + shownPartMessages;
+      outline.push({
+        messageId: message.id,
+        messageTimeCreated: message.time_created,
+        partId,
+        partTimeCreated: part ? part.time_created : null,
+        showsMessageError,
+        start: position,
+        count,
+        thinkingRunStart,
+        startsThinkingRun,
+      });
+      position += count;
+    }
+  }
+
+  return outline;
+};
+
 export class OpenCodeSessionsProvider implements IProviderSessions {
   /**
    * Normalizes live OpenCode events into frontend messages. The OpenCode
@@ -621,6 +872,11 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
 
   /**
    * Loads OpenCode history from the shared SQLite session database.
+   *
+   * The outline (every row's ids, timestamps and SQLite-side JSON digest)
+   * gives `total` and the page bounds; only the rows on the requested page are
+   * then read in full, normalized and given their subagent timelines. The
+   * result is what slicing the fully normalized history would return.
    */
   async fetchHistory(
     sessionId: string,
@@ -636,42 +892,32 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
     }
 
     try {
-      const rows = db.prepare(`
-        SELECT
-          m.id AS message_id,
-          m.time_created AS message_time_created,
-          m.data AS message_data,
-          p.id AS part_id,
-          p.time_created AS part_time_created,
-          p.data AS part_data
-        FROM message m
-        LEFT JOIN part p
-          ON p.session_id = m.session_id
-         AND p.message_id = m.id
-        WHERE m.session_id = ?
-        ORDER BY
-          COALESCE(m.time_created, 0),
-          m.id,
-          COALESCE(p.time_created, 0),
-          p.id
-      `).all(providerSessionId) as OpenCodeHistoryRow[];
-
-      const normalized = this.normalizeHistoryRows(rows, sessionId, db);
-      const tokenUsage = aggregateOpenCodeSessionTokenUsage(db, providerSessionId);
-
       const normalizedOffset = Math.max(0, offset);
       const normalizedLimit = limit === null ? null : Math.max(0, limit);
-      const total = normalized.length;
-      const { page, hasMore } = sliceTailPage(normalized, normalizedLimit, normalizedOffset);
 
-      return {
-        messages: page,
-        total,
-        hasMore,
-        offset: normalizedOffset,
-        limit: normalizedLimit,
-        tokenUsage,
-      };
+      // One read transaction, so the page is cut from the rows the outline counted.
+      return db.transaction((): FetchHistoryResult => {
+        const outline = readOpenCodeHistoryOutline(db, providerSessionId);
+        const lastRow = outline.at(-1);
+        const total = lastRow ? lastRow.start + lastRow.count : 0;
+        // Slicing positions with the shared helper gives the page bounds and
+        // `hasMore` that slicing the normalized messages themselves would.
+        const positions = Array.from({ length: total }, (_, position) => position);
+        const { page, hasMore } = sliceTailPage(positions, normalizedLimit, normalizedOffset);
+        const messages = page.length > 0
+          ? this.normalizeHistoryPage(db, outline, page[0], page[page.length - 1] + 1, sessionId)
+          : [];
+        const tokenUsage = aggregateOpenCodeSessionTokenUsage(db, providerSessionId);
+
+        return {
+          messages,
+          total,
+          hasMore,
+          offset: normalizedOffset,
+          limit: normalizedLimit,
+          tokenUsage,
+        };
+      })();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.warn(`[OpenCodeProvider] Failed to load session ${sessionId}:`, message);
@@ -681,178 +927,227 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
     }
   }
 
-  private normalizeHistoryRows(
-    rows: OpenCodeHistoryRow[],
-    sessionId: string,
+  /**
+   * Normalizes the messages at positions [from, to) of the full history,
+   * reading in full only the rows they come from.
+   */
+  private normalizeHistoryPage(
     db: Database.Database,
+    outline: OpenCodeHistoryOutlineRow[],
+    from: number,
+    to: number,
+    sessionId: string,
+  ): NormalizedMessage[] {
+    const readMessageData = db.prepare('SELECT data FROM message WHERE id = ?').pluck();
+    const readPartData = db.prepare('SELECT data FROM part WHERE id = ?').pluck();
+    const messageDataById = new Map<string | null, string | null>();
+    const runIsLive = isOpenCodeSessionActive(sessionId);
+    const page: NormalizedMessage[] = [];
+    // Consecutive reasoning fragments are one message, so later fragments can
+    // only be read when the run's message is on this page — even when the
+    // fragment row itself sits past the page's end.
+    const includedThinkingRuns = new Set<number>();
+    const thinkingRun: OpenCodeThinkingRunState = { current: null };
+
+    for (const outlineRow of outline) {
+      const runStart = outlineRow.thinkingRunStart;
+      const runOnPage = runStart !== null && includedThinkingRuns.has(runStart);
+      if (outlineRow.start >= to && !runOnPage) {
+        break;
+      }
+      if (!runOnPage && (outlineRow.count === 0 || outlineRow.start + outlineRow.count <= from)) {
+        continue;
+      }
+
+      let messageData = messageDataById.get(outlineRow.messageId);
+      if (messageData === undefined) {
+        messageData = (readMessageData.get(outlineRow.messageId) as string | null | undefined) ?? null;
+        messageDataById.set(outlineRow.messageId, messageData);
+      }
+
+      const row: OpenCodeHistoryRow = {
+        message_id: outlineRow.messageId,
+        message_time_created: outlineRow.messageTimeCreated,
+        message_data: messageData,
+        part_id: outlineRow.partId,
+        part_time_created: outlineRow.partTimeCreated,
+        part_data: outlineRow.partId
+          ? (readPartData.get(outlineRow.partId) as string | null | undefined) ?? null
+          : null,
+      };
+      const rowMessages = this.normalizeHistoryRow(row, outlineRow, db, sessionId, runIsLive, thinkingRun);
+      if (outlineRow.startsThinkingRun && runStart !== null && runStart >= from && runStart < to) {
+        includedThinkingRuns.add(runStart);
+      }
+      rowMessages.forEach((message, index) => {
+        const position = outlineRow.start + index;
+        if (position >= from && position < to) {
+          page.push(message);
+        }
+      });
+    }
+
+    return page;
+  }
+
+  /**
+   * Turns one history row into its normalized messages: its message's error
+   * when the outline placed it on this row, then what its part shows.
+   */
+  private normalizeHistoryRow(
+    row: OpenCodeHistoryRow,
+    placement: Pick<OpenCodeHistoryOutlineRow, 'showsMessageError' | 'start'>,
+    db: Database.Database,
+    sessionId: string,
+    runIsLive: boolean,
+    thinkingRun: OpenCodeThinkingRunState,
   ): NormalizedMessage[] {
     const normalized: NormalizedMessage[] = [];
-    const emittedMessageErrors = new Set<string>();
-    // OpenCode stores reasoning one token fragment per part row; consecutive
-    // reasoning parts of the same message are accumulated into a single
-    // thinking message instead of emitting one message per token.
-    let thinkingRun: { messageId: string; message: NormalizedMessage } | null = null;
-    const runIsLive = isOpenCodeSessionActive(sessionId);
+    const timestamp = normalizeProviderTimestamp(row.part_time_created ?? row.message_time_created);
+    // A part-less row is keyed by its position in the full history, so it
+    // keeps the same id on every page that shows it.
+    const baseId = `${row.message_id}_${row.part_id ?? placement.start}`;
+    const messageInfo = readJsonRecord(row.message_data);
+    const messageRole = readOptionalString(messageInfo?.role);
 
-    for (const row of rows) {
-      const timestamp = normalizeProviderTimestamp(row.part_time_created ?? row.message_time_created);
-      const baseId = `${row.message_id}_${row.part_id ?? normalized.length}`;
-      const messageInfo = readJsonRecord(row.message_data);
-      const messageRole = readOptionalString(messageInfo?.role);
+    if (placement.showsMessageError) {
+      normalized.push(createNormalizedMessage({
+        id: `${baseId}_error`,
+        sessionId,
+        timestamp,
+        provider: PROVIDER,
+        kind: 'error',
+        content: formatToolContent(messageInfo?.error),
+      }));
+    }
 
-      if (
-        messageInfo
-        && messageRole === 'assistant'
-        && messageInfo.error != null
-        && !emittedMessageErrors.has(row.message_id)
-      ) {
-        emittedMessageErrors.add(row.message_id);
-        if (!isStoppedTurnError(messageInfo.error)) {
-          normalized.push(createNormalizedMessage({
-            id: `${baseId}_error`,
-            sessionId,
-            timestamp,
-            provider: PROVIDER,
-            kind: 'error',
-            content: formatToolContent(messageInfo.error),
-          }));
-        }
-      }
+    if (!row.part_id) {
+      return normalized;
+    }
 
-      if (!row.part_id) {
-        continue;
-      }
+    const partData = readJsonRecord(row.part_data) ?? {};
+    const partType = readOptionalString(partData.type);
+    if (!partType) {
+      return normalized;
+    }
 
-      const partData = readJsonRecord(row.part_data) ?? {};
-      const partType = readOptionalString(partData.type);
-      if (!partType) {
-        continue;
-      }
+    // Any non-reasoning part ends the current reasoning run, so a
+    // think -> tool -> think sequence yields two thinking messages.
+    if (partType !== 'reasoning') {
+      thinkingRun.current = null;
+    }
 
-      // Any non-reasoning part ends the current reasoning run, so a
-      // think -> tool -> think sequence yields two thinking messages.
-      if (partType !== 'reasoning') {
-        thinkingRun = null;
-      }
-
-      if (partType === 'text') {
-        const rawContent = extractText(partData);
-        // User prompts sent with attachments carry an <images_input> path
-        // list; strip it for display and surface the paths as images.
-        const parsedImages = messageRole === 'user'
-          ? parseImagesInputTag(rawContent)
-          : { text: rawContent, attachments: [] };
-        const parsedFiles = messageRole === 'user'
-          ? parseFilesInputTag(parsedImages.text)
-          : { text: rawContent, attachments: [] };
-        if (
-          parsedFiles.text.trim()
-          || parsedImages.attachments.length > 0
-          || parsedFiles.attachments.length > 0
-        ) {
-          const textMessage = createNormalizedMessage({
-            id: baseId,
-            sessionId,
-            timestamp,
-            provider: PROVIDER,
-            kind: 'text',
-            role: messageRole === 'user' ? 'user' : 'assistant',
-            // The model that answered, as OpenCode records it on the message
-            // row. Only the assistant row carries a top-level id: the user
-            // row's nested `model` is the picker's selection, not what ran, so
-            // this mirrors the role gate above and reads nothing for user turns.
-            model: messageRole === 'user' ? undefined : readOptionalString(messageInfo?.modelID),
-            content: parsedFiles.text,
-            images: parsedImages.attachments.length > 0 ? parsedImages.attachments : undefined,
-            files: parsedFiles.attachments.length > 0 ? parsedFiles.attachments : undefined,
-          });
-          // The fork anchor is the row's own message id — stable across reads,
-          // unlike the composite display id — so "fork from here" addresses a
-          // message the same way Claude and Codex do.
-          textMessage.forkAnchorId = row.message_id;
-          normalized.push(textMessage);
-        }
-        continue;
-      }
-
-      if (partType === 'reasoning') {
-        const content = readReasoningText(partData);
-        // Empty text marks the part-creation event and carries no fragment;
-        // whitespace-only fragments are real tokens and must be kept.
-        if (content === '') {
-          continue;
-        }
-
-        if (thinkingRun && thinkingRun.messageId === row.message_id) {
-          thinkingRun.message.content = (thinkingRun.message.content ?? '') + content;
-        } else {
-          const message = createNormalizedMessage({
-            id: baseId,
-            sessionId,
-            timestamp,
-            provider: PROVIDER,
-            kind: 'thinking',
-            content,
-          });
-          normalized.push(message);
-          thinkingRun = { messageId: row.message_id, message };
-        }
-        continue;
-      }
-
-      if (partType === 'tool') {
-        const state = readObjectRecord(partData.state) ?? {};
-        const status = readOptionalString(state.status);
-        const toolMessage = createNormalizedMessage({
+    if (partType === 'text') {
+      const shownText = readShownTextPart(partData, messageRole);
+      if (shownText) {
+        const textMessage = createNormalizedMessage({
           id: baseId,
           sessionId,
           timestamp,
           provider: PROVIDER,
-          kind: 'tool_use',
-          toolName: readOptionalString(partData.tool) ?? 'Tool',
-          toolInput: state.input ?? partData.input ?? {},
-          toolId: readOptionalString(partData.callID) ?? row.part_id,
+          kind: 'text',
+          role: messageRole === 'user' ? 'user' : 'assistant',
+          // The model that answered, as OpenCode records it on the message
+          // row. Only the assistant row carries a top-level id: the user
+          // row's nested `model` is the picker's selection, not what ran, so
+          // this mirrors the role gate above and reads nothing for user turns.
+          model: messageRole === 'user' ? undefined : readOptionalString(messageInfo?.modelID),
+          content: shownText.content,
+          images: shownText.images,
+          files: shownText.files,
         });
-
-        if (status === 'completed' || status === 'error') {
-          toolMessage.toolResult = {
-            content: formatToolContent(state.output ?? state.error),
-            isError: status === 'error',
-          };
+        // The fork anchor is the row's own message id — stable across reads,
+        // unlike the composite display id — so "fork from here" addresses a
+        // message the same way Claude and Codex do.
+        if (row.message_id) {
+          textMessage.forkAnchorId = row.message_id;
         }
+        normalized.push(textMessage);
+      }
+      return normalized;
+    }
 
-        if (toolMessage.toolName === QUESTION_TOOL_NAME) {
-          toAskUserQuestionCall(toolMessage, state);
-        }
-
-        attachOpenCodeSubagent(toolMessage, state, db, runIsLive);
-        normalized.push(toolMessage);
-        continue;
+    if (partType === 'reasoning') {
+      const content = readReasoningText(partData);
+      const openRun = thinkingRun.current;
+      const continuesRun = openRun !== null && openRun.messageId === row.message_id;
+      // Empty text marks the part-creation event and carries no fragment.
+      // Whitespace-only text is a real token of a run already open, but it
+      // cannot start one — that would draw a blank thinking bubble.
+      if (content === '' || (!continuesRun && content.trim() === '')) {
+        return normalized;
       }
 
-      if (partType === 'step-finish') {
-        normalized.push(createNormalizedMessage({
+      const runMessage = openRun && continuesRun ? openRun.message : null;
+      if (runMessage) {
+        runMessage.content = (runMessage.content ?? '') + content;
+      } else {
+        const message = createNormalizedMessage({
           id: baseId,
           sessionId,
           timestamp,
           provider: PROVIDER,
-          kind: 'stream_end',
-        }));
-        continue;
+          kind: 'thinking',
+          content,
+        });
+        normalized.push(message);
+        thinkingRun.current = { messageId: row.message_id, message };
+      }
+      return normalized;
+    }
+
+    if (partType === 'tool') {
+      const state = readObjectRecord(partData.state) ?? {};
+      const status = readOptionalString(state.status);
+      const toolMessage = createNormalizedMessage({
+        id: baseId,
+        sessionId,
+        timestamp,
+        provider: PROVIDER,
+        kind: 'tool_use',
+        toolName: readOptionalString(partData.tool) ?? 'Tool',
+        toolInput: state.input ?? partData.input ?? {},
+        toolId: readOptionalString(partData.callID) ?? row.part_id,
+      });
+
+      if (status === 'completed' || status === 'error') {
+        toolMessage.toolResult = {
+          content: formatToolContent(state.output ?? state.error),
+          isError: status === 'error',
+        };
       }
 
-      if (partType === 'patch' || partType === 'agent') {
-        normalized.push(createNormalizedMessage({
-          id: baseId,
-          sessionId,
-          timestamp,
-          provider: PROVIDER,
-          kind: 'tool_use',
-          toolName: partType === 'patch' ? 'Patch' : 'Agent',
-          toolInput: partData,
-          toolId: row.part_id,
-        }));
+      if (toolMessage.toolName === QUESTION_TOOL_NAME) {
+        toAskUserQuestionCall(toolMessage, state);
       }
+
+      attachOpenCodeSubagent(toolMessage, state, db, runIsLive);
+      normalized.push(toolMessage);
+      return normalized;
+    }
+
+    if (partType === 'step-finish') {
+      normalized.push(createNormalizedMessage({
+        id: baseId,
+        sessionId,
+        timestamp,
+        provider: PROVIDER,
+        kind: 'stream_end',
+      }));
+      return normalized;
+    }
+
+    if (partType === 'patch' || partType === 'agent') {
+      normalized.push(createNormalizedMessage({
+        id: baseId,
+        sessionId,
+        timestamp,
+        provider: PROVIDER,
+        kind: 'tool_use',
+        toolName: partType === 'patch' ? 'Patch' : 'Agent',
+        toolInput: partData,
+        toolId: row.part_id,
+      }));
     }
 
     return normalized;

@@ -8,6 +8,11 @@ import Database from 'better-sqlite3';
 import spawn from 'cross-spawn';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import {
+  getOpenCodeDataDir,
+  listConfiguredProviders,
+  readOpenCodeConfigs,
+} from '@/modules/providers/list/opencode/opencode-config.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import { applySharedModelDescriptions, resolveChannelLabel } from '@/shared/model-descriptions.js';
 import type {
@@ -280,9 +285,6 @@ export const OPENCODE_PREDEFINED_MODELS: ProviderModelsDefinition = {
   DEFAULT: 'opencode/gpt-5.6-terra',
 };
 
-/** Global OpenCode config files, in the order the CLI loads them. */
-const OPENCODE_CONFIG_FILES = ['config.json', 'opencode.json', 'opencode.jsonc'];
-
 /** Provider API keys OpenCode reads straight from the environment. */
 const OPENCODE_ENV_PROVIDER_IDS: Record<string, string> = {
   OPENCODE_API_KEY: 'opencode',
@@ -384,8 +386,9 @@ const readOpenCodeJsonFile = async (filePath: string): Promise<Record<string, un
   try {
     return readObjectRecord(JSON.parse(await readFile(filePath, 'utf8')));
   } catch {
-    // Missing, unreadable, or comment-bearing (.jsonc) files simply contribute
-    // nothing; the auth store is the authoritative source below.
+    // The auth store is plain JSON written by OpenCode itself; a missing or
+    // unreadable one simply contributes nothing. Config files are JSONC and
+    // go through the shared config reader instead.
     return null;
   }
 };
@@ -444,8 +447,10 @@ const collectConfiguredOpenCodeModelOptions = (
  * because OpenCode's built-in catalog does not cover it and its models live
  * only in the config - hence the second half of this result. Custom config
  * passed through `OPENCODE_CONFIG` (a file path) or `OPENCODE_CONFIG_CONTENT`
- * (inline JSON) is read too, so providers declared there are not filtered out
- * of the catalog.
+ * (inline JSONC) is read too, so providers declared there are not filtered out
+ * of the catalog. Providers count whether they are declared under v1's
+ * `provider` or v2's `providers`, with or without a key, except that a v2 entry
+ * never starts a filter on its own (see below).
  *
  * `connectedProviderIds` is null when nothing can be read at all, so the caller
  * keeps the full catalog rather than leaving the picker empty. Providers
@@ -460,47 +465,37 @@ const readOpenCodeConfigState = async (): Promise<{
 }> => {
   const providerIds = new Set<string>();
   const configuredOptions = new Map<string, ProviderModelOption>();
-  const configDir = path.join(os.homedir(), '.config', 'opencode');
 
-  const auth = await readOpenCodeJsonFile(
-    path.join(os.homedir(), '.local', 'share', 'opencode', 'auth.json'),
-  );
+  const auth = await readOpenCodeJsonFile(path.join(getOpenCodeDataDir(), 'auth.json'));
   for (const [providerId, credential] of Object.entries(auth ?? {})) {
     if (readObjectRecord(credential)) {
       providerIds.add(providerId);
     }
   }
 
-  const configs: Array<Record<string, unknown> | null> = [];
-  for (const configFile of OPENCODE_CONFIG_FILES) {
-    configs.push(await readOpenCodeJsonFile(path.join(configDir, configFile)));
-  }
-
-  const customConfigPath = readOptionalString(process.env.OPENCODE_CONFIG);
-  if (customConfigPath) {
-    configs.push(await readOpenCodeJsonFile(customConfigPath));
-  }
-
-  const inlineConfig = readOptionalString(process.env.OPENCODE_CONFIG_CONTENT);
-  if (inlineConfig) {
-    try {
-      configs.push(readObjectRecord(JSON.parse(inlineConfig)));
-    } catch {
-      // Malformed inline config contributes nothing, like an unreadable file.
+  // `readOpenCodeConfigs` covers the global files, `OPENCODE_CONFIG_DIR`,
+  // `OPENCODE_CONFIG`, `OPENCODE_CONFIG_CONTENT` and `XDG_CONFIG_HOME`, and
+  // parses JSONC — one reader for every caller.
+  const sources = await readOpenCodeConfigs();
+  const configuredProviders = listConfiguredProviders(sources);
+  for (const { id, section } of configuredProviders) {
+    if (section === 'provider') {
+      // A block that only sets credentials still makes the provider routable.
+      providerIds.add(id);
     }
   }
 
-  for (const config of configs) {
-    for (const [providerId, rawProvider] of Object.entries(readObjectRecord(config?.provider) ?? {})) {
-      const provider = readObjectRecord(rawProvider);
-      // A block that only sets credentials still makes the provider routable.
-      providerIds.add(providerId);
-      collectConfiguredOpenCodeModelOptions(
-        providerId,
-        readOptionalString(provider?.name) ?? providerId,
-        provider?.models,
-        configuredOptions,
-      );
+  for (const { config } of sources) {
+    for (const sectionKey of ['provider', 'providers'] as const) {
+      for (const [providerId, rawProvider] of Object.entries(readObjectRecord(config[sectionKey]) ?? {})) {
+        const provider = readObjectRecord(rawProvider);
+        collectConfiguredOpenCodeModelOptions(
+          providerId,
+          readOptionalString(provider?.name) ?? providerId,
+          provider?.models,
+          configuredOptions,
+        );
+      }
     }
   }
 
@@ -510,10 +505,25 @@ const readOpenCodeConfigState = async (): Promise<{
     }
   }
 
-  return {
-    connectedProviderIds: providerIds.size > 0 ? providerIds : null,
-    configuredOptions: [...configuredOptions.values()],
-  };
+  const options = [...configuredOptions.values()];
+
+  // Nothing readable at all: the caller keeps the full catalog rather than
+  // filtering it down to nothing.
+  if (providerIds.size === 0) {
+    return { connectedProviderIds: null, configuredOptions: options };
+  }
+
+  // v2 keeps its logins in its own database, which is not read here, so a v2
+  // `providers` entry cannot show what else is connected. It joins a filter
+  // something else started, but never starts one: alone it would hide the
+  // models of every provider logged in through v2.
+  for (const { id, section } of configuredProviders) {
+    if (section === 'providers') {
+      providerIds.add(id);
+    }
+  }
+
+  return { connectedProviderIds: providerIds, configuredOptions: options };
 };
 
 /**

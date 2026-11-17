@@ -3195,3 +3195,115 @@ DU（fork 删除 / 上游修改）不会出现在冲突块清单里，但**工�
 > [!NOTE] **013 和 015 关于 `markProviderSessionSupersededIn` 的改法需要明确类型映射，避免执行者卡在类型检查。** 当前文档给的是"直接展开"（`{...session, sessionId, reason}`），但 session 行是 snake_case 而 helper 要 camelCase，同时 `provider_session_id` 可为 null 而 helper 要非 null。建议给一段具体的映射伪代码，这样执行者就不必再猜。
 
 > [!NOTE] **093 的 JSDoc 并集建议没有问题，但应该在执行前验证"这五个消费方真的是全部"。** 找法是 `grep -rn "ComposerMenuItem"` 按代码行分类（import、声明、使用），确认新增的 `ComposerSendMenu` 是唯一上游消费者。这是个小检查，避免后来人为"自绘菜单忽然不工作"排 2 小时查。
+
+---
+
+## R3.4 合并后的验证与收尾（2026-11-17 执行）
+
+本节记录 197 个冲突块解完、D17–D23 落地之后的**验证过程、验证中发现并修掉的问题、与本文档方案的偏差、以及仍未做的验证**。审阅者请从这里读"实际发生了什么"，§R3.1 的逐块建议仍是设计依据。
+
+### R3.4.1 验证结果（全部在 `cloudcli-dev` 工作树上实测）
+
+| 检查 | 结果 | 证据/说明 |
+|---|---|---|
+| 冲突标记 | 0 | `grep -rn '^<<<<<<<\|^>>>>>>>\|^=======$' src server` 无输出 |
+| `git diff --check` | 通过 | 无行尾空白残渣 |
+| `npx tsc --noEmit -p tsconfig.json` | 0 error | |
+| `npx tsc --noEmit -p server/tsconfig.json` | 0 error | |
+| strict unused（`--noUnusedLocals --noUnusedParameters`） | 34 条，**与 HEAD 逐条相同** | 在 HEAD 的临时 worktree 跑同一命令，两份输出 `diff` 为空 |
+| `npx oxlint src server` | src/server 下 0 error | 新增 4 条 warning（均为上游带入的 import 顺序/未使用变量），无 error 增量 |
+| `npm run lint:locales` | no duplicate keys | |
+| 全仓 JSON 重复键 | 0 | 168 个 tracked `*.json` 用 `object_pairs_hook` 扫过 |
+| `npm run build:server` | 成功 | |
+| server `npm test` | **2094 tests / 0 fail / 4 skipped** | 详见下表 |
+| client `npx vitest run` | **323 files / 2645 tests 全绿** | 浏览器实测后补了两条回归，见 §R3.4.5 |
+
+**关于基线**：本轮开始前记录的"server 9 条环境失败、client 8 文件/35 条失败"已经不成立——那批既有失败大多在上游本轮提交里自己修掉了。为给出可信对照，在 HEAD（`5b94f6e5`）的临时 worktree 里跑了同样的两条命令：
+
+- client 全量：HEAD **4 文件 / 5 条失败**，全部是 `project-workspace` 下 4.2 秒左右、5000ms 超时的用例（`projectsStateRenameSession`、`projectsStateSelectionSync`、`projectsStateSessionAlias`、`projectsInitialFetch`）。这些用例单独跑 3–4 秒通过，是**并行负载下的超时**，不是逻辑失败；本次合并后同一批用例全绿（但仍属"负载敏感"，不应据此认为合并修好了它们）。
+- server 全量：HEAD 在 `/tmp` worktree 里是 4 条失败，全部是路径安全用例（`paths outside the read-only roots do not resolve` 等），依赖 cwd，属于 worktree 环境伪失败；当前仓库下 0 失败。
+
+### R3.4.2 验证中发现并修掉的问题
+
+解冲突只保证"能编译、语义按设计"，跑测试才暴露下面这些。**每一条都是真问题，不是为了让测试变绿而改测试**（改动理由逐条写明）。
+
+1. **opencode：空白 reasoning 分片会单独成一个"思考"气泡**（`opencode-sessions.provider.ts`）
+   `readReasoningText(...) !== ''` 把 `text: ' '` 也当成片段，于是 D22 的累加会让一个只有空白的 part 开启一条 run，画出一个不可见的气泡，同时让 outline 的 `total` 比上游口径多 1。修法：**只有 `trim()` 后非空的片段才能开启 run**，已开启 run 的后续空白片段仍然累加（保留本地"空白也是真实 token"的意图）。三处同步：`countShownReasoningPart`、outline 的 `hasFragment`、`normalizeHistoryRow` 的 reasoning 分支。
+2. **opencode：分页结果与全量历史不一致**（同根因）
+   `opencode-history-pages.test.ts` 的 "pages are exactly the matching slices" 因上面多出的那条消息整条错位（无 part 的消息 id 用"前面已有多少条"编号，所以后续全部 +1）。修 1 之后 4 条用例全过。
+3. **opencode：认证 `method` 被本地的 `hasConfiguredProvider()` 抢占**（`opencode-auth.provider.ts`）
+   本地这条判断（只读 v1 `provider.<id>.options`、不解析 JSONC）插在上游 `listConfiguredProviders(readOpenCodeConfigs())` 之前，导致上游支持的 v1/v2 配置都先命中它，返回 `method: 'opencode_config'` 且 `email: null`。按 046 的建议对齐上游：**把它移到 config 循环之后**——上游路径优先（`config_file` + `<id> credentials`），本地那条只剩"声明了 options 但凭据读不出来"这一种它独有的情形，语义不丢。
+4. **本地中文通知文案 vs 上游英文断言**（`provider-abort-notifications.test.ts`）
+   停跑通知的正文由本地 `notification-orchestrator.service.ts` 生成中文（`运行已中断` / `✅ 回复已完成`），本地另有集成测试断言这两句。上游新测试断言 `/aborted$/`、`/completed$/`。**保留本地文案**，测试里的断言改为同时接受两种措辞（文件内 `STOPPED_BODY` / `COMPLETED_BODY` 两个常量，附注释说明原因）。
+5. **3 条 codex 用例依赖已移除的 `@openai/codex-sdk` 线程注入**（`provider-abort-notifications.test.ts`）
+   它们用 `t.mock.method(Codex.prototype, 'startThread', …)` 注入一条假流；本 fork 的 codex 走 `codex app-server`，这个桩完全不起作用，用例实际会去拉起真实 CLI（观察到的是一次真实的 2 秒模型回合），因此永远不可能表达原本的语义。**删除这 3 条**，改为：
+   - mock app-server（`tests/fixtures/codex-app-server-mock.mjs`）新增 `fail-aborted` 脚本：错误信息里只是"提到 aborted"的失败回合；
+   - `codex-runtime.test.ts` 新增一条回归：这种回合必须按失败上报（一条 error + `complete(1)`），不能按取消处理。
+6. **scheduled-messages：本地 `dispatchRun` 会把"没发 `complete` 的 run"记为失败**（`scheduled-messages.test.ts`）
+   本地在 `dispatchRun` 尾部加了 `run.exitCode !== 0 → failure` 的推断（本地修复：分离式调用方否则无法知道回合失败）。上游那条用例的 runtime 桩直接 `Promise.resolve()`、不发 terminal complete，于是被正确判为失败，队列消息被 `restoreQueuedMessage` 放回，用例断言落空。**修桩不修代码**：桩在 run 落定时补发 `complete(exitCode: 0)`，与真实 runtime 的收尾一致。
+7. **opencode side-question：3 条同步用例的时间戳与本地 watcher 新鲜度窗口冲突**（`opencode-side-question.test.ts`）
+   用户播种的夹具是 2023 年时间戳，而本地 `synchronizeFile` 只读 `WATCHER_SYNC_FRESHNESS_MS`（5 分钟）内的行——这是本地 `d77346f3` 的修复（否则一次删除只是把下一条闲置数周的会话顶进侧边栏）。上游没有这个窗口，所以夹具用任意旧时间戳也能过。**保留本地窗口**，把 3 条用例里需要被 `synchronizeFile` 看见的行改成相对 `Date.now()` 的近期时间戳（旧行仍由全量 `synchronize()` 索引，用例里那部分断言不变）。
+8. **主题硬门槛**（`MessageComponent.tsx`、`theme-atom-conservation.json`）
+   - 上游侧问气泡写了 `dark:bg-gray-800`，触发 `themeHardcodedAtoms`（"literal 新增"）与 `themeAtomConservation`。去掉该字面量即可——同元素已有不透明 `bg-muted`，与"不要 `/60` 半透明"的既有断言一致。
+   - D23 新增的"批量永久删除"按钮是一处**真实新增的 `text-n-white`**，因此 `text: white` 桶 72 → 73 属预期，按测试自身说明 `UPDATE_THEME_ATOM_CONSERVATION=1` 重新冻结；JSON diff 只有 `total` 与这一个桶变化，没有掩盖其它漂移。
+9. **上传路径从 `fetch` 改成本地 `XMLHttpRequest`**（`composerSteering.test.ts`、`composerSendCleanupScope.test.ts`）
+   上游测试用 `fetch` 桩假装上传接口；本 fork 的上传在 `useComposerAttachmentUploads`（XHR，进度 + 中止），`fetch` 桩拦不住，文件永远停在 `uploading`。两条测试改为本地既有的 `AttachmentUploadXhr` 模式：前者即时返回描述符；后者可暂停/放行，并注意到本地 `ensureUploaded` 是 **20ms 轮询**等待（`waitForSettled`），所以放行后要等 40ms 而不是 0ms。
+10. **"反证"用例改成上游没有的界面形态**（`sideQuestionMessage.test.tsx`）
+    它要证明"同样有 anchor 的普通行是会显示编辑/分支的"，但本 fork 的分支入口在 **assistant 行的溢出菜单**（`forkAnchorId` + `message.moreActions`），不在用户行（本地另有 `messageStreamEnd.test.tsx` 断言"用户行没有 branch/aside"）。用例改为渲染一条用户行（编辑）+ 一条带 `forkAnchorId` 的 assistant 行（溢出菜单里的 Fork），断言对象不变。
+11. **孤儿声明清理（我自己造成的）**：改写 `recentConversationsInfiniteScroll.test.tsx` 时加了未使用的 `import React`，已删；上游新文件 `composerSideQuestionRouting.test.ts`（未使用的 `types`）与 `sideQuestionsReviewFixes.test.ts`（未使用的 `beforeEach`）一并删掉，使 strict 集合与 HEAD 完全一致。
+
+### R3.4.3 与文档方案的偏差（审阅重点）
+
+1. **D19 的接线方式**：文档写的是"给 `SidebarContent` 加 prop"，实际执行时发现它已有 `projectListProps.onArchiveSession`，直接透传即可（`ConversationTitleResultRow` / `ConversationContentResultRow` / `SidebarRecentConversations` 三处）。**没有新增 prop**，改动面比文档小。
+2. **D23 的批量删除按钮文案**：归档弹窗里的第二个动作叫"永久删除"，复用 `deleteConfirmation.deleteSessionPermanently`；归档按钮保留本地红色 `destructive` 样式不动（既有实现如此）。
+3. **移除的上游测试**（都需要一份跨轮同步排除清单，理由已逐条写在上文）：
+   - `sessionBulkSelection.test.ts`（测已被 D23 取代的 controller 级选择 API）
+   - `recentConversationRowActions.test.tsx`（依赖"每行一个 `SessionOptions`"，本地行是 `ActionMenu`）
+   - `chatExportMenuSideQuestions.test.tsx`（组件本身已被 fork 删除，D5）
+   - `provider-abort-notifications.test.ts` 里的 3 条 codex 用例（依赖已被移除的 SDK 线程注入）
+4. **`theme-atom-conservation.json` 被重新冻结**：见 §R3.4.2 第 8 条，只有 `total` 与 `text: white` 桶变化。
+
+### R3.4.4 尚未完成的验证（执行者/审阅者需要知道）
+
+- ~~**浏览器目检未做**~~ → 已补做，见 §R3.4.5。
+- **SDK 实机验证（004/005）未做**：lockfile 由 `npm install` 重写，但没有用新 SDK 实跑 claude/codex/opencode 会话。
+- **push 未做**：按约定需要 亮 明确同意。
+
+### R3.4.5 浏览器实测（browser MCP，2026-11-17 补做）
+
+环境沿用 AGENTS.md 的抛掷实例协议，**不碰真实 DB**：
+
+```bash title=抛掷实例与注入登录
+sqlite3 ~/.cloudcli/auth.db ".backup /tmp/verify/auth.db"
+DATABASE_PATH=/tmp/verify/auth.db SERVER_PORT=3399 \
+  npx tsx --tsconfig server/tsconfig.json server/index.ts
+node scripts/mint-auth-token.mjs            # → ~/.cloudcli/browser-use/auth-token
+# 页面内 localStorage 有 token；/api/projects 带 token 200、不带 401
+```
+
+- 客户端走 `npm run build:client` 后由该实例直接托管 `dist/`（本机 Vite dev server 起不来：三次尝试都在 ready 之后立刻退出）。
+- 所有断言用 `browser_evaluate` 读 DOM（`data-session-id` / `data-fork-depth` / `aria-expanded` / `getBoundingClientRect`），不靠截图。
+
+| 项目 | 结果 |
+|---|---|
+| 项目/对话/定时任务/正在运行/仅归档 五个自绘 tab | 正常，项目块可折叠，`Load more sessions` 分页仍在 |
+| D18 树：`data-fork-depth` 嵌套 | 用"归到其他会话下…"把一条 codex 会话挂到另一条 codex 会话下 → 行真的移到父行下，`depth=1`，缩进 **12px**（`FORK_INDENT_PX`），父行出现 chevron |
+| D18 折叠/展开 | 点 chevron → `aria-expanded=false`、子行从 DOM 移除；再点恢复 |
+| D19 桌面会话菜单 | 顺序为 置顶 / 重命名 / 复制 ID / 派生 / 归到其他会话下 / 归档会话 / 删除会话；归档在分隔线上、删除是唯一红色项 |
+| D19 移动端底部弹层 | 390×844 下点行内"…" → 底部 sheet，含归档会话、删除会话、取消；有父会话时多一条"移到顶层" |
+| D23 批量选择 | "整理会话"进入管理态（行变复选框、行内"…"隐藏），选中 2 条后工具栏出现"归档 2 条"；点击弹出**归档 / 永久删除 / 取消**三个动作 |
+| 输入框发送菜单 | Codex 回合运行中（用 `CODEX_APP_SERVER_COMMAND` 指向 `tests/fixtures/codex-app-server-mock.mjs` 的 `hang` 脚本，不产生真实模型调用）输入文字 → 出现 "Send options" 触发器 → 菜单为 **Queue / Stop**；无 Steer 行是正确的：`provider-capabilities.service.ts` 里只有 claude 声明 `supportsSteering`。无旁问行（D17 预期） |
+| 发送 → 停止 | 停止按钮可用，回合正常收尾 |
+
+浏览器里发现并修掉的两个问题（已并入 `4bf56ae1` 的 amend）：
+
+1. **归档/删除两项是硬编码英文**（`SessionOptions.tsx`、`SidebarSessionItem.tsx`）。D19 恢复这两项时写的是 `'Archive session'` / `'Delete session'` 字面量，而 `sessions.archiveSession` / `sessions.deleteSession` 两个 key 本来就有（zh-CN 为"归档会话/删除会话"）。改为 `t(...)`；不补其它语种的 `archiveSession` 翻译时按 i18next 回退英文，与修改前一致。相关 3 个测试的断言同步改成 i18n key。
+2. **跨 provider 归类会"静默无效"**。`buildProjectSessionTree` 只认同 provider 的父子边（沿用上游 fork 谱系规则），但"归到其他会话下…"的候选列表不过滤 provider，拖拽也不看 provider：用户把 codex 会话归到 claude 会话下，**数据写进去了、列表纹丝不动**，弹窗还会一直显示"移到顶层"（实测复现：`01a1e857-38fb` 的 `parentSessionId` 指向 claude 的 `c7066a1e`，树里仍是 depth 0）。修法：
+   - `SessionParentPickerContext` 只列同 provider 的候选；
+   - `SidebarSessionItem` 新增 `acceptsSessionDrop`（默认 true），`SidebarProjectSessions` 按 provider 比较传入——注意不能改传 `draggingSessionId=null`，那会让行不再 `stopPropagation`，drop 冒泡到列表的"移到顶层"区，变成另一种静默动作；
+   - 最近会话列表的 `RecentConversationRow` 加 `draggingProvider`，与既有 `draggingProjectId` 同一层过滤。
+   - 新增回归：`tests/sessionParentPickerCandidates.test.tsx`（候选只含同 provider）、`tests/sidebarSessionDragAndDrop.test.tsx` 的"a row of another provider is not a drop target"。
+
+验证后的数字：client `npx vitest run` **323 files / 2645 tests 全绿**（此前 322 / 2643，多出的是上面两条回归）；`npx tsc --noEmit -p tsconfig.json` 0 error；`npx oxlint` 对改动文件只有既有 warning。
+
+仍未在浏览器里覆盖：Steer 行（需要真实 claude 回合）、真实模型回合下的发送链路、归档列表的恢复/永久删除批量按钮。另记一个**遗留的翻译缺口**（不是本轮引入）：`chat.json` 在 zh-CN 缺 95 个 key（上游新增的 `sendMenu.*`、`input.steer.*`、`sideQuestion.*` 等），所以这些位置在中文界面里仍显示英文。

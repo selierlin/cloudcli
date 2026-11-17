@@ -184,6 +184,7 @@ const projectRow = (attentionSessions: ReadonlyMap<string, SessionAttentionLevel
   onDeleteProject: noop,
   onSessionSelect: noop,
   onDeleteSession: noop,
+  onArchiveSession: noop,
   onLoadMoreSessions: noop,
   activeSessions: NO_IDS,
   backgroundSessionIds: NO_IDS,

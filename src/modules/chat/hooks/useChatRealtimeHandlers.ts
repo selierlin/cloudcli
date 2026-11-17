@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 
-import type { ServerEvent,MarkSessionIdle,MarkSessionProcessing,PendingPermissionRequest,ProjectSession,LLMProvider,NormalizedMessage,GetSessionActivity,MarkSessionBackground } from '@/shared/types';
+import type { ServerEvent,MarkSessionIdle,MarkSessionProcessing,PendingPermissionRequest,ProjectSession,LLMProvider,NormalizedMessage,GetSessionActivity,MarkSessionBackground,SideQuestionEvent,SteerOutcome } from '@/shared/types';
 import { showCompletionIndicator, showFailureIndicator } from '@/shared/favicon';
 import { playChatCompletionSound, playNotificationSound, triggerNotificationHaptic } from '@/shared/utils';
 import type { SessionStore } from '@/modules/chat/hooks/useSessionStore';
@@ -9,6 +9,7 @@ import type { StreamingBufferRegistry } from '@/modules/chat/utils/streamingBuff
 import type { RevealPacer } from '@/modules/chat/utils/revealPacer';
 import { WHOLE_SEGMENT_PROVIDERS } from '@/modules/chat/utils/revealPacer';
 import { normalizedToChatMessages } from '@/modules/chat/hooks/useChatMessages';
+import { sideQuestionStore } from '@/modules/chat/hooks/useSideQuestions';
 import { collectRunningBackgroundTasks, listRunningBackgroundLaunches, readBackgroundTaskId, readBackgroundTaskStatus } from '@/modules/chat/utils/backgroundTasks';
 import { endTurn } from '@/modules/chat/utils/turnDurationRegistry';
 
@@ -120,6 +121,12 @@ type UseChatRealtimeHandlersArgs = {
    * line, which is exactly the wait the reader is staring at.
    */
   onSessionProcessingFromFrame?: MarkSessionProcessing;
+  /**
+   * Reports what became of a message sent into a running turn, so the
+   * composer can settle its card: the server's acceptance or refusal, and —
+   * for every live user message, steered or not — `delivered` with its id.
+   */
+  onSteerOutcome?: (sessionId: string, messageId: string, outcome: SteerOutcome) => void;
 };
 
 /* ------------------------------------------------------------------ */
@@ -160,6 +167,7 @@ export function useChatRealtimeHandlers({
   onSideAskSessionGone,
   onSideAskSubscribed,
   onSessionProcessingFromFrame,
+  onSteerOutcome,
 }: UseChatRealtimeHandlersArgs) {
   // Session switches can send `chat.subscribe` before this effect has a chance
   // to rebind the websocket listener. Read the visible session id from a ref
@@ -321,7 +329,23 @@ export function useChatRealtimeHandlers({
           return;
         }
 
+        case 'chat_steer_accepted': {
+          // Only the tab that sent the message gets this; it is not a
+          // transcript row.
+          if (sid && typeof msg.messageId === 'string') {
+            onSteerOutcome?.(sid, msg.messageId, 'accepted');
+          }
+          return;
+        }
+
         case 'protocol_error': {
+          // A message sent into a turn that had already ended. The run is not
+          // failing — it finished — so nothing is shown or idled here; the
+          // composer sends the message as the next turn instead.
+          if (sid && msg.code === 'STEER_UNAVAILABLE' && typeof msg.messageId === 'string') {
+            onSteerOutcome?.(sid, msg.messageId, 'refused');
+            return;
+          }
           console.error('[Chat] Protocol error:', msg.code, msg.error);
           // The drawer's copy is gone from the server (a sweep or a restart
           // reclaimed it while this tab was away). No run can start, so drop
@@ -368,10 +392,9 @@ export function useChatRealtimeHandlers({
           if (sid) {
             // Surface the failure in the conversation and stop the spinner —
             // the run never started (or was rejected), so no `complete` follows.
-            // A refused stop request is not about the run: the task had
-            // already settled, and idling here would drop a response in
-            // flight on that session.
-            if (msg.code !== 'NO_SUCH_TASK' && msg.code !== 'TASK_ID_REQUIRED') {
+            // A refused or failed stop request is not about the run, and
+            // idling here would drop a response in flight on that session.
+            if (msg.code !== 'NO_SUCH_TASK' && msg.code !== 'TASK_ID_REQUIRED' && msg.code !== 'TASK_STOP_FAILED') {
               onSessionIdle?.(sid);
               // The send was rejected before its run began, so no `complete`
               // follows; consume the turn's start here or it would time the
@@ -407,6 +430,14 @@ export function useChatRealtimeHandlers({
             kind: 'error',
             content: `Attachment no longer available: ${missingName}`,
           } as NormalizedMessage);
+          return;
+        }
+
+        case 'side_question': {
+          // A side question never touches the session's transcript: it goes
+          // to the side-question store, for whichever session it names, and
+          // never falls through to the message-kind handling below.
+          sideQuestionStore.applyEvent(msg as unknown as SideQuestionEvent);
           return;
         }
 
@@ -493,6 +524,13 @@ export function useChatRealtimeHandlers({
 
       if (sid && shouldPersist) {
         sessionStore.appendRealtime(sid, msg as unknown as NormalizedMessage);
+      }
+
+      // A user message on the live stream is a steered message the agent just
+      // read (the turn's own prompt is never echoed); the composer drops its
+      // card if it is one of its own.
+      if (sid && msg.kind === 'text' && msg.role === 'user' && typeof msg.id === 'string') {
+        onSteerOutcome?.(sid, msg.id, 'delivered');
       }
 
       // --- UI side effects for specific kinds ---
@@ -701,5 +739,6 @@ export function useChatRealtimeHandlers({
     requestLatestMessages,
     sessionStore,
     onSideAskSessionGone,
+    onSteerOutcome,
   ]);
 }

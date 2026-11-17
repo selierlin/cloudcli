@@ -238,7 +238,6 @@ export function useFileTreeOperations({
     }
   }, [selectedProject, newItemParent, newItemType, newItemName, validateFilename, showToast, t, onRefresh, handleCancelCreate]);
 
-  // Copy path to clipboard
   // Copy path to clipboard. The shared helper falls back to `execCommand('copy')` when the
   // Clipboard API is missing (plain-HTTP access) or rejects the write (some mobile browsers);
   // a single toast reports its outcome once it is known.

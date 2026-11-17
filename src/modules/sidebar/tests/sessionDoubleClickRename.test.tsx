@@ -19,7 +19,7 @@ function renderRow(overrides: { isManaging?: boolean; isEditing?: boolean } = {}
     attentionLevel: undefined, currentTime: new Date('2026-10-29T11:00:00Z'), isEditing: false,
     renameDraft: '', onRenameDraftChange: noop, onStartEditingSession: rename,
     onCancelEditingSession: noop, onSaveEditingSession: noop, onProjectSelect: noop,
-    onSessionSelect: select, onDeleteSession: noop, isManaging: false, isBatchSelected: false,
+    onSessionSelect: select, onArchiveSession: noop, onDeleteSession: noop, isManaging: false, isBatchSelected: false,
     onToggleBatchSelection: noop, onTogglePinned: noop, draggingSessionId: null, isDropHighlighted: false,
     onSessionDragStart: noop, onSessionDragEnd: noop, onSessionDragOver: noop, onSessionDropOnRow: noop, t: ((key: string) => key) as SidebarProjectListProps['t'], ...overrides,
   }));

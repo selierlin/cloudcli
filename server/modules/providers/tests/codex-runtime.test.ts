@@ -240,6 +240,19 @@ test('a failed turn surfaces one error row and a complete with a non-zero exit',
   assert.equal((byKind(harness.messages, 'complete')[0] as { exitCode?: number }).exitCode, 1);
 });
 
+test('an error that only mentions "aborted", with no user abort, is a failure, not a cancellation', async () => {
+  // The word alone must not turn a failed turn into a stopped one: only the
+  // session's own aborted state does (see the abort test below).
+  process.env.CODEX_MOCK_SCRIPT = 'fail-aborted';
+  const harness = await createHarness();
+  await run(harness);
+
+  const errors = byKind(harness.messages, 'error');
+  assert.equal(errors.length, 1);
+  assert.equal(textOf(errors[0]), 'stream aborted by the upstream proxy');
+  assert.equal((byKind(harness.messages, 'complete')[0] as { exitCode?: number }).exitCode, 1);
+});
+
 test('a retryable error is not rendered as a terminal row', async () => {
   process.env.CODEX_MOCK_SCRIPT = 'retry';
   const harness = await createHarness();

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, ChevronRight, Edit2, Folder, Loader2, MessageSquare, MoreHorizontal, Pin, PinOff, Plus, Trash2, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent, MouseEvent } from 'react';
+import { Archive, Check, ChevronRight, Edit2, Folder, Loader2, MessageSquare, MoreHorizontal, Pin, PinOff, Plus, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { ActionMenu, Button, Dialog, DialogContent, DialogTitle, LLMProviderLogo } from '@/shared/ui';
@@ -38,6 +38,7 @@ type SidebarRecentConversationsProps = {
   onRetry: () => void;
   onRenameSession: (sessionId: string, summary: string, provider: LLMProvider) => void;
   onTogglePinned: (sessionId: string, isPinned: boolean) => void;
+  onArchiveSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string, sessionTitle: string) => void;
   onRequestBatchArchive: (sessionIds: string[], onCompleted: (archivedSessionIds: string[]) => void) => void;
   /** Active projects, used by the new-session entry when no project is selected. */
@@ -96,6 +97,7 @@ type RecentConversationRowProps = {
     fallbackProvider: string,
   ) => void;
   onDeleteSession: (sessionId: string, sessionTitle: string) => void;
+  onArchiveSession: (sessionId: string) => void;
   onToggleBatchSelection: (sessionId: string) => void;
   /**
    * The session the list is currently dragging, or null. Owned by the list so
@@ -109,6 +111,12 @@ type RecentConversationRowProps = {
    * its own project, which is how the server's same-project rule reaches the UI.
    */
   draggingProjectId: string | null;
+  /**
+   * Provider of the session being dragged. A row only takes a drop from its own
+   * provider: the sidebar tree never nests across providers, so the drop would
+   * store a parent the list keeps showing as top-level.
+   */
+  draggingProvider: string | null;
   onSessionDragStart: () => void;
   onSessionDragEnd: () => void;
   /** Highlights this row as the drop target, or null to clear the highlight. */
@@ -137,10 +145,12 @@ function RecentConversationRow({
   onConversationSelect,
   onOpenParentSession,
   onDeleteSession,
+  onArchiveSession,
   onToggleBatchSelection,
   draggingSessionId,
   isDropHighlighted,
   draggingProjectId,
+  draggingProvider,
   onSessionDragStart,
   onSessionDragEnd,
   onSessionDragOver,
@@ -253,7 +263,8 @@ function RecentConversationRow({
   const canAcceptSessionDrop = draggingSessionId !== null
     && draggingSessionId !== conversation.sessionId
     && draggingProjectId !== null
-    && draggingProjectId === conversation.projectId;
+    && draggingProjectId === conversation.projectId
+    && draggingProvider === conversation.provider;
   const isSessionDropTarget = canAcceptSessionDrop && !parentSessionId;
   // Fading the source row is the only visual that says which row is in flight.
   const isDragging = draggingSessionId === conversation.sessionId;
@@ -556,12 +567,26 @@ function RecentConversationRow({
                     type="button"
                     onClick={() => {
                       setMobileOptionsOpen(false);
+                      onArchiveSession(conversation.sessionId);
+                    }}
+                    className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-border bg-muted/35 px-4 py-3 text-left text-foreground transition-colors active:bg-muted"
+                  >
+                    <Archive className="h-5 w-5 flex-shrink-0" />
+                    <span className="text-sm font-medium">{t('sessions.archiveSession')}</span>
+                  </button>
+                )}
+
+                {!isProcessing && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileOptionsOpen(false);
                       requestDeleteSession();
                     }}
                     className="flex min-h-12 w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-red-600 transition-colors active:bg-red-500/10 dark:text-red-400"
                   >
                     <Trash2 className="h-5 w-5 flex-shrink-0" />
-                    <span className="text-sm font-medium">{t('sessions.archiveOrDeleteSession')}</span>
+                    <span className="text-sm font-medium">{t('sessions.deleteSession')}</span>
                   </button>
                 )}
               </div>
@@ -698,8 +723,14 @@ function RecentConversationRow({
                   t,
                 }),
                 {
+                  key: 'archive',
+                  label: t('sessions.archiveSession'),
+                  icon: Archive,
+                  onSelect: () => onArchiveSession(conversation.sessionId),
+                },
+                {
                   key: 'delete',
-                  label: t('sessions.archiveOrDeleteSession'),
+                  label: t('sessions.deleteSession'),
                   icon: Trash2,
                   isDanger: true,
                   showDividerBefore: true,
@@ -748,6 +779,7 @@ export default function SidebarRecentConversations({
   onRetry,
   onRenameSession,
   onTogglePinned,
+  onArchiveSession,
   onDeleteSession,
   onRequestBatchArchive,
   projects,
@@ -992,9 +1024,11 @@ export default function SidebarRecentConversations({
         onTogglePinned={onTogglePinned}
         onConversationSelect={onConversationSelect}
         onOpenParentSession={openParentSession}
+        onArchiveSession={onArchiveSession}
         onDeleteSession={onDeleteSession}
         onToggleBatchSelection={toggleBatchSelection}
         draggingSessionId={draggingConversation?.sessionId ?? null}
+        draggingProvider={draggingConversation?.provider ?? null}
         isDropHighlighted={dropTargetSessionId === conversation.sessionId}
         draggingProjectId={draggingConversation?.projectId ?? null}
         onSessionDragStart={() => beginConversationDrag(conversation)}
@@ -1005,6 +1039,56 @@ export default function SidebarRecentConversations({
       />
     );
   };
+
+  // The row after the last conversation: once it scrolls into view, the next
+  // page loads, so older conversations arrive without clicking the button.
+  const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
+  // Latest onLoadMore, so a new callback identity does not rebuild the observer.
+  const onLoadMoreRef = useRef(onLoadMore);
+  // The list length when a page was last requested by scrolling. A page that
+  // added nothing (e.g. all duplicates) leaves it unchanged, which stops the
+  // automatic loading instead of requesting the same page in a loop.
+  const autoLoadedAtLengthRef = useRef<number | null>(null);
+  // A full reload replaces the list, so a page requested during it would be
+  // dropped; the observer comes back once the reload finishes.
+  const canAutoLoadMore = hasMore && !isLoading && !isLoadingMore && !hasError;
+  const conversationCount = conversations.length;
+
+  useEffect(() => {
+    onLoadMoreRef.current = onLoadMore;
+  }, [onLoadMore]);
+
+  // A full reload starts a new list, which may again have the stopped length.
+  useEffect(() => {
+    if (isLoading) {
+      autoLoadedAtLengthRef.current = null;
+    }
+  }, [isLoading]);
+
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current;
+    if (
+      !canAutoLoadMore
+      || !sentinel
+      || autoLoadedAtLengthRef.current === conversationCount
+      || typeof IntersectionObserver === 'undefined'
+    ) {
+      return undefined;
+    }
+
+    // Re-created after each page (the loading flag and length change), so a
+    // sentinel that is still visible after a short page loads the next one.
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) {
+        return;
+      }
+      observer.disconnect();
+      autoLoadedAtLengthRef.current = conversationCount;
+      onLoadMoreRef.current();
+    });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [canAutoLoadMore, conversationCount]);
 
   if (isLoading && conversations.length === 0) {
     return <RecentConversationSkeleton />;
@@ -1093,17 +1177,24 @@ export default function SidebarRecentConversations({
       )}
 
       {hasMore && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="mt-1 h-8 w-full text-xs text-muted-foreground"
-          onClick={onLoadMore}
-          disabled={isLoadingMore}
-        >
-          {isLoadingMore
-            ? t('recent.loadingMore', 'Loading more...')
-            : t('recent.loadMore', 'Load older conversations')}
-        </Button>
+        // Kept as a button: a fallback where scrolling cannot trigger the load
+        // (no IntersectionObserver, a failed page) and for keyboard users.
+        <div ref={loadMoreSentinelRef} data-testid="recent-conversations-load-more">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-1 h-8 w-full text-xs text-muted-foreground"
+            onClick={onLoadMore}
+            disabled={isLoadingMore}
+          >
+            {isLoadingMore ? (
+              <>
+                <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                {t('recent.loadingMore', 'Loading more...')}
+              </>
+            ) : t('recent.loadMore', 'Load older conversations')}
+          </Button>
+        </div>
       )}
 
       {isManaging && (

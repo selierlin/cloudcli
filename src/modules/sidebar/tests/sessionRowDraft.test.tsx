@@ -81,6 +81,7 @@ const renderRow = (state: {
       onSessionSelect: noop,
       onTogglePinned: noop,
       onToggleBatchSelection: noop,
+      onArchiveSession: noop,
       onDeleteSession: noop,
       draggingSessionId: null,
       isDropHighlighted: false,

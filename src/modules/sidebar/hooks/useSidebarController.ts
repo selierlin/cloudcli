@@ -1139,29 +1139,15 @@ export function useSidebarController({
   );
 
   const showDeleteSessionConfirmation = useCallback(
-    (
-      sessionId: string,
-      sessionTitle: string,
-      options: { isArchived?: boolean } = {},
-    ) => {
-      setPendingDeletion({
-        kind: 'session',
-        sessionId,
-        sessionTitle,
-        isArchived: Boolean(options.isArchived),
-      });
+    (sessionId: string, sessionTitle: string) => {
+      setPendingDeletion({ kind: 'session', sessionId, sessionTitle });
     },
     [],
   );
 
-  const confirmDeleteSession = useCallback(async (hardDelete = false) => {
-    if (pendingDeletion?.kind !== 'session') {
-      return;
-    }
-
-    const { sessionId } = pendingDeletion;
-    setPendingDeletion(null);
-
+  // Shared by archive and permanent delete: the server takes the same route for
+  // both, and either way the session leaves the active lists.
+  const removeSession = useCallback(async (sessionId: string, hardDelete: boolean) => {
     try {
       const response = await api.deleteSession(sessionId, hardDelete);
 
@@ -1201,17 +1187,37 @@ export function useSidebarController({
         reloadRecentConversations();
       } else {
         const errorText = await response.text();
-        console.error('[Sidebar] Failed to delete session:', {
+        console.error(`[Sidebar] Failed to ${hardDelete ? 'delete' : 'archive'} session:`, {
           status: response.status,
           error: errorText,
         });
-        alert(t('messages.deleteSessionFailed'));
+        alert(hardDelete
+          ? t('messages.deleteSessionFailed')
+          : t('messages.archiveSessionFailed', 'Failed to archive session. Please try again.'));
       }
     } catch (error) {
-      console.error('[Sidebar] Error deleting session:', error);
-      alert(t('messages.deleteSessionError'));
+      console.error(`[Sidebar] Error ${hardDelete ? 'deleting' : 'archiving'} session:`, error);
+      alert(hardDelete
+        ? t('messages.deleteSessionError')
+        : t('messages.archiveSessionError', 'Error archiving session. Please try again.'));
     }
-  }, [fetchArchivedSessions, onSessionDelete, pendingDeletion, reloadRecentConversations, t]);
+  }, [fetchArchivedSessions, onSessionDelete, reloadRecentConversations, t]);
+
+  // Archiving is reversible from the archive list, so it skips the confirmation
+  // that guards a permanent delete.
+  const archiveSession = useCallback((sessionId: string) => {
+    void removeSession(sessionId, false);
+  }, [removeSession]);
+
+  const confirmDeleteSession = useCallback(async () => {
+    if (pendingDeletion?.kind !== 'session') {
+      return;
+    }
+
+    const { sessionId } = pendingDeletion;
+    setPendingDeletion(null);
+    await removeSession(sessionId, true);
+  }, [pendingDeletion, removeSession]);
 
   const requestProjectDelete = useCallback(
     (project: Project) => {
@@ -1316,6 +1322,52 @@ export function useSidebarController({
     if (archivedSessionIds.length !== sessionIds.length) {
       alert(t('messages.batchArchivePartialFailure', {
         archived: archivedSessionIds.length,
+        total: sessionIds.length,
+      }));
+    }
+  }, [activeSessions, batchSessionArchiveConfirmation, fetchArchivedSessions, onSessionDelete, reloadRecentConversations, t]);
+
+  // The second action of the same dialog: the selection goes for good instead of
+  // into the archive list. Same shape as the archive path, so a partial failure
+  // leaves the ids that did not go in the caller's selection for a retry.
+  const confirmBatchSessionDelete = useCallback(async () => {
+    if (!batchSessionArchiveConfirmation) {
+      return;
+    }
+
+    const { sessionIds, onCompleted } = batchSessionArchiveConfirmation;
+    setBatchSessionArchiveConfirmation(null);
+
+    const deletableSessionIds = sessionIds.filter((sessionId) => !activeSessions.has(sessionId));
+    if (deletableSessionIds.length === 0) {
+      alert(t('messages.batchDeleteNoLongerAvailable'));
+      return;
+    }
+
+    const results = await Promise.allSettled(
+      deletableSessionIds.map(async (sessionId) => {
+        const response = await api.deleteSession(sessionId, true);
+        if (!response.ok) {
+          throw new Error(`Failed to delete session ${sessionId}: ${response.status}`);
+        }
+        return sessionId;
+      }),
+    );
+    const deletedSessionIds = results
+      .filter((result): result is PromiseFulfilledResult<string> => result.status === 'fulfilled')
+      .map((result) => result.value);
+
+    deletedSessionIds.forEach((sessionId) => onSessionDelete?.(sessionId));
+    onCompleted(deletedSessionIds);
+
+    if (deletedSessionIds.length > 0) {
+      await fetchArchivedSessions();
+      reloadRecentConversations();
+    }
+
+    if (deletedSessionIds.length !== sessionIds.length) {
+      alert(t('messages.batchDeletePartialFailure', {
+        deleted: deletedSessionIds.length,
         total: sessionIds.length,
       }));
     }
@@ -1727,11 +1779,13 @@ export function useSidebarController({
     cancelRename,
     saveProjectName,
     showDeleteSessionConfirmation,
+    archiveSession,
     confirmDeleteSession,
     requestProjectDelete,
     confirmDeleteProject,
     showBatchSessionArchiveConfirmation,
     confirmBatchSessionArchive,
+    confirmBatchSessionDelete,
     cancelBatchSessionArchive: () => setBatchSessionArchiveConfirmation(null),
     showBatchArchivedSessionDeleteConfirmation,
     confirmBatchArchivedSessionDelete,

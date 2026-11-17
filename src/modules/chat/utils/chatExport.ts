@@ -48,7 +48,18 @@ export type TranscriptExportInput = {
    * theme toggle or a copy button would render and then do nothing.
    */
   interactive?: boolean;
+  /**
+   * Keep side question asides in the file. Off by default: an aside is not part of the
+   * session, so a default export matches what the session itself saw, and the
+   * operator opts in from the export menu.
+   */
+  includeSideQuestions?: boolean;
 };
+
+/** True when the export should drop the side question aside rows and the rows that pair with them. */
+function isSideQuestionRow(message: ChatMessage): boolean {
+  return Boolean(message.sideQuestion);
+}
 
 const EXTENSIONS: Record<TranscriptExportFormat, string> = {
   html: 'html',
@@ -108,14 +119,18 @@ export async function buildTranscriptExport(
   input: TranscriptExportInput,
   exportedAt: Date,
 ): Promise<string> {
+  const messages = input.includeSideQuestions
+    ? input.messages
+    : input.messages.filter((message) => !isSideQuestionRow(message));
+
   if (format === 'json') {
     return `${JSON.stringify(
       {
         title: input.sessionTitle,
         provider: input.provider,
         exportedAt: exportedAt.toISOString(),
-        messageCount: input.messages.length,
-        messages: input.messages,
+        messageCount: messages.length,
+        messages,
       },
       null,
       2,
@@ -124,7 +139,7 @@ export async function buildTranscriptExport(
 
   if (format === 'markdown') {
     return buildTranscriptMarkdown({
-      messages: input.messages,
+      messages,
       sessionTitle: input.sessionTitle,
       provider: input.provider,
       exportedAt,
@@ -135,7 +150,7 @@ export async function buildTranscriptExport(
   }
 
   return buildTranscriptHtml({
-    messages: input.messages,
+    messages,
     createDiff: input.createDiff,
     provider: input.provider,
     selectedProject: input.selectedProject,

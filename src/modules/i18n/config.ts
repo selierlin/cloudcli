@@ -112,6 +112,7 @@ import trCodeEditor from '@/modules/i18n/locales/tr/codeEditor.json';
 import trTasks from '@/modules/i18n/locales/tr/tasks.json';
 // oxlint-disable-next-line importx/order
 import trBrowser from '@/modules/i18n/locales/tr/browser.json';
+import trGit from '@/modules/i18n/locales/tr/git.json';
 import itCommon from '@/modules/i18n/locales/it/common.json';
 import itSettings from '@/modules/i18n/locales/it/settings.json';
 import itAuth from '@/modules/i18n/locales/it/auth.json';
@@ -298,6 +299,7 @@ i18n
         codeEditor: trCodeEditor,
         tasks: trTasks,
         browser: trBrowser,
+        git: trGit,
       },
       it: {
         common: itCommon,

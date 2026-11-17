@@ -23,6 +23,7 @@
 //   approval       a command-approval request, then completion once it is answered
 //   elicit-approval Codex's own MCP tool approval, then the server's form
 //   fail           an error notification and a failed turn
+//   fail-aborted   a failed turn whose error text merely mentions "aborted"
 //   retry          a retryable error, then a normal completion
 //   exit           answer turn/start, then die without completing the turn
 //   hang           answer turn/start, emit one delta, then wait to be killed
@@ -274,6 +275,20 @@ const playRuntimeScript = () => {
         threadId: activeThreadId,
         turnId: TURN_ID,
         turn: { id: TURN_ID, status: 'failed', error: { message: 'model exploded' } },
+      });
+      return;
+
+    case 'fail-aborted':
+      notify('error', {
+        threadId: activeThreadId,
+        turnId: TURN_ID,
+        willRetry: false,
+        error: { message: 'stream aborted by the upstream proxy' },
+      });
+      notify('turn/completed', {
+        threadId: activeThreadId,
+        turnId: TURN_ID,
+        turn: { id: TURN_ID, status: 'failed', error: { message: 'stream aborted by the upstream proxy' } },
       });
       return;
 

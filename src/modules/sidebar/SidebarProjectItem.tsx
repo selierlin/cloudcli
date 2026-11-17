@@ -43,6 +43,7 @@ type SidebarProjectItemProps = {
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
   onTogglePinned?: (sessionId: string, isPinned: boolean) => void;
   onRequestBatchArchive?: (sessionIds: string[], onCompleted: (archivedSessionIds: string[]) => void) => void;
+  onArchiveSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string, sessionTitle: string) => void;
   onForkSession?: (session: SessionWithProvider) => void;
   onLoadMoreSessions: (projectId: string) => void;
@@ -90,6 +91,7 @@ function SidebarProjectItem({
   onSessionSelect,
   onTogglePinned,
   onRequestBatchArchive,
+  onArchiveSession,
   onDeleteSession,
   onForkSession,
   onLoadMoreSessions,
@@ -604,6 +606,7 @@ function SidebarProjectItem({
         onSessionSelect={onSessionSelect}
         onTogglePinned={onTogglePinned}
         onRequestBatchArchive={onRequestBatchArchive}
+        onArchiveSession={onArchiveSession}
         onDeleteSession={onDeleteSession}
         onForkSession={onForkSession}
         onLoadMoreSessions={onLoadMoreSessions}

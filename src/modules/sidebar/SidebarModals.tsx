@@ -21,9 +21,12 @@ type SidebarModalsProps = {
   pendingDeletion: PendingSidebarDeletion | null;
   onCancelDeletion: () => void;
   onConfirmDeleteProject: (deleteData?: boolean) => void;
-  onConfirmDeleteSession: (hardDelete?: boolean) => void;
+  /** Deletes the pending session permanently; archiving has its own menu item. */
+  onConfirmDeleteSession: () => void;
   batchSessionArchiveConfirmation: BatchSessionArchiveConfirmation | null;
   onConfirmBatchSessionArchive: () => void;
+  /** Permanently deletes every session of the pending bulk selection. */
+  onConfirmBatchDelete: () => void;
   onCancelBatchSessionArchive: () => void;
   batchArchivedSessionDeleteConfirmation: BatchArchivedSessionDeleteConfirmation | null;
   onConfirmBatchArchivedSessionDelete: () => void;
@@ -65,6 +68,7 @@ export default function SidebarModals({
   onConfirmDeleteSession,
   batchSessionArchiveConfirmation,
   onConfirmBatchSessionArchive,
+  onConfirmBatchDelete,
   onCancelBatchSessionArchive,
   batchArchivedSessionDeleteConfirmation,
   onConfirmBatchArchivedSessionDelete,
@@ -173,16 +177,14 @@ export default function SidebarModals({
                       {t('deleteConfirmation.deleteSession')}
                     </h3>
                     <p className="mb-1 text-sm text-muted-foreground">
-                      {t('deleteConfirmation.confirmDelete')}{' '}
+                      {t('deleteConfirmation.confirmDeleteSession', 'Permanently delete')}{' '}
                       <span className="font-medium text-foreground">
                         {pendingDeletion.sessionTitle || t('sessions.unnamed')}
                       </span>
                       ?
                     </p>
                     <p className="mt-3 text-xs text-muted-foreground">
-                      {pendingDeletion.isArchived
-                        ? t('deleteConfirmation.archivedSessionNotice', 'This session is already archived. You can keep it hidden or delete it permanently.')
-                        : t('deleteConfirmation.archiveSessionNotice', 'Archive keeps the session out of the active list while preserving its history.')}
+                      {t('deleteConfirmation.deleteSessionNotice', 'The session and its history will be removed. This cannot be undone.')}
                     </p>
                     <p className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">
                       {t('deleteConfirmation.permanentDeleteWarning', 'Delete permanently also removes the session file from disk, so the desktop-side tools that own it (e.g. DeepSeek Harness, Claude Code, Codex) lose this session too. This cannot be undone.')}
@@ -191,20 +193,10 @@ export default function SidebarModals({
                 </div>
               </div>
               <div className="flex flex-col gap-2 border-t border-border bg-muted/30 p-4">
-                {!pendingDeletion.isArchived && (
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={() => onConfirmDeleteSession(false)}
-                  >
-                    <EyeOff className="mr-2 h-4 w-4" />
-                    {t('deleteConfirmation.archiveSession', 'Archive session')}
-                  </Button>
-                )}
                 <Button
                   variant="destructive"
                   className="w-full justify-start bg-red-600 text-n-white hover:bg-red-700"
-                  onClick={() => onConfirmDeleteSession(true)}
+                  onClick={onConfirmDeleteSession}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   {t('deleteConfirmation.deleteSessionPermanently', 'Delete permanently')}
@@ -245,6 +237,14 @@ export default function SidebarModals({
                 >
                   <EyeOff className="mr-2 h-4 w-4" />
                   {t('deleteConfirmation.archiveSessionsAction', { count: batchSessionArchiveConfirmation.sessionIds.length })}
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="w-full justify-start bg-red-600 text-n-white hover:bg-red-700"
+                  onClick={onConfirmBatchDelete}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {t('deleteConfirmation.deleteSessionPermanently', 'Delete permanently')}
                 </Button>
                 <Button variant="ghost" className="w-full" onClick={onCancelBatchSessionArchive}>
                   {t('actions.cancel')}

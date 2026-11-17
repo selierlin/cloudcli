@@ -332,6 +332,10 @@ export const api = {
     del(`/api/providers/sessions/${encodeURIComponent(sessionId)}/btw`),
   promoteBtwSession: (sessionId: string, body: { title?: string } = {}) =>
     patch(`/api/providers/sessions/${encodeURIComponent(sessionId)}/btw/promote`, body),
+  // Starts the session's next message on a fresh context. Its history stays
+  // visible; `cleared` is false when there was no context to clear.
+  clearSessionContext: (sessionId: string) =>
+    post(`/api/providers/sessions/${encodeURIComponent(sessionId)}/clear-context`),
   renameSession: (sessionId: string, summary: string) =>
     put(`/api/providers/sessions/${sessionId}`, { summary }),
   // Pins or unpins a session so it sorts ahead of unpinned ones in the sidebar.
@@ -517,6 +521,10 @@ export const api = {
       del(`/api/providers/${provider}/models/${recordId}`),
     setCustomModelsOnly: (provider: string, enabled: boolean) =>
       put(`/api/providers/${provider}/models/custom-only`, { enabled }),
+    dismissSideQuestion: (sessionId: string, sideQuestionId: string) =>
+      del(
+        `/api/providers/sessions/${encodeURIComponent(sessionId)}/side-questions/${encodeURIComponent(sideQuestionId)}`,
+      ),
 
     createSession: (payload: {
       provider: string;

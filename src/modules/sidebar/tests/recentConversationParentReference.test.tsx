@@ -61,6 +61,7 @@ const renderList = (
     onRetry={noop}
     onRenameSession={noop}
     onTogglePinned={noop}
+    onArchiveSession={noop}
     onDeleteSession={noop}
     onRequestBatchArchive={noop}
     projects={[]}

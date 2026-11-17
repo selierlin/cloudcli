@@ -1,6 +1,6 @@
 import { memo, useState } from 'react';
 import type { DragEvent } from 'react';
-import { Check, Edit2, GitBranch, Loader2, MoreHorizontal, Pin, PinOff, Trash2, X } from 'lucide-react';
+import { Archive, Check, Edit2, GitBranch, Loader2, MoreHorizontal, Pin, PinOff, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Badge, Dialog, DialogContent, DialogTitle, LLMProviderLogo, Tooltip, buttonVariants } from '@/shared/ui';
@@ -51,6 +51,13 @@ type SidebarSessionItemProps = {
    * a sibling, and can refuse a foreign drag.
    */
   draggingSessionId: string | null;
+  /**
+   * Whether the dragged session may be filed under this row's provider. The
+   * tree only nests same-provider sessions, so a cross-provider drop must not
+   * light the row up (and must not reach the list's "move to top level" zone
+   * either). Defaults to true for callers that resolve the rule themselves.
+   */
+  acceptsSessionDrop?: boolean;
   /** True while this row is the drop target the pointer is over. */
   isDropHighlighted: boolean;
   /** Starts a drag of this row; the list owns the drag state. */
@@ -61,10 +68,13 @@ type SidebarSessionItemProps = {
   onSessionDragOver: (targetSessionId: string) => void;
   /** Files the dragged session under this row. */
   onSessionDropOnRow: (targetSessionId: string) => void;
+  onArchiveSession: (sessionId: string) => void;
+  /** Project fork trees use denser rows so indentation does not consume the title's space. */
+  treeRow?: boolean;
   t: TFunction;
 };
 
-/** Rendered by SidebarProjectSessions for one session row, including its rename, copy, fork and delete controls. */
+/** Rendered by SidebarProjectSessions for one session row, including its rename, copy, fork, archive and delete controls. */
 function SidebarSessionItem({
   project,
   session,
@@ -88,11 +98,14 @@ function SidebarSessionItem({
   onDeleteSession,
   onForkSession,
   draggingSessionId,
+  acceptsSessionDrop = true,
   isDropHighlighted,
   onSessionDragStart,
   onSessionDragEnd,
   onSessionDragOver,
   onSessionDropOnRow,
+  onArchiveSession,
+  treeRow = false,
   t,
 }: SidebarSessionItemProps) {
   const isCompact = useCompactSidebar();
@@ -180,7 +193,7 @@ function SidebarSessionItem({
   const canDragSession = canAssignParent && !isCompact && !isManaging;
   // Only a top-level row can adopt a child: the tree is one level deep, so a row
   // that already has a parent is not a drop target.
-  const isSessionDropTarget = Boolean(draggingSessionId) && !parentSessionId;
+  const isSessionDropTarget = Boolean(draggingSessionId) && !parentSessionId && acceptsSessionDrop;
   // The row the pointer picked up. Fading it is the only visual that tells the
   // user a drag is in flight and which row is moving.
   const isDragging = draggingSessionId === session.id;
@@ -254,7 +267,9 @@ function SidebarSessionItem({
       <div>
         <div
           className={cn(
-            'p-2 mx-3 my-0.5 rounded-md bg-card border active:scale-[0.98] transition-all duration-150 relative',
+            treeRow
+              ? 'mx-0.5 my-px rounded-md border border-transparent bg-transparent px-1.5 py-1 active:scale-[0.98] transition-colors duration-150 relative'
+              : 'p-2 mx-3 my-0.5 rounded-md bg-card border active:scale-[0.98] transition-all duration-150 relative',
             isSelected
               ? 'border-primary/40 shadow-[inset_3px_0_0_0_hsl(var(--primary))]'
               : '',
@@ -264,7 +279,7 @@ function SidebarSessionItem({
           )}
           onClick={selectMobileSession}
         >
-          <div className={cn('flex items-center gap-2', isManaging && isProcessing && 'cursor-not-allowed opacity-60')}>
+          <div className={cn('flex items-center', treeRow ? 'gap-1.5' : 'gap-2', isManaging && isProcessing && 'cursor-not-allowed opacity-60')}>
             {isManaging && (
               <span
                 role="checkbox"
@@ -283,8 +298,8 @@ function SidebarSessionItem({
                 {isBatchSelected && <Check className="h-3 w-3" />}
               </span>
             )}
-            <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0">
-              <LLMProviderLogo provider={session.__provider} className="h-5 w-5" />
+            <div className={cn('rounded-md flex items-center justify-center flex-shrink-0', treeRow ? 'w-5 h-5' : 'w-6 h-6')}>
+              <LLMProviderLogo provider={session.__provider} className={treeRow ? 'h-3 w-3' : 'h-5 w-5'} />
             </div>
 
             <div className="min-w-0 flex-1">
@@ -320,19 +335,24 @@ function SidebarSessionItem({
               </div>
             </div>
 
-            {!isManaging && <button
-              type="button"
-              aria-label={t('sessions.sessionOptionsFor', { name: sessionView.sessionName })}
-              aria-haspopup="dialog"
-              aria-expanded={isMobileOptionsOpen}
-              className="ml-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted active:scale-95"
-              onClick={(event) => {
-                event.stopPropagation();
-                setMobileOptionsOpen(true);
-              }}
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </button>}
+            {!isManaging && (
+              <button
+                type="button"
+                aria-label={t('sessions.sessionOptionsFor', { name: sessionView.sessionName })}
+                aria-haspopup="dialog"
+                aria-expanded={isMobileOptionsOpen}
+                className={cn(
+                  'ml-1 flex flex-shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted active:scale-95',
+                  treeRow ? '-mr-0.5 h-7 w-7 rounded-md' : 'h-8 w-8 rounded-lg',
+                )}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setMobileOptionsOpen(true);
+                }}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -479,17 +499,31 @@ function SidebarSessionItem({
                 )}
 
                 {!isProcessing && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileOptionsOpen(false);
-                      requestDeleteSession();
-                    }}
-                    className="flex min-h-12 w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-red-600 transition-colors active:bg-red-500/10 dark:text-red-400"
-                  >
-                    <Trash2 className="h-5 w-5 flex-shrink-0" />
-                    <span className="text-sm font-medium">{t('sessions.archiveOrDeleteSession')}</span>
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileOptionsOpen(false);
+                        onArchiveSession(session.id);
+                      }}
+                      className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-border bg-muted/35 px-4 py-3 text-left text-foreground transition-colors active:bg-muted"
+                    >
+                      <Archive className="h-5 w-5 flex-shrink-0" />
+                      <span className="text-sm font-medium">{t('sessions.archiveSession')}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileOptionsOpen(false);
+                        requestDeleteSession();
+                      }}
+                      className="flex min-h-12 w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-red-600 transition-colors active:bg-red-500/10 dark:text-red-400"
+                    >
+                      <Trash2 className="h-5 w-5 flex-shrink-0" />
+                      <span className="text-sm font-medium">{t('sessions.deleteSession')}</span>
+                    </button>
+                  </>
                 )}
               </div>
             )}
@@ -514,7 +548,10 @@ function SidebarSessionItem({
           href={`/session/${session.id}`}
           className={cn(
             buttonVariants({ variant: 'ghost' }),
-            'h-auto w-full justify-start rounded-md border bg-card p-2 pr-11 text-left font-normal transition-all duration-150',
+            treeRow
+              ? 'h-auto w-full justify-start rounded-md border border-transparent bg-transparent px-1.5 py-1 text-left font-normal transition-colors duration-150'
+              : 'h-auto w-full justify-start rounded-md border bg-card p-2 text-left font-normal transition-all duration-150',
+            isManaging ? 'pr-2' : 'pr-11',
             isSelected
               ? 'border-primary/40 shadow-[inset_3px_0_0_0_hsl(var(--primary))]'
               : 'border-border/30',
@@ -551,7 +588,7 @@ function SidebarSessionItem({
             onSessionSelect(session, project.projectId);
           }}
         >
-          <div className="flex w-full min-w-0 items-center gap-2">
+          <div className={cn('flex w-full min-w-0 items-center', treeRow ? 'gap-1.5' : 'gap-2')}>
             {isManaging && (
               <span
                 role="checkbox"
@@ -570,8 +607,8 @@ function SidebarSessionItem({
                 {isBatchSelected && <Check className="h-3 w-3" />}
               </span>
             )}
-            <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md">
-              <LLMProviderLogo provider={session.__provider} className="h-5 w-5" />
+            <div className={cn('flex flex-shrink-0 items-center justify-center rounded-md', treeRow ? 'h-5 w-5' : 'h-6 w-6')}>
+              <LLMProviderLogo provider={session.__provider} className={treeRow ? 'h-3 w-3' : 'h-5 w-5'} />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
@@ -619,29 +656,32 @@ function SidebarSessionItem({
           </div>
         </a>
 
-        {!isManaging && <SessionOptions
-          className="absolute right-2 top-1/2 -translate-y-1/2 transform transition-all duration-200"
-          sessionId={session.id}
-          sessionName={sessionView.sessionName}
-          provider={session.__provider}
-          projectId={project.projectId}
-          isProcessing={isProcessing}
-          isEditing={isEditing}
-          renameDraft={renameDraft}
-          onRenameDraftChange={onRenameDraftChange}
-          onStartEditingSession={onStartEditingSession}
-          onCancelEditingSession={onCancelEditingSession}
-          onSaveEditingSession={onSaveEditingSession}
-          onDeleteSession={onDeleteSession}
-          onFork={onForkSession ? () => onForkSession(session) : undefined}
-          isPinned={session.isPinned}
-          onTogglePinned={onTogglePinned}
-          parentSessionId={parentPicker ? parentSessionId : undefined}
-          canAssignParent={canAssignParent}
-          onRequestAssignParent={requestAssignParent}
-          onClearParent={clearParent}
-          t={t}
-        />}
+        {!isManaging && (
+          <SessionOptions
+            className="absolute right-2 top-1/2 -translate-y-1/2 transform transition-all duration-200"
+            sessionId={session.id}
+            sessionName={sessionView.sessionName}
+            provider={session.__provider}
+            projectId={project.projectId}
+            isProcessing={isProcessing}
+            isEditing={isEditing}
+            renameDraft={renameDraft}
+            onRenameDraftChange={onRenameDraftChange}
+            onStartEditingSession={onStartEditingSession}
+            onCancelEditingSession={onCancelEditingSession}
+            onSaveEditingSession={onSaveEditingSession}
+            onArchiveSession={onArchiveSession}
+            onDeleteSession={onDeleteSession}
+            onFork={onForkSession ? () => onForkSession(session) : undefined}
+            isPinned={session.isPinned}
+            onTogglePinned={onTogglePinned}
+            parentSessionId={parentPicker ? parentSessionId : undefined}
+            canAssignParent={canAssignParent}
+            onRequestAssignParent={requestAssignParent}
+            onClearParent={clearParent}
+            t={t}
+          />
+        )}
       </div>
       )}
     </div>

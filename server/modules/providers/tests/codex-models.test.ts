@@ -271,6 +271,31 @@ const require = createRequire(import.meta.url);
 const findCodexModel = (value: string) =>
   CODEX_PREDEFINED_MODELS.OPTIONS.find((option) => option.value === value);
 
+/**
+ * Runs the Codex CLI that chats spawn, with a throwaway CODEX_HOME so no user
+ * config or login is read. The SDK spawns the native binary of the
+ * `@openai/codex-<platform>` package installed next to the `@openai/codex` it
+ * resolves; that package's own launcher, resolved the same way, runs it too.
+ */
+const runChatCodexCli = async (args: string[]): Promise<string> => {
+  const sdkRequire = createRequire(import.meta.resolve('@openai/codex-sdk'));
+  const packageJsonPath = sdkRequire.resolve('@openai/codex/package.json');
+  const { bin } = sdkRequire('@openai/codex/package.json') as { bin: { codex: string } };
+  const codexHome = await mkdtemp(path.join(os.tmpdir(), 'cloudcli-codex-models-'));
+  try {
+    return execFileSync(process.execPath, [path.join(path.dirname(packageJsonPath), bin.codex), ...args], {
+      encoding: 'utf8',
+      env: { ...process.env, CODEX_HOME: codexHome },
+      // Piped, not inherited: the CLI warns on stderr that it skips its helper
+      // binaries under a temp CODEX_HOME, which these commands do not need.
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 30_000,
+    });
+  } finally {
+    await rm(codexHome, { recursive: true, force: true });
+  }
+};
+
 test('lists GPT-6 Sol and GPT-6 Luna with the effort levels the Codex CLI accepts', () => {
   const sol = findCodexModel('gpt-6-sol');
   assert.equal(sol?.label, 'GPT-6 Sol');
@@ -288,29 +313,6 @@ test('lists GPT-6 Sol and GPT-6 Luna with the effort levels the Codex CLI accept
     ['low', 'medium', 'high', 'xhigh', 'max'],
   );
 });
-
-/**
- * Runs the Codex CLI that chats spawn, with a throwaway CODEX_HOME so no user
- * config or login is read. Resolved through `@openai/codex` rather than
- * `@openai/codex-sdk`: this fork does not depend on the SDK.
- */
-const runChatCodexCli = async (args: string[]): Promise<string> => {
-  const packageJsonPath = require.resolve('@openai/codex/package.json');
-  const { bin } = require('@openai/codex/package.json') as { bin: { codex: string } };
-  const codexHome = await mkdtemp(path.join(os.tmpdir(), 'cloudcli-codex-models-'));
-  try {
-    return execFileSync(process.execPath, [path.join(path.dirname(packageJsonPath), bin.codex), ...args], {
-      encoding: 'utf8',
-      env: { ...process.env, CODEX_HOME: codexHome },
-      // Piped, not inherited: the CLI warns on stderr that it skips its helper
-      // binaries under a temp CODEX_HOME, which these commands do not need.
-      stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: 30_000,
-    });
-  } finally {
-    await rm(codexHome, { recursive: true, force: true });
-  }
-};
 
 test('lists GPT-6.1 Sol and GPT-6.1 Terra with the effort levels the Codex CLI accepts', () => {
   const sol = findCodexModel('gpt-6.1-sol');

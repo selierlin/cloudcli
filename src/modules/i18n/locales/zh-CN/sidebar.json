@@ -49,6 +49,7 @@
     "deleteSelectedPermanently": "永久删除 {{count}} 条",
     "runningSessionCannotBeArchived": "运行中的会话不能批量归档",
     "archiveOrDeleteSession": "归档或删除会话",
+    "archiveSession": "归档会话",
     "providerSession": "{{provider}} 会话",
     "copySessionId": "复制 {{provider}} 会话 ID",
     "loadingSessionId": "正在加载 {{provider}} 会话 ID…",
@@ -72,7 +73,9 @@
     "selectAllLoaded": "全选已加载",
     "clearSelection": "清除选择",
     "deleteSelected_one": "删除 {{count}} 个会话",
-    "deleteSelected_other": "删除 {{count}} 个会话"
+    "deleteSelected_other": "删除 {{count}} 个会话",
+    "expandForks": "展开 {{session}} 的分支",
+    "collapseForks": "折叠 {{session}} 的分支"
   },
   "tooltips": {
     "viewEnvironments": "查看环境",
@@ -160,6 +163,8 @@
     "updateSessionParentError": "更新会话所属关系时出错，请重试。",
     "batchArchivePartialFailure": "已归档 {{archived}} / {{total}} 个会话，请重试其余会话。",
     "batchArchiveNoLongerAvailable": "所选会话正在运行，暂时不能批量归档。",
+    "batchDeletePartialFailure": "已删除 {{deleted}} / {{total}} 个会话，请重试其余会话。",
+    "batchDeleteNoLongerAvailable": "所选会话正在运行，暂时不能删除。",
     "batchPermanentDeleteFailed": "批量永久删除失败，请重试。",
     "batchPermanentDeleteError": "批量永久删除时出错，请重试。",
     "deleteProjectFailed": "移除项目失败，请重试。",

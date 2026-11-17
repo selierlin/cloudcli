@@ -73,6 +73,7 @@ const rowProps = (
   onSaveEditingSession: noop,
   onProjectSelect: noop,
   onSessionSelect: noop,
+  onArchiveSession: noop,
   onDeleteSession: noop,
   onForkSession: noop,
   isManaging: false,
@@ -102,7 +103,35 @@ test.each<LLMProvider>(['claude', 'codex'])('mobile offers a fork for a supporte
 
   assert.ok(sheet.getByRole('button', { name: FORK_TRIGGER }));
   assert.ok(sheet.getByRole('button', { name: 'sessions.renameSession' }));
-  assert.ok(sheet.getByRole('button', { name: 'sessions.archiveOrDeleteSession' }));
+  assert.ok(sheet.getByRole('button', { name: 'sessions.archiveSession' }));
+  assert.ok(sheet.getByRole('button', { name: 'sessions.deleteSession' }));
+});
+
+test('mobile archive and delete are separate actions with their own handlers', async () => {
+  const onArchiveSession = vi.fn();
+  const onDeleteSession = vi.fn();
+  const { unmount } = render(<SidebarSessionItem {...rowProps({ onArchiveSession, onDeleteSession })} />);
+  let sheet = await openOptions();
+
+  fireEvent.click(sheet.getByRole('button', { name: 'sessions.archiveSession' }));
+  assert.deepEqual(onArchiveSession.mock.calls, [[SESSION.id]]);
+  assert.equal(onDeleteSession.mock.calls.length, 0);
+  assert.equal(screen.queryByRole('dialog'), null);
+  unmount();
+
+  render(<SidebarSessionItem {...rowProps({ onArchiveSession, onDeleteSession })} />);
+  sheet = await openOptions();
+  fireEvent.click(sheet.getByRole('button', { name: 'sessions.deleteSession' }));
+  assert.deepEqual(onDeleteSession.mock.calls, [[SESSION.id, 'Session one']]);
+  assert.equal(onArchiveSession.mock.calls.length, 1);
+});
+
+test('mobile withholds archive and delete while the session is running', async () => {
+  render(<SidebarSessionItem {...rowProps({ isProcessing: true })} />);
+  const sheet = await openOptions();
+
+  assert.equal(sheet.queryByRole('button', { name: 'sessions.archiveSession' }), null);
+  assert.equal(sheet.queryByRole('button', { name: 'sessions.deleteSession' }), null);
 });
 
 test('forking from the mobile sheet passes the owning session once and dismisses the sheet', async () => {

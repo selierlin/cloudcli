@@ -77,6 +77,7 @@ const renderRow = ({ isExpanded, isSelected }: RowOptions) => {
       onDeleteProject={noop}
       onSessionSelect={noop}
       onDeleteSession={noop}
+      onArchiveSession={noop}
       onLoadMoreSessions={noop}
       activeSessions={new Set()}
       backgroundSessionIds={new Set()}

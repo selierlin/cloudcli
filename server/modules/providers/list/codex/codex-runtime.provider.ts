@@ -31,10 +31,19 @@ import {
   notifyRunStopped,
   notifyUserIfEnabled,
 } from '@/modules/notifications/index.js';
-import type { AnyRecord, NormalizedMessage, ProviderRuntimeContext, ProviderRuntimeWriter } from '@/shared/types.js';
+import type {
+  AnyRecord,
+  NormalizedMessage,
+  ProviderRuntimeContext,
+  ProviderRuntimeWriter,
+  SideQuestionOutcome,
+  SideQuestionRequest,
+  SideQuestionSink,
+} from '@/shared/types.js';
 import { createDeltaBatcher, readObjectRecord, readOptionalString } from '@/shared/utils.js';
 import {
   CodexAppServerConnection,
+  codexAppServer,
   isCodexNotificationForActiveTurn,
   startCodexAppServerConnection,
 } from '@/modules/providers/list/codex/codex-app-server.client.js';
@@ -673,6 +682,17 @@ async function queryCodex(
   // Message of the error that failed the turn, reported once the run settles.
   let terminalMessage: string | null = null;
   const failureText = () => terminalMessage ?? 'Codex turn failed';
+  // A user abort ends the run on one of two paths (the loop breaks, or the SDK
+  // throws its AbortError); either way it is reported as a cancellation.
+  const notifyCodexRunAborted = () => {
+    notifyRunStopped({
+      userId: ws?.userId || null,
+      provider: 'codex',
+      sessionId: threadId || sessionId || null,
+      sessionName: sessionSummary,
+      stopReason: 'aborted'
+    });
+  };
   // Codex reports API failures as notifications, and then the child may also die
   // with a raw stderr wrapper. Showing both means the rendered error is followed
   // by unrelated CLI log lines, so the wrapper is dropped once the stream
@@ -1068,6 +1088,8 @@ async function queryCodex(
           stopReason: 'completed'
         });
       }
+    } else if (!terminalMessage) {
+      notifyCodexRunAborted();
     }
 
   } catch (error) {
@@ -1101,15 +1123,11 @@ async function queryCodex(
           error
         });
       }
-    } else if (!terminalMessage) {
-      // The SDK rethrows an abort as an error; only a real user abort counts.
-      notifyRunStopped({
-        userId: ws?.userId || null,
-        provider: 'codex',
-        sessionId: threadId || sessionId || null,
-        sessionName: sessionSummary,
-        stopReason: 'aborted'
-      });
+    } else if (!terminalMessage && session?.status === 'aborted') {
+      // The SDK rethrows the spawn AbortError once the CLI is killed. Only a
+      // real user abort counts; an error that merely mentions "aborted" stays
+      // silent as before.
+      notifyCodexRunAborted();
     }
 
   } finally {
@@ -1169,6 +1187,42 @@ async function abortCodexSession(sessionId: string): Promise<boolean> {
   return true;
 }
 
+/**
+ * Answers one side question on `request.providerSessionId` through
+ * `codexAppServer.askSideQuestion` (an ephemeral, read-only fork — see its
+ * doc comment), without touching the parent thread or `activeCodexSessions`.
+ *
+ * Never throws: a missing provider session (no prior turn to fork from, or a
+ * resume id not yet captured) and any rejection from the app-server both
+ * resolve as an error outcome, as `SideQuestionRuntime` requires.
+ */
+async function askCodexSideQuestion(
+  request: SideQuestionRequest,
+  sink: SideQuestionSink,
+  _context: ProviderRuntimeContext,
+): Promise<SideQuestionOutcome> {
+  if (!request.providerSessionId) {
+    return { status: 'error', error: 'This Codex session has no provider thread to ask a side question on yet.', answer: '' };
+  }
+
+  let answer = '';
+  try {
+    const text = await codexAppServer.askSideQuestion({
+      threadId: request.providerSessionId,
+      cwd: request.projectPath || '',
+      model: request.model || '',
+      question: request.question,
+      signal: request.signal,
+    }, (delta) => {
+      answer += delta;
+      sink.delta(delta);
+    });
+    return { status: 'done', answer: text };
+  } catch (error) {
+    return { status: 'error', error: error instanceof Error ? error.message : String(error), answer };
+  }
+}
+
 /** Used by the providers module's CodexProvider to run and abort app-server turns. */
 export const codexRuntime = {
   run: queryCodex,
@@ -1177,6 +1231,7 @@ export const codexRuntime = {
     resolve: codexApprovals.resolve,
     listPending: codexApprovals.listPending,
   },
+  askSideQuestion: askCodexSideQuestion,
 };
 
 /**
