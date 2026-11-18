@@ -13,6 +13,7 @@ import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/modules/chat/tr
 import ChatMessageImages from '@/modules/chat/transcript/ChatMessageImages';
 import ChatMessageFiles from '@/modules/chat/transcript/ChatMessageFiles';
 import { Markdown } from '@/modules/chat/transcript/Markdown';
+import { CollapsibleUserMessage } from '@/modules/chat/transcript/CollapsibleUserMessage';
 import StreamingMarkdown from '@/modules/chat/transcript/StreamingMarkdown';
 import MessageCopyControl from '@/modules/chat/transcript/MessageCopyControl';
 import MessageModelLabel from '@/modules/chat/transcript/MessageModelLabel';
@@ -368,12 +369,14 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                     // The footer's export copy button reads this subtree.
                     data-export-copy-source={isExportUserCopy ? 'message' : undefined}
                   >
-                    <Markdown
-                      breaks
-                      className="prose prose-sm max-w-none font-serif dark:prose-invert"
-                    >
-                      {message.content}
-                    </Markdown>
+                    <CollapsibleUserMessage enabled={!isExporting}>
+                      <Markdown
+                        breaks
+                        className="prose prose-sm max-w-none font-serif dark:prose-invert"
+                      >
+                        {message.content}
+                      </Markdown>
+                    </CollapsibleUserMessage>
                   </div>
                 </div>
               )}

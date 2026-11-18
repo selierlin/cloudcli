@@ -22,7 +22,9 @@
     "forkFailed": "无法派生该会话，请重试。",
     "forkWorkspaceRewind": "从此处派生会回退该消息之后被改动的工作区文件。请改从更靠后的消息或会话末尾派生。",
     "answeredBy": "由 {{model}} 回答",
-    "turnDuration": "耗时 {{duration}}"
+    "turnDuration": "耗时 {{duration}}",
+    "expandLongMessage": "展开全文",
+    "collapseLongMessage": "收起"
   },
   "messageTypes": {
     "user": "U",
