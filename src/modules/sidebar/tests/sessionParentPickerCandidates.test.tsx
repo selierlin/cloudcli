@@ -11,10 +11,9 @@ import {
 import type { Project } from '@/shared/types';
 
 /**
- * The picker may only offer parents the tree can actually nest under. A
- * cross-provider choice used to be listed and stored, but
- * `buildProjectSessionTree` keeps such a row top-level, so the filing looked
- * like it had been ignored.
+ * The picker offers every top-level session of the same project. Manual filing
+ * is a user choice, so it may cross providers; only the fork lineage stays
+ * within one provider (see `buildProjectSessionTree`).
  */
 const t = ((key: string) => key) as unknown as TFunction;
 
@@ -60,7 +59,7 @@ const candidatesFor = (sessionId: string): string[] => {
   return names;
 };
 
-test('the picker lists only parents of the filed session’s own provider', () => {
-  assert.deepEqual(candidatesFor('claude-target'), ['claude other']);
-  assert.deepEqual(candidatesFor('codex-target'), ['codex other']);
+test('the picker lists every top-level session of the project, whatever its provider', () => {
+  assert.deepEqual(candidatesFor('claude-target'), ['claude other', 'codex target', 'codex other']);
+  assert.deepEqual(candidatesFor('codex-target'), ['claude target', 'claude other', 'codex other']);
 });

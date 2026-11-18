@@ -190,7 +190,7 @@ test('a row is not a drop target for its own drag', () => {
   assert.equal(setSessionParent.mock.calls.length, 0, 'a session is never filed under itself');
 });
 
-test('a row of another provider is not a drop target: the tree never nests one', () => {
+test('a row of another provider is a drop target too', () => {
   const setSessionParent = vi.fn();
   const mixedProject = {
     ...PROJECT,
@@ -205,10 +205,10 @@ test('a row of another provider is not a drop target: the tree never nests one',
   fireEvent.dragStart(rowOf(container, 'b'), { dataTransfer: data });
   const target = rowOf(container, 'x');
   fireEvent.dragOver(target, { dataTransfer: data });
-  assert.ok(!/ring-2/.test(String(target.className)), 'a cross-provider row stays unhighlighted');
+  assert.match(String(target.className), /ring-2/, 'a cross-provider row marks itself as the drop target');
   fireEvent.drop(target, { dataTransfer: data });
 
-  assert.equal(setSessionParent.mock.calls.length, 0);
+  assert.deepEqual(setSessionParent.mock.calls, [['b', 'x']]);
 });
 
 test('a drag that carries no session payload is ignored', () => {

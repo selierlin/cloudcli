@@ -51,13 +51,6 @@ type SidebarSessionItemProps = {
    * a sibling, and can refuse a foreign drag.
    */
   draggingSessionId: string | null;
-  /**
-   * Whether the dragged session may be filed under this row's provider. The
-   * tree only nests same-provider sessions, so a cross-provider drop must not
-   * light the row up (and must not reach the list's "move to top level" zone
-   * either). Defaults to true for callers that resolve the rule themselves.
-   */
-  acceptsSessionDrop?: boolean;
   /** True while this row is the drop target the pointer is over. */
   isDropHighlighted: boolean;
   /** Starts a drag of this row; the list owns the drag state. */
@@ -98,7 +91,6 @@ function SidebarSessionItem({
   onDeleteSession,
   onForkSession,
   draggingSessionId,
-  acceptsSessionDrop = true,
   isDropHighlighted,
   onSessionDragStart,
   onSessionDragEnd,
@@ -193,7 +185,7 @@ function SidebarSessionItem({
   const canDragSession = canAssignParent && !isCompact && !isManaging;
   // Only a top-level row can adopt a child: the tree is one level deep, so a row
   // that already has a parent is not a drop target.
-  const isSessionDropTarget = Boolean(draggingSessionId) && !parentSessionId && acceptsSessionDrop;
+  const isSessionDropTarget = Boolean(draggingSessionId) && !parentSessionId;
   // The row the pointer picked up. Fading it is the only visual that tells the
   // user a drag is in flight and which row is moving.
   const isDragging = draggingSessionId === session.id;

@@ -90,15 +90,8 @@ export function SessionParentPickerProvider({
     }
 
     const sessions = getAllSessions(project);
-    // The tree (`buildProjectSessionTree`) only nests a session under one of
-    // its own provider, so a candidate from another provider would store a
-    // parent the list keeps rendering as top-level: the row would look
-    // unmoved and the picker would keep offering "move to top level".
-    const targetProvider = sessions.find((session) => session.id === pendingTarget.sessionId)?.__provider;
     return sessions
-      .filter((session) => session.id !== pendingTarget.sessionId
-        && !session.parentSessionId
-        && (targetProvider === undefined || session.__provider === targetProvider))
+      .filter((session) => session.id !== pendingTarget.sessionId && !session.parentSessionId)
       .map((session) => ({ id: session.id, name: createSessionViewModel(session, t).sessionName }));
   }, [pendingTarget, projects, t]);
 

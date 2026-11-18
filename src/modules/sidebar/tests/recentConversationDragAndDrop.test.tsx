@@ -72,6 +72,7 @@ const CONVERSATIONS: RecentConversationListItem[] = [
   conversation('b'),
   conversation('c', { parentSessionId: 'a', parentTitle: 'title of a' }),
   conversation('x', { projectId: 'project-2', projectDisplayName: 'project two' }),
+  conversation('y', { provider: 'codex' as LLMProvider }),
 ];
 
 /** The DataTransfer jsdom does not implement; only what the handlers read. */
@@ -195,6 +196,20 @@ test('a row cannot be dropped on itself', () => {
 
   fireEvent.drop(row, { dataTransfer: data });
   assert.equal(setSessionParent.mock.calls.length, 0);
+});
+
+test('a row from another provider still accepts the drop', () => {
+  const setSessionParent = vi.fn();
+  const { container } = renderList(setSessionParent);
+  const data = dragData();
+
+  fireEvent.dragStart(rowOf(container, 'y'), { dataTransfer: data });
+  const target = rowOf(container, 'a');
+  fireEvent.dragOver(target, { dataTransfer: data });
+  assert.match(String(target.className), /ring-2/, 'the same-project row is a target regardless of provider');
+
+  fireEvent.drop(target, { dataTransfer: data });
+  assert.deepEqual(setSessionParent.mock.calls, [['y', 'a']]);
 });
 
 test('a row from another project never accepts the drop', () => {

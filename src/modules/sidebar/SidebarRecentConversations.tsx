@@ -111,12 +111,6 @@ type RecentConversationRowProps = {
    * its own project, which is how the server's same-project rule reaches the UI.
    */
   draggingProjectId: string | null;
-  /**
-   * Provider of the session being dragged. A row only takes a drop from its own
-   * provider: the sidebar tree never nests across providers, so the drop would
-   * store a parent the list keeps showing as top-level.
-   */
-  draggingProvider: string | null;
   onSessionDragStart: () => void;
   onSessionDragEnd: () => void;
   /** Highlights this row as the drop target, or null to clear the highlight. */
@@ -150,7 +144,6 @@ function RecentConversationRow({
   draggingSessionId,
   isDropHighlighted,
   draggingProjectId,
-  draggingProvider,
   onSessionDragStart,
   onSessionDragEnd,
   onSessionDragOver,
@@ -263,8 +256,7 @@ function RecentConversationRow({
   const canAcceptSessionDrop = draggingSessionId !== null
     && draggingSessionId !== conversation.sessionId
     && draggingProjectId !== null
-    && draggingProjectId === conversation.projectId
-    && draggingProvider === conversation.provider;
+    && draggingProjectId === conversation.projectId;
   const isSessionDropTarget = canAcceptSessionDrop && !parentSessionId;
   // Fading the source row is the only visual that says which row is in flight.
   const isDragging = draggingSessionId === conversation.sessionId;
@@ -1028,7 +1020,6 @@ export default function SidebarRecentConversations({
         onDeleteSession={onDeleteSession}
         onToggleBatchSelection={toggleBatchSelection}
         draggingSessionId={draggingConversation?.sessionId ?? null}
-        draggingProvider={draggingConversation?.provider ?? null}
         isDropHighlighted={dropTargetSessionId === conversation.sessionId}
         draggingProjectId={draggingConversation?.projectId ?? null}
         onSessionDragStart={() => beginConversationDrag(conversation)}

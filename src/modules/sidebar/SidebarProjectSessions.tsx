@@ -277,14 +277,6 @@ export default function SidebarProjectSessions({
     setDropTargetSessionId(null);
   };
 
-  // A row of another provider must not light up as a drop target: the tree only
-  // nests a session under one of its own provider, so the drop would store a
-  // parent the list keeps rendering at top level (same rule as the picker in
-  // SessionParentPickerContext).
-  const draggingSession = draggingSessionId
-    ? sessions.find((session) => session.id === draggingSessionId)
-    : undefined;
-
   const renderSessionRow = (session: SessionWithProvider, treeRow = false) => (
     <SidebarSessionItem
       project={project}
@@ -311,7 +303,6 @@ export default function SidebarProjectSessions({
       onDeleteSession={onDeleteSession}
       onForkSession={onForkSession}
       draggingSessionId={draggingSessionId}
-      acceptsSessionDrop={!draggingSession || draggingSession.__provider === session.__provider}
       isDropHighlighted={dropTargetSessionId === session.id}
       onSessionDragStart={beginSessionDrag}
       onSessionDragEnd={endSessionDrag}

@@ -54,13 +54,14 @@ export function buildProjectSessionTree(sessions: SessionWithProvider[], project
 
   for (const node of nodes.values()) {
     // Manual filing wins over the fork lineage: a session dragged under another
-    // one has to land there even when its own fork points elsewhere. Only a
-    // parent already loaded here can be used, and the cycle sever below still
+    // one has to land there even when its own fork points elsewhere, and it may
+    // cross providers (the file is a user choice, not a provider lineage). Only
+    // a parent already loaded here can be used, and the cycle sever below still
     // breaks a filing that would close a loop.
     const manualParent = node.session.parentSessionId
       ? nodes.get(node.session.parentSessionId)
       : undefined;
-    if (manualParent && manualParent !== node && manualParent.session.__provider === node.session.__provider) {
+    if (manualParent && manualParent !== node) {
       node.parentId = manualParent.session.id;
       continue;
     }

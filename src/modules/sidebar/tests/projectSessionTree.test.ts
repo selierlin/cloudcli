@@ -43,6 +43,17 @@ test('missing parents, self links, provider mismatches and cycles never hide or 
   assert.equal(rows.find((row) => row.session.id === 'codex')?.depth, 0);
 });
 
+test('a manual filing nests across providers, unlike a fork lineage edge', () => {
+  const rows = buildProjectSessionTree([
+    session('claude-parent'),
+    session('codex-child', null, { __provider: 'codex', parentSessionId: 'claude-parent' }),
+  ], 'project');
+  assert.deepEqual(rows.map((row) => [row.session.id, row.parentId, row.depth]), [
+    ['claude-parent', null, 0],
+    ['codex-child', 'claude-parent', 1],
+  ]);
+});
+
 test('unrelated sessions preserve flat order and object identities', () => {
   const input = [session('first'), session('second')];
   const rows = buildProjectSessionTree(input, 'project');
