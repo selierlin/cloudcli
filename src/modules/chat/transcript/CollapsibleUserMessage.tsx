@@ -3,6 +3,8 @@ import type { CSSProperties, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
 
+import { cn } from '@/shared/utils';
+
 /**
  * Roughly ten lines of the question bubble's prose-sm body (14px type at a
  * 24px line box). Anything shorter keeps its full height: folding it would cost
@@ -87,6 +89,18 @@ function FoldableUserMessageBody({ children }: { children: ReactNode }) {
     return () => observer?.disconnect();
   }, []);
 
+  const toggleExpanded = () => {
+    if (isExpanded) {
+      // Collapsing can shrink the question by thousands of pixels in one
+      // commit, and the scroll container has no anchor left where the reader
+      // was clicking — it lands near the end of the conversation. Bring the
+      // folded question back into view so the jump reads as "this message
+      // shrank", not "I got thrown somewhere else".
+      requestAnimationFrame(() => contentRef.current?.scrollIntoView({ block: 'nearest' }));
+    }
+    setIsExpanded((previous) => !previous);
+  };
+
   const isFolded = !isExpanded && !fitsWithoutFold;
   const foldedStyle: CSSProperties | undefined = isFolded
     ? {
@@ -109,19 +123,38 @@ function FoldableUserMessageBody({ children }: { children: ReactNode }) {
         {children}
       </div>
       {!fitsWithoutFold && (
-        <button
-          type="button"
-          onClick={() => setIsExpanded((previous) => !previous)}
-          aria-expanded={isExpanded}
-          className="mt-1 flex w-full select-none items-center justify-center gap-1 rounded-md py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
-        >
-          {isExpanded ? (
-            <ChevronUpIcon className="h-3.5 w-3.5" aria-hidden="true" />
-          ) : (
-            <ChevronDownIcon className="h-3.5 w-3.5" aria-hidden="true" />
+        // While unfolded the question can be taller than the pane, so a control
+        // left at the end of the text would be out of reach until the reader
+        // scrolled all the way down. In that state the strip rides the bottom
+        // edge of the viewport — and stops at the bubble's own end, so it never
+        // floats over the answer below.
+        // The strip never overlaps the end of the text: its own height sits
+        // below the last line, so the final line stays readable and selectable.
+        // While pinned mid-question the gradient does cover the text beneath it
+        // — that is what makes it legible — but it must not take the clicks:
+        // only the button does, so the covered line can still be selected.
+        <div
+          className={cn(
+            'flex justify-center',
+            isExpanded
+              ? 'pointer-events-none sticky bottom-0 z-10 bg-gradient-to-t from-muted/90 via-muted/70 to-transparent pb-1 pt-3'
+              : 'mt-1',
           )}
-          {isExpanded ? t('message.collapseLongMessage') : t('message.expandLongMessage')}
-        </button>
+        >
+          <button
+            type="button"
+            onClick={toggleExpanded}
+            aria-expanded={isExpanded}
+            className="pointer-events-auto flex w-full select-none items-center justify-center gap-1 rounded-md py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {isExpanded ? (
+              <ChevronUpIcon className="h-3.5 w-3.5" aria-hidden="true" />
+            ) : (
+              <ChevronDownIcon className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
+            {isExpanded ? t('message.collapseLongMessage') : t('message.expandLongMessage')}
+          </button>
+        </div>
       )}
     </>
   );
