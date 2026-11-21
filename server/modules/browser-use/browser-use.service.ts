@@ -72,7 +72,9 @@ type RuntimeHandle = {
 type RuntimeReadiness = {
   playwright: any | null;
   playwrightInstalled: boolean;
+  playwrightVersion: string | null;
   chromiumInstalled: boolean;
+  chromiumVersion: string | null;
   chromiumExecutablePath: string | null;
   installInProgress: boolean;
   installMessage: string | null;
@@ -197,12 +199,46 @@ function readAuthTokenFile(filePath?: string | null): string | null {
   return token;
 }
 
+function readPackageVersion(packageName: string): string | null {
+  try {
+    return require(`${packageName}/package.json`).version || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolves the Chrome version of the installed Chromium build. Playwright bakes
+ * the browser revision (e.g. `chromium-1243`) into the executable path and maps
+ * it to a Chrome version in playwright-core's browsers.json. A path whose
+ * revision is unknown (a browser installed by another Playwright version)
+ * yields null rather than a misleading version.
+ */
+function readChromiumVersion(executablePath: string | null): string | null {
+  const revision = executablePath && /[\\/]chromium-(\d+)[\\/]/.exec(executablePath)?.[1];
+  if (!revision) {
+    return null;
+  }
+
+  try {
+    const browsersJsonPath = path.join(path.dirname(require.resolve('playwright-core/package.json')), 'browsers.json');
+    const { browsers } = JSON.parse(fs.readFileSync(browsersJsonPath, 'utf8')) as {
+      browsers?: Array<{ name?: string; revision?: string; browserVersion?: string }>;
+    };
+    return browsers?.find((item) => item.name === 'chromium' && item.revision === revision)?.browserVersion || null;
+  } catch {
+    return null;
+  }
+}
+
 function probeRuntime(): RuntimeProbe {
   const playwright = getPlaywright();
   const readiness: RuntimeProbe = {
     playwright,
     playwrightInstalled: Boolean(playwright),
+    playwrightVersion: playwright ? readPackageVersion('playwright') : null,
     chromiumInstalled: false,
+    chromiumVersion: null,
     chromiumExecutablePath: null,
   };
 
@@ -214,6 +250,7 @@ function probeRuntime(): RuntimeProbe {
     const executablePath = playwright.chromium.executablePath();
     readiness.chromiumExecutablePath = executablePath;
     readiness.chromiumInstalled = Boolean(executablePath && fs.existsSync(executablePath));
+    readiness.chromiumVersion = readiness.chromiumInstalled ? readChromiumVersion(executablePath) : null;
   } catch {
     readiness.chromiumInstalled = false;
   }
@@ -505,7 +542,9 @@ export const browserUseService = {
       runtime: getBrowserUseRuntime(),
       available,
       playwrightInstalled: readiness.playwrightInstalled,
+      playwrightVersion: readiness.playwrightVersion,
       chromiumInstalled: readiness.chromiumInstalled,
+      chromiumVersion: readiness.chromiumVersion,
       installInProgress: readiness.installInProgress,
       sessionCount: sessions.size,
       message: available

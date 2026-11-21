@@ -10,7 +10,9 @@ import SettingsSection from '@/modules/settings/SettingsSection';
 type BrowserUseStatus = {
   available: boolean;
   playwrightInstalled: boolean;
+  playwrightVersion: string | null;
   chromiumInstalled: boolean;
+  chromiumVersion: string | null;
   installInProgress: boolean;
   message: string;
 };
@@ -56,9 +58,12 @@ export default function BrowserUseSettingsTab() {
   };
 
   const needsBrowserBinaries = Boolean(status && (!status.playwrightInstalled || !status.chromiumInstalled));
-  const runtimeLabel = (installed?: boolean) => {
+  const runtimeLabel = (installed?: boolean, version?: string | null) => {
     if (isStatusLoading && !status) {
       return t('browser.checking');
+    }
+    if (installed && version) {
+      return version;
     }
     return installed ? t('browser.installed') : t('browser.missing');
   };
@@ -73,10 +78,10 @@ export default function BrowserUseSettingsTab() {
           <div className="space-y-4 px-4 py-4">
             <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
               <span className="rounded-md border border-border px-2 py-1">
-                Playwright: {runtimeLabel(status?.playwrightInstalled)}
+                Playwright: {runtimeLabel(status?.playwrightInstalled, status?.playwrightVersion)}
               </span>
               <span className="rounded-md border border-border px-2 py-1">
-                Chromium: {runtimeLabel(status?.chromiumInstalled)}
+                Chromium: {runtimeLabel(status?.chromiumInstalled, status?.chromiumVersion)}
               </span>
               <span className="rounded-md border border-border px-2 py-1">
                 {t('browser.statusLabel')}: {isStatusLoading && !status ? t('browser.checking') : status?.available ? t('browser.ready') : t('browser.setupRequired')}
