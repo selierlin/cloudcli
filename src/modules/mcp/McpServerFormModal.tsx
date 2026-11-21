@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, FolderOpen, Globe, X, XCircle } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
 import { Button, Input } from '@/shared/ui';
-import { MCP_PROVIDER_NAMES, MCP_SUPPORTED_SCOPES, MCP_SUPPORTED_TRANSPORTS, MCP_SUPPORTS_WORKING_DIRECTORY } from '@/shared/constants';
+import { isImeKeyEvent } from '@/shared/utils';
+import { ESCAPE_LAYER_SELECTOR, MCP_PROVIDER_NAMES, MCP_SUPPORTED_SCOPES, MCP_SUPPORTED_TRANSPORTS, MCP_SUPPORTS_WORKING_DIRECTORY } from '@/shared/constants';
 import { useMcpServerForm } from '@/modules/mcp/hooks/useMcpServerForm';
 import { getGlobalMcpImpact } from '@/modules/mcp/utils/mcpGlobalImpact';
 import type { McpFormState, McpGlobalImpactEntry, McpGlobalImpactReason, McpProject, McpProvider, McpScope, McpTransport, ProviderMcpServer } from '@/shared/types';
@@ -102,6 +103,31 @@ export default function McpServerFormModal({
   // first submit only predicts each provider's outcome. Holding the prediction
   // here means the same modal renders either the form or the confirmation step.
   const [globalImpact, setGlobalImpact] = useState<McpGlobalImpactEntry[] | null>(null);
+  const modalRef = useRef<HTMLDivElement | null>(null);
+
+  // The Settings dialog ignores Escape while any escape layer is open (so it
+  // never closes out from under a modal), which leaves this overlay to close
+  // itself. A menu opened above it becomes the last layer, so it keeps the key.
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || isImeKeyEvent(event)) {
+        return;
+      }
+
+      const layers = Array.from(document.querySelectorAll<HTMLElement>(ESCAPE_LAYER_SELECTOR));
+      if (layers[layers.length - 1] !== modalRef.current) {
+        return;
+      }
+
+      event.stopPropagation();
+      onClose();
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
   const handleFormSubmit = async (formData: McpFormState, server: ProviderMcpServer | null) => {
     if (isGlobalMode && globalImpact === null) {
@@ -172,7 +198,7 @@ export default function McpServerFormModal({
     };
 
     return createPortal(
-      <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-overlay/50 p-4">
+      <div ref={modalRef} data-escape-layer className="fixed inset-0 z-[10000] flex items-center justify-center bg-overlay/50 p-4">
         <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-border bg-background">
           <div className="flex items-center justify-between border-b border-border p-4">
             <h3 className="text-lg font-medium text-foreground">{t('mcpServers.globalPreview.title')}</h3>
@@ -229,7 +255,7 @@ export default function McpServerFormModal({
   }
 
   return createPortal(
-    <div data-escape-layer className="fixed inset-0 z-[10000] flex items-center justify-center bg-overlay/50 p-4">
+    <div ref={modalRef} data-escape-layer className="fixed inset-0 z-[10000] flex items-center justify-center bg-overlay/50 p-4">
       <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-border bg-background">
         <div className="flex items-center justify-between border-b border-border p-4">
           <h3 className="text-lg font-medium text-foreground">{modalTitle}</h3>

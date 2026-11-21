@@ -66,7 +66,9 @@ export default function McpMatrixCell({ state, label, onToggle, isBusy = false }
         disabled={isInert}
         onClick={onToggle}
         className={cn(
-          'inline-flex h-7 w-7 items-center justify-center rounded-md border transition-colors',
+          // 32px is the smallest comfortable touch target; the tighter cell
+          // padding in the matrix keeps the column itself narrow.
+          'inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors',
           appearance.className,
           isInert ? 'cursor-not-allowed' : 'hover:brightness-110',
           isBusy && 'opacity-60',

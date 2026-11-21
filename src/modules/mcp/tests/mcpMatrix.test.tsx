@@ -711,6 +711,31 @@ function savedPayload(index = 0): UpsertMcpCatalogEntryPayload {
   return call[0] as UpsertMcpCatalogEntryPayload;
 }
 
+test('closes the entry form on Escape', async () => {
+  await openCreateForm();
+  assert.ok(document.querySelector('form'), 'expected the entry form to be open');
+
+  // The Settings dialog skips Escape while an escape layer is open, so the
+  // form has to close itself rather than leave the key dead.
+  fireEvent.keyDown(document, { key: 'Escape' });
+
+  await waitFor(() => assert.equal(document.querySelector('form'), null, 'Escape should close the entry form'));
+});
+
+test('leaves Escape to a layer opened above the form', async () => {
+  await openCreateForm();
+  // A menu portaled after the modal is the top escape layer; one Escape must
+  // close that layer only, not the form underneath it as well.
+  const menu = document.createElement('div');
+  menu.setAttribute('role', 'menu');
+  document.body.appendChild(menu);
+
+  fireEvent.keyDown(document, { key: 'Escape' });
+
+  assert.ok(document.querySelector('form'), 'the form must stay open while a layer above owns the key');
+  menu.remove();
+});
+
 test('creates an entry from the form and shows it in the matrix', async () => {
   const container = await openCreateForm();
   respondUpsert(entry('9', 'linear', 'stdio', { command: 'npx linear-mcp' }));

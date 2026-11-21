@@ -383,7 +383,7 @@ export default function McpMatrix() {
               <tr>
                 <th
                   scope="col"
-                  className="sticky left-0 z-10 bg-background px-3 py-2 text-left font-medium text-muted-foreground"
+                  className="sticky left-0 z-10 bg-background px-2 py-1.5 text-left font-medium text-muted-foreground"
                 >
                   {t('mcpMatrix.serverColumn')}
                 </th>
@@ -392,12 +392,15 @@ export default function McpMatrix() {
                     (entry) => getCellDisabledReason(entry, provider) !== null,
                   );
                   return (
-                    <th key={provider} scope="col" className="px-2 py-2 text-center font-medium text-muted-foreground">
+                    <th key={provider} scope="col" className="px-1 py-1.5 text-center font-medium text-muted-foreground">
                       <ActionMenu
                         label={MCP_MATRIX_PROVIDER_SHORT_NAMES[provider] ?? MCP_PROVIDER_NAMES[provider]}
                         ariaLabel={t('mcpMatrix.bulk.menuLabel', { provider: MCP_PROVIDER_NAMES[provider] })}
                         variant="ghost"
                         size="sm"
+                        // A compact header keeps each harness column narrow, so a
+                        // tablet fits all of them without scrolling the table.
+                        triggerClassName="h-8 gap-1 px-1 text-xs"
                         portal
                         menuClassName={MATRIX_MENU_CLASS}
                         disabled={columnDisabled}
@@ -427,7 +430,7 @@ export default function McpMatrix() {
                     </th>
                   );
                 })}
-                <th scope="col" className="px-3 py-2 text-right font-medium text-muted-foreground">
+                <th scope="col" className="px-2 py-1.5 text-right font-medium text-muted-foreground">
                   <span className="sr-only">{t('mcpMatrix.actionsColumn')}</span>
                 </th>
               </tr>
@@ -442,29 +445,34 @@ export default function McpMatrix() {
                   <tr key={entry.id}>
                     <th
                       scope="row"
-                      className="sticky left-0 z-10 border-t border-border bg-background px-3 py-2 text-left font-medium text-foreground"
+                      className="sticky left-0 z-10 border-t border-border bg-background px-2 py-0.5 text-left font-medium text-foreground"
                     >
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <span className="truncate">{entry.name}</span>
-                        <TransportIcon transport={entry.transport} />
-                        {!isManaged && (
-                          <button
-                            type="button"
-                            onClick={() => setFormTarget({ entry })}
-                            title={t('mcpMatrix.row.edit')}
-                            aria-label={t('mcpMatrix.row.edit')}
-                            className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
+                      {isManaged ? (
+                        <div className="flex min-w-0 max-w-[8.5rem] items-center gap-1.5 px-1 sm:max-w-none">
+                          <span className="truncate" title={entry.name}>{entry.name}</span>
+                          <TransportIcon transport={entry.transport} />
+                        </div>
+                      ) : (
+                        // The whole name is the edit target: a lone 24px pencil
+                        // is a fiddly tap on a phone, where this table is mostly used.
+                        <button
+                          type="button"
+                          onClick={() => setFormTarget({ entry })}
+                          title={t('mcpMatrix.row.edit')}
+                          aria-label={t('mcpMatrix.row.edit')}
+                          className="group -mx-1 flex min-w-0 max-w-[8.5rem] items-center gap-1.5 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-muted/60 sm:max-w-none"
+                        >
+                          <span className="truncate" title={entry.name}>{entry.name}</span>
+                          <TransportIcon transport={entry.transport} />
+                          <Pencil className="h-3 w-3 flex-shrink-0 text-muted-foreground/60 transition-colors group-hover:text-foreground" />
+                        </button>
+                      )}
                     </th>
                   {MCP_MATRIX_PROVIDERS.map((provider) => {
                     const write = cellWrites[getMcpCellKey(entry.id, provider)];
                     const disabled = getCellDisabledReason(entry, provider) !== null;
                     return (
-                      <td key={provider} className="border-t border-border px-2 py-2 text-center">
+                      <td key={provider} className="border-t border-border px-1 py-0.5 text-center">
                         <McpMatrixCell
                           state={getCellState(entry, provider, write?.status === 'failed')}
                           label={describeCell(entry, provider, write)}
@@ -474,7 +482,7 @@ export default function McpMatrix() {
                       </td>
                     );
                   })}
-                  <td className="border-t border-border px-3 py-2 text-right">
+                  <td className="border-t border-border px-2 py-0.5 text-right">
                     <ActionMenu
                       label={t('mcpMatrix.row.menuLabel', { name: entry.name })}
                       iconOnly
