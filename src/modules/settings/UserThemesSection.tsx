@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/shared/context/ThemeContext';
@@ -6,29 +6,27 @@ import { THEME_RESET_PARAM, THEME_RESET_VALUE } from '@/shared/themeReset';
 import type { ThemeContrastWarning } from '@/shared/userThemeContrast';
 import { addPastedTheme, removePastedTheme } from '@/shared/userThemePastes';
 import type { AddPastedThemeFailure, PastedThemeFormat } from '@/shared/userThemePastes';
-import {
-  getUserThemeStyleState,
-  subscribeToUserThemeStyle,
-} from '@/shared/userThemeStyles';
-import type { UserThemeStyleState } from '@/shared/userThemeStyles';
 import { cn } from '@/shared/utils';
 import { useThemeCssPreview } from '@/modules/settings/hooks/useThemeCssPreview';
 import { useThemePasteFormat } from '@/modules/settings/hooks/useThemePasteFormat';
 import SettingsCard from '@/modules/settings/SettingsCard';
 import SettingsSection from '@/modules/settings/SettingsSection';
+import ThemeContrastReport from '@/modules/settings/ThemeContrastReport';
 import ThemeCssEditor from '@/modules/settings/ThemeCssEditor';
 
 /**
- * The settings page's user-theme section: what the two sources hold, and the two
- * things only this page can do — remove a pasted theme, and add one.
+ * The settings page's user-theme section: the one thing only this page can do —
+ * add a pasted theme — and the one thing only it may undo, removing it.
  *
- * It exists because the two sources are not interchangeable in the one way that
- * matters to a person looking at the list: a theme file lives on the host and the
- * page can only report it, whereas a pasted theme's only copy is the user's
- * preferences, so without a delete button here there is no way to remove one
- * (§5.4 v3). The picker above picks; this section is where a theme is added and
- * taken away, and where the difference is stated rather than left to be guessed
- * from which button is missing.
+ * Choosing a theme is the picker's job alone; it lists every theme this device
+ * supplied, including these, so repeating them here would only make the page
+ * longer. What is left is the pair of operations the picker cannot offer.
+ *
+ * A pasted theme's only copy is the user's preferences, so without a delete
+ * button here there is no way to remove one (§5.4 v3). It is also added here,
+ * and the difference between a file (the host owns it) and a paste (this page
+ * owns it) is stated rather than left to be guessed from which button is
+ * missing.
  *
  * The paste box writes either of §5.5's two formats, and the mode control beside
  * it is which one (§5.5 v5). Switching to raw CSS is the one act on this page
@@ -55,20 +53,6 @@ import ThemeCssEditor from '@/modules/settings/ThemeCssEditor';
 /** The badge label for a declared reach; the same keys the picker uses. */
 const coverageKey = (coverage: 'accent' | 'full'): string => `themeSelector.coverage.${coverage}`;
 
-/**
- * The host an `inspiredBy` URL points at, when it is one an anchor may have.
- * Anything else — a relative scheme, a non-URL — is shown as plain text instead
- * of becoming an `href`.
- */
-function inspiredByHost(url: string): string | null {
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.host : null;
-  } catch {
-    return null;
-  }
-}
-
 /** The two formats the paste box can write, in the order they are offered. */
 const PASTE_FORMATS: ReadonlyArray<{ value: PastedThemeFormat; labelKey: string }> = [
   { value: 'json', labelKey: 'userThemes.mode.json' },
@@ -78,36 +62,6 @@ const PASTE_FORMATS: ReadonlyArray<{ value: PastedThemeFormat; labelKey: string 
 /** The example shown in the box; each format has its own, since neither is a hint about the other. */
 const placeholderKey = (format: PastedThemeFormat): string =>
   `userThemes.pastePlaceholder.${format}`;
-
-/**
- * The §5.10 contrast report, the same shape wherever it appears: a status
- * (not an alert — the theme applies), one line per pair below the floor, and
- * nothing at all when there is nothing to report.
- */
-function ContrastReport({ warnings }: { warnings: ThemeContrastWarning[] }) {
-  const { t } = useTranslation('settings');
-  return (
-    <div role="status" className="mt-2 rounded-lg border border-border bg-muted/40 p-2">
-      <p className="text-xs font-medium text-foreground">{t('userThemes.contrastTitle')}</p>
-      <ul className="mt-0.5 space-y-0.5">
-        {warnings.map((warning) => (
-          <li
-            key={`${warning.appearance}-${warning.ink}-${warning.surface}`}
-            className="text-xs text-muted-foreground"
-          >
-            {t('userThemes.contrastWarning', {
-              appearance: t(`userThemes.contrastAppearance.${warning.appearance}`),
-              ink: warning.ink,
-              surface: warning.surface,
-              ratio: warning.ratio.toFixed(2),
-              min: String(warning.min),
-            })}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
 
 export default function UserThemesSection() {
   const { t } = useTranslation('settings');
@@ -127,25 +81,7 @@ export default function UserThemesSection() {
   // asking after would be the footgun §5.5 warns about, one reload away.
   const [confirmingCss, setConfirmingCss] = useState(false);
 
-  // The contrast report of the stylesheet in the document (§5.10), read from
-  // the same store the picker's fallback hint reads. A theme file's compile
-  // happens at apply time on the client — the listing never reads content — so
-  // this is where a file's warnings surface without breaking that boundary.
-  const [styleState, setStyleState] = useState<UserThemeStyleState>(getUserThemeStyleState);
-  useEffect(() => subscribeToUserThemeStyle(() => setStyleState(getUserThemeStyleState())), []);
-
-  const fileThemes = userThemes.filter((theme) => theme.source === 'user');
   const pastedThemes = userThemes.filter((theme) => theme.source === 'user-paste');
-
-  // The report belongs to the file list only when the theme wearing the page is
-  // one of these files. A paste's report has its own moment (right after the
-  // paste), and showing the same warnings twice would read as two problems.
-  const appliedFileWarnings = useMemo<ThemeContrastWarning[] | null>(() => {
-    if (!styleState.appliedId || styleState.warnings.length === 0) return null;
-    return fileThemes.some((theme) => theme.id === styleState.appliedId)
-      ? styleState.warnings
-      : null;
-  }, [fileThemes, styleState]);
 
   const chooseFormat = (next: PastedThemeFormat) => {
     if (next === format) return;
@@ -179,63 +115,7 @@ export default function UserThemesSection() {
 
   return (
     <SettingsSection title={t('userThemes.title')} description={t('userThemes.description')}>
-      <SettingsCard divided>
-        <div className="px-4 py-4">
-          <div className="text-sm font-medium text-foreground">{t('userThemes.files.title')}</div>
-          <p className="mt-0.5 text-sm text-muted-foreground">{t('userThemes.files.hint')}</p>
-          {fileThemes.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">{t('userThemes.files.empty')}</p>
-          ) : (
-            <ul className="mt-2">
-              {fileThemes.map((theme) => {
-                const host = theme.inspiredBy ? inspiredByHost(theme.inspiredBy) : null;
-                return (
-                  <li key={theme.id} className={rowClass}>
-                    <span className="flex min-w-0 flex-col">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="truncate text-sm text-foreground">{theme.name}</span>
-                        {theme.coverage && (
-                          <span className={badgeClass}>{t(coverageKey(theme.coverage))}</span>
-                        )}
-                      </span>
-                      {(theme.author || theme.inspiredBy) && (
-                        // The provenance line is deliberately label-free ("作者 ·
-                        // 来源" would need i18n for what a separator says): the
-                        // author is a name, the link text is the host itself.
-                        <span className="truncate text-xs text-muted-foreground">
-                          {theme.author}
-                          {theme.author && theme.inspiredBy ? ' · ' : ''}
-                          {host ? (
-                            <a
-                              href={theme.inspiredBy}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="hover:text-foreground hover:underline"
-                            >
-                              {host}
-                            </a>
-                          ) : (
-                            theme.inspiredBy
-                          )}
-                        </span>
-                      )}
-                    </span>
-                    <button
-                      type="button"
-                      aria-pressed={themeId === theme.id}
-                      onClick={() => setThemeId(theme.id)}
-                      className={actionClass}
-                    >
-                      {t(themeId === theme.id ? 'userThemes.inUse' : 'userThemes.use')}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          {appliedFileWarnings && <ContrastReport warnings={appliedFileWarnings} />}
-        </div>
-
+      <SettingsCard>
         <div className="px-4 py-4">
           <div className="text-sm font-medium text-foreground">{t('userThemes.pastes.title')}</div>
           <p className="mt-0.5 text-sm text-muted-foreground">{t('userThemes.pastes.hint')}</p>
@@ -391,7 +271,7 @@ export default function UserThemesSection() {
               </p>
             )}
           </div>
-          {warnings.length > 0 && <ContrastReport warnings={warnings} />}
+          {warnings.length > 0 && <ThemeContrastReport warnings={warnings} />}
         </div>
       </SettingsCard>
 

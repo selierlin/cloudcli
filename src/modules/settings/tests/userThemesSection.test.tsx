@@ -5,14 +5,14 @@ import React from 'react';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
 /**
- * The settings page's user-theme section: the two sources, and the two things
- * only this page can do — add a pasted theme and remove one.
+ * The settings page's user-theme section: the two things only this page can do —
+ * add a pasted theme and remove one.
  *
- * The distinction pinned here is the one that decides which buttons exist. A
- * theme file cannot be deleted from the page (it lives on the host), and a pasted
- * theme must be deletable (the preferences are its only copy), so a section that
- * rendered them the same way would be promising a deletion it cannot perform or
- * withholding the only one that exists.
+ * Choosing a theme is the picker's job; this section is what is left over, so
+ * the distinction pinned here is the one that decides the delete button: a file
+ * theme lives on the host and the picker already offers it, while a pasted
+ * theme's only copy is the preferences, which makes removal a menu item this
+ * page has to provide.
  *
  * The fake `t` returns its key, so the assertions read the keys rather than the
  * copy in any one locale.
@@ -22,14 +22,6 @@ const validTheme = JSON.stringify({
   name: 'Deep sea',
   tokens: { '--primary': '175 84% 32%' },
 });
-
-const fileEntry = {
-  id: 'user-borealis',
-  name: 'Borealis',
-  fileName: 'borealis.css',
-  format: 'css' as const,
-  modifiedAt: 42,
-};
 
 const pasteEntry = { id: 'paste-1', name: 'Deep sea', content: validTheme, format: 'json' as const };
 
@@ -199,54 +191,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-});
-
-test('a theme file is listed but cannot be deleted from this page', async () => {
-  const { container } = await renderSection([fileEntry]);
-
-  const row = rowFor(container, 'Borealis');
-  assert.deepEqual(
-    [...row.querySelectorAll('button')].map((button) => button.textContent),
-    ['userThemes.use'],
-    'the file lives on the host, so the only action this page may offer is picking it',
-  );
-  assert.ok(container.textContent?.includes('userThemes.files.hint'));
-});
-
-test('a file theme\u2019s provenance line names the author and links only an http(s) inspiredBy', async () => {
-  const { container } = await renderSection([
-    {
-      ...fileEntry,
-      displayName: { zh: '极光' },
-      author: 'selier',
-      inspiredBy: 'https://github.com/refact0r/system24',
-    },
-    // A scheme an anchor must not have: shown as text, never as an href.
-    {
-      ...fileEntry,
-      id: 'user-plain',
-      name: 'Plain',
-      fileName: 'plain.css',
-      inspiredBy: 'javascript:alert(1)',
-    },
-  ]);
-
-  const labeled = rowFor(container, '极光');
-  assert.ok(
-    labeled.textContent?.includes('selier'),
-    'the author is shown as plain text beside the name',
-  );
-  const link = labeled.querySelector('a');
-  assert.ok(link, 'an http(s) inspiredBy is a link');
-  assert.equal(link.getAttribute('href'), 'https://github.com/refact0r/system24');
-  assert.equal(link.textContent, 'github.com', 'the link text is the host itself');
-
-  const plain = rowFor(container, 'Plain');
-  assert.equal(plain.querySelector('a'), null, 'a non-http(s) inspiredBy never becomes an href');
-  assert.ok(
-    plain.textContent?.includes('javascript:alert(1)'),
-    'free text is shown verbatim rather than quietly dropped',
-  );
 });
 
 test('a pasted theme can be deleted, and deleting it removes the row', async () => {
@@ -645,69 +589,20 @@ test('option A is not previewed and says nothing about previewing', async () => 
 });
 
 /**
- * §5.10's contrast report for a theme *file* (2-L). The listing never reads
- * file content (2-D, deliberate), but the apply step does — and its report
- * rides the style state, which is what this section renders. The line these
- * tests hold: the report belongs to the file list only while a file is what
- * the page is wearing, and a paste's report keeps its own moment.
+ * §5.10's contrast report for a theme *file* moved with the file listing: the
+ * picker renders it beside the pick that put the file in force, and covers it
+ * there. What stays here is this section's half of that boundary — it reports
+ * the paste it just took, and says nothing about the theme already in force
+ * when the section opens.
  */
 
-test('the applied file theme\u2019s readability warnings are shown where the file is listed', async () => {
-  fileBody = JSON.stringify({ tokens: { '--primary': '175 84% 32%' } });
-  const { container } = await renderSection([{ ...fileEntry, format: 'json', fileName: 'borealis.json' }]);
-
-  fireEvent.click(buttonWithText(rowFor(container, 'Borealis'), 'userThemes.use'));
-  await settle();
-
-  const report = container.querySelector('[role="status"]');
-  assert.ok(report, 'a warning with nowhere to appear is not a warning');
-  assert.ok(report.textContent?.includes('userThemes.contrastTitle'));
-  assert.ok(
-    report.textContent?.includes('--primary-foreground'),
-    'the report names the pair, the same one the console line names',
-  );
-});
-
-test('a file theme with nothing to report puts no block in the file list', async () => {
-  fileBody = JSON.stringify({ tokens: { '--term-background': '210 45% 8%' } });
-  const { container } = await renderSection([{ ...fileEntry, format: 'json', fileName: 'borealis.json' }]);
-
-  fireEvent.click(buttonWithText(rowFor(container, 'Borealis'), 'userThemes.use'));
-  await settle();
-
-  assert.ok(
-    container.querySelector('[role="status"]') === null,
-    'a block that always renders would teach the reader to ignore it',
-  );
-});
-
-test('the file report follows the theme: picking another one takes it away', async () => {
-  fileBody = JSON.stringify({ tokens: { '--primary': '175 84% 32%' } });
-  const warned = { ...fileEntry, format: 'json' as const, fileName: 'borealis.json' };
-  const clean = { ...fileEntry, id: 'user-nord', name: 'Nord', format: 'json' as const, fileName: 'nord.json' };
-  const { container } = await renderSection([warned, clean]);
-
-  fireEvent.click(buttonWithText(rowFor(container, 'Borealis'), 'userThemes.use'));
-  await settle();
-  assert.ok(container.querySelector('[role="status"]'), 'the warned theme is in force, so its report shows');
-
-  fileBody = JSON.stringify({ tokens: { '--term-background': '210 45% 8%' } });
-  fireEvent.click(buttonWithText(rowFor(container, 'Nord'), 'userThemes.use'));
-  await settle();
-
-  assert.ok(
-    container.querySelector('[role="status"]') === null,
-    'a report about the theme that just left would be read as one about the theme that just arrived',
-  );
-});
-
-test('an applied paste keeps its report out of the file list', async () => {
+test('opening the section does not report on the theme already in force', async () => {
   const { container } = await renderSection([], [pasteEntry], 'paste-1');
   await settle();
 
   assert.equal(document.documentElement.dataset.theme, 'paste-1');
   assert.ok(
     container.querySelector('[role="status"]') === null,
-    'a paste\u2019s report has its own moment — right after the paste — and the file list is not it',
+    'a paste’s report has its own moment — right after the paste — and opening the section is not it',
   );
 });

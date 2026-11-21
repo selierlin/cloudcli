@@ -22,6 +22,16 @@ type ThemeOption = {
   nameEn?: string;
   /** How far the theme reaches, shown as a badge; absent themes claim nothing. */
   coverage?: 'accent' | 'full';
+  /**
+   * Where the option came from. The picker groups by it, because that is what
+   * separates the registry's themes from the ones this device supplied — the
+   * distinction a flat list of names cannot show.
+   */
+  source?: 'builtin' | 'user' | 'user-paste';
+  /** The theme file's author, when the themes folder's `index.json` declares one. */
+  author?: string;
+  /** The theme file's inspiration URL, when the themes folder's `index.json` declares one. */
+  inspiredBy?: string;
 };
 
 type UseThemeOptionsResult = {
@@ -54,16 +64,21 @@ export function useThemeOptions(): UseThemeOptionsResult {
       label: theme.name,
       nameEn: theme.nameEn,
       coverage: theme.coverage,
+      source: 'builtin' as const,
     })),
     // A file-derived theme carries the reach its file declared, and no badge
     // when it declared none (§5.8 v4) — the file is the only thing that can say.
     // A folder `index.json` may localize the name, which becomes the second
-    // line here exactly as a builtin's `nameEn` does.
+    // line here exactly as a builtin's `nameEn` does, and may also declare the
+    // author and inspiration the picker prints underneath.
     ...userThemes.map((theme) => ({
       id: theme.id,
       label: theme.name,
       nameEn: theme.nameEn,
       coverage: theme.coverage,
+      source: theme.source,
+      author: theme.author,
+      inspiredBy: theme.inspiredBy,
     })),
   ];
 

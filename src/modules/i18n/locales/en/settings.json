@@ -325,16 +325,15 @@
       "full": "Full"
     },
     "notInstalled": "\"{{id}}\" is not installed on this device; using the default.",
-    "loadFailed": "\"{{id}}\" could not be loaded; using the default."
+    "loadFailed": "\"{{id}}\" could not be loaded; using the default.",
+    "groups": {
+      "builtin": "Built-in",
+      "mineCount": "My themes ({{count}})"
+    }
   },
   "userThemes": {
     "title": "User themes",
-    "description": "The two sources beyond the colour themes above: files in the themes folder, and theme content you paste in (token JSON or raw CSS)",
-    "files": {
-      "title": "From the themes folder",
-      "hint": "Read by the server from ~/.cloudcli/themes/; add or remove them in that folder — only what is there is listed here. Display names and provenance can be declared in an index.json in the same folder.",
-      "empty": "No theme files yet. Drop a .css, .json or .tmTheme in there and reload."
-    },
+    "description": "Paste theme content (token JSON or raw CSS); it is kept in your preferences and follows your account to other devices. Themes from the themes folder are listed with the colour themes above.",
     "pastes": {
       "title": "Pasted themes",
       "hint": "Kept in your preferences, so they follow you to your other devices.",
