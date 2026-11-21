@@ -31,6 +31,26 @@ const hasNewerPageLeft = (slot: Pick<SessionSlot, 'turnPageInfo'>): boolean => (
 );
 
 /**
+ * Whether a reported budget accounts for no tokens at all.
+ *
+ * Every route that publishes one already drops the empty payloads — the Claude
+ * runtime no longer streams them and the history readers skip the rows behind
+ * them — but a request that raced the turn can still land with zeros (a
+ * `/token-usage` fetch that resolved before the transcript had a usage row).
+ * Such a payload must not overwrite a reading the stream already published.
+ */
+const isZeroTokenUsage = (usage: Record<string, unknown> | null | undefined): boolean => {
+  if (!usage) {
+    return true;
+  }
+  const read = (value: unknown) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  return read(usage.used) === 0 && read(usage.inputTokens) + read(usage.outputTokens) === 0;
+};
+
+/**
  * Height a page must insert above the reader before the pager latches its
  * one-page-per-visit guard, and the distance the reader must move back down to
  * release it.
@@ -465,7 +485,18 @@ export function useChatSessionState({
    * actually left the tail behind; see `TAIL_AFFORDANCE_SHOW_GAP_PX`.
    */
   const [showTailAffordance, setShowTailAffordance] = useState(false);
+  /**
+   * The viewed session's token reading, as last reported by the stream, a
+   * history page or the token-usage endpoint. Reported values go through
+   * `applyTokenBudget` so an empty payload cannot erase a real reading; only an
+   * explicit context reset clears it outright.
+   */
   const [tokenBudget, setTokenBudget] = useState<Record<string, unknown> | null>(null);
+  const applyTokenBudget = useCallback((budget: Record<string, unknown> | null) => {
+    setTokenBudget((previous) => (
+      isZeroTokenUsage(budget) && !isZeroTokenUsage(previous) ? previous : budget
+    ));
+  }, []);
   const [visibleMessageCount, setVisibleMessageCount] = useState(INITIAL_VISIBLE_MESSAGES);
   /**
    * How many rows the last "load earlier" prepended. The transcript mounts that
@@ -754,7 +785,7 @@ export function useChatSessionState({
       setTotalMessages(slot.total);
       messagesOffsetRef.current = slot.offset;
       if (slot.tokenUsage !== undefined) {
-        setTokenBudget((slot.tokenUsage as Record<string, unknown> | null) ?? null);
+        applyTokenBudget((slot.tokenUsage as Record<string, unknown> | null) ?? null);
       }
     }
     return !result.deferred;
@@ -1389,7 +1420,7 @@ export function useChatSessionState({
         setTotalMessages(slot.total);
         messagesOffsetRef.current = slot.offset;
         if (slot.tokenUsage !== undefined) {
-          setTokenBudget((slot.tokenUsage as Record<string, unknown> | null) ?? null);
+          applyTokenBudget((slot.tokenUsage as Record<string, unknown> | null) ?? null);
         }
 
         if (prependedCount === 0) {
@@ -1438,7 +1469,7 @@ export function useChatSessionState({
         setIsLoadingMoreMessages(false);
       }
     },
-    [armScrollRestore, hasMoreMessages, isActive, isLoadingMoreMessages, selectedProject, selectedSession, sessionStore],
+    [applyTokenBudget, armScrollRestore, hasMoreMessages, isActive, isLoadingMoreMessages, selectedProject, selectedSession, sessionStore],
   );
 
   const loadNewerMessages = useCallback(async () => {
@@ -1466,7 +1497,7 @@ export function useChatSessionState({
       setTotalMessages(slot.total);
       messagesOffsetRef.current = slot.offset;
       if (slot.tokenUsage !== undefined) {
-        setTokenBudget((slot.tokenUsage as Record<string, unknown> | null) ?? null);
+        applyTokenBudget((slot.tokenUsage as Record<string, unknown> | null) ?? null);
       }
       if (appendedCount > 0) {
         setVisibleMessageCount((previous) => previous + appendedCount);
@@ -1479,7 +1510,7 @@ export function useChatSessionState({
       isLoadingMoreRef.current = false;
       setIsLoadingMoreMessages(false);
     }
-  }, [isActive, isLoadingMoreMessages, selectedProject, selectedSession, sessionStore]);
+  }, [applyTokenBudget, isActive, isLoadingMoreMessages, selectedProject, selectedSession, sessionStore]);
 
   const handleScroll = useCallback(async () => {
     if (!isActive) return;
@@ -1974,7 +2005,7 @@ export function useChatSessionState({
         setTotalMessages(slot.total);
         messagesOffsetRef.current = slot.offset;
         if (slot.tokenUsage !== undefined) {
-          setTokenBudget((slot.tokenUsage as Record<string, unknown> | null) ?? null);
+          applyTokenBudget((slot.tokenUsage as Record<string, unknown> | null) ?? null);
         }
       }
       if (activeSessionIdRef.current === selectedSessionId) {
@@ -1986,6 +2017,7 @@ export function useChatSessionState({
       }
     });
   }, [
+    applyTokenBudget,
     isActive,
     requestLatestMessages,
     resetPaginationState,
@@ -2185,18 +2217,17 @@ export function useChatSessionState({
       try {
         // The provider module resolves storage and provider details from the session id.
         const response = await api.providers.sessionTokenUsage(selectedSession.id);
-        if (response.ok) {
-          const payload = await response.json();
-          setTokenBudget(payload.data ?? null);
-        } else {
-          setTokenBudget(null);
-        }
+        // A session whose first turn is still generating can answer with zeros,
+        // or with a 404 because the transcript is not on disk yet. Both land
+        // after the stream may have published the turn's real reading, so this
+        // request never overwrites one.
+        applyTokenBudget(response.ok ? (await response.json()).data ?? null : null);
       } catch (error) {
         console.error('Failed to fetch initial token usage:', error);
       }
     };
     fetchInitialTokenUsage();
-  }, [selectedSession?.id]);
+  }, [applyTokenBudget, selectedSession?.id]);
 
   const visibleMessages = useMemo(() => {
     if (chatMessages.length <= visibleMessageCount) return chatMessages;
@@ -2501,6 +2532,7 @@ export function useChatSessionState({
     showTailAffordance,
     tokenBudget,
     setTokenBudget,
+    applyTokenBudget,
     visibleMessageCount,
     prependedRowCount,
     visibleMessages,

@@ -227,6 +227,7 @@ function ChatInterface({
     showTailAffordance,
     tokenBudget,
     setTokenBudget,
+    applyTokenBudget,
     visibleMessageCount,
     prependedRowCount,
     visibleMessages,
@@ -701,7 +702,9 @@ function ChatInterface({
     provider,
     selectedSession,
     currentSessionId,
-    setTokenBudget,
+    // Merged rather than overwritten: a zero the server reports mid-turn must
+    // not erase the reading the stream already published.
+    setTokenBudget: applyTokenBudget,
     pendingPermissionRequests,
     setPendingPermissionRequests,
     streamBuffers,

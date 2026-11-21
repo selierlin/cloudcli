@@ -733,18 +733,26 @@ function readReportedContextWindow(sdkMessage: AnyRecord, mainModel: string | nu
  * Builds a context-window budget from an Anthropic-shaped usage payload.
  *
  * `input_tokens + cache_read + cache_creation` is one request's whole prompt,
- * which is exactly what the context window holds at that moment.
+ * which is exactly what the context window holds at that moment. A block that
+ * accounts for no tokens produces no budget: the SDK stamps synthetic frames
+ * (interrupts, API errors, "No response requested") with an all-zero usage, and
+ * publishing one hides the composer's counter until the next real reading —
+ * these are the same rows `summarizeClaudeTokenUsage` skips when reading a
+ * transcript.
  * @param {Object} messageUsage - Anthropic usage payload
  * @param {number|null} [reportedContextWindow] - SDK-reported window for the session's model
- * @returns {TokenBudget} Token budget object
+ * @returns {TokenBudget|null} Token budget object, or null when the payload is empty
  */
-function buildTokenBudget(messageUsage: AnyRecord, reportedContextWindow?: number | null): TokenBudget {
+function buildTokenBudget(messageUsage: AnyRecord, reportedContextWindow?: number | null): TokenBudget | null {
   const directInputTokens = readNumber(messageUsage.input_tokens ?? messageUsage.inputTokens);
   const cacheCreationTokens = readNumber(messageUsage.cache_creation_input_tokens ?? messageUsage.cacheCreationInputTokens ?? messageUsage.cacheCreationTokens);
   const cacheReadTokens = readNumber(messageUsage.cache_read_input_tokens ?? messageUsage.cacheReadInputTokens ?? messageUsage.cacheReadTokens);
   const cacheTokens = cacheCreationTokens + cacheReadTokens;
   const inputTokens = directInputTokens + cacheTokens;
   const outputTokens = readNumber(messageUsage.output_tokens ?? messageUsage.outputTokens);
+  if (inputTokens === 0 && outputTokens === 0) {
+    return null;
+  }
   const contextWindow = resolveContextWindow(reportedContextWindow);
 
   return {
@@ -843,6 +851,10 @@ function extractCumulativeTokenBudget(rawMessage: unknown, reportedContextWindow
   const inputTokens = readNumber(modelData.cumulativeInputTokens ?? modelData.inputTokens);
   const outputTokens = readNumber(modelData.cumulativeOutputTokens ?? modelData.outputTokens);
   const totalUsed = inputTokens + outputTokens;
+  // Same rule as `buildTokenBudget`: an empty bill is no reading at all.
+  if (totalUsed === 0) {
+    return null;
+  }
   const contextWindow = resolveContextWindow(reportedContextWindow);
 
   return {

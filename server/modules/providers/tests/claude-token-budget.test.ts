@@ -39,6 +39,45 @@ test('system task events with tool-usage shaped usage emit no budget', () => {
   assert.equal(budget, null);
 });
 
+test('an assistant frame with an all-zero usage emits no budget', () => {
+  // The SDK stamps synthetic frames — interrupts, API errors, "No response
+  // requested" — with an all-zero usage block. Publishing one overwrote the
+  // composer's counter with 0, hiding the whole line until the next real
+  // reading arrived.
+  const budget = extractTokenBudget({
+    type: 'assistant',
+    message: {
+      model: '<synthetic>',
+      usage: {
+        input_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+        output_tokens: 0,
+      },
+    },
+  });
+
+  assert.equal(budget, null);
+});
+
+test('a turn-ending result with an all-zero bill emits no budget', () => {
+  assert.equal(
+    extractCumulativeTokenBudget({
+      type: 'result',
+      usage: { input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 0 },
+    }),
+    null,
+  );
+
+  assert.equal(
+    extractCumulativeTokenBudget({
+      type: 'result',
+      modelUsage: { 'claude-sonnet-5': { cumulativeInputTokens: 0, cumulativeOutputTokens: 0 } },
+    }),
+    null,
+  );
+});
+
 test('subagent messages emit no budget for the parent session', () => {
   // A subagent's usage is its own context window; surfacing it made the
   // session counter drop to the subagent's number and bounce back.
