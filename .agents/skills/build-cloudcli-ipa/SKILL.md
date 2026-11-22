@@ -41,15 +41,28 @@ disable-model-invocation: true
 - `NSSupportsLiveActivities` 只在主 App 的 Info.plist；桥接里 `pushType` 恒为
   `nil`——免费签名没有 aps entitlement，服务端推不动活动，真正的后台通知由 Bark
   通道负责。
-- 真机验证（iPhone 设置 → Safari → 高级 → 网页检查器 需打开）：
+- 真机验证（iPhone 设置 → Safari → 高级 → 网页检查器 需打开）。用
+  `registerPlugin` 取插件，**不要**用 `Capacitor.Plugins.X` —— 后者只有在有人调用过
+  `registerPlugin` 之后才被填充，新会话里必然是 `undefined`：
 
 ```js
-const p = window.Capacitor.Plugins.CloudCLIActivity
-await p.isSupported()                                   // { supported, hasActivity }
-await p.start({ sessionTitle: '测试会话', detail: 'Bash', serverLabel: 'dev.local' })
-await p.update({ detail: 'Edit', toolCalls: 3 })
-await p.end({ phase: 'done', detail: '已完成' })
+void (async () => {
+  const LA = window.Capacitor.registerPlugin('CloudCLIActivity');
+  console.log(await LA.isSupported());                  // { supported, hasActivity }
+  await LA.end({ phase: 'done', dismissImmediately: true });  // 先清场，否则 start 会走复用分支
+  console.log(await LA.start({
+    sessionTitle: '测试会话', serverLabel: location.host, detail: 'Bash',
+    deepLink: 'cloudcli://open?url=' + encodeURIComponent(location.href),
+  }));
+  await LA.update({ phase: 'waiting', detail: '等待确认' });   // 岛变黄色手形
+  await LA.end({ phase: 'done' });                            // 收岛，锁屏留 ✓ 卡片
+})();
 ```
+
+已验证（2026-11-22，免费 Apple ID + AltStore 重签）：`isSupported` 为
+`{supported:true}`；start 后切后台岛上是绿点 + 走动的计时器；update 到 `waiting`
+变黄色手形；end 收岛并在锁屏留下完成卡片。**未验证**：前端自动触发、切会话跟随、
+重启接管 —— 这些只走 `LiveActivityTracker`，与打包无关。
 
 ## Workflow
 
