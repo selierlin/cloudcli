@@ -38,7 +38,7 @@ struct CloudCLIActivityWidget: Widget {
                 }
 
                 DynamicIslandExpandedRegion(.trailing) {
-                    TrailingStatus(state: context.state, compact: false)
+                    TrailingStatus(state: context.state)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
 
@@ -58,7 +58,7 @@ struct CloudCLIActivityWidget: Widget {
             } compactLeading: {
                 PhaseDot(phase: context.state.phase, size: 9)
             } compactTrailing: {
-                TrailingStatus(state: context.state, compact: true)
+                CompactTrailing(state: context.state)
             } minimal: {
                 PhaseDot(phase: context.state.phase, size: 11)
             }
@@ -100,7 +100,7 @@ private struct LockScreenCard: View {
 
             Spacer(minLength: 8)
 
-            TrailingStatus(state: context.state, compact: false)
+            TrailingStatus(state: context.state)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -141,36 +141,46 @@ private struct PhaseDot: View {
     }
 }
 
-/// 右侧状态：跑着时是系统自绘计时器（App 挂起也能走），结束后是结果图标。
+/// 展开态 / 锁屏卡片的右侧状态：跑着时是系统自绘计时器（App 挂起也能走），
+/// 结束后是结果图标。**紧凑态不要用它**，见 `CompactTrailing`。
 private struct TrailingStatus: View {
     let state: CloudCLIActivityAttributes.ContentState
-    let compact: Bool
-
-    /// `Text(timerInterval:)` 按区间**最长可能值**预留宽度。上界若给
-    /// `Date.distantFuture`，紧凑态（showsHours: false）会把分钟数算成十几位，
-    /// 灵动岛被撑到系统允许的最大宽度（真机实测约 367pt）。给 24 小时上界后，
-    /// 预留宽度落在「1440:00」这个量级，岛宽恢复正常。超过 24h 的 run 计时会停住，
-    /// 但那时内容早已 stale，不值得为它留出上万亿分钟的宽度。
-    private var timerEnd: Date {
-        state.startedAt.addingTimeInterval(24 * 60 * 60)
-    }
 
     var body: some View {
         switch state.phase {
         case .running:
-            Text(timerInterval: state.startedAt...timerEnd,
+            Text(timerInterval: state.startedAt...Date.distantFuture,
                  countsDown: false,
-                 showsHours: !compact)
+                 showsHours: true)
                 .monospacedDigit()
-                .font(.system(size: compact ? 13 : 20,
-                              weight: .semibold,
-                              design: .rounded))
-                .frame(minWidth: compact ? 38 : 62, alignment: .trailing)
+                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                .frame(minWidth: 62, alignment: .trailing)
         case .waiting, .done, .failed:
             Image(systemName: state.phase.symbolName)
-                .font(.system(size: compact ? 13 : 18, weight: .semibold))
+                .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(state.phase.tint)
-                .frame(minWidth: compact ? 38 : 62, alignment: .trailing)
+                .frame(minWidth: 62, alignment: .trailing)
+        }
+    }
+}
+
+/// 紧凑态右侧。**这里不能放 `Text(timerInterval:)`**：实测任何区间长度
+/// （60s / 1h / 24h / distantFuture）系统都会为计时器对称预留约 120pt，
+/// 把紧凑岛从标准 153pt 撑到系统上限约 362pt，且 `.frame(width:)` 压不回去。
+/// 静态短文案只占约 30pt，岛宽约 186pt；耗时信息放在展开态和锁屏卡片里。
+private struct CompactTrailing: View {
+    let state: CloudCLIActivityAttributes.ContentState
+
+    var body: some View {
+        switch state.phase {
+        case .running:
+            Text(state.phase.label)
+                .font(.system(size: 13, weight: .semibold))
+                .lineLimit(1)
+        case .waiting, .done, .failed:
+            Image(systemName: state.phase.symbolName)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(state.phase.tint)
         }
     }
 }

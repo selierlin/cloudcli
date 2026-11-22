@@ -26,8 +26,9 @@ import ActivityKit
 /// ```
 ///
 /// 真机验证（2026-11-22，免费 Apple ID + AltStore 重签）：`isSupported` 返回
-/// `{supported:true}`；`start` 后切后台灵动岛显示绿点 + 计时器；`update` 到
-/// `waiting` 变黄色手形；`end` 收岛并在锁屏留下完成卡片。未验证：前端自动触发、
+/// `{supported:true}`；`start` 后切后台灵动岛显示绿点 +「运行中」；`update` 到
+/// `waiting` 变黄色手形；`end` 收岛并在锁屏留下完成卡片。紧凑态不放计时器
+/// （系统会把岛撑到最大宽度），计时器只在展开态/锁屏卡片。未验证：前端自动触发、
 /// 切会话跟随、重启接管（写在这里是为了下次不必重新推导哪些已验证）。
 @available(iOS 16.2, *)
 @objc(CloudCLIActivityPlugin)

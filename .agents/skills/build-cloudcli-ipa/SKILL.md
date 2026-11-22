@@ -60,9 +60,14 @@ void (async () => {
 ```
 
 已验证（2026-11-22，免费 Apple ID + AltStore 重签）：`isSupported` 为
-`{supported:true}`；start 后切后台岛上是绿点 + 走动的计时器；update 到 `waiting`
+`{supported:true}`；start 后切后台岛上是绿点 +「运行中」；update 到 `waiting`
 变黄色手形；end 收岛并在锁屏留下完成卡片。**未验证**：前端自动触发、切会话跟随、
 重启接管 —— 这些只走 `LiveActivityTracker`，与打包无关。
+
+**紧凑灵动岛不要放 `Text(timerInterval:)`**：模拟器实测，任何区间长度
+（60s / 1h / 24h / `distantFuture`）系统都会为计时器在两侧对称预留约 120pt，
+把紧凑岛从标准 153pt 撑到系统上限约 362pt，`.frame(width:)` 也压不回去。
+静态短文案（如「运行中」）只到约 202pt；计时器放在展开态和锁屏卡片里。
 
 ## Workflow
 
