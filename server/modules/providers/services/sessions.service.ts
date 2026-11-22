@@ -453,6 +453,10 @@ export const sessionsService = {
           canInterrupt: false,
           tasks,
         });
+        // Recorded here as well, or the CLI liveness probe below would append a
+        // second entry for this session and the client would keep the task-less
+        // one — losing the task ids that make the work stoppable.
+        runningById.set(sessionId, entries[entries.length - 1]);
       }
     }
 

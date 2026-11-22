@@ -463,6 +463,38 @@ test('a CLI turn does not duplicate a session already running a chat run', { con
   });
 });
 
+test('a CLI turn does not duplicate a session already doing background work', { concurrency: false }, async () => {
+  await withIsolatedDatabase(async () => {
+    sessionsDb.createAppSession('background-session', 'claude', '/tmp/running-project');
+    sessionsDb.assignProviderSessionId('background-session', 'claude-native-background');
+
+    // The turn has ended: no chat run remains, only the task it launched. The
+    // CLI process it left behind still reports busy, because the task keeps it
+    // alive.
+    const tasks = [task('late', 1_000)];
+    await withClaudeCliRegistry(
+      [{ pid: process.pid, sessionId: 'claude-native-background', status: 'busy', startedAt: 4_000 }],
+      async () => await withProviders(
+        { claude: { run: async () => undefined, abort: () => false, listBackgroundWork: () => [{ sessionId: 'background-session', tasks }] } },
+        async () => {
+          const sessions = await sessionsService.listRunningSessions();
+          assert.equal(sessions.length, 1, 'the background entry already covers this session');
+          assert.deepEqual(sessions[0], {
+            sessionId: 'background-session',
+            provider: 'claude',
+            startedAt: 1_000,
+            lastSeq: 0,
+            background: true,
+            canInterrupt: false,
+            tasks,
+            projectId: resolveProjectId('background-session'),
+          });
+        },
+      ),
+    );
+  });
+});
+
 test('an unreadable registry never fails the running-sessions poll', { concurrency: false }, async () => {
   await withIsolatedDatabase(async () => {
     sessionsDb.createAppSession('safe-session', 'claude', '/tmp/running-project');
