@@ -36,6 +36,7 @@ import { buildChatSendOptions } from '@/modules/chat/utils/sendOptions';
 import { useBtwSession } from '@/modules/chat/hooks/useBtwSession';
 import type { BtwAnchorRequest } from '@/modules/chat/hooks/useBtwSession';
 import { useBtwRestore } from '@/modules/chat/hooks/useBtwRestore';
+import { LiveActivityTracker } from '@/modules/mobile-live-activity';
 import { useSideAskPlacement } from '@/modules/chat/hooks/useSideAskPlacement';
 import BtwDrawer from '@/modules/chat/btw/BtwDrawer';
 import { downloadTranscriptExport } from '@/modules/chat/utils/chatExport';
@@ -1050,6 +1051,14 @@ function ChatInterface({
 
   return (
     <PermissionContext.Provider value={permissionContextValue}>
+      {/* Renders nothing; mirrors the watched run onto the iOS Dynamic Island.
+          Kept out of the layout tree on purpose so a bridge failure cannot
+          disturb the conversation it describes. */}
+      <LiveActivityTracker
+        sessionId={currentSessionId || selectedSession?.id || null}
+        sessionTitle={getSessionTitle(selectedSession, '')}
+        activities={processingSessions}
+      />
       {/* The drawer is a sibling of the conversation, not an overlay on it: at
           this width the transcript gives up 420px instead of losing it. */}
       <div ref={sideAskLayout.ref} className="relative flex h-full min-h-0">

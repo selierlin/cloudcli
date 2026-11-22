@@ -320,6 +320,11 @@ final class CloudCLIBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(ServerSessionPlugin())
         bridge?.registerPluginInstance(HapticsPlugin())
         bridge?.registerPluginInstance(TailTapPlugin())
+        // 灵动岛：ActivityKit 的 async API 要 iOS 16.2+。更低版本不注册，
+        // 前端用 Capacitor.isPluginAvailable('CloudCLIActivity') 判空即可降级。
+        if #available(iOS 16.2, *) {
+            bridge?.registerPluginInstance(CloudCLIActivityPlugin())
+        }
     }
 
     func loadServer(_ url: URL) {

@@ -72,6 +72,12 @@
 	<array>
 		<string>armv7</string>
 	</array>
+	<!-- 灵动岛 / 锁屏实时活动（ActivityKit）。这是一个纯 Info.plist 键，不需要
+	     entitlement，因此免费 Apple ID + AltStore 重签后依然生效；但只能本地更新
+	     （没有 aps-environment，拿不到 activity push token）。渲染端见
+	     ios/App/CloudCLIActivityWidget，桥接见 CloudCLIActivityPlugin.swift。 -->
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

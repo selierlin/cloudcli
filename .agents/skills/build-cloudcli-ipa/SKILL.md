@@ -24,6 +24,33 @@ disable-model-invocation: true
   team 配置在 `~/.cloudcli/ios-build.conf` 或 `CLOUDCLI_IOS_TEAM_ID`。
 - 不要在本 skill 中把 App 安装或启动到真机；只产出 IPA，安装交给 AltStore。
 
+## 灵动岛 extension（CloudCLIActivityWidget）
+
+`ios/App/CloudCLIActivityWidget/` 是一个 WidgetKit app extension（bundle id
+`ai.cloudcli.mobile.activity`），提供实时活动 / 灵动岛渲染，由 `App` target 的
+"Embed Foundation Extensions" 拷贝阶段嵌进 `Payload/CloudCLI.app/PlugIns/`。
+
+- **不占免费账号的 3 个 App 槽位**（那说的是"同时安装的 App 数"，extension 属于主
+  App 的一部分），但它**要单独注册 1 个 App ID** —— CloudCLI 从 1 个变 2 个。
+  App ID 上限 10 个、每个 7 天过期；手机上 `AltStore → My Apps → View App IDs`
+  可核对，撞上限就等过期或先 `Deactivate` 别的 App 腾位。
+- **免费账号没有 App Group**：主 App 与 extension 互不可见，所以活动数据全部经
+  `ContentState` 传递（`CloudCLIActivityAttributes.swift` 必须同时编进两个
+  target）。不要给 extension 勾任何 entitlement（App Groups / Push / iCloud 都会
+  让 AltStore 重签失败），也不要在 extension 里读 UserDefaults。
+- `NSSupportsLiveActivities` 只在主 App 的 Info.plist；桥接里 `pushType` 恒为
+  `nil`——免费签名没有 aps entitlement，服务端推不动活动，真正的后台通知由 Bark
+  通道负责。
+- 真机验证（iPhone 设置 → Safari → 高级 → 网页检查器 需打开）：
+
+```js
+const p = window.Capacitor.Plugins.CloudCLIActivity
+await p.isSupported()                                   // { supported, hasActivity }
+await p.start({ sessionTitle: '测试会话', detail: 'Bash', serverLabel: 'dev.local' })
+await p.update({ detail: 'Edit', toolCalls: 3 })
+await p.end({ phase: 'done', detail: '已完成' })
+```
+
 ## Workflow
 
 1. 先检查状态，绝不丢弃用户改动：
@@ -55,6 +82,8 @@ CLOUDCLI_IOS_SIGN=1 ./.agents/skills/build-cloudcli-ipa/build-cloudcli-ipa.sh
 IPA="/Users/selier/Projects/open_projects/cloudcli/ios/App/build/CloudCLI-AltStore.ipa"
 stat -f 'path=%N size=%z modified=%Sm' "$IPA"
 unzip -l "$IPA" | rg 'Payload/CloudCLI.app/?$|Payload/CloudCLI.app/Info.plist'
+# 灵动岛 extension 必须真的嵌进去了，否则主 App 正常但岛上永远空白
+unzip -l "$IPA" | rg 'PlugIns/CloudCLIActivityWidget.appex/Info.plist'
 ls -lt "$HOME/Library/Mobile Documents/com~apple~CloudDocs/工具/" | head -3
 ```
 

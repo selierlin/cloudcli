@@ -17,6 +17,11 @@
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
 		A1B2C3D4E5F60708090A0B0E /* WebCachePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60708090A0B0D /* WebCachePlugin.swift */; };
+		C10AC71A000000000000000C /* CloudCLIActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10AC71A0000000000000003 /* CloudCLIActivityWidget.swift */; };
+		C10AC71A000000000000000D /* CloudCLIActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10AC71A000000000000000E /* CloudCLIActivityAttributes.swift */; };
+		C10AC71A000000000000000F /* CloudCLIActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10AC71A000000000000000E /* CloudCLIActivityAttributes.swift */; };
+		C10AC71A0000000000000011 /* CloudCLIActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10AC71A0000000000000010 /* CloudCLIActivityPlugin.swift */; };
+		C10AC71A0000000000000013 /* CloudCLIActivityWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C10AC71A0000000000000004 /* CloudCLIActivityWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +37,11 @@
 		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60708090A0B0D /* WebCachePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebCachePlugin.swift; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
+		C10AC71A0000000000000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		C10AC71A0000000000000003 /* CloudCLIActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudCLIActivityWidget.swift; sourceTree = "<group>"; };
+		C10AC71A0000000000000004 /* CloudCLIActivityWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CloudCLIActivityWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		C10AC71A000000000000000E /* CloudCLIActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudCLIActivityAttributes.swift; sourceTree = "<group>"; };
+		C10AC71A0000000000000010 /* CloudCLIActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudCLIActivityPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -43,6 +53,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C10AC71A0000000000000007 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -51,6 +68,7 @@
 			children = (
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
+				C10AC71A0000000000000005 /* CloudCLIActivityWidget */,
 				504EC3051FED79650016851F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -59,6 +77,7 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* App.app */,
+				C10AC71A0000000000000004 /* CloudCLIActivityWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -66,6 +85,8 @@
 		504EC3061FED79650016851F /* App */ = {
 			isa = PBXGroup;
 			children = (
+				C10AC71A000000000000000E /* CloudCLIActivityAttributes.swift */,
+				C10AC71A0000000000000010 /* CloudCLIActivityPlugin.swift */,
 				A1B2C3D4E5F60708090A0B0D /* WebCachePlugin.swift */,
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
@@ -80,6 +101,15 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		C10AC71A0000000000000005 /* CloudCLIActivityWidget */ = {
+			isa = PBXGroup;
+			children = (
+				C10AC71A0000000000000003 /* CloudCLIActivityWidget.swift */,
+				C10AC71A0000000000000002 /* Info.plist */,
+			);
+			path = CloudCLIActivityWidget;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -90,10 +120,12 @@
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
+				C10AC71A0000000000000012 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				C10AC71A0000000000000015 /* PBXTargetDependency */,
 			);
 			name = App;
 			packageProductDependencies = (
@@ -102,6 +134,23 @@
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
 			productType = "com.apple.product-type.application";
+		};
+		C10AC71A0000000000000001 /* CloudCLIActivityWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C10AC71A0000000000000009 /* Build configuration list for PBXNativeTarget "CloudCLIActivityWidget" */;
+			buildPhases = (
+				C10AC71A0000000000000006 /* Sources */,
+				C10AC71A0000000000000007 /* Frameworks */,
+				C10AC71A0000000000000008 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CloudCLIActivityWidget;
+			productName = CloudCLIActivityWidget;
+			productReference = C10AC71A0000000000000004 /* CloudCLIActivityWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -115,6 +164,10 @@
 					504EC3031FED79650016851F = {
 						CreatedOnToolsVersion = 9.2;
 						LastSwiftMigration = 1100;
+						ProvisioningStyle = Automatic;
+					};
+					C10AC71A0000000000000001 = {
+						CreatedOnToolsVersion = 26.3;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -136,9 +189,34 @@
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
+				C10AC71A0000000000000001 /* CloudCLIActivityWidget */,
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXContainerItemProxy section */
+		C10AC71A0000000000000014 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C10AC71A0000000000000001;
+			remoteInfo = CloudCLIActivityWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		C10AC71A0000000000000012 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				C10AC71A0000000000000013 /* CloudCLIActivityWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXResourcesBuildPhase section */
 		504EC3021FED79650016851F /* Resources */ = {
@@ -154,6 +232,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C10AC71A0000000000000008 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -161,13 +246,32 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C10AC71A000000000000000F /* CloudCLIActivityAttributes.swift in Sources */,
+				C10AC71A0000000000000011 /* CloudCLIActivityPlugin.swift in Sources */,
 				A1B2C3D4E5F60708090A0B0E /* WebCachePlugin.swift in Sources */,
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C10AC71A0000000000000006 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C10AC71A000000000000000C /* CloudCLIActivityWidget.swift in Sources */,
+				C10AC71A000000000000000D /* CloudCLIActivityAttributes.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C10AC71A0000000000000015 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C10AC71A0000000000000001 /* CloudCLIActivityWidget */;
+			targetProxy = C10AC71A0000000000000014 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		504EC30B1FED79650016851F /* Main.storyboard */ = {
@@ -342,6 +446,54 @@
 			};
 			name = Release;
 		};
+		C10AC71A000000000000000A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 958DCC722DB07C7200EA8C5F /* debug.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CloudCLIActivityWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.cloudcli.mobile.activity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C10AC71A000000000000000B /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 958DCC722DB07C7200EA8C5F /* debug.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CloudCLIActivityWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.cloudcli.mobile.activity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -359,6 +511,15 @@
 			buildConfigurations = (
 				504EC3171FED79650016851F /* Debug */,
 				504EC3181FED79650016851F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C10AC71A0000000000000009 /* Build configuration list for PBXNativeTarget "CloudCLIActivityWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C10AC71A000000000000000A /* Debug */,
+				C10AC71A000000000000000B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
