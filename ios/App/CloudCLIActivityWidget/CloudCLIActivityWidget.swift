@@ -146,10 +146,19 @@ private struct TrailingStatus: View {
     let state: CloudCLIActivityAttributes.ContentState
     let compact: Bool
 
+    /// `Text(timerInterval:)` 按区间**最长可能值**预留宽度。上界若给
+    /// `Date.distantFuture`，紧凑态（showsHours: false）会把分钟数算成十几位，
+    /// 灵动岛被撑到系统允许的最大宽度（真机实测约 367pt）。给 24 小时上界后，
+    /// 预留宽度落在「1440:00」这个量级，岛宽恢复正常。超过 24h 的 run 计时会停住，
+    /// 但那时内容早已 stale，不值得为它留出上万亿分钟的宽度。
+    private var timerEnd: Date {
+        state.startedAt.addingTimeInterval(24 * 60 * 60)
+    }
+
     var body: some View {
         switch state.phase {
         case .running:
-            Text(timerInterval: state.startedAt...Date.distantFuture,
+            Text(timerInterval: state.startedAt...timerEnd,
                  countsDown: false,
                  showsHours: !compact)
                 .monospacedDigit()

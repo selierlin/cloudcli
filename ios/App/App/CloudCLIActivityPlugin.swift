@@ -16,13 +16,19 @@ import ActivityKit
 /// 所以 `start` 里必须带 `staleAfterMinutes`，让系统按时把内容标记为过期，
 /// 而不是留一个「05:31:12 运行中」的僵尸挂在岛上。
 ///
-/// JS 侧契约（`Capacitor.Plugins.CloudCLIActivity`）：
+/// JS 侧契约（`Capacitor.registerPlugin('CloudCLIActivity')`；`Capacitor.Plugins` 只有在
+/// 有人调用过 `registerPlugin` 之后才被填充，别用它取值）：
 /// ```js
 /// await plugin.isSupported()            // → { supported, hasActivity }
 /// await plugin.start({ sessionTitle, serverLabel, deepLink, phase, detail, startedAt, staleAfterMinutes })
 /// await plugin.update({ phase, detail, toolCalls, staleAfterMinutes })
 /// await plugin.end({ phase, detail, dismissImmediately })
 /// ```
+///
+/// 真机验证（2026-11-22，免费 Apple ID + AltStore 重签）：`isSupported` 返回
+/// `{supported:true}`；`start` 后切后台灵动岛显示绿点 + 计时器；`update` 到
+/// `waiting` 变黄色手形；`end` 收岛并在锁屏留下完成卡片。未验证：前端自动触发、
+/// 切会话跟随、重启接管（写在这里是为了下次不必重新推导哪些已验证）。
 @available(iOS 16.2, *)
 @objc(CloudCLIActivityPlugin)
 final class CloudCLIActivityPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -84,11 +90,14 @@ final class CloudCLIActivityPlugin: CAPPlugin, CAPBridgedPlugin {
             serverLabel: readText(call, "serverLabel") ?? "",
             deepLink: readText(call, "deepLink") ?? ""
         )
+        // 调用方显式传了本轮开始时间吗？传了就一律以 JS 为准（新的一轮、页面重挂载
+        // 都由它给出真值）；没传（手动调试）才沿用既有活动的计时，避免清零。
+        let explicitStart = call.getDouble("startedAt")
         let state = CloudCLIActivityAttributes.ContentState(
             phase: readPhase(call) ?? .running,
             // 传本轮真实开始时间：轮询发现一个已经跑了 40 秒的 run 时，岛上应显示 0:40，
             // 而不是从点开它的那一刻从 0:00 起算。
-            startedAt: call.getDouble("startedAt").map { Date(timeIntervalSince1970: $0) } ?? Date(),
+            startedAt: explicitStart.map { Date(timeIntervalSince1970: $0) } ?? Date(),
             detail: readText(call, "detail") ?? "",
             toolCalls: call.getInt("toolCalls") ?? 0
         )
@@ -100,7 +109,11 @@ final class CloudCLIActivityPlugin: CAPPlugin, CAPBridgedPlugin {
                 // 保住已经在走的计时器。结束再新建会让岛上的时间倒回 0:00。
                 if let current = self.existingActivity(), current.attributes.deepLink == attributes.deepLink {
                     var merged = state
-                    merged.startedAt = self.lastState?.startedAt ?? state.startedAt
+                    // 没有显式开始时间时才继承既有计时。反过来（总是继承）会让"上一轮在后台
+                    // 结束、这一轮又复用同一会话的岛"把上一轮的时长累加进来。
+                    if explicitStart == nil {
+                        merged.startedAt = self.lastState?.startedAt ?? state.startedAt
+                    }
                     await current.update(ActivityContent(state: merged, staleDate: self.staleDate(call)))
                     self.lastState = merged
                     call.resolve([
