@@ -60,19 +60,22 @@ const store = {
 
 const LIVE_READING = { used: 42_000, total: 200_000, inputTokens: 41_000, outputTokens: 1_000 };
 
-async function renderSession() {
+async function renderSession(initialSession: ProjectSession = session) {
   const { useChatSessionState } = await import('@/modules/chat/hooks/useChatSessionState');
-  const hook = renderHook(() => useChatSessionState({
-    isActive: true,
-    selectedProject: project,
-    selectedSession: session,
-    ws: null,
-    sendMessage: vi.fn(),
-    statusCheckSentAtRef: { current: new Map() },
-    lastSeqRef: { current: new Map() },
-    sessionStore: store as never,
-    processingSessions: new Map(),
-  }));
+  const hook = renderHook(
+    ({ selected }: { selected: ProjectSession }) => useChatSessionState({
+      isActive: true,
+      selectedProject: project,
+      selectedSession: selected,
+      ws: null,
+      sendMessage: vi.fn(),
+      statusCheckSentAtRef: { current: new Map() },
+      lastSeqRef: { current: new Map() },
+      sessionStore: store as never,
+      processingSessions: new Map(),
+    }),
+    { initialProps: { selected: initialSession } },
+  );
   return hook;
 }
 
@@ -147,4 +150,37 @@ test('a token-usage fetch that lands after the stream cannot erase the reading',
   });
 
   assert.deepEqual(hook.result.current.tokenBudget, LIVE_READING);
+});
+
+test('a late answer for a session the reader left cannot land on the new one', async () => {
+  let resolvePrevious: (value: unknown) => void = () => {};
+  let resolveCurrent: (value: unknown) => void = () => {};
+  sessionTokenUsage
+    .mockReturnValueOnce(new Promise((resolve) => { resolvePrevious = resolve; }))
+    .mockReturnValueOnce(new Promise((resolve) => { resolveCurrent = resolve; }));
+
+  const hook = await renderSession();
+  const nextSession = { ...session, id: 'session-b', summary: 'B' } as ProjectSession;
+
+  // The reader moves on while the first session's usage is still being read.
+  act(() => hook.rerender({ selected: nextSession }));
+
+  // The new session answers first, then the stale answer for the old one lands
+  // last. Reading a large transcript is slow enough for this to happen.
+  resolveCurrent({
+    ok: true,
+    json: async () => ({ data: { used: 12_000, total: 200_000, inputTokens: 12_000, outputTokens: 0 } }),
+  });
+  await act(async () => { await Promise.resolve(); });
+  resolvePrevious({
+    ok: true,
+    json: async () => ({ data: { used: 99_000, total: 200_000, inputTokens: 99_000, outputTokens: 0 } }),
+  });
+  await act(async () => { await Promise.resolve(); });
+
+  assert.equal(
+    hook.result.current.tokenBudget?.used,
+    12_000,
+    'the previous session’s reading must not overwrite the one on screen',
+  );
 });

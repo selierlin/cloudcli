@@ -2256,10 +2256,18 @@ export function useChatSessionState({
       setTokenBudget(null);
       return;
     }
+    const requestedSessionId = selectedSession.id;
+    // Reading a large transcript can take long enough for the reader to move
+    // on first; that answer belongs to the session that asked for it. The
+    // history path guards the same case with `activeSessionIdRef`; a local flag
+    // is enough here because this effect re-runs exactly when the selection
+    // changes.
+    let cancelled = false;
     const fetchInitialTokenUsage = async () => {
       try {
         // The provider module resolves storage and provider details from the session id.
-        const response = await api.providers.sessionTokenUsage(selectedSession.id);
+        const response = await api.providers.sessionTokenUsage(requestedSessionId);
+        if (cancelled) return;
         // A session whose first turn is still generating can answer with zeros,
         // or with a 404 because the transcript is not on disk yet. Both land
         // after the stream may have published the turn's real reading, so this
@@ -2269,7 +2277,10 @@ export function useChatSessionState({
         console.error('Failed to fetch initial token usage:', error);
       }
     };
-    fetchInitialTokenUsage();
+    void fetchInitialTokenUsage();
+    return () => {
+      cancelled = true;
+    };
   }, [applyTokenBudget, selectedSession?.id]);
 
   const visibleMessages = useMemo(() => {
