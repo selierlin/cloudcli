@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject, ReactNode } from 'react';
 
 import type { ChatMessage } from '@/shared/types';
@@ -35,6 +35,16 @@ const ANCHOR_SETTLE_RETRY_FRAMES = 8;
 
 /** Screen drift below this is measurement noise, not a moved anchor. */
 const ANCHOR_HOLD_EPSILON_PX = 1;
+
+/**
+ * Net `scrollTop` travel this file has written to each pane. Rows that mount in
+ * the same flush all captured the same pinned row before the commit, so each
+ * would size its correction from the whole displacement: the first pays it and
+ * every later one pays it again, pushing the content the other way. A row
+ * subtracts what has been written since its own capture to see only what is
+ * still owed.
+ */
+const writtenTravelByPane = new WeakMap<HTMLElement, number>();
 
 /**
  * Layout travel below this is left alone. Writing `scrollTop` while the pane is
@@ -106,11 +116,17 @@ export default function LazyMessageRow({
   children,
 }: LazyMessageRowProps) {
   const [isNearViewport, setIsNearViewport] = useState(initiallyNearViewport);
+  // True only while the observer has this row mounted ahead of the reader to take
+  // its first height measurement (see `useLazyRowObserver`); the row is
+  // otherwise mounted purely by `isNearViewport`.
+  const [isWarm, setIsWarm] = useState(false);
   const [measuredHeight, setMeasuredHeight] = useState<number | null>(
     () => lazyRows?.readHeight(rowKey) ?? null,
   );
   const elementRef = useRef<HTMLDivElement | null>(null);
   const isNearViewportRef = useRef(isNearViewport);
+  // Mirrors the committed mounted state for the observer, which asks from outside React.
+  const isMountedRef = useRef(false);
   /// The row the commit will be measured against — the first one the reader can
   /// see, which may be a different row than this one — plus where it sat and the
   /// pane's offset at that same instant.
@@ -118,18 +134,19 @@ export default function LazyMessageRow({
     element: HTMLElement;
     top: number;
     scrollTop: number;
+    /** Net travel written to the pane when this was captured; see `writtenTravelByPane`. */
+    writtenTravel: number;
   } | null>(null);
   /** Document height the last correction attempt saw, for the settle retry. */
   const settledGeometryRef = useRef<string | null>(null);
   /** The retry frame, or null. */
   const measureFrameRef = useRef<number | null>(null);
 
-  const handleNearViewportChange = useCallback((nextIsNearViewport: boolean) => {
-    // IntersectionObserver repeats the current state freely; only a real
-    // transition is worth anchoring around.
-    if (nextIsNearViewport === isNearViewportRef.current) return;
-    isNearViewportRef.current = nextIsNearViewport;
-
+  /**
+   * Records which row the reader is looking at and where it sits, so the commit
+   * that follows can pay back whatever it displaces before anything paints.
+   */
+  const captureAnchor = useCallback(() => {
     const element = elementRef.current;
     const container = element?.closest<HTMLElement>('.chat-messages-pane') ?? null;
     // WebKit resolves its scroll anchor to a node *inside* the content this row
@@ -149,32 +166,70 @@ export default function LazyMessageRow({
           element: anchor.element,
           top: anchor.top,
           scrollTop: container.scrollTop,
+          writtenTravel: writtenTravelByPane.get(container) ?? 0,
         }
       : null;
+  }, []);
 
-    if (!nextIsNearViewport) {
-      // Measured now, while the content is still in the DOM, so the
-      // placeholder that replaces it occupies exactly the same space. That
-      // includes 0px (a hidden thinking row renders nothing) and fractions of
-      // a pixel, which offsetHeight would round: a placeholder taller than the
-      // content, on a row just past the band's top edge, reaches back into the
-      // band and drops out again on every frame.
-      const rect = elementRef.current?.getBoundingClientRect();
-      // A 0x0 box means the row is not rendered at all (hidden tab), which
-      // says nothing about its height, so the last measurement is kept.
-      if (rect && (rect.width > 0 || rect.height > 0)) {
-        lazyRows?.writeHeight(rowKey, rect.height);
-        setMeasuredHeight(rect.height);
-      }
+  /** Writes the row's exact rendered height down, so its placeholder takes the same space. */
+  const recordMeasuredHeight = useCallback(() => {
+    // Measured while the content is still in the DOM. That includes 0px (a hidden
+    // thinking row renders nothing) and fractions of a pixel, which offsetHeight
+    // would round: a placeholder taller than the content, on a row just past the
+    // band's top edge, reaches back into the band and drops out again on every
+    // frame.
+    const rect = elementRef.current?.getBoundingClientRect();
+    // A 0x0 box means the row is not rendered at all (hidden tab), which
+    // says nothing about its height, so the last measurement is kept.
+    if (rect && (rect.width > 0 || rect.height > 0)) {
+      lazyRows?.writeHeight(rowKey, rect.height);
+      setMeasuredHeight(rect.height);
     }
-    setIsNearViewport(nextIsNearViewport);
   }, [lazyRows, rowKey]);
+
+  const handleNearViewportChange = useCallback((nextIsNearViewport: boolean) => {
+    // IntersectionObserver repeats the current state freely; only a real
+    // transition is worth anchoring around.
+    if (nextIsNearViewport === isNearViewportRef.current) return;
+    isNearViewportRef.current = nextIsNearViewport;
+
+    captureAnchor();
+    if (!nextIsNearViewport) recordMeasuredHeight();
+    setIsNearViewport(nextIsNearViewport);
+  }, [captureAnchor, recordMeasuredHeight]);
+
+  /**
+   * Mounts the row's content so the observer can read its real height while the
+   * reader is still, or sends it back. Mounting replaces an estimate with the
+   * real height above the reader; the same anchor correction every mount uses
+   * pays that back, and it lands while nothing is coasting, which is the only
+   * time the platform keeps such a write.
+   */
+  const setWarm = useCallback((warm: boolean) => {
+    // The band already holds this row mounted: nothing flips, so there is no
+    // displacement to anchor and no height that is not about to be recorded anyway.
+    if (isNearViewportRef.current) {
+      setIsWarm(warm);
+      return;
+    }
+    captureAnchor();
+    // Leaving: the content is still mounted at this point, so this is the moment
+    // its true height can be read.
+    if (!warm) recordMeasuredHeight();
+    setIsWarm(warm);
+  }, [captureAnchor, recordMeasuredHeight]);
+
+  const warmHandle = useMemo(() => ({
+    rowKey,
+    isMounted: () => isMountedRef.current,
+    setWarm,
+  }), [rowKey, setWarm]);
 
   useEffect(() => {
     const element = elementRef.current;
     if (!lazyRows || !element) return undefined;
-    return lazyRows.observe(element, handleNearViewportChange);
-  }, [lazyRows, handleNearViewportChange]);
+    return lazyRows.observe(element, handleNearViewportChange, warmHandle);
+  }, [lazyRows, handleNearViewportChange, warmHandle]);
 
   /**
    * Pays back the screen displacement a commit put on the pinned row, or says
@@ -184,8 +239,15 @@ export default function LazyMessageRow({
    * is measured against geometry the next frame replaces and the platform undoes
    * the whole write — a phone recording shows a 2781 px correction reverted 7 ms
    * later, one frame after the row above grew from its 100 px estimate to 3461.
+   *
+   * `requireSettledGeometry` is the frame-driven pass above. The commit-time
+   * pass turns it off: it runs before any frame can paint, pays what the commit
+   * itself changed, and leaves whatever grows afterwards to the frame-driven one.
    */
-  const payAnchorCorrection = useCallback((pending: NonNullable<typeof pendingAnchorRef.current>): boolean => {
+  const payAnchorCorrection = useCallback((
+    pending: NonNullable<typeof pendingAnchorRef.current>,
+    requireSettledGeometry = true,
+  ): boolean => {
     if (!pending.element.isConnected) return true;
 
     const container = pending.element.closest<HTMLElement>('.chat-messages-pane');
@@ -210,19 +272,31 @@ export default function LazyMessageRow({
     // transcript jumping 610px down.
     const scrollDelta = container.scrollTop - pending.scrollTop;
     const drift = pending.element.getBoundingClientRect().top - pending.top;
-    const layoutShift = drift + scrollDelta;
+    // Our own writes cancel out of that sum (they move the row and the offset by
+    // the same amount), so it keeps reporting the full displacement after it has
+    // been paid. Rows that mounted in the same flush captured the same pinned
+    // row, and without this subtraction each of them paid the whole thing again.
+    const alreadyPaid = (writtenTravelByPane.get(container) ?? 0) - pending.writtenTravel;
+    const layoutShift = drift + scrollDelta - alreadyPaid;
     if (Math.abs(layoutShift) <= LAYOUT_SHIFT_MIN_PX) return true;
     // The document only has to have stopped moving for this to be a
     // measurement. While the estimated heights are still being replaced the
     // number above is a guess about a guess, and retrying costs one more frame.
-    const geometry = `${container.scrollHeight}`;
-    if (geometry !== settledGeometryRef.current) {
-      settledGeometryRef.current = geometry;
-      return false;
+    if (requireSettledGeometry) {
+      const geometry = `${container.scrollHeight}`;
+      if (geometry !== settledGeometryRef.current) {
+        settledGeometryRef.current = geometry;
+        return false;
+      }
     }
+    const before = container.scrollTop;
     container.scrollTop += layoutShift;
+    writtenTravelByPane.set(
+      container,
+      (writtenTravelByPane.get(container) ?? 0) + (container.scrollTop - before),
+    );
     programmaticScrollTopRef.current = container.scrollTop;
-    noteScrollWrite('lazyRowAnchor', container);
+    noteScrollWrite(requireSettledGeometry ? 'lazyRowAnchor' : 'lazyRowCommit', container);
     return true;
   }, [programmaticScrollTopRef]);
 
@@ -253,26 +327,38 @@ export default function LazyMessageRow({
     run();
   }, [payAnchorCorrection]);
 
+  // The same correction serves a mount from the viewport band and one from the
+  // observer's measuring pass: both are a flip of `isMounted`.
+  const isMounted = lazyRows === null || isNearViewport || isWarm;
+
+  useLayoutEffect(() => {
+    isMountedRef.current = isMounted;
+  }, [isMounted]);
+
   // Captured before paint, so the correction is in hand before the browser can
-  // move anything; the write itself lands on the next animation frame, which
-  // still runs before that frame is painted. The correction is the visible
-  // row's screen displacement, which leaves deliberate shifts (a real height
-  // change the browser already compensated) untouched at zero drift.
+  // move anything. A row that just mounted pays in a microtask: it runs after the
+  // commit and its synchronous re-renders but before any frame, so the displaced
+  // content is never painted. The frame-driven pass behind it only has to catch
+  // what keeps growing afterwards. The correction is the visible row's screen
+  // displacement, which leaves deliberate shifts (a real height change the
+  // browser already compensated) untouched at zero drift.
   useLayoutEffect(() => {
     const pending = pendingAnchorRef.current;
     pendingAnchorRef.current = null;
     if (!pending) return;
-    settleAnchorCorrection(pending, isNearViewport);
+    if (isMounted) {
+      queueMicrotask(() => {
+        if (elementRef.current?.isConnected) payAnchorCorrection(pending, false);
+      });
+    }
+    settleAnchorCorrection(pending, isMounted);
     return () => {
       if (measureFrameRef.current !== null) {
         window.cancelAnimationFrame(measureFrameRef.current);
         measureFrameRef.current = null;
       }
     };
-  }, [isNearViewport, settleAnchorCorrection]);
-
-  const isMounted = lazyRows === null || isNearViewport;
-
+  }, [isMounted, payAnchorCorrection, settleAnchorCorrection]);
   return (
     <div
       ref={elementRef}

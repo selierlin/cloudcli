@@ -453,6 +453,131 @@ describe('LazyMessageRow', () => {
     expect(scrollTopRef.current).toBe(1128);
   });
 
+  it('pays a mounting row\'s displacement before the browser can paint it', async () => {
+    vi.stubGlobal('IntersectionObserver', StubIntersectionObserver);
+
+    const scrollTopRef: MutableRefObject<number | null> = { current: null };
+    const { container } = render(
+      <Harness initiallyNearViewport={false} scrollTopRef={scrollTopRef} />,
+    );
+    const observer = StubIntersectionObserver.instances[0];
+    const wrapper = observer.observed[0] as HTMLElement;
+    const pane = container.querySelector('.chat-messages-pane') as HTMLElement;
+
+    let scrollTop = 1000;
+    Object.defineProperty(pane, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => { scrollTop = value; },
+    });
+    Object.defineProperty(pane, 'scrollHeight', { configurable: true, value: 5000 });
+    Object.defineProperty(pane, 'clientHeight', { configurable: true, value: 600 });
+    // The row is the first one in view; mounting it as 733px of real content
+    // instead of its 100px estimate pushes it 400px down in this model.
+    let reads = 0;
+    Object.defineProperty(wrapper, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => {
+        reads += 1;
+        const top = (reads <= 1 ? 500 : 900) - (scrollTop - 1000);
+        return { x: 0, y: top, top, left: 0, right: 640, bottom: top + 123, width: 640, height: 123, toJSON: () => ({}) };
+      },
+    });
+
+    fireIntersection(observer, wrapper, true);
+    // No animation frame has run. A frame is a paint the reader sees, and a
+    // correction that waits for one shows the content 400px off for that frame
+    // before pulling it back; a microtask runs before any frame can.
+    await act(async () => undefined);
+
+    expect(scrollTop).toBe(1400);
+    expect(scrollTopRef.current).toBe(1400);
+
+    // Nothing is left owed, so the frames that follow write nothing more.
+    settleFrames();
+    expect(scrollTop).toBe(1400);
+  });
+
+  it('pays a flush of mounting rows once, not once per row', async () => {
+    vi.stubGlobal('IntersectionObserver', StubIntersectionObserver);
+
+    const scrollTopRef: MutableRefObject<number | null> = { current: null };
+    function FlushHarness() {
+      const ownRef = useRef<HTMLDivElement>(null);
+      const lazyRows = useLazyRowObserver(ownRef);
+      return (
+        <div ref={ownRef} className="chat-messages-pane">
+          {['a', 'b', 'c'].map((key, index) => (
+            <LazyMessageRow
+              key={key}
+              lazyRows={lazyRows}
+              rowKey={`session-1:${key}`}
+              timestamp={`2026-01-01T00:00:0${index}.000Z`}
+              initiallyNearViewport={false}
+              programmaticScrollTopRef={scrollTopRef}
+            >
+              <span>content {key}</span>
+            </LazyMessageRow>
+          ))}
+          <div data-message-timestamp="2026-01-01T00:00:09.000Z" data-testid="visible" />
+        </div>
+      );
+    }
+
+    const { container, getByTestId } = render(<FlushHarness />);
+    const observer = StubIntersectionObserver.instances[0];
+    const mounting = observer.observed.slice(0, 3) as HTMLElement[];
+    const pane = container.querySelector('.chat-messages-pane') as HTMLElement;
+    const visibleRow = getByTestId('visible');
+
+    let scrollTop = 1000;
+    const writes: number[] = [];
+    Object.defineProperty(pane, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => { scrollTop = value; writes.push(value); },
+    });
+    Object.defineProperty(pane, 'scrollHeight', { configurable: true, value: 5000 });
+    Object.defineProperty(pane, 'clientHeight', { configurable: true, value: 600 });
+    // Three rows above the viewport together push the reader's row 128px down.
+    for (const row of mounting) {
+      Object.defineProperty(row, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({ x: 0, y: -800, top: -800, left: 0, right: 640, bottom: -676, width: 640, height: 124, toJSON: () => ({}) }),
+      });
+    }
+    let visibleLanded = false;
+    Object.defineProperty(visibleRow, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => {
+        const top = (visibleLanded ? 628 : 500) - (scrollTop - 1000);
+        return { x: 0, y: top, top, left: 0, right: 640, bottom: top + 123, width: 640, height: 123, toJSON: () => ({}) };
+      },
+    });
+
+    // One IntersectionObserver callback reports all three rows, as it does when
+    // a scroll step brings several new rows into the band at once.
+    act(() => {
+      observer.callback(
+        mounting.map((target) => ({
+          target, isIntersecting: true, boundingClientRect: { width: 640, height: 124 },
+        }) as unknown as IntersectionObserverEntry),
+        observer as unknown as IntersectionObserver,
+      );
+      // Every row has captured the pinned row by now; the commit that lands the
+      // rows' real content (and the displacement) happens as this act closes.
+      visibleLanded = true;
+    });
+    await act(async () => undefined);
+    settleFrames();
+
+    // Each row captured the same pinned row before the commit. If each sizes its
+    // own payment from that capture, the second and third pay the 128px again
+    // and the content lands 256px the other way.
+    expect(writes).toEqual([1128]);
+    expect(scrollTop).toBe(1128);
+  });
+
   it('removes and unmounts a collapsed process row while retaining its timestamp anchor', () => {
     const { container, queryByTestId } = render(
       <Harness initiallyNearViewport isProcessCollapsed />,

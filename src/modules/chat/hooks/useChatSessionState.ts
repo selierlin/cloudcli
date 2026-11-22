@@ -1659,6 +1659,48 @@ export function useChatSessionState({
   }, [hasMoreMessages, isActive, isNearBottom, loadOlderMessages, setIsUserScrolledUp]);
 
   const wasChatActiveRef = useRef(isActive);
+
+  /**
+   * Pays, before anything can paint, the height that rows of the restore's own
+   * commit gave up after the restore had measured.
+   *
+   * The restore reads the pinned row inside a layout effect, and children that
+   * settle in a layout effect of the same commit re-render synchronously after
+   * it: a short question drops its fold toggle and shrinks 24px, per question
+   * in the page. The settle loop would pay that a frame later, and not at all
+   * once the reader's next wheel notch stands it down, which left the content
+   * 24-96px off for good while the reader kept scrolling. A microtask runs after
+   * the whole commit and before any input event or frame, so neither can
+   * intervene.
+   */
+  const payRestoreCommitDrift = useCallback((anchor: HTMLElement, targetOffset: number) => {
+    queueMicrotask(() => {
+      const container = scrollContainerRef.current;
+      const settle = anchorSettleRef.current;
+      // A cancelled or replaced loop means the session changed or a newer restore
+      // owns the pin.
+      if (!container || !settle || settle.anchor !== anchor || !anchor.isConnected) return;
+      // Past the top edge the platform owns the offset; the settle loop waits that out.
+      if (container.scrollTop < 0) return;
+      const drift = (
+        anchor.getBoundingClientRect().top
+        - container.getBoundingClientRect().top
+        - targetOffset
+      );
+      if (Math.abs(drift) <= ANCHOR_SETTLE_EPSILON_PX) return;
+      const target = container.scrollTop + drift;
+      // Not reachable yet: rows below the reader are still estimates, and the settle loop retries.
+      if (target > container.scrollHeight - container.clientHeight) return;
+      container.scrollTop = target;
+      noteScrollWrite('restoreCommit', container);
+      programmaticScrollTopRef.current = container.scrollTop;
+      // The loop's first frame must read this write as its own, not as the restore's
+      // write moved by someone else.
+      settle.lastTarget = container.scrollTop;
+      settle.lastWrite = null;
+    });
+  }, []);
+
   // Consumes the armed restore on the commit that follows arming. The epoch (not
   // the store length) is the driver: the window can be widened without the store
   // changing, and an armed state that outlives its own commit would move the
@@ -1728,6 +1770,7 @@ export function useChatSessionState({
               }
             : undefined,
         );
+        payRestoreCommitDrift(anchor, anchorTargetOffset);
       } else if (tailAnchor?.isConnected && tailAnchorOffset !== null) {
         // No pinned row survived to the commit. The tail wrapper's top only
         // moves when content is inserted above it, so its displacement is the
@@ -1764,7 +1807,7 @@ export function useChatSessionState({
         ? scrollPositionRef.current.top
         : container.scrollHeight;
     }
-  }, [isActive, isUserScrolledUp, scrollRestoreEpoch, startAnchorSettle]);
+  }, [isActive, isUserScrolledUp, payRestoreCommitDrift, scrollRestoreEpoch, startAnchorSettle]);
 
   // Reset scroll/pagination state on session change
   useEffect(() => {

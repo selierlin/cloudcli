@@ -1535,6 +1535,55 @@ describe('restore settle loop', () => {
     container.element.remove();
   });
 
+  it('pays a same-commit height change before any frame, so a moving reader is not left off by it', async () => {
+    const messages = new Map<string, NormalizedMessage[]>([
+      [SESSION_A, buildMessages(300)],
+    ]);
+    const store = createStore(messages);
+    const { result } = await renderChatSessionState({
+      session: { id: SESSION_A } as ProjectSession,
+      store,
+    });
+
+    const container = createContainer(5000, 500);
+    document.body.appendChild(container.element);
+    (result.current.scrollContainerRef as { current: HTMLDivElement | null }).current = container.element;
+
+    const { row, settleMore } = createGeometryAwareRow(container, 120, 200);
+    container.element.appendChild(row);
+
+    act(() => {
+      result.current.setIsUserScrolledUp(true);
+    });
+
+    // The restore measures the page while its rows are on their first pass.
+    act(() => {
+      result.current.loadEarlierMessages();
+    });
+    assert.deepEqual(container.writes, [4700]);
+
+    // Short question bubbles then drop their fold toggle in a layout effect of
+    // the same commit, 24px each, before the browser can paint: four of them
+    // pull the pinned row 96px above where the restore meant to leave it.
+    settleMore(-96);
+    container.setScrollHeight(5104);
+    // No animation frame runs here. A reader who keeps scrolling stands the
+    // frame-driven loop down before its first frame, so the debt has to be paid
+    // by the end of the commit's own task.
+    await act(async () => undefined);
+    assert.deepEqual(
+      container.writes,
+      [4700, 4604],
+      'the restore commit owes the viewport the height its own second pass removed',
+    );
+
+    drainSettleLoop();
+    assert.deepEqual(container.writes, [4700, 4604]);
+    assert.equal(frameCallbacks.size, 0);
+
+    container.element.remove();
+  });
+
   it('stands down when a reader gesture arrives while the settle loop is armed', async () => {
     const messages = new Map<string, NormalizedMessage[]>([
       [SESSION_A, buildMessages(300)],
