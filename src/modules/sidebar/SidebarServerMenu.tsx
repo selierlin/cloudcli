@@ -1,5 +1,5 @@
 import { Preferences } from '@capacitor/preferences';
-import { Check, ChevronDown, LogOut, Server, Settings, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, LogOut, Server, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -23,11 +23,7 @@ type CapacitorWindow = {
   };
 };
 
-type SidebarServerMenuProps = {
-  onShowSettings: () => void;
-};
-
-export default function SidebarServerMenu({ onShowSettings }: SidebarServerMenuProps) {
+export default function SidebarServerMenu() {
   const { t } = useTranslation(['sidebar', 'auth']);
   const { user, logout } = useAuth();
   const [pickerUrl, setPickerUrl] = useState<string | null>(null);
@@ -108,14 +104,7 @@ export default function SidebarServerMenu({ onShowSettings }: SidebarServerMenuP
     setIsLogoutDialogOpen(true);
   };
 
-  const menuItems: ActionMenuItem[] = [
-    {
-      key: 'settings',
-      label: t('actions.settings'),
-      icon: Settings,
-      onSelect: onShowSettings,
-    },
-  ];
+  const menuItems: ActionMenuItem[] = [];
 
   // 原生壳内直接列出已保存服务器，点击即可切换，无需先回到选择页。
   if (isNativeShell && pickerUrl && servers.length > 0) {

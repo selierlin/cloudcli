@@ -1,4 +1,4 @@
-import { Activity, Archive, Folder, FolderPlus, MessageSquare, Plus, RefreshCw, Search, X, PanelLeftClose, ChevronsDownUp, ChevronsUpDown, LocateFixed } from 'lucide-react';
+import { Activity, Archive, Folder, FolderPlus, MessageSquare, Plus, RefreshCw, Search, Settings, X, PanelLeftClose, ChevronsDownUp, ChevronsUpDown, LocateFixed } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button, Input } from '@/shared/ui';
@@ -39,13 +39,7 @@ type SidebarHeaderProps = {
 };
 
 /** Module-level, not a nested render function, so the wordmark menu is not remounted on every SidebarHeader render. */
-function LogoBlock({
-  t,
-  onShowSettings,
-}: {
-  t: TFunction;
-  onShowSettings: () => void;
-}) {
+function LogoBlock({ t }: { t: TFunction }) {
   // 自制的品牌终端图（/cloud-terminal-mark-flat.svg），平台端外包 dashboard 链接。
   const mark = <img src="/cloud-terminal-mark-flat.svg" alt="CloudCLI" className="h-7 w-7 flex-shrink-0" />;
 
@@ -63,7 +57,7 @@ function LogoBlock({
         mark
       )}
       <div className="min-w-0" style={{ fontFamily: CLOUDCLI_WORDMARK_FONT_FAMILY }}>
-        <SidebarServerMenu onShowSettings={onShowSettings} />
+        <SidebarServerMenu />
       </div>
     </div>
   );
@@ -114,7 +108,7 @@ export default function SidebarHeader({
         style={{}}
       >
         <div className="flex items-center justify-between gap-2">
-          <LogoBlock t={t} onShowSettings={onShowSettings} />
+          <LogoBlock t={t} />
 
           <div className="flex flex-shrink-0 items-center gap-0.5">
             <Button
@@ -139,6 +133,15 @@ export default function SidebarHeader({
               title={t('tooltips.createProject')}
             >
               <Plus className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
+              onClick={onShowSettings}
+              title={t('actions.settings')}
+            >
+              <Settings className="h-3.5 w-3.5" />
             </Button>
             <Button
               variant="ghost"
@@ -234,7 +237,7 @@ export default function SidebarHeader({
         style={isPWA && isMobile ? { paddingTop: '16px' } : {}}
       >
         <div className="flex items-center justify-between">
-          <LogoBlock t={t} onShowSettings={onShowSettings} />
+          <LogoBlock t={t} />
 
           <div className="flex flex-shrink-0 gap-1.5">
             <button
@@ -249,6 +252,13 @@ export default function SidebarHeader({
               onClick={onCreateProject}
             >
               <FolderPlus className="h-4 w-4" />
+            </button>
+            <button
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted/50 transition-all active:scale-95"
+              onClick={onShowSettings}
+              aria-label={t('actions.settings')}
+            >
+              <Settings className="h-4 w-4 text-muted-foreground" />
             </button>
           </div>
         </div>

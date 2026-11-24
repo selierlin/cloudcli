@@ -205,11 +205,13 @@ export function ActionMenu({
       style={portal && portalPosition ? portalPosition : undefined}
     >
       {header}
-      {items.map((item) => {
+      {items.map((item, index) => {
         const Icon = item.icon;
         return (
           <React.Fragment key={item.key}>
-            {item.showDividerBefore && <div className="mx-2 my-1 h-px bg-border" />}
+            {/* Nothing above the first item to separate it from — and with a
+                header, its border already draws that line. */}
+            {index > 0 && item.showDividerBefore && <div className="mx-2 my-1 h-px bg-border" />}
             <button
               type="button"
               role="menuitem"
