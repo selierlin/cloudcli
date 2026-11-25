@@ -144,4 +144,49 @@ describe('streamed reply echo', () => {
     assert.equal(persisted?.id, 'uuid-reply-1');
     assert.equal(persisted?.segmentId, live.segmentId);
   });
+
+  it('keeps the persisted fork anchor when the live copy outlives the refresh', async () => {
+    const { result } = await loadedStore();
+
+    // The reply as this client streamed it: no provider anchor, first-delta
+    // timestamp, and the segment the turn's duration is measured against.
+    act(() => {
+      result.current.appendRealtime('session-1', {
+        id: 'text_live',
+        segmentId: 'stream-segment:session-1:text:1',
+        kind: 'text',
+        role: 'assistant',
+        provider: 'claude',
+        sessionId: 'session-1',
+        content: '正文A',
+        timestamp: '2026-01-01T00:00:02.500Z',
+      } as NormalizedMessage);
+    });
+
+    // The persisted row the tail refresh returned. Its in-turn echo check
+    // missed, so pruning kept the live row beside it; both still read as one
+    // answer on screen, and the anchored copy has to be the one that survives
+    // or the reply loses "fork from here" until the client rebuilds its store.
+    act(() => {
+      result.current.appendRealtime('session-1', {
+        id: 'uuid-reply-a',
+        kind: 'text',
+        role: 'assistant',
+        provider: 'claude',
+        sessionId: 'session-1',
+        content: '正文A',
+        timestamp: '2026-01-01T00:00:03.000Z',
+        forkAnchorId: 'anchor-a',
+      } as NormalizedMessage);
+    });
+
+    const rows = result.current
+      .getMessages('session-1')
+      .filter((message) => message.kind === 'text' && message.role === 'assistant' && message.content === '正文A');
+
+    assert.equal(rows.length, 1, 'the two copies must still read as one reply');
+    assert.equal(rows[0]?.id, 'uuid-reply-a');
+    assert.equal(rows[0]?.forkAnchorId, 'anchor-a');
+    assert.equal(rows[0]?.segmentId, 'stream-segment:session-1:text:1');
+  });
 });

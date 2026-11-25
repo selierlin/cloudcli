@@ -448,6 +448,16 @@ function dedupeAdjacentAssistantEchoes(merged: NormalizedMessage[]): NormalizedM
       ) {
         const ms = (m.content || '').trim();
         if (ms.length > 0 && ms === (prev.content || '').trim()) {
+          // The two copies of one answer: the row the client streamed and the
+          // persisted row a tail refresh brought in. Only the persisted row
+          // carries the provider's fork anchor and the answering model, so a
+          // refresh that failed to retire the live row left the earlier copy
+          // in charge and hid every anchor behind it until a full page
+          // rebuild. Keep the anchored copy instead, carrying the live row's
+          // segment identity so the turn's measured duration still attaches.
+          out[out.length - 1] = m.forkAnchorId && !prev.forkAnchorId
+            ? { ...m, ...(prev.segmentId && !m.segmentId ? { segmentId: prev.segmentId } : {}) }
+            : prev;
           continue;
         }
       }
