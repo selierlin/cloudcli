@@ -173,6 +173,11 @@ server/**/tests/file-tree-outside-*/
 scripts/harness-bench/results/**/*.json
 scripts/harness-bench/probe-*.mjs
 scripts/harness-bench/verify-*.mjs
+
+# 2026-11-10 3-way runs: the smoke pass and the superseded copilot pass, reports stay local
+scripts/harness-bench/results/2026-11-10-smoke-3way/
+scripts/harness-bench/results/2026-11-10-3way-copilot/
+scripts/harness-bench/results/2026-11-10-3way-clean/
 public/screenshots/
 
 # TypeScript incremental build state
