@@ -1552,7 +1552,8 @@
     "description": "Record what this device actually does, for defects that only reproduce on a phone.",
     "recorderLabel": "On-device recorder",
     "recorderDescription": "Samples frames, DOM changes and scroll writes while you reproduce a problem. A 诊 button then appears in the chat.",
-    "howTo": "Open a chat, tap 诊, start a recording, reproduce the problem, then tap 上报. The report is saved on the machine running this server."
+    "howTo": "Open a chat, tap 诊, start a recording, reproduce the problem, then tap 上报. The report is saved on the machine running this server.",
+    "mergeLogNote": "The same switch also turns on chat merge diagnostics ([message-merge] in the console); useful only when tracking down duplicated messages."
   },
   "about": {
     "tagline": "Open-source AI coding assistant interface",

@@ -1,3 +1,4 @@
+import { isDiagnosticsEnabled } from '@/shared/debug/diagnosticsPreference';
 import type { NormalizedMessage } from '@/shared/types';
 
 const LOCAL_USER_DEDUPE_WINDOW_MS = 5 * 60 * 1000;
@@ -9,9 +10,13 @@ const LOCAL_ATTACHMENT_ONLY_DEDUPE_WINDOW_MS = 30_000;
 // persisted list itself carries duplicate ids. Entries are mirrored into
 // sessionStorage so a page refresh does not destroy the only copy — the orphan
 // row disappears on reload, which is exactly when it is still worth reading.
+// Nothing is recorded while Settings → Diagnostics is off.
 const MERGE_DEBUG_STORAGE_KEY = 'cloudcli:message-merge-debug';
 const MERGE_DEBUG_LIMIT = 40;
 const MERGE_DEBUG_VERSION = 3;
+// Two user rows with the same words only look like the duplicate this reports
+// when they were sent close together; a prompt re-sent later is deliberate.
+const DUPLICATE_USER_ROW_WINDOW_MS = 2 * 60 * 1000;
 const reportedDiagnostics = new Set<string>();
 
 // Marks the bundle that carries this instrumentation. Reading it back in the
@@ -38,6 +43,10 @@ function recordMergeDebug(entry: Record<string, unknown>): void {
 }
 
 function recordOnce(signature: string, entry: Record<string, unknown>): void {
+  // Settings → Diagnostics is the only switch. Check it before remembering the
+  // signature: claiming one while the switch is off would silence that event
+  // forever, so turning diagnostics on afterwards would report nothing.
+  if (!isDiagnosticsEnabled()) return;
   if (reportedDiagnostics.has(signature)) return;
   reportedDiagnostics.add(signature);
   recordMergeDebug(entry);
@@ -146,27 +155,58 @@ export function reportDuplicateUserRows(merged: NormalizedMessage[]): void {
   for (const [text, rows] of groups) {
     if (rows.length < 2) continue;
 
-    const firstIndex = merged.indexOf(rows[0]);
-    const around = merged.slice(Math.max(0, firstIndex - 2), firstIndex + 4);
-    recordOnce(`duplicate-user-rows|${rows.map((row) => row.id).join(',')}`, {
-      event: 'duplicate-user-rows',
-      sessionId: rows[0].sessionId,
-      text: previewText(text),
-      rows: rows.map((row) => ({
-        id: row.id,
-        optimistic: row.id.startsWith('local_'),
-        time: row.timestamp,
-        index: merged.indexOf(row),
-      })),
-      aroundFirst: around.map((row) => ({
-        id: row.id,
-        role: row.role,
-        kind: row.kind,
-        time: row.timestamp,
-        text: previewText(row.content ?? ''),
-      })),
-    });
+    for (const cluster of groupBySendWindow(rows)) {
+      const firstIndex = merged.indexOf(cluster[0]);
+      const around = merged.slice(Math.max(0, firstIndex - 2), firstIndex + 4);
+      recordOnce(`duplicate-user-rows|${cluster.map((row) => row.id).join(',')}`, {
+        event: 'duplicate-user-rows',
+        sessionId: cluster[0].sessionId,
+        text: previewText(text),
+        rows: cluster.map((row) => ({
+          id: row.id,
+          optimistic: row.id.startsWith('local_'),
+          time: row.timestamp,
+          index: merged.indexOf(row),
+        })),
+        aroundFirst: around.map((row) => ({
+          id: row.id,
+          role: row.role,
+          kind: row.kind,
+          time: row.timestamp,
+          text: previewText(row.content ?? ''),
+        })),
+      });
+    }
   }
+}
+
+/**
+ * Splits one text's rows into runs sent close together, keeping only runs of two
+ * or more. Rows without a usable timestamp stay in the same run: the words
+ * already matched and going blind is worse than a rare false positive.
+ */
+function groupBySendWindow(rows: NormalizedMessage[]): NormalizedMessage[][] {
+  const clusters: NormalizedMessage[][] = [];
+  let current: NormalizedMessage[] = [];
+
+  for (const row of rows) {
+    const previous = current[current.length - 1];
+    if (previous && withinDuplicateWindow(previous, row)) {
+      current.push(row);
+      continue;
+    }
+    if (current.length > 1) clusters.push(current);
+    current = [row];
+  }
+  if (current.length > 1) clusters.push(current);
+  return clusters;
+}
+
+function withinDuplicateWindow(left: NormalizedMessage, right: NormalizedMessage): boolean {
+  const leftTime = readMessageTime(left);
+  const rightTime = readMessageTime(right);
+  if (leftTime === null || rightTime === null) return true;
+  return Math.abs(rightTime - leftTime) <= DUPLICATE_USER_ROW_WINDOW_MS;
 }
 
 function describeUserEchoMiss(

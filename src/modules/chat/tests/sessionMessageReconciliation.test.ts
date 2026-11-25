@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
 
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 
+import { setDiagnosticsEnabled } from '@/shared/debug/diagnosticsPreference';
 import type { NormalizedMessage } from '@/shared/types';
-import { removeOptimisticUserEchoes } from '@/modules/chat/utils/sessionMessageReconciliation';
+import {
+  removeOptimisticUserEchoes,
+  reportDuplicateUserRows,
+} from '@/modules/chat/utils/sessionMessageReconciliation';
 
 const createUserMessage = (
   id: string,
@@ -156,4 +160,67 @@ test('a replacement echo retires when the kept boundary row is not loaded', () =
   ];
 
   assert.deepEqual(removeOptimisticUserEchoes(window, [echo]), []);
+});
+
+/** Runs with Settings → Diagnostics on, collecting the duplicate-user-row reports. */
+const collectDuplicateUserRowReports = (run: () => void): unknown[] => {
+  setDiagnosticsEnabled(true);
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    run();
+    return warn.mock.calls
+      .map(([, entry]) => entry as { event?: string } | undefined)
+      .filter((entry) => entry?.event === 'duplicate-user-rows');
+  } finally {
+    warn.mockRestore();
+    setDiagnosticsEnabled(false);
+  }
+};
+
+test('reports the same words rendered as two user rows moments apart', () => {
+  const first = createUserMessage('local_dup_close_a', '2026-11-25T02:42:10.000Z', {
+    content: 'ship it',
+  });
+  const second = createUserMessage('dup_close_a', '2026-11-25T02:42:12.000Z', {
+    content: 'ship it  ',
+  });
+
+  const reports = collectDuplicateUserRowReports(() => {
+    reportDuplicateUserRows([first, second]);
+  });
+
+  assert.equal(reports.length, 1);
+});
+
+test('does not report the same words re-sent long after the first turn', () => {
+  const first = createUserMessage('local_dup_far_b', '2026-11-25T02:00:00.000Z', {
+    content: '继续',
+  });
+  const second = createUserMessage('dup_far_b', '2026-11-25T03:30:00.000Z', {
+    content: '继续',
+  });
+
+  const reports = collectDuplicateUserRowReports(() => {
+    reportDuplicateUserRows([first, second]);
+  });
+
+  assert.equal(reports.length, 0);
+});
+
+test('stays quiet while Settings → Diagnostics is off', () => {
+  setDiagnosticsEnabled(false);
+  const first = createUserMessage('local_dup_off_c', '2026-11-25T02:42:10.000Z', {
+    content: 'ship it',
+  });
+  const second = createUserMessage('dup_off_c', '2026-11-25T02:42:11.000Z', {
+    content: 'ship it',
+  });
+
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    reportDuplicateUserRows([first, second]);
+    assert.equal(warn.mock.calls.length, 0);
+  } finally {
+    warn.mockRestore();
+  }
 });

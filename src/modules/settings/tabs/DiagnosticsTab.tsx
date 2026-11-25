@@ -49,6 +49,8 @@ export default function DiagnosticsTab() {
         </SettingsRow>
       </div>
 
+      <p className="text-xs text-muted-foreground">{t('diagnostics.mergeLogNote')}</p>
+
       {enabled && (
         <p className="text-xs text-muted-foreground">{t('diagnostics.howTo')}</p>
       )}
