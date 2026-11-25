@@ -9,6 +9,7 @@ import PermissionContext from '@/modules/chat/context/PermissionContext';
 import { MarkdownWorkspaceContext } from '@/modules/chat/context/MarkdownWorkspaceContext';
 import { TranscriptSessionContext } from '@/modules/chat/context/TranscriptSessionContext';
 import { api } from '@/shared/api';
+import { Button, Dialog, DialogContent, DialogTitle } from '@/shared/ui';
 import { afterNextPaint, getSessionTitle, isImeKeyEvent } from '@/shared/utils';
 import type {
   ChatMessage,
@@ -295,6 +296,8 @@ function ChatInterface({
     onNavigateToSession?.(sessionId);
   }, [setCurrentSessionId, onSessionEstablished, onNavigateToSession]);
 
+  const [clearContextConfirmOpen, setClearContextConfirmOpen] = useState(false);
+
   /**
    * Clears the open session's context: the conversation stays on screen, with
    * a divider where the clear happened, and the next message starts fresh.
@@ -333,10 +336,8 @@ function ChatInterface({
 
   // The button asks first: unlike a typed `/clear`, a click can be a slip.
   const handleClearContextClick = useCallback(() => {
-    if (window.confirm(t('misc.clearContextConfirm'))) {
-      void handleClearContext();
-    }
-  }, [handleClearContext, t]);
+    setClearContextConfirmOpen(true);
+  }, []);
 
   const {
     input,
@@ -1298,6 +1299,35 @@ function ChatInterface({
         currentSessionId={currentSessionId || selectedSession?.id || null}
         onSelectProviderModel={selectProviderModel}
       />
+
+      <Dialog open={clearContextConfirmOpen} onOpenChange={setClearContextConfirmOpen}>
+        <DialogContent aria-describedby="clear-context-dialog-description" className="p-5">
+          <DialogTitle className="not-sr-only text-base font-semibold text-foreground">
+            {t('misc.clearContext')}
+          </DialogTitle>
+          <p id="clear-context-dialog-description" className="mt-3 text-sm text-muted-foreground">
+            {t('misc.clearContextConfirm')}
+          </p>
+          {/* Cancel comes first so Dialog's open-focus lands on it: Enter right
+              after the click that opened the prompt cancels instead of
+              clearing. */}
+          <div className="mt-5 flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setClearContextConfirmOpen(false)}>
+              {t('common:buttons.cancel')}
+            </Button>
+            <Button
+              type="button"
+              variant="default"
+              onClick={() => {
+                setClearContextConfirmOpen(false);
+                void handleClearContext();
+              }}
+            >
+              {t('common:buttons.confirm')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {shareSelectionOpen && (
         <ShareTranscriptDialog
