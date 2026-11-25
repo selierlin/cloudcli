@@ -728,8 +728,8 @@ export type NormalizedMessage = {
    */
   replacesAnchorId?: string;
   /**
-   * How many persisted rows survived the cut this echo was sent for, stamped
-   * when the truncation is applied.
+   * Id of the last persisted row that survived the cut this echo was sent for,
+   * stamped when the truncation is applied.
    *
    * The echo is retired once the provider persists it, and that is decided by
    * matching text and attachments inside a time window. That is enough until a
@@ -737,9 +737,15 @@ export type NormalizedMessage = {
    * writes the copy with the timestamps of the copy — because an earlier turn
    * with the same words then sits inside the window and retires the message
    * the user just sent. The replacement can only be a row that was not there
-   * when the cut was made, so this is where those rows begin.
+   * when the cut was made, so this row is the boundary: only rows after it may
+   * retire the echo.
+   *
+   * An id rather than a row count because the loaded window is replaced by
+   * later refreshes, and an index into the window at cut time then points at a
+   * different row — it skipped the persisted echo and the duplicate stayed at
+   * the bottom of the transcript until reload.
    */
-  replacesAfterRowCount?: number;
+  replacesKeptTailId?: string;
   sessionId: string;
   timestamp: string;
   provider: LLMProvider;

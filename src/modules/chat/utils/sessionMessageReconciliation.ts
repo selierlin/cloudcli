@@ -76,7 +76,7 @@ function describeUserEchoMiss(
 ): Record<string, unknown> {
   const localFingerprint = userTurnFingerprint(localMessage);
   const localTime = readMessageTime(localMessage);
-  const firstEligibleIndex = localMessage.replacesAfterRowCount ?? 0;
+  const firstEligibleIndex = findFirstEligibleIndex(localMessage, serverMessages);
   const looseLocalText = normalizeEchoText(localFingerprint?.text ?? '');
   const candidates: Record<string, unknown>[] = [];
 
@@ -115,7 +115,8 @@ function describeUserEchoMiss(
       imageCount: localMessage.images?.length ?? 0,
       fileCount: localMessage.files?.length ?? 0,
       replacesAnchorId: localMessage.replacesAnchorId ?? null,
-      replacesAfterRowCount: localMessage.replacesAfterRowCount ?? null,
+      replacesKeptTailId: localMessage.replacesKeptTailId ?? null,
+      firstEligibleIndex,
       matchable: Boolean(localFingerprint) && localTime !== null,
     },
     serverWindow: {
@@ -163,6 +164,27 @@ function readMessageTime(message: NormalizedMessage): number | null {
   return Number.isFinite(time) ? time : null;
 }
 
+/**
+ * First row of `serverMessages` an edited echo may be retired by. Rows at or
+ * before the last row that survived the cut cannot be the replacement, because
+ * a provider that rewinds re-stamps them and one may repeat the echo's words.
+ *
+ * The boundary is an id rather than an index: refreshes replace the window, so
+ * an index taken at cut time later points at a different row and skipped the
+ * persisted echo. When the boundary row is no longer in the window, every row
+ * present is newer than the cut, so nothing has to be skipped.
+ */
+function findFirstEligibleIndex(
+  localMessage: NormalizedMessage,
+  serverMessages: NormalizedMessage[],
+): number {
+  const keptTailId = localMessage.replacesKeptTailId;
+  if (!keptTailId) return 0;
+
+  const keptTailIndex = serverMessages.findIndex((message) => message.id === keptTailId);
+  return keptTailIndex < 0 ? 0 : keptTailIndex + 1;
+}
+
 function findServerEchoForLocalUser(
   localMessage: NormalizedMessage,
   serverMessages: NormalizedMessage[],
@@ -180,7 +202,7 @@ function findServerEchoForLocalUser(
   // the moment of the copy, so an earlier turn with the same words — "yes",
   // "continue", the typo being corrected — lands inside the window and would
   // retire the message the user just sent.
-  const firstEligibleIndex = localMessage.replacesAfterRowCount ?? 0;
+  const firstEligibleIndex = findFirstEligibleIndex(localMessage, serverMessages);
 
   const dedupeWindow = localFingerprint.text
     ? LOCAL_USER_DEDUPE_WINDOW_MS

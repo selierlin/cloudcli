@@ -89,7 +89,7 @@ test('a replacement echo survives a kept turn that repeats its text', () => {
   const echo = {
     ...userRow('local_1', 'continue', '2026-01-01T00:00:20.000Z'),
     replacesAnchorId: 'turn-b',
-    replacesAfterRowCount: kept.length,
+    replacesKeptTailId: 'kept',
   } as NormalizedMessage;
 
   assert.deepEqual(removeOptimisticUserEchoes(kept, [echo]), [echo]);
@@ -98,4 +98,62 @@ test('a replacement echo survives a kept turn that repeats its text', () => {
   // keep, so it retires the echo.
   const persisted = [...kept, userRow('persisted', 'continue', '2026-01-01T00:00:25.000Z')];
   assert.deepEqual(removeOptimisticUserEchoes(persisted, [echo]), []);
+});
+
+test('a shifted window still retires the replacement echo', () => {
+  // The cut was made against a window of 29 rows, but the refresh that follows
+  // loads a different slice: the persisted echo now sits well below that count.
+  // An index floor skipped it and the echo stayed at the bottom of the
+  // transcript, so the boundary has to be resolved from the kept row's id.
+  const userRow = (id: string, content: string, timestamp: string) => ({
+    id,
+    kind: 'text',
+    role: 'user',
+    provider: 'claude',
+    sessionId: 's1',
+    content,
+    timestamp,
+  }) as NormalizedMessage;
+
+  const echo = {
+    ...userRow('local_1', 'ship it', '2026-11-25T02:42:10.179Z'),
+    replacesAnchorId: 'turn-b',
+    replacesKeptTailId: 'kept-tail',
+  } as NormalizedMessage;
+
+  const window = [
+    userRow('kept-old', 'ship it', '2026-11-25T02:30:00.000Z'),
+    userRow('kept-tail', 'continue', '2026-11-25T02:39:41.681Z'),
+    userRow('persisted', 'ship it', '2026-11-25T02:42:10.764Z'),
+    userRow('later', 'ok', '2026-11-25T02:43:08.000Z'),
+  ];
+
+  assert.deepEqual(removeOptimisticUserEchoes(window, [echo]), []);
+});
+
+test('a replacement echo retires when the kept boundary row is not loaded', () => {
+  // The refresh landed on a page that starts after the cut, so no surviving
+  // row is in the window and every row present is newer than the cut.
+  const userRow = (id: string, content: string, timestamp: string) => ({
+    id,
+    kind: 'text',
+    role: 'user',
+    provider: 'claude',
+    sessionId: 's1',
+    content,
+    timestamp,
+  }) as NormalizedMessage;
+
+  const echo = {
+    ...userRow('local_1', 'ship it', '2026-11-25T02:42:10.179Z'),
+    replacesAnchorId: 'turn-b',
+    replacesKeptTailId: 'kept-tail',
+  } as NormalizedMessage;
+
+  const window = [
+    userRow('persisted', 'ship it', '2026-11-25T02:42:10.764Z'),
+    userRow('later', 'ok', '2026-11-25T02:43:08.000Z'),
+  ];
+
+  assert.deepEqual(removeOptimisticUserEchoes(window, [echo]), []);
 });

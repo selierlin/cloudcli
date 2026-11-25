@@ -1062,10 +1062,13 @@ export function useSessionStore() {
       (message) => message.replacesAnchorId === anchorId,
     );
     slot.realtimeMessages = replacements.length > 0
-      // Stamped here because this is the only place that knows how much of the
-      // conversation survived, which is what tells the echo apart from the
-      // turns it now sits after.
-      ? [{ ...replacements[replacements.length - 1], replacesAfterRowCount: cutIndex }]
+      // Stamped here because this is the only place that knows which rows
+      // survived the cut, which is what tells the echo apart from the turns it
+      // now sits after. The id, not the index: refreshes replace the window.
+      ? [{
+          ...replacements[replacements.length - 1],
+          replacesKeptTailId: slot.serverMessages[slot.serverMessages.length - 1]?.id,
+        }]
       : EMPTY;
     // `total` counts what the server would serve; it is about to be re-fetched
     // anyway, but leaving it high makes the pager offer pages that do not exist.
