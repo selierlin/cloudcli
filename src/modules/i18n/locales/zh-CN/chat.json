@@ -511,7 +511,14 @@
       "agent": "子代理 {{description}}",
       "command": "命令 {{description}}",
       "count": "{{count}} 个任务",
-      "sendAnyway": "本会话仍有后台任务在运行：\n{{work}}\n\n发送新消息会开启新回合并终止这些任务，尚未汇报的结果将丢失。仍要发送吗？"
+      "prompt": {
+        "title": "本会话仍有后台任务在运行",
+        "description": "发送新消息会开启新回合，从而终止这些任务，它们尚未汇报的结果将丢失。选择排队则会等这些任务结束后再发送消息。",
+        "cancel": "取消",
+        "queue": "排队发送",
+        "sendAnyway": "仍要发送",
+        "sideQuestion": "侧问"
+      }
     },
     "controls": {
       "stopGeneration": "停止生成",
@@ -570,6 +577,11 @@
   "misc": {
     "compacted": "上下文已压缩",
     "compactionSummary": "完整摘要",
+    "clearContext": "清除上下文",
+    "clearContextConfirm": "清除本会话的上下文？对话仍会保留在这里，但下一条消息会重新开始。",
+    "clearContextEmpty": "上下文已经是空的。",
+    "clearContextFailed": "无法清除上下文：{{message}}",
+    "clearContextUnsupported": "当前提供方不支持清除上下文。",
     "showTokenUsage": "查看 Token 用量",
     "fallbackCommands": {
       "cost": "查看当前会话的 Token 用量。"
