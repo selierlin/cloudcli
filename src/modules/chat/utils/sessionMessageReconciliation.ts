@@ -11,7 +11,14 @@ const LOCAL_ATTACHMENT_ONLY_DEDUPE_WINDOW_MS = 30_000;
 // row disappears on reload, which is exactly when it is still worth reading.
 const MERGE_DEBUG_STORAGE_KEY = 'cloudcli:message-merge-debug';
 const MERGE_DEBUG_LIMIT = 40;
+const MERGE_DEBUG_VERSION = 3;
 const reportedDiagnostics = new Set<string>();
+
+// Marks the bundle that carries this instrumentation. Reading it back in the
+// console answers "am I even running the new build" without guessing.
+if (typeof window !== 'undefined') {
+  (window as unknown as Record<string, unknown>).__cloudcliMergeDebug = MERGE_DEBUG_VERSION;
+}
 
 function recordMergeDebug(entry: Record<string, unknown>): void {
   console.warn('[message-merge]', entry);
@@ -45,28 +52,121 @@ function normalizeEchoText(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
+function pushGroupIndex<K>(groups: Map<K, number[]>, key: K, index: number): void {
+  const indexes = groups.get(key);
+  if (indexes) {
+    indexes.push(index);
+  } else {
+    groups.set(key, [index]);
+  }
+}
+
+/**
+ * Reports a server list that carries the same row more than once, both by id
+ * and by visible content. Providers that leave rows without a stable id get a
+ * fresh random one per read, so a page that was appended twice shows up as
+ * duplicated *content* while the id scan only catches the rows that do have a
+ * provider id — the content scan is what proves the double append.
+ */
 export function reportDuplicateServerIds(serverMessages: NormalizedMessage[]): void {
   if (serverMessages.length < 2) return;
 
-  const seen = new Set<string>();
-  const duplicates: string[] = [];
-  for (const message of serverMessages) {
-    if (seen.has(message.id)) {
-      duplicates.push(message.id);
-    } else {
-      seen.add(message.id);
+  const byId = new Map<string, number[]>();
+  const byContent = new Map<string, number[]>();
+  for (let index = 0; index < serverMessages.length; index++) {
+    const row = serverMessages[index];
+    pushGroupIndex(byId, row.id, index);
+    if (row.kind === 'text' && row.content) {
+      pushGroupIndex(byContent, `${row.role ?? ''}|${row.timestamp}|${row.content}`, index);
     }
   }
-  if (duplicates.length === 0) return;
 
-  recordOnce(`duplicate-server-ids|${serverMessages.length}|${duplicates.join(',')}`, {
-    event: 'duplicate-server-ids',
-    serverCount: serverMessages.length,
-    duplicateCount: duplicates.length,
-    duplicateIds: duplicates.slice(0, 10),
-    firstTime: serverMessages[0]?.timestamp ?? null,
-    lastTime: serverMessages[serverMessages.length - 1]?.timestamp ?? null,
+  const idGroups = [...byId].filter(([, indexes]) => indexes.length > 1);
+  const contentGroups = [...byContent].filter(([, indexes]) => indexes.length > 1);
+  if (idGroups.length === 0 && contentGroups.length === 0) return;
+
+  const describe = (indexes: number[]) => indexes.slice(0, 5).map((index) => {
+    const row = serverMessages[index];
+    return {
+      index,
+      id: row.id,
+      kind: row.kind,
+      role: row.role ?? null,
+      time: row.timestamp,
+      toolId: row.toolId ?? null,
+      text: previewText(row.content ?? ''),
+    };
   });
+
+  recordOnce(
+    `duplicate-server-ids|${serverMessages.length}|${idGroups.length}|${contentGroups.length}|${idGroups.map(([id]) => id).join(',')}`,
+    {
+      event: 'duplicate-server-ids',
+      sessionId: serverMessages[0]?.sessionId ?? null,
+      provider: serverMessages[0]?.provider ?? null,
+      serverCount: serverMessages.length,
+      duplicateCount: idGroups.reduce((sum, [, indexes]) => sum + indexes.length - 1, 0),
+      duplicateIds: idGroups.slice(0, 10).map(([id]) => id),
+      idGroups: idGroups.slice(0, 5).map(([id, indexes]) => ({
+        id,
+        indexes: indexes.slice(0, 8),
+        rows: describe(indexes),
+      })),
+      duplicateContentCount: contentGroups.reduce((sum, [, indexes]) => sum + indexes.length - 1, 0),
+      contentGroups: contentGroups.slice(0, 5).map(([, indexes]) => ({
+        indexes: indexes.slice(0, 8),
+        rows: describe(indexes),
+      })),
+      firstTime: serverMessages[0]?.timestamp ?? null,
+      lastTime: serverMessages[serverMessages.length - 1]?.timestamp ?? null,
+    },
+  );
+}
+
+/**
+ * Reports the symptom itself: two user rows with the same words in the list the
+ * transcript renders. Independent of where the duplicate came from, so it also
+ * catches a copy that never passed through the optimistic-echo path.
+ */
+export function reportDuplicateUserRows(merged: NormalizedMessage[]): void {
+  const groups = new Map<string, NormalizedMessage[]>();
+
+  for (const row of merged) {
+    if (row.kind !== 'text' || row.role !== 'user') continue;
+    const text = normalizeEchoText(row.content ?? '');
+    if (!text) continue;
+    const group = groups.get(text);
+    if (group) {
+      group.push(row);
+    } else {
+      groups.set(text, [row]);
+    }
+  }
+
+  for (const [text, rows] of groups) {
+    if (rows.length < 2) continue;
+
+    const firstIndex = merged.indexOf(rows[0]);
+    const around = merged.slice(Math.max(0, firstIndex - 2), firstIndex + 4);
+    recordOnce(`duplicate-user-rows|${rows.map((row) => row.id).join(',')}`, {
+      event: 'duplicate-user-rows',
+      sessionId: rows[0].sessionId,
+      text: previewText(text),
+      rows: rows.map((row) => ({
+        id: row.id,
+        optimistic: row.id.startsWith('local_'),
+        time: row.timestamp,
+        index: merged.indexOf(row),
+      })),
+      aroundFirst: around.map((row) => ({
+        id: row.id,
+        role: row.role,
+        kind: row.kind,
+        time: row.timestamp,
+        text: previewText(row.content ?? ''),
+      })),
+    });
+  }
 }
 
 function describeUserEchoMiss(

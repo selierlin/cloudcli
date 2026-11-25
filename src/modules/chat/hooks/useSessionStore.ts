@@ -20,7 +20,7 @@ import type {
   TurnHistoryPageInfo,
 } from '@/shared/types';
 import { sideQuestionStore } from '@/modules/chat/hooks/useSideQuestions';
-import { removeOptimisticUserEchoes, reportDuplicateServerIds, upsertRealtimeMessages } from '@/modules/chat/utils/sessionMessageReconciliation';
+import { removeOptimisticUserEchoes, reportDuplicateServerIds, reportDuplicateUserRows, upsertRealtimeMessages } from '@/modules/chat/utils/sessionMessageReconciliation';
 import {
   findLatestPageOverlapLength,
   hasReachedCachedTailTimeBoundary,
@@ -580,6 +580,7 @@ function recomputeMergedIfNeeded(slot: SessionSlot): boolean {
   slot._lastServerRef = slot.serverMessages;
   slot._lastRealtimeRef = slot.realtimeMessages;
   slot.merged = computeMerged(slot.serverMessages, slot.realtimeMessages);
+  reportDuplicateUserRows(slot.merged);
   return true;
 }
 
