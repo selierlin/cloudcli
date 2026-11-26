@@ -13,7 +13,8 @@ import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 
 import { api, ApiRequestError } from '@/shared/api';
-import type { BackgroundSendChoice, BackgroundSendPrompt, CommandModalPayload, ComposerAttachmentUpload, CostCommandData, HelpCommandData, MarkSessionProcessing, ModelCommandData, PendingSteer, QueuedDraft, QuickReply, SessionActivityMap, StatusCommandData, SteerOutcome,QueuedSendOptions,ChatAttachment,ChatMessage,PendingPermissionRequest,PermissionMode,SessionEstablishedContext,Project,ProjectSession,LLMProvider,SlashCommand } from '@/shared/types';
+import { MAX_CHAT_ATTACHMENT_COUNT, MAX_CHAT_ATTACHMENT_SIZE_BYTES } from '@/shared/constants';
+import type { AttachmentRejection, BackgroundSendChoice, BackgroundSendPrompt, CommandModalPayload, ComposerAttachmentUpload, CostCommandData, HelpCommandData, MarkSessionProcessing, ModelCommandData, PendingSteer, QueuedDraft, QuickReply, SessionActivityMap, StatusCommandData, SteerOutcome,QueuedSendOptions,ChatAttachment,ChatMessage,PendingPermissionRequest,PermissionMode,SessionEstablishedContext,Project,ProjectSession,LLMProvider,SlashCommand } from '@/shared/types';
 import { grantClaudeToolPermission } from '@/modules/chat/utils/chatPermissions';
 import {
   appendQueuedMessage,
@@ -132,7 +133,7 @@ const createFakeSubmitEvent = () => {
 };
 
 /**
- * A v4 UUID for a steered message. The id becomes the message's transcript
+ * A v4 UUID for a steered message or attachment upload request. The id becomes the message's transcript
  * uuid, so it must be a real one. `crypto.randomUUID` only exists in secure
  * contexts, and the app is often opened over plain http on a LAN address
  * (a phone on the same network), so this falls back to `getRandomValues`.
@@ -154,9 +155,6 @@ const isEchoOfSteer = (echoId: string, messageId: string): boolean => (
   // into parts named `<id>_text_<n>` / `<id>_images`.
   echoId === messageId || echoId.startsWith(`${messageId}_`)
 );
-
-const MAX_ATTACHMENT_COUNT = 10;
-const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
 
 const isImageAttachment = (attachment: ChatAttachment) => {
   if (attachment.mimeType?.startsWith('image/')) return true;
@@ -296,7 +294,10 @@ export function useChatComposerState({
   useEffect(() => {
     attachedFilesRef.current = attachedFiles;
   }, [attachedFiles]);
-  const [fileErrors, setFileErrors] = useState<Map<string, string>>(new Map());
+  // Files the latest attach attempt refused. They never become attachments, so
+  // the composer lists them in their own notice; without it a refused file just
+  // vanishes from a multi-file pick.
+  const [attachmentRejections, setAttachmentRejections] = useState<AttachmentRejection[]>([]);
   // Uploads start as soon as a file is picked or pasted, so sending does not
   // wait on a transfer the user never saw. Entries are keyed by file identity,
   // which is what the chips, the send path and the queued draft all use.
@@ -678,46 +679,48 @@ export function useChatComposerState({
     lastAutosizedInputRef.current = target.value;
   }, []);
 
+  // Picker, drag-and-drop and paste all come through here, so the size and count
+  // limits are checked in one place and every refused file is reported. Each
+  // attempt replaces the notice, so it always describes the latest one.
   const handleAttachmentFiles = useCallback((files: File[]) => {
-    const validFiles = files.filter((file) => {
-      try {
-        if (!file || typeof file !== 'object') {
-          console.warn('Invalid file object:', file);
-          return false;
-        }
+    const accepted: File[] = [];
+    const rejections: AttachmentRejection[] = [];
+    let freeSlots = Math.max(0, MAX_CHAT_ATTACHMENT_COUNT - attachedFilesRef.current.length);
 
-        if (file.size > MAX_ATTACHMENT_SIZE) {
-          const fileName = file.name || 'Unknown file';
-          setFileErrors((previous) => {
-            const next = new Map(previous);
-            next.set(fileName, 'File too large (max 10MB)');
-            return next;
-          });
-          return false;
-        }
-
-        return true;
-      } catch (error) {
-        console.error('Error validating file:', error, file);
-        return false;
+    files.forEach((file) => {
+      if (!file || typeof file !== 'object') {
+        console.warn('Invalid file object:', file);
+        return;
       }
+      const fileName = file.name || 'Unknown file';
+      if (file.size > MAX_CHAT_ATTACHMENT_SIZE_BYTES) {
+        rejections.push({ fileName, reason: 'too-large' });
+        return;
+      }
+      if (freeSlots === 0) {
+        rejections.push({ fileName, reason: 'too-many' });
+        return;
+      }
+      freeSlots -= 1;
+      accepted.push(file);
     });
 
-    // The drop handler is registered once, so it reads the current list from
-    // the ref; the cap is applied here, before anything starts uploading.
-    const current = attachedFilesRef.current;
-    const accepted = validFiles.slice(0, Math.max(0, MAX_ATTACHMENT_COUNT - current.length));
+    setAttachmentRejections(rejections);
     if (accepted.length === 0) {
       return;
     }
 
-    const next = [...current, ...accepted];
+    const next = [...attachedFilesRef.current, ...accepted];
     attachedFilesRef.current = next;
     setAttachedFiles(next);
     // Start the transfer now rather than on send: the wait is what made the
     // composer look frozen, and the chips can report progress meanwhile.
     attachmentUploads.track(accepted.map((file) => ({ key: composerAttachmentKey(file), file })));
   }, [attachmentUploads]);
+
+  const dismissAttachmentRejections = useCallback(() => {
+    setAttachmentRejections([]);
+  }, []);
 
   /**
    * Drops one pending attachment and releases its upload: the user is not
@@ -759,30 +762,21 @@ export function useChatComposerState({
     }
   }, [queuedDraft, sessionKey]);
 
-  // A per-file error marks a chip; dropping that chip must drop its mark too,
-  // or re-picking a good copy of the same file would show the old failure.
-  // Derived during render instead of in an effect, so the stale mark is never
-  // painted for a frame after the file is gone.
-  const activeFileNames = attachedFiles.map((file) => file.name);
-  const prunedFileErrors = Array.from(fileErrors.keys()).some(
-    (name) => !activeFileNames.includes(name),
-  )
-    ? new Map(Array.from(fileErrors).filter(([name]) => activeFileNames.includes(name)))
-    : fileErrors;
 
   const handlePaste = useCallback(
     (event: ClipboardEvent<HTMLTextAreaElement>) => {
       const items = Array.from(event.clipboardData.items);
 
-      items.forEach((item) => {
-        if (!item.type.startsWith('image/')) {
-          return;
-        }
-        const file = item.getAsFile();
-        if (file) {
-          handleAttachmentFiles([file]);
-        }
-      });
+      // One call for the whole paste: the free-slot count is read once per call,
+      // so attaching the images one by one would let a paste overfill the composer.
+      const pastedImages = items
+        .filter((item) => item.type.startsWith('image/'))
+        .map((item) => item.getAsFile())
+        .filter((file): file is File => file !== null);
+      if (pastedImages.length > 0) {
+        handleAttachmentFiles(pastedImages);
+        return;
+      }
 
       if (items.length === 0 && event.clipboardData.files.length > 0) {
         const files = Array.from(event.clipboardData.files);
@@ -795,10 +789,11 @@ export function useChatComposerState({
     [handleAttachmentFiles],
   );
 
+  // No `maxSize` / `maxFiles` here: react-dropzone would set those files aside
+  // before `onDrop` (and `maxFiles` refuses the whole drop, not just the extra
+  // files), so `handleAttachmentFiles` applies both limits itself and reports them.
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
-    maxSize: MAX_ATTACHMENT_SIZE,
-    maxFiles: MAX_ATTACHMENT_COUNT,
-    onDrop: handleAttachmentFiles,
+    onDrop: (acceptedFiles) => handleAttachmentFiles(acceptedFiles),
     noClick: true,
     noKeyboard: true,
   });
@@ -964,7 +959,7 @@ export function useChatComposerState({
       if (queuedFromOpenComposer) {
         setInput('');
         inputValueRef.current = '';
-        setFileErrors(new Map());
+        setAttachmentRejections([]);
         resetCommandMenuState();
         setIsTextareaExpanded(false);
         if (textareaRef.current) {
@@ -1092,7 +1087,7 @@ export function useChatComposerState({
       if (sessionKeyRef.current === steerSessionKey) {
         setInput('');
         inputValueRef.current = '';
-        setFileErrors(new Map());
+        setAttachmentRejections([]);
         resetCommandMenuState();
         setIsTextareaExpanded(false);
         if (textareaRef.current) {
@@ -1311,7 +1306,7 @@ export function useChatComposerState({
           setInput('');
           inputValueRef.current = '';
           setAttachedFiles([]);
-          setFileErrors(new Map());
+          setAttachmentRejections([]);
           resetCommandMenuState();
           setIsTextareaExpanded(false);
           if (textareaRef.current) {
@@ -1530,7 +1525,7 @@ export function useChatComposerState({
       // The uploads were released above as sent: clearing the composer must not
       // cancel or delete files the transcript now references.
       setAttachedFiles([]);
-      setFileErrors(new Map());
+      setAttachmentRejections([]);
       setIsTextareaExpanded(false);
 
       if (textareaRef.current) {
@@ -2059,7 +2054,8 @@ export function useChatComposerState({
     },
     isUploadingAttachments: attachmentUploads.isUploading,
     isSubmitting,
-    fileErrors: prunedFileErrors,
+    attachmentRejections,
+    dismissAttachmentRejections,
     getRootProps,
     getInputProps,
     isDragActive,

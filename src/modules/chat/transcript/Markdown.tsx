@@ -1,5 +1,6 @@
 import React, { memo, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import type { Nodes, Root } from 'mdast';
 import remarkBreaks from 'remark-breaks';
 // The `parseOnly` entry, not the default one: rendering never serializes an mdast
 // back to Markdown, so this keeps the serializer out of the client bundle.
@@ -225,6 +226,23 @@ const MATH_DELIMITER = /\$\$/;
 
 const EMPTY_PLUGINS: never[] = [];
 
+// Only parser-recognized, attribute-free HTML breaks inside table cells are safe
+// to promote. Text, escaped tags and code nodes keep react-markdown's defaults.
+const remarkTableBreaks = () => (tree: Root) => {
+  const visit = (node: Nodes, inTableCell = false) => {
+    if (!('children' in node)) return;
+    const insideCell = inTableCell || node.type === 'tableCell';
+    node.children.forEach((child, index) => {
+      if (insideCell && child.type === 'html' && /^<br\s*\/?>$/i.test(child.value)) {
+        node.children[index] = { type: 'break' };
+      } else {
+        visit(child, insideCell);
+      }
+    });
+  };
+  visit(tree);
+};
+
 type CodeBlockProps = {
   node?: any;
   className?: string;
@@ -309,6 +327,11 @@ const CodeBlock = ({ node: _node, className, children, forceBlock, ...props }: C
   );
 };
 
+type MarkdownTableCellProps = {
+  children?: React.ReactNode;
+  align?: 'left' | 'center' | 'right';
+  style?: React.CSSProperties;
+};
 const markdownComponents = {
   code: CodeBlock,
   // Workspace image paths are fetched through the authenticated files route;
@@ -348,11 +371,11 @@ const markdownComponents = {
   tr: ({ children }: { children?: React.ReactNode }) => (
     <tr className="[&:last-child>td]:border-b-0">{children}</tr>
   ),
-  th: ({ children }: { children?: React.ReactNode }) => (
-    <th className="border-b border-border px-3 py-2 text-left font-semibold text-foreground">{children}</th>
+  th: ({ children, align, style }: MarkdownTableCellProps) => (
+    <th style={{ ...style, textAlign: align || style?.textAlign }} className="min-w-32 border-b border-border px-3 py-2 text-left font-semibold text-foreground [overflow-wrap:anywhere]">{children}</th>
   ),
-  td: ({ children }: { children?: React.ReactNode }) => (
-    <td className="border-b border-border/60 px-3 py-2 align-top">{children}</td>
+  td: ({ children, align, style }: MarkdownTableCellProps) => (
+    <td style={{ ...style, textAlign: align || style?.textAlign }} className="min-w-32 border-b border-border/60 px-3 py-2 align-top [overflow-wrap:anywhere]">{children}</td>
   ),
 };
 
@@ -386,7 +409,7 @@ function MarkdownBodyRenderer({ children, breaks = false }: Omit<MarkdownProps, 
       // hits this constantly because it puts punctuation inside the emphasis and
       // no space after it. remarkCjkFriendly relaxes the rule only where a CJK
       // character or CJK punctuation is adjacent, leaving other text untouched.
-      const plugins: unknown[] = [remarkGfm, remarkCjkFriendly];
+      const plugins: unknown[] = [remarkGfm, remarkCjkFriendly, remarkTableBreaks];
       if (hasMath) {
         plugins.push([remarkMath, { singleDollarTextMath: false }]);
       }

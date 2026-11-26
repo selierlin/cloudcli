@@ -146,6 +146,7 @@ test('getCurrentActiveModel prefers the configured default, else the catalog def
     // No config: falls back to the predefined model.
     assert.deepEqual(await new OpenclawProviderModels().getCurrentActiveModel(), {
       model: OPENCLAW_PREDEFINED_MODELS.DEFAULT,
+      isFallback: true,
     });
 
     await writeConfig(homeDir, {

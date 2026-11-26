@@ -16,7 +16,6 @@ type ComposerAttachmentProps = {
    * given without keeping that state in React.
    */
   uploadVersion?: number;
-  error?: string;
 };
 
 const formatFileSize = (size: number) => {
@@ -27,16 +26,16 @@ const formatFileSize = (size: number) => {
 
 /**
  * Rendered by chat's ChatComposer for each pending attachment, showing its
- * thumbnail or file chip, upload progress and remove control.
+ * thumbnail or file chip and remove control.
  */
-const ComposerAttachment = ({ file, onRemove, upload, uploadVersion, error }: ComposerAttachmentProps) => {
+const ComposerAttachment = ({ file, onRemove, upload, uploadVersion }: ComposerAttachmentProps) => {
   const { t } = useTranslation('chat');
   const [expanded, setExpanded] = useState(false);
   const isImage = file.type.startsWith('image/');
   void uploadVersion;
   const isUploading = upload?.status === 'uploading';
-  // A failed upload and a validation error both block sending this chip.
-  const failure = upload?.status === 'failed' ? upload.error ?? t('input.attachments.failed') : error;
+  // A failed upload blocks sending this chip.
+  const failure = upload?.status === 'failed' ? upload.error ?? t('input.attachments.failed') : undefined;
 
   // Created inside the effect, not during render: StrictMode mounts, runs the
   // cleanup and mounts again, so a URL created for the first mount is revoked

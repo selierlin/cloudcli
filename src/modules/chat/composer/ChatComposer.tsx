@@ -16,7 +16,7 @@ import { PaperclipIcon, MessageSquareIcon, Loader2, ArrowUpIcon, PencilIcon, Era
 import { useVoiceInput } from '@/modules/chat/hooks/useVoiceInput';
 import { useVoiceAvailable } from '@/modules/chat/hooks/useVoiceAvailable';
 import { MCP_ELICITATION_TOOL_NAME } from '@/shared/constants';
-import type { BackgroundSendChoice, BackgroundSendPrompt, ComposerAttachmentUpload, PendingSteer, QueuedDraft, QuickReply, ScheduledMessage, SlashCommand,SessionActivity,PendingPermissionRequest,PermissionMode,ProviderModelOption, LLMProvider } from '@/shared/types';
+import type { AttachmentRejection, BackgroundSendChoice, BackgroundSendPrompt, ComposerAttachmentUpload, PendingSteer, QueuedDraft, QuickReply, ScheduledMessage, SlashCommand,SessionActivity,PendingPermissionRequest,PermissionMode,ProviderModelOption, LLMProvider } from '@/shared/types';
 import {
   PromptInput,
   PromptInputHeader,
@@ -30,6 +30,7 @@ import {
 import CommandMenu from '@/modules/chat/composer/CommandMenu';
 import ActivityIndicator from '@/modules/chat/composer/ActivityIndicator';
 import ComposerAttachment from '@/modules/chat/composer/ComposerAttachment';
+import AttachmentRejectionNotice from '@/modules/chat/composer/AttachmentRejectionNotice';
 import VoiceInputButton from '@/modules/chat/composer/VoiceInputButton';
 import PermissionRequestsBanner from '@/modules/chat/composer/PermissionRequestsBanner';
 import TokenStatsLine from '@/modules/chat/composer/TokenStatsLine';
@@ -122,7 +123,9 @@ type ChatComposerProps = {
   isUploadingAttachments: boolean;
   /** A send waiting for an attachment transfer already under way. */
   isSubmitting: boolean;
-  fileErrors: Map<string, string>;
+  /** Files the latest attach attempt refused (too large, or past the count limit), listed in a notice above the chips. */
+  attachmentRejections: AttachmentRejection[];
+  onDismissAttachmentRejections: () => void;
   showFileDropdown: boolean;
   filteredFiles: MentionableFile[];
   selectedFileIndex: number;
@@ -212,7 +215,8 @@ export default function ChatComposer({
   uploadVersion,
   isUploadingAttachments,
   isSubmitting,
-  fileErrors,
+  attachmentRejections,
+  onDismissAttachmentRejections,
   showFileDropdown,
   filteredFiles,
   selectedFileIndex,
@@ -506,22 +510,27 @@ export default function ChatComposer({
               </div>
             )}
 
-            {attachedFiles.length > 0 && (
-              <PromptInputHeader>
-                <div className="rounded-xl bg-muted/40 p-2">
-                  <div className="flex flex-wrap gap-2">
-                    {attachedFiles.map((file, index) => (
-                      <ComposerAttachment
-                        key={`${file.name}-${file.lastModified}-${index}`}
-                        file={file}
-                        onRemove={() => onRemoveAttachment(index)}
-                        upload={getAttachmentUpload(file)}
-                        uploadVersion={uploadVersion}
-                        error={fileErrors.get(file.name)}
-                      />
-                    ))}
+            {(attachedFiles.length > 0 || attachmentRejections.length > 0) && (
+              <PromptInputHeader className="flex flex-col gap-2">
+                <AttachmentRejectionNotice
+                  rejections={attachmentRejections}
+                  onDismiss={onDismissAttachmentRejections}
+                />
+                {attachedFiles.length > 0 && (
+                  <div className="rounded-xl bg-muted/40 p-2">
+                    <div className="flex flex-wrap gap-2">
+                      {attachedFiles.map((file, index) => (
+                        <ComposerAttachment
+                          key={`${file.name}-${file.lastModified}-${index}`}
+                          file={file}
+                          onRemove={() => onRemoveAttachment(index)}
+                          upload={getAttachmentUpload(file)}
+                          uploadVersion={uploadVersion}
+                        />
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </PromptInputHeader>
             )}
 

@@ -187,6 +187,12 @@
     "disabled": "输入已禁用",
     "attachFiles": "附加文件",
     "attachImages": "附加图片",
+    "attachmentRejected": {
+      "title_other": "有 {{count}} 个文件未能添加",
+      "tooLarge": "超过 {{maxSize}} MB",
+      "tooMany": "超过 {{maxCount}} 个文件的上限",
+      "dismiss": "关闭"
+    },
     "send": "发送",
     "stop": "停止",
     "sending": "正在发送…",

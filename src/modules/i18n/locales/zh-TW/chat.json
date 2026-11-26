@@ -114,6 +114,12 @@
     "disabled": "輸入已停用",
     "attachFiles": "附加檔案",
     "attachImages": "附加圖片",
+    "attachmentRejected": {
+      "title_other": "有 {{count}} 個檔案未能加入",
+      "tooLarge": "超過 {{maxSize}} MB",
+      "tooMany": "超過 {{maxCount}} 個檔案的上限",
+      "dismiss": "關閉"
+    },
     "send": "傳送",
     "stop": "停止",
     "sending": "正在傳送…",

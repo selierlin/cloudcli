@@ -365,7 +365,8 @@ function ChatInterface({
     getAttachmentUpload,
     isUploadingAttachments,
     isSubmitting,
-    fileErrors,
+    attachmentRejections,
+    dismissAttachmentRejections,
     getRootProps,
     getInputProps,
     isDragActive,
@@ -1205,7 +1206,8 @@ function ChatInterface({
           uploadVersion={uploadVersion}
           isUploadingAttachments={isUploadingAttachments}
           isSubmitting={isSubmitting}
-          fileErrors={fileErrors}
+          attachmentRejections={attachmentRejections}
+          onDismissAttachmentRejections={dismissAttachmentRejections}
           showFileDropdown={showFileDropdown}
           filteredFiles={filteredFiles}
           selectedFileIndex={selectedFileIndex}
