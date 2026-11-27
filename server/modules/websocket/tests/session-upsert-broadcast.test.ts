@@ -107,7 +107,7 @@ test('a fork broadcast carries its app-facing parent and off-page ancestors for 
     sessionsDb.createForkedSession({
       sessionId: 'child', provider: 'claude', projectPath: '/workspace/demo',
       customName: 'Fork', providerSessionId: 'native-child', jsonlPath: '/transcripts/child.jsonl',
-      forkedFromSessionId: 'parent', nameSource: 'history_display', model: null, effort: null,
+      forkedFromSessionId: 'parent', parentSessionId: null, nameSource: 'history_display', model: null, effort: null,
     });
     const connection = new FakeConnection();
     connectedClients.add(connection as never);

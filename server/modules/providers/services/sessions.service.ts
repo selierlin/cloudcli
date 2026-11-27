@@ -761,6 +761,10 @@ export const sessionsService = {
       providerSessionId: forked.providerSessionId,
       jsonlPath: forked.jsonlPath,
       forkedFromSessionId: sessionId,
+      // A fork is a copy of its source, so it is filed under it from the
+      // start: the project tree, Conversations reference line and parent
+      // picker all read ownership rather than lineage alone.
+      parentSessionId: sessionId,
       // A fork that silently dropped to the catalog default would answer
       // differently from the conversation it was branched from.
       model: source.model,

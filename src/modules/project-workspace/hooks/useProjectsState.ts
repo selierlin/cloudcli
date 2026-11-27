@@ -131,6 +131,10 @@ type RegisterSessionArgs = {
   provider: LLMProvider;
   project: Project;
   summary?: string | null;
+  /** Fork source, carried so the Conversations row shows its reference line at once. */
+  parentSessionId?: string | null;
+  /** Source title, used when the parent is not on the loaded Conversations page. */
+  parentTitle?: string | null;
 };
 
 /**
@@ -429,6 +433,7 @@ const buildCreatedConversationRow = (
   project: Project,
   summary: string | null | undefined,
   lastActivity: string,
+  parent?: { sessionId: string; title: string | null } | null,
 ): RecentConversationListItem => ({
   sessionId,
   provider,
@@ -437,6 +442,7 @@ const buildCreatedConversationRow = (
   sessionTitle: (summary ?? '').trim() || sessionId,
   lastActivity,
   isPinned: false,
+  ...(parent ? { parentSessionId: parent.sessionId, parentTitle: parent.title } : {}),
 });
 
 const removeSessionFromProject = (project: Project, sessionIdToDelete: string): Project => {
@@ -1110,6 +1116,8 @@ export function useProjectsState({
     provider,
     project,
     summary,
+    parentSessionId,
+    parentTitle,
   }: RegisterSessionArgs) => {
     if (!forkedSessionId || !project?.projectId) {
       return;
@@ -1117,7 +1125,14 @@ export function useProjectsState({
 
     const now = new Date().toISOString();
     setCreatedConversation((previous) => ({
-      row: buildCreatedConversationRow(forkedSessionId, provider, project, summary, now),
+      row: buildCreatedConversationRow(
+        forkedSessionId,
+        provider,
+        project,
+        summary,
+        now,
+        parentSessionId ? { sessionId: parentSessionId, title: parentTitle ?? null } : null,
+      ),
       nonce: (previous?.nonce ?? 0) + 1,
     }));
   }, []);

@@ -277,7 +277,7 @@ export default function SidebarProjectSessions({
     setDropTargetSessionId(null);
   };
 
-  const renderSessionRow = (session: SessionWithProvider, treeRow = false) => (
+  const renderSessionRow = (session: SessionWithProvider) => (
     <SidebarSessionItem
       project={project}
       session={session}
@@ -298,7 +298,6 @@ export default function SidebarProjectSessions({
       onSessionSelect={onSessionSelect}
       onTogglePinned={onTogglePinned ?? NOOP_TOGGLE_PINNED}
       onArchiveSession={onArchiveSession}
-      treeRow={treeRow}
       onToggleBatchSelection={toggleBatchSelection}
       onDeleteSession={onDeleteSession}
       onForkSession={onForkSession}
@@ -355,7 +354,9 @@ export default function SidebarProjectSessions({
         </div>
       ) : (
         <>
-          <div className={cn(!hasForks && 'space-y-1')} data-testid="project-session-tree">
+          {/* Spacing lives inside each row (its `py-0.5`) rather than between
+              siblings, so the fork rails are not cut into 4px segments. */}
+          <div data-testid="project-session-tree">
             {visibleRows.map(({ session, parentId, depth, hasChildren, isLastSibling, continuationDepths }) => (
               <div
                 key={session.id}
@@ -363,7 +364,7 @@ export default function SidebarProjectSessions({
                 data-parent-session-id={parentId ?? undefined}
                 data-fork-depth={depth}
                 data-fork-branch={hasChildren || undefined}
-                className="relative flex min-w-0 items-stretch"
+                className="relative flex min-w-0 items-stretch py-0.5"
                 style={depth > 0 ? { paddingLeft: `${Math.min(depth, MAX_FORK_INDENT_DEPTH) * FORK_INDENT_PX}px` } : undefined}
               >
                 {parentId && (
@@ -415,7 +416,7 @@ export default function SidebarProjectSessions({
                   ) : <span className="w-3 flex-shrink-0" aria-hidden="true" />
                 )}
                 <div className="min-w-0 flex-1">
-                  {renderSessionRow(session, hasForks)}
+                  {renderSessionRow(session)}
                 </div>
               </div>
             ))}

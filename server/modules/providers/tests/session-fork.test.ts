@@ -92,6 +92,8 @@ test('a fork becomes an independent session that points back at its source', asy
     assert.equal(forked?.provider_session_id, 'native-fork');
     assert.equal(forked?.jsonl_path, path.join(directory, 'native-fork.jsonl'));
     assert.equal(forked?.forked_from_session_id, SOURCE_ID);
+    // Ownership as well as lineage: every list files the copy under its source.
+    assert.equal(forked?.parent_session_id, SOURCE_ID);
     assert.equal(forked?.custom_name, 'Original session (fork)');
 
     // The source is untouched: this is "try two approaches", not a move.

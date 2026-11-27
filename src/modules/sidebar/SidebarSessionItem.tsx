@@ -62,8 +62,6 @@ type SidebarSessionItemProps = {
   /** Files the dragged session under this row. */
   onSessionDropOnRow: (targetSessionId: string) => void;
   onArchiveSession: (sessionId: string) => void;
-  /** Project fork trees use denser rows so indentation does not consume the title's space. */
-  treeRow?: boolean;
   t: TFunction;
 };
 
@@ -97,7 +95,6 @@ function SidebarSessionItem({
   onSessionDragOver,
   onSessionDropOnRow,
   onArchiveSession,
-  treeRow = false,
   t,
 }: SidebarSessionItemProps) {
   const isCompact = useCompactSidebar();
@@ -259,9 +256,9 @@ function SidebarSessionItem({
       <div>
         <div
           className={cn(
-            treeRow
-              ? 'mx-0.5 my-px rounded-md border border-transparent bg-transparent px-1.5 py-1 active:scale-[0.98] transition-colors duration-150 relative'
-              : 'p-2 mx-3 my-0.5 rounded-md bg-card border active:scale-[0.98] transition-all duration-150 relative',
+            // py-1.5 trims the touch layout to ~52px without going as low as
+            // the desktop row's 48px.
+            'px-2 py-1.5 mx-3 my-0.5 rounded-md bg-card border active:scale-[0.98] transition-all duration-150 relative',
             isSelected
               ? 'border-primary/40 shadow-[inset_3px_0_0_0_hsl(var(--primary))]'
               : '',
@@ -271,7 +268,7 @@ function SidebarSessionItem({
           )}
           onClick={selectMobileSession}
         >
-          <div className={cn('flex items-center', treeRow ? 'gap-1.5' : 'gap-2', isManaging && isProcessing && 'cursor-not-allowed opacity-60')}>
+          <div className={cn('flex items-center gap-2', isManaging && isProcessing && 'cursor-not-allowed opacity-60')}>
             {isManaging && (
               <span
                 role="checkbox"
@@ -290,8 +287,8 @@ function SidebarSessionItem({
                 {isBatchSelected && <Check className="h-3 w-3" />}
               </span>
             )}
-            <div className={cn('rounded-md flex items-center justify-center flex-shrink-0', treeRow ? 'w-5 h-5' : 'w-6 h-6')}>
-              <LLMProviderLogo provider={session.__provider} className={treeRow ? 'h-3 w-3' : 'h-5 w-5'} />
+            <div className="rounded-md flex items-center justify-center flex-shrink-0 w-6 h-6">
+              <LLMProviderLogo provider={session.__provider} className="h-5 w-5" />
             </div>
 
             <div className="min-w-0 flex-1">
@@ -333,10 +330,7 @@ function SidebarSessionItem({
                 aria-label={t('sessions.sessionOptionsFor', { name: sessionView.sessionName })}
                 aria-haspopup="dialog"
                 aria-expanded={isMobileOptionsOpen}
-                className={cn(
-                  'ml-1 flex flex-shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted active:scale-95',
-                  treeRow ? '-mr-0.5 h-7 w-7 rounded-md' : 'h-8 w-8 rounded-lg',
-                )}
+                className="ml-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted active:scale-95"
                 onClick={(event) => {
                   event.stopPropagation();
                   setMobileOptionsOpen(true);
@@ -540,9 +534,10 @@ function SidebarSessionItem({
           href={`/session/${session.id}`}
           className={cn(
             buttonVariants({ variant: 'ghost' }),
-            treeRow
-              ? 'h-auto w-full justify-start rounded-md border border-transparent bg-transparent px-1.5 py-1 text-left font-normal transition-colors duration-150'
-              : 'h-auto w-full justify-start rounded-md border bg-card p-2 text-left font-normal transition-all duration-150',
+            // py-1 keeps a row with a message badge at ~48px, matching the
+            // Conversations feed's ordinary row; a row without one stays
+            // shorter rather than being padded out to the same box.
+            'h-auto w-full justify-start rounded-md border bg-card px-2 py-1 text-left font-normal transition-all duration-150',
             isManaging ? 'pr-2' : 'pr-11',
             isSelected
               ? 'border-primary/40 shadow-[inset_3px_0_0_0_hsl(var(--primary))]'
@@ -580,7 +575,7 @@ function SidebarSessionItem({
             onSessionSelect(session, project.projectId);
           }}
         >
-          <div className={cn('flex w-full min-w-0 items-center', treeRow ? 'gap-1.5' : 'gap-2')}>
+          <div className="flex w-full min-w-0 items-center gap-2">
             {isManaging && (
               <span
                 role="checkbox"
@@ -599,8 +594,8 @@ function SidebarSessionItem({
                 {isBatchSelected && <Check className="h-3 w-3" />}
               </span>
             )}
-            <div className={cn('flex flex-shrink-0 items-center justify-center rounded-md', treeRow ? 'h-5 w-5' : 'h-6 w-6')}>
-              <LLMProviderLogo provider={session.__provider} className={treeRow ? 'h-3 w-3' : 'h-5 w-5'} />
+            <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md">
+              <LLMProviderLogo provider={session.__provider} className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">

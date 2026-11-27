@@ -614,6 +614,14 @@ export type SessionEstablishedContext = {
   provider: LLMProvider;
   project: Project;
   summary?: string | null;
+  /**
+   * Source session a fork or promoted aside was branched from, so the
+   * Conversations feed can draw its "derived from" line immediately instead of
+   * waiting for a refetch. Absent for a plain new session.
+   */
+  parentSessionId?: string | null;
+  /** Title of that source session, shown while the parent itself is off-page. */
+  parentTitle?: string | null;
 };
 
 /** The result returned for a tool call, carrying its content, error flag, timestamp and any provider-specific extras that the tool renderers read. */

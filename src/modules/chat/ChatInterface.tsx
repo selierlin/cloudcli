@@ -582,11 +582,28 @@ function ChatInterface({
     const promotedProvider = selectedSession?.__provider;
     if (promotedProvider && selectedProject) {
       // The conversations feed does not receive `session_upserted`, so the new
-      // visible row is bridged the same way a formal fork is.
-      onSessionForked?.(promotedSessionId, { provider: promotedProvider, project: selectedProject });
+      // visible row is bridged the same way a formal fork is. It is a fork of
+      // the session the aside was asked beside, so that row carries the same
+      // "derived from" reference the server will return on the next refetch.
+      onSessionForked?.(promotedSessionId, {
+        provider: promotedProvider,
+        project: selectedProject,
+        parentSessionId: selectedSession?.id ?? null,
+        parentTitle: selectedSession?.title || selectedSession?.summary || selectedSession?.name || null,
+      });
     }
     onNavigateToSession?.(promotedSessionId);
-  }, [btw, onNavigateToSession, onSessionForked, selectedProject, selectedSession?.__provider]);
+  }, [
+    btw,
+    onNavigateToSession,
+    onSessionForked,
+    selectedProject,
+    selectedSession?.__provider,
+    selectedSession?.id,
+    selectedSession?.title,
+    selectedSession?.summary,
+    selectedSession?.name,
+  ]);
 
   const handleSideAskPermissionDecision = useCallback((
     requestIds: string | string[],
@@ -806,6 +823,8 @@ function ChatInterface({
           provider,
           project: selectedProject,
           summary: payload?.data?.sessionName,
+          parentSessionId: selectedSession?.id ?? null,
+          parentTitle: selectedSession?.title || selectedSession?.summary || selectedSession?.name || null,
         });
       }
       onNavigateToSession?.(forkedSessionId);
@@ -813,7 +832,17 @@ function ChatInterface({
       console.error('Error forking session:', error);
       alert(t('message.forkFailed'));
     }
-  }, [onNavigateToSession, onSessionForked, selectedProject, selectedSession?.__provider, selectedSession?.id, t]);
+  }, [
+    onNavigateToSession,
+    onSessionForked,
+    selectedProject,
+    selectedSession?.__provider,
+    selectedSession?.id,
+    selectedSession?.title,
+    selectedSession?.summary,
+    selectedSession?.name,
+    t,
+  ]);
 
   const { scheduledMessages, schedule: scheduleMessage, cancel: cancelScheduledMessage } =
     useScheduledMessages(currentSessionId || selectedSession?.id || null, subscribe);

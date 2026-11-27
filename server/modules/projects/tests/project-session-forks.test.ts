@@ -35,6 +35,7 @@ function seedFork(id: string, parent: string, projectPath = PROJECT_PATH, provid
     providerSessionId: `native-${id}`,
     jsonlPath: `/transcripts/${id}.jsonl`,
     forkedFromSessionId: parent,
+    parentSessionId: null,
     nameSource: 'history_display',
     model: null,
     effort: null,

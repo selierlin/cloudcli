@@ -186,12 +186,14 @@ test('promoting an aside session makes it visible without moving it up the feed'
     });
 
     const before = sessionsDb.getSessionById('placeholder');
-    sessionsDb.promoteEphemeralSession('placeholder', 'Promoted title');
+    sessionsDb.promoteEphemeralSession('placeholder', 'Promoted title', 'older-visible');
     const after = sessionsDb.getSessionById('placeholder');
 
     assert.equal(after?.is_ephemeral, 0);
     assert.equal(after?.custom_name, 'Promoted title');
     assert.equal(after?.name_source, 'manual_rename');
+    // Saving the aside creates a visible fork, so it is filed under its source.
+    assert.equal(after?.parent_session_id, 'older-visible');
     assert.equal(after?.updated_at, before?.updated_at);
     assert.ok(sessionsDb.getAllSessions().some((row) => row.session_id === 'placeholder'));
     assert.equal(sessionsDb.listEphemeralSessions().length, 0);

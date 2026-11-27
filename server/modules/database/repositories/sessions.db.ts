@@ -557,6 +557,12 @@ export const sessionsDb = {
      */
     jsonlPath: string | null;
     forkedFromSessionId: string;
+    /**
+     * The source session, recorded as the fork's sidebar parent. Lineage alone
+     * only draws the project fork tree; ownership is what the Conversations
+     * feed, parent picker and drag rules read, so a fork must carry both.
+     */
+    parentSessionId: string | null;
     nameSource: SessionNameSource;
     model: string | null;
     effort: string | null;
@@ -582,8 +588,8 @@ export const sessionsDb = {
       db.prepare('DELETE FROM sessions WHERE session_id = ? AND session_id <> ?')
         .run(input.providerSessionId, input.sessionId);
       db.prepare(
-        `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, name_source, project_path, jsonl_path, model, effort, forked_from_session_id, isArchived, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+        `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, name_source, project_path, jsonl_path, model, effort, forked_from_session_id, parent_session_id, isArchived, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
       ).run(
         input.sessionId,
         input.provider,
@@ -595,6 +601,7 @@ export const sessionsDb = {
         input.model,
         input.effort,
         input.forkedFromSessionId,
+        input.parentSessionId,
       );
     })();
 
@@ -604,20 +611,29 @@ export const sessionsDb = {
   /**
    * Makes a btw copy visible and gives it a name.
    *
+   * `parentSessionId` files the now-visible copy under the conversation it was
+   * asked beside, so saving an aside carries the same ownership a normal fork
+   * has. An existing parent is never overwritten.
+   *
    * `updated_at` is deliberately untouched: the promoted copy should keep the
    * position of the conversation it branched from, not jump to the top of the
    * recent feed as if it had just received a message.
    */
-  promoteEphemeralSession(sessionId: string, customName: string): void {
+  promoteEphemeralSession(
+    sessionId: string,
+    customName: string,
+    parentSessionId: string | null,
+  ): void {
     getConnection()
       .prepare(
         `UPDATE sessions SET
            is_ephemeral = 0,
            custom_name = ?,
-           name_source = 'manual_rename'
+           name_source = 'manual_rename',
+           parent_session_id = COALESCE(parent_session_id, ?)
          WHERE session_id = ?`
       )
-      .run(customName, sessionId);
+      .run(customName, parentSessionId, sessionId);
   },
 
   /**

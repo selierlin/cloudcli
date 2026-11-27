@@ -325,7 +325,14 @@ function promoteBtwSession(sessionId: string, title?: string): { sessionId: stri
     });
   }
 
-  sessionsDb.promoteEphemeralSession(sessionId, sessionName);
+  // Saving an aside makes it a visible fork of its source, so it is filed
+  // under that source exactly as `forkSessionById` does. The source can be
+  // gone by now (deleted while the drawer was open), in which case the copy
+  // simply stays top-level.
+  const source = session.forked_from_session_id
+    ? sessionsDb.getSessionById(session.forked_from_session_id)
+    : null;
+  sessionsDb.promoteEphemeralSession(sessionId, sessionName, source?.session_id ?? null);
 
   // `metadata`, not `content`: the content level writes `content_updated_at`,
   // which every client reads as "a new message arrived" and would light up the

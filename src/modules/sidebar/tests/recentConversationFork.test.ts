@@ -121,7 +121,11 @@ test('a forked session joins the feed immediately and bumps the total', async ()
   });
 
   await act(async () => {
-    await result.current.forkSession({ id: 'session-1', __provider: 'claude' } as SessionWithProvider);
+    await result.current.forkSession({
+      id: 'session-1',
+      summary: 'Original title',
+      __provider: 'claude',
+    } as SessionWithProvider);
   });
 
   assert.deepEqual(
@@ -129,6 +133,9 @@ test('a forked session joins the feed immediately and bumps the total', async ()
     ['session-fork', 'session-1', 'session-2'],
   );
   assert.equal(result.current.recentConversations[0].sessionTitle, 'Original title (fork)');
+  // Filed under its source immediately, not only after the next feed refetch.
+  assert.equal(result.current.recentConversations[0].parentSessionId, 'session-1');
+  assert.equal(result.current.recentConversations[0].parentTitle, 'Original title');
   assert.equal(result.current.recentConversations[0].projectId, 'project-1');
   assert.equal(result.current.recentConversations[0].projectDisplayName, 'repo');
   assert.equal(result.current.recentConversations[0].isPinned, false);

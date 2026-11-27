@@ -436,6 +436,9 @@ test('promoting a copy renames it, makes it visible, and validates the title', a
     const row = sessionsDb.getSessionById(asideId);
     assert.equal(row?.is_ephemeral, 0);
     assert.equal(row?.custom_name, 'Kept conversation');
+    // "Save as session" is a fork too: the copy is filed under the session it
+    // was asked beside, so every list can show the relationship.
+    assert.equal(row?.parent_session_id, 'source-session');
   });
 });
 

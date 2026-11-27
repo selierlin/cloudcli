@@ -1577,6 +1577,10 @@ export function useSidebarController({
             sessionTitle: (payload?.data?.sessionName ?? '').trim() || forkedSessionId,
             lastActivity: new Date().toISOString(),
             isPinned: false,
+            // The fork is filed under the session it branched from, so the row
+            // draws its reference line before the next feed refetch.
+            parentSessionId: session.id,
+            parentTitle: session.summary?.trim() || session.name?.trim() || null,
           });
         }
 
