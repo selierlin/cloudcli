@@ -152,11 +152,16 @@ export default function ProviderSelectionEmptyState({
 
   useEffect(() => {
     const fallbackProvider = visibleProviders[0]?.id;
-    if (fallbackProvider && !availableProviders?.has(provider)) {
+    // A session that recorded its provider keeps it even when that CLI is not
+    // installed: chat re-applies the session's provider on every render, so a
+    // switch here would make the two effects overwrite each other forever, and
+    // every pass would refetch the slash-command list. The fallback is meant for
+    // chats that have no provider yet.
+    if (fallbackProvider && !availableProviders?.has(provider) && !selectedSession?.__provider) {
       setProvider(fallbackProvider);
       writeSelectedProvider(fallbackProvider);
     }
-  }, [availableProviders, provider, setProvider, visibleProviders]);
+  }, [availableProviders, provider, selectedSession?.__provider, setProvider, visibleProviders]);
 
   /**
    * Names of the branches whose built-in models are hidden ("Use only my
