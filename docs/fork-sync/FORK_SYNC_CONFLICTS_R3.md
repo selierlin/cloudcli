@@ -3040,7 +3040,7 @@ DU（fork 删除 / 上游修改）不会出现在冲突块清单里，但**工�
 按顺序执行，**每一步不过就不进入下一步**。行号会随解块漂移，所以定位一律用"文件 + 冲突块首行的函数/字段名"作锚点，同一文件**从底往上**解。
 
 ### 0. 开工前
-- [ ] 冲突标记计数 = 197，但**必须排除记录文档自身**：`FORK_SYNC_CONFLICTS.md` 在仓库里，且内含 27 行示例标记，直接 `git grep -c '^<<<<<<<'` 会得到 224。正确写法：`git grep -c '^<<<<<<<' -- ':!FORK_SYNC_CONFLICTS*.md'`，合计应为 197。另 `git status --porcelain` 为 80 个文件（73 UU + 3 AA + 4 DU）。
+- [ ] 冲突标记计数 = 197，但**必须排除记录文档自身**：`FORK_SYNC_CONFLICTS.md` 在仓库里，且内含 27 行示例标记，直接 `git grep -c '^<<<<<<<'` 会得到 224。正确写法：`git grep -c '^<<<<<<<' -- ':!*FORK_SYNC_CONFLICTS*.md'`，合计应为 197。另 `git status --porcelain` 为 80 个文件（73 UU + 3 AA + 4 DU）。
 - [ ] 确认预演 worktree `/tmp/fork-sync-audit` 与自己要动手的分支不是同一个（执行应在 `cloudcli-dev` 上做，预演随时可丢弃重建）。
 - [ ] `npx tsc --noEmit --listFilesOnly | grep -c 'tests/'` > 0（确认测试在编译范围内，见 R3.2 §5）。
 
