@@ -170,14 +170,13 @@ server/**/tests/read-only-roots-fixture-*/
 server/**/tests/file-tree-outside-*/
 
 # Harness bench run artifacts (kept locally, not tracked)
-scripts/harness-bench/results/**/*.json
+scripts/harness-bench/results/
 scripts/harness-bench/probe-*.mjs
 scripts/harness-bench/verify-*.mjs
 
-# 2026-11-10 3-way runs: the smoke pass and the superseded copilot pass, reports stay local
-scripts/harness-bench/results/2026-11-10-smoke-3way/
-scripts/harness-bench/results/2026-11-10-3way-copilot/
-scripts/harness-bench/results/2026-11-10-3way-clean/
+# Fork-private notes, kept outside the repo
+docs/fork-sync/
+docs/session-cleanup-audit-*.md
 public/screenshots/
 
 # TypeScript incremental build state
